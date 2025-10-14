@@ -680,8 +680,13 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			continue
 		}
 
+		// generating a dummy id + inserted at to use for creating the external keys for the task events
+		// we do this since we don't have the id + inserted at of the events themselves on the opts, and we don't
+		// actually need those for anything once the keys are created.
 		dummyId := rand.Int63()
-		dummyInsertedAt := time.Unix(rand.Int63n(time.Now().Unix()), 0)
+		// randomly jitter the inserted at time by +/- 300ms to make collisions virtually impossible
+		dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
+
 		idInsertedAtToExternalId[v1.IdInsertedAt{
 			ID:         dummyId,
 			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
