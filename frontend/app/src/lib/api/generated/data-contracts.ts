@@ -563,6 +563,9 @@ export interface V1WorkflowRunDisplayNameList {
   rows: V1WorkflowRunDisplayName[];
 }
 
+/** The list of external IDs */
+export type V1WorkflowRunExternalIdList = string[];
+
 export interface V1TriggerWorkflowRunRequest {
   /** The name of the workflow. */
   workflowName: string;
