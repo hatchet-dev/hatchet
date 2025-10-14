@@ -1,4 +1,5 @@
 import asyncio
+import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal, overload
@@ -32,6 +33,7 @@ from hatchet_sdk.clients.v1.api_client import (
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.datetimes import partition_date_range
+from hatchet_sdk.utils.iterables import create_chunks
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
@@ -178,6 +180,130 @@ class RunsClient(BaseRestClient):
         :return: The task status
         """
         return await asyncio.to_thread(self.get_status, workflow_run_id)
+
+    def _perform_action_with_pagination(
+        self,
+        since: datetime,
+        action: Literal["cancel", "replay"],
+        sleep_time: int = 3,
+        chunk_size: int = 500,
+        until: datetime | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        workflow_ids: list[str] | None = None,
+    ) -> None:
+        until = until or datetime.now(tz=timezone.utc)
+
+        with self.client() as client:
+            external_ids = self._wra(client).v1_workflow_run_external_ids_list(
+                tenant=self.client_config.tenant_id,
+                since=since,
+                until=until,
+                additional_metadata=maybe_additional_metadata_to_kv(
+                    additional_metadata
+                ),
+                statuses=statuses,
+                workflow_ids=workflow_ids,
+            )
+
+        chunks = list(create_chunks(external_ids, chunk_size))
+        func = self.bulk_cancel if action == "cancel" else self.bulk_replay
+
+        for ix, chunk in enumerate(chunks):
+            self.client_config.logger.info(
+                f"processing chunk {ix + 1}/{len(chunks)} with {len(chunk)} ids"  # noqa: G004
+            )
+
+            opts = BulkCancelReplayOpts(ids=chunk)
+            func(opts=opts)
+
+            time.sleep(sleep_time)
+
+    def bulk_replay_by_filters_with_pagination(
+        self,
+        since: datetime,
+        sleep_time: int = 3,
+        chunk_size: int = 500,
+        until: datetime | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        workflow_ids: list[str] | None = None,
+    ) -> None:
+        self._perform_action_with_pagination(
+            since=since,
+            action="replay",
+            sleep_time=sleep_time,
+            chunk_size=chunk_size,
+            until=until,
+            statuses=statuses,
+            additional_metadata=additional_metadata,
+            workflow_ids=workflow_ids,
+        )
+
+    def bulk_cancel_by_filters_with_pagination(
+        self,
+        since: datetime,
+        sleep_time: int = 3,
+        chunk_size: int = 500,
+        until: datetime | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        workflow_ids: list[str] | None = None,
+    ) -> None:
+        self._perform_action_with_pagination(
+            since=since,
+            action="cancel",
+            sleep_time=sleep_time,
+            chunk_size=chunk_size,
+            until=until,
+            statuses=statuses,
+            additional_metadata=additional_metadata,
+            workflow_ids=workflow_ids,
+        )
+
+    async def aio_bulk_replay_by_filters_with_pagination(
+        self,
+        since: datetime,
+        sleep_time: int = 3,
+        chunk_size: int = 500,
+        until: datetime | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        workflow_ids: list[str] | None = None,
+    ) -> None:
+        await asyncio.to_thread(
+            self._perform_action_with_pagination,
+            since=since,
+            action="replay",
+            sleep_time=sleep_time,
+            chunk_size=chunk_size,
+            until=until,
+            statuses=statuses,
+            additional_metadata=additional_metadata,
+            workflow_ids=workflow_ids,
+        )
+
+    async def aio_bulk_cancel_by_filters_with_pagination(
+        self,
+        since: datetime,
+        sleep_time: int = 3,
+        chunk_size: int = 500,
+        until: datetime | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        workflow_ids: list[str] | None = None,
+    ) -> None:
+        await asyncio.to_thread(
+            self._perform_action_with_pagination,
+            since=since,
+            action="cancel",
+            sleep_time=sleep_time,
+            chunk_size=chunk_size,
+            until=until,
+            statuses=statuses,
+            additional_metadata=additional_metadata,
+            workflow_ids=workflow_ids,
+        )
 
     @retry
     def list_with_pagination(
