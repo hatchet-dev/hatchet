@@ -192,6 +192,23 @@ class RunsClient(BaseRestClient):
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
     ) -> None:
+        """
+        Perform a bulk action (cancel or replay) on runs matching the specified filters in chunks.
+
+        The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than
+        the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
+
+        This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
+
+        :param action: The action to perform, either "cancel" or "replay".
+        :param statuses: The statuses to filter runs by.
+        :param sleep_time: The time to sleep between processing chunks, in seconds.
+        :param chunk_size: The maximum number of run IDs to process in each chunk.
+        :param since: The start time for filtering runs.
+        :param until: The end time for filtering runs.
+        :param additional_metadata: Additional metadata to filter runs by.
+        :param workflow_ids: The workflow IDs to filter runs by.
+        """
         until = until or datetime.now(tz=timezone.utc)
         since = since or (until - timedelta(days=1))
 
@@ -230,6 +247,23 @@ class RunsClient(BaseRestClient):
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
     ) -> None:
+        """
+        Replay runs matching the specified filters in chunks.
+
+        The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than
+        the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
+
+        This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
+
+        :param sleep_time: The time to sleep between processing chunks, in seconds.
+        :param chunk_size: The maximum number of run IDs to process in each chunk.
+        :param since: The start time for filtering runs.
+        :param until: The end time for filtering runs.
+        :param statuses: The statuses to filter runs by.
+        :param additional_metadata: Additional metadata to filter runs by.
+        :param workflow_ids: The workflow IDs to filter runs by.
+        """
+
         self._perform_action_with_pagination(
             since=since,
             action="replay",
@@ -251,6 +285,23 @@ class RunsClient(BaseRestClient):
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
     ) -> None:
+        """
+        Cancel runs matching the specified filters in chunks.
+
+        The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than
+        the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
+
+        This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
+
+        :param sleep_time: The time to sleep between processing chunks, in seconds.
+        :param chunk_size: The maximum number of run IDs to process in each chunk.
+        :param since: The start time for filtering runs.
+        :param until: The end time for filtering runs.
+        :param statuses: The statuses to filter runs by.
+        :param additional_metadata: Additional metadata to filter runs by.
+        :param workflow_ids: The workflow IDs to filter runs by.
+        """
+
         self._perform_action_with_pagination(
             since=since,
             action="cancel",
@@ -272,6 +323,23 @@ class RunsClient(BaseRestClient):
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
     ) -> None:
+        """
+        Replay runs matching the specified filters in chunks.
+
+        The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than
+        the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
+
+        This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
+
+        :param sleep_time: The time to sleep between processing chunks, in seconds.
+        :param chunk_size: The maximum number of run IDs to process in each chunk.
+        :param since: The start time for filtering runs.
+        :param until: The end time for filtering runs.
+        :param statuses: The statuses to filter runs by.
+        :param additional_metadata: Additional metadata to filter runs by.
+        :param workflow_ids: The workflow IDs to filter runs by.
+        """
+
         await asyncio.to_thread(
             self._perform_action_with_pagination,
             since=since,
@@ -294,6 +362,23 @@ class RunsClient(BaseRestClient):
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
     ) -> None:
+        """
+        Cancel runs matching the specified filters in chunks.
+
+        The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than
+        the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
+
+        This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
+
+        :param sleep_time: The time to sleep between processing chunks, in seconds.
+        :param chunk_size: The maximum number of run IDs to process in each chunk.
+        :param since: The start time for filtering runs.
+        :param until: The end time for filtering runs.
+        :param statuses: The statuses to filter runs by.
+        :param additional_metadata: Additional metadata to filter runs by.
+        :param workflow_ids: The workflow IDs to filter runs by.
+        """
+
         await asyncio.to_thread(
             self._perform_action_with_pagination,
             since=since,
