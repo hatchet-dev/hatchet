@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
@@ -576,6 +577,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		eventPayloads = append(eventPayloads, msg.EventPayload)
 		eventMessages = append(eventMessages, msg.EventMessage)
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
+		eventExternalIds = append(eventExternalIds, sqlchelpers.UUIDFromStr(uuid.New().String()))
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
