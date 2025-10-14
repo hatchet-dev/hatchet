@@ -668,6 +668,10 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		return err
 	}
 
+	if !tc.repo.OLAP().PayloadStore().ExternalStoreEnabled() {
+		return nil
+	}
+
 	offloadToExternalOpts := make([]v1.OffloadToExternalStoreOpts, 0)
 	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]pgtype.UUID)
 
