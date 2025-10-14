@@ -183,16 +183,17 @@ class RunsClient(BaseRestClient):
 
     def _perform_action_with_pagination(
         self,
-        since: datetime,
         action: Literal["cancel", "replay"],
         sleep_time: int = 3,
         chunk_size: int = 500,
+        since: datetime | None = None,
         until: datetime | None = None,
         statuses: list[V1TaskStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
     ) -> None:
         until = until or datetime.now(tz=timezone.utc)
+        since = since or (until - timedelta(days=1))
 
         with self.client() as client:
             external_ids = self._wra(client).v1_workflow_run_external_ids_list(
@@ -221,9 +222,9 @@ class RunsClient(BaseRestClient):
 
     def bulk_replay_by_filters_with_pagination(
         self,
-        since: datetime,
         sleep_time: int = 3,
         chunk_size: int = 500,
+        since: datetime | None = None,
         until: datetime | None = None,
         statuses: list[V1TaskStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
@@ -242,9 +243,9 @@ class RunsClient(BaseRestClient):
 
     def bulk_cancel_by_filters_with_pagination(
         self,
-        since: datetime,
         sleep_time: int = 3,
         chunk_size: int = 500,
+        since: datetime | None = None,
         until: datetime | None = None,
         statuses: list[V1TaskStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
@@ -263,9 +264,9 @@ class RunsClient(BaseRestClient):
 
     async def aio_bulk_replay_by_filters_with_pagination(
         self,
-        since: datetime,
         sleep_time: int = 3,
         chunk_size: int = 500,
+        since: datetime | None = None,
         until: datetime | None = None,
         statuses: list[V1TaskStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
@@ -285,9 +286,9 @@ class RunsClient(BaseRestClient):
 
     async def aio_bulk_cancel_by_filters_with_pagination(
         self,
-        since: datetime,
         sleep_time: int = 3,
         chunk_size: int = 500,
+        since: datetime | None = None,
         until: datetime | None = None,
         statuses: list[V1TaskStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
