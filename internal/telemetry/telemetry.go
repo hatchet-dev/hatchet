@@ -174,3 +174,23 @@ func WithAttributes(span trace.Span, attrs ...AttributeKV) {
 func prefixSpanKey(name string) string {
 	return fmt.Sprintf("hatchet.run/%s", name)
 }
+
+// CollectUniqueTenantIDs extracts unique tenant IDs from a slice of items.
+// The extractFn should return the tenant ID string for each item.
+func CollectUniqueTenantIDs[T any](items []T, extractFn func(T) string) []string {
+	if len(items) == 0 {
+		return nil
+	}
+
+	tenantIds := make(map[string]bool)
+	for _, item := range items {
+		tenantIds[extractFn(item)] = true
+	}
+
+	uniqueTenantIds := make([]string, 0, len(tenantIds))
+	for tid := range tenantIds {
+		uniqueTenantIds = append(uniqueTenantIds, tid)
+	}
+
+	return uniqueTenantIds
+}

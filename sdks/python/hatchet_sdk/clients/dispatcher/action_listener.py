@@ -231,7 +231,6 @@ class ActionListener:
                         tenant_id=assigned_action.tenantId,
                         worker_id=self.worker_id,
                         workflow_run_id=assigned_action.workflowRunId,
-                        get_group_key_run_id=assigned_action.getGroupKeyRunId,
                         job_id=assigned_action.jobId,
                         job_name=assigned_action.jobName,
                         job_run_id=assigned_action.jobRunId,

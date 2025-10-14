@@ -29,6 +29,9 @@ func (rc *RetentionControllerImpl) runDeleteQueueItemsTenant(ctx context.Context
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	return rc.repo.StepRun().CleanupQueueItems(ctx, tenantId)
 }
 
@@ -52,6 +55,9 @@ func (rc *RetentionControllerImpl) runDeleteInternalQueueItemsTenant(ctx context
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	return rc.repo.StepRun().CleanupInternalQueueItems(ctx, tenantId)
 }
 
@@ -75,5 +81,8 @@ func (rc *RetentionControllerImpl) runDeleteRetryQueueItemsTenant(ctx context.Co
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	return rc.repo.StepRun().CleanupRetryQueueItems(ctx, tenantId)
 }

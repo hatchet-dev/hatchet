@@ -81,6 +81,8 @@ type ServerConfigFile struct {
 	OLAP ConfigFileOperations `mapstructure:"olap" json:"olap,omitempty"`
 
 	PayloadStore PayloadStoreConfig `mapstructure:"payloadStore" json:"payloadStore,omitempty"`
+
+	CronOperations CronOperationsConfigFile `mapstructure:"cronOperations" json:"cronOperations,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -119,6 +121,15 @@ type TaskOperationLimitsConfigFile struct {
 
 	// DurableSleepLimit is the limit for how many durable sleep items to process in a single operation
 	DurableSleepLimit int `mapstructure:"durableSleepLimit" json:"durableSleepLimit,omitempty" default:"1000"`
+}
+
+// CronOperationsConfigFile is the configuration for the cron operations
+type CronOperationsConfigFile struct {
+	// TaskAnalyzeCronInterval is the interval for the task analyze cron operation
+	TaskAnalyzeCronInterval time.Duration `mapstructure:"taskAnalyzeCronInterval" json:"taskAnalyzeCronInterval,omitempty" default:"3h"`
+
+	// OLAPAnalyzeCronInterval is the interval for the olap analyze cron operation
+	OLAPAnalyzeCronInterval time.Duration `mapstructure:"olapAnalyzeCronInterval" json:"olapAnalyzeCronInterval,omitempty" default:"3h"`
 }
 
 // General server runtime options
@@ -462,8 +473,12 @@ type PostgresMQConfigFile struct {
 }
 
 type RabbitMQConfigFile struct {
-	URL string `mapstructure:"url" json:"url,omitempty" validate:"required"`
-	Qos int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
+	URL                  string `mapstructure:"url" json:"url,omitempty" validate:"required"`
+	Qos                  int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
+	MaxPubChans          int32  `mapstructure:"maxPubChans" json:"maxPubChans,omitempty" default:"20"`
+	MaxSubChans          int32  `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"100"`
+	CompressionEnabled   bool   `mapstructure:"compressionEnabled" json:"compressionEnabled,omitempty" default:"false"`
+	CompressionThreshold int    `mapstructure:"compressionThreshold" json:"compressionThreshold,omitempty" default:"5120"`
 }
 
 type ConfigFileEmail struct {
@@ -593,11 +608,17 @@ type ServerConfig struct {
 	GRPCInterceptors []grpc.UnaryServerInterceptor
 
 	Version string
+
+	CronOperations CronOperationsConfigFile
 }
 
 type PayloadStoreConfig struct {
-	EnablePayloadDualWrites bool `mapstructure:"enablePayloadDualWrites" json:"enablePayloadDualWrites,omitempty" default:"false"`
-	WALPollLimit            int  `mapstructure:"walPollLimit" json:"walPollLimit,omitempty" default:"1000"`
+	EnablePayloadDualWrites          bool          `mapstructure:"enablePayloadDualWrites" json:"enablePayloadDualWrites,omitempty" default:"true"`
+	EnableTaskEventPayloadDualWrites bool          `mapstructure:"enableTaskEventPayloadDualWrites" json:"enableTaskEventPayloadDualWrites,omitempty" default:"true"`
+	EnableDagDataPayloadDualWrites   bool          `mapstructure:"enableDagDataPayloadDualWrites" json:"enableDagDataPayloadDualWrites,omitempty" default:"true"`
+	WALPollLimit                     int           `mapstructure:"walPollLimit" json:"walPollLimit,omitempty" default:"1000"`
+	WALProcessInterval               time.Duration `mapstructure:"walProcessInterval" json:"walProcessInterval,omitempty" default:"15s"`
+	ExternalCutoverProcessInterval   time.Duration `mapstructure:"externalCutoverProcessInterval" json:"externalCutoverProcessInterval,omitempty" default:"15s"`
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -769,6 +790,10 @@ func BindAllEnv(v *viper.Viper) {
 
 	_ = v.BindEnv("msgQueue.kind", "SERVER_MSGQUEUE_KIND")
 	_ = v.BindEnv("msgQueue.rabbitmq.url", "SERVER_MSGQUEUE_RABBITMQ_URL")
+	_ = v.BindEnv("msgQueue.rabbitmq.maxPubChans", "SERVER_MSGQUEUE_RABBITMQ_MAX_PUB_CHANS")
+	_ = v.BindEnv("msgQueue.rabbitmq.maxSubChans", "SERVER_MSGQUEUE_RABBITMQ_MAX_SUB_CHANS")
+	_ = v.BindEnv("msgQueue.rabbitmq.compressionEnabled", "SERVER_MSGQUEUE_RABBITMQ_COMPRESSION_ENABLED")
+	_ = v.BindEnv("msgQueue.rabbitmq.compressionThreshold", "SERVER_MSGQUEUE_RABBITMQ_COMPRESSION_THRESHOLD")
 
 	// throughput options
 	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")
@@ -860,5 +885,13 @@ func BindAllEnv(v *viper.Viper) {
 
 	// payload store options
 	_ = v.BindEnv("payloadStore.enablePayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES")
+	_ = v.BindEnv("payloadStore.enableTaskEventPayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_TASK_EVENT_PAYLOAD_DUAL_WRITES")
+	_ = v.BindEnv("payloadStore.enableDagDataPayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_DAG_DATA_PAYLOAD_DUAL_WRITES")
 	_ = v.BindEnv("payloadStore.walPollLimit", "SERVER_PAYLOAD_STORE_WAL_POLL_LIMIT")
+	_ = v.BindEnv("payloadStore.walProcessInterval", "SERVER_PAYLOAD_STORE_WAL_PROCESS_INTERVAL")
+	_ = v.BindEnv("payloadStore.externalCutoverProcessInterval", "SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_PROCESS_INTERVAL")
+
+	// cron operations options
+	_ = v.BindEnv("cronOperations.taskAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL")
+	_ = v.BindEnv("cronOperations.olapAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_OLAP_ANALYZE_CRON_INTERVAL")
 }

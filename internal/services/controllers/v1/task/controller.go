@@ -42,27 +42,29 @@ type TasksController interface {
 }
 
 type TasksControllerImpl struct {
-	mq                                    msgqueue.MessageQueue
-	pubBuffer                             *msgqueue.MQPubBuffer
-	l                                     *zerolog.Logger
-	queueLogger                           *zerolog.Logger
-	pgxStatsLogger                        *zerolog.Logger
-	repo                                  repository.EngineRepository
-	repov1                                v1.Repository
-	dv                                    datautils.DataDecoderValidator
-	s                                     gocron.Scheduler
-	a                                     *hatcheterrors.Wrapped
-	p                                     *partition.Partition
-	celParser                             *cel.CELParser
-	opsPoolPollInterval                   time.Duration
-	opsPoolJitter                         time.Duration
-	timeoutTaskOperations                 *operation.OperationPool
-	reassignTaskOperations                *operation.OperationPool
-	retryTaskOperations                   *operation.OperationPool
-	emitSleepOperations                   *operation.OperationPool
-	processPayloadWALOperations           *queueutils.OperationPool[int64]
-	evictExpiredIdempotencyKeysOperations *queueutils.OperationPool[string]
-	replayEnabled                         bool
+	mq                                       msgqueue.MessageQueue
+	pubBuffer                                *msgqueue.MQPubBuffer
+	l                                        *zerolog.Logger
+	queueLogger                              *zerolog.Logger
+	pgxStatsLogger                           *zerolog.Logger
+	repo                                     repository.EngineRepository
+	repov1                                   v1.Repository
+	dv                                       datautils.DataDecoderValidator
+	s                                        gocron.Scheduler
+	a                                        *hatcheterrors.Wrapped
+	p                                        *partition.Partition
+	celParser                                *cel.CELParser
+	opsPoolPollInterval                      time.Duration
+	opsPoolJitter                            time.Duration
+	timeoutTaskOperations                    *operation.OperationPool
+	reassignTaskOperations                   *operation.OperationPool
+	retryTaskOperations                      *operation.OperationPool
+	emitSleepOperations                      *operation.OperationPool
+	processPayloadWALOperations              *queueutils.OperationPool[int64]
+	processPayloadExternalCutoversOperations *queueutils.OperationPool[int64]
+	evictExpiredIdempotencyKeysOperations    *queueutils.OperationPool[string]
+	replayEnabled                            bool
+	analyzeCronInterval                      time.Duration
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -80,6 +82,7 @@ type TasksControllerOpts struct {
 	opsPoolJitter       time.Duration
 	opsPoolPollInterval time.Duration
 	replayEnabled       bool
+	analyzeCronInterval time.Duration
 }
 
 func defaultTasksControllerOpts() *TasksControllerOpts {
@@ -98,6 +101,7 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 		opsPoolJitter:       1500 * time.Millisecond,
 		opsPoolPollInterval: 2 * time.Second,
 		replayEnabled:       true, // default to enabled for backward compatibility
+		analyzeCronInterval: 3 * time.Hour,
 	}
 }
 
@@ -170,6 +174,12 @@ func WithReplayEnabled(enabled bool) TasksControllerOpt {
 	}
 }
 
+func WithAnalyzeCronInterval(interval time.Duration) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.analyzeCronInterval = interval
+	}
+}
+
 func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	opts := defaultTasksControllerOpts()
 
@@ -223,6 +233,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opsPoolJitter:       opts.opsPoolJitter,
 		opsPoolPollInterval: opts.opsPoolPollInterval,
 		replayEnabled:       opts.replayEnabled,
+		analyzeCronInterval: opts.analyzeCronInterval,
 	}
 
 	jitter := t.opsPoolJitter
@@ -265,6 +276,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	))
 
 	t.processPayloadWALOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload WAL", t.processPayloadWAL).WithJitter(jitter)
+	t.processPayloadExternalCutoversOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload external cutovers", t.processPayloadExternalCutovers).WithJitter(jitter)
 	t.evictExpiredIdempotencyKeysOperations = queueutils.NewOperationPool(opts.l, timeout, "evict expired idempotency keys", t.evictExpiredIdempotencyKeys).WithJitter(jitter)
 
 	return t, nil
@@ -313,8 +325,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = tc.s.NewJob(
-		// TODO: Make this configurable
-		gocron.DurationJob(time.Second*15),
+		gocron.DurationJob(tc.repov1.Payloads().WALProcessInterval()),
 		gocron.NewTask(
 			tc.runProcessPayloadWAL(ctx),
 		),
@@ -325,17 +336,32 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 		cancel()
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not run analyze")
+		span.SetStatus(codes.Error, "could not run process payload WAL")
 		span.End()
 
 		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
-		gocron.DailyJob(1, gocron.NewAtTimes(
-			// 5AM UTC
-			gocron.NewAtTime(5, 0, 0),
-		)),
+		gocron.DurationJob(tc.repov1.Payloads().ExternalCutoverProcessInterval()),
+		gocron.NewTask(
+			tc.runProcessPayloadExternalCutovers(spanContext),
+		),
+	)
+
+	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule process payload external cutovers: %w", err)
+
+		cancel()
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not run process payload external cutovers")
+		span.End()
+
+		return nil, wrappedErr
+	}
+
+	_, err = tc.s.NewJob(
+		gocron.DurationJob(tc.analyzeCronInterval),
 		gocron.NewTask(
 			tc.runAnalyze(ctx),
 		),
@@ -435,6 +461,8 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCompleted")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	opts := make([]v1.CompleteTaskOpts, 0)
 	idsToData := make(map[int64][]byte)
 
@@ -476,6 +504,8 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId string, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskFailed")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 	opts := make([]v1.FailTaskOpts, 0)
 
@@ -554,6 +584,8 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.processFailTasksResponse")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	retriedTaskIds := make(map[int64]struct{})
 
 	for _, task := range res.RetriedTasks {
@@ -609,6 +641,8 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId string, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCancelled")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 	opts := make([]v1.TaskIdInsertedAtRetryCount, 0)
 
@@ -971,6 +1005,8 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleProcessUserEvents")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	msgs := msgqueue.JSONConvert[tasktypes.UserEventTaskPayload](payloads)
 
 	eg := &errgroup.Group{}
@@ -1105,6 +1141,8 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleProcessInternalEvents")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	msgs := msgqueue.JSONConvert[v1.InternalTaskEvent](payloads)
 
 	return tc.processInternalEvents(ctx, tenantId, msgs)
@@ -1141,6 +1179,8 @@ func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, ten
 func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId string, events []v1.InternalTaskEvent) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.sendInternalEvents")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 	if len(events) == 0 {
 		return nil

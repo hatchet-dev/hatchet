@@ -141,8 +141,14 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, err
 	}
 
-	// ref: https://github.com/jackc/pgx/issues/1549
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		// Set timezone to UTC for all connections
+		if _, err := conn.Exec(ctx, "SET TIME ZONE 'UTC'"); err != nil {
+			return err
+		}
+
+		// ref: https://github.com/jackc/pgx/issues/1549
+
 		t, err := conn.LoadType(ctx, "v1_readable_status_olap")
 		if err != nil {
 			return err
@@ -188,6 +194,13 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		config.BeforeAcquire = debugger.beforeAcquire
 	}
 
+	// Check database instance timezone if enforcement is enabled
+	if cf.EnforceUTCTimezone {
+		if err := checkDatabaseTimezone(config.ConnConfig, cf.PostgresDbName, "primary database", &l); err != nil {
+			return nil, err
+		}
+	}
+
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
 	if err != nil {
@@ -218,6 +231,19 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 		readReplicaConfig.MaxConnLifetime = 15 * 60 * time.Second
 		readReplicaConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+
+		// Check read replica database instance timezone if enforcement is enabled
+		if cf.EnforceUTCTimezone {
+			if err := checkDatabaseTimezone(readReplicaConfig.ConnConfig, "", "read replica database", &l); err != nil {
+				return nil, err
+			}
+		}
+
+		// Set timezone to UTC for read replica connections
+		readReplicaConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+			_, err := conn.Exec(ctx, "SET TIME ZONE 'UTC'")
+			return err
+		}
 
 		readReplicaPool, err = pgxpool.NewWithConfig(context.Background(), readReplicaConfig)
 
@@ -263,7 +289,16 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DurableSleepLimit: scf.Runtime.TaskOperationLimits.DurableSleepLimit,
 	}
 
-	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, scf.PayloadStore.EnablePayloadDualWrites, scf.PayloadStore.WALPollLimit)
+	payloadStoreOpts := repov1.PayloadStoreRepositoryOpts{
+		EnablePayloadDualWrites:          scf.PayloadStore.EnablePayloadDualWrites,
+		EnableTaskEventPayloadDualWrites: scf.PayloadStore.EnableTaskEventPayloadDualWrites,
+		EnableDagDataPayloadDualWrites:   scf.PayloadStore.EnableDagDataPayloadDualWrites,
+		WALPollLimit:                     scf.PayloadStore.WALPollLimit,
+		WALProcessInterval:               scf.PayloadStore.WALProcessInterval,
+		ExternalCutoverProcessInterval:   scf.PayloadStore.ExternalCutoverProcessInterval,
+	}
+
+	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, payloadStoreOpts)
 
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
@@ -405,6 +440,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				rabbitmqv1.WithLogger(&l),
 				rabbitmqv1.WithQos(cf.MessageQueue.RabbitMQ.Qos),
 				rabbitmqv1.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
+				rabbitmqv1.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
+				rabbitmqv1.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
+				rabbitmqv1.WithGzipCompression(
+					cf.MessageQueue.RabbitMQ.CompressionEnabled,
+					cf.MessageQueue.RabbitMQ.CompressionThreshold,
+				),
 			)
 
 			cleanup1 = func() error {
@@ -674,6 +715,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Version:                version,
 		Sampling:               cf.Sampling,
 		Operations:             cf.OLAP,
+		CronOperations:         cf.CronOperations,
 	}, nil
 }
 
@@ -816,4 +858,38 @@ func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigF
 		clientv1.WithTLS(tlsConfig),
 		clientv1.WithLogger(l),
 	), nil
+}
+
+// checkDatabaseTimezone validates that the database instance timezone is set to UTC.
+// It creates a temporary connection to check the timezone without using the AfterConnect hook.
+func checkDatabaseTimezone(connConfig *pgx.ConnConfig, dbName string, dbLabel string, l *zerolog.Logger) error {
+	tempConn, err := pgx.ConnectConfig(context.Background(), connConfig)
+	if err != nil {
+		return fmt.Errorf("could not create temporary connection to %s to check timezone: %w", dbLabel, err)
+	}
+	defer tempConn.Close(context.Background())
+
+	var dbTimezone string
+	if err := tempConn.QueryRow(context.Background(), "SHOW timezone").Scan(&dbTimezone); err != nil {
+		return fmt.Errorf("could not query %s timezone: %w", dbLabel, err)
+	}
+
+	// Accept both "UTC" and "Etc/UTC" as valid UTC timezones
+	if dbTimezone != "UTC" && dbTimezone != "Etc/UTC" {
+		if dbName == "" {
+			dbName = "<your_database_name>"
+		}
+		return fmt.Errorf(
+			"%s instance timezone is set to '%s' but must be 'UTC' or 'Etc/UTC'\n"+
+				"This check ensures time-based operations work correctly across all sessions\n"+
+				"To fix this issue, you have two options:\n"+
+				"  1. Set your PostgreSQL instance timezone to UTC by running: ALTER DATABASE %s SET TIMEZONE='UTC'\n"+
+				"  2. Disable this check by setting the environment variable: DATABASE_ENFORCE_UTC_TIMEZONE=false\n"+
+				"Note: Disabling this check is not recommended as it may lead to timezone-related issues",
+			dbLabel, dbTimezone, dbName,
+		)
+	}
+
+	l.Info().Msgf("%s instance timezone verified: %s", dbLabel, dbTimezone)
+	return nil
 }

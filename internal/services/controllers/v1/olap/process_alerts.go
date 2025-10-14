@@ -41,6 +41,8 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 	ctx, span := telemetry.NewSpan(ctx, "process-tenant-alerts")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	isActive, lastAlerted, err := o.repo.Ticker().IsTenantAlertActive(ctx, tenantId)
 
 	if err != nil {

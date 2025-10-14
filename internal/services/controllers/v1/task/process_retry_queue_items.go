@@ -17,6 +17,8 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 	ctx, span := telemetry.NewSpan(ctx, "process-retry-queue-items")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	retryQueueItems, shouldContinue, err := tc.repov1.Tasks().ProcessTaskRetryQueueItems(ctx, tenantId)
 
 	if err != nil {

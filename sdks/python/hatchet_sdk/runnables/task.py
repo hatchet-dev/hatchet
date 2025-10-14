@@ -299,7 +299,6 @@ class Task(Generic[TWorkflowInput, R]):
             tenant_id=self.workflow.client.config.tenant_id,
             worker_id="mock-worker-id",
             workflow_run_id="mock-workflow-run-id",
-            get_group_key_run_id="mock-get-group-key-run-id",
             job_id="mock-job-id",
             job_name="mock-job-name",
             job_run_id="mock-job-run-id",

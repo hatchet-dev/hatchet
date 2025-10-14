@@ -189,7 +189,9 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
               Payload
             </h3>
             <Separator className="mb-3" />
-            <EventDataSection event={event} />
+            <div className="max-h-96 overflow-y-auto rounded-lg">
+              <EventDataSection event={event} />
+            </div>
           </div>
 
           {hasScope && filters && filters.length > 0 && (

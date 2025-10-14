@@ -239,6 +239,19 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		return tenant, "", nil
 	})
 
+	populatorMW.RegisterGetter("member", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		member, err := config.APIRepository.Tenant().GetTenantMemberByID(ctxTimeout, id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return member, sqlchelpers.UUIDToStr(member.TenantId), nil
+	})
+
 	populatorMW.RegisterGetter("api-token", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

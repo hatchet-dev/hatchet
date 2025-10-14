@@ -164,7 +164,9 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *msgqueue.M
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
-	if err != nil {
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	} else {
 		return fmt.Errorf("could not decode task metadata: %w", err)
 	}
 

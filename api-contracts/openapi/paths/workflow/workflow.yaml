@@ -1207,6 +1207,54 @@ crons:
     summary: Delete cron job workflow run
     tags:
       - Workflow
+  patch:
+    x-resources: ["tenant", "cron-workflow"]
+    description: Update a cron workflow for a tenant
+    operationId: workflow-cron:update
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The cron job id
+        in: path
+        name: cron-workflow
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/UpdateCronWorkflowTriggerRequest"
+      description: The input for updates
+      required: true
+    responses:
+      "204":
+        description: Successfully updated the cron job workflow run
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Update cron job workflow run
+    tags:
+      - Workflow
 
 cronsCreate:
   post:

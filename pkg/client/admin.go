@@ -294,8 +294,9 @@ func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, e
 			return nil, fmt.Errorf("could not marshal input: %w", err)
 		}
 
+		workflowName := client.ApplyNamespace(workflow.Name, &a.namespace)
 		triggerWorkflowRequests[i] = &admincontracts.TriggerWorkflowRequest{
-			Name:  workflow.Name,
+			Name:  workflowName,
 			Input: string(inputBytes),
 		}
 

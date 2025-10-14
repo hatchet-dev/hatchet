@@ -7,6 +7,8 @@ import { AdditionalMetadata } from '../../events/components/additional-metadata'
 import { Badge } from '@/components/v1/ui/badge';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { extractCronTz, formatCron } from '@/lib/utils';
+import { Check, X } from 'lucide-react';
+import { Spinner } from '@/components/v1/ui/loading';
 
 export const CronColumn = {
   expression: 'Expression',
@@ -17,10 +19,12 @@ export const CronColumn = {
   metadata: 'Metadata',
   createdAt: 'Created At',
   actions: 'Actions',
+  enabled: 'Enabled',
 };
 
 export type CronColumnKeys = keyof typeof CronColumn;
 
+export const enabledKey: CronColumnKeys = 'enabled';
 export const expressionKey: CronColumnKeys = 'expression';
 export const descriptionKey: CronColumnKeys = 'description';
 export const timezoneKey: CronColumnKeys = 'timezone';
@@ -33,13 +37,19 @@ export const actionsKey: CronColumnKeys = 'actions';
 export const columns = ({
   tenantId,
   onDeleteClick,
+  onEnableClick,
   selectedJobId,
   setSelectedJobId,
+  isUpdatePending,
+  updatingCronId,
 }: {
   tenantId: string;
   onDeleteClick: (row: CronWorkflows) => void;
+  onEnableClick: (row: CronWorkflows) => void;
   selectedJobId: string | null;
   setSelectedJobId: (jobId: string | null) => void;
+  isUpdatePending: boolean;
+  updatingCronId: string | undefined;
 }): ColumnDef<CronWorkflows>[] => {
   return [
     {
@@ -151,20 +161,23 @@ export const columns = ({
       enableSorting: true,
       enableHiding: true,
     },
-    // {
-    //   accessorKey: 'method',
-    //   header: ({ column }) => (
-    //     <DataTableColumnHeader column={column} title="Create Method" />
-    //   ),
-    //   cell: ({ row }) => <div>{row.original.method}</div>,
-    // },
-    // {
-    //   accessorKey: 'enabled',
-    //   header: ({ column }) => (
-    //     <DataTableColumnHeader column={column} title="Enabled" />
-    //   ),
-    //   cell: ({ row }) => <div>{row.original.enabled ? 'Yes' : 'No'}</div>,
-    // },
+    {
+      accessorKey: enabledKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={CronColumn.enabled} />
+      ),
+      cell: ({ row }) => (
+        <div>
+          {isUpdatePending && updatingCronId === row.original.metadata.id ? (
+            <Spinner />
+          ) : row.original.enabled ? (
+            <Check className="size-4 text-emerald-500" />
+          ) : (
+            <X className="size-4 text-red-500" />
+          )}
+        </div>
+      ),
+    },
     {
       accessorKey: actionsKey,
       header: ({ column }) => (
@@ -181,6 +194,14 @@ export const columns = ({
                 disabled:
                   row.original.method !== 'API'
                     ? 'This cron was created via a code definition. Delete it from the code definition instead.'
+                    : undefined,
+              },
+              {
+                label: row.original.enabled ? 'Disable' : 'Enable',
+                onClick: () => onEnableClick(row.original),
+                disabled:
+                  isUpdatePending && updatingCronId === row.original.metadata.id
+                    ? 'Update in progress'
                     : undefined,
               },
             ]}
