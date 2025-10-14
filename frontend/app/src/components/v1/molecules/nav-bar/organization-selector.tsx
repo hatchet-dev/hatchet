@@ -122,37 +122,44 @@ function OrganizationGroup({
       </CommandItem>
 
       {isExpanded &&
-        tenants.map((membership) => (
-          <CommandItem
-            key={membership.metadata.id}
-            value={`tenant-${membership.tenant?.metadata.id}`}
-            onSelect={() => {
-              invariant(membership.tenant);
-              onTenantSelect(membership.tenant);
-              onClose();
-            }}
-            className="text-sm cursor-pointer pl-6 hover:bg-accent focus:bg-accent"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
+        tenants
+          .sort(
+            (a, b) =>
+              a.tenant?.name
+                ?.toLowerCase()
+                .localeCompare(b.tenant?.name?.toLowerCase() ?? '') ?? 0,
+          )
+          .map((membership) => (
+            <CommandItem
+              key={membership.metadata.id}
+              value={`tenant-${membership.tenant?.metadata.id}`}
+              onSelect={() => {
+                invariant(membership.tenant);
+                onTenantSelect(membership.tenant);
+                onClose();
+              }}
+              className="text-sm cursor-pointer pl-6 hover:bg-accent focus:bg-accent"
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 flex items-center justify-center">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                  </div>
+                  <span className="text-muted-foreground">
+                    {membership.tenant?.name}
+                  </span>
                 </div>
-                <span className="text-muted-foreground">
-                  {membership.tenant?.name}
-                </span>
+                <CheckIcon
+                  className={cn(
+                    'h-4 w-4',
+                    currentTenant?.slug === membership.tenant?.slug
+                      ? 'opacity-100'
+                      : 'opacity-0',
+                  )}
+                />
               </div>
-              <CheckIcon
-                className={cn(
-                  'h-4 w-4',
-                  currentTenant?.slug === membership.tenant?.slug
-                    ? 'opacity-100'
-                    : 'opacity-0',
-                )}
-              />
-            </div>
-          </CommandItem>
-        ))}
+            </CommandItem>
+          ))}
     </>
   );
 }
@@ -263,7 +270,12 @@ export function OrganizationSelector({
       .map((org) => ({
         organization: org,
         tenants: orgMap.get(org.metadata.id) || [],
-      }));
+      }))
+      .sort((a, b) =>
+        a.organization.name
+          .toLowerCase()
+          .localeCompare(b.organization.name.toLowerCase()),
+      );
 
     return {
       currentOrgData: currentOrg
