@@ -101,7 +101,7 @@ export function SidePanel() {
             onMouseDown={handleMouseDown}
           />
 
-          <div className="sticky top-0 z-20 flex flex-row w-full justify-between items-center bg-background border-b border-border px-4 py-2">
+          <div className="sticky top-0 z-20 flex flex-row w-full justify-between items-center bg-background px-4 pt-4 pb-2">
             <div className="flex flex-row gap-x-2 items-center">
               <Button
                 variant="ghost"
