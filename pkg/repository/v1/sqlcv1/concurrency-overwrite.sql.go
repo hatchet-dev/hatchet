@@ -7,14 +7,14 @@ import (
 )
 
 const runChildGroupRoundRobin = `-- name: RunChildGroupRoundRobin :many
-WITH filled_parent_slots AS NOT MATERIALIZED (
+WITH filled_parent_slots AS (
     SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
     FROM v1_workflow_concurrency_slot wcs
     WHERE
         wcs.tenant_id = $1::uuid
         AND wcs.strategy_id = $2::bigint
         AND wcs.is_filled = TRUE
-), eligible_slots_per_group AS NOT MATERIALIZED (
+), eligible_slots_per_group AS (
     SELECT cs_all.sort_id, cs_all.task_id, cs_all.task_inserted_at, cs_all.task_retry_count, cs_all.external_id, cs_all.tenant_id, cs_all.workflow_id, cs_all.workflow_version_id, cs_all.workflow_run_id, cs_all.strategy_id, cs_all.parent_strategy_id, cs_all.priority, cs_all.key, cs_all.is_filled, cs_all.next_parent_strategy_ids, cs_all.next_strategy_ids, cs_all.next_keys, cs_all.queue_to_notify, cs_all.schedule_timeout_at
     FROM v1_concurrency_slot cs_all
     JOIN
@@ -46,16 +46,19 @@ WITH filled_parent_slots AS NOT MATERIALIZED (
     FROM
         v1_concurrency_slot cs
     WHERE
-        (cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id) IN (
-            SELECT
-                task_id, task_inserted_at, task_retry_count, strategy_id
-            FROM
-                eligible_slots_per_group
+        EXISTS (
+            SELECT 1
+            FROM eligible_slots_per_group espg
+            WHERE espg.task_id = cs.task_id
+                AND espg.task_inserted_at = cs.task_inserted_at
+                AND espg.task_retry_count = cs.task_retry_count
+                AND espg.strategy_id = cs.strategy_id
         )
         AND cs.is_filled = FALSE
     ORDER BY
         task_id, task_inserted_at
     FOR UPDATE SKIP LOCKED
+    LIMIT 1000
 ), updated_slots AS (
     UPDATE
         v1_concurrency_slot
