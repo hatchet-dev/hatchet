@@ -475,7 +475,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	tenantIdToPayloads := make(map[string][]OLAPPayloadToOffload)
 
 	for _, updatedPayload := range updatedPayloads {
-		if updatedPayload == nil {
+		if updatedPayload == nil || updatedPayload.Type == sqlcv1.V1PayloadTypeTASKEVENTDATA {
 			continue
 		}
 
