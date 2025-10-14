@@ -423,13 +423,6 @@ export class Api<
       additional_metadata?: string[];
       /** The workflow ids to find runs for */
       workflow_ids?: string[];
-      /**
-       * The worker id to filter by
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      worker_id?: string;
     },
     params: RequestParams = {},
   ) =>
