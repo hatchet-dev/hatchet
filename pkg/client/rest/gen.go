@@ -2467,9 +2467,6 @@ type V1WorkflowRunExternalIdsListParams struct {
 
 	// WorkflowIds The workflow ids to find runs for
 	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
-
-	// WorkerId The worker id to filter by
-	WorkerId *openapi_types.UUID `form:"worker_id,omitempty" json:"worker_id,omitempty"`
 }
 
 // V1WorkflowRunTaskEventsListParams defines parameters for V1WorkflowRunTaskEventsList.
@@ -7692,22 +7689,6 @@ func NewV1WorkflowRunExternalIdsListRequest(server string, tenant openapi_types.
 		if params.WorkflowIds != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.WorkerId != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "worker_id", runtime.ParamLocationQuery, *params.WorkerId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

@@ -262,3 +262,15 @@ func ToWorkflowRunDisplayNamesList(
 		},
 	}
 }
+
+func ToWorkflowRunExternalIds(
+	externalIds []pgtype.UUID,
+) gen.V1WorkflowRunExternalIdList {
+	result := make([]uuid.UUID, len(externalIds))
+
+	for ix, id := range externalIds {
+		result[ix] = uuid.MustParse(sqlchelpers.UUIDToStr(id))
+	}
+
+	return gen.V1WorkflowRunExternalIdList(result)
+}

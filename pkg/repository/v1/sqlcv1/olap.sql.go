@@ -1517,6 +1517,71 @@ func (q *Queries) ListWorkflowRunDisplayNames(ctx context.Context, db DBTX, arg 
 	return items, nil
 }
 
+const listWorkflowRunExternalIds = `-- name: ListWorkflowRunExternalIds :many
+SELECT external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = $1::UUID
+    AND inserted_at > $2::TIMESTAMPTZ
+    AND (
+        $3::TIMESTAMPTZ IS NULL
+        OR inserted_at <= $3::TIMESTAMPTZ
+    )
+    AND readable_status = ANY(CAST($4::TEXT[] AS v1_readable_status_olap[]))
+    AND (
+        $5::text[] IS NULL
+        OR $6::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($5::text[]) AS k,
+                    unnest($6::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND (
+        $7::UUID[] IS NULL OR workflow_id = ANY($7::UUID[])
+    )
+`
+
+type ListWorkflowRunExternalIdsParams struct {
+	Tenantid             pgtype.UUID        `json:"tenantid"`
+	Since                pgtype.Timestamptz `json:"since"`
+	Until                pgtype.Timestamptz `json:"until"`
+	Statuses             []string           `json:"statuses"`
+	AdditionalMetaKeys   []string           `json:"additionalMetaKeys"`
+	AdditionalMetaValues []string           `json:"additionalMetaValues"`
+	WorkflowIds          []pgtype.UUID      `json:"workflowIds"`
+}
+
+func (q *Queries) ListWorkflowRunExternalIds(ctx context.Context, db DBTX, arg ListWorkflowRunExternalIdsParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listWorkflowRunExternalIds,
+		arg.Tenantid,
+		arg.Since,
+		arg.Until,
+		arg.Statuses,
+		arg.AdditionalMetaKeys,
+		arg.AdditionalMetaValues,
+		arg.WorkflowIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var external_id pgtype.UUID
+		if err := rows.Scan(&external_id); err != nil {
+			return nil, err
+		}
+		items = append(items, external_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const offloadPayloads = `-- name: OffloadPayloads :exec
 WITH inputs AS (
     SELECT
