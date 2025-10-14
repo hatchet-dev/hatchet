@@ -1906,6 +1906,9 @@ type V1WorkflowRunDisplayNameList struct {
 	Rows []V1WorkflowRunDisplayName `json:"rows"`
 }
 
+// V1WorkflowRunExternalIdList The list of external IDs
+type V1WorkflowRunExternalIdList = []openapi_types.UUID
+
 // V1WorkflowType defines model for V1WorkflowType.
 type V1WorkflowType string
 
@@ -2446,6 +2449,27 @@ type V1WorkflowRunListParams struct {
 type V1WorkflowRunDisplayNamesListParams struct {
 	// ExternalIds The external ids of the workflow runs to get display names for
 	ExternalIds []openapi_types.UUID `form:"external_ids" json:"external_ids"`
+}
+
+// V1WorkflowRunExternalIdsListParams defines parameters for V1WorkflowRunExternalIdsList.
+type V1WorkflowRunExternalIdsListParams struct {
+	// Statuses A list of statuses to filter by
+	Statuses *[]V1TaskStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// Since The earliest date to filter by
+	Since time.Time `form:"since" json:"since"`
+
+	// Until The latest date to filter by
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// AdditionalMetadata Additional metadata k-v pairs to filter by
+	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
+
+	// WorkflowIds The workflow ids to find runs for
+	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
+
+	// WorkerId The worker id to filter by
+	WorkerId *openapi_types.UUID `form:"worker_id,omitempty" json:"worker_id,omitempty"`
 }
 
 // V1WorkflowRunTaskEventsListParams defines parameters for V1WorkflowRunTaskEventsList.
@@ -3128,6 +3152,9 @@ type ClientInterface interface {
 
 	// V1WorkflowRunDisplayNamesList request
 	V1WorkflowRunDisplayNamesList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunExternalIdsList request
+	V1WorkflowRunExternalIdsList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunExternalIdsListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunCreateWithBody request with any body
 	V1WorkflowRunCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3995,6 +4022,18 @@ func (c *Client) V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUI
 
 func (c *Client) V1WorkflowRunDisplayNamesList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1WorkflowRunDisplayNamesListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunExternalIdsList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunExternalIdsListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunExternalIdsListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7548,6 +7587,138 @@ func NewV1WorkflowRunDisplayNamesListRequest(server string, tenant openapi_types
 					queryValues.Add(k, v2)
 				}
 			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WorkflowRunExternalIdsListRequest generates requests for V1WorkflowRunExternalIdsList
+func NewV1WorkflowRunExternalIdsListRequest(server string, tenant openapi_types.UUID, params *V1WorkflowRunExternalIdsListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/workflow-runs/external-ids", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Statuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, params.Since); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkerId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "worker_id", runtime.ParamLocationQuery, *params.WorkerId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -12486,6 +12657,9 @@ type ClientWithResponsesInterface interface {
 	// V1WorkflowRunDisplayNamesListWithResponse request
 	V1WorkflowRunDisplayNamesListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunDisplayNamesListResponse, error)
 
+	// V1WorkflowRunExternalIdsListWithResponse request
+	V1WorkflowRunExternalIdsListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunExternalIdsListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunExternalIdsListResponse, error)
+
 	// V1WorkflowRunCreateWithBodyWithResponse request with any body
 	V1WorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WorkflowRunCreateResponse, error)
 
@@ -13722,6 +13896,31 @@ func (r V1WorkflowRunDisplayNamesListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1WorkflowRunDisplayNamesListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunExternalIdsListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1WorkflowRunExternalIdList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunExternalIdsListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunExternalIdsListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -16296,6 +16495,15 @@ func (c *ClientWithResponses) V1WorkflowRunDisplayNamesListWithResponse(ctx cont
 	return ParseV1WorkflowRunDisplayNamesListResponse(rsp)
 }
 
+// V1WorkflowRunExternalIdsListWithResponse request returning *V1WorkflowRunExternalIdsListResponse
+func (c *ClientWithResponses) V1WorkflowRunExternalIdsListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunExternalIdsListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunExternalIdsListResponse, error) {
+	rsp, err := c.V1WorkflowRunExternalIdsList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunExternalIdsListResponse(rsp)
+}
+
 // V1WorkflowRunCreateWithBodyWithResponse request with arbitrary body returning *V1WorkflowRunCreateResponse
 func (c *ClientWithResponses) V1WorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WorkflowRunCreateResponse, error) {
 	rsp, err := c.V1WorkflowRunCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
@@ -18846,6 +19054,53 @@ func ParseV1WorkflowRunDisplayNamesListResponse(rsp *http.Response) (*V1Workflow
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest V1WorkflowRunDisplayNameList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunExternalIdsListResponse parses an HTTP response from a V1WorkflowRunExternalIdsListWithResponse call
+func ParseV1WorkflowRunExternalIdsListResponse(rsp *http.Response) (*V1WorkflowRunExternalIdsListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunExternalIdsListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1WorkflowRunExternalIdList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
