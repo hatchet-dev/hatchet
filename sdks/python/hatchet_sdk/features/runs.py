@@ -212,7 +212,7 @@ class RunsClient(BaseRestClient):
 
         for ix, chunk in enumerate(chunks):
             self.client_config.logger.info(
-                f"processing chunk {ix + 1}/{len(chunks)} with {len(chunk)} ids"  # noqa: G004
+                f"processing chunk {ix + 1}/{len(chunks)} of {len(chunk)} ids"  # noqa: G004
             )
 
             opts = BulkCancelReplayOpts(ids=chunk)
