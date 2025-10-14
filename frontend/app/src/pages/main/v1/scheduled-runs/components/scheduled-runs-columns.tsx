@@ -40,11 +40,13 @@ export const columns = ({
   onDeleteClick,
   selectedAdditionalMetaJobId,
   handleSetSelectedAdditionalMetaJobId,
+  onRowClick,
 }: {
   tenantId: string;
   onDeleteClick: (row: ScheduledWorkflows) => void;
   selectedAdditionalMetaJobId: string | null;
   handleSetSelectedAdditionalMetaJobId: (runId: string | null) => void;
+  onRowClick?: (row: ScheduledWorkflows) => void;
 }): ColumnDef<ScheduledWorkflows>[] => {
   return [
     {
@@ -53,11 +55,12 @@ export const columns = ({
         <DataTableColumnHeader column={column} title={ScheduledRunColumn.id} />
       ),
       cell: ({ row }) => (
-        <Link to={`/tenants/${tenantId}/runs/${row.original.metadata.id}`}>
-          <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-            {row.original.metadata.id}
-          </div>
-        </Link>
+        <div
+          className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
+          onClick={() => onRowClick?.(row.original)}
+        >
+          {row.original.metadata.id}
+        </div>
       ),
       enableSorting: false,
       enableHiding: true,
@@ -90,7 +93,12 @@ export const columns = ({
         />
       ),
       cell: ({ row }) => (
-        <RunStatus status={row.original.workflowRunStatus || 'SCHEDULED'} />
+        <div
+          className="cursor-pointer"
+          onClick={() => onRowClick?.(row.original)}
+        >
+          <RunStatus status={row.original.workflowRunStatus || 'SCHEDULED'} />
+        </div>
       ),
       enableSorting: false,
       enableHiding: true,
@@ -104,7 +112,10 @@ export const columns = ({
         />
       ),
       cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4">
+        <div
+          className="flex flex-row items-center gap-4 cursor-pointer"
+          onClick={() => onRowClick?.(row.original)}
+        >
           <RelativeDate date={row.original.triggerAt} />
         </div>
       ),

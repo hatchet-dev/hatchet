@@ -21,6 +21,7 @@ import {
   metadataKey,
 } from './components/scheduled-runs-columns';
 import { workflowRunStatusFilters } from '../workflow-runs-v1/hooks/use-toolbar-filters';
+import { useSidePanel } from '@/hooks/use-side-panel';
 
 export interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
@@ -43,6 +44,7 @@ export default function ScheduledRunsTable({
   parentStepRunId,
 }: ScheduledWorkflowRunsTableProps) {
   const { tenantId } = useCurrentTenantId();
+  const { open } = useSidePanel();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedAdditionalMetaJobId, setSelectedAdditionalMetaJobId] =
     useState<string | null>(null);
@@ -145,6 +147,14 @@ export default function ScheduledRunsTable({
           },
           selectedAdditionalMetaJobId,
           handleSetSelectedAdditionalMetaJobId: setSelectedAdditionalMetaJobId,
+          onRowClick: (row) => {
+            open({
+              type: 'scheduled-run-details',
+              content: {
+                scheduledRun: row,
+              },
+            });
+          },
         })}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
