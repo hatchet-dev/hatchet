@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -97,13 +96,12 @@ type CreateMonitoringEventPayload struct {
 
 	EventType sqlcv1.V1EventTypeOlap `json:"event_type"`
 
-	EventTimestamp  time.Time   `json:"event_timestamp" validate:"required"`
-	EventPayload    string      `json:"event_payload" validate:"required"`
-	EventMessage    string      `json:"event_message,omitempty"`
-	EventExternalId pgtype.UUID `json:"event_external_id,omitempty"`
+	EventTimestamp time.Time `json:"event_timestamp" validate:"required"`
+	EventPayload   string    `json:"event_payload" validate:"required"`
+	EventMessage   string    `json:"event_message,omitempty"`
 }
 
-func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryCount int32, request *contracts.StepActionEvent, eventExternalId pgtype.UUID) (*msgqueue.Message, error) {
+func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
 	var workerId *string
 
 	if _, err := uuid.Parse(request.WorkerId); err == nil {
@@ -111,12 +109,11 @@ func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryC
 	}
 
 	payload := CreateMonitoringEventPayload{
-		TaskId:          taskId,
-		RetryCount:      retryCount,
-		WorkerId:        workerId,
-		EventTimestamp:  request.EventTimestamp.AsTime(),
-		EventPayload:    request.EventPayload,
-		EventExternalId: eventExternalId,
+		TaskId:         taskId,
+		RetryCount:     retryCount,
+		WorkerId:       workerId,
+		EventTimestamp: request.EventTimestamp.AsTime(),
+		EventPayload:   request.EventPayload,
 	}
 
 	switch request.EventType {

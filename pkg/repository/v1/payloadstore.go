@@ -66,6 +66,7 @@ type PayloadStoreRepository interface {
 	WALProcessInterval() time.Duration
 	ExternalCutoverProcessInterval() time.Duration
 	ExternalStoreEnabled() bool
+	ExternalStore() ExternalStore
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -588,6 +589,10 @@ func (p *payloadStoreRepositoryImpl) ExternalCutoverProcessInterval() time.Durat
 
 func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
 	return p.externalStoreEnabled
+}
+
+func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
+	return p.externalStore
 }
 
 type NoOpExternalStore struct{}

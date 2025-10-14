@@ -504,8 +504,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 				InsertedAt: msg.InsertedAt,
 				RetryCount: msg.RetryCount,
 			},
-			Output:          msg.Output,
-			EventExternalId: msg.EventExternalId,
+			Output: msg.Output,
 		})
 
 		idsToData[msg.TaskId] = msg.Output
@@ -549,10 +548,9 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 				InsertedAt: msg.InsertedAt,
 				RetryCount: msg.RetryCount,
 			},
-			IsAppError:      msg.IsAppError,
-			ErrorMessage:    msg.ErrorMsg,
-			IsNonRetryable:  msg.IsNonRetryable,
-			EventExternalId: msg.EventExternalId,
+			IsAppError:     msg.IsAppError,
+			ErrorMessage:   msg.ErrorMsg,
+			IsNonRetryable: msg.IsNonRetryable,
 		})
 
 		if msg.ErrorMsg != "" {
@@ -563,12 +561,11 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:          msg.TaskId,
-				RetryCount:      msg.RetryCount,
-				EventType:       sqlcv1.V1EventTypeOlapFAILED,
-				EventTimestamp:  time.Now().UTC(),
-				EventPayload:    msg.ErrorMsg,
-				EventExternalId: msg.EventExternalId,
+				TaskId:         msg.TaskId,
+				RetryCount:     msg.RetryCount,
+				EventType:      sqlcv1.V1EventTypeOlapFAILED,
+				EventTimestamp: time.Now().UTC(),
+				EventPayload:   msg.ErrorMsg,
 			},
 		)
 

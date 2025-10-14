@@ -132,8 +132,6 @@ type CompleteTaskOpts struct {
 
 	// (required) the output bytes for the task
 	Output []byte
-
-	EventExternalId pgtype.UUID
 }
 
 type FailTaskOpts struct {
@@ -147,9 +145,6 @@ type FailTaskOpts struct {
 
 	// (optional) A boolean flag to indicate whether the error is non-retryable, meaning it should _not_ be retried. Defaults to false.
 	IsNonRetryable bool
-
-	// the external id of the task event - this is necessary so we can tie the payload for the task event in the core db
-	EventExternalId pgtype.UUID
 }
 
 type TaskIdEventKeyTuple struct {
@@ -620,13 +615,11 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	}
 
 	outputs := make([][]byte, len(releasedTasks))
-	eventExternalIds := make([]pgtype.UUID, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
 		out := NewCompletedTaskOutputEvent(releasedTask, tasks[i].Output).Bytes()
 
 		outputs[i] = out
-		eventExternalIds[i] = tasks[i].EventExternalId
 	}
 
 	internalEvents, err := r.createTaskEventsAfterRelease(
@@ -637,7 +630,6 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 		outputs,
 		releasedTasks,
 		sqlcv1.V1TaskEventTypeCOMPLETED,
-		&eventExternalIds,
 	)
 
 	if err != nil {
@@ -813,13 +805,11 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	}
 
 	outputs := make([][]byte, len(releasedTasks))
-	eventExternalIds := make([]pgtype.UUID, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
 		out := NewFailedTaskOutputEvent(releasedTask, failureOpts[i].ErrorMessage).Bytes()
 
 		outputs[i] = out
-		eventExternalIds[i] = failureOpts[i].EventExternalId
 	}
 
 	internalEvents, err := r.createTaskEventsAfterRelease(
@@ -830,7 +820,6 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		outputs,
 		releasedTasks,
 		sqlcv1.V1TaskEventTypeFAILED,
-		&eventExternalIds,
 	)
 
 	if err != nil {
@@ -1048,7 +1037,6 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 		outputs,
 		releasedTasks,
 		sqlcv1.V1TaskEventTypeCANCELLED,
-		nil,
 	)
 
 	if err != nil {
@@ -2132,7 +2120,6 @@ func (r *sharedRepository) insertTasks(
 		eventDatas,
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
-		nil,
 	)
 
 	if err != nil {
@@ -2431,7 +2418,6 @@ func (r *sharedRepository) replayTasks(
 		eventDatas,
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
-		nil,
 	)
 
 	if err != nil {
@@ -2563,7 +2549,6 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 	outputs [][]byte,
 	releasedTasks []*sqlcv1.ReleaseTasksRow,
 	eventType sqlcv1.V1TaskEventType,
-	eventExternalIds *[]pgtype.UUID,
 ) ([]InternalTaskEvent, error) {
 	if len(taskIdRetryCounts) != len(releasedTasks) || len(taskIdRetryCounts) != len(outputs) {
 		return nil, fmt.Errorf("failed to release all tasks")
@@ -2583,7 +2568,6 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 	filteredTaskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, 0)
 	filteredDatas := make([][]byte, 0)
 	filteredExternalIds := make([]string, 0)
-	filteredEventExternalIds := make([]pgtype.UUID, 0)
 
 	for i := range len(datas) {
 		if !isCurrentRetry[i] {
@@ -2593,14 +2577,6 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		filteredTaskIdRetryCounts = append(filteredTaskIdRetryCounts, taskIdRetryCounts[i])
 		filteredDatas = append(filteredDatas, datas[i])
 		filteredExternalIds = append(filteredExternalIds, externalIds[i])
-
-		var eventExternalId pgtype.UUID
-
-		if eventExternalIds != nil {
-			eventExternalId = (*eventExternalIds)[i]
-		}
-
-		filteredEventExternalIds = append(filteredEventExternalIds, eventExternalId)
 	}
 
 	return r.createTaskEvents(
@@ -2612,7 +2588,6 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		filteredDatas,
 		makeEventTypeArr(eventType, len(filteredExternalIds)),
 		make([]string, len(filteredExternalIds)),
-		&filteredEventExternalIds,
 	)
 }
 
@@ -2625,7 +2600,6 @@ func (r *sharedRepository) createTaskEvents(
 	eventDatas [][]byte,
 	eventTypes []sqlcv1.V1TaskEventType,
 	eventKeys []string,
-	eventExternalIds *[]pgtype.UUID,
 ) ([]InternalTaskEvent, error) {
 	if len(tasks) != len(eventDatas) {
 		return nil, fmt.Errorf("mismatched task and event data lengths")
@@ -2650,11 +2624,6 @@ func (r *sharedRepository) createTaskEvents(
 		eventTypesStrs[i] = string(eventTypes[i])
 
 		externalId := sqlchelpers.UUIDFromStr(uuid.NewString())
-		if eventExternalIds != nil && (*eventExternalIds)[i].Valid {
-			ids := *eventExternalIds
-			externalId = ids[i]
-		}
-
 		externalIds[i] = externalId
 
 		// important: if we don't set this to `eventDatas[i]` and instead allow it to be nil optionally

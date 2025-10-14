@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -575,7 +576,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		eventPayloads = append(eventPayloads, msg.EventPayload)
 		eventMessages = append(eventMessages, msg.EventMessage)
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
-		eventExternalIds = append(eventExternalIds, msg.EventExternalId)
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -664,7 +664,67 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		opts = append(opts, event)
 	}
 
-	return tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
+	err = tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
+
+	if err != nil {
+		return err
+	}
+
+	offloadToExternalOpts := make([]v1.OffloadToExternalStoreOpts, 0)
+	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]pgtype.UUID)
+
+	for _, opt := range opts {
+		if len(opt.Output) == 0 {
+			continue
+		}
+
+		dummyId := rand.Int63()
+		dummyInsertedAt := time.Unix(rand.Int63n(time.Now().Unix()), 0)
+		idInsertedAtToExternalId[v1.IdInsertedAt{
+			ID:         dummyId,
+			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
+		}] = opt.ExternalID
+
+		offloadToExternalOpts = append(offloadToExternalOpts, v1.OffloadToExternalStoreOpts{
+			StorePayloadOpts: &v1.StorePayloadOpts{
+				Id:         dummyId,
+				InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
+				ExternalId: opt.ExternalID,
+				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+				Payload:    opt.Output,
+				TenantId:   tenantId,
+			},
+			OffloadAt: time.Now(),
+		})
+	}
+
+	retrieveOptsToKey, err := tc.repo.OLAP().PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
+
+	if err != nil {
+		return err
+	}
+
+	offloadOpts := make([]v1.OffloadPayloadOpts, 0)
+
+	for opt, key := range retrieveOptsToKey {
+		externalId := idInsertedAtToExternalId[v1.IdInsertedAt{
+			ID:         opt.Id,
+			InsertedAt: opt.InsertedAt,
+		}]
+
+		offloadOpts = append(offloadOpts, v1.OffloadPayloadOpts{
+			ExternalId:          externalId,
+			ExternalLocationKey: string(key),
+		})
+	}
+
+	err = tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloadOpts)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context, tenantId string, payloads [][]byte) error {

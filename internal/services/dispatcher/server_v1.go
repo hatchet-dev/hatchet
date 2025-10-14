@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -589,7 +588,6 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 		task.ID,
 		retryCount,
 		request,
-		pgtype.UUID{},
 	)
 
 	if err != nil {
@@ -615,7 +613,6 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 	// if request.RetryCount == nil {
 	// 	return nil, fmt.Errorf("retry count is required in v2")
 	// }
-	externalId := sqlchelpers.UUIDFromStr(uuid.NewString())
 
 	msg, err := tasktypes.CompletedTaskMessage(
 		tenantId,
@@ -625,7 +622,6 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		sqlchelpers.UUIDToStr(task.WorkflowRunID),
 		retryCount,
 		[]byte(request.EventPayload),
-		externalId,
 	)
 
 	if err != nil {
@@ -648,7 +644,6 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		task.ID,
 		retryCount,
 		request,
-		externalId,
 	)
 
 	if err != nil {
@@ -676,8 +671,6 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		shouldNotRetry = *request.ShouldNotRetry
 	}
 
-	externalId := sqlchelpers.UUIDFromStr(uuid.NewString())
-
 	msg, err := tasktypes.FailedTaskMessage(
 		tenantId,
 		task.ID,
@@ -688,7 +681,6 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		true,
 		request.EventPayload,
 		shouldNotRetry,
-		externalId,
 	)
 
 	if err != nil {
