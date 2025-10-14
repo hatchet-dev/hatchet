@@ -14,6 +14,7 @@ export type RateLimitRow = RateLimit & {
 };
 
 export const ScheduledRunColumn = {
+  id: 'ID',
   runId: 'Run ID',
   status: 'Status',
   triggerAt: 'Trigger At',
@@ -25,7 +26,8 @@ export const ScheduledRunColumn = {
 
 export type ScheduledRunColumnKeys = keyof typeof ScheduledRunColumn;
 
-export const idKey: ScheduledRunColumnKeys = 'runId';
+export const idKey: ScheduledRunColumnKeys = 'id';
+export const runIdKey: ScheduledRunColumnKeys = 'runId';
 export const statusKey: ScheduledRunColumnKeys = 'status';
 export const triggerAtKey: ScheduledRunColumnKeys = 'triggerAt';
 export const workflowKey: ScheduledRunColumnKeys = 'workflow';
@@ -48,6 +50,21 @@ export const columns = ({
     {
       accessorKey: idKey,
       header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={ScheduledRunColumn.id} />
+      ),
+      cell: ({ row }) => (
+        <Link to={`/tenants/${tenantId}/runs/${row.original.metadata.id}`}>
+          <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+            {row.original.metadata.id}
+          </div>
+        </Link>
+      ),
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
+      accessorKey: runIdKey,
+      header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
           title={ScheduledRunColumn.runId}
@@ -61,6 +78,8 @@ export const columns = ({
             </div>
           </Link>
         ) : null,
+      enableSorting: false,
+      enableHiding: true,
     },
     {
       accessorKey: statusKey,
@@ -73,6 +92,8 @@ export const columns = ({
       cell: ({ row }) => (
         <RunStatus status={row.original.workflowRunStatus || 'SCHEDULED'} />
       ),
+      enableSorting: false,
+      enableHiding: true,
     },
     {
       accessorKey: triggerAtKey,
@@ -87,6 +108,8 @@ export const columns = ({
           <RelativeDate date={row.original.triggerAt} />
         </div>
       ),
+      enableSorting: false,
+      enableHiding: true,
     },
     {
       accessorKey: workflowKey,
@@ -138,6 +161,7 @@ export const columns = ({
         );
       },
       enableSorting: false,
+      enableHiding: true,
     },
     {
       accessorKey: createdAtKey,
@@ -152,7 +176,7 @@ export const columns = ({
           <RelativeDate date={row.original.metadata.createdAt} />
         </div>
       ),
-      enableSorting: true,
+      enableSorting: false,
       enableHiding: true,
     },
     {
@@ -180,8 +204,8 @@ export const columns = ({
           />
         </div>
       ),
-      enableHiding: true,
       enableSorting: false,
+      enableHiding: true,
     },
   ];
 };
