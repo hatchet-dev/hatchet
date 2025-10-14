@@ -16,55 +16,43 @@ export function ExpandedScheduledRunContent({
   return (
     <div className="w-full">
       <div className="space-y-6">
-        <div className="flex flex-col justify-center items-start gap-3 pb-4 border-b text-sm">
-          <div className="flex flex-row items-center gap-3 min-w-0 w-full">
-            <span className="text-muted-foreground font-medium shrink-0">
-              Workflow
-            </span>
-            <Link
-              to={`/tenants/${tenantId}/workflows/${scheduledRun.workflowId}`}
-              className="px-2 py-1 overflow-x-auto min-w-0 flex-1 hover:underline"
-            >
-              <span className="whitespace-nowrap">
-                {scheduledRun.workflowName}
-              </span>
-            </Link>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-muted-foreground font-medium">
-              Trigger At
-            </span>
-            <span className="font-medium">
-              <RelativeDate date={scheduledRun.triggerAt} />
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-muted-foreground font-medium">Status</span>
+        <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 pb-4 border-b text-sm">
+          <span className="text-muted-foreground font-medium">Workflow</span>
+          <Link
+            to={`/tenants/${tenantId}/workflows/${scheduledRun.workflowId}`}
+            className="font-medium hover:underline truncate"
+          >
+            {scheduledRun.workflowName}
+          </Link>
+
+          <span className="text-muted-foreground font-medium">Trigger At</span>
+          <span className="font-medium">
+            <RelativeDate date={scheduledRun.triggerAt} />
+          </span>
+
+          <span className="text-muted-foreground font-medium">Status</span>
+          <div>
             <RunStatus status={scheduledRun.workflowRunStatus || 'SCHEDULED'} />
           </div>
+
           {scheduledRun.workflowRunId && (
-            <div className="flex flex-row items-center gap-3 min-w-0 w-full">
-              <span className="text-muted-foreground font-medium shrink-0">
+            <>
+              <span className="text-muted-foreground font-medium">
                 Workflow Run
               </span>
               <Link
                 to={`/tenants/${tenantId}/runs/${scheduledRun.workflowRunId}`}
-                className="px-2 py-1 overflow-x-auto min-w-0 flex-1 hover:underline"
+                className="font-medium hover:underline truncate"
               >
-                <span className="whitespace-nowrap">
-                  {scheduledRun.workflowRunName || scheduledRun.workflowRunId}
-                </span>
+                {scheduledRun.workflowRunName || scheduledRun.workflowRunId}
               </Link>
-            </div>
+            </>
           )}
-          <div className="flex items-center gap-3">
-            <span className="text-muted-foreground font-medium">
-              Created At
-            </span>
-            <span className="font-medium">
-              <RelativeDate date={scheduledRun.metadata.createdAt} />
-            </span>
-          </div>
+
+          <span className="text-muted-foreground font-medium">Created At</span>
+          <span className="font-medium">
+            <RelativeDate date={scheduledRun.metadata.createdAt} />
+          </span>
         </div>
 
         <div className="space-y-4">
