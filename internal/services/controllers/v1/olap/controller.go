@@ -705,6 +705,10 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		})
 	}
 
+	if len(offloadToExternalOpts) == 0 {
+		return nil
+	}
+
 	retrieveOptsToKey, err := tc.repo.OLAP().PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
 
 	if err != nil {
