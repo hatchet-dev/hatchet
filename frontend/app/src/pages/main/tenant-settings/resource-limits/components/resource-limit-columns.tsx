@@ -12,6 +12,7 @@ const resources: Record<TenantResource, string> = {
   [TenantResource.TASK_RUN]: 'Task Runs',
   [TenantResource.CRON]: 'Cron Triggers',
   [TenantResource.SCHEDULE]: 'Schedule Triggers',
+  [TenantResource.INCOMING_WEBHOOK]: 'Incoming Webhooks',
 };
 
 const indicatorVariants = {

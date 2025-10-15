@@ -14,6 +14,7 @@ export type RateLimitRow = RateLimit & {
 };
 
 export const ScheduledRunColumn = {
+  id: 'ID',
   runId: 'Run ID',
   status: 'Status',
   triggerAt: 'Trigger At',
@@ -25,7 +26,8 @@ export const ScheduledRunColumn = {
 
 export type ScheduledRunColumnKeys = keyof typeof ScheduledRunColumn;
 
-export const idKey: ScheduledRunColumnKeys = 'runId';
+export const idKey: ScheduledRunColumnKeys = 'id';
+export const runIdKey: ScheduledRunColumnKeys = 'runId';
 export const statusKey: ScheduledRunColumnKeys = 'status';
 export const triggerAtKey: ScheduledRunColumnKeys = 'triggerAt';
 export const workflowKey: ScheduledRunColumnKeys = 'workflow';
@@ -38,15 +40,33 @@ export const columns = ({
   onDeleteClick,
   selectedAdditionalMetaJobId,
   handleSetSelectedAdditionalMetaJobId,
+  onRowClick,
 }: {
   tenantId: string;
   onDeleteClick: (row: ScheduledWorkflows) => void;
   selectedAdditionalMetaJobId: string | null;
   handleSetSelectedAdditionalMetaJobId: (runId: string | null) => void;
+  onRowClick?: (row: ScheduledWorkflows) => void;
 }): ColumnDef<ScheduledWorkflows>[] => {
   return [
     {
       accessorKey: idKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={ScheduledRunColumn.id} />
+      ),
+      cell: ({ row }) => (
+        <div
+          className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
+          onClick={() => onRowClick?.(row.original)}
+        >
+          {row.original.metadata.id}
+        </div>
+      ),
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
+      accessorKey: runIdKey,
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
@@ -61,6 +81,8 @@ export const columns = ({
             </div>
           </Link>
         ) : null,
+      enableSorting: false,
+      enableHiding: true,
     },
     {
       accessorKey: statusKey,
@@ -71,8 +93,15 @@ export const columns = ({
         />
       ),
       cell: ({ row }) => (
-        <RunStatus status={row.original.workflowRunStatus || 'SCHEDULED'} />
+        <div
+          className="cursor-pointer"
+          onClick={() => onRowClick?.(row.original)}
+        >
+          <RunStatus status={row.original.workflowRunStatus || 'SCHEDULED'} />
+        </div>
       ),
+      enableSorting: false,
+      enableHiding: true,
     },
     {
       accessorKey: triggerAtKey,
@@ -83,10 +112,15 @@ export const columns = ({
         />
       ),
       cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4">
+        <div
+          className="flex flex-row items-center gap-4 cursor-pointer"
+          onClick={() => onRowClick?.(row.original)}
+        >
           <RelativeDate date={row.original.triggerAt} />
         </div>
       ),
+      enableSorting: false,
+      enableHiding: true,
     },
     {
       accessorKey: workflowKey,
@@ -138,6 +172,7 @@ export const columns = ({
         );
       },
       enableSorting: false,
+      enableHiding: true,
     },
     {
       accessorKey: createdAtKey,
@@ -152,7 +187,7 @@ export const columns = ({
           <RelativeDate date={row.original.metadata.createdAt} />
         </div>
       ),
-      enableSorting: true,
+      enableSorting: false,
       enableHiding: true,
     },
     {
@@ -180,8 +215,8 @@ export const columns = ({
           />
         </div>
       ),
-      enableHiding: true,
       enableSorting: false,
+      enableHiding: true,
     },
   ];
 };

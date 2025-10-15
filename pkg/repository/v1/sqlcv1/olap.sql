@@ -1582,3 +1582,30 @@ INSERT INTO v1_cel_evaluation_failures_olap (
 SELECT @tenantId::UUID, source, error
 FROM inputs
 ;
+
+-- name: ListWorkflowRunExternalIds :many
+SELECT external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = @tenantId::UUID
+    AND inserted_at > @since::TIMESTAMPTZ
+    AND (
+        sqlc.narg('until')::TIMESTAMPTZ IS NULL
+        OR inserted_at <= sqlc.narg('until')::TIMESTAMPTZ
+    )
+    AND readable_status = ANY(CAST(@statuses::TEXT[] AS v1_readable_status_olap[]))
+    AND (
+        sqlc.narg('additionalMetaKeys')::text[] IS NULL
+        OR sqlc.narg('additionalMetaValues')::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest(sqlc.narg('additionalMetaKeys')::text[]) AS k,
+                    unnest(sqlc.narg('additionalMetaValues')::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND (
+        sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+    )
+;

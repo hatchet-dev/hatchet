@@ -20,21 +20,19 @@ from enum import Enum
 from typing_extensions import Self
 
 
-class V1WebhookSourceName(str, Enum):
+class TenantEnvironment(str, Enum):
     """
-    V1WebhookSourceName
+    TenantEnvironment
     """
 
     """
     allowed enum values
     """
-    GENERIC = "GENERIC"
-    GITHUB = "GITHUB"
-    STRIPE = "STRIPE"
-    SLACK = "SLACK"
-    LINEAR = "LINEAR"
+    LOCAL = "local"
+    DEVELOPMENT = "development"
+    PRODUCTION = "production"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
-        """Create an instance of V1WebhookSourceName from a JSON string"""
+        """Create an instance of TenantEnvironment from a JSON string"""
         return cls(json.loads(json_str))
