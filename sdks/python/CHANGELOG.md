@@ -5,6 +5,19 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.1] - 2025-10-14
+
+### Added
+
+- Adds wrapper methods for bulk cancelling / replaying large numbers of runs with pagination.
+
+## [1.20.0] - 2025-10-3
+
+### Removed
+
+- Removes all references to `get_group_key_*` which is no longer available in V1
+- Removes all checks + references to V0
+
 ## [1.19.0] - 2025-09-24
 
 ### Removed

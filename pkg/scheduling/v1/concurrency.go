@@ -86,6 +86,8 @@ func (c *ConcurrencyManager) notify(ctx context.Context) {
 	ctx, span := telemetry.NewSpan(ctx, "notify-concurrency")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: c.tenantId.String()})
+
 	// non-blocking write
 	select {
 	case c.notifyConcurrencyCh <- telemetry.GetCarrier(ctx):
@@ -109,10 +111,10 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 
 		ctx, span := telemetry.NewSpanWithCarrier(ctx, "concurrency-manager", carrier)
 
-		telemetry.WithAttributes(span, telemetry.AttributeKV{
-			Key:   "strategy_id",
-			Value: c.strategy.ID,
-		})
+		telemetry.WithAttributes(span,
+			telemetry.AttributeKV{Key: "strategy_id", Value: c.strategy.ID},
+			telemetry.AttributeKV{Key: "tenant_id", Value: c.tenantId.String()},
+		)
 
 		if !c.rateLimiter.Allow() {
 			span.End()
@@ -156,10 +158,10 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 
 		ctx, span := telemetry.NewSpan(ctx, "concurrency-check-active")
 
-		telemetry.WithAttributes(span, telemetry.AttributeKV{
-			Key:   "strategy_id",
-			Value: c.strategy.ID,
-		})
+		telemetry.WithAttributes(span,
+			telemetry.AttributeKV{Key: "strategy_id", Value: c.strategy.ID},
+			telemetry.AttributeKV{Key: "tenant_id", Value: c.tenantId.String()},
+		)
 
 		start := time.Now()
 

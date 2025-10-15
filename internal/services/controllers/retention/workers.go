@@ -48,6 +48,8 @@ func (wc *RetentionControllerImpl) runDeleteOldWorkersTenant(ctx context.Context
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	// hard-coded to last heartbeat before 24 hours
 	lastHeartbeatBefore := time.Now().UTC().Add(-24 * time.Hour)
 
@@ -77,6 +79,8 @@ func (wc *RetentionControllerImpl) runDeleteOldWorkerAssignEventsTenant(ctx cont
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 	// hard-coded to last heartbeat after 24 hours
 	lastHeartbeatAfter := time.Now().UTC().Add(-24 * time.Hour)

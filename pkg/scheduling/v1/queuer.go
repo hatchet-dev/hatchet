@@ -110,6 +110,8 @@ func (q *Queuer) queue(ctx context.Context) {
 		ctx, span := telemetry.NewSpan(ctx, "notify-queue")
 		defer span.End()
 
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: q.tenantId.String()})
+
 		q.notifyQueueCh <- telemetry.GetCarrier(ctx)
 	}()
 }
@@ -132,10 +134,10 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		ctx, span := telemetry.NewSpanWithCarrier(ctx, "queue", carrier)
 
-		telemetry.WithAttributes(span, telemetry.AttributeKV{
-			Key:   "queue",
-			Value: q.queueName,
-		})
+		telemetry.WithAttributes(span,
+			telemetry.AttributeKV{Key: "queue", Value: q.queueName},
+			telemetry.AttributeKV{Key: "tenant_id", Value: q.tenantId.String()},
+		)
 
 		start := time.Now()
 		checkpoint := start
@@ -437,6 +439,8 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	ctx, span := telemetry.NewSpan(ctx, "flush-to-database")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: q.tenantId.String()})
 
 	begin := time.Now()
 

@@ -16,7 +16,7 @@ jobs:
           version: 10.16.1
           run_install: false
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           cache: pnpm
           cache-dependency-path: frontend/docs/pnpm-lock.yaml
@@ -44,7 +44,7 @@ jobs:
           version: 10.16.1
           run_install: false
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           cache: pnpm
           cache-dependency-path: frontend/docs/pnpm-lock.yaml

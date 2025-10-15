@@ -18,8 +18,6 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_COMPLETED,
     STEP_EVENT_TYPE_FAILED,
     ActionEventResponse,
-    GroupKeyActionEvent,
-    GroupKeyActionEventType,
     OverridesData,
     RefreshTimeoutRequest,
     ReleaseSlotRequest,
@@ -146,34 +144,6 @@ class DispatcherClient:
         return cast(
             grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
             await self.aio_client.SendStepActionEvent(
-                event,
-                metadata=get_metadata(self.token),
-            ),
-        )
-
-    async def send_group_key_action_event(
-        self, action: Action, event_type: GroupKeyActionEventType, payload: str
-    ) -> grpc.aio.UnaryUnaryCall[GroupKeyActionEvent, ActionEventResponse]:
-        if not self.aio_client:
-            aio_conn = new_conn(self.config, True)
-            self.aio_client = DispatcherStub(aio_conn)
-
-        event_timestamp = Timestamp()
-        event_timestamp.GetCurrentTime()
-
-        event = GroupKeyActionEvent(
-            workerId=action.worker_id,
-            workflowRunId=action.workflow_run_id,
-            getGroupKeyRunId=action.get_group_key_run_id,
-            actionId=action.action_id,
-            eventTimestamp=event_timestamp,
-            eventType=event_type,
-            eventPayload=payload,
-        )
-
-        return cast(
-            grpc.aio.UnaryUnaryCall[GroupKeyActionEvent, ActionEventResponse],
-            await self.aio_client.SendGroupKeyActionEvent(
                 event,
                 metadata=get_metadata(self.token),
             ),

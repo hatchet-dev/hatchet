@@ -244,6 +244,8 @@ type OLAPRepository interface {
 	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
 
 	AnalyzeOLAPTables(ctx context.Context) error
+
+	ListWorkflowRunExternalIds(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]pgtype.UUID, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -258,10 +260,10 @@ type OLAPRepositoryImpl struct {
 	shouldPartitionEventsTables bool
 }
 
-func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables, enablePayloadDualWrites bool, payloadStoreWALPollLimit int) (OLAPRepository, func() error) {
+func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables bool, payloadStoreOpts PayloadStoreRepositoryOpts) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, enablePayloadDualWrites, payloadStoreWALPollLimit)
+	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, payloadStoreOpts)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables), cleanupShared
 }
@@ -943,6 +945,75 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	return res, int(count), nil
 }
 
+func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]pgtype.UUID, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-workflow-run-external-ids-olap")
+	defer span.End()
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 30000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	params := sqlcv1.ListWorkflowRunExternalIdsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Since:    sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+	}
+
+	statuses := make([]string, 0)
+
+	for _, status := range opts.Statuses {
+		statuses = append(statuses, string(status))
+	}
+
+	if len(statuses) == 0 {
+		statuses = []string{
+			string(sqlcv1.V1ReadableStatusOlapQUEUED),
+			string(sqlcv1.V1ReadableStatusOlapRUNNING),
+			string(sqlcv1.V1ReadableStatusOlapCOMPLETED),
+			string(sqlcv1.V1ReadableStatusOlapCANCELLED),
+			string(sqlcv1.V1ReadableStatusOlapFAILED),
+		}
+	}
+
+	params.Statuses = statuses
+
+	if len(opts.WorkflowIds) > 0 {
+		workflowIdParams := make([]pgtype.UUID, 0)
+
+		for _, id := range opts.WorkflowIds {
+			workflowIdParams = append(workflowIdParams, sqlchelpers.UUIDFromStr(id.String()))
+		}
+
+		params.WorkflowIds = workflowIdParams
+	}
+
+	until := opts.FinishedBefore
+
+	if until != nil {
+		params.Until = sqlchelpers.TimestamptzFromTime(*until)
+	}
+
+	for key, value := range opts.AdditionalMetadata {
+		params.AdditionalMetaKeys = append(params.AdditionalMetaKeys, key)
+		params.AdditionalMetaValues = append(params.AdditionalMetaValues, value.(string))
+	}
+
+	externalIds, err := r.queries.ListWorkflowRunExternalIds(ctx, tx, params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return externalIds, nil
+}
+
 func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error) {
 	rows, err := r.queries.ListTaskEvents(ctx, r.readPool, sqlcv1.ListTaskEventsParams{
 		Tenantid:       sqlchelpers.UUIDFromStr(tenantId),
@@ -1305,7 +1376,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 		// fall back to input if payload is empty
 		// for backwards compatibility
 		if len(payload) == 0 {
-			r.l.Error().Msgf("writeTaskBatch: task %s has empty payload, falling back to input", task.ExternalID.String())
+			r.l.Error().Msgf("writeTaskBatch: task %s with ID %d and inserted_at %s has empty payload, falling back to input", task.ExternalID.String(), task.ID, task.InsertedAt.Time)
 			payload = task.Input
 		}
 
@@ -1822,7 +1893,7 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 }
 
 func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
-	const timeout = 1000 * 60 * 30 // 30 minute timeout
+	const timeout = 1000 * 60 * 60 // 60 minute timeout
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
 
 	if err != nil {
@@ -1897,7 +1968,7 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 	})
 
 	if len(uniqueTaskIdInsertedAts) == 0 {
-		r.l.Warn().Msg("populateTaskRunData called with empty opts, returning empty result")
+		r.l.Debug().Msg("populateTaskRunData called with empty opts, returning empty result")
 		return []*sqlcv1.PopulateTaskRunDataRow{}, nil
 	}
 

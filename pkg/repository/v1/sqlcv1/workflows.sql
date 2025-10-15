@@ -208,6 +208,17 @@ INSERT INTO "WorkflowTriggerEventRef" (
 ) RETURNING *;
 
 -- name: CreateWorkflowTriggerCronRef :one
+WITH previous_trigger AS (
+    SELECT "enabled"
+    FROM "WorkflowTriggerCronRef" c
+    JOIN "WorkflowTriggers" t ON t."id" = c."parentId"
+    JOIN "WorkflowVersion" wv ON wv."id" = t."workflowVersionId"
+    WHERE
+        wv."id" = sqlc.narg('oldWorkflowVersionId')::uuid
+        AND "cron" = @cronTrigger::text
+        AND "name" = sqlc.narg('name')::text
+)
+
 INSERT INTO "WorkflowTriggerCronRef" (
     "parentId",
     "cron",
@@ -216,17 +227,20 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "additionalMetadata",
     "id",
     "method",
-    "priority"
-) VALUES (
-    @workflowTriggersId::uuid,
-    @cronTrigger::text,
-    sqlc.narg('name')::text,
-    sqlc.narg('input')::jsonb,
-    sqlc.narg('additionalMetadata')::jsonb,
-    gen_random_uuid(),
-    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT'),
-    COALESCE(sqlc.narg('priority')::integer, 1)
-) RETURNING *;
+    "priority",
+    "enabled"
+)
+SELECT
+    @workflowTriggersId::uuid AS "parentId",
+    @cronTrigger::text AS "cron",
+    sqlc.narg('name')::text AS "name",
+    sqlc.narg('input')::jsonb AS "input",
+    sqlc.narg('additionalMetadata')::jsonb AS "additionalMetadata",
+    gen_random_uuid() AS "id",
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT') AS "method",
+    COALESCE(sqlc.narg('priority')::integer, 1) AS "priority",
+    COALESCE((SELECT "enabled" FROM previous_trigger), true) AS "enabled"
+RETURNING *;
 
 -- name: CreateWorkflowConcurrency :one
 INSERT INTO "WorkflowConcurrency" (
@@ -391,14 +405,21 @@ WHERE
 
 -- name: MoveCronTriggerToNewWorkflowTriggers :exec
 WITH triggersToUpdate AS (
-    SELECT cronTrigger."id" FROM "WorkflowTriggerCronRef" cronTrigger
+    SELECT
+        cronTrigger."id",
+        cronTrigger."enabled"
+    FROM "WorkflowTriggerCronRef" cronTrigger
     JOIN "WorkflowTriggers" triggers ON triggers."id" = cronTrigger."parentId"
     WHERE triggers."workflowVersionId" = @oldWorkflowVersionId::uuid
     AND cronTrigger."method" = 'API'
 )
 UPDATE "WorkflowTriggerCronRef"
-SET "parentId" = @newWorkflowTriggerId::uuid
-WHERE "id" IN (SELECT "id" FROM triggersToUpdate);
+SET
+    "parentId" = @newWorkflowTriggerId::uuid,
+    "enabled" = triggersToUpdate."enabled"
+FROM triggersToUpdate
+WHERE "WorkflowTriggerCronRef"."id" = triggersToUpdate."id"
+;
 
 -- name: MoveScheduledTriggerToNewWorkflowTriggers :exec
 WITH triggersToUpdate AS (

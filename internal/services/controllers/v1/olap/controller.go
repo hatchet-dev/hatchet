@@ -44,6 +44,7 @@ type OLAPControllerImpl struct {
 	samplingHashThreshold        *int64
 	olapConfig                   *server.ConfigFileOperations
 	prometheusMetricsEnabled     bool
+	analyzeCronInterval          time.Duration
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
@@ -59,6 +60,7 @@ type OLAPControllerOpts struct {
 	samplingHashThreshold    *int64
 	olapConfig               *server.ConfigFileOperations
 	prometheusMetricsEnabled bool
+	analyzeCronInterval      time.Duration
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -70,6 +72,7 @@ func defaultOLAPControllerOpts() *OLAPControllerOpts {
 		dv:                       datautils.NewDataDecoderValidator(),
 		alerter:                  alerter,
 		prometheusMetricsEnabled: false,
+		analyzeCronInterval:      3 * time.Hour,
 	}
 }
 
@@ -138,6 +141,12 @@ func WithPrometheusMetricsEnabled(enabled bool) OLAPControllerOpt {
 	}
 }
 
+func WithAnalyzeCronInterval(interval time.Duration) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		opts.analyzeCronInterval = interval
+	}
+}
+
 func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	opts := defaultOLAPControllerOpts()
 
@@ -185,6 +194,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		samplingHashThreshold:    opts.samplingHashThreshold,
 		olapConfig:               opts.olapConfig,
 		prometheusMetricsEnabled: opts.prometheusMetricsEnabled,
+		analyzeCronInterval:      opts.analyzeCronInterval,
 	}
 
 	// Default jitter value
@@ -288,10 +298,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = o.s.NewJob(
-		gocron.DailyJob(1, gocron.NewAtTimes(
-			// 5AM UTC
-			gocron.NewAtTime(5, 0, 0),
-		)),
+		gocron.DurationJob(o.analyzeCronInterval),
 		gocron.NewTask(
 			o.runAnalyze(ctx),
 		),
