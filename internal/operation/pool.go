@@ -68,25 +68,27 @@ func NewOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId st
 		t := time.NewTicker(5 * time.Second)
 		defer t.Stop()
 
-		for range t.C {
-			if outerCtx.Err() != nil {
+		for {
+			select {
+			case <-outerCtx.Done():
 				return
-			}
+			case <-t.C:
 
-			// list all tenants
-			innerCtx, innerCancel := context.WithTimeout(outerCtx, 5*time.Second)
+				// list all tenants
+				innerCtx, innerCancel := context.WithTimeout(outerCtx, 5*time.Second)
 
-			tenants, err := p.ListTenantsForController(innerCtx, dbsqlc.TenantMajorEngineVersionV1)
+				tenants, err := p.ListTenantsForController(innerCtx, dbsqlc.TenantMajorEngineVersionV1)
 
-			if err != nil {
+				if err != nil {
+					innerCancel()
+					ql.Error().Err(err).Msg("could not list tenants")
+					continue
+				}
+
 				innerCancel()
-				ql.Error().Err(err).Msg("could not list tenants")
-				continue
+
+				pool.setTenants(tenants)
 			}
-
-			innerCancel()
-
-			pool.setTenants(tenants)
 		}
 	}()
 
@@ -97,6 +99,15 @@ func NewOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId st
 
 func (p *OperationPool) Cleanup() {
 	p.cancel()
+
+	// stop all operations
+	p.ops.Range(func(key, value any) bool {
+		if op, ok := value.(*SerialOperation); ok {
+			op.Stop()
+		}
+		p.ops.Delete(key)
+		return true
+	})
 }
 
 func (p *OperationPool) setTenants(tenants []*dbsqlc.Tenant) {
