@@ -12,7 +12,6 @@ import (
 )
 
 type IntervalSettingsRepository interface {
-	ReadAllIntervals(ctx context.Context, operationId string) (map[string]time.Duration, error)
 	ReadInterval(ctx context.Context, operationId string, tenantId string) (time.Duration, error)
 	SetInterval(ctx context.Context, operationId string, tenantId string, d time.Duration) (time.Duration, error)
 }
@@ -21,10 +20,6 @@ type NoOpIntervalSettingsRepository struct{}
 
 func NewNoOpIntervalSettingsRepository() IntervalSettingsRepository {
 	return &NoOpIntervalSettingsRepository{}
-}
-
-func (r *NoOpIntervalSettingsRepository) ReadAllIntervals(ctx context.Context, operationId string) (map[string]time.Duration, error) {
-	return make(map[string]time.Duration), nil
 }
 
 func (r *NoOpIntervalSettingsRepository) ReadInterval(ctx context.Context, operationId string, tenantId string) (time.Duration, error) {
@@ -45,23 +40,9 @@ func newIntervalSettingsRepository(shared *sharedRepository) IntervalSettingsRep
 	}
 }
 
-func (r *intervalSettingsRepository) ReadAllIntervals(ctx context.Context, operationId string) (map[string]time.Duration, error) {
-	intervals, err := r.queries.ListIntervalsByOperationId(ctx, r.pool, operationId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	res := make(map[string]time.Duration)
-
-	for _, interval := range intervals {
-		res[interval.TenantID.String()] = time.Duration(interval.IntervalNanoseconds)
-	}
-
-	return res, nil
-}
-
 func (r *intervalSettingsRepository) ReadInterval(ctx context.Context, operationId string, tenantId string) (time.Duration, error) {
+	r.l.Error().Str("resource_id", tenantId).Str("operation_id", operationId).Msg("[ReadInterval] reading interval from db")
+
 	interval, err := r.queries.ReadInterval(ctx, r.pool, sqlcv1.ReadIntervalParams{
 		Operationid: operationId,
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
@@ -77,10 +58,14 @@ func (r *intervalSettingsRepository) ReadInterval(ctx context.Context, operation
 
 	res := time.Duration(interval.IntervalNanoseconds)
 
+	r.l.Error().Str("resource_id", tenantId).Str("operation_id", operationId).Dur("interval", res).Msg("[ReadInterval] returning interval from db")
+
 	return res, nil
 }
 
 func (r *intervalSettingsRepository) SetInterval(ctx context.Context, operationId string, tenantId string, d time.Duration) (time.Duration, error) {
+	r.l.Error().Str("resource_id", tenantId).Str("operation_id", operationId).Dur("interval", d).Msg("[SetInterval] setting interval in db")
+
 	interval, err := r.queries.UpsertInterval(ctx, r.pool, sqlcv1.UpsertIntervalParams{
 		Intervalnanoseconds: int64(d),
 		Operationid:         operationId,
@@ -92,6 +77,8 @@ func (r *intervalSettingsRepository) SetInterval(ctx context.Context, operationI
 	}
 
 	res := time.Duration(interval.IntervalNanoseconds)
+
+	r.l.Error().Str("resource_id", tenantId).Str("operation_id", operationId).Dur("interval", res).Msg("[SetInterval] returning interval in db")
 
 	return res, nil
 }
