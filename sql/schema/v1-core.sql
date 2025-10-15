@@ -1756,3 +1756,13 @@ CREATE TABLE v1_idempotency_key (
 );
 
 CREATE UNIQUE INDEX v1_idempotency_key_unique_tenant_key ON v1_idempotency_key (tenant_id, key);
+
+-- v1_operation_interval_settings represents the interval settings for a specific tenant. "Operation" means
+-- any sort of tenant-specific polling-based operation on the engine, like timeouts, reassigns, etc.
+CREATE TABLE v1_operation_interval_settings (
+    tenant_id UUID NOT NULL,
+    operation_id TEXT NOT NULL,
+    -- The interval represents a Go time.Duration, hence the nanoseconds
+    interval_nanoseconds BIGINT NOT NULL,
+    PRIMARY KEY (tenant_id, operation_id)
+);

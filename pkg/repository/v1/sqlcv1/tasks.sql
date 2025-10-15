@@ -79,6 +79,15 @@ FROM
     payload_partitions
 ;
 
+-- name: DefaultTaskActivityGauge :one
+SELECT
+    COUNT(*)
+FROM
+    v1_queue
+WHERE
+    tenant_id = @tenantId::uuid
+    AND last_active > @activeSince::timestamptz;
+
 -- name: FlattenExternalIds :many
 WITH lookup_rows AS (
     SELECT

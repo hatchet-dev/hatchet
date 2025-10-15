@@ -489,8 +489,8 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadExternalCutovers(ctx context.
 	}
 
 	queueItemsCutOver, err := p.queries.CutOverPayloadsToExternal(ctx, tx, sqlcv1.CutOverPayloadsToExternalParams{
-		Polllimit:       int32(p.walPollLimit),
-		Partitionnumber: int32(partitionNumber),
+		Polllimit:       int32(p.walPollLimit),  // nolint: gosec
+		Partitionnumber: int32(partitionNumber), // nolint: gosec
 	})
 
 	if err != nil {
