@@ -205,8 +205,8 @@ type UpdateDAGStatusRow struct {
 
 type TaskWithPayloads struct {
 	*sqlcv1.PopulateTaskRunDataRow
-	Input              []byte
-	Output             []byte
+	InputPayload       []byte
+	OutputPayload      []byte
 	NumSpawnedChildren int64
 }
 
@@ -240,7 +240,7 @@ type OLAPRepository interface {
 
 	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
-	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRow, *int64, error)
+	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error)
 	GetEvent(ctx context.Context, externalId string) (*sqlcv1.V1EventsOlap, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 
@@ -551,8 +551,19 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtyp
 		return nil, emptyUUID, err
 	}
 
-	input := payloads[taskRun.ExternalID]
-	output := payloads[taskRun.OutputEventExternalID]
+	input, exists := payloads[taskRun.ExternalID]
+
+	if !exists {
+		r.l.Error().Msgf("ReadTaskRunData: task with external_id %s and inserted_at %s has empty payload, falling back to input", taskRun.ExternalID, taskRun.InsertedAt.Time)
+		input = taskRun.Input
+	}
+
+	output, exists := payloads[taskRun.OutputEventExternalID]
+
+	if !exists {
+		r.l.Error().Msgf("ReadTaskRunData: task with external_id %s and inserted_at %s has empty output payload, falling back to output", taskRun.ExternalID, taskRun.InsertedAt.Time)
+		output = taskRun.Output
+	}
 
 	return &TaskWithPayloads{
 		&sqlcv1.PopulateTaskRunDataRow{
@@ -710,8 +721,20 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 	result := make([]*TaskWithPayloads, 0, len(tasksWithData))
 
 	for _, task := range tasksWithData {
-		input := payloads[task.ExternalID]
-		output := payloads[task.OutputEventExternalID]
+		input, exists := payloads[task.ExternalID]
+
+		if !exists {
+			r.l.Error().Msgf("ListTasks: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
+			input = task.Input
+		}
+
+		output, exists := payloads[task.OutputEventExternalID]
+
+		if !exists {
+			r.l.Error().Msgf("ListTasks: task with external_id %s and inserted_at %s has empty output payload, falling back to output", task.ExternalID, task.InsertedAt.Time)
+			output = task.Output
+		}
+
 		result = append(result, &TaskWithPayloads{
 			task,
 			input,
@@ -790,8 +813,19 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 	result := make([]*TaskWithPayloads, 0, len(tasksWithData))
 
 	for _, task := range tasksWithData {
-		input := payloads[task.ExternalID]
-		output := payloads[task.OutputEventExternalID]
+		input, exists := payloads[task.ExternalID]
+
+		if !exists {
+			r.l.Error().Msgf("ListTasksByDAGId: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
+			input = task.Input
+		}
+
+		output, exists := payloads[task.OutputEventExternalID]
+
+		if !exists {
+			r.l.Error().Msgf("ListTasksByDAGId: task with external_id %s and inserted_at %s has empty output payload, falling back to output", task.ExternalID, task.InsertedAt.Time)
+			output = task.Output
+		}
 
 		result = append(result, &TaskWithPayloads{
 			task,
@@ -854,8 +888,19 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 	result := make([]*TaskWithPayloads, 0, len(tasksWithData))
 
 	for _, task := range tasksWithData {
-		input := payloads[task.ExternalID]
-		output := payloads[task.OutputEventExternalID]
+		input, exists := payloads[task.ExternalID]
+
+		if !exists {
+			r.l.Error().Msgf("ListTasksByIdAndInsertedAt: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
+			input = task.Input
+		}
+
+		output, exists := payloads[task.OutputEventExternalID]
+
+		if !exists {
+			r.l.Error().Msgf("ListTasksByIdAndInsertedAt: task with external_id %s and inserted_at %s has empty output payload, falling back to output", task.ExternalID, task.InsertedAt.Time)
+			output = task.Output
+		}
 
 		result = append(result, &TaskWithPayloads{
 			task,
@@ -1043,12 +1088,22 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		if row.Kind == sqlcv1.V1RunKindDAG {
 			dag, ok := dagsToPopulated[externalId]
 
-			outputPayload := externalIdToPayload[dag.OutputEventExternalID]
-			inputPayload := externalIdToPayload[dag.ExternalID]
-
 			if !ok {
 				r.l.Error().Msgf("could not find dag with external id %s", externalId)
 				continue
+			}
+
+			outputPayload, exists := externalIdToPayload[dag.OutputEventExternalID]
+
+			if !exists {
+				r.l.Error().Msgf("ListWorkflowRuns-1: dag with external_id %s and inserted_at %s has empty payload, falling back to output", dag.ExternalID, dag.InsertedAt.Time)
+				outputPayload = dag.Output
+			}
+
+			inputPayload, exists := externalIdToPayload[dag.ExternalID]
+			if !exists {
+				r.l.Error().Msgf("ListWorkflowRuns-2: dag with external_id %s and inserted_at %s has empty payload, falling back to input", dag.ExternalID, dag.InsertedAt.Time)
+				inputPayload = dag.Input
 			}
 
 			// TODO !IMPORTANT: verify this is correct
@@ -1086,8 +1141,19 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 			retryCount := int(task.RetryCount)
 
-			outputPayload := externalIdToPayload[task.OutputEventExternalID]
-			inputPayload := externalIdToPayload[task.ExternalID]
+			outputPayload, exists := externalIdToPayload[task.OutputEventExternalID]
+
+			if !exists {
+				r.l.Error().Msgf("ListWorkflowRuns-3: task with external_id %s and inserted_at %s has empty payload, falling back to output", task.ExternalID, task.InsertedAt.Time)
+				outputPayload = task.Output
+			}
+
+			inputPayload, exists := externalIdToPayload[task.ExternalID]
+
+			if !exists {
+				r.l.Error().Msgf("ListWorkflowRuns-4: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
+				inputPayload = task.Input
+			}
 
 			res = append(res, &WorkflowRunData{
 				TenantID:           task.TenantID,
@@ -1956,7 +2022,12 @@ type ListEventsRow struct {
 	TriggeringWebhookName   *string            `json:"triggering_webhook_name,omitempty"`
 }
 
-func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRow, *int64, error) {
+type EventWithPayload struct {
+	*ListEventsRow
+	Payload []byte `json:"payload"`
+}
+
+func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error) {
 	events, err := r.queries.ListEvents(ctx, r.readPool, opts)
 
 	if err != nil {
@@ -2006,11 +2077,15 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		return nil, nil, fmt.Errorf("error reading event payloads: %v", err)
 	}
 
-	result := make([]*ListEventsRow, 0)
+	result := make([]*EventWithPayload, 0)
 
 	for _, event := range events {
-		data, exists := externalIdToEventData[event.ExternalID]
-		payload := externalIdToPayload[event.ExternalID]
+		payload, exists := externalIdToPayload[event.ExternalID]
+
+		if !exists {
+			r.l.Error().Msgf("ListEvents: payload for event %s not found", sqlchelpers.UUIDToStr(event.ExternalID))
+			payload = event.Payload
+		}
 
 		var triggeringWebhookName *string
 
@@ -2018,26 +2093,11 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 			triggeringWebhookName = &event.TriggeringWebhookName.String
 		}
 
+		data, exists := externalIdToEventData[event.ExternalID]
+
 		if !exists || len(data) == 0 {
-			result = append(result, &ListEventsRow{
-				TenantID:                event.TenantID,
-				EventID:                 event.ID,
-				EventExternalID:         event.ExternalID,
-				EventSeenAt:             event.SeenAt,
-				EventKey:                event.Key,
-				EventPayload:            payload,
-				EventAdditionalMetadata: event.AdditionalMetadata,
-				EventScope:              event.Scope.String,
-				QueuedCount:             0,
-				RunningCount:            0,
-				CompletedCount:          0,
-				CancelledCount:          0,
-				FailedCount:             0,
-				TriggeringWebhookName:   triggeringWebhookName,
-			})
-		} else {
-			for _, d := range data {
-				result = append(result, &ListEventsRow{
+			result = append(result, &EventWithPayload{
+				ListEventsRow: &ListEventsRow{
 					TenantID:                event.TenantID,
 					EventID:                 event.ID,
 					EventExternalID:         event.ExternalID,
@@ -2046,13 +2106,36 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 					EventPayload:            payload,
 					EventAdditionalMetadata: event.AdditionalMetadata,
 					EventScope:              event.Scope.String,
-					QueuedCount:             d.QueuedCount,
-					RunningCount:            d.RunningCount,
-					CompletedCount:          d.CompletedCount,
-					CancelledCount:          d.CancelledCount,
-					FailedCount:             d.FailedCount,
-					TriggeredRuns:           d.TriggeredRuns,
+					QueuedCount:             0,
+					RunningCount:            0,
+					CompletedCount:          0,
+					CancelledCount:          0,
+					FailedCount:             0,
 					TriggeringWebhookName:   triggeringWebhookName,
+				},
+				Payload: payload,
+			})
+		} else {
+			for _, d := range data {
+				result = append(result, &EventWithPayload{
+					ListEventsRow: &ListEventsRow{
+						TenantID:                event.TenantID,
+						EventID:                 event.ID,
+						EventExternalID:         event.ExternalID,
+						EventSeenAt:             event.SeenAt,
+						EventKey:                event.Key,
+						EventPayload:            payload,
+						EventAdditionalMetadata: event.AdditionalMetadata,
+						EventScope:              event.Scope.String,
+						QueuedCount:             d.QueuedCount,
+						RunningCount:            d.RunningCount,
+						CompletedCount:          d.CompletedCount,
+						CancelledCount:          d.CancelledCount,
+						FailedCount:             d.FailedCount,
+						TriggeredRuns:           d.TriggeredRuns,
+						TriggeringWebhookName:   triggeringWebhookName,
+					},
+					Payload: payload,
 				})
 			}
 		}

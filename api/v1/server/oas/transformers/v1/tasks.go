@@ -22,7 +22,7 @@ func jsonToMap(jsonBytes []byte) map[string]interface{} {
 	return result
 }
 
-func ToTaskSummary(task *v1.TaskWithPayloads, inputPayload, outputPayload []byte) gen.V1TaskSummary {
+func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 	workflowVersionID := uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowVersionID))
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
@@ -56,8 +56,8 @@ func ToTaskSummary(task *v1.TaskWithPayloads, inputPayload, outputPayload []byte
 			CreatedAt: task.InsertedAt.Time,
 			UpdatedAt: task.InsertedAt.Time,
 		},
-		Input:                 jsonToMap(inputPayload),
-		Output:                jsonToMap(outputPayload),
+		Input:                 jsonToMap(task.InputPayload),
+		Output:                jsonToMap(task.OutputPayload),
 		Type:                  gen.V1WorkflowTypeTASK,
 		DisplayName:           task.DisplayName,
 		Duration:              durationPtr,
@@ -82,15 +82,11 @@ func ToTaskSummary(task *v1.TaskWithPayloads, inputPayload, outputPayload []byte
 
 func ToTaskSummaryRows(
 	tasks []*v1.TaskWithPayloads,
-	externalIdToPayload map[pgtype.UUID][]byte,
 ) []gen.V1TaskSummary {
 	toReturn := make([]gen.V1TaskSummary, len(tasks))
 
 	for i, task := range tasks {
-		outputPayload := externalIdToPayload[task.OutputEventExternalID]
-		inputPayload := externalIdToPayload[task.ExternalID]
-
-		toReturn[i] = ToTaskSummary(task, inputPayload, outputPayload)
+		toReturn[i] = ToTaskSummary(task)
 	}
 
 	return toReturn
@@ -99,16 +95,13 @@ func ToTaskSummaryRows(
 func ToDagChildren(
 	tasks []*v1.TaskWithPayloads,
 	taskIdToDagExternalId map[int64]uuid.UUID,
-	externalIdToPayload map[pgtype.UUID][]byte,
 ) []gen.V1DagChildren {
 	dagIdToTasks := make(map[uuid.UUID][]gen.V1TaskSummary)
 
 	for _, task := range tasks {
 		dagId := taskIdToDagExternalId[task.ID]
-		outputPayload := externalIdToPayload[task.OutputEventExternalID]
-		inputPayload := externalIdToPayload[task.ExternalID]
 
-		dagIdToTasks[dagId] = append(dagIdToTasks[dagId], ToTaskSummary(task, inputPayload, outputPayload))
+		dagIdToTasks[dagId] = append(dagIdToTasks[dagId], ToTaskSummary(task))
 	}
 
 	toReturn := make([]gen.V1DagChildren, 0, len(dagIdToTasks))
@@ -129,9 +122,8 @@ func ToDagChildren(
 func ToTaskSummaryMany(
 	tasks []*v1.TaskWithPayloads,
 	total int, limit, offset int64,
-	externalIdToPayload map[pgtype.UUID][]byte,
 ) gen.V1TaskSummaryList {
-	toReturn := ToTaskSummaryRows(tasks, externalIdToPayload)
+	toReturn := ToTaskSummaryRows(tasks)
 
 	currentPage := (offset / limit) + 1
 	nextPage := currentPage + 1
@@ -425,7 +417,7 @@ func ToWorkflowRunDetails(
 		}
 	}
 
-	parsedTasks := ToTaskSummaryRows(tasks, externalIdToPayload)
+	parsedTasks := ToTaskSummaryRows(tasks)
 
 	workflowConfig := make(map[string]interface{})
 
