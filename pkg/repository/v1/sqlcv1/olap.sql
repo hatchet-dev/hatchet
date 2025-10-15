@@ -1665,6 +1665,8 @@ FROM v1_payloads_olap
 WHERE
     tenant_id = @tenantId::UUID
     AND external_id = ANY(@externalIds::UUID[])
+;
+
 -- name: ListWorkflowRunExternalIds :many
 SELECT external_id
 FROM v1_runs_olap
