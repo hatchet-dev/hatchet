@@ -150,6 +150,7 @@ TenantResource:
     - "TASK_RUN"
     - "CRON"
     - "SCHEDULE"
+    - 'INCOMING_WEBHOOK'
   type: string
 
 TenantResourceLimit:

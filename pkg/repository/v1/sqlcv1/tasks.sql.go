@@ -74,6 +74,28 @@ func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Dat
 	return err
 }
 
+const defaultTaskActivityGauge = `-- name: DefaultTaskActivityGauge :one
+SELECT
+    COUNT(*)
+FROM
+    v1_queue
+WHERE
+    tenant_id = $1::uuid
+    AND last_active > $2::timestamptz
+`
+
+type DefaultTaskActivityGaugeParams struct {
+	Tenantid    pgtype.UUID        `json:"tenantid"`
+	Activesince pgtype.Timestamptz `json:"activesince"`
+}
+
+func (q *Queries) DefaultTaskActivityGauge(ctx context.Context, db DBTX, arg DefaultTaskActivityGaugeParams) (int64, error) {
+	row := db.QueryRow(ctx, defaultTaskActivityGauge, arg.Tenantid, arg.Activesince)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteMatchingSignalEvents = `-- name: DeleteMatchingSignalEvents :exec
 WITH input AS (
     SELECT

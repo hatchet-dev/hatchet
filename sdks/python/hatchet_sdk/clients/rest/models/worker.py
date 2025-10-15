@@ -25,6 +25,7 @@ from typing_extensions import Annotated, Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.recent_step_runs import RecentStepRuns
+from hatchet_sdk.clients.rest.models.registered_workflow import RegisteredWorkflow
 from hatchet_sdk.clients.rest.models.semaphore_slots import SemaphoreSlots
 from hatchet_sdk.clients.rest.models.worker_label import WorkerLabel
 from hatchet_sdk.clients.rest.models.worker_runtime_info import WorkerRuntimeInfo
@@ -51,6 +52,11 @@ class Worker(BaseModel):
     )
     actions: Optional[List[StrictStr]] = Field(
         default=None, description="The actions this worker can perform."
+    )
+    registered_workflows: Optional[List[RegisteredWorkflow]] = Field(
+        default=None,
+        description="The workflow ids registered on this worker.",
+        alias="registeredWorkflows",
     )
     slots: Optional[List[SemaphoreSlots]] = Field(
         default=None, description="The semaphore slot state for the worker."
@@ -97,6 +103,7 @@ class Worker(BaseModel):
         "lastHeartbeatAt",
         "lastListenerEstablished",
         "actions",
+        "registeredWorkflows",
         "slots",
         "recentStepRuns",
         "status",
@@ -161,6 +168,13 @@ class Worker(BaseModel):
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
             _dict["metadata"] = self.metadata.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of each item in registered_workflows (list)
+        _items = []
+        if self.registered_workflows:
+            for _item_registered_workflows in self.registered_workflows:
+                if _item_registered_workflows:
+                    _items.append(_item_registered_workflows.to_dict())
+            _dict["registeredWorkflows"] = _items
         # override the default output from pydantic by calling `to_dict()` of each item in slots (list)
         _items = []
         if self.slots:
@@ -208,6 +222,14 @@ class Worker(BaseModel):
                 "lastHeartbeatAt": obj.get("lastHeartbeatAt"),
                 "lastListenerEstablished": obj.get("lastListenerEstablished"),
                 "actions": obj.get("actions"),
+                "registeredWorkflows": (
+                    [
+                        RegisteredWorkflow.from_dict(_item)
+                        for _item in obj["registeredWorkflows"]
+                    ]
+                    if obj.get("registeredWorkflows") is not None
+                    else None
+                ),
                 "slots": (
                     [SemaphoreSlots.from_dict(_item) for _item in obj["slots"]]
                     if obj.get("slots") is not None
