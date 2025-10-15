@@ -16,7 +16,7 @@ func TestInterval_RunInterval_BasicTiming(t *testing.T) {
 		startInterval:   50 * time.Millisecond,
 		currInterval:    50 * time.Millisecond,
 		maxInterval:     1 * time.Second,
-		noRowsCount:     0,
+		noActivityCount: 0,
 		incBackoffCount: 3,
 		repo:            v1.NewNoOpIntervalSettingsRepository(),
 	}
@@ -48,7 +48,7 @@ func TestInterval_RunInterval_WithJitter(t *testing.T) {
 		startInterval:   50 * time.Millisecond,
 		currInterval:    50 * time.Millisecond,
 		maxInterval:     1 * time.Second,
-		noRowsCount:     0,
+		noActivityCount: 0,
 		incBackoffCount: 3,
 		repo:            v1.NewNoOpIntervalSettingsRepository(),
 	}
@@ -86,7 +86,7 @@ func TestInterval_RunInterval_ContextCancellation(t *testing.T) {
 		startInterval:   100 * time.Millisecond,
 		currInterval:    100 * time.Millisecond,
 		maxInterval:     1 * time.Second,
-		noRowsCount:     0,
+		noActivityCount: 0,
 		incBackoffCount: 3,
 		repo:            v1.NewNoOpIntervalSettingsRepository(),
 	}
@@ -110,7 +110,7 @@ func TestInterval_SetIntervalGauge_ResetOnRowsModified(t *testing.T) {
 		startInterval:   50 * time.Millisecond,
 		currInterval:    200 * time.Millisecond,
 		maxInterval:     1 * time.Second,
-		noRowsCount:     5,
+		noActivityCount: 5,
 		incBackoffCount: 3,
 		repo:            v1.NewNoOpIntervalSettingsRepository(),
 	}
@@ -118,7 +118,7 @@ func TestInterval_SetIntervalGauge_ResetOnRowsModified(t *testing.T) {
 	interval.SetIntervalGauge(1)
 
 	assert.Equal(t, 50*time.Millisecond, interval.currInterval, "Should reset to start interval")
-	assert.Equal(t, 0, interval.noRowsCount, "Should reset no rows count")
+	assert.Equal(t, 0, interval.noActivityCount, "Should reset no rows count")
 }
 
 func TestInterval_SetIntervalGauge_BackoffMechanism(t *testing.T) {
@@ -127,21 +127,21 @@ func TestInterval_SetIntervalGauge_BackoffMechanism(t *testing.T) {
 		startInterval:   50 * time.Millisecond,
 		currInterval:    50 * time.Millisecond,
 		maxInterval:     1 * time.Second,
-		noRowsCount:     0,
+		noActivityCount: 0,
 		incBackoffCount: 3,
 		repo:            v1.NewNoOpIntervalSettingsRepository(),
 	}
 
 	interval.SetIntervalGauge(0)
-	assert.Equal(t, 1, interval.noRowsCount)
+	assert.Equal(t, 1, interval.noActivityCount)
 	assert.Equal(t, 50*time.Millisecond, interval.currInterval)
 
 	interval.SetIntervalGauge(0)
-	assert.Equal(t, 2, interval.noRowsCount)
+	assert.Equal(t, 2, interval.noActivityCount)
 	assert.Equal(t, 50*time.Millisecond, interval.currInterval)
 
 	interval.SetIntervalGauge(0)
-	assert.Equal(t, 0, interval.noRowsCount, "Should reset count after backoff")
+	assert.Equal(t, 0, interval.noActivityCount, "Should reset count after backoff")
 	assert.Equal(t, 100*time.Millisecond, interval.currInterval, "Should double the interval")
 
 	interval.SetIntervalGauge(0)
@@ -156,7 +156,7 @@ func TestInterval_SetIntervalGauge_ConcurrentAccess(t *testing.T) {
 		startInterval:   50 * time.Millisecond,
 		currInterval:    50 * time.Millisecond,
 		maxInterval:     1 * time.Second,
-		noRowsCount:     0,
+		noActivityCount: 0,
 		incBackoffCount: 3,
 		repo:            v1.NewNoOpIntervalSettingsRepository(),
 	}
@@ -180,8 +180,8 @@ func TestInterval_SetIntervalGauge_ConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	assert.GreaterOrEqual(t, interval.currInterval, 50*time.Millisecond, "Interval should be at least the start interval")
-	assert.GreaterOrEqual(t, interval.noRowsCount, 0, "No rows count should be non-negative")
-	assert.LessOrEqual(t, interval.noRowsCount, interval.incBackoffCount-1, "No rows count should not exceed backoff count")
+	assert.GreaterOrEqual(t, interval.noActivityCount, 0, "No rows count should be non-negative")
+	assert.LessOrEqual(t, interval.noActivityCount, interval.incBackoffCount-1, "No rows count should not exceed backoff count")
 }
 
 func TestInterval_GetNextTrigger_ReturnsChannel(t *testing.T) {
@@ -190,7 +190,7 @@ func TestInterval_GetNextTrigger_ReturnsChannel(t *testing.T) {
 		startInterval:   50 * time.Millisecond,
 		currInterval:    50 * time.Millisecond,
 		maxInterval:     1 * time.Second,
-		noRowsCount:     0,
+		noActivityCount: 0,
 		incBackoffCount: 3,
 		repo:            v1.NewNoOpIntervalSettingsRepository(),
 	}
@@ -211,7 +211,7 @@ func TestInterval_GetNextTrigger_ConcurrentAccess(t *testing.T) {
 		startInterval:   20 * time.Millisecond,
 		currInterval:    20 * time.Millisecond,
 		maxInterval:     1 * time.Second,
-		noRowsCount:     0,
+		noActivityCount: 0,
 		incBackoffCount: 3,
 		repo:            v1.NewNoOpIntervalSettingsRepository(),
 	}
@@ -245,7 +245,7 @@ func TestInterval_RunInterval_Integration(t *testing.T) {
 		startInterval:   50 * time.Millisecond,
 		currInterval:    50 * time.Millisecond,
 		maxInterval:     1 * time.Second,
-		noRowsCount:     0,
+		noActivityCount: 0,
 		incBackoffCount: 2,
 		repo:            v1.NewNoOpIntervalSettingsRepository(),
 	}

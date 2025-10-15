@@ -20,6 +20,7 @@ type OperationPool struct {
 	method      OpMethod
 	ql          *zerolog.Logger
 	operationId string
+	cancel      context.CancelFunc
 
 	hasInterval             bool
 	intervalRepo            v1.IntervalSettingsRepository
@@ -28,39 +29,6 @@ type OperationPool struct {
 	intervalMaxInterval     time.Duration
 	intervalIncBackoffCount int
 	intervalGauge           IntervalGauge
-}
-
-func NewOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId string, timeout time.Duration, description string, method OpMethod, fs ...func(*OperationPool)) *OperationPool {
-	pool := &OperationPool{
-		operationId: operationId,
-		timeout:     timeout,
-		description: description,
-		method:      method,
-		ql:          ql,
-	}
-
-	for _, f := range fs {
-		f(pool)
-	}
-
-	// start a goroutine to continuously set tenants
-	go func() {
-		t := time.NewTicker(5 * time.Second)
-
-		for range t.C {
-			// list all tenants
-			tenants, err := p.ListTenantsForController(context.Background(), dbsqlc.TenantMajorEngineVersionV1)
-
-			if err != nil {
-				ql.Error().Err(err).Msg("could not list tenants")
-				return
-			}
-
-			pool.setTenants(tenants)
-		}
-	}()
-
-	return pool
 }
 
 func WithPoolInterval(
@@ -78,6 +46,52 @@ func WithPoolInterval(
 		p.intervalIncBackoffCount = incBackoffCount
 		p.intervalGauge = gauge
 	}
+}
+
+func NewOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId string, timeout time.Duration, description string, method OpMethod, fs ...func(*OperationPool)) *OperationPool {
+	pool := &OperationPool{
+		operationId: operationId,
+		timeout:     timeout,
+		description: description,
+		method:      method,
+		ql:          ql,
+	}
+
+	for _, f := range fs {
+		f(pool)
+	}
+
+	outerCtx, cancel := context.WithCancel(context.Background())
+
+	// start a goroutine to continuously set tenants
+	go func() {
+		t := time.NewTicker(5 * time.Second)
+
+		for range t.C {
+			// list all tenants
+			ctx, cancel := context.WithTimeout(outerCtx, 5*time.Second)
+
+			tenants, err := p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
+
+			if err != nil {
+				cancel()
+				ql.Error().Err(err).Msg("could not list tenants")
+				continue
+			}
+
+			cancel()
+
+			pool.setTenants(tenants)
+		}
+	}()
+
+	pool.cancel = cancel
+
+	return pool
+}
+
+func (p *OperationPool) Cleanup() {
+	p.cancel()
 }
 
 func (p *OperationPool) setTenants(tenants []*dbsqlc.Tenant) {

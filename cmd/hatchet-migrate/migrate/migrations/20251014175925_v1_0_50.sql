@@ -5,7 +5,7 @@ CREATE TABLE v1_operation_interval_settings (
     operation_id TEXT NOT NULL,
     -- The interval represents a Go time.Duration, hence the nanoseconds
     interval_nanoseconds BIGINT NOT NULL,
-    PRIMARY KEY (operation_id, tenant_id)
+    PRIMARY KEY (tenant_id, operation_id)
 );
 -- +goose StatementEnd
 

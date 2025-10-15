@@ -31,7 +31,7 @@ type Interval struct {
 	startInterval   time.Duration
 	currInterval    time.Duration
 	maxInterval     time.Duration
-	noRowsCount     int
+	noActivityCount int
 	incBackoffCount int
 	intervalMu      sync.RWMutex
 }
@@ -49,10 +49,13 @@ func NewInterval(
 	}
 
 	// read the current interval from the database
-	// TODO: don't use context.Background()
-	currInterval, err := repo.ReadInterval(context.Background(), operationId, resourceId)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	currInterval, err := repo.ReadInterval(ctx, operationId, resourceId)
 
 	if err != nil {
+		l.Error().Err(err).Msg(fmt.Sprintf("error reading interval for resource %s, defaulting to start interval", resourceId))
 		currInterval = 0
 	}
 
@@ -73,7 +76,7 @@ func NewInterval(
 		startInterval:   startInterval,
 		currInterval:    currInterval,
 		maxInterval:     maxInterval,
-		noRowsCount:     0,
+		noActivityCount: 0,
 		incBackoffCount: incBackoffCount,
 		gauge:           gauge,
 	}
@@ -150,13 +153,13 @@ func (i *Interval) SetIntervalGauge(rowsModified int) {
 
 	if rowsModified > 0 {
 		i.currInterval = i.startInterval
-		i.noRowsCount = 0
+		i.noActivityCount = 0
 	} else {
-		i.noRowsCount++
+		i.noActivityCount++
 
-		if i.noRowsCount >= i.incBackoffCount {
+		if i.noActivityCount >= i.incBackoffCount {
 			i.currInterval *= 2
-			i.noRowsCount = 0
+			i.noActivityCount = 0
 		}
 	}
 
