@@ -114,6 +114,7 @@ import {
   V1WebhookSourceName,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
+  V1WorkflowRunExternalIdList,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
   WebhookWorkerListResponse,
@@ -388,6 +389,45 @@ export class Api<
   ) =>
     this.request<V1WorkflowRunDisplayNameList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs/display-names`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists external ids for workflow runs matching filters
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunExternalIdsList
+   * @summary List workflow run external ids
+   * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs/external-ids
+   * @secure
+   */
+  v1WorkflowRunExternalIdsList = (
+    tenant: string,
+    query: {
+      /** A list of statuses to filter by */
+      statuses?: V1TaskStatus[];
+      /**
+       * The earliest date to filter by
+       * @format date-time
+       */
+      since: string;
+      /**
+       * The latest date to filter by
+       * @format date-time
+       */
+      until?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
+      /** The workflow ids to find runs for */
+      workflow_ids?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1WorkflowRunExternalIdList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs/external-ids`,
       method: "GET",
       query: query,
       secure: true,

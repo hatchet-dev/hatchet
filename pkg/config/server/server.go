@@ -81,6 +81,8 @@ type ServerConfigFile struct {
 	OLAP ConfigFileOperations `mapstructure:"olap" json:"olap,omitempty"`
 
 	PayloadStore PayloadStoreConfig `mapstructure:"payloadStore" json:"payloadStore,omitempty"`
+
+	CronOperations CronOperationsConfigFile `mapstructure:"cronOperations" json:"cronOperations,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -119,6 +121,15 @@ type TaskOperationLimitsConfigFile struct {
 
 	// DurableSleepLimit is the limit for how many durable sleep items to process in a single operation
 	DurableSleepLimit int `mapstructure:"durableSleepLimit" json:"durableSleepLimit,omitempty" default:"1000"`
+}
+
+// CronOperationsConfigFile is the configuration for the cron operations
+type CronOperationsConfigFile struct {
+	// TaskAnalyzeCronInterval is the interval for the task analyze cron operation
+	TaskAnalyzeCronInterval time.Duration `mapstructure:"taskAnalyzeCronInterval" json:"taskAnalyzeCronInterval,omitempty" default:"3h"`
+
+	// OLAPAnalyzeCronInterval is the interval for the olap analyze cron operation
+	OLAPAnalyzeCronInterval time.Duration `mapstructure:"olapAnalyzeCronInterval" json:"olapAnalyzeCronInterval,omitempty" default:"3h"`
 }
 
 // General server runtime options
@@ -597,6 +608,8 @@ type ServerConfig struct {
 	GRPCInterceptors []grpc.UnaryServerInterceptor
 
 	Version string
+
+	CronOperations CronOperationsConfigFile
 }
 
 type PayloadStoreConfig struct {
@@ -879,4 +892,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("payloadStore.walPollLimit", "SERVER_PAYLOAD_STORE_WAL_POLL_LIMIT")
 	_ = v.BindEnv("payloadStore.walProcessInterval", "SERVER_PAYLOAD_STORE_WAL_PROCESS_INTERVAL")
 	_ = v.BindEnv("payloadStore.externalCutoverProcessInterval", "SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_PROCESS_INTERVAL")
+
+	// cron operations options
+	_ = v.BindEnv("cronOperations.taskAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL")
+	_ = v.BindEnv("cronOperations.olapAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_OLAP_ANALYZE_CRON_INTERVAL")
 }

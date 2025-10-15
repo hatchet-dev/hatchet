@@ -22,6 +22,7 @@ sql:
       - payload-store.sql
       - webhooks.sql
       - idempotency-keys.sql
+      - interval_settings.sql
     schema:
       - ../../../../sql/schema/v0.sql
       - ../../../../sql/schema/v1-core.sql

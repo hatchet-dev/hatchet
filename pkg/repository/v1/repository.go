@@ -34,6 +34,7 @@ type Repository interface {
 	Filters() FilterRepository
 	Webhooks() WebhookRepository
 	Idempotency() IdempotencyRepository
+	IntervalSettings() IntervalSettingsRepository
 }
 
 type repositoryImpl struct {
@@ -50,6 +51,7 @@ type repositoryImpl struct {
 	webhooks     WebhookRepository
 	payloadStore PayloadStoreRepository
 	idempotency  IdempotencyRepository
+	intervals    IntervalSettingsRepository
 }
 
 func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits, payloadStoreOpts PayloadStoreRepositoryOpts) (Repository, func() error) {
@@ -71,6 +73,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 		webhooks:     newWebhookRepository(shared),
 		payloadStore: shared.payloadStore,
 		idempotency:  newIdempotencyRepository(shared),
+		intervals:    newIntervalSettingsRepository(shared),
 	}
 
 	return impl, func() error {
@@ -140,4 +143,8 @@ func (r *repositoryImpl) Webhooks() WebhookRepository {
 
 func (r *repositoryImpl) Idempotency() IdempotencyRepository {
 	return r.idempotency
+}
+
+func (r *repositoryImpl) IntervalSettings() IntervalSettingsRepository {
+	return r.intervals
 }
