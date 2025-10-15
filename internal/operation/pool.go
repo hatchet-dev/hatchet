@@ -61,31 +61,36 @@ func NewOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId st
 		f(pool)
 	}
 
-	outerCtx, cancel := context.WithCancel(context.Background())
+	outerCtx, outerCancel := context.WithCancel(context.Background())
 
 	// start a goroutine to continuously set tenants
 	go func() {
 		t := time.NewTicker(5 * time.Second)
+		defer t.Stop()
 
 		for range t.C {
-			// list all tenants
-			ctx, cancel := context.WithTimeout(outerCtx, 5*time.Second)
+			if outerCtx.Err() != nil {
+				return
+			}
 
-			tenants, err := p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
+			// list all tenants
+			innerCtx, innerCancel := context.WithTimeout(outerCtx, 5*time.Second)
+
+			tenants, err := p.ListTenantsForController(innerCtx, dbsqlc.TenantMajorEngineVersionV1)
 
 			if err != nil {
-				cancel()
+				innerCancel()
 				ql.Error().Err(err).Msg("could not list tenants")
 				continue
 			}
 
-			cancel()
+			innerCancel()
 
 			pool.setTenants(tenants)
 		}
 	}()
 
-	pool.cancel = cancel
+	pool.cancel = outerCancel
 
 	return pool
 }
