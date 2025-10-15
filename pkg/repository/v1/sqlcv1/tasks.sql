@@ -920,7 +920,7 @@ ANALYZE v1_task;
 ANALYZE v1_task_event;
 
 -- name: CleanupV1TaskRuntime :execresult
-WITH trs as (
+WITH locked_trs AS (
     SELECT vtr.task_id, vtr.task_inserted_at, vtr.retry_count
     FROM v1_task_runtime vtr
     WHERE NOT EXISTS (
@@ -929,15 +929,8 @@ WITH trs as (
         WHERE vtr.task_id = vt.id
             AND vtr.task_inserted_at = vt.inserted_at
     )
+    ORDER BY vtr.task_id ASC
     LIMIT @batchSize::int
-), locked_trs AS (
-    SELECT task_id, task_inserted_at, retry_count
-    FROM v1_task_runtime
-    WHERE (task_id, task_inserted_at, retry_count) IN (
-        SELECT task_id, task_inserted_at, retry_count
-        FROM trs
-    )
-    order by task_id ASC
     FOR UPDATE SKIP LOCKED
 )
 DELETE FROM v1_task_runtime
@@ -947,7 +940,7 @@ WHERE (task_id, task_inserted_at, retry_count) IN (
 );
 
 -- name: CleanupV1ConcurrencySlot :execresult
-WITH cs as (
+WITH locked_cs AS (
     SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
     FROM v1_concurrency_slot cs
     WHERE NOT EXISTS (
@@ -956,15 +949,8 @@ WITH cs as (
         WHERE cs.task_id = vt.id
             AND cs.task_inserted_at = vt.inserted_at
     )
+    ORDER BY cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id
     LIMIT @batchSize::int
-), locked_cs AS (
-    SELECT task_id, task_inserted_at, task_retry_count
-    FROM v1_concurrency_slot
-    WHERE (task_id, task_inserted_at, task_retry_count) IN (
-        SELECT task_id, task_inserted_at, task_retry_count
-        FROM cs
-    )
-    order by task_id, task_inserted_at, task_retry_count, strategy_id
     FOR UPDATE SKIP LOCKED
 )
 DELETE FROM v1_concurrency_slot
