@@ -69,12 +69,9 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 	}
 
 	stepIdToTaskExternalId := make(map[pgtype.UUID]pgtype.UUID)
-	externalIds := make([]pgtype.UUID, 0)
 
 	for _, task := range tasks {
 		stepIdToTaskExternalId[task.StepID] = task.ExternalID
-		externalIds = append(externalIds, task.ExternalID)
-		externalIds = append(externalIds, task.OutputEventExternalID)
 	}
 
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
