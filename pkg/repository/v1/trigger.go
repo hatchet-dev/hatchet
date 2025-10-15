@@ -1523,12 +1523,17 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 	rootExternalIdsToLookup := make([]pgtype.UUID, 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
-		payload := payloads[RetrievePayloadOpts{
+		payload, ok := payloads[RetrievePayloadOpts{
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		}]
+
+		if !ok {
+			r.l.Error().Msgf("registerChildWorkflows: event with inserted at %s and id %d has empty payload, falling back to input", event.InsertedAt.Time, event.ID)
+			payload = event.Data
+		}
 
 		c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
 
