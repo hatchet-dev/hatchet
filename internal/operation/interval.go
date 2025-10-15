@@ -149,6 +149,8 @@ func (i *Interval) SetIntervalGauge(rowsModified int) {
 	i.intervalMu.Lock()
 	defer i.intervalMu.Unlock()
 
+	i.l.Error().Str("resource_id", i.resourceId).Str("operation_id", i.operationId).Int("rows_modified", rowsModified).Msg("setting interval gauge")
+
 	previousInterval := i.currInterval
 
 	if rowsModified > 0 {
@@ -167,8 +169,12 @@ func (i *Interval) SetIntervalGauge(rowsModified int) {
 		i.currInterval = i.maxInterval
 	}
 
+	i.l.Error().Str("resource_id", i.resourceId).Str("operation_id", i.operationId).Dur("previous_interval", previousInterval).Dur("new_interval", i.currInterval).Msg("interval updated")
+
 	// Only update the database if the interval has changed
 	if i.currInterval != previousInterval {
+		i.l.Error().Str("resource_id", i.resourceId).Str("operation_id", i.operationId).Dur("interval", i.currInterval).Msg("persisting interval to database")
+
 		// Use background context since this is for persistence
 		ctx := context.Background()
 		newInterval, err := i.repo.SetInterval(ctx, i.operationId, i.resourceId, i.currInterval)
