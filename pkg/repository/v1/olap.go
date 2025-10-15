@@ -210,6 +210,11 @@ type TaskWithPayloads struct {
 	NumSpawnedChildren int64
 }
 
+type TaskEventWithPayloads struct {
+	*sqlcv1.ListTaskEventsForWorkflowRunRow
+	OutputPayload []byte
+}
+
 type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 	SetReadReplicaPool(pool *pgxpool.Pool)
@@ -221,7 +226,7 @@ type OLAPRepository interface {
 	ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error)
-	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID) ([]*sqlcv1.ListTaskEventsForWorkflowRunRow, error)
+	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID) ([]*TaskEventWithPayloads, error)
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId pgtype.UUID, externalIds []pgtype.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId string, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId string, tasks []*V1TaskWithPayload) error
@@ -1266,7 +1271,7 @@ func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId str
 	return rows, nil
 }
 
-func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID) ([]*sqlcv1.ListTaskEventsForWorkflowRunRow, error) {
+func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID) ([]*TaskEventWithPayloads, error) {
 	rows, err := r.queries.ListTaskEventsForWorkflowRun(ctx, r.readPool, sqlcv1.ListTaskEventsForWorkflowRunParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Workflowrunid: workflowRunId,
@@ -1276,7 +1281,34 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 		return nil, err
 	}
 
-	return rows, nil
+	externalIds := make([]pgtype.UUID, len(rows))
+
+	for i, row := range rows {
+		externalIds[i] = row.EventExternalID
+	}
+
+	payloads, err := r.ReadPayloads(ctx, tenantId, externalIds...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	taskEventWithPayloads := make([]*TaskEventWithPayloads, 0, len(rows))
+
+	for _, row := range rows {
+		payload, exists := payloads[row.EventExternalID]
+		if !exists {
+			r.l.Error().Msgf("ListTaskRunEventsByWorkflowRunId: event with external_id %s and task_inserted_at %s has empty payload, falling back to payload", row.EventExternalID, row.TaskInsertedAt.Time)
+			payload = row.Output
+		}
+
+		taskEventWithPayloads = append(taskEventWithPayloads, &TaskEventWithPayloads{
+			row,
+			payload,
+		})
+	}
+
+	return taskEventWithPayloads, nil
 }
 
 func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId string, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error) {

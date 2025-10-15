@@ -93,13 +93,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		return nil, err
 	}
 
-	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx, tenantId, externalIds...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	result, err := transformers.ToWorkflowRunDetails(taskRunEvents, workflowRun, shape, tasks, stepIdToTaskExternalId, workflowVersion, externalIdToPayload)
+	result, err := transformers.ToWorkflowRunDetails(taskRunEvents, workflowRun, shape, tasks, stepIdToTaskExternalId, workflowVersion)
 
 	if err != nil {
 		return nil, err

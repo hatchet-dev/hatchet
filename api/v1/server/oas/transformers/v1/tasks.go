@@ -176,14 +176,13 @@ func ToTaskRunEventMany(
 }
 
 func ToWorkflowRunTaskRunEventsMany(
-	events []*sqlcv1.ListTaskEventsForWorkflowRunRow,
-	eventExternalIdToOutput map[pgtype.UUID][]byte,
+	events []*v1.TaskEventWithPayloads,
 ) gen.V1TaskEventList {
 	toReturn := make([]gen.V1TaskEvent, len(events))
 
 	for i, event := range events {
 		workerId := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
-		output := string(eventExternalIdToOutput[event.EventExternalID])
+		output := string(event.OutputPayload)
 		taskExternalId := uuid.MustParse(sqlchelpers.UUIDToStr(event.TaskExternalID))
 
 		retryCount := int(event.RetryCount)
@@ -326,13 +325,12 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID
 }
 
 func ToWorkflowRunDetails(
-	taskRunEvents []*sqlcv1.ListTaskEventsForWorkflowRunRow,
+	taskRunEvents []*v1.TaskEventWithPayloads,
 	workflowRun *v1.WorkflowRunData,
 	shape []*dbsqlc.GetWorkflowRunShapeRow,
 	tasks []*v1.TaskWithPayloads,
 	stepIdToTaskExternalId map[pgtype.UUID]pgtype.UUID,
 	workflowVersion *dbsqlc.GetWorkflowVersionByIdRow,
-	externalIdToPayload map[pgtype.UUID][]byte,
 ) (gen.V1WorkflowRunDetails, error) {
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
 	duration := int(workflowRun.FinishedAt.Time.Sub(workflowRun.StartedAt.Time).Milliseconds())
@@ -397,7 +395,7 @@ func ToWorkflowRunDetails(
 
 	for i, event := range taskRunEvents {
 		workerId := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
-		output := string(externalIdToPayload[event.EventExternalID])
+		output := string(event.OutputPayload)
 
 		retryCount := int(event.RetryCount)
 		attempt := retryCount + 1

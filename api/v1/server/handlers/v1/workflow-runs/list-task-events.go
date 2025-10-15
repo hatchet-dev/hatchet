@@ -1,7 +1,6 @@
 package workflowruns
 
 import (
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -29,19 +28,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunTaskEventsList(ctx echo.Context, re
 		return nil, err
 	}
 
-	externalIds := make([]pgtype.UUID, 0)
-
-	for _, event := range taskRunEvents {
-		externalIds = append(externalIds, event.EventExternalID)
-	}
-
-	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx.Request().Context(), tenantId, externalIds...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	result := transformers.ToWorkflowRunTaskRunEventsMany(taskRunEvents, externalIdToPayload)
+	result := transformers.ToWorkflowRunTaskRunEventsMany(taskRunEvents)
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunTaskEventsList200JSONResponse(
