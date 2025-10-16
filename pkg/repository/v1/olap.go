@@ -2056,6 +2056,66 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		return fmt.Errorf("error committing transaction: %v", err)
 	}
 
+	offloadToExternalOpts := make([]OffloadToExternalStoreOpts, 0)
+	idInsertedAtToExternalId := make(map[IdInsertedAt]pgtype.UUID)
+
+	for _, event := range insertedEvents {
+		id := event.ID
+		insertedAt := event.SeenAt
+		idInsertedAtToExternalId[IdInsertedAt{
+			ID:         id,
+			InsertedAt: insertedAt,
+		}] = event.ExternalID
+
+		offloadToExternalOpts = append(offloadToExternalOpts, OffloadToExternalStoreOpts{
+			StorePayloadOpts: &StorePayloadOpts{
+				Id:         event.ID,
+				InsertedAt: event.SeenAt,
+				ExternalId: event.ExternalID,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				Payload:    event.Payload,
+				TenantId:   event.TenantID.String(),
+			},
+			OffloadAt: time.Now(),
+		})
+	}
+
+	if len(offloadToExternalOpts) == 0 {
+		return nil
+	}
+
+	retrieveOptsToKey, err := r.PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
+
+	if err != nil {
+		return err
+	}
+
+	tenantIdToffloadOpts := make(map[string][]OffloadPayloadOpts)
+
+	for opt, key := range retrieveOptsToKey {
+		externalId := idInsertedAtToExternalId[IdInsertedAt{
+			ID:         opt.Id,
+			InsertedAt: opt.InsertedAt,
+		}]
+
+		tenantIdToffloadOpts[opt.TenantId.String()] = append(tenantIdToffloadOpts[opt.TenantId.String()], OffloadPayloadOpts{
+			ExternalId:          externalId,
+			ExternalLocationKey: string(key),
+		})
+	}
+
+	for tenantId, opts := range tenantIdToffloadOpts {
+		err = r.OffloadPayloads(ctx, tenantId, opts)
+
+		if err != nil {
+			return fmt.Errorf("error offloading payloads: %v", err)
+		}
+	}
+
+	if len(offloadToExternalOpts) == 0 {
+		return nil
+	}
+
 	return nil
 }
 
