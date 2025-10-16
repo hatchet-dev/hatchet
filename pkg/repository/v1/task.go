@@ -16,9 +16,9 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type CreateTaskOpts struct {
@@ -256,6 +256,10 @@ type TaskRepository interface {
 
 	// AnalyzeTaskTables runs ANALYZE on the task tables
 	AnalyzeTaskTables(ctx context.Context) error
+
+	// Cleanup makes sure to get rid of invalid old entries
+	// Returns (shouldContinue, error) where shouldContinue indicates if there's more work
+	Cleanup(ctx context.Context) (bool, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -3625,4 +3629,70 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
+	const timeout = 1000 * 60 // 1 minute timeout
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
+
+	if err != nil {
+		return false, fmt.Errorf("error beginning transaction: %v", err)
+	}
+
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("cleanup-tables"))
+
+	if err != nil {
+		return false, fmt.Errorf("error acquiring advisory lock: %v", err)
+	}
+
+	if !acquired {
+		return false, nil
+	}
+
+	const batchSize = 1000
+	shouldContinue := false
+
+	result, err := r.queries.CleanupV1QueueItem(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_queue_item: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	result, err = r.queries.CleanupV1TaskRuntime(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_task_runtime: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	result, err = r.queries.CleanupV1ConcurrencySlot(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_concurrency_slot: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	result, err = r.queries.CleanupV1WorkflowConcurrencySlot(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_workflow_concurrency_slot: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	if err := commit(ctx); err != nil {
+		return false, fmt.Errorf("error committing transaction: %v", err)
+	}
+
+	return shouldContinue, nil
 }
