@@ -34,7 +34,7 @@ func (m *RateLimitMiddleware) Middleware() echo.MiddlewareFunc {
 		Skipper: func(c echo.Context) bool {
 			route, _, err := router.FindRoute(c.Request())
 			if err != nil {
-				c.Logger().Error(err)
+				m.config.Logger.Info().Err(err).Msg("error finding route")
 				return false
 			}
 
