@@ -686,10 +686,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]pgtype.UUID)
 
 	for _, opt := range opts {
-		if len(opt.Output) == 0 {
-			continue
-		}
-
 		// generating a dummy id + inserted at to use for creating the external keys for the task events
 		// we do this since we don't have the id + inserted at of the events themselves on the opts, and we don't
 		// actually need those for anything once the keys are created.
