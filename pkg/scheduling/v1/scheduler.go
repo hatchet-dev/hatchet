@@ -410,6 +410,8 @@ func (s *Scheduler) loopSnapshot(ctx context.Context) {
 			}
 
 			s.exts.ReportSnapshot(sqlchelpers.UUIDToStr(s.tenantId), in)
+
+			count++
 		}
 	}
 }
