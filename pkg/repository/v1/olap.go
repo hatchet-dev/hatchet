@@ -1978,6 +1978,11 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 
 	// todo: remove this when we remove dual writes
 	eventsToInsert := events
+
+	fmt.Println("dual writes enabled", r.payloadStore.OLAPDualWritesEnabled())
+	for _, payload := range eventsToInsert.Payloads {
+		fmt.Println("got payload", string(payload))
+	}
 	if !r.payloadStore.OLAPDualWritesEnabled() {
 		payloads := make([][]byte, len(eventsToInsert.Payloads))
 
