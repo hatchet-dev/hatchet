@@ -2052,6 +2052,10 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		return fmt.Errorf("error committing transaction: %v", err)
 	}
 
+	if !r.payloadStore.ExternalStoreEnabled() {
+		return nil
+	}
+
 	offloadToExternalOpts := make([]OffloadToExternalStoreOpts, 0)
 	idInsertedAtToExternalId := make(map[IdInsertedAt]pgtype.UUID)
 
