@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -19,6 +20,10 @@ type sharedConfig struct {
 	singleQueueLimit int
 
 	schedulerConcurrencyRateLimit int
+
+	schedulerConcurrencyPollingMinInterval time.Duration
+
+	schedulerConcurrencyPollingMaxInterval time.Duration
 }
 
 // SchedulingPool is responsible for managing a pool of tenantManagers.
@@ -35,17 +40,19 @@ type SchedulingPool struct {
 	concurrencyResultsCh chan *ConcurrencyResults
 }
 
-func NewSchedulingPool(repo v1.SchedulerRepository, l *zerolog.Logger, singleQueueLimit int, schedulerConcurrencyRateLimit int) (*SchedulingPool, func() error, error) {
+func NewSchedulingPool(repo v1.SchedulerRepository, l *zerolog.Logger, singleQueueLimit int, schedulerConcurrencyRateLimit int, schedulerConcurrencyPollingMinInterval time.Duration, schedulerConcurrencyPollingMaxInterval time.Duration) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
 
 	s := &SchedulingPool{
 		Extensions: &Extensions{},
 		cf: &sharedConfig{
-			repo:                          repo,
-			l:                             l,
-			singleQueueLimit:              singleQueueLimit,
-			schedulerConcurrencyRateLimit: schedulerConcurrencyRateLimit,
+			repo:                                   repo,
+			l:                                      l,
+			singleQueueLimit:                       singleQueueLimit,
+			schedulerConcurrencyRateLimit:          schedulerConcurrencyRateLimit,
+			schedulerConcurrencyPollingMinInterval: schedulerConcurrencyPollingMinInterval,
+			schedulerConcurrencyPollingMaxInterval: schedulerConcurrencyPollingMaxInterval,
 		},
 		resultsCh:            resultsCh,
 		concurrencyResultsCh: concurrencyResultsCh,
