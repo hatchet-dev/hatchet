@@ -80,6 +80,31 @@ func (q *Queries) CleanupV1TaskRuntime(ctx context.Context, db DBTX, batchsize i
 	return db.Exec(ctx, cleanupV1TaskRuntime, batchsize)
 }
 
+const cleanupV1WorkflowConcurrencySlot = `-- name: CleanupV1WorkflowConcurrencySlot :execresult
+WITH active_slots AS (
+    SELECT DISTINCT
+        wcs.strategy_id,
+        wcs.workflow_version_id,
+        wcs.workflow_run_id
+    FROM v1_workflow_concurrency_slot wcs
+    ORDER BY wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+    LIMIT $1::int
+)
+SELECT
+    cleanup_workflow_concurrency_slots(
+        slot.strategy_id,
+        slot.workflow_version_id,
+        slot.workflow_run_id
+    )
+FROM active_slots slot
+`
+
+// Calls cleanup_workflow_concurrency_slots for all active workflow concurrency slots
+// This allows the existing sophisticated cleanup logic to determine what can be safely deleted
+func (q *Queries) CleanupV1WorkflowConcurrencySlot(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1WorkflowConcurrencySlot, batchsize)
+}
+
 const cleanupWorkflowConcurrencySlotsAfterInsert = `-- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 WITH input AS (
     SELECT

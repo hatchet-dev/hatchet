@@ -3684,6 +3684,15 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		shouldContinue = true
 	}
 
+	result, err = r.queries.CleanupV1WorkflowConcurrencySlot(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_workflow_concurrency_slot: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
 	if err := commit(ctx); err != nil {
 		return false, fmt.Errorf("error committing transaction: %v", err)
 	}

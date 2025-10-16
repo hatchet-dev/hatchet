@@ -9,7 +9,7 @@ func (tc *TasksControllerImpl) runCleanup(ctx context.Context) func() {
 	return func() {
 		tc.l.Debug().Msgf("task controller: running cleanup")
 
-		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 		defer cancel()
 
 		shouldContinue := true
