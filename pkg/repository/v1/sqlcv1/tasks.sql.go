@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -27,6 +28,79 @@ ANALYZE v1_task_event
 func (q *Queries) AnalyzeV1TaskEvent(ctx context.Context, db DBTX) error {
 	_, err := db.Exec(ctx, analyzeV1TaskEvent)
 	return err
+}
+
+const cleanupV1ConcurrencySlot = `-- name: CleanupV1ConcurrencySlot :execresult
+WITH locked_cs AS (
+    SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
+    FROM v1_concurrency_slot cs
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE cs.task_id = vt.id
+            AND cs.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id
+    LIMIT $1::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_concurrency_slot
+WHERE (task_id, task_inserted_at, task_retry_count) IN (
+    SELECT task_id, task_inserted_at, task_retry_count
+    FROM locked_cs
+)
+`
+
+func (q *Queries) CleanupV1ConcurrencySlot(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1ConcurrencySlot, batchsize)
+}
+
+const cleanupV1TaskRuntime = `-- name: CleanupV1TaskRuntime :execresult
+WITH locked_trs AS (
+    SELECT vtr.task_id, vtr.task_inserted_at, vtr.retry_count
+    FROM v1_task_runtime vtr
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE vtr.task_id = vt.id
+            AND vtr.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY vtr.task_id ASC
+    LIMIT $1::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_task_runtime
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_trs
+)
+`
+
+func (q *Queries) CleanupV1TaskRuntime(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1TaskRuntime, batchsize)
+}
+
+const cleanupV1WorkflowConcurrencySlot = `-- name: CleanupV1WorkflowConcurrencySlot :execresult
+WITH active_slots AS (
+    SELECT DISTINCT
+        wcs.strategy_id,
+        wcs.workflow_version_id,
+        wcs.workflow_run_id
+    FROM v1_workflow_concurrency_slot wcs
+    ORDER BY wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+    LIMIT $1::int
+)
+SELECT
+    cleanup_workflow_concurrency_slots(
+        slot.strategy_id,
+        slot.workflow_version_id,
+        slot.workflow_run_id
+    )
+FROM active_slots slot
+`
+
+func (q *Queries) CleanupV1WorkflowConcurrencySlot(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1WorkflowConcurrencySlot, batchsize)
 }
 
 const cleanupWorkflowConcurrencySlotsAfterInsert = `-- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec

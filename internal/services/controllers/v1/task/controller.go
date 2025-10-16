@@ -335,7 +335,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.repov1.Payloads().WALProcessInterval()),
 		gocron.NewTask(
-			tc.runProcessPayloadWAL(ctx),
+			tc.runProcessPayloadWAL(spanContext),
 		),
 	)
 
@@ -371,7 +371,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.analyzeCronInterval),
 		gocron.NewTask(
-			tc.runAnalyze(ctx),
+			tc.runAnalyze(spanContext),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
@@ -382,6 +382,24 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		cancel()
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not run analyze")
+		span.End()
+
+		return nil, wrappedErr
+	}
+
+	_, err = tc.s.NewJob(
+		gocron.DurationJob(6*time.Hour),
+		gocron.NewTask(
+			tc.runCleanup(spanContext),
+		),
+	)
+
+	if err != nil {
+		wrappedErr := fmt.Errorf("could not run cleanup: %w", err)
+
+		cancel()
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not run cleanup")
 		span.End()
 
 		return nil, wrappedErr
