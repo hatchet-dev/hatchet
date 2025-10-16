@@ -24,6 +24,7 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string
 	// 23505 is unique violation - https://www.postgresql.org/docs/current/errcodes-appendix.html
 	if err != nil && errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		t.l.Warn().Msgf("idempotency key for scheduled workflow %s already exists, skipping", scheduledWorkflowId)
+		return nil
 	} else if err != nil {
 		return fmt.Errorf("could not create idempotency key: %w", err)
 	}
