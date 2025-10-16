@@ -22,7 +22,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -33,6 +32,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 const BULK_MSG_BATCH_SIZE = 50
@@ -475,7 +475,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCompleted")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	opts := make([]v1.CompleteTaskOpts, 0)
 	idsToData := make(map[int64][]byte)
@@ -519,7 +519,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskFailed")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	opts := make([]v1.FailTaskOpts, 0)
 
@@ -598,7 +598,7 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.processFailTasksResponse")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	retriedTaskIds := make(map[int64]struct{})
 
@@ -656,7 +656,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCancelled")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	opts := make([]v1.TaskIdInsertedAtRetryCount, 0)
 
@@ -1019,7 +1019,7 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleProcessUserEvents")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	msgs := msgqueue.JSONConvert[tasktypes.UserEventTaskPayload](payloads)
 
@@ -1155,7 +1155,7 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleProcessInternalEvents")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	msgs := msgqueue.JSONConvert[v1.InternalTaskEvent](payloads)
 
@@ -1194,7 +1194,7 @@ func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId 
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.sendInternalEvents")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	if len(events) == 0 {
 		return nil

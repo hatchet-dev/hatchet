@@ -13,11 +13,11 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type EventsController interface {
@@ -165,7 +165,7 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *msgqueue.M
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
 	if err == nil {
-		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: metadata.TenantId})
 	} else {
 		return fmt.Errorf("could not decode task metadata: %w", err)
 	}

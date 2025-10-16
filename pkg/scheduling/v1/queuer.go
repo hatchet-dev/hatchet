@@ -9,10 +9,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type Queuer struct {
@@ -110,7 +110,7 @@ func (q *Queuer) queue(ctx context.Context) {
 		ctx, span := telemetry.NewSpan(ctx, "notify-queue")
 		defer span.End()
 
-		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: q.tenantId.String()})
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()})
 
 		q.notifyQueueCh <- telemetry.GetCarrier(ctx)
 	}()
@@ -135,8 +135,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		ctx, span := telemetry.NewSpanWithCarrier(ctx, "queue", carrier)
 
 		telemetry.WithAttributes(span,
-			telemetry.AttributeKV{Key: "queue", Value: q.queueName},
-			telemetry.AttributeKV{Key: "tenant_id", Value: q.tenantId.String()},
+			telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
+			telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
 		)
 
 		start := time.Now()
@@ -440,7 +440,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	ctx, span := telemetry.NewSpan(ctx, "flush-to-database")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: q.tenantId.String()})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()})
 
 	begin := time.Now()
 

@@ -17,10 +17,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (worker *subscribedWorker) StartTaskFromBulk(
@@ -55,7 +55,7 @@ func (worker *subscribedWorker) sendToWorker(
 	telemetry.WithAttributes(
 		span,
 		telemetry.AttributeKV{
-			Key:   "worker_id",
+			Key:   "worker.id",
 			Value: worker.workerId,
 		},
 	)
@@ -63,7 +63,7 @@ func (worker *subscribedWorker) sendToWorker(
 	telemetry.WithAttributes(
 		span,
 		telemetry.AttributeKV{
-			Key:   "payload_size",
+			Key:   "payload.size_bytes",
 			Value: len(action.ActionPayload),
 		},
 	)
@@ -91,7 +91,7 @@ func (worker *subscribedWorker) sendToWorker(
 	lockSpan.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
-		Key:   "lock_duration_ms",
+		Key:   "lock.duration_ms",
 		Value: time.Since(lockBegin).Milliseconds(),
 	})
 
