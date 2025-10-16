@@ -896,14 +896,14 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 		input, exists := payloads[task.ExternalID]
 
 		if !exists {
-			r.l.Error().Msgf("ListTasksByIdAndInsertedAt: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
+			r.l.Error().Msgf("ListTasksByIdAndInsertedAt-1: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
 			input = task.Input
 		}
 
 		output, exists := payloads[task.OutputEventExternalID]
 
 		if !exists {
-			r.l.Error().Msgf("ListTasksByIdAndInsertedAt: task with external_id %s and inserted_at %s has empty output payload, falling back to output", task.ExternalID, task.InsertedAt.Time)
+			r.l.Error().Msgf("ListTasksByIdAndInsertedAt-2: task with external_id %s and inserted_at %s has empty output payload, falling back to output", task.ExternalID, task.InsertedAt.Time)
 			output = task.Output
 		}
 
@@ -1437,7 +1437,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 			})
 		}
 
-		if len(event.Output) > 0 {
+		if event.ExternalID.Valid {
 			payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
 				ExternalId: event.ExternalID,
 				InsertedAt: event.TaskInsertedAt,
@@ -1984,7 +1984,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 	tenantIdToPutPayloadOpts := make(map[string][]StoreOLAPPayloadOpts)
 
 	for _, event := range insertedEvents {
-		if event == nil || len(event.Payload) == 0 {
+		if event == nil {
 			continue
 		}
 
