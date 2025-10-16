@@ -1,7 +1,7 @@
 /* Import Nextra base styles */
-@import 'nextra/styles/variables.css';
-@import 'nextra/styles/code-block.css';
-@import 'nextra-theme-docs/style.css';
+@import "nextra/styles/variables.css";
+@import "nextra/styles/code-block.css";
+@import "nextra-theme-docs/style.css";
 
 /* Custom styling for Nextra components */
 :root {
