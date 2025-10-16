@@ -264,11 +264,11 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID
 
 	output := make(map[string]interface{})
 
-	if len(taskWithData.Output) > 0 {
-		output = jsonToMap(taskWithData.Output)
+	if len(taskWithData.OutputPayload) > 0 {
+		output = jsonToMap(taskWithData.OutputPayload)
 	}
 
-	input := jsonToMap(taskWithData.Input)
+	input := jsonToMap(taskWithData.InputPayload)
 
 	stepId := uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.StepID))
 
