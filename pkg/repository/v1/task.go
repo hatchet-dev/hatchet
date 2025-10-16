@@ -3654,7 +3654,6 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 	const batchSize = 1000
 	shouldContinue := false
 
-	// Process one batch of v1_queue_item
 	result, err := r.queries.CleanupV1QueueItem(ctx, tx, batchSize)
 	if err != nil {
 		return false, fmt.Errorf("error cleaning up v1_queue_item: %v", err)
@@ -3664,7 +3663,6 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		shouldContinue = true
 	}
 
-	// Process one batch of v1_task_runtime
 	result, err = r.queries.CleanupV1TaskRuntime(ctx, tx, batchSize)
 	if err != nil {
 		return false, fmt.Errorf("error cleaning up v1_task_runtime: %v", err)
@@ -3674,7 +3672,6 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		shouldContinue = true
 	}
 
-	// Process one batch of v1_concurrency_slot
 	result, err = r.queries.CleanupV1ConcurrencySlot(ctx, tx, batchSize)
 	if err != nil {
 		return false, fmt.Errorf("error cleaning up v1_concurrency_slot: %v", err)
