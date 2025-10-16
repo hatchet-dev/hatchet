@@ -31,6 +31,8 @@ class V1WebhookSourceName(str, Enum):
     GENERIC = "GENERIC"
     GITHUB = "GITHUB"
     STRIPE = "STRIPE"
+    SLACK = "SLACK"
+    LINEAR = "LINEAR"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

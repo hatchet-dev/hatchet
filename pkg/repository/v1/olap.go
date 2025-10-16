@@ -244,6 +244,8 @@ type OLAPRepository interface {
 	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
 
 	AnalyzeOLAPTables(ctx context.Context) error
+
+	ListWorkflowRunExternalIds(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]pgtype.UUID, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -941,6 +943,75 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	}
 
 	return res, int(count), nil
+}
+
+func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]pgtype.UUID, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-workflow-run-external-ids-olap")
+	defer span.End()
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 30000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	params := sqlcv1.ListWorkflowRunExternalIdsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Since:    sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+	}
+
+	statuses := make([]string, 0)
+
+	for _, status := range opts.Statuses {
+		statuses = append(statuses, string(status))
+	}
+
+	if len(statuses) == 0 {
+		statuses = []string{
+			string(sqlcv1.V1ReadableStatusOlapQUEUED),
+			string(sqlcv1.V1ReadableStatusOlapRUNNING),
+			string(sqlcv1.V1ReadableStatusOlapCOMPLETED),
+			string(sqlcv1.V1ReadableStatusOlapCANCELLED),
+			string(sqlcv1.V1ReadableStatusOlapFAILED),
+		}
+	}
+
+	params.Statuses = statuses
+
+	if len(opts.WorkflowIds) > 0 {
+		workflowIdParams := make([]pgtype.UUID, 0)
+
+		for _, id := range opts.WorkflowIds {
+			workflowIdParams = append(workflowIdParams, sqlchelpers.UUIDFromStr(id.String()))
+		}
+
+		params.WorkflowIds = workflowIdParams
+	}
+
+	until := opts.FinishedBefore
+
+	if until != nil {
+		params.Until = sqlchelpers.TimestamptzFromTime(*until)
+	}
+
+	for key, value := range opts.AdditionalMetadata {
+		params.AdditionalMetaKeys = append(params.AdditionalMetaKeys, key)
+		params.AdditionalMetaValues = append(params.AdditionalMetaValues, value.(string))
+	}
+
+	externalIds, err := r.queries.ListWorkflowRunExternalIds(ctx, tx, params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return externalIds, nil
 }
 
 func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error) {

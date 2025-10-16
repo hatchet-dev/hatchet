@@ -19,7 +19,7 @@ import pprint
 import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing_extensions import Annotated, Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
@@ -50,6 +50,11 @@ class V1Filter(BaseModel):
     payload: Dict[str, Any] = Field(
         description="Additional payload data associated with the filter"
     )
+    is_declarative: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether the filter is declarative (true) or programmatic (false)",
+        alias="isDeclarative",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "tenantId",
@@ -57,6 +62,7 @@ class V1Filter(BaseModel):
         "scope",
         "expression",
         "payload",
+        "isDeclarative",
     ]
 
     model_config = ConfigDict(
@@ -122,6 +128,7 @@ class V1Filter(BaseModel):
                 "scope": obj.get("scope"),
                 "expression": obj.get("expression"),
                 "payload": obj.get("payload"),
+                "isDeclarative": obj.get("isDeclarative"),
             }
         )
         return _obj

@@ -9,33 +9,9 @@ import (
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
-
-func (tc *TasksControllerImpl) runTenantRetryQueueItems(ctx context.Context) func() {
-	return func() {
-		tc.l.Debug().Msgf("partition: running retry queue items for tasks")
-
-		// list all tenants
-		tenants, err := tc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
-
-		if err != nil {
-			tc.l.Error().Err(err).Msg("could not list tenants")
-			return
-		}
-
-		tc.retryTaskOperations.SetTenants(tenants)
-
-		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
-
-			tc.retryTaskOperations.RunOrContinue(tenantId)
-		}
-	}
-}
 
 func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-retry-queue-items")

@@ -234,6 +234,8 @@ type TaskRepository interface {
 	// with the v1 engine, and shouldn't be called from new v1 endpoints.
 	ListTaskParentOutputs(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error)
 
+	DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error)
+
 	ProcessTaskTimeouts(ctx context.Context, tenantId string) (*TimeoutTasksResponse, bool, error)
 
 	ProcessTaskReassignments(ctx context.Context, tenantId string) (*FailTasksResponse, bool, error)
@@ -254,6 +256,10 @@ type TaskRepository interface {
 
 	// AnalyzeTaskTables runs ANALYZE on the task tables
 	AnalyzeTaskTables(ctx context.Context) error
+
+	// Cleanup makes sure to get rid of invalid old entries
+	// Returns (shouldContinue, error) where shouldContinue indicates if there's more work
+	Cleanup(ctx context.Context) (bool, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -1134,6 +1140,23 @@ func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId string,
 		TenantID: sqlchelpers.UUIDFromStr(tenantId),
 		Ids:      tasks,
 	})
+}
+
+// DefaultTaskActivityGauge is a heavily cached method that returns the number of queues that have had activity since
+// the task retention period.
+func (r *TaskRepositoryImpl) DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error) {
+	today := time.Now().UTC()
+	notBefore := today.Add(-1 * r.taskRetentionPeriod)
+
+	res, err := r.queries.DefaultTaskActivityGauge(ctx, r.pool, sqlcv1.DefaultTaskActivityGaugeParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Activesince: pgtype.Timestamptz{
+			Time:  notBefore,
+			Valid: true,
+		},
+	})
+
+	return int(res), err
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId string) (*TimeoutTasksResponse, bool, error) {
@@ -3606,4 +3629,70 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
+	const timeout = 1000 * 60 // 1 minute timeout
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
+
+	if err != nil {
+		return false, fmt.Errorf("error beginning transaction: %v", err)
+	}
+
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("cleanup-tables"))
+
+	if err != nil {
+		return false, fmt.Errorf("error acquiring advisory lock: %v", err)
+	}
+
+	if !acquired {
+		return false, nil
+	}
+
+	const batchSize = 1000
+	shouldContinue := false
+
+	result, err := r.queries.CleanupV1QueueItem(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_queue_item: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	result, err = r.queries.CleanupV1TaskRuntime(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_task_runtime: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	result, err = r.queries.CleanupV1ConcurrencySlot(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_concurrency_slot: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	result, err = r.queries.CleanupV1WorkflowConcurrencySlot(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_workflow_concurrency_slot: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	if err := commit(ctx); err != nil {
+		return false, fmt.Errorf("error committing transaction: %v", err)
+	}
+
+	return shouldContinue, nil
 }

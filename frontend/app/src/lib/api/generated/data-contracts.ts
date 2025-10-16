@@ -203,6 +203,7 @@ export enum TenantResource {
   TASK_RUN = "TASK_RUN",
   CRON = "CRON",
   SCHEDULE = "SCHEDULE",
+  INCOMING_WEBHOOK = "INCOMING_WEBHOOK",
 }
 
 /** The status of the CEL evaluation */
@@ -562,6 +563,9 @@ export interface V1WorkflowRunDisplayNameList {
   /** The list of display names */
   rows: V1WorkflowRunDisplayName[];
 }
+
+/** The list of external IDs */
+export type V1WorkflowRunExternalIdList = string[];
 
 export interface V1TriggerWorkflowRunRequest {
   /** The name of the workflow. */
