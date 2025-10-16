@@ -10,7 +10,7 @@ const config = {
       width="120"
       height="35"
       fill="none"
-      preserveAspectRatio="xMidYMid meet"
+      // preserveAspectRatio="xMidYMid meet"
     >
       <path
         fill="var(--brand)"
