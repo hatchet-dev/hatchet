@@ -550,13 +550,13 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtyp
 		workflowRunId = taskRun.ExternalID
 	}
 
-	payloads, err := r.ReadPayloads(ctx, tenantId.String(), taskRun.ExternalID, taskRun.OutputEventExternalID)
+	payloads, err := r.ReadPayloads(ctx, tenantId.String(), workflowRunId, taskRun.OutputEventExternalID)
 
 	if err != nil {
 		return nil, emptyUUID, err
 	}
 
-	input, exists := payloads[taskRun.ExternalID]
+	input, exists := payloads[workflowRunId]
 
 	if !exists {
 		r.l.Error().Msgf("ReadTaskRunData: task with external_id %s and inserted_at %s has empty payload, falling back to input", taskRun.ExternalID, taskRun.InsertedAt.Time)
