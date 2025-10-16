@@ -3,9 +3,9 @@ package servertel
 import (
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	"go.opentelemetry.io/otel/trace"
 )
@@ -40,63 +40,63 @@ func WithWorkflowRunModel(span trace.Span, workflowRun *dbsqlc.GetWorkflowRunRow
 
 func TenantId(tenantId pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
-		Key:   "tenantId",
+		Key:   "tenant.id",
 		Value: sqlchelpers.UUIDToStr(tenantId),
 	}
 }
 
 func StepRunId(stepRunId pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
-		Key:   "stepRunId",
+		Key:   "step_run.id",
 		Value: sqlchelpers.UUIDToStr(stepRunId),
 	}
 }
 
 func Step(step pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
-		Key:   "stepId",
+		Key:   "step.id",
 		Value: sqlchelpers.UUIDToStr(step),
 	}
 }
 
 func JobRunId(jobRunId pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
-		Key:   "jobRunId",
+		Key:   "job_run.id",
 		Value: sqlchelpers.UUIDToStr(jobRunId),
 	}
 }
 
 func Job(job pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
-		Key:   "jobId",
+		Key:   "job.id",
 		Value: sqlchelpers.UUIDToStr(job),
 	}
 }
 
 func WorkflowRunId(workflowRunId pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
-		Key:   "workflowRunId",
+		Key:   "workflow_run.id",
 		Value: sqlchelpers.UUIDToStr(workflowRunId),
 	}
 }
 
 func WorkflowVersion(workflowVersion pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
-		Key:   "workflowVersionId",
+		Key:   "workflow_version.id",
 		Value: sqlchelpers.UUIDToStr(workflowVersion),
 	}
 }
 
 func WorkerId(workerId pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
-		Key:   "workerId",
+		Key:   "worker.id",
 		Value: sqlchelpers.UUIDToStr(workerId),
 	}
 }
 
 func EventId(eventId pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
-		Key:   "eventId",
+		Key:   "event.id",
 		Value: sqlchelpers.UUIDToStr(eventId),
 	}
 }
