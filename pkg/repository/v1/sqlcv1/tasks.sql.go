@@ -99,8 +99,6 @@ SELECT
 FROM active_slots slot
 `
 
-// Calls cleanup_workflow_concurrency_slots for all active workflow concurrency slots
-// This allows the existing sophisticated cleanup logic to determine what can be safely deleted
 func (q *Queries) CleanupV1WorkflowConcurrencySlot(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
 	return db.Exec(ctx, cleanupV1WorkflowConcurrencySlot, batchsize)
 }
