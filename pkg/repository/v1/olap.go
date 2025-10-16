@@ -1694,7 +1694,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 
 		// todo: remove this when we remove dual writes
 		payloadToWriteToTask := payload
-		fmt.Println("writing olap task with payload", string(payload))
 		if !r.payloadStore.OLAPDualWritesEnabled() {
 			payloadToWriteToTask = []byte("{}")
 		}
@@ -2347,7 +2346,6 @@ func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId string, e
 }
 
 func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, externalIds ...pgtype.UUID) (map[pgtype.UUID][]byte, error) {
-	fmt.Println("\nCalling ReadPayloads with external ids", externalIds, "\n")
 	payloads, err := r.queries.ReadPayloadsOLAP(ctx, r.readPool, sqlcv1.ReadPayloadsOLAPParams{
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Externalids: externalIds,
@@ -2362,9 +2360,6 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 	externalKeys := make([]ExternalPayloadLocationKey, 0)
 
 	for _, payload := range payloads {
-		pj, _ := json.Marshal(payload)
-		fmt.Println("ReadPayloads got payload row:", string(pj))
-
 		if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
 			externalIdToPayload[payload.ExternalID] = payload.InlineContent
 		} else {
@@ -2375,13 +2370,8 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 		}
 	}
 
-	fmt.Println("\nGot external keys to look up ", externalKeys)
-
 	if len(externalKeys) > 0 && r.payloadStore.ExternalStoreEnabled() {
 		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, externalKeys...)
-
-		ktpj, _ := json.Marshal(keyToPayload)
-		fmt.Println("ReadPayloads got external payloads:", string(ktpj))
 
 		if err != nil {
 			return nil, err
