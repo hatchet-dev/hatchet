@@ -40,6 +40,10 @@ type ConcurrencyManager struct {
 	isCleanedUp bool
 
 	rateLimiter *rate.Limiter
+
+	minPollingInterval time.Duration
+
+	maxPollingInterval time.Duration
 }
 
 func newConcurrencyManager(conf *sharedConfig, tenantId pgtype.UUID, strategy *sqlcv1.V1StepConcurrency, resultsCh chan<- *ConcurrencyResults) *ConcurrencyManager {
@@ -56,6 +60,8 @@ func newConcurrencyManager(conf *sharedConfig, tenantId pgtype.UUID, strategy *s
 		resultsCh:           resultsCh,
 		notifyMu:            newMu(conf.l),
 		rateLimiter:         newConcurrencyRateLimiter(conf.schedulerConcurrencyRateLimit),
+		minPollingInterval:  conf.schedulerConcurrencyPollingMinInterval,
+		maxPollingInterval:  conf.schedulerConcurrencyPollingMaxInterval,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -96,7 +102,10 @@ func (c *ConcurrencyManager) notify(ctx context.Context) {
 }
 
 func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
-	ticker := randomticker.NewRandomTicker(500*time.Millisecond, 5*time.Second)
+	ticker := randomticker.NewRandomTicker(
+		c.minPollingInterval,
+		c.maxPollingInterval,
+	)
 	defer ticker.Stop()
 
 	for {
