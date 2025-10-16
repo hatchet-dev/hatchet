@@ -1681,6 +1681,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 
 		// todo: remove this when we remove dual writes
 		payloadToWriteToTask := payload
+		fmt.Println("writing olap task with payload", string(payload))
 		if !r.payloadStore.OLAPDualWritesEnabled() {
 			payloadToWriteToTask = []byte("{}")
 		}
