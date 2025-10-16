@@ -451,3 +451,23 @@ SELECT
     retry_count
 FROM ready_items
 RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;
+
+-- name: CleanupV1QueueItem :execresult
+WITH locked_qis as (
+    SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
+    FROM v1_queue_item qi
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE qi.task_id = vt.id
+            AND qi.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY qi.id ASC
+    LIMIT @batchSize::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_queue_item
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_qis
+);
