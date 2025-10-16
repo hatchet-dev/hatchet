@@ -3660,8 +3660,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("error cleaning up v1_queue_item: %v", err)
 	}
 
-	if result.RowsAffected() > 0 {
-		r.l.Debug().Int64("deleted", result.RowsAffected()).Msg("cleaned up v1_queue_item batch")
+	if result.RowsAffected() == batchSize {
 		shouldContinue = true
 	}
 
@@ -3671,8 +3670,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("error cleaning up v1_task_runtime: %v", err)
 	}
 
-	if result.RowsAffected() > 0 {
-		r.l.Debug().Int64("deleted", result.RowsAffected()).Msg("cleaned up v1_task_runtime batch")
+	if result.RowsAffected() == batchSize {
 		shouldContinue = true
 	}
 
@@ -3682,8 +3680,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("error cleaning up v1_concurrency_slot: %v", err)
 	}
 
-	if result.RowsAffected() > 0 {
-		r.l.Debug().Int64("deleted", result.RowsAffected()).Msg("cleaned up v1_concurrency_slot batch")
+	if result.RowsAffected() == batchSize {
 		shouldContinue = true
 	}
 
