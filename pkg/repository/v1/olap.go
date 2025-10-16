@@ -821,14 +821,19 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 		input, exists := payloads[task.ExternalID]
 
 		if !exists {
-			r.l.Error().Msgf("ListTasksByDAGId: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
+			if includePayloads {
+				r.l.Error().Msgf("ListTasksByDAGId: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
+			}
 			input = task.Input
 		}
 
 		output, exists := payloads[task.OutputEventExternalID]
 
 		if !exists {
-			r.l.Error().Msgf("ListTasksByDAGId: task with external_id %s and inserted_at %s has empty payload, falling back to output (lookup key: %s)", task.ExternalID, task.InsertedAt.Time, task.OutputEventExternalID)
+			if includePayloads {
+				r.l.Error().Msgf("ListTasksByDAGId: task with external_id %s and inserted_at %s has empty payload, falling back to output (lookup key: %s)", task.ExternalID, task.InsertedAt.Time, task.OutputEventExternalID)
+			}
+
 			output = task.Output
 		}
 
