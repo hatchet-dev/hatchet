@@ -142,9 +142,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                                                                                                                                                     | Description                                           |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `Callable[[Callable[[EmptyModel, Context], R \| CoroutineLike[R]]], Standalone[EmptyModel, R]] \| Callable[[Callable[[TWorkflowInput, Context], R \| CoroutineLike[R]]], Standalone[TWorkflowInput, R]]` | A decorator which creates a `Standalone` task object. |
+| Type                                                                                                                                                                                                                                 | Description                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `Callable[[Callable[Concatenate[EmptyModel, Context, P], R \| CoroutineLike[R]]], Standalone[EmptyModel, R]] \| Callable[[Callable[Concatenate[TWorkflowInput, Context, P], R \| CoroutineLike[R]]], Standalone[TWorkflowInput, R]]` | A decorator which creates a `Standalone` task object. |
 
 #### `durable_task`
 
@@ -174,6 +174,6 @@ Parameters:
 
 Returns:
 
-| Type                                                                                                                                                                                                                   | Description                                           |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `Callable[[Callable[[EmptyModel, DurableContext], R \| CoroutineLike[R]]], Standalone[EmptyModel, R]] \| Callable[[Callable[[TWorkflowInput, DurableContext], R \| CoroutineLike[R]]], Standalone[TWorkflowInput, R]]` | A decorator which creates a `Standalone` task object. |
+| Type                                                                                                                                                                                                                                               | Description                                           |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `Callable[[Callable[Concatenate[EmptyModel, DurableContext, P], R \| CoroutineLike[R]]], Standalone[EmptyModel, R]] \| Callable[[Callable[Concatenate[TWorkflowInput, DurableContext, P], R \| CoroutineLike[R]]], Standalone[TWorkflowInput, R]]` | A decorator which creates a `Standalone` task object. |

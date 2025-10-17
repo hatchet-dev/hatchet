@@ -4,8 +4,8 @@ The Hatchet Context class provides helper methods and useful data to tasks at ru
 
 There are two types of context classes you'll encounter:
 
-- `Context`: The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more.
-- `DurableContext`: An extended context for durable tasks that includes additional methods for durable execution like `aio_wait_for` and `aio_sleep_for`.
+- `Context` - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more.
+- `DurableContext` - An extended context for durable tasks that includes additional methods for durable execution like `aio_wait_for` and `aio_sleep_for`.
 
 ## Context
 
@@ -22,7 +22,7 @@ There are two types of context classes you'll encounter:
 | `release_slot`         | Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.               |
 | `put_stream`           | Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer. |
 | `refresh_timeout`      | Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](../../home/timeouts#refreshing-timeouts).                             |
-| `fetch_task_run_error` | A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.                                                  |
+| `fetch_task_run_error` | **DEPRECATED**: Use `get_task_run_error` instead.                                                                                                                        |
 
 ### Attributes
 
@@ -88,9 +88,9 @@ The additional metadata sent with the current task run.
 
 Returns:
 
-| Type                              | Description                                                                                         |
-| --------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `JSONSerializableMapping \| None` | The additional metadata sent with the current task run, or None if no additional metadata was sent. |
+| Type                      | Description                                                                                         |
+| ------------------------- | --------------------------------------------------------------------------------------------------- |
+| `JSONSerializableMapping` | The additional metadata sent with the current task run, or None if no additional metadata was sent. |
 
 #### `parent_workflow_run_id`
 
@@ -273,6 +273,8 @@ Returns:
 
 #### `fetch_task_run_error`
 
+**DEPRECATED**: Use `get_task_run_error` instead.
+
 A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
 
 Parameters:
@@ -306,10 +308,10 @@ Durably wait for either a sleep or an event.
 
 Parameters:
 
-| Name          | Type                                   | Description                                                                                  | Default    |
-| ------------- | -------------------------------------- | -------------------------------------------------------------------------------------------- | ---------- |
-| `signal_key`  | `str`                                  | The key to use for the durable event. This is used to identify the event in the Hatchet API. | _required_ |
-| `*conditions` | `SleepCondition \| UserEventCondition` | The conditions to wait for. Can be a SleepCondition or UserEventCondition.                   | `()`       |
+| Name          | Type                                              | Description                                                                                  | Default    |
+| ------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------- |
+| `signal_key`  | `str`                                             | The key to use for the durable event. This is used to identify the event in the Hatchet API. | _required_ |
+| `*conditions` | `SleepCondition \| UserEventCondition \| OrGroup` | The conditions to wait for. Can be a SleepCondition or UserEventCondition.                   | `()`       |
 
 Returns:
 
