@@ -19,9 +19,12 @@ type LogProps = {
   logs: ExtendedLogLine[];
   onTopReached: () => void;
   onBottomReached: () => void;
+  onInfiniteScroll?: (scrollMetrics: {
+    scrollTop: number;
+    scrollHeight: number;
+    clientHeight: number;
+  }) => void;
   autoScroll?: boolean;
-  isFetchingNextPage?: boolean;
-  isFetchingPreviousPage?: boolean;
 };
 
 const options: Intl.DateTimeFormatOptions = {
@@ -37,9 +40,8 @@ const LoggingComponent: React.FC<LogProps> = ({
   logs,
   onTopReached,
   onBottomReached,
+  onInfiniteScroll,
   autoScroll = true,
-  isFetchingNextPage = false,
-  isFetchingPreviousPage = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,6 +49,8 @@ const LoggingComponent: React.FC<LogProps> = ({
   const [lastBottomCall, setLastBottomCall] = useState<number>(0);
   const [firstMount, setFirstMount] = useState<boolean>(true);
   const previousScrollHeightRef = useRef<number>(0);
+  const [lastInfiniteScrollCall, setLastInfiniteScrollCall] =
+    useState<number>(0);
   const handleScroll = () => {
     if (!containerRef.current) {
       return;
@@ -54,6 +58,20 @@ const LoggingComponent: React.FC<LogProps> = ({
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     previousScrollHeightRef.current = scrollHeight;
     const now = Date.now();
+
+    if (
+      onInfiniteScroll &&
+      logs.length > 0 &&
+      now - lastInfiniteScrollCall >= 100
+    ) {
+      onInfiniteScroll({
+        scrollTop,
+        scrollHeight,
+        clientHeight,
+      });
+      setLastInfiniteScrollCall(now);
+      return;
+    }
 
     if (scrollTop === 0 && now - lastTopCall >= 1000) {
       if (logs.length > 0) {
@@ -98,32 +116,18 @@ const LoggingComponent: React.FC<LogProps> = ({
   }, [refreshing]);
 
   useEffect(() => {
+    if (!autoScroll) {
+      return;
+    }
+
     const container = containerRef.current;
     if (!container) {
       return;
     }
 
-    let currentScrollHeight = container.scrollHeight;
     const previousScrollHeight = previousScrollHeightRef.current;
+    const currentScrollHeight = container.scrollHeight;
     const { scrollTop, clientHeight } = container;
-
-    if (isFetchingNextPage) {
-      setTimeout(() => {
-        container.scrollTo({ top: 2, behavior: 'instant' });
-      }, 100);
-    }
-
-    if (isFetchingPreviousPage) {
-      setTimeout(() => {
-        currentScrollHeight = container.scrollHeight;
-        const prevPageBottom = Math.max(2, currentScrollHeight - clientHeight - 10);
-        container.scrollTo({ top: prevPageBottom, behavior: 'instant' });
-      }, 100);
-    }
-
-    if (isFetchingNextPage || isFetchingPreviousPage || !autoScroll) {
-      return;
-    }
 
     const isAtBottom = scrollTop + clientHeight >= previousScrollHeight;
 
@@ -134,7 +138,7 @@ const LoggingComponent: React.FC<LogProps> = ({
     } else {
       container.scrollTo({ top: currentScrollHeight, behavior: 'smooth' });
     }
-  }, [logs, autoScroll, isFetchingNextPage, isFetchingPreviousPage]);
+  }, [logs, autoScroll]);
 
   const showLogs =
     logs.length > 0
