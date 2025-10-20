@@ -11,7 +11,6 @@ func (t *TenantService) TenantGetWorkflowStats(ctx echo.Context, request gen.Ten
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
 	stats, err := t.config.V1.Tasks().GetWorkflowStats(ctx.Request().Context(), tenant.ID.String())
-
 	if err != nil {
 		return nil, err
 	}
