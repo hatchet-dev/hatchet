@@ -67,7 +67,7 @@ export class AdminClient {
     }
   ) {
     try {
-      const computedName = applyNamespace(workflowName, this.config.namespace);
+      const computedName = applyNamespace(workflowName, this.config.namespace).toLowerCase();
 
       const inputStr = JSON.stringify(input);
 
@@ -123,7 +123,7 @@ export class AdminClient {
   ): Promise<WorkflowRunRef<P>[]> {
     // Prepare workflows to be triggered in bulk
     const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
-      const computedName = applyNamespace(workflowName, this.config.namespace);
+      const computedName = applyNamespace(workflowName, this.config.namespace).toLowerCase();
       const inputStr = JSON.stringify(input);
 
       return {

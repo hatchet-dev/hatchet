@@ -67,7 +67,7 @@ export class ScheduleClient {
     workflow: string | Workflow,
     cron: CreateScheduledRunInput
   ): Promise<ScheduledWorkflows> {
-    const workflowId = applyNamespace(workflowNameString(workflow), this.namespace);
+    const workflowId = applyNamespace(workflowNameString(workflow), this.namespace).toLowerCase();
 
     // Validate cron input with zod schema
     try {
@@ -117,7 +117,7 @@ export class ScheduleClient {
 
     if (workflow) {
       const workflowId = await this.workflows.getWorkflowIdFromName(
-        applyNamespace(workflowNameString(workflow), this.namespace)
+        applyNamespace(workflowNameString(workflow), this.namespace).toLowerCase()
       );
       rest.workflowId = workflowId;
     }
