@@ -34,7 +34,7 @@ import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
-import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { applyNamespace, normalizeWorkflowName } from '@hatchet/util/apply-namespace';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 
@@ -152,10 +152,7 @@ export class V1Worker {
       .filter((task) => !!task.fn)
       .reduce<ActionRegistry>((acc, task) => {
         acc[
-          `${applyNamespace(
-            workflow.name,
-            this.client.config.namespace
-          ).toLowerCase()}:${task.name.toLowerCase()}`
+          `${normalizeWorkflowName(workflow.name, this.client.config.namespace)}:${task.name.toLowerCase()}`
         ] = (ctx: Context<any, any>) => task.fn!(ctx.input, ctx as DurableContext<any, any>);
         return acc;
       }, {});
@@ -201,10 +198,7 @@ export class V1Worker {
     // patch the namespace
     const workflow: WorkflowDefinition = {
       ...initWorkflow.definition,
-      name: applyNamespace(
-        initWorkflow.definition.name,
-        this.client.config.namespace
-      ).toLowerCase(),
+      name: normalizeWorkflowName(initWorkflow.definition.name, this.client.config.namespace),
     };
 
     try {
@@ -369,7 +363,7 @@ export class V1Worker {
   async registerWorkflow(initWorkflow: Workflow) {
     const workflow: Workflow = {
       ...initWorkflow,
-      id: applyNamespace(initWorkflow.id, this.client.config.namespace).toLowerCase(),
+      id: normalizeWorkflowName(initWorkflow.id, this.client.config.namespace),
     };
     try {
       if (workflow.concurrency?.key && workflow.concurrency.expression) {
