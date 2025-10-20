@@ -820,6 +820,7 @@ getPrometheusMetrics:
 getWorkflowStats:
   get:
     x-resources: ["tenant"]
+    x-enable-rate-limiting: true
     description: Get workflow stats for tenant
     operationId: tenant:get:workflow-stats
     parameters:
