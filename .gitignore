@@ -99,3 +99,6 @@ openapitools.json
 # Generated docs content
 frontend/app/src/next/lib/docs/generated/
 frontend/docs/lib/generated/
+
+# Scripts
+hack/dev/psql-connect.sh

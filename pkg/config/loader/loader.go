@@ -292,6 +292,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	payloadStoreOpts := repov1.PayloadStoreRepositoryOpts{
 		EnablePayloadDualWrites:          scf.PayloadStore.EnablePayloadDualWrites,
 		EnableTaskEventPayloadDualWrites: scf.PayloadStore.EnableTaskEventPayloadDualWrites,
+		EnableOLAPPayloadDualWrites:      scf.PayloadStore.EnableOLAPPayloadDualWrites,
 		EnableDagDataPayloadDualWrites:   scf.PayloadStore.EnableDagDataPayloadDualWrites,
 		WALPollLimit:                     scf.PayloadStore.WALPollLimit,
 		WALProcessInterval:               scf.PayloadStore.WALProcessInterval,
