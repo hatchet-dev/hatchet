@@ -1,0 +1,15 @@
+{
+  "type": "module",
+  "scripts": {
+    "dev": "dotenv -- npx tsx --watch worker.mts"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^2.0.14",
+    "@daytonaio/sdk": "^0.25.5",
+    "@hatchet-dev/typescript-sdk": "^1.9.3",
+    "ai": "^5.0.14"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^10.0.0"
+  }
+}
