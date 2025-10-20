@@ -11,7 +11,7 @@ class DynamicCronInput(BaseModel):
 
 async def create_cron() -> None:
     dynamic_cron_workflow = hatchet.workflow(
-        name="CronWorkflow", input_validator=DynamicCronInput
+        name="DynamicCronWorkflow", input_validator=DynamicCronInput
     )
 
     # > Create

@@ -49,7 +49,7 @@ func parseTriggeredRuns(triggeredRuns []byte) ([]gen.V1EventTriggeredRun, error)
 	return result, nil
 }
 
-func ToV1EventList(events []*v1.ListEventsRow, limit, offset, total int64) gen.V1EventList {
+func ToV1EventList(events []*v1.EventWithPayload, limit, offset, total int64) gen.V1EventList {
 	rows := make([]gen.V1Event, len(events))
 
 	numPages := int64(math.Ceil(float64(total) / float64(limit)))
@@ -70,7 +70,9 @@ func ToV1EventList(events []*v1.ListEventsRow, limit, offset, total int64) gen.V
 
 	for i, row := range events {
 		additionalMetadata := jsonToMap(row.EventAdditionalMetadata)
-		payload := jsonToMap(row.EventPayload)
+
+		payload := jsonToMap(row.Payload)
+
 		triggeredRuns, err := parseTriggeredRuns(row.TriggeredRuns)
 
 		if err != nil {

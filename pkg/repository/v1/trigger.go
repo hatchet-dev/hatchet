@@ -1257,6 +1257,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
+			ExternalId: task.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			Payload:    task.Payload,
 			TenantId:   tenantId,
@@ -1267,6 +1268,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
 			Id:         dag.ID,
 			InsertedAt: dag.InsertedAt,
+			ExternalId: dag.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeDAGINPUT,
 			Payload:    dag.Input,
 			TenantId:   tenantId,
@@ -1510,7 +1512,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		}
 	}
 
-	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrievePayloadOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, retrievePayloadOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)

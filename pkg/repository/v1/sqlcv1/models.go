@@ -1436,6 +1436,48 @@ func (ns NullV1PayloadLocation) Value() (driver.Value, error) {
 	return string(ns.V1PayloadLocation), nil
 }
 
+type V1PayloadLocationOlap string
+
+const (
+	V1PayloadLocationOlapINLINE   V1PayloadLocationOlap = "INLINE"
+	V1PayloadLocationOlapEXTERNAL V1PayloadLocationOlap = "EXTERNAL"
+)
+
+func (e *V1PayloadLocationOlap) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1PayloadLocationOlap(s)
+	case string:
+		*e = V1PayloadLocationOlap(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1PayloadLocationOlap: %T", src)
+	}
+	return nil
+}
+
+type NullV1PayloadLocationOlap struct {
+	V1PayloadLocationOlap V1PayloadLocationOlap `json:"v1_payload_location_olap"`
+	Valid                 bool                  `json:"valid"` // Valid is true if V1PayloadLocationOlap is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1PayloadLocationOlap) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1PayloadLocationOlap, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1PayloadLocationOlap.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1PayloadLocationOlap) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1PayloadLocationOlap), nil
+}
+
 type V1PayloadType string
 
 const (
@@ -3079,6 +3121,7 @@ type V1Payload struct {
 	TenantID            pgtype.UUID        `json:"tenant_id"`
 	ID                  int64              `json:"id"`
 	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID          pgtype.UUID        `json:"external_id"`
 	Type                V1PayloadType      `json:"type"`
 	Location            V1PayloadLocation  `json:"location"`
 	ExternalLocationKey pgtype.Text        `json:"external_location_key"`
@@ -3101,6 +3144,16 @@ type V1PayloadWal struct {
 	PayloadInsertedAt pgtype.Timestamptz    `json:"payload_inserted_at"`
 	PayloadType       V1PayloadType         `json:"payload_type"`
 	Operation         V1PayloadWalOperation `json:"operation"`
+}
+
+type V1PayloadsOlap struct {
+	TenantID            pgtype.UUID           `json:"tenant_id"`
+	ExternalID          pgtype.UUID           `json:"external_id"`
+	Location            V1PayloadLocationOlap `json:"location"`
+	ExternalLocationKey pgtype.Text           `json:"external_location_key"`
+	InlineContent       []byte                `json:"inline_content"`
+	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
+	UpdatedAt           pgtype.Timestamptz    `json:"updated_at"`
 }
 
 type V1Queue struct {
@@ -3262,6 +3315,7 @@ type V1TaskEventsOlap struct {
 	TenantID               pgtype.UUID          `json:"tenant_id"`
 	ID                     int64                `json:"id"`
 	InsertedAt             pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID             pgtype.UUID          `json:"external_id"`
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	EventType              V1EventTypeOlap      `json:"event_type"`
