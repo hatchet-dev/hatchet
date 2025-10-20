@@ -3251,4 +3251,21 @@ export class Api<
       secure: true,
       ...params,
     });
+  /**
+   * @description Get workflow stats for tenant
+   *
+   * @tags Tenant
+   * @name TenantGetWorkflowStats
+   * @summary Get workflow stats for tenant
+   * @request GET:/api/v1/tenants/{tenant}/workflow-stats
+   * @secure
+   */
+  tenantGetWorkflowStats = (tenant: string, params: RequestParams = {}) =>
+    this.request<object, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflow-stats`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
 }

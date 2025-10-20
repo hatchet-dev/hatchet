@@ -3336,6 +3336,9 @@ type ClientInterface interface {
 	// WorkflowRunListStepRunEvents request
 	WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// TenantGetWorkflowStats request
+	TenantGetWorkflowStats(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// WorkflowList request
 	WorkflowList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4824,6 +4827,18 @@ func (c *Client) WorkflowRunGetShape(ctx context.Context, tenant openapi_types.U
 
 func (c *Client) WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowRunListStepRunEventsRequest(c.Server, tenant, workflowRun, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantGetWorkflowStats(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantGetWorkflowStatsRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -10249,6 +10264,40 @@ func NewWorkflowRunListStepRunEventsRequest(server string, tenant openapi_types.
 	return req, nil
 }
 
+// NewTenantGetWorkflowStatsRequest generates requests for TenantGetWorkflowStats
+func NewTenantGetWorkflowStatsRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflow-stats", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWorkflowListRequest generates requests for WorkflowList
 func NewWorkflowListRequest(server string, tenant openapi_types.UUID, params *WorkflowListParams) (*http.Request, error) {
 	var err error
@@ -12824,6 +12873,9 @@ type ClientWithResponsesInterface interface {
 	// WorkflowRunListStepRunEventsWithResponse request
 	WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*WorkflowRunListStepRunEventsResponse, error)
 
+	// TenantGetWorkflowStatsWithResponse request
+	TenantGetWorkflowStatsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetWorkflowStatsResponse, error)
+
 	// WorkflowListWithResponse request
 	WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error)
 
@@ -15133,6 +15185,31 @@ func (r WorkflowRunListStepRunEventsResponse) StatusCode() int {
 	return 0
 }
 
+type TenantGetWorkflowStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *map[string]interface{}
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantGetWorkflowStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantGetWorkflowStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -17062,6 +17139,15 @@ func (c *ClientWithResponses) WorkflowRunListStepRunEventsWithResponse(ctx conte
 		return nil, err
 	}
 	return ParseWorkflowRunListStepRunEventsResponse(rsp)
+}
+
+// TenantGetWorkflowStatsWithResponse request returning *TenantGetWorkflowStatsResponse
+func (c *ClientWithResponses) TenantGetWorkflowStatsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetWorkflowStatsResponse, error) {
+	rsp, err := c.TenantGetWorkflowStats(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantGetWorkflowStatsResponse(rsp)
 }
 
 // WorkflowListWithResponse request returning *WorkflowListResponse
@@ -21236,6 +21322,53 @@ func ParseWorkflowRunListStepRunEventsResponse(rsp *http.Response) (*WorkflowRun
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest StepRunEventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantGetWorkflowStatsResponse parses an HTTP response from a TenantGetWorkflowStatsWithResponse call
+func ParseTenantGetWorkflowStatsResponse(rsp *http.Response) (*TenantGetWorkflowStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantGetWorkflowStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest map[string]interface{}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

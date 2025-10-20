@@ -816,3 +816,47 @@ getPrometheusMetrics:
     summary: Get prometheus metrics
     tags:
       - Tenant
+
+getWorkflowStats:
+  get:
+    x-resources: ["tenant"]
+    description: Get workflow stats for tenant
+    operationId: tenant:get:workflow-stats
+    parameters:
+      - description: The tenant ID
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              type: object
+        description: Successfully retrieved workflow stats for tenant
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Get workflow stats for tenant
+    tags:
+      - Tenant

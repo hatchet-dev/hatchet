@@ -850,6 +850,137 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 	return &i, err
 }
 
+const getTenantWorkflowStats = `-- name: GetTenantWorkflowStats :many
+WITH queued_tasks AS (
+    SELECT
+        'queued' as status,
+        w.name as workflow_name,
+        unnest(t.concurrency_keys) as concurrency_key,
+        COUNT(*) as count
+    FROM
+        v1_queue_item qi
+    JOIN
+        v1_task t ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at
+    JOIN
+        "Workflow" w ON t.workflow_id = w.id
+    WHERE
+        qi.tenant_id = $1::uuid
+        AND t.tenant_id = $1::uuid
+        AND w."deletedAt" IS NULL
+    GROUP BY
+        w.name,
+        unnest(t.concurrency_keys)
+    UNION ALL
+    SELECT
+        'queued' as status,
+        w.name as workflow_name,
+        NULL as concurrency_key,
+        COUNT(*) as count
+    FROM
+        v1_queue_item qi
+    JOIN
+        v1_task t ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at
+    JOIN
+        "Workflow" w ON t.workflow_id = w.id
+    WHERE
+        qi.tenant_id = $1::uuid
+        AND t.tenant_id = $1::uuid
+        AND w."deletedAt" IS NULL
+        AND (t.concurrency_keys IS NULL OR cardinality(t.concurrency_keys) = 0)
+    GROUP BY
+        w.name
+), running_tasks AS (
+    SELECT
+        'running' as status,
+        w.name as workflow_name,
+        unnest(t.concurrency_keys) as concurrency_key,
+        COUNT(*) as count
+    FROM
+        v1_task_runtime tr
+    JOIN
+        v1_task t ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at
+    JOIN
+        "Workflow" w ON t.workflow_id = w.id
+    WHERE
+        tr.tenant_id = $1::uuid
+        AND t.tenant_id = $1::uuid
+        AND w."deletedAt" IS NULL
+    GROUP BY
+        w.name,
+        unnest(t.concurrency_keys)
+    UNION ALL
+    SELECT
+        'running' as status,
+        w.name as workflow_name,
+        NULL as concurrency_key,
+        COUNT(*) as count
+    FROM
+        v1_task_runtime tr
+    JOIN
+        v1_task t ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at
+    JOIN
+        "Workflow" w ON t.workflow_id = w.id
+    WHERE
+        tr.tenant_id = $1::uuid
+        AND t.tenant_id = $1::uuid
+        AND w."deletedAt" IS NULL
+        AND (t.concurrency_keys IS NULL OR cardinality(t.concurrency_keys) = 0)
+    GROUP BY
+        w.name
+)
+SELECT
+    status,
+    workflow_name,
+    concurrency_key,
+    count
+FROM
+    queued_tasks
+UNION ALL
+SELECT
+    status,
+    workflow_name,
+    concurrency_key,
+    count
+FROM
+    running_tasks
+ORDER BY
+    status,
+    workflow_name,
+    concurrency_key
+`
+
+type GetTenantWorkflowStatsRow struct {
+	Status         string      `json:"status"`
+	WorkflowName   string      `json:"workflow_name"`
+	ConcurrencyKey interface{} `json:"concurrency_key"`
+	Count          int64       `json:"count"`
+}
+
+func (q *Queries) GetTenantWorkflowStats(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetTenantWorkflowStatsRow, error) {
+	rows, err := db.Query(ctx, getTenantWorkflowStats, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetTenantWorkflowStatsRow
+	for rows.Next() {
+		var i GetTenantWorkflowStatsRow
+		if err := rows.Scan(
+			&i.Status,
+			&i.WorkflowName,
+			&i.ConcurrencyKey,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkflowRunIdFromDagIdInsertedAt = `-- name: GetWorkflowRunIdFromDagIdInsertedAt :one
 SELECT external_id
 FROM v1_dags_olap

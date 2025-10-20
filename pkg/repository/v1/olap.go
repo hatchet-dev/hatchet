@@ -246,6 +246,8 @@ type OLAPRepository interface {
 	AnalyzeOLAPTables(ctx context.Context) error
 
 	ListWorkflowRunExternalIds(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]pgtype.UUID, error)
+
+	GetWorkflowStats(ctx context.Context, tenantId string) (map[string]interface{}, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -2009,4 +2011,54 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 
 	return result, nil
 
+}
+
+func (r *OLAPRepositoryImpl) GetWorkflowStats(ctx context.Context, tenantId string) (map[string]interface{}, error) {
+	rows, err := r.queries.GetTenantWorkflowStats(ctx, r.readPool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := map[string]interface{}{
+		"queued":  make(map[string]interface{}),
+		"running": make(map[string]interface{}),
+	}
+
+	for _, row := range rows {
+		statusMap := result[row.Status].(map[string]interface{})
+		workflowName := row.WorkflowName
+		count := row.Count
+
+		if row.ConcurrencyKey != nil {
+			concurrencyKey, ok := row.ConcurrencyKey.(string)
+			if !ok {
+				continue
+			}
+
+			if existing, exists := statusMap[workflowName]; exists {
+				if _, isInt := existing.(int64); isInt {
+					statusMap[workflowName] = map[string]interface{}{
+						concurrencyKey: count,
+					}
+				} else if existingMap, isMap := existing.(map[string]interface{}); isMap {
+					existingMap[concurrencyKey] = count
+				}
+			} else {
+				statusMap[workflowName] = map[string]interface{}{
+					concurrencyKey: count,
+				}
+			}
+		} else {
+			if existing, exists := statusMap[workflowName]; exists {
+				if existingInt, isInt := existing.(int64); isInt {
+					statusMap[workflowName] = existingInt + count
+				}
+			} else {
+				statusMap[workflowName] = count
+			}
+		}
+	}
+
+	return result, nil
 }
