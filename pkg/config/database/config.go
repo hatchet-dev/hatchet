@@ -37,6 +37,11 @@ type ConfigFile struct {
 	LogQueries bool `mapstructure:"logQueries" json:"logQueries,omitempty" default:"false"`
 
 	CacheDuration time.Duration `mapstructure:"cacheDuration" json:"cacheDuration,omitempty" default:"5s"`
+
+	// EnforceUTCTimezone enforces that the database instance timezone is set to UTC.
+	// If enabled and the database timezone is not UTC, the server will panic on startup.
+	// To disable this check, set DATABASE_ENFORCE_UTC_TIMEZONE=false
+	EnforceUTCTimezone bool `mapstructure:"enforceUtcTimezone" json:"enforceUtcTimezone,omitempty" default:"true"`
 }
 
 type SeedConfigFile struct {
@@ -90,6 +95,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("readReplicaMinConns", "READ_REPLICA_MIN_CONNS")
 
 	_ = v.BindEnv("cacheDuration", "CACHE_DURATION")
+	_ = v.BindEnv("enforceUtcTimezone", "DATABASE_ENFORCE_UTC_TIMEZONE")
 
 	_ = v.BindEnv("seed.adminEmail", "ADMIN_EMAIL")
 	_ = v.BindEnv("seed.adminPassword", "ADMIN_PASSWORD")

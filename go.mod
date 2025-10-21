@@ -10,7 +10,7 @@ require (
 	github.com/creasty/defaults v1.8.0
 	github.com/fatih/color v1.18.0
 	github.com/getkin/kin-openapi v0.133.0
-	github.com/go-co-op/gocron/v2 v2.16.5
+	github.com/go-co-op/gocron/v2 v2.17.0
 	github.com/google/go-github/v57 v57.0.0
 	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.3.0
@@ -21,18 +21,17 @@ require (
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/jackc/pgxlisten v0.0.0-20241106001234-1d6f6656415c
 	github.com/jackc/puddle/v2 v2.2.2
-	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/oapi-codegen/runtime v1.1.2
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/pingcap/errors v0.11.4
-	github.com/posthog/posthog-go v1.6.10
-	github.com/pressly/goose/v3 v3.25.0
+	github.com/posthog/posthog-go v1.6.11
+	github.com/pressly/goose/v3 v3.26.0
 	github.com/sethvargo/go-retry v0.3.0
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.21.0
 	github.com/testcontainers/testcontainers-go v0.39.0
-	github.com/testcontainers/testcontainers-go/modules/postgres v0.38.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.39.0
 	github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.39.0
 	github.com/tink-crypto/tink-go v0.0.0-20230613075026-d6de17e3f164
 	github.com/tink-crypto/tink-go-gcpkms v0.0.0-20230602082706-31d0d09ccc8d
@@ -42,8 +41,8 @@ require (
 	go.opentelemetry.io/otel/sdk v1.38.0
 	go.opentelemetry.io/otel/trace v1.38.0
 	go.uber.org/goleak v1.3.0
-	golang.org/x/time v0.13.0
-	google.golang.org/api v0.249.0
+	golang.org/x/time v0.14.0
+	google.golang.org/api v0.252.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20250825161204-c5933d9347a5
 	k8s.io/api v0.34.1
 	k8s.io/apimachinery v0.34.1
@@ -53,9 +52,9 @@ require (
 
 require (
 	cel.dev/expr v0.24.0 // indirect
-	cloud.google.com/go/auth v0.16.5 // indirect
+	cloud.google.com/go/auth v0.17.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute/metadata v0.8.0 // indirect
+	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -82,7 +81,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.10 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -102,6 +101,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
@@ -160,7 +160,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
-	golang.org/x/term v0.35.0 // indirect
+	golang.org/x/term v0.36.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
@@ -175,9 +175,9 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/exaring/otelpgx v0.9.3
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/getsentry/sentry-go v0.35.3
+	github.com/getsentry/sentry-go v0.36.0
 	github.com/go-chi/chi v1.5.5
-	github.com/go-playground/validator/v10 v10.27.0
+	github.com/go-playground/validator/v10 v10.28.0
 	github.com/goccy/go-json v0.10.5
 	github.com/google/cel-go v0.26.1
 	github.com/google/uuid v1.6.0
@@ -200,14 +200,14 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/testify v1.11.1
 	github.com/subosito/gotenv v1.6.0 // indirect
-	golang.org/x/crypto v0.42.0
-	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/oauth2 v0.31.0
+	golang.org/x/crypto v0.43.0
+	golang.org/x/net v0.45.0 // indirect
+	golang.org/x/oauth2 v0.32.0
 	golang.org/x/sync v0.17.0
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.29.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250825161204-c5933d9347a5 // indirect
-	google.golang.org/grpc v1.75.1
-	google.golang.org/protobuf v1.36.9
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/text v0.30.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251002232023-7c0ddcbb5797 // indirect
+	google.golang.org/grpc v1.76.0
+	google.golang.org/protobuf v1.36.10
 	gopkg.in/yaml.v3 v3.0.1
 )

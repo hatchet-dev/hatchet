@@ -28,11 +28,11 @@ import (
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/internal/services/webhooks"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/rs/zerolog"
 
 	"golang.org/x/sync/errgroup"
@@ -353,6 +353,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			task.WithPartition(p),
 			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+			task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
 		)
 
 		if err != nil {
@@ -379,6 +380,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			olap.WithTenantAlertManager(sc.TenantAlerter),
 			olap.WithSamplingConfig(sc.Sampling),
 			olap.WithOperationsConfig(sc.Operations),
+			olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
 		)
 
 		if err != nil {
@@ -806,6 +808,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 				task.WithOpsPoolJitter(sc.Operations),
 				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
+				task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
 			)
 
 			if err != nil {
@@ -835,6 +838,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				olap.WithSamplingConfig(sc.Sampling),
 				olap.WithOperationsConfig(sc.Operations),
 				olap.WithPrometheusMetricsEnabled(sc.Prometheus.Enabled),
+				olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
 			)
 
 			if err != nil {

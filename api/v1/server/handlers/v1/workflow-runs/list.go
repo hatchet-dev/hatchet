@@ -9,11 +9,11 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
@@ -57,19 +57,25 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		workflowIds = *request.Params.WorkflowIds
 	}
 
+	includePayloads := false
+	if request.Params.IncludePayloads != nil {
+		includePayloads = *request.Params.IncludePayloads
+	}
+
 	opts := v1.ListWorkflowRunOpts{
-		CreatedAfter: since,
-		Statuses:     statuses,
-		WorkflowIds:  workflowIds,
-		Limit:        limit,
-		Offset:       offset,
+		CreatedAfter:    since,
+		Statuses:        statuses,
+		WorkflowIds:     workflowIds,
+		Limit:           limit,
+		Offset:          offset,
+		IncludePayloads: includePayloads,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
 
 	if request.Params.AdditionalMetadata != nil {
 		for _, v := range *request.Params.AdditionalMetadata {
-			kv_pairs := strings.Split(v, ":")
+			kv_pairs := strings.SplitN(v, ":", 2)
 			if len(kv_pairs) == 2 {
 				additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
 			}
@@ -92,13 +98,6 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		id := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventExternalId.String())
 		opts.TriggeringEventExternalId = &id
 	}
-
-	includePayloads := true
-	if request.Params.IncludePayloads != nil {
-		includePayloads = *request.Params.IncludePayloads
-	}
-
-	opts.IncludePayloads = includePayloads
 
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
 		ctx,
@@ -146,17 +145,13 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	taskIdToWorkflowName := make(map[int64]string)
-
-	for _, task := range tasks {
-		if name, ok := workflowNames[task.WorkflowID]; ok {
-			taskIdToWorkflowName[task.ID] = name
-		}
-	}
-
 	taskIdToActionId := make(map[int64]string)
 
 	for _, task := range tasks {
 		taskIdToActionId[task.ID] = task.ActionID
+		if name, ok := workflowNames[task.WorkflowID]; ok {
+			taskIdToWorkflowName[task.ID] = name
+		}
 	}
 
 	parsedTasks := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset)
@@ -221,6 +216,11 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		workflowIds = *request.Params.WorkflowIds
 	}
 
+	includePayloads := false
+	if request.Params.IncludePayloads != nil {
+		includePayloads = *request.Params.IncludePayloads
+	}
+
 	opts := v1.ListTaskRunOpts{
 		CreatedAfter:    since,
 		Statuses:        statuses,
@@ -228,14 +228,14 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		Limit:           limit,
 		Offset:          offset,
 		WorkerId:        request.Params.WorkerId,
-		IncludePayloads: true,
+		IncludePayloads: includePayloads,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
 
 	if request.Params.AdditionalMetadata != nil {
 		for _, v := range *request.Params.AdditionalMetadata {
-			kv_pairs := strings.Split(v, ":")
+			kv_pairs := strings.SplitN(v, ":", 2)
 			if len(kv_pairs) == 2 {
 				additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
 			}
@@ -250,10 +250,6 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 
 	if request.Params.TriggeringEventExternalId != nil {
 		opts.TriggeringEventExternalId = request.Params.TriggeringEventExternalId
-	}
-
-	if request.Params.IncludePayloads != nil {
-		opts.IncludePayloads = *request.Params.IncludePayloads
 	}
 
 	tasks, total, err := t.config.V1.OLAP().ListTasks(
@@ -282,6 +278,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	}
 
 	taskIdToWorkflowName := make(map[int64]string)
+
 	for _, task := range tasks {
 		if name, ok := workflowIdToName[task.WorkflowID]; ok {
 			taskIdToWorkflowName[task.ID] = name
@@ -332,6 +329,77 @@ func (t *V1WorkflowRunsService) V1WorkflowRunDisplayNamesList(ctx echo.Context, 
 	result := transformers.ToWorkflowRunDisplayNamesList(displayNames)
 
 	return gen.V1WorkflowRunDisplayNamesList200JSONResponse(
+		result,
+	), nil
+}
+
+func (t *V1WorkflowRunsService) V1WorkflowRunExternalIdsList(ctx echo.Context, request gen.V1WorkflowRunExternalIdsListRequestObject) (gen.V1WorkflowRunExternalIdsListResponseObject, error) {
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := tenant.ID.String()
+	spanCtx, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list-external-ids")
+	defer span.End()
+
+	var (
+		statuses = []sqlcv1.V1ReadableStatusOlap{
+			sqlcv1.V1ReadableStatusOlapQUEUED,
+			sqlcv1.V1ReadableStatusOlapRUNNING,
+			sqlcv1.V1ReadableStatusOlapFAILED,
+			sqlcv1.V1ReadableStatusOlapCOMPLETED,
+			sqlcv1.V1ReadableStatusOlapCANCELLED,
+		}
+		since       = request.Params.Since
+		workflowIds = []uuid.UUID{}
+	)
+
+	if request.Params.Statuses != nil {
+		if len(*request.Params.Statuses) > 0 {
+			statuses = []sqlcv1.V1ReadableStatusOlap{}
+			for _, status := range *request.Params.Statuses {
+				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
+			}
+		}
+	}
+
+	if request.Params.WorkflowIds != nil {
+		workflowIds = *request.Params.WorkflowIds
+	}
+
+	opts := v1.ListWorkflowRunOpts{
+		CreatedAfter: since,
+		Statuses:     statuses,
+		WorkflowIds:  workflowIds,
+	}
+
+	additionalMetadataFilters := make(map[string]interface{})
+
+	if request.Params.AdditionalMetadata != nil {
+		for _, v := range *request.Params.AdditionalMetadata {
+			kv_pairs := strings.SplitN(v, ":", 2)
+			if len(kv_pairs) == 2 {
+				additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
+			}
+		}
+
+		opts.AdditionalMetadata = additionalMetadataFilters
+	}
+
+	if request.Params.Until != nil {
+		opts.FinishedBefore = request.Params.Until
+	}
+
+	externalIds, err := t.config.V1.OLAP().ListWorkflowRunExternalIds(
+		spanCtx,
+		tenantId,
+		opts,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := transformers.ToWorkflowRunExternalIds(externalIds)
+
+	return gen.V1WorkflowRunExternalIdsList200JSONResponse(
 		result,
 	), nil
 }

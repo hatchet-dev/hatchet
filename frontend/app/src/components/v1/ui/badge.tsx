@@ -22,6 +22,10 @@ const badgeVariants = cva(
           'border-transparent rounded-sm font-normal text-yellow-800 dark:text-yellow-300 bg-yellow-500/20 ring-yellow-500/30',
         outlineDestructive:
           'border border-destructive rounded-sm font-normal text-red-800 dark:text-red-300 bg-transparent',
+        queued:
+          'border-transparent rounded-sm font-normal text-slate-800 dark:text-slate-300 bg-slate-500/20 ring-slate-500/30',
+        cancelled:
+          'border-transparent rounded-sm font-normal text-orange-800 dark:text-orange-300 bg-orange-500/20 ring-orange-500/30',
       },
     },
     defaultVariants: {

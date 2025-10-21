@@ -1,14 +1,12 @@
 -- name: CountWorkflows :one
-SELECT
-    count(workflows) OVER() AS total
-FROM
-    "Workflow" as workflows
+SELECT COUNT(w.*)
+FROM "Workflow" w
 WHERE
-    workflows."tenantId" = $1 AND
-    workflows."deletedAt" IS NULL AND
-    (
-        sqlc.narg('eventKey')::text IS NULL OR
-        workflows."id" IN (
+    w."tenantId" = $1
+    AND w."deletedAt" IS NULL
+    AND (
+        sqlc.narg('eventKey')::TEXT IS NULL OR
+        w."id" IN (
             SELECT
                 DISTINCT ON(t1."workflowId") t1."workflowId"
             FROM
@@ -31,7 +29,12 @@ WHERE
             ORDER BY
                 t1."workflowId" DESC, t1."order" DESC
         )
-    );
+    )
+    AND (
+        sqlc.narg('search')::TEXT IS NULL
+        OR w.name ILIKE CONCAT('%', sqlc.narg('search')::TEXT, '%')
+    )
+;
 
 -- name: ListWorkflowsLatestRuns :many
 SELECT
@@ -152,6 +155,13 @@ WITH triggersToUpdate AS (
 UPDATE "WorkflowTriggerCronRef"
 SET "parentId" = @newWorkflowTriggerId::uuid
 WHERE "id" IN (SELECT "id" FROM triggersToUpdate);
+
+-- name: UpdateCronTrigger :exec
+UPDATE "WorkflowTriggerCronRef"
+SET
+    "enabled" = COALESCE(sqlc.narg('enabled')::BOOLEAN, "enabled")
+WHERE "id" = @cronTriggerId::uuid
+;
 
 -- name: MoveScheduledTriggerToNewWorkflowTriggers :exec
 WITH triggersToUpdate AS (

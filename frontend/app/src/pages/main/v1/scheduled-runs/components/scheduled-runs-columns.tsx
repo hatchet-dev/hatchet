@@ -5,48 +5,130 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { Link } from 'react-router-dom';
+
 export type RateLimitRow = RateLimit & {
   metadata: {
     id: string;
   };
 };
 
+export const ScheduledRunColumn = {
+  id: 'ID',
+  runId: 'Run ID',
+  status: 'Status',
+  triggerAt: 'Trigger At',
+  workflow: 'Workflow',
+  metadata: 'Metadata',
+  createdAt: 'Created At',
+  actions: 'Actions',
+};
+
+export type ScheduledRunColumnKeys = keyof typeof ScheduledRunColumn;
+
+export const idKey: ScheduledRunColumnKeys = 'id';
+export const runIdKey: ScheduledRunColumnKeys = 'runId';
+export const statusKey: ScheduledRunColumnKeys = 'status';
+export const triggerAtKey: ScheduledRunColumnKeys = 'triggerAt';
+export const workflowKey: ScheduledRunColumnKeys = 'workflow';
+export const metadataKey: ScheduledRunColumnKeys = 'metadata';
+export const createdAtKey: ScheduledRunColumnKeys = 'createdAt';
+export const actionsKey: ScheduledRunColumnKeys = 'actions';
+
 export const columns = ({
   tenantId,
   onDeleteClick,
   selectedAdditionalMetaJobId,
   handleSetSelectedAdditionalMetaJobId,
+  onRowClick,
 }: {
   tenantId: string;
   onDeleteClick: (row: ScheduledWorkflows) => void;
   selectedAdditionalMetaJobId: string | null;
   handleSetSelectedAdditionalMetaJobId: (runId: string | null) => void;
+  onRowClick?: (row: ScheduledWorkflows) => void;
 }): ColumnDef<ScheduledWorkflows>[] => {
   return [
     {
-      accessorKey: 'status',
+      accessorKey: idKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Status" />
+        <DataTableColumnHeader column={column} title={ScheduledRunColumn.id} />
       ),
       cell: ({ row }) => (
-        <RunStatus status={row.original.workflowRunStatus || 'SCHEDULED'} />
+        <div
+          className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
+          onClick={() => onRowClick?.(row.original)}
+        >
+          {row.original.metadata.id}
+        </div>
       ),
+      enableSorting: false,
+      enableHiding: true,
     },
     {
-      accessorKey: 'triggerAt',
+      accessorKey: runIdKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Trigger At" />
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.runId}
+        />
+      ),
+      cell: ({ row }) =>
+        row.original.workflowRunId ? (
+          <Link to={`/tenants/${tenantId}/runs/${row.original.workflowRunId}`}>
+            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+              {row.original.workflowRunName}
+            </div>
+          </Link>
+        ) : null,
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
+      accessorKey: statusKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.status}
+        />
       ),
       cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4">
+        <div
+          className="cursor-pointer"
+          onClick={() => onRowClick?.(row.original)}
+        >
+          <RunStatus status={row.original.workflowRunStatus || 'SCHEDULED'} />
+        </div>
+      ),
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
+      accessorKey: triggerAtKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.triggerAt}
+        />
+      ),
+      cell: ({ row }) => (
+        <div
+          className="flex flex-row items-center gap-4 cursor-pointer"
+          onClick={() => onRowClick?.(row.original)}
+        >
           <RelativeDate date={row.original.triggerAt} />
         </div>
       ),
+      enableSorting: false,
+      enableHiding: true,
     },
     {
-      accessorKey: 'Workflow',
+      accessorKey: workflowKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Workflow" />
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.workflow}
+        />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -63,9 +145,12 @@ export const columns = ({
       enableHiding: true,
     },
     {
-      accessorKey: 'Metadata',
+      accessorKey: metadataKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Metadata" />
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.metadata}
+        />
       ),
       cell: ({ row }) => {
         if (!row.original.additionalMetadata) {
@@ -87,24 +172,31 @@ export const columns = ({
         );
       },
       enableSorting: false,
+      enableHiding: true,
     },
     {
-      accessorKey: 'createdAt',
+      accessorKey: createdAtKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Created At" />
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.createdAt}
+        />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
           <RelativeDate date={row.original.metadata.createdAt} />
         </div>
       ),
-      enableSorting: true,
+      enableSorting: false,
       enableHiding: true,
     },
     {
-      accessorKey: 'actions',
+      accessorKey: actionsKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Actions" />
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.actions}
+        />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row justify-center">
@@ -123,8 +215,8 @@ export const columns = ({
           />
         </div>
       ),
-      enableHiding: true,
       enableSorting: false,
+      enableHiding: true,
     },
   ];
 };

@@ -62,6 +62,7 @@ func RunTestWithEngine(m *testing.M) {
 
 	if exitCode == 0 {
 		if err := goleak.Find(
+			goleak.IgnoreTopFunction("github.com/hashicorp/golang-lru/v2/expirable.NewLRU[...].func1"),
 			goleak.IgnoreTopFunction("github.com/hatchet-dev/hatchet/internal/cache.NewTTL[...].func1"),
 			goleak.IgnoreTopFunction("google.golang.org/grpc/internal/resolver/dns.(*dnsResolver).watcher"),
 			goleak.IgnoreTopFunction("github.com/testcontainers/testcontainers-go.(*Reaper).connect.func1"),

@@ -1,22 +1,21 @@
 import { useState } from 'react';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { SortingState, VisibilityState } from '@tanstack/react-table';
+import { VisibilityState } from '@tanstack/react-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { columns, WorkflowColumn } from './components/workflow-columns';
+import {
+  columns,
+  nameKey,
+  WorkflowColumn,
+} from './components/workflow-columns';
 import { useWorkflows } from './hooks/use-workflows';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 
 export default function WorkflowTable() {
   const { tenantId } = useCurrentTenantId();
 
-  const [sorting, setSorting] = useState<SortingState>([
-    {
-      id: 'createdAt',
-      desc: true,
-    },
-  ]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const {
@@ -28,6 +27,9 @@ export default function WorkflowTable() {
     setPagination,
     setPageSize,
     refetch,
+    columnFilters,
+    setColumnFilters,
+    resetFilters,
   } = useWorkflows({
     key: 'workflows-table',
   });
@@ -53,6 +55,13 @@ export default function WorkflowTable() {
           </div>
         </div>
       }
+      filters={[
+        {
+          columnId: nameKey,
+          title: WorkflowColumn.name,
+          type: ToolbarType.Search,
+        },
+      ]}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
       pagination={pagination}
@@ -60,17 +69,16 @@ export default function WorkflowTable() {
       onSetPageSize={setPageSize}
       showSelectedRows={false}
       pageCount={numWorkflows}
-      sorting={sorting}
-      setSorting={setSorting}
       isLoading={isLoading}
-      manualSorting={false}
-      manualFiltering={false}
       showColumnToggle={true}
       columnKeyToName={WorkflowColumn}
       refetchProps={{
         isRefetching,
         onRefetch: refetch,
       }}
+      columnFilters={columnFilters}
+      setColumnFilters={setColumnFilters}
+      onResetFilters={resetFilters}
     />
   );
 }

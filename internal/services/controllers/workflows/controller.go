@@ -19,13 +19,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type WorkflowsController interface {
@@ -367,7 +367,9 @@ func (wc *WorkflowsControllerImpl) handleCheckQueue(ctx context.Context, task *m
 
 	err := wc.dv.DecodeAndValidate(task.Metadata, &metadata)
 
-	if err != nil {
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: metadata.TenantId})
+	} else {
 		return fmt.Errorf("could not decode check queue metadata: %w", err)
 	}
 
@@ -414,7 +416,9 @@ func (wc *WorkflowsControllerImpl) handleReplayWorkflowRun(ctx context.Context, 
 
 	err = wc.dv.DecodeAndValidate(task.Metadata, &metadata)
 
-	if err != nil {
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: metadata.TenantId})
+	} else {
 		return fmt.Errorf("could not decode replay workflow run task metadata: %w", err)
 	}
 
@@ -447,7 +451,9 @@ func (ec *WorkflowsControllerImpl) handleGroupKeyRunStarted(ctx context.Context,
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
-	if err != nil {
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: metadata.TenantId})
+	} else {
 		return fmt.Errorf("could not decode group key run started task metadata: %w", err)
 	}
 
@@ -481,7 +487,9 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context
 
 	err = wc.dv.DecodeAndValidate(task.Metadata, &metadata)
 
-	if err != nil {
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: metadata.TenantId})
+	} else {
 		return fmt.Errorf("could not decode group key run finished task metadata: %w", err)
 	}
 
@@ -607,7 +615,9 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFailed(ctx context.Context, 
 
 	err = wc.dv.DecodeAndValidate(task.Metadata, &metadata)
 
-	if err != nil {
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: metadata.TenantId})
+	} else {
 		return fmt.Errorf("could not decode group key run failed task metadata: %w", err)
 	}
 
@@ -645,7 +655,9 @@ func (wc *WorkflowsControllerImpl) handleGetGroupKeyRunTimedOut(ctx context.Cont
 
 	err = wc.dv.DecodeAndValidate(task.Metadata, &metadata)
 
-	if err != nil {
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: metadata.TenantId})
+	} else {
 		return fmt.Errorf("could not decode get group key run run timed out task metadata: %w", err)
 	}
 
@@ -655,6 +667,8 @@ func (wc *WorkflowsControllerImpl) handleGetGroupKeyRunTimedOut(ctx context.Cont
 func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, tenantId, getGroupKeyRunId, reason string) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-get-group-key-run") // nolint: ineffassign
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	// cancel current step run
 	now := time.Now().UTC()
@@ -752,6 +766,8 @@ func (wc *WorkflowsControllerImpl) processWorkflowEvents(ctx context.Context, te
 	ctx, span := telemetry.NewSpan(ctx, "process-workflow-events")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
+
 	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
@@ -767,6 +783,8 @@ func (wc *WorkflowsControllerImpl) processWorkflowEvents(ctx context.Context, te
 func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "unpause-workflow-runs")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()

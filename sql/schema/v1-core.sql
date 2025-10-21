@@ -327,6 +327,7 @@ CREATE TYPE v1_task_event_type AS ENUM (
 -- CreateTable
 CREATE TABLE v1_task_event (
     id bigint GENERATED ALWAYS AS IDENTITY,
+    inserted_at timestamptz DEFAULT CURRENT_TIMESTAMP,
     tenant_id UUID NOT NULL,
     task_id bigint NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
@@ -337,6 +338,7 @@ CREATE TABLE v1_task_event (
     event_key TEXT,
     created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     data JSONB,
+    external_id UUID,
     CONSTRAINT v1_task_event_pkey PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);
 
@@ -816,17 +818,27 @@ BEGIN
     -- There is a small chance of collisions but it's extremely unlikely
     PERFORM pg_advisory_xact_lock(1000000 * p_strategy_id + v_sort_id);
 
-    WITH final_concurrency_slots_for_dags AS (
-        -- If the workflow run id corresponds to a DAG, we get workflow concurrency slots
-        -- where NONE of the tasks in the associated DAG have v1_task_runtimes or v1_concurrency_slots
+    WITH relevant_tasks_for_dags AS (
+        SELECT
+            t.id,
+            t.inserted_at,
+            t.retry_count
+        FROM
+            v1_task t
+        JOIN
+            v1_dag_to_task dt ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
+        JOIN
+            v1_lookup_table lt ON dt.dag_id = lt.dag_id AND dt.dag_inserted_at = lt.inserted_at
+        WHERE
+            lt.external_id = p_workflow_run_id
+            AND lt.dag_id IS NOT NULL
+    ), final_concurrency_slots_for_dags AS (
         SELECT
             wcs.strategy_id,
             wcs.workflow_version_id,
             wcs.workflow_run_id
         FROM
             v1_workflow_concurrency_slot wcs
-        JOIN
-            v1_lookup_table lt ON wcs.workflow_run_id = lt.external_id AND lt.dag_id IS NOT NULL
         WHERE
             wcs.strategy_id = p_strategy_id
             AND wcs.workflow_version_id = p_workflow_version_id
@@ -834,19 +846,18 @@ BEGIN
             AND NOT EXISTS (
                 -- Check if any task in this DAG has a v1_concurrency_slot
                 SELECT 1
-                FROM v1_dag_to_task dt
-                JOIN v1_task t ON dt.task_id = t.id AND dt.task_inserted_at = t.inserted_at
-                JOIN v1_concurrency_slot cs2 ON cs2.task_id = t.id AND cs2.task_inserted_at = t.inserted_at AND cs2.task_retry_count = t.retry_count
-                WHERE dt.dag_id = lt.dag_id
-                AND dt.dag_inserted_at = lt.inserted_at
+                FROM relevant_tasks_for_dags rt
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM v1_concurrency_slot cs2
+                    WHERE cs2.task_id = rt.id
+                        AND cs2.task_inserted_at = rt.inserted_at
+                        AND cs2.task_retry_count = rt.retry_count
+                )
             )
             AND CARDINALITY(wcs.child_strategy_ids) <= (
                 SELECT COUNT(*)
-                FROM v1_dag_to_task dt
-                JOIN v1_task t ON dt.task_id = t.id AND dt.task_inserted_at = t.inserted_at
-                WHERE
-                    dt.dag_id = lt.dag_id
-                    AND dt.dag_inserted_at = lt.inserted_at
+                FROM relevant_tasks_for_dags rt
             )
         GROUP BY
             wcs.strategy_id,
@@ -1629,13 +1640,16 @@ CREATE TABLE v1_durable_sleep (
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
 
-CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT');
+CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA');
+
+-- IMPORTANT: Keep these values in sync with `v1_payload_type_olap` in the OLAP db
 CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payload (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL,
+    external_id UUID,
     type v1_payload_type NOT NULL,
     location v1_payload_location NOT NULL,
     external_location_key TEXT,
@@ -1644,7 +1658,7 @@ CREATE TABLE v1_payload (
 
     PRIMARY KEY (tenant_id, inserted_at, id, type),
     CHECK (
-        (location = 'INLINE' AND inline_content IS NOT NULL AND external_location_key IS NULL)
+        location = 'INLINE'
         OR
         (location = 'EXTERNAL' AND inline_content IS NULL AND external_location_key IS NOT NULL)
     )
@@ -1658,16 +1672,30 @@ CREATE TABLE v1_payload_wal (
     payload_id BIGINT NOT NULL,
     payload_inserted_at TIMESTAMPTZ NOT NULL,
     payload_type v1_payload_type NOT NULL,
-    operation v1_payload_wal_operation NOT NULL,
+    operation v1_payload_wal_operation NOT NULL DEFAULT 'CREATE',
 
-    PRIMARY KEY (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type),
-    CONSTRAINT "v1_payload_wal_payload" FOREIGN KEY (payload_id, payload_inserted_at, payload_type, tenant_id) REFERENCES v1_payload (id, inserted_at, type, tenant_id) ON DELETE CASCADE
+    -- todo: we probably should shuffle this index around - it'd make more sense now for the order to be
+    -- (tenant_id, offload_at, payload_id, payload_inserted_at, payload_type)
+    -- so we can filter by the tenant id first, then order by offload_at
+    PRIMARY KEY (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type)
 ) PARTITION BY HASH (tenant_id);
 
 CREATE INDEX v1_payload_wal_payload_lookup_idx ON v1_payload_wal (payload_id, payload_inserted_at, payload_type, tenant_id);
+CREATE INDEX CONCURRENTLY v1_payload_wal_poll_idx ON v1_payload_wal (tenant_id, offload_at);
 
 SELECT create_v1_hash_partitions('v1_payload_wal'::TEXT, 4);
 
+CREATE TABLE v1_payload_cutover_queue_item (
+    tenant_id UUID NOT NULL,
+    cut_over_at TIMESTAMPTZ NOT NULL,
+    payload_id BIGINT NOT NULL,
+    payload_inserted_at TIMESTAMPTZ NOT NULL,
+    payload_type v1_payload_type NOT NULL,
+
+    PRIMARY KEY (cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type)
+) PARTITION BY HASH (tenant_id);
+
+SELECT create_v1_hash_partitions('v1_payload_cutover_queue_item'::TEXT, 4);
 
 CREATE OR REPLACE FUNCTION find_matching_tenants_in_payload_wal_partition(
     partition_number INT
@@ -1684,7 +1712,6 @@ BEGIN
         'SELECT ARRAY(
             SELECT DISTINCT e.tenant_id
             FROM %I e
-            WHERE e.offload_at < NOW()
         )',
         partition_table)
     INTO result;
@@ -1692,6 +1719,31 @@ BEGIN
     RETURN result;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION find_matching_tenants_in_payload_cutover_queue_item_partition(
+    partition_number INT
+) RETURNS UUID[]
+LANGUAGE plpgsql AS
+$$
+DECLARE
+    partition_table text;
+    result UUID[];
+BEGIN
+    partition_table := 'v1_payload_cutover_queue_item_' || partition_number::text;
+
+    EXECUTE format(
+        'SELECT ARRAY(
+            SELECT DISTINCT e.tenant_id
+            FROM %I e
+            WHERE e.cut_over_at <= NOW()
+        )',
+        partition_table)
+    INTO result;
+
+    RETURN result;
+END;
+$$;
+
 CREATE TABLE v1_idempotency_key (
     tenant_id UUID NOT NULL,
 
@@ -1707,3 +1759,13 @@ CREATE TABLE v1_idempotency_key (
 );
 
 CREATE UNIQUE INDEX v1_idempotency_key_unique_tenant_key ON v1_idempotency_key (tenant_id, key);
+
+-- v1_operation_interval_settings represents the interval settings for a specific tenant. "Operation" means
+-- any sort of tenant-specific polling-based operation on the engine, like timeouts, reassigns, etc.
+CREATE TABLE v1_operation_interval_settings (
+    tenant_id UUID NOT NULL,
+    operation_id TEXT NOT NULL,
+    -- The interval represents a Go time.Duration, hence the nanoseconds
+    interval_nanoseconds BIGINT NOT NULL,
+    PRIMARY KEY (tenant_id, operation_id)
+);

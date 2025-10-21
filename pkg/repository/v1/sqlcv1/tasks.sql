@@ -79,6 +79,15 @@ FROM
     payload_partitions
 ;
 
+-- name: DefaultTaskActivityGauge :one
+SELECT
+    COUNT(*)
+FROM
+    v1_queue
+WHERE
+    tenant_id = @tenantId::uuid
+    AND last_active > @activeSince::timestamptz;
+
 -- name: FlattenExternalIds :many
 WITH lookup_rows AS (
     SELECT
@@ -395,28 +404,22 @@ WHERE
 -- modify the events.
 WITH input AS (
     SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
-                unnest(@eventKeys::text[]) AS event_key
-        ) AS subquery
-),
-distinct_events AS (
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST(@eventKeys::TEXT[]) AS event_key
+), distinct_events AS (
     SELECT DISTINCT
         task_id, task_inserted_at
     FROM
         input
-),
-events_to_lock AS (
+), events_to_lock AS (
     SELECT
         e.id,
         e.event_key,
         e.data,
 		e.task_id,
-		e.task_inserted_at
+		e.task_inserted_at,
+        e.inserted_at
     FROM
         v1_task_event e
     JOIN
@@ -429,6 +432,7 @@ events_to_lock AS (
 )
 SELECT
 	e.id,
+    e.inserted_at,
 	e.event_key,
 	e.data
 FROM
@@ -612,13 +616,8 @@ LEFT JOIN
 -- of the tasks as well.
 WITH input AS (
     SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at
-        ) AS subquery
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at
 ), task_outputs AS (
     SELECT
         t.id,
@@ -631,6 +630,8 @@ WITH input AS (
         t.workflow_run_id,
         t.step_id,
         t.workflow_id,
+        e.id AS task_event_id,
+        e.inserted_at AS task_event_inserted_at,
         e.data AS output
     FROM
         v1_task t1
@@ -662,7 +663,10 @@ WITH input AS (
 )
 SELECT
     DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
-    task_outputs.*
+    task_outputs.task_event_id,
+    task_outputs.task_event_inserted_at,
+    task_outputs.workflow_run_id,
+    task_outputs.output
 FROM
     task_outputs
 JOIN
@@ -914,3 +918,61 @@ ANALYZE v1_task;
 
 -- name: AnalyzeV1TaskEvent :exec
 ANALYZE v1_task_event;
+
+-- name: CleanupV1TaskRuntime :execresult
+WITH locked_trs AS (
+    SELECT vtr.task_id, vtr.task_inserted_at, vtr.retry_count
+    FROM v1_task_runtime vtr
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE vtr.task_id = vt.id
+            AND vtr.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY vtr.task_id ASC
+    LIMIT @batchSize::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_task_runtime
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_trs
+);
+
+-- name: CleanupV1ConcurrencySlot :execresult
+WITH locked_cs AS (
+    SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
+    FROM v1_concurrency_slot cs
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE cs.task_id = vt.id
+            AND cs.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id
+    LIMIT @batchSize::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_concurrency_slot
+WHERE (task_id, task_inserted_at, task_retry_count) IN (
+    SELECT task_id, task_inserted_at, task_retry_count
+    FROM locked_cs
+);
+
+-- name: CleanupV1WorkflowConcurrencySlot :execresult
+WITH active_slots AS (
+    SELECT DISTINCT
+        wcs.strategy_id,
+        wcs.workflow_version_id,
+        wcs.workflow_run_id
+    FROM v1_workflow_concurrency_slot wcs
+    ORDER BY wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+    LIMIT @batchSize::int
+)
+SELECT
+    cleanup_workflow_concurrency_slots(
+        slot.strategy_id,
+        slot.workflow_version_id,
+        slot.workflow_run_id
+    )
+FROM active_slots slot;

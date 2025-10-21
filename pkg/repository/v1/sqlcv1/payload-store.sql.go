@@ -11,59 +11,70 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const finalizePayloadOffloads = `-- name: FinalizePayloadOffloads :exec
-WITH inputs AS (
-    SELECT
-        UNNEST($1::BIGINT[]) AS id,
-        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST($4::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST($5::TEXT[]) AS external_location_key,
-        UNNEST($6::UUID[]) AS tenant_id
+const analyzeV1Payload = `-- name: AnalyzeV1Payload :exec
+ANALYZE v1_payload
+`
+
+func (q *Queries) AnalyzeV1Payload(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1Payload)
+	return err
+}
+
+const cutOverPayloadsToExternal = `-- name: CutOverPayloadsToExternal :one
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_payload_cutover_queue_item_partition(
+            $1::INT
+        )
+    ) AS tenant_id
+), queue_items AS (
+    SELECT tenant_id, cut_over_at, payload_id, payload_inserted_at, payload_type
+    FROM v1_payload_cutover_queue_item
+    WHERE
+        tenant_id = ANY(SELECT tenant_id FROM tenants)
+        AND cut_over_at <= NOW()
+    ORDER BY cut_over_at
+    LIMIT $2::INT
+    FOR UPDATE SKIP LOCKED
 ), payload_updates AS (
     UPDATE v1_payload
     SET
         location = 'EXTERNAL',
-        external_location_key = i.external_location_key,
         inline_content = NULL,
         updated_at = NOW()
-    FROM inputs i
+    FROM queue_items qi
     WHERE
-        v1_payload.id = i.id
-        AND v1_payload.inserted_at = i.inserted_at
-        AND v1_payload.tenant_id = i.tenant_id
+        v1_payload.id = qi.payload_id
+        AND v1_payload.inserted_at = qi.payload_inserted_at
+        AND v1_payload.tenant_id = qi.tenant_id
+        AND v1_payload.type = qi.payload_type
+        AND v1_payload.external_location_key IS NOT NULL
+), deletions AS (
+    DELETE FROM v1_payload_cutover_queue_item
+    WHERE
+        (cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+            SELECT cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id
+            FROM queue_items
+        )
 )
 
-DELETE FROM v1_payload_wal
-WHERE
-    (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
-        SELECT offload_at, id, inserted_at, type, tenant_id
-        FROM inputs
-    )
+SELECT COUNT(*)
+FROM queue_items
 `
 
-type FinalizePayloadOffloadsParams struct {
-	Ids                  []int64              `json:"ids"`
-	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
-	Payloadtypes         []string             `json:"payloadtypes"`
-	Offloadats           []pgtype.Timestamptz `json:"offloadats"`
-	Externallocationkeys []string             `json:"externallocationkeys"`
-	Tenantids            []pgtype.UUID        `json:"tenantids"`
+type CutOverPayloadsToExternalParams struct {
+	Partitionnumber int32 `json:"partitionnumber"`
+	Polllimit       int32 `json:"polllimit"`
 }
 
-func (q *Queries) FinalizePayloadOffloads(ctx context.Context, db DBTX, arg FinalizePayloadOffloadsParams) error {
-	_, err := db.Exec(ctx, finalizePayloadOffloads,
-		arg.Ids,
-		arg.Insertedats,
-		arg.Payloadtypes,
-		arg.Offloadats,
-		arg.Externallocationkeys,
-		arg.Tenantids,
-	)
-	return err
+func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg CutOverPayloadsToExternalParams) (int64, error) {
+	row := db.QueryRow(ctx, cutOverPayloadsToExternal, arg.Partitionnumber, arg.Polllimit)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
-const pollPayloadWALForRecordsToOffload = `-- name: PollPayloadWALForRecordsToOffload :many
+const pollPayloadWALForRecordsToReplicate = `-- name: PollPayloadWALForRecordsToReplicate :many
 WITH tenants AS (
     SELECT UNNEST(
         find_matching_tenants_in_payload_wal_partition(
@@ -74,21 +85,19 @@ WITH tenants AS (
 
 SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
 FROM v1_payload_wal
-WHERE
-    offload_at < NOW()
-    AND tenant_id = ANY(SELECT tenant_id FROM tenants)
-ORDER BY offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
-FOR UPDATE
+WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
+ORDER BY offload_at
 LIMIT $1::INT
+FOR UPDATE SKIP LOCKED
 `
 
-type PollPayloadWALForRecordsToOffloadParams struct {
+type PollPayloadWALForRecordsToReplicateParams struct {
 	Polllimit       int32 `json:"polllimit"`
 	Partitionnumber int32 `json:"partitionnumber"`
 }
 
-func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX, arg PollPayloadWALForRecordsToOffloadParams) ([]*V1PayloadWal, error) {
-	rows, err := db.Query(ctx, pollPayloadWALForRecordsToOffload, arg.Polllimit, arg.Partitionnumber)
+func (q *Queries) PollPayloadWALForRecordsToReplicate(ctx context.Context, db DBTX, arg PollPayloadWALForRecordsToReplicateParams) ([]*V1PayloadWal, error) {
+	rows, err := db.Query(ctx, pollPayloadWALForRecordsToReplicate, arg.Polllimit, arg.Partitionnumber)
 	if err != nil {
 		return nil, err
 	}
@@ -114,44 +123,6 @@ func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX
 	return items, nil
 }
 
-const readPayload = `-- name: ReadPayload :one
-SELECT tenant_id, id, inserted_at, type, location, external_location_key, inline_content, updated_at
-FROM v1_payload
-WHERE
-    tenant_id = $1::UUID
-    AND type = $2::v1_payload_type
-    AND id = $3::BIGINT
-    AND inserted_at = $4::TIMESTAMPTZ
-`
-
-type ReadPayloadParams struct {
-	Tenantid   pgtype.UUID        `json:"tenantid"`
-	Type       V1PayloadType      `json:"type"`
-	ID         int64              `json:"id"`
-	Insertedat pgtype.Timestamptz `json:"insertedat"`
-}
-
-func (q *Queries) ReadPayload(ctx context.Context, db DBTX, arg ReadPayloadParams) (*V1Payload, error) {
-	row := db.QueryRow(ctx, readPayload,
-		arg.Tenantid,
-		arg.Type,
-		arg.ID,
-		arg.Insertedat,
-	)
-	var i V1Payload
-	err := row.Scan(
-		&i.TenantID,
-		&i.ID,
-		&i.InsertedAt,
-		&i.Type,
-		&i.Location,
-		&i.ExternalLocationKey,
-		&i.InlineContent,
-		&i.UpdatedAt,
-	)
-	return &i, err
-}
-
 const readPayloads = `-- name: ReadPayloads :many
 WITH inputs AS (
     SELECT
@@ -161,7 +132,7 @@ WITH inputs AS (
         UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type
 )
 
-SELECT tenant_id, id, inserted_at, type, location, external_location_key, inline_content, updated_at
+SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
 FROM v1_payload
 WHERE (tenant_id, id, inserted_at, type) IN (
         SELECT tenant_id, id, inserted_at, type
@@ -194,6 +165,115 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 			&i.TenantID,
 			&i.ID,
 			&i.InsertedAt,
+			&i.ExternalID,
+			&i.Type,
+			&i.Location,
+			&i.ExternalLocationKey,
+			&i.InlineContent,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setPayloadExternalKeys = `-- name: SetPayloadExternalKeys :many
+WITH inputs AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS id,
+        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST($4::TIMESTAMPTZ[]) AS offload_at,
+        UNNEST($5::TEXT[]) AS external_location_key,
+        UNNEST($6::UUID[]) AS tenant_id
+), payload_updates AS (
+    UPDATE v1_payload
+    SET
+        external_location_key = i.external_location_key,
+        updated_at = NOW()
+    FROM inputs i
+    WHERE
+        v1_payload.id = i.id
+        AND v1_payload.inserted_at = i.inserted_at
+        AND v1_payload.tenant_id = i.tenant_id
+    RETURNING v1_payload.tenant_id, v1_payload.id, v1_payload.inserted_at, v1_payload.external_id, v1_payload.type, v1_payload.location, v1_payload.external_location_key, v1_payload.inline_content, v1_payload.updated_at
+), cutover_queue_items AS (
+    INSERT INTO v1_payload_cutover_queue_item (
+        tenant_id,
+        cut_over_at,
+        payload_id,
+        payload_inserted_at,
+        payload_type
+    )
+    SELECT
+        i.tenant_id,
+        i.offload_at,
+        i.id,
+        i.inserted_at,
+        i.type
+    FROM
+        inputs i
+    ON CONFLICT DO NOTHING
+), deletions AS (
+    DELETE FROM v1_payload_wal
+    WHERE
+        (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+            SELECT offload_at, id, inserted_at, type, tenant_id
+            FROM inputs
+        )
+)
+
+SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
+FROM payload_updates
+`
+
+type SetPayloadExternalKeysParams struct {
+	Ids                  []int64              `json:"ids"`
+	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
+	Payloadtypes         []string             `json:"payloadtypes"`
+	Offloadats           []pgtype.Timestamptz `json:"offloadats"`
+	Externallocationkeys []string             `json:"externallocationkeys"`
+	Tenantids            []pgtype.UUID        `json:"tenantids"`
+}
+
+type SetPayloadExternalKeysRow struct {
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	ID                  int64              `json:"id"`
+	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID          pgtype.UUID        `json:"external_id"`
+	Type                V1PayloadType      `json:"type"`
+	Location            V1PayloadLocation  `json:"location"`
+	ExternalLocationKey pgtype.Text        `json:"external_location_key"`
+	InlineContent       []byte             `json:"inline_content"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) SetPayloadExternalKeys(ctx context.Context, db DBTX, arg SetPayloadExternalKeysParams) ([]*SetPayloadExternalKeysRow, error) {
+	rows, err := db.Query(ctx, setPayloadExternalKeys,
+		arg.Ids,
+		arg.Insertedats,
+		arg.Payloadtypes,
+		arg.Offloadats,
+		arg.Externallocationkeys,
+		arg.Tenantids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*SetPayloadExternalKeysRow
+	for rows.Next() {
+		var i SetPayloadExternalKeysRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
 			&i.Type,
 			&i.Location,
 			&i.ExternalLocationKey,
@@ -217,8 +297,7 @@ WITH inputs AS (
         UNNEST($2::TIMESTAMPTZ[]) AS payload_inserted_at,
         UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS payload_type,
         UNNEST($4::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST(CAST($5::TEXT[] AS v1_payload_wal_operation[])) AS operation,
-        UNNEST($6::UUID[]) AS tenant_id
+        UNNEST($5::UUID[]) AS tenant_id
 )
 
 INSERT INTO v1_payload_wal (
@@ -226,20 +305,17 @@ INSERT INTO v1_payload_wal (
     offload_at,
     payload_id,
     payload_inserted_at,
-    payload_type,
-    operation
+    payload_type
 )
 SELECT
     i.tenant_id,
     i.offload_at,
     i.payload_id,
     i.payload_inserted_at,
-    i.payload_type,
-    i.operation
+    i.payload_type
 FROM
     inputs i
-ON CONFLICT (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type) DO UPDATE
-SET operation = EXCLUDED.operation
+ON CONFLICT DO NOTHING
 `
 
 type WritePayloadWALParams struct {
@@ -247,7 +323,6 @@ type WritePayloadWALParams struct {
 	Payloadinsertedats []pgtype.Timestamptz `json:"payloadinsertedats"`
 	Payloadtypes       []string             `json:"payloadtypes"`
 	Offloadats         []pgtype.Timestamptz `json:"offloadats"`
-	Operations         []string             `json:"operations"`
 	Tenantids          []pgtype.UUID        `json:"tenantids"`
 }
 
@@ -257,7 +332,6 @@ func (q *Queries) WritePayloadWAL(ctx context.Context, db DBTX, arg WritePayload
 		arg.Payloadinsertedats,
 		arg.Payloadtypes,
 		arg.Offloadats,
-		arg.Operations,
 		arg.Tenantids,
 	)
 	return err
@@ -268,17 +342,19 @@ WITH inputs AS (
     SELECT DISTINCT
         UNNEST($1::BIGINT[]) AS id,
         UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST(CAST($4::TEXT[] AS v1_payload_location[])) AS location,
-        UNNEST($5::TEXT[]) AS external_location_key,
-        UNNEST($6::JSONB[]) AS inline_content,
-        UNNEST($7::UUID[]) AS tenant_id
+        UNNEST($3::UUID[]) AS external_id,
+        UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST(CAST($5::TEXT[] AS v1_payload_location[])) AS location,
+        UNNEST($6::TEXT[]) AS external_location_key,
+        UNNEST($7::JSONB[]) AS inline_content,
+        UNNEST($8::UUID[]) AS tenant_id
 )
 
 INSERT INTO v1_payload (
     tenant_id,
     id,
     inserted_at,
+    external_id,
     type,
     location,
     external_location_key,
@@ -288,6 +364,7 @@ SELECT
     i.tenant_id,
     i.id,
     i.inserted_at,
+    i.external_id,
     i.type,
     i.location,
     CASE WHEN i.external_location_key = '' OR i.location != 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
@@ -305,6 +382,7 @@ DO UPDATE SET
 type WritePayloadsParams struct {
 	Ids                  []int64              `json:"ids"`
 	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
+	Externalids          []pgtype.UUID        `json:"externalids"`
 	Types                []string             `json:"types"`
 	Locations            []string             `json:"locations"`
 	Externallocationkeys []string             `json:"externallocationkeys"`
@@ -316,6 +394,7 @@ func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsP
 	_, err := db.Exec(ctx, writePayloads,
 		arg.Ids,
 		arg.Insertedats,
+		arg.Externalids,
 		arg.Types,
 		arg.Locations,
 		arg.Externallocationkeys,

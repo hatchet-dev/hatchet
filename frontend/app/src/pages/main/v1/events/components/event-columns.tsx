@@ -2,17 +2,10 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/v1/ui/badge';
 import { V1Event } from '@/lib/api';
 import { Button } from '@/components/v1/ui/button';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/v1/ui/popover';
-import { useState } from 'react';
+
 import { AdditionalMetadata } from './additional-metadata';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
-import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 
 export const EventColumn = {
   id: 'Event ID',
@@ -81,13 +74,13 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="w-full">
           <Button
-            className="w-fit cursor-pointer pl-0"
+            className="cursor-pointer pl-0 text-left h-auto whitespace-normal min-w-0 justify-start"
             variant="link"
             onClick={() => {
               onRowClick?.(row.original);
             }}
           >
-            {row.original.key}
+            <span className="break-all">{row.original.key}</span>
           </Button>
         </div>
       ),
@@ -206,170 +199,36 @@ export const columns = ({
   ];
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
-function WorkflowRunSummary({ event }: { event: V1Event }) {
-  const [hoverCardOpen, setPopoverOpen] = useState<
-    'failed' | 'succeeded' | 'running' | 'queued' | 'cancelled'
-  >();
+type BadgeProps = {
+  variant: 'failed' | 'successful' | 'inProgress' | 'cancelled' | 'queued';
+  count: number;
+  label: string;
+};
 
+function WorkflowRunSummary({ event }: { event: V1Event }) {
   const numFailed = event.workflowRunSummary?.failed || 0;
   const numSucceeded = event.workflowRunSummary?.succeeded || 0;
   const numRunning = event.workflowRunSummary?.running || 0;
   const numCancelled = event.workflowRunSummary?.cancelled || 0;
   const numQueued = event.workflowRunSummary?.queued || 0;
 
-  const hoverCardContent = (
-    <div className="min-w-fit z-40 p-4 bg-white/10 rounded">
-      <RunsProvider
-        tableKey={`event-runs-${event.metadata.id}`}
-        display={{
-          hideCounts: true,
-          hideMetrics: true,
-          hideDateFilter: true,
-          hideTriggerRunButton: true,
-          hideCancelAndReplayButtons: true,
-        }}
-        runFilters={{
-          triggeringEventExternalId: event.metadata.id,
-        }}
-      >
-        <RunsTable headerClassName="bg-slate-700" />
-      </RunsProvider>
-    </div>
-  );
+  const badges: BadgeProps[] = [
+    { variant: 'failed', count: numFailed, label: 'Failed' },
+    { variant: 'successful', count: numSucceeded, label: 'Succeeded' },
+    { variant: 'inProgress', count: numRunning, label: 'Running' },
+    { variant: 'cancelled', count: numCancelled, label: 'Cancelled' },
+    { variant: 'queued', count: numQueued, label: 'Queued' },
+  ];
 
   return (
     <div className="flex flex-row gap-2 items-center justify-start">
-      {numFailed > 0 && (
-        <Popover
-          open={hoverCardOpen == 'failed'}
-          // open={true}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="failed"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('failed')}
-            >
-              {numFailed} Failed
+      {badges.map(
+        ({ variant, count, label }) =>
+          count > 0 && (
+            <Badge variant={variant} key={variant}>
+              {count} {label}
             </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numSucceeded > 0 && (
-        <Popover
-          open={hoverCardOpen == 'succeeded'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="successful"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('succeeded')}
-            >
-              {numSucceeded} Succeeded
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numRunning > 0 && (
-        <Popover
-          open={hoverCardOpen == 'running'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="inProgress"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('running')}
-            >
-              {numRunning} Running
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numCancelled > 0 && (
-        <Popover
-          open={hoverCardOpen == 'cancelled'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="inProgress"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('cancelled')}
-            >
-              {numCancelled} Cancelled
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numQueued > 0 && (
-        <Popover
-          open={hoverCardOpen == 'queued'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="inProgress"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('queued')}
-            >
-              {numQueued} Queued
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
+          ),
       )}
     </div>
   );

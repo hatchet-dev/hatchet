@@ -11,12 +11,12 @@ import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data
 import { cn, emptyGolangUUID } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
-import { useRef, useState } from 'react';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
+import { EventWithMetadata } from './step-run-events-for-workflow-run';
 
 function eventTypeToSeverity(
   eventType: V1TaskEventType | undefined,
@@ -39,7 +39,7 @@ function eventTypeToSeverity(
   }
 }
 
-const columnHelper = createColumnHelper<V1TaskEvent>();
+const columnHelper = createColumnHelper<EventWithMetadata>();
 
 export const columns = ({
   tenantId,
@@ -47,7 +47,7 @@ export const columns = ({
   fallbackTaskDisplayName,
 }: {
   tenantId: string;
-  onRowClick: (row: V1TaskEvent) => void;
+  onRowClick: (row: EventWithMetadata) => void;
   fallbackTaskDisplayName: string;
 }) => {
   return [
@@ -149,7 +149,7 @@ export const columns = ({
               {event.message}
             </div>
             {items.length > 0 && (
-              <div key="items" className="flex flex-col gap-2 mt-2">
+              <div key="items" className="flex flex-col items-start gap-2 mt-2">
                 {items}
               </div>
             )}
@@ -230,51 +230,27 @@ function EventIndicator({ severity }: { severity: StepRunEventSeverity }) {
 }
 
 function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
-  const [popoverOpen, setPopoverOpen] = useState(false);
-
-  // containerRef needed due to https://github.com/radix-ui/primitives/issues/1159#issuecomment-2105108943
-  const containerRef = useRef<HTMLDivElement>(null);
-
   return (
-    <div ref={containerRef}>
-      <Popover
-        open={popoverOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPopoverOpen(false);
-          }
-        }}
+    <Popover>
+      <PopoverTrigger className="cursor-pointer">
+        <Button
+          variant="link"
+          size="xs"
+          className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
+        >
+          <XCircleIcon className="w-4 h-4 mr-1" />
+          View Error
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="p-0 bg-popover border-border shadow-lg z-[80] w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]"
+        align="start"
       >
-        <PopoverTrigger
-          onClick={() => {
-            if (popoverOpen) {
-              return;
-            }
-
-            setPopoverOpen(true);
-          }}
-          className="cursor-pointer"
-        >
-          <Button
-            variant="link"
-            size="xs"
-            className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
-          >
-            <XCircleIcon className="w-4 h-4 mr-1" />
-            View Error
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          className="p-0 bg-popover border-border shadow-lg z-[80] w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]"
-          align="start"
-          container={containerRef.current}
-        >
-          <div className="p-4 w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]">
-            <ErrorHoverContents event={event} />
-          </div>
-        </PopoverContent>
-      </Popover>
-    </div>
+        <div className="p-4 w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]">
+          <ErrorHoverContents event={event} />
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

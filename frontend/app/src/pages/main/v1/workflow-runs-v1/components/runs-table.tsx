@@ -23,13 +23,13 @@ import { Toaster } from '@/components/v1/ui/toaster';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 
-import { getCreatedAfterFromTimeRange } from '../hooks/use-runs-table-state';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { useRunsContext } from '../hooks/runs-provider';
 
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { Loading } from '@/components/v1/ui/loading';
 
 export interface RunsTableProps {
   headerClassName?: string;
@@ -40,8 +40,7 @@ const GetWorkflowChart = () => {
   const { refetchInterval } = useRefetchInterval();
 
   const {
-    state: { createdAfter, finishedBefore },
-    filters: { setCustomTimeRange },
+    filters: { apiFilters, setCustomTimeRange },
   } = useRunsContext();
 
   const zoom = useCallback(
@@ -56,8 +55,8 @@ const GetWorkflowChart = () => {
 
   const workflowRunEventsMetricsQuery = useQuery({
     ...queries.v1TaskRuns.pointMetrics(tenantId, {
-      createdAfter,
-      finishedBefore,
+      createdAfter: apiFilters.since,
+      finishedBefore: apiFilters.until,
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
@@ -95,35 +94,42 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   const { setIsFrozen } = useRefetchInterval();
 
   const {
-    state,
     filters,
     toolbarFilters,
     tableRows,
     numPages,
     isRunsLoading,
     isRunsFetching,
-    isMetricsLoading,
-    isMetricsFetching,
+    isStatusCountsFetching,
+    isStatusCountsLoading,
+    isQueueMetricsLoading,
     isRefetching,
-    metrics,
-    tenantMetrics,
+    runStatusCounts,
+    queueMetrics,
     actionModalParams,
     selectedActionType,
+    pagination,
+    columnVisibility,
+    rowSelection,
+    showTriggerWorkflow,
+    showQueueMetrics,
     display: {
       hideMetrics,
       hideCounts,
       hideColumnToggle,
       hidePagination,
-      hideFlatten,
+      hiddenFilters,
     },
     actions: {
-      updatePagination,
-      updateFilters,
-      updateUIState,
-      updateTableState,
       refetchRuns,
       refetchMetrics,
       getRowId,
+      setPageSize,
+      setPagination,
+      setColumnVisibility,
+      setRowSelection,
+      setShowTriggerWorkflow,
+      setShowQueueMetrics,
     },
   } = useRunsContext();
 
@@ -188,21 +194,19 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   }, [refetchRuns, refetchMetrics]);
 
   useEffect(() => {
-    if (state.isCustomTimeRange) {
+    if (filters.isCustomTimeRange) {
       return;
     }
 
     const interval = setInterval(() => {
-      updateFilters({
-        createdAfter: getCreatedAfterFromTimeRange(state.timeWindow),
-      });
+      filters.updateCurrentTimeWindow();
     }, 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [state.isCustomTimeRange, state.timeWindow, updateFilters]);
+  }, [filters, filters.isCustomTimeRange, filters.updateCurrentTimeWindow]);
 
-  const hasLoaded = !isRunsLoading && !isMetricsLoading;
-  const isFetching = !hasLoaded && (isRunsFetching || isMetricsFetching);
+  const hasLoaded = !isRunsLoading && !isStatusCountsLoading;
+  const isFetching = !hasLoaded && (isRunsFetching || isStatusCountsFetching);
 
   return (
     <div className="flex flex-col h-full overflow-hidden gap-y-2">
@@ -210,32 +214,26 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       <TriggerWorkflowForm
         defaultWorkflow={undefined}
-        show={state.triggerWorkflow}
-        onClose={() => updateUIState({ triggerWorkflow: false })}
+        show={showTriggerWorkflow}
+        onClose={() => setShowTriggerWorkflow(false)}
       />
 
       {!hideMetrics && (
-        <Dialog
-          open={state.viewQueueMetrics}
-          onOpenChange={(open) => {
-            if (!open) {
-              updateUIState({ viewQueueMetrics: false });
-            }
-          }}
-        >
+        <Dialog open={showQueueMetrics} onOpenChange={setShowQueueMetrics}>
           <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
             <DialogHeader>
               <DialogTitle>Queue Metrics</DialogTitle>
             </DialogHeader>
             <Separator />
-            {tenantMetrics && (
+            {!queueMetrics || isQueueMetricsLoading ? (
+              <Loading />
+            ) : (
               <CodeHighlighter
                 language="json"
                 className="max-h-[400px] overflow-y-auto"
-                code={JSON.stringify(tenantMetrics || '{}', null, 2)}
+                code={JSON.stringify(queueMetrics || '{}', null, 2)}
               />
             )}
-            {isMetricsLoading && 'Loading...'}
           </DialogContent>
         </Dialog>
       )}
@@ -259,23 +257,15 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           }
           isLoading={isFetching}
           columns={tableColumns}
-          columnVisibility={state.columnVisibility}
-          setColumnVisibility={(visibility) => {
-            if (typeof visibility === 'function') {
-              updateTableState({
-                columnVisibility: visibility(state.columnVisibility),
-              });
-            } else {
-              updateTableState({ columnVisibility: visibility });
-            }
-          }}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
           data={tableRows}
           filters={toolbarFilters}
           leftActions={[
             ...(!hideCounts
               ? [
                   <div key="metrics" className="flex justify-start mr-auto">
-                    {metrics.length > 0 ? (
+                    {runStatusCounts.length > 0 ? (
                       <V1WorkflowRunsMetricsView />
                     ) : (
                       <Skeleton className="max-w-[800px] w-[40vw] h-8" />
@@ -292,40 +282,17 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
               filters.setColumnFilters(updaterOrValue);
             }
           }}
-          pagination={hidePagination ? undefined : state.pagination}
-          setPagination={
-            hidePagination
-              ? undefined
-              : (updaterOrValue) => {
-                  if (typeof updaterOrValue === 'function') {
-                    updatePagination(updaterOrValue(state.pagination));
-                  } else {
-                    updatePagination(updaterOrValue);
-                  }
-                }
-          }
-          onSetPageSize={
-            hidePagination
-              ? undefined
-              : (size) =>
-                  updatePagination({ ...state.pagination, pageSize: size })
-          }
-          rowSelection={state.rowSelection}
-          setRowSelection={(updaterOrValue) => {
-            if (typeof updaterOrValue === 'function') {
-              updateTableState({
-                rowSelection: updaterOrValue(state.rowSelection),
-              });
-            } else {
-              updateTableState({ rowSelection: updaterOrValue });
-            }
-          }}
+          pagination={hidePagination ? undefined : pagination}
+          setPagination={setPagination}
+          onSetPageSize={setPageSize}
+          rowSelection={rowSelection}
+          setRowSelection={setRowSelection}
           pageCount={hidePagination ? undefined : numPages}
           showColumnToggle={!hideColumnToggle}
           getSubRows={(row) => row.children || []}
           getRowId={getRowId}
           headerClassName={headerClassName}
-          hideFlatten={hideFlatten}
+          hiddenFilters={hiddenFilters}
           columnKeyToName={TaskRunColumn}
           refetchProps={{
             isRefetching,
@@ -333,7 +300,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           }}
           tableActions={{
             showTableActions: true,
-            onTriggerWorkflow: () => updateUIState({ triggerWorkflow: true }),
+            onTriggerWorkflow: () => setShowTriggerWorkflow(true),
             selectedActionType,
             actionModalParams,
           }}

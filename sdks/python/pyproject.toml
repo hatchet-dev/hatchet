@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.18.1"
+version = "1.20.1"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -20,7 +20,6 @@ grpcio-tools = [
 protobuf = "^5.29.5"
 pydantic = "^2.6.3"
 python-dateutil = "^2.9.0.post0"
-urllib3 = ">=1.26.20"
 aiohttp = "^3.10.5"
 tenacity = ">=8.4.1"
 prometheus-client = ">=0.21.1"
@@ -33,9 +32,8 @@ opentelemetry-instrumentation = { version = ">=0.49b0", optional = true }
 opentelemetry-distro = { version = ">=0.49b0", optional = true }
 opentelemetry-exporter-otlp = { version = "^1.28.0", optional = true }
 opentelemetry-exporter-otlp-proto-http = { version = "^1.28.0", optional = true }
+urllib3 = "^2.5.0"
 
-## CEL Extra (for v0 compatibility)
-cel-python = { version = "^0.4.0", optional = true }
 
 [tool.poetry.group.lint.dependencies]
 mypy = "^1.14.0"

@@ -51,7 +51,9 @@ RETURNING *;
 SELECT
     *
 FROM
-    "Tenant" as tenants;
+    "Tenant" as tenants
+WHERE
+    "deletedAt" IS NULL;
 
 -- name: ControllerPartitionHeartbeat :one
 UPDATE
@@ -87,7 +89,8 @@ FROM
     "Tenant" as tenants
 WHERE
     "controllerPartitionId" = sqlc.arg('controllerPartitionId')::text
-    AND "version" = @majorVersion::"TenantMajorEngineVersion";
+    AND "version" = @majorVersion::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL;
 
 -- name: ListTenantsByTenantWorkerPartitionId :many
 SELECT
@@ -96,7 +99,8 @@ FROM
     "Tenant" as tenants
 WHERE
     "workerPartitionId" = sqlc.arg('workerPartitionId')::text
-    AND "version" = @majorVersion::"TenantMajorEngineVersion";
+    AND "version" = @majorVersion::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL;
 
 -- name: GetTenantByID :one
 SELECT
@@ -104,7 +108,8 @@ SELECT
 FROM
     "Tenant" as tenants
 WHERE
-    "id" = sqlc.arg('id')::uuid;
+    "id" = sqlc.arg('id')::uuid
+    AND "deletedAt" IS NULL;
 
 -- name: GetTenantBySlug :one
 SELECT
@@ -112,7 +117,8 @@ SELECT
 FROM
     "Tenant" as tenants
 WHERE
-    "slug" = sqlc.arg('slug')::text;
+    "slug" = sqlc.arg('slug')::text
+    AND "deletedAt" IS NULL;
 
 -- name: GetTenantAlertingSettings :one
 SELECT
@@ -489,7 +495,8 @@ FROM
     "Tenant" as tenants
 WHERE
     "schedulerPartitionId" = sqlc.arg('schedulerPartitionId')::text
-    AND "version" = @majorVersion::"TenantMajorEngineVersion";
+    AND "version" = @majorVersion::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL;
 
 -- name: UpsertTenantAlertingSettings :one
 INSERT INTO "TenantAlertingSettings" (

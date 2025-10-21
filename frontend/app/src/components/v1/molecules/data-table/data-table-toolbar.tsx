@@ -2,7 +2,6 @@ import * as React from 'react';
 import { Table } from '@tanstack/react-table';
 import { DataTableOptions } from './data-table-options';
 import { Spinner } from '@/components/v1/ui/loading';
-import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { TableActions } from '@/pages/main/v1/workflow-runs-v1/components/task-runs-table/table-actions';
 import {
@@ -64,7 +63,7 @@ interface DataTableToolbarProps<TData> {
   rightActions?: JSX.Element[];
   showColumnToggle?: boolean;
   isLoading?: boolean;
-  hideFlatten?: boolean;
+  hiddenFilters: string[];
   columnKeyToName?: Record<string, string>;
   refetchProps?: RefetchProps;
   tableActions?: ShowTableActionsProps;
@@ -78,14 +77,14 @@ export function DataTableToolbar<TData>({
   rightActions = [],
   showColumnToggle,
   isLoading = false,
-  hideFlatten,
+  hiddenFilters,
   columnKeyToName,
   refetchProps,
   tableActions,
   onResetFilters,
 }: DataTableToolbarProps<TData>) {
   const visibleFilters = filters.filter((filter) => {
-    if (hideFlatten && filter.columnId === flattenDAGsKey) {
+    if (hiddenFilters.includes(filter.columnId)) {
       return false;
     }
     return true;
@@ -120,7 +119,7 @@ export function DataTableToolbar<TData>({
             <DataTableOptions
               table={table}
               filters={visibleFilters}
-              hideFlatten={hideFlatten}
+              hiddenFilters={hiddenFilters}
               columnKeyToName={columnKeyToName}
               onResetFilters={onResetFilters}
             />

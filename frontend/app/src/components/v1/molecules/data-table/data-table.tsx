@@ -37,6 +37,7 @@ import {
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { ConfirmActionModal } from '@/pages/main/v1/task-runs-v1/actions';
+import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 
 export interface IDGetter<T> {
   metadata: {
@@ -84,7 +85,7 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   manualFiltering?: boolean;
   getSubRows?: (row: TData) => TData[];
   headerClassName?: string;
-  hideFlatten?: boolean;
+  hiddenFilters?: string[];
   onResetFilters?: () => void;
 }
 
@@ -133,7 +134,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   manualFiltering = true,
   getSubRows,
   headerClassName,
-  hideFlatten,
+  hiddenFilters = [],
   onResetFilters,
   columnKeyToName,
   refetchProps,
@@ -295,8 +296,8 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           table={table}
           columnKeyToName={columnKeyToName}
           filters={filters}
-          hideFlatten={hideFlatten}
-          showColumnVisiblity={false}
+          hiddenFilters={[flattenDAGsKey]}
+          showColumnVisibility={false}
         />
       )}
       {(leftActions || rightActions || filters.length > 0) && (
@@ -307,7 +308,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           leftActions={leftActions}
           rightActions={rightActions}
           showColumnToggle={showColumnToggle}
-          hideFlatten={hideFlatten}
+          hiddenFilters={hiddenFilters}
           columnKeyToName={columnKeyToName}
           refetchProps={refetchProps}
           tableActions={tableActions}

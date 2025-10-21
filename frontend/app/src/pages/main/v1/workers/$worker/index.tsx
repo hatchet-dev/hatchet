@@ -29,6 +29,8 @@ import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { capitalize } from '@/lib/utils';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { flattenDAGsKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
+import { useMemo, useState } from 'react';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -89,10 +91,13 @@ export const WorkerStatus = ({
   );
 };
 
+const N_ACTIONS_TO_PREVIEW = 10;
+
 export default function ExpandedWorkflowRun() {
   const { handleApiError } = useApiError({});
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
+  const [showAllActions, setShowAllActions] = useState(false);
 
   const params = useParams();
   invariant(params.worker);
@@ -118,13 +123,26 @@ export default function ExpandedWorkflowRun() {
     onError: handleApiError,
   });
 
+  const registeredWorkflows = useMemo(
+    () => worker?.registeredWorkflows || [],
+    [worker],
+  );
+
+  const filteredWorkflows = useMemo(() => {
+    if (showAllActions) {
+      return registeredWorkflows;
+    }
+
+    return registeredWorkflows.slice(0, N_ACTIONS_TO_PREVIEW);
+  }, [showAllActions, registeredWorkflows]);
+
   if (!worker || workerQuery.isLoading || !workerQuery.data) {
     return <Loading />;
   }
 
   return (
     <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto px-4 sm:px-6 lg:px-8 flex flex-col">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center justify-between">
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
@@ -198,8 +216,6 @@ export default function ExpandedWorkflowRun() {
           </a>
         </div>
 
-        {/* <WorkerSlotGrid slots={worker.slots} /> */}
-
         <Separator className="my-4" />
         <div className="flex flex-row justify-between items-center mb-4">
           <h3 className="text-xl font-bold leading-tight text-foreground">
@@ -212,7 +228,7 @@ export default function ExpandedWorkflowRun() {
             hideMetrics: true,
             hideCounts: true,
             hideTriggerRunButton: true,
-            hideFlatten: true,
+            hiddenFilters: [flattenDAGsKey],
             hideCancelAndReplayButtons: true,
           }}
           runFilters={{
@@ -223,21 +239,27 @@ export default function ExpandedWorkflowRun() {
         </RunsProvider>
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
-          Registered Tasks
+          Registered Workflows
         </h3>
         <div className="flex-wrap flex flex-row gap-4">
-          {worker.actions?.map((action) => {
-            const [name, method] = action.split(':');
-
-            const printable = name === method ? name : action;
-            // FIXME Link to the task
-
+          {filteredWorkflows.map((workflow) => {
             return (
-              <Button variant="outline" key={printable}>
-                {printable}
-              </Button>
+              <Link
+                to={`/tenants/${tenantId}/workflows/${workflow.id}`}
+                key={workflow.id}
+              >
+                <Button variant="outline">{workflow.name}</Button>
+              </Link>
             );
           })}
+        </div>
+        <div className="flex flex-row w-full items-center justify-center py-4">
+          {!showAllActions &&
+            registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
+              <Button variant="outline" onClick={() => setShowAllActions(true)}>
+                {`Show All (${registeredWorkflows.length - N_ACTIONS_TO_PREVIEW} more)`}
+              </Button>
+            )}
         </div>
         {worker.webhookId && (
           <>
@@ -251,65 +273,67 @@ export default function ExpandedWorkflowRun() {
           </>
         )}
 
-        <Separator className="my-4" />
-        <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
-          Worker Labels
-        </h3>
-        <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-          Worker labels are key-value pairs that can be used to prioritize
-          assignment of steps to specific workers.{' '}
-          <a
-            className="underline"
-            href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
-          >
-            Learn more.
-          </a>
-        </div>
-        <div className="flex gap-2">
-          {!worker.labels || worker.labels.length === 0 ? (
-            <>
-              <>No Labels Assigned.</>
-            </>
-          ) : (
-            worker.labels?.map(({ key, value }) => (
-              <Badge key={key}>
-                {key}:{value}
-              </Badge>
-            ))
-          )}
-        </div>
-        {worker.runtimeInfo && (
+        {worker.labels && worker.labels.length > 0 && (
           <>
             <Separator className="my-4" />
             <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
-              Worker Runtime Info
+              Worker Labels
             </h3>
             <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-              {worker.runtimeInfo?.sdkVersion && (
-                <div>
-                  <b>Hatchet SDK</b>: {worker.runtimeInfo?.sdkVersion}
-                </div>
-              )}
-              {worker.runtimeInfo?.languageVersion && (
-                <div>
-                  <b>Runtime</b>:{' '}
-                  {capitalize(worker.runtimeInfo?.language ?? '')}{' '}
-                  {worker.runtimeInfo?.languageVersion}
-                </div>
-              )}
-              {worker.runtimeInfo?.os && (
-                <div>
-                  <b>OS</b>: {worker.runtimeInfo?.os}
-                </div>
-              )}
-              {worker.runtimeInfo?.runtimeExtra && (
-                <div>
-                  <b>Runtime Extra</b>: {worker.runtimeInfo?.runtimeExtra}
-                </div>
-              )}
+              Worker labels are key-value pairs that can be used to prioritize
+              assignment of steps to specific workers.{' '}
+              <a
+                className="underline"
+                href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
+              >
+                Learn more.
+              </a>
+            </div>
+            <div className="flex gap-2">
+              {worker.labels?.map(({ key, value }) => (
+                <Badge key={key}>
+                  {key}:{value}
+                </Badge>
+              ))}
             </div>
           </>
         )}
+        {worker.runtimeInfo &&
+          (worker.runtimeInfo?.sdkVersion ||
+            worker.runtimeInfo?.languageVersion ||
+            worker.runtimeInfo?.os ||
+            worker.runtimeInfo?.runtimeExtra) && (
+            <>
+              <Separator className="my-4" />
+              <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
+                Worker Runtime Info
+              </h3>
+              <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
+                {worker.runtimeInfo?.sdkVersion && (
+                  <div>
+                    <b>Hatchet SDK</b>: {worker.runtimeInfo?.sdkVersion}
+                  </div>
+                )}
+                {worker.runtimeInfo?.languageVersion && (
+                  <div>
+                    <b>Runtime</b>:{' '}
+                    {capitalize(worker.runtimeInfo?.language ?? '')}{' '}
+                    {worker.runtimeInfo?.languageVersion}
+                  </div>
+                )}
+                {worker.runtimeInfo?.os && (
+                  <div>
+                    <b>OS</b>: {worker.runtimeInfo?.os}
+                  </div>
+                )}
+                {worker.runtimeInfo?.runtimeExtra && (
+                  <div>
+                    <b>Runtime Extra</b>: {worker.runtimeInfo?.runtimeExtra}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
       </div>
     </div>
   );

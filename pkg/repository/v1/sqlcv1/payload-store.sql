@@ -1,13 +1,3 @@
--- name: ReadPayload :one
-SELECT *
-FROM v1_payload
-WHERE
-    tenant_id = @tenantId::UUID
-    AND type = @type::v1_payload_type
-    AND id = @id::BIGINT
-    AND inserted_at = @insertedAt::TIMESTAMPTZ
-;
-
 -- name: ReadPayloads :many
 WITH inputs AS (
     SELECT
@@ -30,6 +20,7 @@ WITH inputs AS (
     SELECT DISTINCT
         UNNEST(@ids::BIGINT[]) AS id,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST(CAST(@locations::TEXT[] AS v1_payload_location[])) AS location,
         UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key,
@@ -41,6 +32,7 @@ INSERT INTO v1_payload (
     tenant_id,
     id,
     inserted_at,
+    external_id,
     type,
     location,
     external_location_key,
@@ -50,6 +42,7 @@ SELECT
     i.tenant_id,
     i.id,
     i.inserted_at,
+    i.external_id,
     i.type,
     i.location,
     CASE WHEN i.external_location_key = '' OR i.location != 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
@@ -72,7 +65,6 @@ WITH inputs AS (
         UNNEST(@payloadInsertedAts::TIMESTAMPTZ[]) AS payload_inserted_at,
         UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS payload_type,
         UNNEST(@offloadAts::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST(CAST(@operations::TEXT[] AS v1_payload_wal_operation[])) AS operation,
         UNNEST(@tenantIds::UUID[]) AS tenant_id
 )
 
@@ -81,23 +73,20 @@ INSERT INTO v1_payload_wal (
     offload_at,
     payload_id,
     payload_inserted_at,
-    payload_type,
-    operation
+    payload_type
 )
 SELECT
     i.tenant_id,
     i.offload_at,
     i.payload_id,
     i.payload_inserted_at,
-    i.payload_type,
-    i.operation
+    i.payload_type
 FROM
     inputs i
-ON CONFLICT (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type) DO UPDATE
-SET operation = EXCLUDED.operation
+ON CONFLICT DO NOTHING
 ;
 
--- name: PollPayloadWALForRecordsToOffload :many
+-- name: PollPayloadWALForRecordsToReplicate :many
 WITH tenants AS (
     SELECT UNNEST(
         find_matching_tenants_in_payload_wal_partition(
@@ -108,16 +97,13 @@ WITH tenants AS (
 
 SELECT *
 FROM v1_payload_wal
-WHERE
-    offload_at < NOW()
-    AND tenant_id = ANY(SELECT tenant_id FROM tenants)
-ORDER BY offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
-FOR UPDATE
+WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
+ORDER BY offload_at
 LIMIT @pollLimit::INT
-
+FOR UPDATE SKIP LOCKED
 ;
 
--- name: FinalizePayloadOffloads :exec
+-- name: SetPayloadExternalKeys :many
 WITH inputs AS (
     SELECT
         UNNEST(@ids::BIGINT[]) AS id,
@@ -129,21 +115,86 @@ WITH inputs AS (
 ), payload_updates AS (
     UPDATE v1_payload
     SET
-        location = 'EXTERNAL',
         external_location_key = i.external_location_key,
-        inline_content = NULL,
         updated_at = NOW()
     FROM inputs i
     WHERE
         v1_payload.id = i.id
         AND v1_payload.inserted_at = i.inserted_at
         AND v1_payload.tenant_id = i.tenant_id
+    RETURNING v1_payload.*
+), cutover_queue_items AS (
+    INSERT INTO v1_payload_cutover_queue_item (
+        tenant_id,
+        cut_over_at,
+        payload_id,
+        payload_inserted_at,
+        payload_type
+    )
+    SELECT
+        i.tenant_id,
+        i.offload_at,
+        i.id,
+        i.inserted_at,
+        i.type
+    FROM
+        inputs i
+    ON CONFLICT DO NOTHING
+), deletions AS (
+    DELETE FROM v1_payload_wal
+    WHERE
+        (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+            SELECT offload_at, id, inserted_at, type, tenant_id
+            FROM inputs
+        )
 )
 
-DELETE FROM v1_payload_wal
-WHERE
-    (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
-        SELECT offload_at, id, inserted_at, type, tenant_id
-        FROM inputs
-    )
+SELECT *
+FROM payload_updates
 ;
+
+
+-- name: CutOverPayloadsToExternal :one
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_payload_cutover_queue_item_partition(
+            @partitionNumber::INT
+        )
+    ) AS tenant_id
+), queue_items AS (
+    SELECT *
+    FROM v1_payload_cutover_queue_item
+    WHERE
+        tenant_id = ANY(SELECT tenant_id FROM tenants)
+        AND cut_over_at <= NOW()
+    ORDER BY cut_over_at
+    LIMIT @pollLimit::INT
+    FOR UPDATE SKIP LOCKED
+), payload_updates AS (
+    UPDATE v1_payload
+    SET
+        location = 'EXTERNAL',
+        inline_content = NULL,
+        updated_at = NOW()
+    FROM queue_items qi
+    WHERE
+        v1_payload.id = qi.payload_id
+        AND v1_payload.inserted_at = qi.payload_inserted_at
+        AND v1_payload.tenant_id = qi.tenant_id
+        AND v1_payload.type = qi.payload_type
+        AND v1_payload.external_location_key IS NOT NULL
+), deletions AS (
+    DELETE FROM v1_payload_cutover_queue_item
+    WHERE
+        (cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+            SELECT cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id
+            FROM queue_items
+        )
+)
+
+SELECT COUNT(*)
+FROM queue_items
+;
+
+-- name: AnalyzeV1Payload :exec
+ANALYZE v1_payload;
