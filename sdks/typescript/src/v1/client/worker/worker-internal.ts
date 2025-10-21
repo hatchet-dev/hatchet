@@ -297,8 +297,12 @@ export class V1Worker {
       }
 
       const eventTriggers = [
-        ...(workflow.onEvents || []).map((event) => applyNamespace(event, this.client.config.namespace)),
-        ...(workflow.on?.event ? [applyNamespace(workflow.on.event, this.client.config.namespace)] : []),
+        ...(workflow.onEvents || []).map((event) =>
+          applyNamespace(event, this.client.config.namespace)
+        ),
+        ...(workflow.on?.event
+          ? [applyNamespace(workflow.on.event, this.client.config.namespace)]
+          : []),
       ];
       const cronTriggers = [
         ...(workflow.onCrons || []),
