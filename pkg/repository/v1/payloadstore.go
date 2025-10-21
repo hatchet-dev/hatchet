@@ -333,14 +333,14 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		Partitionnumber: int32(partitionNumber),
 	})
 
+	if err != nil {
+		return false, err
+	}
+
 	hasMoreWALRecords := len(walRecords) == p.walPollLimit
 
 	if len(walRecords) == 0 {
 		return false, nil
-	}
-
-	if err != nil {
-		return false, err
 	}
 
 	retrieveOpts := make([]RetrievePayloadOpts, len(walRecords))
