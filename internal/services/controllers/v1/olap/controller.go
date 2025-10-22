@@ -226,7 +226,15 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 
 	o.s.Start()
 
-	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.OLAP_QUEUE, heavyReadMQ, o.handleBufferedMsgs)
+	mqBuffer := msgqueue.NewMQSubBuffer(
+		msgqueue.OLAP_QUEUE,
+		heavyReadMQ,
+		o.handleBufferedMsgs,
+		msgqueue.WithBufferSize(1000),
+		msgqueue.WithMaxConcurrency(1),
+		msgqueue.WithFlushInterval(100*time.Millisecond),
+	)
+
 	wg := sync.WaitGroup{}
 
 	startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
