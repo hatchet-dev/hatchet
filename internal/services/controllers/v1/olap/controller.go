@@ -230,9 +230,9 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		msgqueue.OLAP_QUEUE,
 		heavyReadMQ,
 		o.handleBufferedMsgs,
-		msgqueue.WithBufferSize(1000),
-		msgqueue.WithMaxConcurrency(1),
-		msgqueue.WithFlushInterval(100*time.Millisecond),
+		msgqueue.WithBufferSize(400),
+		msgqueue.WithMaxConcurrency(2),
+		msgqueue.WithFlushInterval(50*time.Millisecond),
 	)
 
 	wg := sync.WaitGroup{}
