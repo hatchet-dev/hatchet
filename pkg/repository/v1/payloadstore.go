@@ -310,7 +310,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	ctx, span := telemetry.NewSpan(ctx, "payloadstore.process_payload_wal")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 30000)
 
 	if err != nil {
 		return false, fmt.Errorf("failed to prepare transaction: %w", err)
@@ -513,7 +513,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadExternalCutovers(ctx context.
 	ctx, span := telemetry.NewSpan(ctx, "payloadstore.process_payload_external_cutovers")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 30000)
 
 	if err != nil {
 		return false, fmt.Errorf("failed to prepare transaction: %w", err)
