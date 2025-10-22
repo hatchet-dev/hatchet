@@ -617,7 +617,7 @@ type PayloadStoreConfig struct {
 	EnableTaskEventPayloadDualWrites bool          `mapstructure:"enableTaskEventPayloadDualWrites" json:"enableTaskEventPayloadDualWrites,omitempty" default:"true"`
 	EnableDagDataPayloadDualWrites   bool          `mapstructure:"enableDagDataPayloadDualWrites" json:"enableDagDataPayloadDualWrites,omitempty" default:"true"`
 	EnableOLAPPayloadDualWrites      bool          `mapstructure:"enableOLAPPayloadDualWrites" json:"enableOLAPPayloadDualWrites,omitempty" default:"true"`
-	WALPollLimit                     int           `mapstructure:"walPollLimit" json:"walPollLimit,omitempty" default:"1000"`
+	WALPollLimit                     int           `mapstructure:"walPollLimit" json:"walPollLimit,omitempty" default:"100"`
 	WALProcessInterval               time.Duration `mapstructure:"walProcessInterval" json:"walProcessInterval,omitempty" default:"15s"`
 	ExternalCutoverProcessInterval   time.Duration `mapstructure:"externalCutoverProcessInterval" json:"externalCutoverProcessInterval,omitempty" default:"15s"`
 }
