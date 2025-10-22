@@ -345,6 +345,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 	retrieveOpts := make([]RetrievePayloadOpts, len(walRecords))
 	retrieveOptsToOffloadAt := make(map[RetrievePayloadOpts]pgtype.Timestamptz)
+	retrieveOptsToPayload := make(map[RetrievePayloadOpts][]byte)
 
 	for i, record := range walRecords {
 		opts := RetrievePayloadOpts{
@@ -356,12 +357,10 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 		retrieveOpts[i] = opts
 		retrieveOptsToOffloadAt[opts] = record.OffloadAt
-	}
 
-	payloads, err := p.retrieve(ctx, tx, retrieveOpts...)
-
-	if err != nil {
-		return false, err
+		if record.Location == sqlcv1.V1PayloadLocationINLINE {
+			retrieveOptsToPayload[opts] = record.InlineContent
+		}
 	}
 
 	externalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
@@ -397,7 +396,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 				Id:         opts.Id,
 				InsertedAt: opts.InsertedAt,
 				Type:       opts.Type,
-				Payload:    payloads[opts],
+				Payload:    retrieveOptsToPayload[opts],
 				TenantId:   opts.TenantId.String(),
 			},
 			OffloadAt: offloadAt.Time,
