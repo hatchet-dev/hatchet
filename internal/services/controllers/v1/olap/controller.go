@@ -222,18 +222,11 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 
 func (o *OLAPControllerImpl) Start() (func() error, error) {
 	cleanupHeavyReadMQ, heavyReadMQ := o.mq.Clone()
-	heavyReadMQ.SetQOS(10000)
+	heavyReadMQ.SetQOS(2000)
 
 	o.s.Start()
 
-	mqBuffer := msgqueue.NewMQSubBuffer(
-		msgqueue.OLAP_QUEUE,
-		heavyReadMQ,
-		o.handleBufferedMsgs,
-		msgqueue.WithBufferSize(1000),
-		msgqueue.WithMaxConcurrency(4),
-		msgqueue.WithFlushInterval(100*time.Millisecond),
-	)
+	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.OLAP_QUEUE, heavyReadMQ, o.handleBufferedMsgs)
 
 	wg := sync.WaitGroup{}
 
@@ -723,31 +716,31 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		return nil
 	}
 
-	retrieveOptsToKey, err := tc.repo.OLAP().PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
+	// retrieveOptsToKey, err := tc.repo.OLAP().PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
 
-	if err != nil {
-		return err
-	}
+	// if err != nil {
+	// 	return err
+	// }
 
-	offloadOpts := make([]v1.OffloadPayloadOpts, 0)
+	// offloadOpts := make([]v1.OffloadPayloadOpts, 0)
 
-	for opt, key := range retrieveOptsToKey {
-		externalId := idInsertedAtToExternalId[v1.IdInsertedAt{
-			ID:         opt.Id,
-			InsertedAt: opt.InsertedAt,
-		}]
+	// for opt, key := range retrieveOptsToKey {
+	// 	externalId := idInsertedAtToExternalId[v1.IdInsertedAt{
+	// 		ID:         opt.Id,
+	// 		InsertedAt: opt.InsertedAt,
+	// 	}]
 
-		offloadOpts = append(offloadOpts, v1.OffloadPayloadOpts{
-			ExternalId:          externalId,
-			ExternalLocationKey: string(key),
-		})
-	}
+	// 	offloadOpts = append(offloadOpts, v1.OffloadPayloadOpts{
+	// 		ExternalId:          externalId,
+	// 		ExternalLocationKey: string(key),
+	// 	})
+	// }
 
-	err = tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloadOpts)
+	// err = tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloadOpts)
 
-	if err != nil {
-		return err
-	}
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
