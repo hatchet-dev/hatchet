@@ -222,7 +222,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 
 func (o *OLAPControllerImpl) Start() (func() error, error) {
 	cleanupHeavyReadMQ, heavyReadMQ := o.mq.Clone()
-	heavyReadMQ.SetQOS(2000)
+	heavyReadMQ.SetQOS(10000)
 
 	o.s.Start()
 
@@ -230,9 +230,9 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		msgqueue.OLAP_QUEUE,
 		heavyReadMQ,
 		o.handleBufferedMsgs,
-		msgqueue.WithBufferSize(400),
-		msgqueue.WithMaxConcurrency(2),
-		msgqueue.WithFlushInterval(50*time.Millisecond),
+		msgqueue.WithBufferSize(1000),
+		msgqueue.WithMaxConcurrency(4),
+		msgqueue.WithFlushInterval(100*time.Millisecond),
 	)
 
 	wg := sync.WaitGroup{}
