@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.20.1"
+version = "1.20.2"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -9,15 +9,9 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-grpcio = [
-    { version = ">=1.64.1, !=1.68.*", markers = "python_version < '3.13'" },
-    { version = ">=1.69.0", markers = "python_version >= '3.13'" },
-]
-grpcio-tools = [
-    { version = ">=1.64.1, !=1.68.*", markers = "python_version < '3.13'" },
-    { version = ">=1.69.0", markers = "python_version >= '3.13'" },
-]
-protobuf = "^5.29.5"
+grpcio = "^1.76.0"
+grpcio-tools = "^1.76.0"
+protobuf = "^6.30.0"
 pydantic = "^2.6.3"
 python-dateutil = "^2.9.0.post0"
 aiohttp = "^3.10.5"

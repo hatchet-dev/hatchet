@@ -16,7 +16,7 @@ jobs:
           submodules: recursive
 
       - name: Install pnpm
-        run: npm install -g pnpm@8
+        run: npm install -g pnpm@10.16.1
 
       - uses: actions/setup-node@v6
         with:
