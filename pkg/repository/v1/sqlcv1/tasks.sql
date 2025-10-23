@@ -982,6 +982,7 @@ FROM active_slots slot;
 
 -- name: GetTenantWorkflowStats :many
 WITH queued_tasks AS (
+    -- Regular queue items
     SELECT
         'queued' as status,
         w.name as workflow_name,
@@ -990,7 +991,7 @@ WITH queued_tasks AS (
     FROM
         v1_queue_item qi
     JOIN
-        v1_task t ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at
+        v1_task t ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
     JOIN
         "Workflow" w ON t.workflow_id = w.id
     WHERE
@@ -999,7 +1000,10 @@ WITH queued_tasks AS (
         AND w."isPaused" = FALSE
     GROUP BY
         w.name
-), retry_queued_tasks AS (
+
+    UNION ALL
+
+    -- Retry queue items
     SELECT
         'queued' as status,
         w.name as workflow_name,
@@ -1017,7 +1021,10 @@ WITH queued_tasks AS (
         AND w."isPaused" = FALSE
     GROUP BY
         w.name
-), rate_limited_queued_tasks AS (
+
+    UNION ALL
+
+    -- Rate limited queue items
     SELECT
         'queued' as status,
         w.name as workflow_name,
@@ -1035,7 +1042,10 @@ WITH queued_tasks AS (
         AND w."isPaused" = FALSE
     GROUP BY
         w.name
-), concurrency_queued_tasks AS (
+
+    UNION ALL
+
+    -- Concurrency queue items
     SELECT
         'queued' as status,
         w.name as workflow_name,
@@ -1062,41 +1072,27 @@ WITH queued_tasks AS (
     SELECT
         'running' as status,
         w.name as workflow_name,
-        NULL as concurrency_key,
+        cs.key as concurrency_key,
         COUNT(*) as count
     FROM
         v1_task_runtime tr
     JOIN
-        v1_task t ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at
+        v1_task t ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
     JOIN
         "Workflow" w ON t.workflow_id = w.id
+    LEFT JOIN
+        v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
+    LEFT JOIN
+        v1_workflow_concurrency wc ON cs.workflow_id = wc.workflow_id AND cs.workflow_version_id = wc.workflow_version_id AND cs.strategy_id = wc.id
     WHERE
         tr.tenant_id = @tenantId::uuid
         AND tr.worker_id IS NOT NULL
         AND w."deletedAt" IS NULL
         AND w."isPaused" = FALSE
-    GROUP BY
-        w.name
-), concurrency_running_tasks AS (
-    SELECT
-        'running' as status,
-        w.name as workflow_name,
-        cs.key as concurrency_key,
-        COUNT(*) as count
-    FROM
-        v1_concurrency_slot cs
-    JOIN
-        v1_task t ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at
-    JOIN
-        v1_workflow_concurrency wc ON cs.workflow_id = wc.workflow_id AND cs.workflow_version_id = wc.workflow_version_id AND cs.strategy_id = wc.id
-    JOIN
-        "Workflow" w ON t.workflow_id = w.id
-    WHERE
-        cs.tenant_id = @tenantId::uuid
-        AND cs.is_filled = TRUE
-        AND wc.is_active = TRUE
-        AND w."deletedAt" IS NULL
-        AND w."isPaused" = FALSE
+        AND (
+            cs.id IS NULL  -- No concurrency slot
+            OR (cs.is_filled = TRUE AND wc.is_active = TRUE)  -- Has concurrency slot and is filled
+        )
     GROUP BY
         w.name,
         cs.key
@@ -1115,39 +1111,7 @@ SELECT
     concurrency_key,
     count
 FROM
-    retry_queued_tasks
-UNION ALL
-SELECT
-    status,
-    workflow_name,
-    concurrency_key,
-    count
-FROM
-    rate_limited_queued_tasks
-UNION ALL
-SELECT
-    status,
-    workflow_name,
-    concurrency_key,
-    count
-FROM
-    concurrency_queued_tasks
-UNION ALL
-SELECT
-    status,
-    workflow_name,
-    concurrency_key,
-    count
-FROM
     running_tasks
-UNION ALL
-SELECT
-    status,
-    workflow_name,
-    concurrency_key,
-    count
-FROM
-    concurrency_running_tasks
 ORDER BY
     status,
     workflow_name,
