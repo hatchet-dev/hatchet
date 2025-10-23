@@ -1,13 +1,3 @@
--- name: ReadPayload :one
-SELECT *
-FROM v1_payload
-WHERE
-    tenant_id = @tenantId::UUID
-    AND type = @type::v1_payload_type
-    AND id = @id::BIGINT
-    AND inserted_at = @insertedAt::TIMESTAMPTZ
-;
-
 -- name: ReadPayloads :many
 WITH inputs AS (
     SELECT
@@ -30,6 +20,7 @@ WITH inputs AS (
     SELECT DISTINCT
         UNNEST(@ids::BIGINT[]) AS id,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST(CAST(@locations::TEXT[] AS v1_payload_location[])) AS location,
         UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key,
@@ -41,6 +32,7 @@ INSERT INTO v1_payload (
     tenant_id,
     id,
     inserted_at,
+    external_id,
     type,
     location,
     external_location_key,
@@ -50,6 +42,7 @@ SELECT
     i.tenant_id,
     i.id,
     i.inserted_at,
+    i.external_id,
     i.type,
     i.location,
     CASE WHEN i.external_location_key = '' OR i.location != 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
@@ -110,7 +103,7 @@ LIMIT @pollLimit::INT
 FOR UPDATE SKIP LOCKED
 ;
 
--- name: SetPayloadExternalKeys :exec
+-- name: SetPayloadExternalKeys :many
 WITH inputs AS (
     SELECT
         UNNEST(@ids::BIGINT[]) AS id,
@@ -129,6 +122,7 @@ WITH inputs AS (
         v1_payload.id = i.id
         AND v1_payload.inserted_at = i.inserted_at
         AND v1_payload.tenant_id = i.tenant_id
+    RETURNING v1_payload.*
 ), cutover_queue_items AS (
     INSERT INTO v1_payload_cutover_queue_item (
         tenant_id,
@@ -146,14 +140,17 @@ WITH inputs AS (
     FROM
         inputs i
     ON CONFLICT DO NOTHING
+), deletions AS (
+    DELETE FROM v1_payload_wal
+    WHERE
+        (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+            SELECT offload_at, id, inserted_at, type, tenant_id
+            FROM inputs
+        )
 )
 
-DELETE FROM v1_payload_wal
-WHERE
-    (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
-        SELECT offload_at, id, inserted_at, type, tenant_id
-        FROM inputs
-    )
+SELECT *
+FROM payload_updates
 ;
 
 

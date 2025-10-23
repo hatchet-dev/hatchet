@@ -1108,7 +1108,7 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		matchedEventToRetrieveOpts[event] = opt
 	}
 
-	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, retrieveOpts...)
 
 	if err != nil {
 		return nil, err
@@ -1383,6 +1383,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			ExternalId: task.ExternalID,
 			Payload:    task.Payload,
 			TenantId:   task.TenantID.String(),
 		}
@@ -2360,6 +2361,7 @@ func (r *sharedRepository) replayTasks(
 			Id:         taskIds[i],
 			InsertedAt: taskInsertedAts[i],
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			ExternalId: sqlchelpers.UUIDFromStr(task.ExternalId),
 			Payload:    input,
 			TenantId:   tenantId,
 		}
@@ -2701,6 +2703,7 @@ func (r *sharedRepository) createTaskEvents(
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         taskEvent.ID,
 			InsertedAt: taskEvent.InsertedAt,
+			ExternalId: taskEvent.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			Payload:    data,
 			TenantId:   tenantId,
@@ -2871,7 +2874,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		}
 	}
 
-	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, retrieveOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to bulk retrieve task inputs: %w", err)
@@ -3479,7 +3482,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		retrieveOptToPayload[opt] = outputTask.Output
 	}
 
-	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, retrieveOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve task output payloads: %w", err)
@@ -3555,7 +3558,7 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 		retrieveOpts[i] = retrieveOpt
 	}
 
-	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, retrieveOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve task event payloads: %w", err)

@@ -237,7 +237,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			}
 		}
 
-		inputs, err := d.repov1.Payloads().BulkRetrieve(ctx, retrievePayloadOpts...)
+		inputs, err := d.repov1.Payloads().Retrieve(ctx, retrievePayloadOpts...)
 
 		if err != nil {
 			d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))

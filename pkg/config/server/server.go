@@ -259,6 +259,12 @@ type ConfigFileRuntime struct {
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
 
+	// SchedulerConcurrencyPollingMinInterval is the minimum interval for concurrency polling
+	SchedulerConcurrencyPollingMinInterval time.Duration `mapstructure:"schedulerConcurrencyPollingMinInterval" json:"schedulerConcurrencyPollingMinInterval,omitempty" default:"500ms"`
+
+	// SchedulerConcurrencyPollingMaxInterval is the maximum interval for concurrency polling
+	SchedulerConcurrencyPollingMaxInterval time.Duration `mapstructure:"schedulerConcurrencyPollingMaxInterval" json:"schedulerConcurrencyPollingMaxInterval,omitempty" default:"5s"`
+
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
 
@@ -616,6 +622,7 @@ type PayloadStoreConfig struct {
 	EnablePayloadDualWrites          bool          `mapstructure:"enablePayloadDualWrites" json:"enablePayloadDualWrites,omitempty" default:"true"`
 	EnableTaskEventPayloadDualWrites bool          `mapstructure:"enableTaskEventPayloadDualWrites" json:"enableTaskEventPayloadDualWrites,omitempty" default:"true"`
 	EnableDagDataPayloadDualWrites   bool          `mapstructure:"enableDagDataPayloadDualWrites" json:"enableDagDataPayloadDualWrites,omitempty" default:"true"`
+	EnableOLAPPayloadDualWrites      bool          `mapstructure:"enableOLAPPayloadDualWrites" json:"enableOLAPPayloadDualWrites,omitempty" default:"true"`
 	WALPollLimit                     int           `mapstructure:"walPollLimit" json:"walPollLimit,omitempty" default:"1000"`
 	WALProcessInterval               time.Duration `mapstructure:"walProcessInterval" json:"walProcessInterval,omitempty" default:"15s"`
 	ExternalCutoverProcessInterval   time.Duration `mapstructure:"externalCutoverProcessInterval" json:"externalCutoverProcessInterval,omitempty" default:"15s"`
@@ -649,6 +656,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcStaticStreamWindowSize", "SERVER_GRPC_STATIC_STREAM_WINDOW_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
+	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMinInterval", "SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL")
+	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMaxInterval", "SCHEDULER_CONCURRENCY_POLLING_MAX_INTERVAL")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
@@ -887,6 +896,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("payloadStore.enablePayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES")
 	_ = v.BindEnv("payloadStore.enableTaskEventPayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_TASK_EVENT_PAYLOAD_DUAL_WRITES")
 	_ = v.BindEnv("payloadStore.enableDagDataPayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_DAG_DATA_PAYLOAD_DUAL_WRITES")
+	_ = v.BindEnv("payloadStore.enableOLAPPayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_OLAP_PAYLOAD_DUAL_WRITES")
 	_ = v.BindEnv("payloadStore.walPollLimit", "SERVER_PAYLOAD_STORE_WAL_POLL_LIMIT")
 	_ = v.BindEnv("payloadStore.walProcessInterval", "SERVER_PAYLOAD_STORE_WAL_PROCESS_INTERVAL")
 	_ = v.BindEnv("payloadStore.externalCutoverProcessInterval", "SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_PROCESS_INTERVAL")
