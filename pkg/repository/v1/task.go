@@ -3623,6 +3623,12 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_task_event: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1Dag(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_dag: %v", err)
+	}
+
 	err = r.queries.AnalyzeV1Payload(ctx, tx)
 
 	if err != nil {

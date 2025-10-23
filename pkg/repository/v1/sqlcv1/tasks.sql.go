@@ -12,6 +12,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const analyzeV1Dag = `-- name: AnalyzeV1Dag :exec
+ANALYZE v1_dag
+`
+
+func (q *Queries) AnalyzeV1Dag(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1Dag)
+	return err
+}
+
 const analyzeV1Task = `-- name: AnalyzeV1Task :exec
 ANALYZE v1_task
 `
