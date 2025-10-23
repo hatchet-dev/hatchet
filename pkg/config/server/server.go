@@ -259,6 +259,12 @@ type ConfigFileRuntime struct {
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
 
+	// SchedulerConcurrencyPollingMinInterval is the minimum interval for concurrency polling
+	SchedulerConcurrencyPollingMinInterval time.Duration `mapstructure:"schedulerConcurrencyPollingMinInterval" json:"schedulerConcurrencyPollingMinInterval,omitempty" default:"500ms"`
+
+	// SchedulerConcurrencyPollingMaxInterval is the maximum interval for concurrency polling
+	SchedulerConcurrencyPollingMaxInterval time.Duration `mapstructure:"schedulerConcurrencyPollingMaxInterval" json:"schedulerConcurrencyPollingMaxInterval,omitempty" default:"5s"`
+
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
 
@@ -650,6 +656,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcStaticStreamWindowSize", "SERVER_GRPC_STATIC_STREAM_WINDOW_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
+	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMinInterval", "SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL")
+	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMaxInterval", "SCHEDULER_CONCURRENCY_POLLING_MAX_INTERVAL")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
