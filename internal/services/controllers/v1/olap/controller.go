@@ -227,6 +227,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	o.s.Start()
 
 	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.OLAP_QUEUE, heavyReadMQ, o.handleBufferedMsgs)
+
 	wg := sync.WaitGroup{}
 
 	startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
@@ -715,31 +716,31 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		return nil
 	}
 
-	retrieveOptsToKey, err := tc.repo.OLAP().PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
+	// retrieveOptsToKey, err := tc.repo.OLAP().PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
 
-	if err != nil {
-		return err
-	}
+	// if err != nil {
+	// 	return err
+	// }
 
-	offloadOpts := make([]v1.OffloadPayloadOpts, 0)
+	// offloadOpts := make([]v1.OffloadPayloadOpts, 0)
 
-	for opt, key := range retrieveOptsToKey {
-		externalId := idInsertedAtToExternalId[v1.IdInsertedAt{
-			ID:         opt.Id,
-			InsertedAt: opt.InsertedAt,
-		}]
+	// for opt, key := range retrieveOptsToKey {
+	// 	externalId := idInsertedAtToExternalId[v1.IdInsertedAt{
+	// 		ID:         opt.Id,
+	// 		InsertedAt: opt.InsertedAt,
+	// 	}]
 
-		offloadOpts = append(offloadOpts, v1.OffloadPayloadOpts{
-			ExternalId:          externalId,
-			ExternalLocationKey: string(key),
-		})
-	}
+	// 	offloadOpts = append(offloadOpts, v1.OffloadPayloadOpts{
+	// 		ExternalId:          externalId,
+	// 		ExternalLocationKey: string(key),
+	// 	})
+	// }
 
-	err = tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloadOpts)
+	// err = tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloadOpts)
 
-	if err != nil {
-		return err
-	}
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }

@@ -919,6 +919,9 @@ ANALYZE v1_task;
 -- name: AnalyzeV1TaskEvent :exec
 ANALYZE v1_task_event;
 
+-- name: AnalyzeV1Dag :exec
+ANALYZE v1_dag;
+
 -- name: CleanupV1TaskRuntime :execresult
 WITH locked_trs AS (
     SELECT vtr.task_id, vtr.task_inserted_at, vtr.retry_count
