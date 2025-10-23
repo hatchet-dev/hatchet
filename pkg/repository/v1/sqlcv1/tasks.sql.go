@@ -633,7 +633,7 @@ WITH queued_tasks AS (
         AND w."isPaused" = FALSE
     GROUP BY
         w.name
-), concurreny_queued_tasks AS (
+), concurrency_queued_tasks AS (
     SELECT
         'queued' as status,
         w.name as workflow_name,
@@ -729,7 +729,7 @@ SELECT
     concurrency_key,
     count
 FROM
-    concurreny_queued_tasks
+    concurrency_queued_tasks
 UNION ALL
 SELECT
     status,
