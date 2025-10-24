@@ -261,7 +261,7 @@ type TaskRepository interface {
 	// Returns (shouldContinue, error) where shouldContinue indicates if there's more work
 	Cleanup(ctx context.Context) (bool, error)
 
-	GetTaskStats(ctx context.Context, tenantId string) (map[string]interface{}, error)
+	GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -3708,50 +3708,110 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 	return shouldContinue, nil
 }
 
-func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) (map[string]interface{}, error) {
+// TaskStat represents the statistics for a single task step
+type TaskStat struct {
+	Queued  *TaskStatusStat `json:"queued,omitempty"`
+	Running *TaskStatusStat `json:"running,omitempty"`
+}
+
+// TaskStatusStat represents statistics for a specific task status (queued or running)
+type TaskStatusStat struct {
+	Total       int64             `json:"total"`
+	Queues      []string          `json:"queues,omitempty"`
+	Concurrency []ConcurrencyStat `json:"concurrency,omitempty"`
+}
+
+// ConcurrencyStat represents concurrency information for a task
+type ConcurrencyStat struct {
+	Expression string           `json:"expression"`
+	Type       string           `json:"type"`
+	Keys       map[string]int64 `json:"keys"`
+}
+
+func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error) {
 	rows, err := r.queries.GetTenantTaskStats(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 
 	if err != nil {
 		return nil, err
 	}
 
-	result := map[string]interface{}{
-		"queued":  make(map[string]interface{}),
-		"running": make(map[string]interface{}),
-	}
+	result := make(map[string]TaskStat)
+	queueMap := make(map[string]map[string]bool)
 
 	for _, row := range rows {
-		statusMap := result[row.Status].(map[string]interface{})
-		workflowName := row.WorkflowName
+		stepReadableId := row.StepReadableID
+		taskStatus := row.TaskStatus
+		queue := row.Queue
+		expression := row.Expression.String
+		strategy := row.Strategy.String
+		key := row.Key.String
 		count := row.Count
 
-		if row.ConcurrencyKey != nil {
-			concurrencyKey, ok := row.ConcurrencyKey.(string)
-			if !ok {
-				continue
+		taskStat, ok := result[stepReadableId]
+		if !ok {
+			result[stepReadableId] = TaskStat{}
+		}
+
+		var statusStat *TaskStatusStat
+
+		switch taskStatus {
+		case "queued":
+			if taskStat.Queued == nil {
+				taskStat.Queued = &TaskStatusStat{}
 			}
 
-			if existing, exists := statusMap[workflowName]; exists {
-				if _, isInt := existing.(int64); isInt {
-					statusMap[workflowName] = map[string]interface{}{
-						concurrencyKey: count,
-					}
-				} else if existingMap, isMap := existing.(map[string]interface{}); isMap {
-					existingMap[concurrencyKey] = count
-				}
-			} else {
-				statusMap[workflowName] = map[string]interface{}{
-					concurrencyKey: count,
+			statusStat = result[stepReadableId].Queued
+		case "running":
+			if taskStat.Running == nil {
+				taskStat.Running = &TaskStatusStat{}
+			}
+
+			statusStat = taskStat.Running
+		}
+
+		statusStat.Total += count
+
+		if taskStatus == "queued" {
+			if _, ok := queueMap[stepReadableId]; !ok {
+				queueMap[stepReadableId] = make(map[string]bool)
+			}
+
+			queueMap[stepReadableId][queue] = true
+		}
+
+		if expression != "" && strategy != "" && key != "" {
+			var concurrencyEntry *ConcurrencyStat
+			for i := range statusStat.Concurrency {
+				if statusStat.Concurrency[i].Expression == expression && statusStat.Concurrency[i].Type == strategy {
+					concurrencyEntry = &statusStat.Concurrency[i]
+					break
 				}
 			}
-		} else {
-			if existing, exists := statusMap[workflowName]; exists {
-				if existingInt, isInt := existing.(int64); isInt {
-					statusMap[workflowName] = existingInt + count
+
+			if concurrencyEntry == nil {
+				newEntry := ConcurrencyStat{
+					Expression: expression,
+					Type:       strategy,
+					Keys:       make(map[string]int64),
 				}
-			} else {
-				statusMap[workflowName] = count
+				statusStat.Concurrency = append(statusStat.Concurrency, newEntry)
+				concurrencyEntry = &statusStat.Concurrency[len(statusStat.Concurrency)-1]
 			}
+
+			if concurrencyEntry.Keys == nil {
+				concurrencyEntry.Keys = make(map[string]int64)
+			}
+			concurrencyEntry.Keys[key] += count
+		}
+	}
+
+	for stepReadableId, queues := range queueMap {
+		if result[stepReadableId].Queued != nil {
+			queueSlice := make([]string, 0, len(queues))
+			for queueName := range queues {
+				queueSlice = append(queueSlice, queueName)
+			}
+			result[stepReadableId].Queued.Queues = queueSlice
 		}
 	}
 

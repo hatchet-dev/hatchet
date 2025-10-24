@@ -581,155 +581,164 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 const getTenantTaskStats = `-- name: GetTenantTaskStats :many
 WITH queued_tasks AS (
     SELECT
-        'queued' as status,
-        w.name as workflow_name,
-        NULL as concurrency_key,
+        t.step_readable_id,
+        t.queue,
         COUNT(*) as count
     FROM
         v1_queue_item qi
     JOIN
         v1_task t ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
-    JOIN
-        "Workflow" w ON t.workflow_id = w.id
     WHERE
         qi.tenant_id = $1::uuid
-        AND w."deletedAt" IS NULL
-        AND w."isPaused" = FALSE
     GROUP BY
-        w.name
+        t.step_readable_id,
+        t.queue
 ), retry_queued_tasks AS (
     SELECT
-        'queued' as status,
-        w.name as workflow_name,
-        NULL as concurrency_key,
+        t.step_readable_id,
+        t.queue,
         COUNT(*) as count
     FROM
         v1_retry_queue_item rqi
     JOIN
         v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
-    JOIN
-        "Workflow" w ON t.workflow_id = w.id
     WHERE
         rqi.tenant_id = $1::uuid
-        AND w."deletedAt" IS NULL
-        AND w."isPaused" = FALSE
     GROUP BY
-        w.name
+        t.step_readable_id,
+        t.queue
 ), rate_limited_queued_tasks AS (
     SELECT
-        'queued' as status,
-        w.name as workflow_name,
-        NULL as concurrency_key,
+        t.step_readable_id,
+        t.queue,
         COUNT(*) as count
     FROM
         v1_rate_limited_queue_items rqi
     JOIN
         v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at
-    JOIN
-        "Workflow" w ON t.workflow_id = w.id
     WHERE
         rqi.tenant_id = $1::uuid
-        AND w."deletedAt" IS NULL
-        AND w."isPaused" = FALSE
     GROUP BY
-        w.name
+        t.step_readable_id,
+        t.queue
 ), concurrency_queued_tasks AS (
     SELECT
-        'queued' as status,
-        w.name as workflow_name,
-        cs.key as concurrency_key,
+        t.step_readable_id,
+        t.queue,
+        sc.expression,
+        sc.strategy,
+        cs.key,
         COUNT(*) as count
     FROM
         v1_concurrency_slot cs
     JOIN
         v1_task t ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
     JOIN
-        "Workflow" w ON t.workflow_id = w.id
-    JOIN
-        v1_workflow_concurrency wc ON cs.workflow_id = wc.workflow_id AND cs.workflow_version_id = wc.workflow_version_id AND cs.strategy_id = wc.id
+        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id AND cs.strategy_id = sc.id
     WHERE
         cs.tenant_id = $1::uuid
         AND cs.is_filled = FALSE
-        AND wc.is_active = TRUE
-        AND w."deletedAt" IS NULL
-        AND w."isPaused" = FALSE
+        AND sc.tenant_id = $1::uuid
+        AND sc.is_active = TRUE
+        AND sc.id = ANY(t.concurrency_strategy_ids)
     GROUP BY
-        w.name,
+        t.step_readable_id,
+        t.queue,
+        sc.expression,
+        sc.strategy,
         cs.key
 ), running_tasks AS (
     SELECT
-        'running' as status,
-        w.name as workflow_name,
-        cs.key as concurrency_key,
+        t.step_readable_id,
+        sc.expression,
+        sc.strategy,
+        cs.key,
         COUNT(*) as count
     FROM
         v1_task_runtime tr
     JOIN
         v1_task t ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
-    JOIN
-        "Workflow" w ON t.workflow_id = w.id
     LEFT JOIN
         v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
     LEFT JOIN
-        v1_workflow_concurrency wc ON cs.workflow_id = wc.workflow_id AND cs.workflow_version_id = wc.workflow_version_id AND cs.strategy_id = wc.id
+        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id
     WHERE
-        tr.tenant_id = $1::uuid
+        t.tenant_id = $1::uuid
+        AND tr.tenant_id = $1::uuid
         AND tr.worker_id IS NOT NULL
-        AND w."deletedAt" IS NULL
-        AND w."isPaused" = FALSE
-        AND (
-            cs.sort_id IS NULL  -- No concurrency slot
-            OR (cs.is_filled = TRUE AND wc.is_active = TRUE)  -- Has concurrency slot and is filled
-        )
+        AND sc.id = ANY(t.concurrency_strategy_ids)
     GROUP BY
-        w.name,
+        t.step_readable_id,
+        sc.expression,
+        sc.strategy,
         cs.key
 )
 SELECT
-    status,
-    workflow_name,
-    concurrency_key,
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
     count
-FROM
-    queued_tasks
+FROM queued_tasks
+
 UNION ALL
+
 SELECT
-    status,
-    workflow_name,
-    concurrency_key,
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
     count
-FROM
-    retry_queued_tasks
+FROM retry_queued_tasks
+
 UNION ALL
+
 SELECT
-    status,
-    workflow_name,
-    concurrency_key,
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
     count
-FROM
-    rate_limited_queued_tasks
+FROM rate_limited_queued_tasks
+
 UNION ALL
+
 SELECT
-    status,
-    workflow_name,
-    concurrency_key,
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    expression,
+    strategy::text,
+    key,
     count
-FROM
-    concurrency_queued_tasks
+FROM concurrency_queued_tasks
+
 UNION ALL
+
 SELECT
-    status,
-    workflow_name,
-    concurrency_key,
+    'running' as task_status,
+    step_readable_id,
+    NULL::text as queue,
+    expression,
+    strategy::text,
+    key,
     count
-FROM
-    running_tasks
+FROM running_tasks
 `
 
 type GetTenantTaskStatsRow struct {
-	Status         string      `json:"status"`
-	WorkflowName   string      `json:"workflow_name"`
-	ConcurrencyKey interface{} `json:"concurrency_key"`
+	TaskStatus     string      `json:"task_status"`
+	StepReadableID string      `json:"step_readable_id"`
+	Queue          string      `json:"queue"`
+	Expression     pgtype.Text `json:"expression"`
+	Strategy       pgtype.Text `json:"strategy"`
+	Key            pgtype.Text `json:"key"`
 	Count          int64       `json:"count"`
 }
 
@@ -743,9 +752,12 @@ func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid pgty
 	for rows.Next() {
 		var i GetTenantTaskStatsRow
 		if err := rows.Scan(
-			&i.Status,
-			&i.WorkflowName,
-			&i.ConcurrencyKey,
+			&i.TaskStatus,
+			&i.StepReadableID,
+			&i.Queue,
+			&i.Expression,
+			&i.Strategy,
+			&i.Key,
 			&i.Count,
 		); err != nil {
 			return nil, err
