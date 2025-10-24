@@ -3750,6 +3750,7 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 		taskStat, ok := result[stepReadableId]
 		if !ok {
 			result[stepReadableId] = TaskStat{}
+			taskStat = result[stepReadableId]
 		}
 
 		var statusStat *TaskStatusStat
@@ -3758,15 +3759,15 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 		case "queued":
 			if taskStat.Queued == nil {
 				taskStat.Queued = &TaskStatusStat{}
+				result[stepReadableId] = taskStat
 			}
-
 			statusStat = result[stepReadableId].Queued
 		case "running":
 			if taskStat.Running == nil {
 				taskStat.Running = &TaskStatusStat{}
+				result[stepReadableId] = taskStat
 			}
-
-			statusStat = taskStat.Running
+			statusStat = result[stepReadableId].Running
 		}
 
 		statusStat.Total += count
