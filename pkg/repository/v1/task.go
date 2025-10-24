@@ -261,7 +261,7 @@ type TaskRepository interface {
 	// Returns (shouldContinue, error) where shouldContinue indicates if there's more work
 	Cleanup(ctx context.Context) (bool, error)
 
-	GetWorkflowStats(ctx context.Context, tenantId string) (map[string]interface{}, error)
+	GetTaskStats(ctx context.Context, tenantId string) (map[string]interface{}, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -3708,8 +3708,8 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 	return shouldContinue, nil
 }
 
-func (r *TaskRepositoryImpl) GetWorkflowStats(ctx context.Context, tenantId string) (map[string]interface{}, error) {
-	rows, err := r.queries.GetTenantWorkflowStats(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
+func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) (map[string]interface{}, error) {
+	rows, err := r.queries.GetTenantTaskStats(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 
 	if err != nil {
 		return nil, err

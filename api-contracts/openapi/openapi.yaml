@@ -233,5 +233,5 @@ paths:
     $ref: "./paths/info/version.yaml#/version"
   /api/v1/tenants/{tenant}/prometheus-metrics:
     $ref: "./paths/tenant/tenant.yaml#/getPrometheusMetrics"
-  /api/v1/tenants/{tenant}/workflow-stats:
-    $ref: "./paths/tenant/tenant.yaml#/getWorkflowStats"
+  /api/v1/tenants/{tenant}/task-stats:
+    $ref: "./paths/tenant/tenant.yaml#/getTaskStats"

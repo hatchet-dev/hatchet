@@ -3252,17 +3252,17 @@ export class Api<
       ...params,
     });
   /**
-   * @description Get workflow stats for tenant
+   * @description Get task stats for tenant
    *
    * @tags Tenant
-   * @name TenantGetWorkflowStats
-   * @summary Get workflow stats for tenant
-   * @request GET:/api/v1/tenants/{tenant}/workflow-stats
+   * @name TenantGetTaskStats
+   * @summary Get task stats for tenant
+   * @request GET:/api/v1/tenants/{tenant}/task-stats
    * @secure
    */
-  tenantGetWorkflowStats = (tenant: string, params: RequestParams = {}) =>
+  tenantGetTaskStats = (tenant: string, params: RequestParams = {}) =>
     this.request<object, APIErrors>({
-      path: `/api/v1/tenants/${tenant}/workflow-stats`,
+      path: `/api/v1/tenants/${tenant}/task-stats`,
       method: "GET",
       secure: true,
       format: "json",

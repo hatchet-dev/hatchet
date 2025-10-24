@@ -817,12 +817,12 @@ getPrometheusMetrics:
     tags:
       - Tenant
 
-getWorkflowStats:
+getTaskStats:
   get:
     x-resources: ["tenant"]
     x-enable-rate-limiting: true
-    description: Get workflow stats for tenant
-    operationId: tenant:get:workflow-stats
+    description: Get task stats for tenant
+    operationId: tenant:get:task-stats
     parameters:
       - description: The tenant ID
         in: path
@@ -839,7 +839,7 @@ getWorkflowStats:
           application/json:
             schema:
               type: object
-        description: Successfully retrieved workflow stats for tenant
+        description: Successfully retrieved task stats for tenant
       "400":
         content:
           application/json:
@@ -858,6 +858,6 @@ getWorkflowStats:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
-    summary: Get workflow stats for tenant
+    summary: Get task stats for tenant
     tags:
       - Tenant

@@ -980,9 +980,8 @@ SELECT
     )
 FROM active_slots slot;
 
--- name: GetTenantWorkflowStats :many
+-- name: GetTenantTaskStats :many
 WITH queued_tasks AS (
-    -- Regular queue items
     SELECT
         'queued' as status,
         w.name as workflow_name,
@@ -1000,10 +999,7 @@ WITH queued_tasks AS (
         AND w."isPaused" = FALSE
     GROUP BY
         w.name
-
-    UNION ALL
-
-    -- Retry queue items
+), retry_queued_tasks AS (
     SELECT
         'queued' as status,
         w.name as workflow_name,
@@ -1021,10 +1017,7 @@ WITH queued_tasks AS (
         AND w."isPaused" = FALSE
     GROUP BY
         w.name
-
-    UNION ALL
-
-    -- Rate limited queue items
+), rate_limited_queued_tasks AS (
     SELECT
         'queued' as status,
         w.name as workflow_name,
@@ -1042,10 +1035,7 @@ WITH queued_tasks AS (
         AND w."isPaused" = FALSE
     GROUP BY
         w.name
-
-    UNION ALL
-
-    -- Concurrency queue items
+), concurrency_queued_tasks AS (
     SELECT
         'queued' as status,
         w.name as workflow_name,
@@ -1111,8 +1101,28 @@ SELECT
     concurrency_key,
     count
 FROM
-    running_tasks
-ORDER BY
+    retry_queued_tasks
+UNION ALL
+SELECT
     status,
     workflow_name,
-    concurrency_key;
+    concurrency_key,
+    count
+FROM
+    rate_limited_queued_tasks
+UNION ALL
+SELECT
+    status,
+    workflow_name,
+    concurrency_key,
+    count
+FROM
+    concurrency_queued_tasks
+UNION ALL
+SELECT
+    status,
+    workflow_name,
+    concurrency_key,
+    count
+FROM
+    running_tasks;
