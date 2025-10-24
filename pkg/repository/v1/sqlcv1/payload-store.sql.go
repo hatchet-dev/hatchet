@@ -78,33 +78,61 @@ const pollPayloadWALForRecordsToReplicate = `-- name: PollPayloadWALForRecordsTo
 WITH tenants AS (
     SELECT UNNEST(
         find_matching_tenants_in_payload_wal_partition(
-            $2::INT
+            $1::INT
         )
     ) AS tenant_id
+), wal_records AS (
+    SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
+    FROM v1_payload_wal
+    WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
+    ORDER BY offload_at
+    LIMIT $2::INT
+    FOR UPDATE SKIP LOCKED
+), wal_records_without_payload AS (
+    SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
+    FROM wal_records wr
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_payload p
+        WHERE (p.tenant_id, p.inserted_at, p.id, p.type) = (wr.tenant_id, wr.payload_inserted_at, wr.payload_id, wr.payload_type)
+    )
+), deleted_wal_records AS (
+    DELETE FROM v1_payload_wal
+    WHERE (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+        SELECT offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
+        FROM wal_records_without_payload
+    )
 )
-
-SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
-FROM v1_payload_wal
-WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
-ORDER BY offload_at
-LIMIT $1::INT
-FOR UPDATE SKIP LOCKED
+SELECT wr.tenant_id, wr.offload_at, wr.payload_id, wr.payload_inserted_at, wr.payload_type, wr.operation, p.location, p.inline_content
+FROM wal_records wr
+JOIN v1_payload p ON (p.tenant_id, p.inserted_at, p.id, p.type) = (wr.tenant_id, wr.payload_inserted_at, wr.payload_id, wr.payload_type)
 `
 
 type PollPayloadWALForRecordsToReplicateParams struct {
-	Polllimit       int32 `json:"polllimit"`
 	Partitionnumber int32 `json:"partitionnumber"`
+	Polllimit       int32 `json:"polllimit"`
 }
 
-func (q *Queries) PollPayloadWALForRecordsToReplicate(ctx context.Context, db DBTX, arg PollPayloadWALForRecordsToReplicateParams) ([]*V1PayloadWal, error) {
-	rows, err := db.Query(ctx, pollPayloadWALForRecordsToReplicate, arg.Polllimit, arg.Partitionnumber)
+type PollPayloadWALForRecordsToReplicateRow struct {
+	TenantID          pgtype.UUID           `json:"tenant_id"`
+	OffloadAt         pgtype.Timestamptz    `json:"offload_at"`
+	PayloadID         int64                 `json:"payload_id"`
+	PayloadInsertedAt pgtype.Timestamptz    `json:"payload_inserted_at"`
+	PayloadType       V1PayloadType         `json:"payload_type"`
+	Operation         V1PayloadWalOperation `json:"operation"`
+	Location          V1PayloadLocation     `json:"location"`
+	InlineContent     []byte                `json:"inline_content"`
+}
+
+func (q *Queries) PollPayloadWALForRecordsToReplicate(ctx context.Context, db DBTX, arg PollPayloadWALForRecordsToReplicateParams) ([]*PollPayloadWALForRecordsToReplicateRow, error) {
+	rows, err := db.Query(ctx, pollPayloadWALForRecordsToReplicate, arg.Partitionnumber, arg.Polllimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1PayloadWal
+	var items []*PollPayloadWALForRecordsToReplicateRow
 	for rows.Next() {
-		var i V1PayloadWal
+		var i PollPayloadWALForRecordsToReplicateRow
 		if err := rows.Scan(
 			&i.TenantID,
 			&i.OffloadAt,
@@ -112,6 +140,8 @@ func (q *Queries) PollPayloadWALForRecordsToReplicate(ctx context.Context, db DB
 			&i.PayloadInsertedAt,
 			&i.PayloadType,
 			&i.Operation,
+			&i.Location,
+			&i.InlineContent,
 		); err != nil {
 			return nil, err
 		}

@@ -93,15 +93,31 @@ WITH tenants AS (
             @partitionNumber::INT
         )
     ) AS tenant_id
+), wal_records AS (
+    SELECT *
+    FROM v1_payload_wal
+    WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
+    ORDER BY offload_at
+    LIMIT @pollLimit::INT
+    FOR UPDATE SKIP LOCKED
+), wal_records_without_payload AS (
+    SELECT *
+    FROM wal_records wr
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_payload p
+        WHERE (p.tenant_id, p.inserted_at, p.id, p.type) = (wr.tenant_id, wr.payload_inserted_at, wr.payload_id, wr.payload_type)
+    )
+), deleted_wal_records AS (
+    DELETE FROM v1_payload_wal
+    WHERE (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+        SELECT offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
+        FROM wal_records_without_payload
+    )
 )
-
-SELECT *
-FROM v1_payload_wal
-WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
-ORDER BY offload_at
-LIMIT @pollLimit::INT
-FOR UPDATE SKIP LOCKED
-;
+SELECT wr.*, p.location, p.inline_content
+FROM wal_records wr
+JOIN v1_payload p ON (p.tenant_id, p.inserted_at, p.id, p.type) = (wr.tenant_id, wr.payload_inserted_at, wr.payload_id, wr.payload_type);
 
 -- name: SetPayloadExternalKeys :many
 WITH inputs AS (
