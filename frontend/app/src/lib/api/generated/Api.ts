@@ -3251,4 +3251,21 @@ export class Api<
       secure: true,
       ...params,
     });
+  /**
+   * @description Get task stats for tenant
+   *
+   * @tags Tenant
+   * @name TenantGetTaskStats
+   * @summary Get task stats for tenant
+   * @request GET:/api/v1/tenants/{tenant}/task-stats
+   * @secure
+   */
+  tenantGetTaskStats = (tenant: string, params: RequestParams = {}) =>
+    this.request<object, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/task-stats`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
 }
