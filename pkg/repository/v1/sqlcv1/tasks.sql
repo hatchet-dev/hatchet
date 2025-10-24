@@ -1090,7 +1090,7 @@ WITH queued_tasks AS (
         AND w."deletedAt" IS NULL
         AND w."isPaused" = FALSE
         AND (
-            cs.id IS NULL  -- No concurrency slot
+            cs.sort_id IS NULL  -- No concurrency slot
             OR (cs.is_filled = TRUE AND wc.is_active = TRUE)  -- Has concurrency slot and is filled
         )
     GROUP BY
