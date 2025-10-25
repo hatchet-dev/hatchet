@@ -13,22 +13,51 @@
    - [Caddy](https://caddyserver.com/docs/install)
    - [atlas](https://atlasgo.io/)
    - [pre-commit](https://pre-commit.com/)
+     - You can install this in a virtual environment with `python3 -m venv venv && source venv/bin/activate && pip3 install pre-commit`
 
-2. Start the Database and RabbitMQ services:
+1. You can then populate a local `.env` file with the following:
+
+```
+DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+
+SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
+SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
+SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
+
+SERVER_PORT=8080
+SERVER_URL=http://localhost:8080
+
+SERVER_AUTH_COOKIE_SECRETS="1234"
+SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
+SERVER_AUTH_COOKIE_INSECURE=false
+SERVER_AUTH_SET_EMAIL_VERIFIED=true
+
+SERVER_MSGQUEUE_KIND=rabbitmq
+SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
+
+SERVER_GRPC_BROADCAST_ADDRESS=grpc.dev.hatchet-tools.com:443
+SERVER_GRPC_INSECURE=true
+```
+
+1. Start the Database and RabbitMQ services:
 
 ```sh
 task start-db
 ```
 
-3. Install dependencies, run migrations, generate encryption keys, and seed the database:
+1. Install dependencies, run migrations, generate encryption keys, and seed the database:
 
 ```sh
 task setup
 ```
 
+**_Note: You might need to run this as `sudo` so it can install certificates._**
+
 ### Starting the dev server
 
 Start the Hatchet engine, API server, dashboard, and Prisma studio:
+
+might need to run as sudo so it can install deps
 
 ```sh
 task start-dev # or task start-dev-tmux if you want to use tmux panes
@@ -38,16 +67,14 @@ task start-dev # or task start-dev-tmux if you want to use tmux panes
 
 To create and test workflows, run the examples in the `./examples` directory.
 
-You will need to add the tenant (output from the `task seed-dev` command) to the `.env` file in each example directory. An example `.env` file for the `./examples/simple` directory can be generated via:
+You will need to add the tenant (output from the `task seed-dev` command) to the `.env` file in each example directory. An example `.env` file for the `./examples/simple` directory. You can be generated and add it to the .env file via:
 
 ```sh
-alias get_token='go run ./cmd/hatchet-admin token create --name local --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52'
-
-cat > ./examples/simple/.env <<EOF
+cat >> ./examples/simple/.env <<EOF
 HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
 HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../hack/dev/certs/ca.cert
 HATCHET_CLIENT_TLS_SERVER_NAME=cluster
-HATCHET_CLIENT_TOKEN="$(get_token)"
+HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --name local --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
 EOF
 ```
 
@@ -103,18 +130,6 @@ Generate a service account in GCP which can encrypt/decrypt on CloudKMS, then do
 
 ```
 SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON='{...}'
-```
-
-## Issues
-
-### Query engine leakage
-
-Sometimes the spawned query engines from Prisma don't get killed when hot reloading. You can run `task kill-query-engines` on OSX to kill the query engines.
-
-Make sure you call `.Disconnect` on the database config object when writing CLI commands which interact with the database. If you don't, and you try to wrap these CLI commands in a new command, it will never exit, for example:
-
-```
-export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --tenant-id <tenant>)"
 ```
 
 ## Working with Database Models
