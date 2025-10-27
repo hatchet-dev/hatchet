@@ -52,7 +52,7 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 			err = o.notifyTasksUpdated(ctx, rows)
 
 			if err != nil {
-				o.l.Error().Err(err).Msg("failed to notify updated DAG statuses")
+				o.l.Error().Err(err).Msg("failed to notify updated task statuses")
 				return
 			}
 		}
