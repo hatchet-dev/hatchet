@@ -617,9 +617,11 @@ func (t *MessageQueueImpl) subscribe(
 							return
 						}
 
+						// determine if we've hit the max number of retries
 						xDeath, exists := rabbitMsg.Headers["x-death"].([]interface{})
 
 						if exists {
+							// message was rejected before
 							deathCount := xDeath[0].(amqp.Table)["count"].(int64)
 
 							t.l.Debug().Msgf("message %s has been rejected %d times", msg.ID, deathCount)
