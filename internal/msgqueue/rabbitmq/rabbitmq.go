@@ -617,24 +617,19 @@ func (t *MessageQueueImpl) subscribe(
 							return
 						}
 
-						// determine if we've hit the max number of retries
 						xDeath, exists := rabbitMsg.Headers["x-death"].([]interface{})
 
 						if exists {
-							// message was rejected before
 							deathCount := xDeath[0].(amqp.Table)["count"].(int64)
 
 							t.l.Debug().Msgf("message %s has been rejected %d times", msg.ID, deathCount)
 
-							if deathCount > int64(msg.Retries) {
-								t.l.Debug().Msgf("message %s has been rejected %d times, not requeuing", msg.ID, deathCount)
-
-								// acknowledge so it's removed from the queue
-								if err := rabbitMsg.Ack(false); err != nil {
-									t.l.Error().Msgf("error acknowledging message: %v", err)
-								}
-
-								return
+							if deathCount > 5 {
+								t.l.Error().
+									Int64("death_count", deathCount).
+									Str("message_id", msg.ID).
+									Str("tenant_id", msg.TenantID()).
+									Msg("message has been rejected more than 5 times and is still being retried")
 							}
 						}
 
