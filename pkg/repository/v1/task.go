@@ -3717,7 +3717,7 @@ type TaskStat struct {
 // TaskStatusStat represents statistics for a specific task status (queued or running)
 type TaskStatusStat struct {
 	Total       int64             `json:"total"`
-	Queues      []string          `json:"queues,omitempty"`
+	Queues      map[string]int64  `json:"queues,omitempty"`
 	Concurrency []ConcurrencyStat `json:"concurrency,omitempty"`
 }
 
@@ -3736,7 +3736,6 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 	}
 
 	result := make(map[string]TaskStat)
-	queueMap := make(map[string]map[string]bool)
 
 	for _, row := range rows {
 		stepReadableId := row.StepReadableID
@@ -3758,7 +3757,9 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 		switch taskStatus {
 		case "queued":
 			if taskStat.Queued == nil {
-				taskStat.Queued = &TaskStatusStat{}
+				taskStat.Queued = &TaskStatusStat{
+					Queues: make(map[string]int64),
+				}
 				result[stepReadableId] = taskStat
 			}
 			statusStat = result[stepReadableId].Queued
@@ -3772,12 +3773,11 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 
 		statusStat.Total += count
 
-		if taskStatus == "queued" {
-			if _, ok := queueMap[stepReadableId]; !ok {
-				queueMap[stepReadableId] = make(map[string]bool)
+		if taskStatus == "queued" && queue != "" {
+			if statusStat.Queues == nil {
+				statusStat.Queues = make(map[string]int64)
 			}
-
-			queueMap[stepReadableId][queue] = true
+			statusStat.Queues[queue] += count
 		}
 
 		if expression != "" && strategy != "" && key != "" {
@@ -3803,16 +3803,6 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 				concurrencyEntry.Keys = make(map[string]int64)
 			}
 			concurrencyEntry.Keys[key] += count
-		}
-	}
-
-	for stepReadableId, queues := range queueMap {
-		if result[stepReadableId].Queued != nil {
-			queueSlice := make([]string, 0, len(queues))
-			for queueName := range queues {
-				queueSlice = append(queueSlice, queueName)
-			}
-			result[stepReadableId].Queued.Queues = queueSlice
 		}
 	}
 

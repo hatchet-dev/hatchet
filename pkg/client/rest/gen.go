@@ -1040,7 +1040,7 @@ type TaskStats map[string]TaskStat
 // TaskStatusStat defines model for TaskStatusStat.
 type TaskStatusStat struct {
 	Concurrency *[]ConcurrencyStat `json:"concurrency,omitempty"`
-	Queues      *[]string          `json:"queues,omitempty"`
+	Queues      *map[string]int64  `json:"queues,omitempty"`
 	Total       *int64             `json:"total,omitempty"`
 }
 

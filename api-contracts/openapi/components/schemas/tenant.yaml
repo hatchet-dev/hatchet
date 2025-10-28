@@ -423,9 +423,10 @@ TaskStatusStat:
       type: integer
       format: int64
     queues:
-      type: array
-      items:
-        type: string
+      type: object
+      additionalProperties:
+        type: integer
+        format: int64
     concurrency:
       type: array
       items:

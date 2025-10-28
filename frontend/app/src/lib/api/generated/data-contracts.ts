@@ -2175,7 +2175,7 @@ export interface ConcurrencyStat {
 export interface TaskStatusStat {
   /** @format int64 */
   total?: number;
-  queues?: string[];
+  queues?: Record<string, number>;
   concurrency?: ConcurrencyStat[];
 }
 
