@@ -3781,28 +3781,31 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 		}
 
 		if expression != "" && strategy != "" && key != "" {
-			var concurrencyEntry *ConcurrencyStat
-			for i := range statusStat.Concurrency {
-				if statusStat.Concurrency[i].Expression == expression && statusStat.Concurrency[i].Type == strategy {
-					concurrencyEntry = &statusStat.Concurrency[i]
-					break
+			// Only add concurrency details if we have meaningful concurrency data
+			if expression != "" && key != "" && strategy != "NONE" {
+				var concurrencyEntry *ConcurrencyStat
+				for i := range statusStat.Concurrency {
+					if statusStat.Concurrency[i].Expression == expression && statusStat.Concurrency[i].Type == strategy {
+						concurrencyEntry = &statusStat.Concurrency[i]
+						break
+					}
 				}
-			}
 
-			if concurrencyEntry == nil {
-				newEntry := ConcurrencyStat{
-					Expression: expression,
-					Type:       strategy,
-					Keys:       make(map[string]int64),
+				if concurrencyEntry == nil {
+					newEntry := ConcurrencyStat{
+						Expression: expression,
+						Type:       strategy,
+						Keys:       make(map[string]int64),
+					}
+					statusStat.Concurrency = append(statusStat.Concurrency, newEntry)
+					concurrencyEntry = &statusStat.Concurrency[len(statusStat.Concurrency)-1]
 				}
-				statusStat.Concurrency = append(statusStat.Concurrency, newEntry)
-				concurrencyEntry = &statusStat.Concurrency[len(statusStat.Concurrency)-1]
-			}
 
-			if concurrencyEntry.Keys == nil {
-				concurrencyEntry.Keys = make(map[string]int64)
+				if concurrencyEntry.Keys == nil {
+					concurrencyEntry.Keys = make(map[string]int64)
+				}
+				concurrencyEntry.Keys[key] += count
 			}
-			concurrencyEntry.Keys[key] += count
 		}
 	}
 
