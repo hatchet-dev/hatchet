@@ -6,6 +6,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
@@ -83,5 +84,45 @@ func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit) *gen.TenantRe
 
 	return &gen.TenantResourcePolicy{
 		Limits: limits,
+	}
+}
+
+func ToTaskStats(stats map[string]v1.TaskStat) gen.TaskStats {
+	result := make(gen.TaskStats)
+
+	for taskName, taskStat := range stats {
+		var queued *gen.TaskStatusStat
+		var running *gen.TaskStatusStat
+
+		if taskStat.Queued != nil {
+			queued = toTaskStatusStat(*taskStat.Queued)
+		}
+		if taskStat.Running != nil {
+			running = toTaskStatusStat(*taskStat.Running)
+		}
+
+		result[taskName] = gen.TaskStat{
+			Queued:  queued,
+			Running: running,
+		}
+	}
+
+	return result
+}
+
+func toTaskStatusStat(stat v1.TaskStatusStat) *gen.TaskStatusStat {
+	concurrency := make([]gen.ConcurrencyStat, len(stat.Concurrency))
+	for i, c := range stat.Concurrency {
+		concurrency[i] = gen.ConcurrencyStat{
+			Expression: &c.Expression,
+			Type:       &c.Type,
+			Keys:       &c.Keys,
+		}
+	}
+
+	return &gen.TaskStatusStat{
+		Total:       &stat.Total,
+		Queues:      &stat.Queues,
+		Concurrency: &concurrency,
 	}
 }

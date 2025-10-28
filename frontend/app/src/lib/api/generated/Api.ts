@@ -63,6 +63,7 @@ import {
   StepRun,
   StepRunArchiveList,
   StepRunEventList,
+  TaskStats,
   Tenant,
   TenantAlertEmailGroup,
   TenantAlertEmailGroupList,
@@ -3249,6 +3250,23 @@ export class Api<
       path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
       method: "GET",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Get task stats for tenant
+   *
+   * @tags Tenant
+   * @name TenantGetTaskStats
+   * @summary Get task stats for tenant
+   * @request GET:/api/v1/tenants/{tenant}/task-stats
+   * @secure
+   */
+  tenantGetTaskStats = (tenant: string, params: RequestParams = {}) =>
+    this.request<TaskStats, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/task-stats`,
+      method: "GET",
+      secure: true,
+      format: "json",
       ...params,
     });
 }
