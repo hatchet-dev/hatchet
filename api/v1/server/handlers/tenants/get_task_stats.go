@@ -1,11 +1,10 @@
 package tenants
 
 import (
-	"encoding/json"
-
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
@@ -17,17 +16,7 @@ func (t *TenantService) TenantGetTaskStats(ctx echo.Context, request gen.TenantG
 		return nil, err
 	}
 
-	res := make(map[string]interface{})
+	transformedStats := transformers.ToTaskStats(stats)
 
-	statsJSON, err := json.Marshal(stats)
-	if err != nil {
-		return nil, err
-	}
-
-	err = json.Unmarshal(statsJSON, &res)
-	if err != nil {
-		return nil, err
-	}
-
-	return gen.TenantGetTaskStats200JSONResponse(res), nil
+	return gen.TenantGetTaskStats200JSONResponse(transformedStats), nil
 }

@@ -455,6 +455,13 @@ type CancelEventRequest struct {
 // ConcurrencyLimitStrategy defines model for ConcurrencyLimitStrategy.
 type ConcurrencyLimitStrategy string
 
+// ConcurrencyStat defines model for ConcurrencyStat.
+type ConcurrencyStat struct {
+	Expression *string           `json:"expression,omitempty"`
+	Keys       *map[string]int64 `json:"keys,omitempty"`
+	Type       *string           `json:"type,omitempty"`
+}
+
 // CreateAPITokenRequest defines model for CreateAPITokenRequest.
 type CreateAPITokenRequest struct {
 	// ExpiresIn The duration for which the token is valid.
@@ -1020,6 +1027,22 @@ type StepRunEventSeverity string
 
 // StepRunStatus defines model for StepRunStatus.
 type StepRunStatus string
+
+// TaskStat defines model for TaskStat.
+type TaskStat struct {
+	Queued  *TaskStatusStat `json:"queued,omitempty"`
+	Running *TaskStatusStat `json:"running,omitempty"`
+}
+
+// TaskStats defines model for TaskStats.
+type TaskStats map[string]TaskStat
+
+// TaskStatusStat defines model for TaskStatusStat.
+type TaskStatusStat struct {
+	Concurrency *[]ConcurrencyStat `json:"concurrency,omitempty"`
+	Queues      *[]string          `json:"queues,omitempty"`
+	Total       *int64             `json:"total,omitempty"`
+}
 
 // Tenant defines model for Tenant.
 type Tenant struct {
@@ -14991,7 +15014,7 @@ func (r StepRunGetSchemaResponse) StatusCode() int {
 type TenantGetTaskStatsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *map[string]interface{}
+	JSON200      *TaskStats
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
@@ -21013,7 +21036,7 @@ func ParseTenantGetTaskStatsResponse(rsp *http.Response) (*TenantGetTaskStatsRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest map[string]interface{}
+		var dest TaskStats
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

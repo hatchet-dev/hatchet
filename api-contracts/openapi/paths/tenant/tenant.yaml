@@ -838,7 +838,7 @@ getTaskStats:
         content:
           application/json:
             schema:
-              type: object
+              $ref: "../../components/schemas/_index.yaml#/TaskStats"
         description: Successfully retrieved task stats for tenant
       "400":
         content:

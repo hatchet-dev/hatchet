@@ -63,6 +63,7 @@ import {
   StepRun,
   StepRunArchiveList,
   StepRunEventList,
+  TaskStats,
   Tenant,
   TenantAlertEmailGroup,
   TenantAlertEmailGroupList,
@@ -3261,7 +3262,7 @@ export class Api<
    * @secure
    */
   tenantGetTaskStats = (tenant: string, params: RequestParams = {}) =>
-    this.request<object, APIErrors>({
+    this.request<TaskStats, APIErrors>({
       path: `/api/v1/tenants/${tenant}/task-stats`,
       method: "GET",
       secure: true,
