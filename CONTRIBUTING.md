@@ -15,7 +15,7 @@
    - [pre-commit](https://pre-commit.com/)
      - You can install this in a virtual environment with `python3 -m venv venv && source venv/bin/activate && pip3 install pre-commit`
 
-1. You can then populate a local `.env` file with the following:
+2. You can then populate a local `.env` file with the following:
 
 ```
 DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
@@ -39,13 +39,13 @@ SERVER_GRPC_BROADCAST_ADDRESS=grpc.dev.hatchet-tools.com:443
 SERVER_GRPC_INSECURE=true
 ```
 
-1. Start the Database and RabbitMQ services:
+3. Start the Database and RabbitMQ services:
 
 ```sh
 task start-db
 ```
 
-1. Install dependencies, run migrations, generate encryption keys, and seed the database:
+4. Install dependencies, run migrations, generate encryption keys, and seed the database:
 
 ```sh
 task setup
@@ -56,8 +56,6 @@ task setup
 ### Starting the dev server
 
 Start the Hatchet engine, API server, dashboard, and Prisma studio:
-
-might need to run as sudo so it can install deps
 
 ```sh
 task start-dev # or task start-dev-tmux if you want to use tmux panes
@@ -71,9 +69,6 @@ You will need to add the tenant (output from the `task seed-dev` command) to the
 
 ```sh
 cat >> ./examples/simple/.env <<EOF
-HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
-HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../hack/dev/certs/ca.cert
-HATCHET_CLIENT_TLS_SERVER_NAME=cluster
 HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --name local --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
 EOF
 ```
