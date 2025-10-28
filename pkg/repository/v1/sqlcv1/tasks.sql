@@ -1052,9 +1052,9 @@ WITH queued_tasks AS (
 ), running_tasks AS (
     SELECT
         t.step_readable_id,
-        sc.expression,
-        sc.strategy,
-        cs.key,
+        COALESCE(sc.expression, '') as expression,
+        COALESCE(sc.strategy, 'NONE'::v1_concurrency_strategy) as strategy,
+        COALESCE(cs.key, '') as key,
         COUNT(*) as count
     FROM
         v1_task_runtime tr
@@ -1068,7 +1068,7 @@ WITH queued_tasks AS (
         t.tenant_id = @tenantId::uuid
         AND tr.tenant_id = @tenantId::uuid
         AND tr.worker_id IS NOT NULL
-        AND sc.id = ANY(t.concurrency_strategy_ids)
+        AND (t.concurrency_strategy_ids IS NULL OR array_length(t.concurrency_strategy_ids, 1) IS NULL OR sc.id = ANY(t.concurrency_strategy_ids))
     GROUP BY
         t.step_readable_id,
         sc.expression,
@@ -1126,7 +1126,7 @@ UNION ALL
 SELECT
     'running' as task_status,
     step_readable_id,
-    NULL::text as queue,
+    ''::text as queue,
     expression,
     strategy::text,
     key,

@@ -111,18 +111,25 @@ func ToTaskStats(stats map[string]v1.TaskStat) gen.TaskStats {
 }
 
 func toTaskStatusStat(stat v1.TaskStatusStat) *gen.TaskStatusStat {
-	concurrency := make([]gen.ConcurrencyStat, len(stat.Concurrency))
-	for i, c := range stat.Concurrency {
-		concurrency[i] = gen.ConcurrencyStat{
-			Expression: &c.Expression,
-			Type:       &c.Type,
-			Keys:       &c.Keys,
-		}
+	result := &gen.TaskStatusStat{
+		Total: &stat.Total,
 	}
 
-	return &gen.TaskStatusStat{
-		Total:       &stat.Total,
-		Queues:      &stat.Queues,
-		Concurrency: &concurrency,
+	if len(stat.Concurrency) > 0 {
+		concurrency := make([]gen.ConcurrencyStat, len(stat.Concurrency))
+		for i, c := range stat.Concurrency {
+			concurrency[i] = gen.ConcurrencyStat{
+				Expression: &c.Expression,
+				Type:       &c.Type,
+				Keys:       &c.Keys,
+			}
+		}
+		result.Concurrency = &concurrency
 	}
+
+	if len(stat.Queues) > 0 {
+		result.Queues = &stat.Queues
+	}
+
+	return result
 }
