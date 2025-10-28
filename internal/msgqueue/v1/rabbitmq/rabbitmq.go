@@ -46,10 +46,10 @@ type MessageQueueImpl struct {
 
 	deadLetterBackoff time.Duration
 
-	compressionEnabled bool
-
-	// compressionThreshold is the minimum payload size (in bytes) that will be compressed
-	compressionThreshold int
+	compressionEnabled     bool
+	compressionThreshold   int
+	enableMessageRejection bool
+	maxDeathCount          int
 }
 
 func (t *MessageQueueImpl) IsReady() bool {
@@ -67,9 +67,9 @@ type MessageQueueImplOpts struct {
 	maxPubChannels            int32
 	maxSubChannels            int32
 	compressionEnabled        bool
-
-	// compressionThreshold is the minimum payload size (in bytes) that will be compressed
-	compressionThreshold int
+	compressionThreshold      int
+	enableMessageRejection    bool
+	maxDeathCount             int
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
@@ -79,6 +79,8 @@ func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
 		l:                         &l,
 		disableTenantExchangePubs: false,
 		deadLetterBackoff:         5 * time.Second,
+		enableMessageRejection:    false,
+		maxDeathCount:             5,
 	}
 }
 
@@ -136,6 +138,18 @@ func WithGzipCompression(enabled bool, threshold int) MessageQueueImplOpt {
 	}
 }
 
+func WithMessageRejection(enabled bool, maxDeathCount int) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
+		opts.enableMessageRejection = enabled
+
+		if maxDeathCount <= 0 {
+			maxDeathCount = 5
+		}
+
+		opts.maxDeathCount = maxDeathCount
+	}
+}
+
 // New creates a new MessageQueueImpl.
 func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -188,6 +202,8 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		deadLetterBackoff:         opts.deadLetterBackoff,
 		compressionEnabled:        opts.compressionEnabled,
 		compressionThreshold:      opts.compressionThreshold,
+		enableMessageRejection:    opts.enableMessageRejection,
+		maxDeathCount:             opts.maxDeathCount,
 	}
 
 	// create a new lru cache for tenant ids
@@ -757,16 +773,26 @@ func (t *MessageQueueImpl) subscribe(
 					// message was rejected before
 					deathCount := xDeath[0].(amqp.Table)["count"].(int64)
 
-					t.l.Debug().Msgf("message has been rejected %d times", deathCount)
+					if deathCount > 5 {
+						t.l.Error().
+							Int64("death_count", deathCount).
+							Str("message_id", msg.ID).
+							Str("tenant_id", msg.TenantID).
+							Int("num_payloads", len(msg.Payloads)).
+							Msgf("message has been retried for %d times", deathCount)
+					}
 
-					if deathCount > int64(msg.Retries) {
-						t.l.Debug().Msgf("message has been rejected %d times, not requeuing", deathCount)
+					if t.enableMessageRejection && deathCount > int64(t.maxDeathCount) {
+						t.l.Error().
+							Int64("death_count", deathCount).
+							Str("message_id", msg.ID).
+							Str("tenant_id", msg.TenantID).
+							Int("max_death_count", t.maxDeathCount).
+							Msg("permanently rejecting message due to exceeding max death count")
 
-						// acknowledge so it's removed from the queue
 						if err := rabbitMsg.Ack(false); err != nil {
-							t.l.Error().Msgf("error acknowledging message: %v", err)
+							t.l.Error().Err(err).Msg("error permanently rejecting message")
 						}
-
 						return
 					}
 				}

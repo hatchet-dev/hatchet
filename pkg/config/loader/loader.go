@@ -434,6 +434,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				rabbitmq.WithLogger(&l),
 				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
 				rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
+				rabbitmq.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
 			)
 
 			cleanupv1, mqv1 = rabbitmqv1.New(
@@ -447,6 +448,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 					cf.MessageQueue.RabbitMQ.CompressionEnabled,
 					cf.MessageQueue.RabbitMQ.CompressionThreshold,
 				),
+				rabbitmqv1.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
 			)
 
 			cleanup1 = func() error {
