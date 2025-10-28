@@ -3780,7 +3780,7 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 			statusStat.Queues[queue] += count
 		}
 
-		if expression != "" && strategy != "" && key != "" {
+		if expression != "" && key != "" && strategy != "NONE" {
 			var concurrencyEntry *ConcurrencyStat
 			for i := range statusStat.Concurrency {
 				if statusStat.Concurrency[i].Expression == expression && statusStat.Concurrency[i].Type == strategy {
