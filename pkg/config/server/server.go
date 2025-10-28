@@ -479,12 +479,14 @@ type PostgresMQConfigFile struct {
 }
 
 type RabbitMQConfigFile struct {
-	URL                  string `mapstructure:"url" json:"url,omitempty" validate:"required"`
-	Qos                  int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
-	MaxPubChans          int32  `mapstructure:"maxPubChans" json:"maxPubChans,omitempty" default:"20"`
-	MaxSubChans          int32  `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"100"`
-	CompressionEnabled   bool   `mapstructure:"compressionEnabled" json:"compressionEnabled,omitempty" default:"false"`
-	CompressionThreshold int    `mapstructure:"compressionThreshold" json:"compressionThreshold,omitempty" default:"5120"`
+	URL                    string `mapstructure:"url" json:"url,omitempty" validate:"required"`
+	Qos                    int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
+	MaxPubChans            int32  `mapstructure:"maxPubChans" json:"maxPubChans,omitempty" default:"20"`
+	MaxSubChans            int32  `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"100"`
+	CompressionEnabled     bool   `mapstructure:"compressionEnabled" json:"compressionEnabled,omitempty" default:"false"`
+	CompressionThreshold   int    `mapstructure:"compressionThreshold" json:"compressionThreshold,omitempty" default:"5120"`
+	EnableMessageRejection bool   `mapstructure:"enableMessageRejection" json:"enableMessageRejection,omitempty" default:"false"`
+	MaxDeathCount          int    `mapstructure:"maxDeathCount" json:"maxDeathCount,omitempty" default:"5"`
 }
 
 type ConfigFileEmail struct {
@@ -803,6 +805,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.rabbitmq.maxSubChans", "SERVER_MSGQUEUE_RABBITMQ_MAX_SUB_CHANS")
 	_ = v.BindEnv("msgQueue.rabbitmq.compressionEnabled", "SERVER_MSGQUEUE_RABBITMQ_COMPRESSION_ENABLED")
 	_ = v.BindEnv("msgQueue.rabbitmq.compressionThreshold", "SERVER_MSGQUEUE_RABBITMQ_COMPRESSION_THRESHOLD")
+	_ = v.BindEnv("msgQueue.rabbitmq.enableMessageRejection", "SERVER_MSGQUEUE_RABBITMQ_ENABLE_MESSAGE_REJECTION")
+	_ = v.BindEnv("msgQueue.rabbitmq.maxDeathCount", "SERVER_MSGQUEUE_RABBITMQ_MAX_DEATH_COUNT")
 
 	// throughput options
 	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")

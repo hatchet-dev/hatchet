@@ -64,8 +64,9 @@ type MessageQueueImpl struct {
 
 	disableTenantExchangePubs bool
 
-	// lru cache for tenant ids
-	tenantIdCache *lru.Cache[string, bool]
+	tenantIdCache          *lru.Cache[string, bool]
+	enableMessageRejection bool
+	maxDeathCount          int
 }
 
 func (t *MessageQueueImpl) setNotReady() {
@@ -98,6 +99,8 @@ type MessageQueueImplOpts struct {
 	url                       string
 	qos                       int
 	disableTenantExchangePubs bool
+	enableMessageRejection    bool
+	maxDeathCount             int
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
@@ -106,6 +109,8 @@ func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
 	return &MessageQueueImplOpts{
 		l:                         &l,
 		disableTenantExchangePubs: false,
+		enableMessageRejection:    false,
+		maxDeathCount:             5,
 	}
 }
 
@@ -133,6 +138,18 @@ func WithDisableTenantExchangePubs(disable bool) MessageQueueImplOpt {
 	}
 }
 
+func WithMessageRejection(enabled bool, maxDeathCount int) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
+		opts.enableMessageRejection = enabled
+
+		if maxDeathCount <= 0 {
+			maxDeathCount = 5
+		}
+
+		opts.maxDeathCount = maxDeathCount
+	}
+}
+
 // New creates a new MessageQueueImpl.
 func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -153,6 +170,8 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		qos:                       opts.qos,
 		configFs:                  fs,
 		disableTenantExchangePubs: opts.disableTenantExchangePubs,
+		enableMessageRejection:    opts.enableMessageRejection,
+		maxDeathCount:             opts.maxDeathCount,
 	}
 
 	constructor := func(context.Context) (*amqp.Connection, error) {
@@ -624,16 +643,25 @@ func (t *MessageQueueImpl) subscribe(
 							// message was rejected before
 							deathCount := xDeath[0].(amqp.Table)["count"].(int64)
 
-							t.l.Debug().Msgf("message %s has been rejected %d times", msg.ID, deathCount)
+							if deathCount > 5 {
+								t.l.Error().
+									Int64("death_count", deathCount).
+									Str("message_id", msg.ID).
+									Str("tenant_id", msg.TenantID()).
+									Msgf("message has been retried for %d times", deathCount)
+							}
 
-							if deathCount > int64(msg.Retries) {
-								t.l.Debug().Msgf("message %s has been rejected %d times, not requeuing", msg.ID, deathCount)
+							if t.enableMessageRejection && deathCount > int64(t.maxDeathCount) {
+								t.l.Error().
+									Int64("death_count", deathCount).
+									Str("message_id", msg.ID).
+									Str("tenant_id", msg.TenantID()).
+									Int("max_death_count", t.maxDeathCount).
+									Msg("permanently rejecting message due to exceeding max death count")
 
-								// acknowledge so it's removed from the queue
 								if err := rabbitMsg.Ack(false); err != nil {
-									t.l.Error().Msgf("error acknowledging message: %v", err)
+									t.l.Error().Err(err).Msg("error permanently rejecting message")
 								}
-
 								return
 							}
 						}
