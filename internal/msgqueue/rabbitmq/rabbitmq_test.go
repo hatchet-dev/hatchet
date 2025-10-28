@@ -113,6 +113,7 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	cleanup, tq := rabbitmq.New(
 		rabbitmq.WithURL(url),
 		rabbitmq.WithQos(100),
+		rabbitmq.WithMessageRejection(false, 10), // Disable message rejection for this test
 	)
 	defer cleanup() // nolint: errcheck
 
@@ -172,6 +173,7 @@ func TestDeadLetteringExceedRetriesFailure(t *testing.T) {
 	cleanup, tq := rabbitmq.New(
 		rabbitmq.WithURL(url),
 		rabbitmq.WithQos(100),
+		rabbitmq.WithMessageRejection(false, 10), // Disable message rejection for this test
 	)
 	defer cleanup() // nolint: errcheck
 
