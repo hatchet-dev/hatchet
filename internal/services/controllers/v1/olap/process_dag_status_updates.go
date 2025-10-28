@@ -17,7 +17,7 @@ import (
 
 func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 
 		shouldContinue := true
