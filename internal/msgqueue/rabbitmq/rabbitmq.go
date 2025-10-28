@@ -643,12 +643,13 @@ func (t *MessageQueueImpl) subscribe(
 							// message was rejected before
 							deathCount := xDeath[0].(amqp.Table)["count"].(int64)
 
-							t.l.Error().
-								Int64("death_count", deathCount).
-								Str("message_id", msg.ID).
-								Str("tenant_id", msg.TenantID()).
-								Int("max_death_count", t.maxDeathCount).
-								Msg("message has been rejected")
+							if deathCount > 5 {
+								t.l.Error().
+									Int64("death_count", deathCount).
+									Str("message_id", msg.ID).
+									Str("tenant_id", msg.TenantID()).
+									Msgf("message has been retried for %d times", deathCount)
+							}
 
 							if t.enableMessageRejection && deathCount > int64(t.maxDeathCount) {
 								t.l.Error().
