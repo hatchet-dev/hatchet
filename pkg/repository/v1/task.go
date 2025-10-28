@@ -3781,7 +3781,6 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 		}
 
 		if expression != "" && strategy != "" && key != "" {
-			// Only add concurrency details if we have meaningful concurrency data
 			if expression != "" && key != "" && strategy != "NONE" {
 				var concurrencyEntry *ConcurrencyStat
 				for i := range statusStat.Concurrency {

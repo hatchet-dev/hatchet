@@ -115,7 +115,6 @@ func toTaskStatusStat(stat v1.TaskStatusStat) *gen.TaskStatusStat {
 		Total: &stat.Total,
 	}
 
-	// Only include concurrency if there are concurrency stats
 	if len(stat.Concurrency) > 0 {
 		concurrency := make([]gen.ConcurrencyStat, len(stat.Concurrency))
 		for i, c := range stat.Concurrency {
@@ -128,7 +127,6 @@ func toTaskStatusStat(stat v1.TaskStatusStat) *gen.TaskStatusStat {
 		result.Concurrency = &concurrency
 	}
 
-	// Only include queues if there are queue stats
 	if len(stat.Queues) > 0 {
 		result.Queues = &stat.Queues
 	}
