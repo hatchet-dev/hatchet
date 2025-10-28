@@ -816,3 +816,48 @@ getPrometheusMetrics:
     summary: Get prometheus metrics
     tags:
       - Tenant
+
+getTaskStats:
+  get:
+    x-resources: ["tenant"]
+    x-enable-rate-limiting: true
+    description: Get task stats for tenant
+    operationId: tenant:get:task-stats
+    parameters:
+      - description: The tenant ID
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TaskStats"
+        description: Successfully retrieved task stats for tenant
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Get task stats for tenant
+    tags:
+      - Tenant

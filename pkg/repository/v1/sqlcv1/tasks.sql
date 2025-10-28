@@ -979,3 +979,156 @@ SELECT
         slot.workflow_run_id
     )
 FROM active_slots slot;
+
+-- name: GetTenantTaskStats :many
+WITH queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count
+    FROM
+        v1_queue_item qi
+    JOIN
+        v1_task t ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
+    WHERE
+        qi.tenant_id = @tenantId::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
+), retry_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count
+    FROM
+        v1_retry_queue_item rqi
+    JOIN
+        v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
+    WHERE
+        rqi.tenant_id = @tenantId::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
+), rate_limited_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count
+    FROM
+        v1_rate_limited_queue_items rqi
+    JOIN
+        v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at
+    WHERE
+        rqi.tenant_id = @tenantId::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
+), concurrency_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        sc.expression,
+        sc.strategy,
+        cs.key,
+        COUNT(*) as count
+    FROM
+        v1_concurrency_slot cs
+    JOIN
+        v1_task t ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
+    JOIN
+        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id AND cs.strategy_id = sc.id
+    WHERE
+        cs.tenant_id = @tenantId::uuid
+        AND cs.is_filled = FALSE
+        AND sc.tenant_id = @tenantId::uuid
+        AND sc.is_active = TRUE
+        AND sc.id = ANY(t.concurrency_strategy_ids)
+    GROUP BY
+        t.step_readable_id,
+        t.queue,
+        sc.expression,
+        sc.strategy,
+        cs.key
+), running_tasks AS (
+    SELECT
+        t.step_readable_id,
+        sc.expression,
+        sc.strategy,
+        cs.key,
+        COUNT(*) as count
+    FROM
+        v1_task_runtime tr
+    JOIN
+        v1_task t ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+    LEFT JOIN
+        v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
+    LEFT JOIN
+        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id
+    WHERE
+        t.tenant_id = @tenantId::uuid
+        AND tr.tenant_id = @tenantId::uuid
+        AND tr.worker_id IS NOT NULL
+        AND sc.id = ANY(t.concurrency_strategy_ids)
+    GROUP BY
+        t.step_readable_id,
+        sc.expression,
+        sc.strategy,
+        cs.key
+)
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count
+FROM queued_tasks
+
+UNION ALL
+
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count
+FROM retry_queued_tasks
+
+UNION ALL
+
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count
+FROM rate_limited_queued_tasks
+
+UNION ALL
+
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    expression,
+    strategy::text,
+    key,
+    count
+FROM concurrency_queued_tasks
+
+UNION ALL
+
+SELECT
+    'running' as task_status,
+    step_readable_id,
+    NULL::text as queue,
+    expression,
+    strategy::text,
+    key,
+    count
+FROM running_tasks;

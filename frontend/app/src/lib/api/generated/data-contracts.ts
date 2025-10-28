@@ -2166,6 +2166,26 @@ export interface WebhookWorkerRequestListResponse {
   requests?: WebhookWorkerRequest[];
 }
 
+export interface ConcurrencyStat {
+  expression?: string;
+  type?: string;
+  keys?: Record<string, number>;
+}
+
+export interface TaskStatusStat {
+  /** @format int64 */
+  total?: number;
+  queues?: Record<string, number>;
+  concurrency?: ConcurrencyStat[];
+}
+
+export interface TaskStat {
+  queued?: TaskStatusStat;
+  running?: TaskStatusStat;
+}
+
+export type TaskStats = Record<string, TaskStat>;
+
 export interface TenantList {
   pagination?: PaginationResponse;
   rows?: Tenant[];

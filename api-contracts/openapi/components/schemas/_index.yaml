@@ -62,6 +62,14 @@ UpdateTenantAlertEmailGroupRequest:
   $ref: "./tenant.yaml#/UpdateTenantAlertEmailGroupRequest"
 TenantInvite:
   $ref: "./tenant.yaml#/TenantInvite"
+TaskStats:
+  $ref: "./tenant.yaml#/TaskStats"
+TaskStat:
+  $ref: "./tenant.yaml#/TaskStat"
+TaskStatusStat:
+  $ref: "./tenant.yaml#/TaskStatusStat"
+ConcurrencyStat:
+  $ref: "./tenant.yaml#/ConcurrencyStat"
 TenantInviteList:
   $ref: "./tenant.yaml#/TenantInviteList"
 QueueMetrics:

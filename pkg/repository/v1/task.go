@@ -260,6 +260,8 @@ type TaskRepository interface {
 	// Cleanup makes sure to get rid of invalid old entries
 	// Returns (shouldContinue, error) where shouldContinue indicates if there's more work
 	Cleanup(ctx context.Context) (bool, error)
+
+	GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -3704,4 +3706,105 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 	}
 
 	return shouldContinue, nil
+}
+
+// TaskStat represents the statistics for a single task step
+type TaskStat struct {
+	Queued  *TaskStatusStat `json:"queued,omitempty"`
+	Running *TaskStatusStat `json:"running,omitempty"`
+}
+
+// TaskStatusStat represents statistics for a specific task status (queued or running)
+type TaskStatusStat struct {
+	Total       int64             `json:"total"`
+	Queues      map[string]int64  `json:"queues,omitempty"`
+	Concurrency []ConcurrencyStat `json:"concurrency,omitempty"`
+}
+
+// ConcurrencyStat represents concurrency information for a task
+type ConcurrencyStat struct {
+	Expression string           `json:"expression"`
+	Type       string           `json:"type"`
+	Keys       map[string]int64 `json:"keys"`
+}
+
+func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error) {
+	rows, err := r.queries.GetTenantTaskStats(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]TaskStat)
+
+	for _, row := range rows {
+		stepReadableId := row.StepReadableID
+		taskStatus := row.TaskStatus
+		queue := row.Queue
+		expression := row.Expression.String
+		strategy := row.Strategy.String
+		key := row.Key.String
+		count := row.Count
+
+		taskStat, ok := result[stepReadableId]
+		if !ok {
+			result[stepReadableId] = TaskStat{}
+			taskStat = result[stepReadableId]
+		}
+
+		var statusStat *TaskStatusStat
+
+		switch taskStatus {
+		case "queued":
+			if taskStat.Queued == nil {
+				taskStat.Queued = &TaskStatusStat{
+					Queues: make(map[string]int64),
+				}
+				result[stepReadableId] = taskStat
+			}
+			statusStat = result[stepReadableId].Queued
+		case "running":
+			if taskStat.Running == nil {
+				taskStat.Running = &TaskStatusStat{}
+				result[stepReadableId] = taskStat
+			}
+			statusStat = result[stepReadableId].Running
+		}
+
+		statusStat.Total += count
+
+		if taskStatus == "queued" && queue != "" {
+			if statusStat.Queues == nil {
+				statusStat.Queues = make(map[string]int64)
+			}
+			statusStat.Queues[queue] += count
+		}
+
+		if expression != "" && strategy != "" && key != "" {
+			var concurrencyEntry *ConcurrencyStat
+			for i := range statusStat.Concurrency {
+				if statusStat.Concurrency[i].Expression == expression && statusStat.Concurrency[i].Type == strategy {
+					concurrencyEntry = &statusStat.Concurrency[i]
+					break
+				}
+			}
+
+			if concurrencyEntry == nil {
+				newEntry := ConcurrencyStat{
+					Expression: expression,
+					Type:       strategy,
+					Keys:       make(map[string]int64),
+				}
+				statusStat.Concurrency = append(statusStat.Concurrency, newEntry)
+				concurrencyEntry = &statusStat.Concurrency[len(statusStat.Concurrency)-1]
+			}
+
+			if concurrencyEntry.Keys == nil {
+				concurrencyEntry.Keys = make(map[string]int64)
+			}
+			concurrencyEntry.Keys[key] += count
+		}
+	}
+
+	return result, nil
 }
