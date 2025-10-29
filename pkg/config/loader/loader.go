@@ -297,6 +297,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		WALPollLimit:                     scf.PayloadStore.WALPollLimit,
 		WALProcessInterval:               scf.PayloadStore.WALProcessInterval,
 		ExternalCutoverProcessInterval:   scf.PayloadStore.ExternalCutoverProcessInterval,
+		WALEnabled:                       scf.PayloadStore.WALEnabled,
 	}
 
 	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, payloadStoreOpts)
