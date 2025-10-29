@@ -83,6 +83,10 @@ type payloadStoreRepositoryImpl struct {
 	walPollLimit                     int
 	walProcessInterval               time.Duration
 	externalCutoverProcessInterval   time.Duration
+	// walEnabled controls the payload storage strategy:
+	// - true: Use WAL system (inline + async external offload)
+	// - false: Direct external storage (skip inline, save DB space)
+	walEnabled bool
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -93,6 +97,12 @@ type PayloadStoreRepositoryOpts struct {
 	WALPollLimit                     int
 	WALProcessInterval               time.Duration
 	ExternalCutoverProcessInterval   time.Duration
+	// WALEnabled controls the payload storage strategy:
+	// - true: Use WAL (Write-Ahead Log) system - store payloads inline in PostgreSQL first,
+	//   then asynchronously offload to external storage via WAL processing
+	// - false: Skip WAL system - store payloads directly to external storage immediately,
+	//   saving database space by not storing inline content in PostgreSQL
+	WALEnabled bool
 }
 
 func NewPayloadStoreRepository(
@@ -116,6 +126,7 @@ func NewPayloadStoreRepository(
 		walPollLimit:                     opts.WALPollLimit,
 		walProcessInterval:               opts.WALProcessInterval,
 		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
+		walEnabled:                       opts.WALEnabled,
 	}
 }
 
@@ -127,6 +138,7 @@ type PayloadUniqueKey struct {
 }
 
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
+	// We store payloads as array in order to use PostgreSQL's UNNEST to batch insert them
 	taskIds := make([]int64, 0, len(payloads))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
 	payloadTypes := make([]string, 0, len(payloads))
@@ -135,6 +147,8 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	tenantIds := make([]pgtype.UUID, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
 	externalIds := make([]pgtype.UUID, 0, len(payloads))
+	// If the WAL is disabled, we'll store the external location key in the payloads table right away
+	externalLocationKeys := make([]string, 0, len(payloads))
 
 	seenPayloadUniqueKeys := make(map[PayloadUniqueKey]struct{})
 
@@ -143,52 +157,137 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		return payloads[i].InsertedAt.Time.After(payloads[j].InsertedAt.Time)
 	})
 
-	for _, payload := range payloads {
-		tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
-		uniqueKey := PayloadUniqueKey{
-			ID:         payload.Id,
-			InsertedAt: payload.InsertedAt,
-			TenantId:   tenantId,
-			Type:       payload.Type,
+	// Handle WAL_ENABLED logic
+	if p.walEnabled {
+		// WAL_ENABLED = true: insert into payloads table and WAL table
+		for _, payload := range payloads {
+			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+			uniqueKey := PayloadUniqueKey{
+				ID:         payload.Id,
+				InsertedAt: payload.InsertedAt,
+				TenantId:   tenantId,
+				Type:       payload.Type,
+			}
+
+			if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
+				continue
+			}
+
+			seenPayloadUniqueKeys[uniqueKey] = struct{}{}
+
+			taskIds = append(taskIds, payload.Id)
+			taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
+			payloadTypes = append(payloadTypes, string(payload.Type))
+			tenantIds = append(tenantIds, tenantId)
+			locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
+			inlineContents = append(inlineContents, payload.Payload)
+			externalIds = append(externalIds, payload.ExternalId)
+			externalLocationKeys = append(externalLocationKeys, "")
+
+			if p.externalStoreEnabled {
+				offloadAts = append(offloadAts, pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true})
+			} else {
+				offloadAts = append(offloadAts, pgtype.Timestamptz{Time: time.Now(), Valid: true})
+			}
+		}
+	} else {
+		// WAL_ENABLED = false: Skip inline, go directly to external store, we will:
+		// 1. Prepare external store options for immediate offload
+		// 2. Call external store first to get storage keys (S3/GCS URLs)
+		// 3. Process results and prepare for PostgreSQL with external keys only
+		if !p.externalStoreEnabled {
+			return fmt.Errorf("external store must be enabled when WAL is disabled")
 		}
 
-		if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
-			continue
+		// 1. Prepare external store options for immediate offload
+		externalOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
+		payloadIndexMap := make(map[PayloadUniqueKey]int) // Map to track original payload indices
+
+		for i, payload := range payloads {
+			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+			uniqueKey := PayloadUniqueKey{
+				ID:         payload.Id,
+				InsertedAt: payload.InsertedAt,
+				TenantId:   tenantId,
+				Type:       payload.Type,
+			}
+
+			if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
+				continue
+			}
+
+			seenPayloadUniqueKeys[uniqueKey] = struct{}{}
+			payloadIndexMap[uniqueKey] = i
+
+			externalOpts = append(externalOpts, OffloadToExternalStoreOpts{
+				StorePayloadOpts: &payload,
+				OffloadAt:        time.Now(), // Immediate offload
+			})
 		}
 
-		seenPayloadUniqueKeys[uniqueKey] = struct{}{}
+		// 2. Call external store first to get storage keys (S3/GCS URLs)
+		externalKeys, err := p.externalStore.Store(ctx, externalOpts...)
+		if err != nil {
+			return fmt.Errorf("failed to store in external store: %w", err)
+		}
 
-		taskIds = append(taskIds, payload.Id)
-		taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
-		payloadTypes = append(payloadTypes, string(payload.Type))
-		tenantIds = append(tenantIds, tenantId)
-		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
-		inlineContents = append(inlineContents, payload.Payload)
-		externalIds = append(externalIds, payload.ExternalId)
+		// 3. Process results and prepare for PostgreSQL with external keys only
+		for _, payload := range payloads {
+			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+			uniqueKey := PayloadUniqueKey{
+				ID:         payload.Id,
+				InsertedAt: payload.InsertedAt,
+				TenantId:   tenantId,
+				Type:       payload.Type,
+			}
 
-		if p.externalStoreEnabled {
-			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true})
-		} else {
+			if _, exists := seenPayloadUniqueKeys[uniqueKey]; !exists {
+				continue // Skip if already processed
+			}
+
+			// Find the external key for this payload
+			retrieveOpts := RetrievePayloadOpts{
+				Id:         payload.Id,
+				InsertedAt: payload.InsertedAt,
+				Type:       payload.Type,
+				TenantId:   tenantId,
+			}
+
+			externalKey, exists := externalKeys[retrieveOpts]
+			if !exists {
+				return fmt.Errorf("external key not found for payload %d", payload.Id)
+			}
+
+			taskIds = append(taskIds, payload.Id)
+			taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
+			payloadTypes = append(payloadTypes, string(payload.Type))
+			tenantIds = append(tenantIds, tenantId)
+			locations = append(locations, string(sqlcv1.V1PayloadLocationEXTERNAL))
+			inlineContents = append(inlineContents, nil) // No inline content
+			externalIds = append(externalIds, payload.ExternalId)
+			externalLocationKeys = append(externalLocationKeys, string(externalKey))
 			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: time.Now(), Valid: true})
 		}
 	}
 
 	err := p.queries.WritePayloads(ctx, p.pool, sqlcv1.WritePayloadsParams{
-		Ids:            taskIds,
-		Insertedats:    taskInsertedAts,
-		Types:          payloadTypes,
-		Locations:      locations,
-		Tenantids:      tenantIds,
-		Inlinecontents: inlineContents,
-		Externalids:    externalIds,
+		Ids:                  taskIds,
+		Insertedats:          taskInsertedAts,
+		Types:                payloadTypes,
+		Locations:            locations,
+		Tenantids:            tenantIds,
+		Inlinecontents:       inlineContents,
+		Externalids:          externalIds,
+		Externallocationkeys: externalLocationKeys,
 	})
 
 	if err != nil {
 		return fmt.Errorf("failed to write payloads: %w", err)
 	}
 
-	// only need to write to the WAL if we have an external store configured
-	if p.externalStoreEnabled {
+	// Only write to WAL if external store is configured AND WAL is enabled
+	// When WAL is disabled, payloads are already in external storage, so no WAL needed
+	if p.externalStoreEnabled && p.walEnabled {
 		err = p.queries.WritePayloadWAL(ctx, tx, sqlcv1.WritePayloadWALParams{
 			Tenantids:          tenantIds,
 			Payloadids:         taskIds,
