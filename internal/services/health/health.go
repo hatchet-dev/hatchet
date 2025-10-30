@@ -16,8 +16,8 @@ import (
 )
 
 type Health struct {
-	ready   bool
-	version string
+	shuttingDown bool
+	version      string
 
 	repository repository.EngineRepository
 	queue      msgqueue.MessageQueue
@@ -33,8 +33,8 @@ func New(repo repository.EngineRepository, queue msgqueue.MessageQueue, version 
 	}
 }
 
-func (h *Health) SetReady(ready bool) {
-	h.ready = ready
+func (h *Health) SetShuttingDown(shuttingDown bool) {
+	h.shuttingDown = shuttingDown
 }
 
 func (h *Health) Start(port int) (func() error, error) {
@@ -60,7 +60,7 @@ func (h *Health) Start(port int) (func() error, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		isShuttingDown := !h.ready
+		isShuttingDown := h.shuttingDown
 		queueReady := h.queue.IsReady()
 		repositoryReady := h.repository.Health().IsHealthy(ctx)
 
