@@ -962,24 +962,6 @@ WHERE (task_id, task_inserted_at, task_retry_count) IN (
     FROM locked_cs
 );
 
--- name: CleanupV1WorkflowConcurrencySlot :execresult
-WITH active_slots AS (
-    SELECT DISTINCT
-        wcs.strategy_id,
-        wcs.workflow_version_id,
-        wcs.workflow_run_id
-    FROM v1_workflow_concurrency_slot wcs
-    ORDER BY wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
-    LIMIT @batchSize::int
-)
-SELECT
-    cleanup_workflow_concurrency_slots(
-        slot.strategy_id,
-        slot.workflow_version_id,
-        slot.workflow_run_id
-    )
-FROM active_slots slot;
-
 -- name: GetTenantTaskStats :many
 WITH queued_tasks AS (
     SELECT
