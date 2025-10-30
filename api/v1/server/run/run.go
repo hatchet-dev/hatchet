@@ -401,10 +401,16 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 				return nil, "", err
 			}
 
+			payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID.String(), v1Event.ExternalID)
+
+			if err != nil {
+				return nil, "", err
+			}
+
 			event = &dbsqlc.Event{
 				ID:                 v1Event.ExternalID,
 				TenantId:           v1Event.TenantID,
-				Data:               v1Event.Payload,
+				Data:               payload,
 				CreatedAt:          pgtype.Timestamp(v1Event.SeenAt),
 				AdditionalMetadata: v1Event.AdditionalMetadata,
 				Key:                v1Event.Key,
