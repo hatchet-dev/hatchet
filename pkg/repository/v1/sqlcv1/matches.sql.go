@@ -8,11 +8,10 @@ package sqlcv1
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const cleanupMatchWithMatchConditions = `-- name: CleanupMatchWithMatchConditions :execresult
+const cleanupMatchWithMatchConditions = `-- name: CleanupMatchWithMatchConditions :exec
 WITH deleted_match_ids AS (
     DELETE FROM
         v1_match
@@ -30,8 +29,9 @@ WHERE
     v1_match_id IN (SELECT id FROM deleted_match_ids)
 `
 
-func (q *Queries) CleanupMatchWithMatchConditions(ctx context.Context, db DBTX, date pgtype.Date) (pgconn.CommandTag, error) {
-	return db.Exec(ctx, cleanupMatchWithMatchConditions, date)
+func (q *Queries) CleanupMatchWithMatchConditions(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, cleanupMatchWithMatchConditions, date)
+	return err
 }
 
 type CreateMatchConditionsParams struct {

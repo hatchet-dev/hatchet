@@ -261,7 +261,7 @@ ORDER BY
     m.id
 FOR UPDATE;
 
--- name: CleanupMatchWithMatchConditions :execresult
+-- name: CleanupMatchWithMatchConditions :exec
 WITH deleted_match_ids AS (
     DELETE FROM
         v1_match

@@ -3685,16 +3685,12 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 	today := time.Now().UTC()
 	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
-	result, err = r.queries.CleanupMatchWithMatchConditions(ctx, tx, pgtype.Date{
+	err = r.queries.CleanupMatchWithMatchConditions(ctx, tx, pgtype.Date{
 		Time:  removeBefore,
 		Valid: true,
 	})
 	if err != nil {
 		return false, fmt.Errorf("error cleaning up v1_match and v1_match_condition: %v", err)
-	}
-
-	if result.RowsAffected() == batchSize {
-		shouldContinue = true
 	}
 
 	result, err = r.queries.CleanupV1TaskRuntime(ctx, tx, batchSize)
