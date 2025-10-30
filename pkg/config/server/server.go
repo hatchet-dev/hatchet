@@ -130,6 +130,9 @@ type CronOperationsConfigFile struct {
 
 	// OLAPAnalyzeCronInterval is the interval for the olap analyze cron operation
 	OLAPAnalyzeCronInterval time.Duration `mapstructure:"olapAnalyzeCronInterval" json:"olapAnalyzeCronInterval,omitempty" default:"3h"`
+
+	// TaskMatchConditionsRetentionDays is the number of days to retain match conditions
+	TaskMatchConditionsRetentionDays int `mapstructure:"taskMatchConditionsRetentionDays" json:"taskMatchConditionsRetentionDays,omitempty" default:"30"`
 }
 
 // General server runtime options
@@ -910,4 +913,5 @@ func BindAllEnv(v *viper.Viper) {
 	// cron operations options
 	_ = v.BindEnv("cronOperations.taskAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL")
 	_ = v.BindEnv("cronOperations.olapAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_OLAP_ANALYZE_CRON_INTERVAL")
+	_ = v.BindEnv("cronOperations.taskMatchConditionsRetentionDays", "SERVER_CRON_OPERATIONS_TASK_MATCH_CONDITIONS_RETENTION_DAYS")
 }

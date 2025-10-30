@@ -259,7 +259,7 @@ type TaskRepository interface {
 
 	// Cleanup makes sure to get rid of invalid old entries
 	// Returns (shouldContinue, error) where shouldContinue indicates if there's more work
-	Cleanup(ctx context.Context) (bool, error)
+	Cleanup(ctx context.Context, matchConditionsRetentionDays int32) (bool, error)
 
 	GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error)
 }
@@ -3632,7 +3632,7 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 	return nil
 }
 
-func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
+func (r *TaskRepositoryImpl) Cleanup(ctx context.Context, matchConditionsRetentionDays int32) (bool, error) {
 	const timeout = 1000 * 60 // 1 minute timeout
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
 
@@ -3658,6 +3658,36 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 	result, err := r.queries.CleanupV1QueueItem(ctx, tx, batchSize)
 	if err != nil {
 		return false, fmt.Errorf("error cleaning up v1_queue_item: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	result, err = r.queries.CleanupV1RetryQueueItem(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_retry_queue_item: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	result, err = r.queries.CleanupV1RateLimitedQueueItem(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_rate_limited_queue_items: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	result, err = r.queries.CleanupMatchWithMatchConditions(ctx, tx, pgtype.Interval{
+		Days:  matchConditionsRetentionDays,
+		Valid: true,
+	})
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_match and v1_match_condition: %v", err)
 	}
 
 	if result.RowsAffected() == batchSize {

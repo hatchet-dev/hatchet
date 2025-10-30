@@ -8,8 +8,31 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const cleanupMatchWithMatchConditions = `-- name: CleanupMatchWithMatchConditions :execresult
+WITH deleted_match_ids AS (
+    DELETE FROM
+        v1_match
+    WHERE
+        signal_task_inserted_at < NOW() - INTERVAL $1::interval
+        OR trigger_dag_inserted_at < NOW() - INTERVAL $1::interval
+        OR trigger_parent_task_inserted_at < NOW() - INTERVAL $1::interval
+        OR trigger_existing_task_inserted_at < NOW() - INTERVAL $1::interval
+    RETURNING
+        id
+)
+DELETE FROM
+    v1_match_condition
+WHERE
+    v1_match_id IN (SELECT id FROM deleted_match_ids)
+`
+
+func (q *Queries) CleanupMatchWithMatchConditions(ctx context.Context, db DBTX, days pgtype.Interval) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupMatchWithMatchConditions, days)
+}
 
 type CreateMatchConditionsParams struct {
 	V1MatchID         int64                  `json:"v1_match_id"`
