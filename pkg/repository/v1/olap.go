@@ -1976,7 +1976,6 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 
 	defer rollback()
 
-	// todo: remove this when we remove dual writes
 	eventsToInsert := events
 	eventExternalIdToPayload := make(map[pgtype.UUID][]byte)
 
@@ -1984,6 +1983,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		eventExternalIdToPayload[eventsToInsert.Externalids[i]] = payload
 	}
 
+	// todo: remove this when we remove dual writes
 	if !r.payloadStore.OLAPDualWritesEnabled() {
 		payloads := make([][]byte, len(eventsToInsert.Payloads))
 
