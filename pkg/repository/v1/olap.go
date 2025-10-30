@@ -2073,8 +2073,6 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		}] = event.ExternalID
 		payload := eventExternalIdToPayload[event.ExternalID]
 
-		fmt.Println("preparing to offload event:", id, sqlchelpers.UUIDToStr(event.ExternalID), "with payload", string(payload))
-
 		offloadToExternalOpts = append(offloadToExternalOpts, OffloadToExternalStoreOpts{
 			StorePayloadOpts: &StorePayloadOpts{
 				Id:         event.ID,
@@ -2087,8 +2085,6 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 			OffloadAt: time.Now(),
 		})
 	}
-
-	fmt.Println("num offload opts:", len(offloadToExternalOpts))
 
 	if len(offloadToExternalOpts) == 0 {
 		return nil

@@ -2,7 +2,6 @@ package run
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -403,9 +402,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			}
 
 			payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID.String(), v1Event.ExternalID)
-
-			pj, _ := json.MarshalIndent(payload, "", "  ")
-			fmt.Printf("event payload: %s\n", string(pj))
 
 			if err != nil {
 				return nil, "", err
