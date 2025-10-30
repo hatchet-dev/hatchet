@@ -292,16 +292,6 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
-	exists, err := r.EnsureTablePartitionsExist(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to check if table partitions exist: %w", err)
-	}
-
-	if exists {
-		r.l.Debug().Msg("table partitions already exist, skipping")
-		return nil
-	}
-
 	const PARTITION_LOCK_OFFSET = 9000000000000000000
 	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
 
