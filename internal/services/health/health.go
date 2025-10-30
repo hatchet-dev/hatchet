@@ -44,12 +44,11 @@ func (h *Health) Start(port int) (func() error, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		healthReady := h.ready
 		queueReady := h.queue.IsReady()
 		repositoryReady := h.repository.Health().IsHealthy(ctx)
 
-		if !healthReady || !queueReady || !repositoryReady {
-			h.l.Error().Msgf("liveness check failed - health: %t, queue: %t, repository: %t", healthReady, queueReady, repositoryReady)
+		if !queueReady || !repositoryReady {
+			h.l.Error().Msgf("liveness check failed - queue ready: %t, repository ready: %t", queueReady, repositoryReady)
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -61,12 +60,12 @@ func (h *Health) Start(port int) (func() error, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		healthReady := h.ready
+		isShuttingDown := !h.ready
 		queueReady := h.queue.IsReady()
 		repositoryReady := h.repository.Health().IsHealthy(ctx)
 
-		if !healthReady || !queueReady || !repositoryReady {
-			h.l.Error().Msgf("readiness check failed - health: %t, queue: %t, repository: %t", healthReady, queueReady, repositoryReady)
+		if isShuttingDown || !queueReady || !repositoryReady {
+			h.l.Error().Msgf("readiness check failed - shutting down: %t, queue ready: %t, repository ready: %t", isShuttingDown, queueReady, repositoryReady)
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
