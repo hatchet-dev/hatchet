@@ -1,41 +1,92 @@
 package metadata
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 )
 
-func (u *MetadataService) LivenessGet(ctx echo.Context, request gen.LivenessGetRequestObject) (gen.LivenessGetResponseObject, error) {
-	if !u.config.APIRepository.Health().IsHealthy() {
-		return nil, fmt.Errorf("api repository is not healthy")
+func (u *MetadataService) collectHealthErrors(ctx context.Context) []error {
+	errs := []error{}
+
+	if !u.config.APIRepository.Health().IsHealthy(ctx) {
+		errs = append(errs, errors.New("api repository is not healthy"))
 	}
 
-	if !u.config.EngineRepository.Health().IsHealthy() {
-		return nil, fmt.Errorf("engine repository is not healthy")
+	if !u.config.EngineRepository.Health().IsHealthy(ctx) {
+		errs = append(errs, errors.New("engine repository is not healthy"))
 	}
 
 	if !u.config.MessageQueue.IsReady() {
-		return nil, fmt.Errorf("task queue is not healthy")
+		errs = append(errs, errors.New("task queue is not healthy"))
+	}
+
+	return errs
+}
+
+func (u *MetadataService) logHealthErrors(errs []error) {
+	for _, err := range errs {
+		u.config.Logger.Err(err).Msg("health check failed")
+	}
+}
+
+func (u *MetadataService) LivenessGet(ctx echo.Context, request gen.LivenessGetRequestObject) (gen.LivenessGetResponseObject, error) {
+	gCtx, cancel := context.WithTimeout(ctx.Request().Context(), 3*time.Second)
+	defer cancel()
+
+	allErrors := u.collectHealthErrors(gCtx)
+
+	if len(allErrors) > 0 {
+		u.logHealthErrors(allErrors)
+
+		allErrors = append(allErrors, fmt.Errorf(
+			"pg connections - acquired: %d, idle: %d, total: %d",
+			u.config.APIRepository.Health().PgStat().AcquiredConns(),
+			u.config.APIRepository.Health().PgStat().IdleConns(),
+			u.config.APIRepository.Health().PgStat().TotalConns(),
+		))
+
+		return gen.LivenessGet500JSONResponse(gen.APIErrors{Errors: errorsToAPIErrors(allErrors)}), nil
 	}
 
 	return gen.LivenessGet200Response{}, nil
 }
 
 func (u *MetadataService) ReadinessGet(ctx echo.Context, request gen.ReadinessGetRequestObject) (gen.ReadinessGetResponseObject, error) {
-	if !u.config.APIRepository.Health().IsHealthy() {
-		return nil, fmt.Errorf("api repository is not healthy")
-	}
+	gCtx, cancel := context.WithTimeout(ctx.Request().Context(), 3*time.Second)
+	defer cancel()
 
-	if !u.config.EngineRepository.Health().IsHealthy() {
-		return nil, fmt.Errorf("engine repository is not healthy")
-	}
+	allErrors := u.collectHealthErrors(gCtx)
 
-	if !u.config.MessageQueue.IsReady() {
-		return nil, fmt.Errorf("task queue is not healthy")
+	if len(allErrors) > 0 {
+		u.logHealthErrors(allErrors)
+
+		allErrors = append(allErrors, fmt.Errorf(
+			"pg connections - acquired: %d, idle: %d, total: %d",
+			u.config.APIRepository.Health().PgStat().AcquiredConns(),
+			u.config.APIRepository.Health().PgStat().IdleConns(),
+			u.config.APIRepository.Health().PgStat().TotalConns(),
+		))
+
+		return gen.ReadinessGet500JSONResponse(gen.APIErrors{Errors: errorsToAPIErrors(allErrors)}), nil
 	}
 
 	return gen.ReadinessGet200Response{}, nil
+}
+
+func errorsToAPIErrors(errors []error) []gen.APIError {
+	apiErrors := make([]gen.APIError, len(errors))
+
+	for i, err := range errors {
+		apiErrors[i] = gen.APIError{
+			Description: err.Error(),
+		}
+	}
+
+	return apiErrors
 }
