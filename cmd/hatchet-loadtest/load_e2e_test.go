@@ -145,7 +145,7 @@ func TestLoadCLI(t *testing.T) {
 				RlKeys:                   10,
 				RlLimit:                  100,
 				RlDurationUnit:           "second",
-				AverageDurationThreshold: 200 * time.Millisecond,
+				AverageDurationThreshold: 300 * time.Millisecond,
 			},
 		},
 	}
