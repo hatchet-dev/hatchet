@@ -1503,7 +1503,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 }
 
 func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateTaskStatusRow, error) {
-	var limit int32 = 10000
+	var limit int32 = 1000
 
 	// each partition gets its own goroutine
 	eg := &errgroup.Group{}
@@ -1592,7 +1592,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 }
 
 func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateDAGStatusRow, error) {
-	var limit int32 = 10000
+	var limit int32 = 1000
 
 	// each partition gets its own goroutine
 	eg := &errgroup.Group{}
@@ -2376,6 +2376,8 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	externalIds := make([]pgtype.UUID, len(putPayloadOpts))
 	payloads := make([][]byte, len(putPayloadOpts))
 	locations := make([]string, len(putPayloadOpts))
+
+	// TODO: put to S3
 
 	for i, opt := range putPayloadOpts {
 		externalIds[i] = opt.ExternalId
