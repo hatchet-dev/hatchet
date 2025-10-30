@@ -374,7 +374,7 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 			return cleanup()
 		}, &engineRepository{
-			health:         NewHealthEngineRepository(pool),
+			health:         NewHealthEngineRepository(pool, opts.l),
 			apiToken:       NewAPITokenRepository(shared, opts.cache),
 			dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
 			event:          NewEventEngineRepository(shared, opts.metered, cf.EventBuffer),

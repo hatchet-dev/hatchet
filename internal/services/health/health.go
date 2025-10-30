@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
@@ -19,13 +21,15 @@ type Health struct {
 
 	repository repository.EngineRepository
 	queue      msgqueue.MessageQueue
+	l          *zerolog.Logger
 }
 
-func New(repo repository.EngineRepository, queue msgqueue.MessageQueue, version string) *Health {
+func New(repo repository.EngineRepository, queue msgqueue.MessageQueue, version string, l *zerolog.Logger) *Health {
 	return &Health{
 		version:    version,
 		repository: repo,
 		queue:      queue,
+		l:          l,
 	}
 }
 
@@ -36,11 +40,12 @@ func (h *Health) SetReady(ready bool) {
 func (h *Health) Start(port int) (func() error, error) {
 	mux := http.NewServeMux()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+
 		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy(ctx) {
+			h.l.Error().Msg("liveness check failed")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -49,7 +54,11 @@ func (h *Health) Start(port int) (func() error, error) {
 	})
 
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+
 		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy(ctx) {
+			h.l.Error().Msg("readiness check failed")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
