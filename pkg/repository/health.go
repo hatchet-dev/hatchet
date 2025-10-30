@@ -1,8 +1,12 @@
 package repository
 
-import "github.com/jackc/pgx/v5/pgxpool"
+import (
+	"context"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
 
 type HealthRepository interface {
-	IsHealthy() bool
+	IsHealthy(ctx context.Context) bool
 	PgStat() *pgxpool.Stat
 }

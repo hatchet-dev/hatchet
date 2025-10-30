@@ -1016,7 +1016,7 @@ export class Api<
    * @request GET:/api/ready
    */
   readinessGet = (params: RequestParams = {}) =>
-    this.request<void, void>({
+    this.request<void, APIErrors>({
       path: `/api/ready`,
       method: "GET",
       ...params,
@@ -1030,7 +1030,7 @@ export class Api<
    * @request GET:/api/live
    */
   livenessGet = (params: RequestParams = {}) =>
-    this.request<void, void>({
+    this.request<void, APIErrors>({
       path: `/api/live`,
       method: "GET",
       ...params,

@@ -7,6 +7,10 @@ readiness:
         description: Healthy
       "500":
         description: Not ready to accept traffic
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
     security: []
     summary: Get readiness
     tags:
@@ -20,6 +24,10 @@ liveness:
         description: Healthy
       "500":
         description: Not liveness
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
     security: []
     summary: Get liveness
     tags:

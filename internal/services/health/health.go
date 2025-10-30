@@ -36,8 +36,11 @@ func (h *Health) SetReady(ready bool) {
 func (h *Health) Start(port int) (func() error, error) {
 	mux := http.NewServeMux()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
-		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy() {
+		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy(ctx) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -46,7 +49,7 @@ func (h *Health) Start(port int) (func() error, error) {
 	})
 
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
-		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy() {
+		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy(ctx) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}

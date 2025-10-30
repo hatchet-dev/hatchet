@@ -13044,6 +13044,7 @@ type ClientWithResponsesInterface interface {
 type LivenessGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON500      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -13065,6 +13066,7 @@ func (r LivenessGetResponse) StatusCode() int {
 type ReadinessGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON500      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -17633,6 +17635,16 @@ func ParseLivenessGetResponse(rsp *http.Response) (*LivenessGetResponse, error) 
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
 	return response, nil
 }
 
@@ -17647,6 +17659,16 @@ func ParseReadinessGetResponse(rsp *http.Response) (*ReadinessGetResponse, error
 	response := &ReadinessGetResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
