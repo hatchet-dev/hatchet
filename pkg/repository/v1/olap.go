@@ -2084,33 +2084,33 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		return nil
 	}
 
-	// retrieveOptsToKey, err := r.PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
+	retrieveOptsToKey, err := r.PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
 
-	// if err != nil {
-	// 	return err
-	// }
+	if err != nil {
+		return err
+	}
 
-	// tenantIdToffloadOpts := make(map[string][]OffloadPayloadOpts)
+	tenantIdToffloadOpts := make(map[string][]OffloadPayloadOpts)
 
-	// for opt, key := range retrieveOptsToKey {
-	// 	externalId := idInsertedAtToExternalId[IdInsertedAt{
-	// 		ID:         opt.Id,
-	// 		InsertedAt: opt.InsertedAt,
-	// 	}]
+	for opt, key := range retrieveOptsToKey {
+		externalId := idInsertedAtToExternalId[IdInsertedAt{
+			ID:         opt.Id,
+			InsertedAt: opt.InsertedAt,
+		}]
 
-	// 	tenantIdToffloadOpts[opt.TenantId.String()] = append(tenantIdToffloadOpts[opt.TenantId.String()], OffloadPayloadOpts{
-	// 		ExternalId:          externalId,
-	// 		ExternalLocationKey: string(key),
-	// 	})
-	// }
+		tenantIdToffloadOpts[opt.TenantId.String()] = append(tenantIdToffloadOpts[opt.TenantId.String()], OffloadPayloadOpts{
+			ExternalId:          externalId,
+			ExternalLocationKey: string(key),
+		})
+	}
 
-	// for tenantId, opts := range tenantIdToffloadOpts {
-	// 	err = r.OffloadPayloads(ctx, tenantId, opts)
+	for tenantId, opts := range tenantIdToffloadOpts {
+		err = r.OffloadPayloads(ctx, tenantId, opts)
 
-	// 	if err != nil {
-	// 		return fmt.Errorf("error offloading payloads: %v", err)
-	// 	}
-	// }
+		if err != nil {
+			return fmt.Errorf("error offloading payloads: %v", err)
+		}
+	}
 
 	if len(offloadToExternalOpts) == 0 {
 		return nil
