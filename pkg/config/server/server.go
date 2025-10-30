@@ -130,9 +130,6 @@ type CronOperationsConfigFile struct {
 
 	// OLAPAnalyzeCronInterval is the interval for the olap analyze cron operation
 	OLAPAnalyzeCronInterval time.Duration `mapstructure:"olapAnalyzeCronInterval" json:"olapAnalyzeCronInterval,omitempty" default:"3h"`
-
-	// TaskMatchConditionsRetentionDays is the number of days to retain match conditions
-	TaskMatchConditionsRetentionDays int `mapstructure:"taskMatchConditionsRetentionDays" json:"taskMatchConditionsRetentionDays,omitempty" default:"30"`
 }
 
 // General server runtime options
