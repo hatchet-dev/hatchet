@@ -11,10 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 )
 
-func (u *MetadataService) collectHealthErrors() []error {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
+func (u *MetadataService) collectHealthErrors(ctx context.Context) []error {
 	errs := []error{}
 
 	if !u.config.APIRepository.Health().IsHealthy(ctx) {
@@ -39,7 +36,10 @@ func (u *MetadataService) logHealthErrors(errs []error) {
 }
 
 func (u *MetadataService) LivenessGet(ctx echo.Context, request gen.LivenessGetRequestObject) (gen.LivenessGetResponseObject, error) {
-	allErrors := u.collectHealthErrors()
+	gCtx, cancel := context.WithTimeout(ctx.Request().Context(), 3*time.Second)
+	defer cancel()
+
+	allErrors := u.collectHealthErrors(gCtx)
 
 	if len(allErrors) > 0 {
 		u.logHealthErrors(allErrors)
@@ -58,7 +58,10 @@ func (u *MetadataService) LivenessGet(ctx echo.Context, request gen.LivenessGetR
 }
 
 func (u *MetadataService) ReadinessGet(ctx echo.Context, request gen.ReadinessGetRequestObject) (gen.ReadinessGetResponseObject, error) {
-	allErrors := u.collectHealthErrors()
+	gCtx, cancel := context.WithTimeout(ctx.Request().Context(), 3*time.Second)
+	defer cancel()
+
+	allErrors := u.collectHealthErrors(gCtx)
 
 	if len(allErrors) > 0 {
 		u.logHealthErrors(allErrors)
