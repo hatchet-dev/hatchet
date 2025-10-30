@@ -3664,6 +3664,35 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		shouldContinue = true
 	}
 
+	result, err = r.queries.CleanupV1RetryQueueItem(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_retry_queue_item: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	result, err = r.queries.CleanupV1RateLimitedQueueItem(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_rate_limited_queue_items: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	today := time.Now().UTC()
+	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
+
+	err = r.queries.CleanupMatchWithMatchConditions(ctx, tx, pgtype.Date{
+		Time:  removeBefore,
+		Valid: true,
+	})
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_match and v1_match_condition: %v", err)
+	}
+
 	result, err = r.queries.CleanupV1TaskRuntime(ctx, tx, batchSize)
 	if err != nil {
 		return false, fmt.Errorf("error cleaning up v1_task_runtime: %v", err)
