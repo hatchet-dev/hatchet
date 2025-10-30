@@ -1,8 +1,10 @@
 package metadata
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/labstack/echo/v4"
 
@@ -10,13 +12,16 @@ import (
 )
 
 func (u *MetadataService) collectHealthErrors() []error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	errs := []error{}
 
-	if !u.config.APIRepository.Health().IsHealthy() {
+	if !u.config.APIRepository.Health().IsHealthy(ctx) {
 		errs = append(errs, errors.New("api repository is not healthy"))
 	}
 
-	if !u.config.EngineRepository.Health().IsHealthy() {
+	if !u.config.EngineRepository.Health().IsHealthy(ctx) {
 		errs = append(errs, errors.New("engine repository is not healthy"))
 	}
 
