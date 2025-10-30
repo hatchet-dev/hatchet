@@ -2377,8 +2377,6 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	payloads := make([][]byte, len(putPayloadOpts))
 	locations := make([]string, len(putPayloadOpts))
 
-	// TODO: put to S3
-
 	for i, opt := range putPayloadOpts {
 		externalIds[i] = opt.ExternalId
 		insertedAts[i] = opt.InsertedAt
