@@ -266,10 +266,10 @@ WITH deleted_match_ids AS (
     DELETE FROM
         v1_match
     WHERE
-        signal_task_inserted_at < NOW() - INTERVAL @days::interval
-        OR trigger_dag_inserted_at < NOW() - INTERVAL @days::interval
-        OR trigger_parent_task_inserted_at < NOW() - INTERVAL @days::interval
-        OR trigger_existing_task_inserted_at < NOW() - INTERVAL @days::interval
+        signal_task_inserted_at < @date::date
+        OR trigger_dag_inserted_at < @date::date
+        OR trigger_parent_task_inserted_at < @date::date
+        OR trigger_existing_task_inserted_at < @date::date
     RETURNING
         id
 )

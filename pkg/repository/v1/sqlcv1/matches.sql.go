@@ -17,10 +17,10 @@ WITH deleted_match_ids AS (
     DELETE FROM
         v1_match
     WHERE
-        signal_task_inserted_at < NOW() - INTERVAL $1::interval
-        OR trigger_dag_inserted_at < NOW() - INTERVAL $1::interval
-        OR trigger_parent_task_inserted_at < NOW() - INTERVAL $1::interval
-        OR trigger_existing_task_inserted_at < NOW() - INTERVAL $1::interval
+        signal_task_inserted_at < $1::date
+        OR trigger_dag_inserted_at < $1::date
+        OR trigger_parent_task_inserted_at < $1::date
+        OR trigger_existing_task_inserted_at < $1::date
     RETURNING
         id
 )
@@ -30,8 +30,8 @@ WHERE
     v1_match_id IN (SELECT id FROM deleted_match_ids)
 `
 
-func (q *Queries) CleanupMatchWithMatchConditions(ctx context.Context, db DBTX, days pgtype.Interval) (pgconn.CommandTag, error) {
-	return db.Exec(ctx, cleanupMatchWithMatchConditions, days)
+func (q *Queries) CleanupMatchWithMatchConditions(ctx context.Context, db DBTX, date pgtype.Date) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupMatchWithMatchConditions, date)
 }
 
 type CreateMatchConditionsParams struct {

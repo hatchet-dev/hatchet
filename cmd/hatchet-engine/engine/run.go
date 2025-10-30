@@ -354,7 +354,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 			task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
-			task.WithMatchConditionsRetentionDays(sc.CronOperations.TaskMatchConditionsRetentionDays),
 		)
 
 		if err != nil {
@@ -806,7 +805,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				task.WithOpsPoolJitter(sc.Operations),
 				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
 				task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
-				task.WithMatchConditionsRetentionDays(sc.CronOperations.TaskMatchConditionsRetentionDays),
 			)
 
 			if err != nil {

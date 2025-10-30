@@ -259,7 +259,7 @@ type TaskRepository interface {
 
 	// Cleanup makes sure to get rid of invalid old entries
 	// Returns (shouldContinue, error) where shouldContinue indicates if there's more work
-	Cleanup(ctx context.Context, matchConditionsRetentionDays int32) (bool, error)
+	Cleanup(ctx context.Context) (bool, error)
 
 	GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error)
 }
@@ -3632,7 +3632,7 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 	return nil
 }
 
-func (r *TaskRepositoryImpl) Cleanup(ctx context.Context, matchConditionsRetentionDays int32) (bool, error) {
+func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 	const timeout = 1000 * 60 // 1 minute timeout
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
 
@@ -3682,8 +3682,11 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context, matchConditionsRetenti
 		shouldContinue = true
 	}
 
-	result, err = r.queries.CleanupMatchWithMatchConditions(ctx, tx, pgtype.Interval{
-		Days:  matchConditionsRetentionDays,
+	today := time.Now().UTC()
+	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
+
+	result, err = r.queries.CleanupMatchWithMatchConditions(ctx, tx, pgtype.Date{
+		Time:  removeBefore,
 		Valid: true,
 	})
 	if err != nil {

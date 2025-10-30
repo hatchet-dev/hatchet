@@ -474,7 +474,7 @@ WHERE (task_id, task_inserted_at, retry_count) IN (
 
 -- name: CleanupV1RetryQueueItem :execresult
 WITH locked_qis as (
-    SELECT qi.task_id, qi.task_inserted_at
+    SELECT qi.task_id, qi.task_inserted_at, qi.task_retry_count
     FROM v1_retry_queue_item qi
     WHERE NOT EXISTS (
         SELECT 1
@@ -482,7 +482,7 @@ WITH locked_qis as (
         WHERE qi.task_id = vt.id
         AND qi.task_inserted_at = vt.inserted_at
     )
-    ORDER BY qi.task_id, qi.task_inserted_at
+    ORDER BY qi.task_id, qi.task_inserted_at, qi.task_retry_count
     LIMIT @batchSize::int
     FOR UPDATE SKIP LOCKED
 )
@@ -494,7 +494,7 @@ WHERE (task_id, task_inserted_at) IN (
 
 -- name: CleanupV1RateLimitedQueueItem :execresult
 WITH locked_qis as (
-    SELECT qi.task_id, qi.task_inserted_at
+    SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
     FROM v1_rate_limited_queue_items qi
     WHERE NOT EXISTS (
         SELECT 1
@@ -502,7 +502,7 @@ WITH locked_qis as (
         WHERE qi.task_id = vt.id
         AND qi.task_inserted_at = vt.inserted_at
     )
-    ORDER BY qi.task_id, qi.task_inserted_at
+    ORDER BY qi.task_id, qi.task_inserted_at, qi.retry_count
     LIMIT @batchSize::int
     FOR UPDATE SKIP LOCKED
 )
