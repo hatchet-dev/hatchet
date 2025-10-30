@@ -347,10 +347,10 @@ export default function UpdateWorkerForm({
         cpuKind: 'shared',
         cpus: 1,
         memoryMb: 1024,
-        regions: [ManagedWorkerRegion.Sea],
+        regions: [ManagedWorkerRegion.Sjc],
       });
       setMachineType('1 CPU, 1 GB RAM (shared CPU)');
-      setValue('runtimeConfig.regions', [ManagedWorkerRegion.Sea]);
+      setValue('runtimeConfig.regions', [ManagedWorkerRegion.Sjc]);
     }
   }, [getValues, setValue, isIac]);
 

@@ -116,24 +116,12 @@ export const regions = [
     value: ManagedWorkerRegion.Arn,
   },
   {
-    name: 'Atlanta, Georgia (US)',
-    value: ManagedWorkerRegion.Atl,
-  },
-  {
-    name: 'Bogotá, Colombia',
-    value: ManagedWorkerRegion.Bog,
-  },
-  {
-    name: 'Boston, Massachusetts (US)',
-    value: ManagedWorkerRegion.Bos,
+    name: 'Mumbai, India',
+    value: ManagedWorkerRegion.Bom,
   },
   {
     name: 'Paris, France',
     value: ManagedWorkerRegion.Cdg,
-  },
-  {
-    name: 'Denver, Colorado (US)',
-    value: ManagedWorkerRegion.Den,
   },
   {
     name: 'Dallas, Texas (US)',
@@ -144,28 +132,12 @@ export const regions = [
     value: ManagedWorkerRegion.Ewr,
   },
   {
-    name: 'Ezeiza, Argentina',
-    value: ManagedWorkerRegion.Eze,
-  },
-  {
     name: 'Frankfurt, Germany',
     value: ManagedWorkerRegion.Fra,
   },
   {
-    name: 'Guadalajara, Mexico',
-    value: ManagedWorkerRegion.Gdl,
-  },
-  {
-    name: 'Rio de Janeiro, Brazil',
-    value: ManagedWorkerRegion.Gig,
-  },
-  {
     name: 'Sao Paulo, Brazil',
     value: ManagedWorkerRegion.Gru,
-  },
-  {
-    name: 'Hong Kong, Hong Kong',
-    value: ManagedWorkerRegion.Hkg,
   },
   {
     name: 'Ashburn, Virginia (US)',
@@ -184,40 +156,12 @@ export const regions = [
     value: ManagedWorkerRegion.Lhr,
   },
   {
-    name: 'Madrid, Spain',
-    value: ManagedWorkerRegion.Mad,
-  },
-  {
-    name: 'Miami, Florida (US)',
-    value: ManagedWorkerRegion.Mia,
-  },
-  {
     name: 'Tokyo, Japan',
     value: ManagedWorkerRegion.Nrt,
   },
   {
     name: 'Chicago, Illinois (US)',
     value: ManagedWorkerRegion.Ord,
-  },
-  {
-    name: 'Bucharest, Romania',
-    value: ManagedWorkerRegion.Otp,
-  },
-  {
-    name: 'Phoenix, Arizona (US)',
-    value: ManagedWorkerRegion.Phx,
-  },
-  {
-    name: 'Querétaro, Mexico',
-    value: ManagedWorkerRegion.Qro,
-  },
-  {
-    name: 'Santiago, Chile',
-    value: ManagedWorkerRegion.Scl,
-  },
-  {
-    name: 'Seattle, Washington (US)',
-    value: ManagedWorkerRegion.Sea,
   },
   {
     name: 'Singapore, Singapore',
@@ -230,14 +174,6 @@ export const regions = [
   {
     name: 'Sydney, Australia',
     value: ManagedWorkerRegion.Syd,
-  },
-  {
-    name: 'Warsaw, Poland',
-    value: ManagedWorkerRegion.Waw,
-  },
-  {
-    name: 'Montreal, Canada',
-    value: ManagedWorkerRegion.Yul,
   },
   {
     name: 'Toronto, Canada',
@@ -336,7 +272,7 @@ export default function CreateWorkerForm({
         cpuKind: 'shared',
         cpus: 1,
         memoryMb: 1024,
-        regions: [ManagedWorkerRegion.Sea],
+        regions: [ManagedWorkerRegion.Sjc],
       },
     },
   });
