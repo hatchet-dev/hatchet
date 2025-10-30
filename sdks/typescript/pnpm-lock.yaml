@@ -29,9 +29,6 @@ importers:
       nice-grpc-common:
         specifier: ^2.0.2
         version: 2.0.2
-      prom-client:
-        specifier: ^15.1.3
-        version: 15.1.3
       protobufjs:
         specifier: ^7.4.0
         version: 7.5.3
@@ -147,6 +144,10 @@ importers:
       typescript:
         specifier: ^5.8.2
         version: 5.9.2
+    optionalDependencies:
+      prom-client:
+        specifier: ^15.1.3
+        version: 15.1.3
 
 packages:
 
@@ -3513,7 +3514,8 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@opentelemetry/api@1.9.0': {}
+  '@opentelemetry/api@1.9.0':
+    optional: true
 
   '@pkgr/core@0.2.9': {}
 
@@ -4067,7 +4069,8 @@ snapshots:
 
   balanced-match@1.0.2: {}
 
-  bintrees@1.0.2: {}
+  bintrees@1.0.2:
+    optional: true
 
   brace-expansion@1.1.12:
     dependencies:
@@ -5809,6 +5812,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.0
       tdigest: 0.1.2
+    optional: true
 
   prompts@2.4.2:
     dependencies:
@@ -6145,6 +6149,7 @@ snapshots:
   tdigest@0.1.2:
     dependencies:
       bintrees: 1.0.2
+    optional: true
 
   test-exclude@6.0.0:
     dependencies:

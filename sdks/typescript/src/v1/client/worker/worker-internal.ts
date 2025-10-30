@@ -876,7 +876,6 @@ export class V1Worker {
     await Promise.all(this.registeredWorkflowPromises);
 
     if (Object.keys(this.action_registry).length === 0) {
-      this.setStatus(WorkerStatus.HEALTHY);
       return;
     }
 
