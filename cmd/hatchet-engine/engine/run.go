@@ -603,14 +603,10 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 	l.Debug().Msgf("engine has started")
 
-	if healthProbes {
-		h.SetReady(true)
-	}
-
 	<-ctx.Done()
 
 	if healthProbes {
-		h.SetReady(false)
+		h.SetShuttingDown(true)
 	}
 
 	return teardown, nil
@@ -1103,14 +1099,10 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 	l.Debug().Msgf("engine has started")
 
-	if healthProbes {
-		h.SetReady(true)
-	}
-
 	<-ctx.Done()
 
 	if healthProbes {
-		h.SetReady(false)
+		h.SetShuttingDown(true)
 	}
 
 	return teardown, nil
