@@ -1976,9 +1976,14 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 
 	defer rollback()
 
-	// todo: remove this when we remove dual writes
 	eventsToInsert := events
+	eventExternalIdToPayload := make(map[pgtype.UUID][]byte)
 
+	for i, payload := range eventsToInsert.Payloads {
+		eventExternalIdToPayload[eventsToInsert.Externalids[i]] = payload
+	}
+
+	// todo: remove this when we remove dual writes
 	if !r.payloadStore.OLAPDualWritesEnabled() {
 		payloads := make([][]byte, len(eventsToInsert.Payloads))
 
@@ -2066,6 +2071,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 			ID:         id,
 			InsertedAt: insertedAt,
 		}] = event.ExternalID
+		payload := eventExternalIdToPayload[event.ExternalID]
 
 		offloadToExternalOpts = append(offloadToExternalOpts, OffloadToExternalStoreOpts{
 			StorePayloadOpts: &StorePayloadOpts{
@@ -2073,7 +2079,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 				InsertedAt: event.SeenAt,
 				ExternalId: event.ExternalID,
 				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-				Payload:    event.Payload,
+				Payload:    payload,
 				TenantId:   event.TenantID.String(),
 			},
 			OffloadAt: time.Now(),
