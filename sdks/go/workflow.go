@@ -69,7 +69,8 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 	}
 
 	// Try to convert using JSON marshal/unmarshal
-	if expectedType.Kind() == reflect.Struct {
+	if expectedType.Kind() == reflect.Struct ||
+		(expectedType.Kind() == reflect.Ptr && expectedType.Elem().Kind() == reflect.Struct) {
 		// Marshal the input to JSON
 		jsonData, err := json.Marshal(input)
 		if err != nil {
@@ -77,20 +78,44 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 			return reflect.ValueOf(input)
 		}
 
-		// Create a new instance of the expected type
-		result := reflect.New(expectedType)
+		// Determine the target for unmarshaling
+		var target reflect.Value
+		if expectedType.Kind() == reflect.Struct {
+			target = reflect.New(expectedType) // pointer to struct
+		} else {
+			// expected is *Struct
+			target = reflect.New(expectedType.Elem()) // pointer to struct
+		}
 
 		// Unmarshal JSON into the new instance
-		err = json.Unmarshal(jsonData, result.Interface())
+		err = json.Unmarshal(jsonData, target.Interface())
 		if err != nil {
 			panic(err)
 		}
 
-		// Return the dereferenced value (not the pointer)
-		return result.Elem()
+		if expectedType.Kind() == reflect.Struct {
+			return target.Elem() // return struct value
+		}
+
+		return target // return *Struct
 	}
 
 	return reflect.ValueOf(input)
+}
+
+// validateStructLike ensures the provided type is a struct or pointer to struct.
+// Panics with a descriptive message if validation fails.
+func validateStructLike(t reflect.Type, purpose string) {
+	kind := t.Kind()
+	if kind == reflect.Ptr {
+		if t.Elem().Kind() == reflect.Struct {
+			return
+		}
+		panic(purpose + " type must be a struct or *struct; got pointer to " + t.Elem().Kind().String())
+	}
+	if kind != reflect.Struct {
+		panic(purpose + " type must be a struct or *struct; got " + kind.String())
+	}
 }
 
 // Workflow defines a Hatchet workflow, which can then declare tasks and be run, scheduled, and so on.
@@ -394,6 +419,10 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 		}
 	}
 
+	// Enforce JSON-serializable object types (struct or *struct) for input and output
+	validateStructLike(fnType.In(1), "input")
+	validateStructLike(fnType.Out(0), "output")
+
 	errorType := reflect.TypeOf((*error)(nil)).Elem()
 	if !fnType.Out(1).Implements(errorType) {
 		panic("second return value must be error")
@@ -492,6 +521,10 @@ func (w *Workflow) OnFailure(fn any) {
 	if !fnType.Out(1).Implements(errorType) {
 		panic("second return value must be error")
 	}
+
+	// Enforce JSON-serializable object types (struct or *struct) for input and output
+	validateStructLike(fnType.In(1), "input")
+	validateStructLike(fnType.Out(0), "output")
 
 	wrapper := func(ctx Context, input any) (any, error) {
 		// Convert the input to the expected type
