@@ -910,5 +910,4 @@ func BindAllEnv(v *viper.Viper) {
 	// cron operations options
 	_ = v.BindEnv("cronOperations.taskAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL")
 	_ = v.BindEnv("cronOperations.olapAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_OLAP_ANALYZE_CRON_INTERVAL")
-	_ = v.BindEnv("cronOperations.taskMatchConditionsRetentionDays", "SERVER_CRON_OPERATIONS_TASK_MATCH_CONDITIONS_RETENTION_DAYS")
 }
