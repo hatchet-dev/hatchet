@@ -41,11 +41,15 @@ func (h *Health) Start(port int) (func() error, error) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy(ctx) {
-			h.l.Error().Msg("liveness check failed")
+		healthReady := h.ready
+		queueReady := h.queue.IsReady()
+		repositoryReady := h.repository.Health().IsHealthy(ctx)
+
+		if !healthReady || !queueReady || !repositoryReady {
+			h.l.Error().Msgf("liveness check failed - health: %t, queue: %t, repository: %t", healthReady, queueReady, repositoryReady)
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -54,11 +58,15 @@ func (h *Health) Start(port int) (func() error, error) {
 	})
 
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy(ctx) {
-			h.l.Error().Msg("readiness check failed")
+		healthReady := h.ready
+		queueReady := h.queue.IsReady()
+		repositoryReady := h.repository.Health().IsHealthy(ctx)
+
+		if !healthReady || !queueReady || !repositoryReady {
+			h.l.Error().Msgf("readiness check failed - health: %t, queue: %t, repository: %t", healthReady, queueReady, repositoryReady)
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}

@@ -36,7 +36,7 @@ func (u *MetadataService) logHealthErrors(errs []error) {
 }
 
 func (u *MetadataService) LivenessGet(ctx echo.Context, request gen.LivenessGetRequestObject) (gen.LivenessGetResponseObject, error) {
-	gCtx, cancel := context.WithTimeout(ctx.Request().Context(), 3*time.Second)
+	gCtx, cancel := context.WithTimeout(ctx.Request().Context(), 5*time.Second)
 	defer cancel()
 
 	allErrors := u.collectHealthErrors(gCtx)
@@ -58,7 +58,7 @@ func (u *MetadataService) LivenessGet(ctx echo.Context, request gen.LivenessGetR
 }
 
 func (u *MetadataService) ReadinessGet(ctx echo.Context, request gen.ReadinessGetRequestObject) (gen.ReadinessGetResponseObject, error) {
-	gCtx, cancel := context.WithTimeout(ctx.Request().Context(), 3*time.Second)
+	gCtx, cancel := context.WithTimeout(ctx.Request().Context(), 5*time.Second)
 	defer cancel()
 
 	allErrors := u.collectHealthErrors(gCtx)
