@@ -60,12 +60,11 @@ func (h *Health) Start(port int) (func() error, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		isShuttingDown := h.shuttingDown
 		queueReady := h.queue.IsReady()
 		repositoryReady := h.repository.Health().IsHealthy(ctx)
 
-		if isShuttingDown || !queueReady || !repositoryReady {
-			h.l.Error().Msgf("readiness check failed - shutting down: %t, queue ready: %t, repository ready: %t", isShuttingDown, queueReady, repositoryReady)
+		if !h.shuttingDown && (!queueReady || !repositoryReady) {
+			h.l.Error().Msgf("readiness check failed - queue ready: %t, repository ready: %t", queueReady, repositoryReady)
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
