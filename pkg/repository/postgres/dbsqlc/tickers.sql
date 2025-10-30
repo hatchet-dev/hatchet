@@ -261,6 +261,7 @@ WITH expiring_tokens AS (
             t0."nextAlertAt" IS NULL OR
             t0."nextAlertAt" <= NOW()
         )
+        AND t0."internal" = false
     FOR UPDATE SKIP LOCKED
     LIMIT 100
 )
