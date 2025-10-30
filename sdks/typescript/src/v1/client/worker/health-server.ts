@@ -66,10 +66,10 @@ export class HealthServer {
     await res.end(JSON.stringify(response));
   }
 
-  private async initializeMetrics(): Promise<void> {
+  private initializeMetrics(): void {
     try {
       // @ts-ignore - prom-client is an optional dependency
-      const { Registry, Gauge, collectDefaultMetrics } = await import('prom-client');
+      const { Registry, Gauge, collectDefaultMetrics } = require('prom-client');
 
       this.register = new Registry();
       collectDefaultMetrics({ register: this.register });
