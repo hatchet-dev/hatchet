@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Callable
+from dataclasses import asdict
 from datetime import datetime, timedelta
 from functools import cached_property
 from typing import (
@@ -16,7 +17,7 @@ from typing import (
 )
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, TypeAdapter, model_validator
+from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
@@ -41,7 +42,6 @@ from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
-    DataclassInstance,
     EmptyModel,
     R,
     StepType,
@@ -53,6 +53,7 @@ from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import (
     CoroutineLike,
+    DataclassInstance,
     JSONSerializableMapping,
     classify_output_validator,
     is_basemodel_validator,
@@ -134,7 +135,8 @@ def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels
 
 
 class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
-    input: TWorkflowInput
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    input: SkipValidation[TWorkflowInput]
     options: TriggerWorkflowOptions
 
 
@@ -286,7 +288,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         if not input:
             return {}
 
-        if isinstance(input, BaseModel):
+        validator = classify_output_validator(self.config.input_validator)
+
+        if is_dataclass_validator(validator):
+            return asdict(input)
+
+        if is_basemodel_validator(validator):
             return input.model_dump(mode="json")
 
         raise ValueError(

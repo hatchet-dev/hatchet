@@ -1,12 +1,25 @@
 import sys
 from collections.abc import Awaitable, Coroutine, Generator
+from dataclasses import Field as DataclassField
 from dataclasses import dataclass, is_dataclass
 from enum import Enum
-from typing import Any, Literal, TypeAlias, TypeGuard, TypeVar
+from typing import (
+    Any,
+    ClassVar,
+    Literal,
+    Protocol,
+    TypeAlias,
+    TypeGuard,
+    TypeVar,
+    runtime_checkable,
+)
 
-from pydantic import BaseModel
+from pydantic import BaseModel, SkipValidation
 
-from hatchet_sdk.runnables.types import DataclassInstance
+
+@runtime_checkable
+class DataclassInstance(Protocol):
+    __dataclass_fields__: ClassVar[dict[str, DataclassField[Any]]]
 
 
 def is_basemodel_subclass(model: Any) -> TypeGuard[type[BaseModel]]:
@@ -61,8 +74,10 @@ def classify_output_validator(return_type: Any | None) -> OutputValidator:
 
 
 class TaskIOValidator(BaseModel):
-    workflow_input: type[BaseModel] | type[DataclassInstance] | None = None
-    step_output: type[BaseModel] | type[DataclassInstance] | None = None
+    workflow_input: SkipValidation[type[BaseModel] | type[DataclassInstance] | None] = (
+        None
+    )
+    step_output: SkipValidation[type[BaseModel] | type[DataclassInstance] | None] = None
 
 
 JSONSerializableMapping = dict[str, Any]

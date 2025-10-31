@@ -4,6 +4,7 @@ import functools
 import json
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, is_dataclass
 from enum import Enum
 from multiprocessing import Queue
 from textwrap import dedent
@@ -479,10 +480,12 @@ class Runner:
 
         if isinstance(output, BaseModel):
             output = output.model_dump(mode="json")
+        elif is_dataclass(output):
+            output = asdict(output)
 
         if not isinstance(output, dict):
             raise IllegalTaskOutputError(
-                f"Tasks must return either a dictionary or a Pydantic BaseModel which can be serialized to a JSON object. Got object of type {type(output)} instead."
+                f"Tasks must return either a dictionary, a Pydantic BaseModel, or a dataclass which can be serialized to a JSON object. Got object of type {type(output)} instead."
             )
 
         if output is None:
