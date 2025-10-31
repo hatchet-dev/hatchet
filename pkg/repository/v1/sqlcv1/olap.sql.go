@@ -1111,7 +1111,7 @@ WHERE
         WHEN $1::BOOLEAN THEN TRUE
         -- this is a list of all of the tables which are hypertables in timescale, so we should not manually drop their
         -- partitions if @shouldPartitionEventsTables is false
-        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap', 'v1_payloads_olap')
+        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap')
     END
 `
 
