@@ -232,12 +232,17 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                     ctx.workflow_input
                 ),
             )
+
         if is_basemodel_validator(validator):
             return cast(
                 TWorkflowInput,
                 validator.validator_type.model_validate(ctx.workflow_input),
             )
-        return cast(TWorkflowInput, ctx.workflow_input)
+
+        ## impossible to reach here since the input validator has to be either a BaseModel or dataclass
+
+        self.client.config.logger.error("input validator is of an unknown type")
+        return cast(TWorkflowInput, EmptyModel())
 
     @property
     def input_validator(self) -> type[TWorkflowInput]:
