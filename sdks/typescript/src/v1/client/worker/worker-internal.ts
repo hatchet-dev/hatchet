@@ -373,7 +373,7 @@ export class V1Worker {
   async registerWorkflow(initWorkflow: Workflow) {
     const workflow: Workflow = {
       ...initWorkflow,
-      id: applyNamespace(initWorkflow.id, this.client.config.namespace).toLowerCase(),
+      id: applyNamespace(initWorkflow.id, this.client.config.namespace),
     };
     try {
       if (workflow.concurrency?.key && workflow.concurrency.expression) {
