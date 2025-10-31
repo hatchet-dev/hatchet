@@ -412,7 +412,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		}
 
 		for _, event := range events {
-			err := sendEvent(ctx, event)
+			err := sendEvent(iterCtx, event)
 
 			if err != nil {
 				return err
