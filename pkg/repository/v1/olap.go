@@ -1503,7 +1503,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 }
 
 func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateTaskStatusRow, error) {
-	var limit int32 = 10000
+	var limit int32 = 1000
 
 	// each partition gets its own goroutine
 	eg := &errgroup.Group{}
@@ -1592,7 +1592,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 }
 
 func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateDAGStatusRow, error) {
-	var limit int32 = 10000
+	var limit int32 = 1000
 
 	// each partition gets its own goroutine
 	eg := &errgroup.Group{}
@@ -1976,9 +1976,14 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 
 	defer rollback()
 
-	// todo: remove this when we remove dual writes
 	eventsToInsert := events
+	eventExternalIdToPayload := make(map[pgtype.UUID][]byte)
 
+	for i, payload := range eventsToInsert.Payloads {
+		eventExternalIdToPayload[eventsToInsert.Externalids[i]] = payload
+	}
+
+	// todo: remove this when we remove dual writes
 	if !r.payloadStore.OLAPDualWritesEnabled() {
 		payloads := make([][]byte, len(eventsToInsert.Payloads))
 
@@ -2066,6 +2071,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 			ID:         id,
 			InsertedAt: insertedAt,
 		}] = event.ExternalID
+		payload := eventExternalIdToPayload[event.ExternalID]
 
 		offloadToExternalOpts = append(offloadToExternalOpts, OffloadToExternalStoreOpts{
 			StorePayloadOpts: &StorePayloadOpts{
@@ -2073,7 +2079,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 				InsertedAt: event.SeenAt,
 				ExternalId: event.ExternalID,
 				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-				Payload:    event.Payload,
+				Payload:    payload,
 				TenantId:   event.TenantID.String(),
 			},
 			OffloadAt: time.Now(),
@@ -2084,33 +2090,33 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		return nil
 	}
 
-	// retrieveOptsToKey, err := r.PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
+	retrieveOptsToKey, err := r.PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
 
-	// if err != nil {
-	// 	return err
-	// }
+	if err != nil {
+		return err
+	}
 
-	// tenantIdToffloadOpts := make(map[string][]OffloadPayloadOpts)
+	tenantIdToffloadOpts := make(map[string][]OffloadPayloadOpts)
 
-	// for opt, key := range retrieveOptsToKey {
-	// 	externalId := idInsertedAtToExternalId[IdInsertedAt{
-	// 		ID:         opt.Id,
-	// 		InsertedAt: opt.InsertedAt,
-	// 	}]
+	for opt, key := range retrieveOptsToKey {
+		externalId := idInsertedAtToExternalId[IdInsertedAt{
+			ID:         opt.Id,
+			InsertedAt: opt.InsertedAt,
+		}]
 
-	// 	tenantIdToffloadOpts[opt.TenantId.String()] = append(tenantIdToffloadOpts[opt.TenantId.String()], OffloadPayloadOpts{
-	// 		ExternalId:          externalId,
-	// 		ExternalLocationKey: string(key),
-	// 	})
-	// }
+		tenantIdToffloadOpts[opt.TenantId.String()] = append(tenantIdToffloadOpts[opt.TenantId.String()], OffloadPayloadOpts{
+			ExternalId:          externalId,
+			ExternalLocationKey: string(key),
+		})
+	}
 
-	// for tenantId, opts := range tenantIdToffloadOpts {
-	// 	err = r.OffloadPayloads(ctx, tenantId, opts)
+	for tenantId, opts := range tenantIdToffloadOpts {
+		err = r.OffloadPayloads(ctx, tenantId, opts)
 
-	// 	if err != nil {
-	// 		return fmt.Errorf("error offloading payloads: %v", err)
-	// 	}
-	// }
+		if err != nil {
+			return fmt.Errorf("error offloading payloads: %v", err)
+		}
+	}
 
 	if len(offloadToExternalOpts) == 0 {
 		return nil

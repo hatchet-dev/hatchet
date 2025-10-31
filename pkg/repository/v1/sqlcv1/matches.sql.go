@@ -11,6 +11,29 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cleanupMatchWithMatchConditions = `-- name: CleanupMatchWithMatchConditions :exec
+WITH deleted_match_ids AS (
+    DELETE FROM
+        v1_match
+    WHERE
+        signal_task_inserted_at < $1::date
+        OR trigger_dag_inserted_at < $1::date
+        OR trigger_parent_task_inserted_at < $1::date
+        OR trigger_existing_task_inserted_at < $1::date
+    RETURNING
+        id
+)
+DELETE FROM
+    v1_match_condition
+WHERE
+    v1_match_id IN (SELECT id FROM deleted_match_ids)
+`
+
+func (q *Queries) CleanupMatchWithMatchConditions(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, cleanupMatchWithMatchConditions, date)
+	return err
+}
+
 type CreateMatchConditionsParams struct {
 	V1MatchID         int64                  `json:"v1_match_id"`
 	TenantID          pgtype.UUID            `json:"tenant_id"`

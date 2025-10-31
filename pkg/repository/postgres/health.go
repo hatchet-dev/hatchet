@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -19,10 +20,11 @@ func NewHealthAPIRepository(shared *sharedRepository) repository.HealthRepositor
 	}
 }
 
-func (a *healthAPIRepository) IsHealthy() bool {
-	_, err := a.queries.Health(context.Background(), a.pool)
+func (a *healthAPIRepository) IsHealthy(ctx context.Context) bool {
+	_, err := a.queries.Health(ctx, a.pool)
 
 	if err != nil { //nolint:gosimple
+		a.l.Err(err).Msg("health check failed")
 		return false
 	}
 
@@ -37,21 +39,24 @@ func (a *healthAPIRepository) PgStat() *pgxpool.Stat {
 type healthEngineRepository struct {
 	queries *dbsqlc.Queries
 	pool    *pgxpool.Pool
+	l       *zerolog.Logger
 }
 
-func NewHealthEngineRepository(pool *pgxpool.Pool) repository.HealthRepository {
+func NewHealthEngineRepository(pool *pgxpool.Pool, l *zerolog.Logger) repository.HealthRepository {
 	queries := dbsqlc.New()
 
 	return &healthEngineRepository{
 		queries: queries,
 		pool:    pool,
+		l:       l,
 	}
 }
 
-func (a *healthEngineRepository) IsHealthy() bool {
-	_, err := a.queries.Health(context.Background(), a.pool)
+func (a *healthEngineRepository) IsHealthy(ctx context.Context) bool {
+	_, err := a.queries.Health(ctx, a.pool)
 
-	if err != nil { //nolint:gosimple
+	if err != nil {
+		a.l.Err(err).Msg("health check failed")
 		return false
 	}
 
