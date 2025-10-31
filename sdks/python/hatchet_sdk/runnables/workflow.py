@@ -1248,7 +1248,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         if is_no_validator(validator):
             return None
 
-        raise AssertionError(f"Unhandled validator type: {validator}")
+        raise TypeError(f"Unhandled validator type: {validator}")
 
     @overload
     def _extract_result(self, result: dict[str, Any]) -> R: ...
