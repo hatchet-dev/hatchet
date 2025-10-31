@@ -1,11 +1,11 @@
 import asyncio
 import json
 from collections.abc import Callable, Mapping
+from dataclasses import Field as DataclassField
 from enum import Enum
 from typing import Any, ClassVar, ParamSpec, Protocol, TypeGuard, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
-from dataclasses import Field as DataclassField
 
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
@@ -62,7 +62,7 @@ class ConcurrencyExpression(BaseModel):
         )
 
 
-TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel)
+TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel | DataclassInstance)
 
 
 class TaskDefaults(BaseModel):
@@ -99,7 +99,7 @@ class WorkflowConfig(BaseModel):
     on_crons: list[str] = Field(default_factory=list)
     sticky: StickyStrategy | None = None
     concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None
-    input_validator: type[BaseModel] = EmptyModel
+    input_validator: type[BaseModel] | type[DataclassInstance] = EmptyModel
     default_priority: int | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()

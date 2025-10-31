@@ -1,9 +1,12 @@
 import sys
 from collections.abc import Awaitable, Coroutine, Generator
+from dataclasses import dataclass, is_dataclass
 from enum import Enum
 from typing import Any, Literal, TypeAlias, TypeGuard, TypeVar
 
 from pydantic import BaseModel
+
+from hatchet_sdk.runnables.types import DataclassInstance
 
 
 def is_basemodel_subclass(model: Any) -> TypeGuard[type[BaseModel]]:
@@ -13,9 +16,53 @@ def is_basemodel_subclass(model: Any) -> TypeGuard[type[BaseModel]]:
         return False
 
 
+@dataclass
+class PydanticModelValidator:
+    validator_type: type[BaseModel]
+    kind: Literal["basemodel"] = "basemodel"
+
+
+@dataclass
+class DataclassValidator:
+    validator_type: type[DataclassInstance]
+    kind: Literal["dataclass"] = "dataclass"
+
+
+@dataclass
+class NoValidator:
+    kind: Literal["none"] = "none"
+
+
+OutputValidator = PydanticModelValidator | DataclassValidator | NoValidator
+
+
+def is_basemodel_validator(
+    validator: OutputValidator,
+) -> TypeGuard[PydanticModelValidator]:
+    return validator.kind == "basemodel"
+
+
+def is_dataclass_validator(validator: OutputValidator) -> TypeGuard[DataclassValidator]:
+    return validator.kind == "dataclass"
+
+
+def is_no_validator(validator: OutputValidator) -> TypeGuard[NoValidator]:
+    return validator.kind == "none"
+
+
+def classify_output_validator(return_type: Any | None) -> OutputValidator:
+    if is_basemodel_subclass(return_type):
+        return PydanticModelValidator(validator_type=return_type)
+
+    if is_dataclass(return_type) and isinstance(return_type, type):
+        return DataclassValidator(validator_type=return_type)
+
+    return NoValidator()
+
+
 class TaskIOValidator(BaseModel):
-    workflow_input: type[BaseModel] | None = None
-    step_output: type[BaseModel] | None = None
+    workflow_input: type[BaseModel] | type[DataclassInstance] | None = None
+    step_output: type[BaseModel] | type[DataclassInstance] | None = None
 
 
 JSONSerializableMapping = dict[str, Any]

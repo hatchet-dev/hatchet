@@ -279,7 +279,8 @@ class Worker:
                 lifespan_context = await self._setup_lifespan()
             except LifespanSetupError as e:
                 logger.exception("lifespan setup failed")
-                self.loop.stop()
+                if self.loop:
+                    self.loop.stop()
                 raise e
 
         if self.config.healthcheck.enabled:
