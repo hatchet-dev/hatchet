@@ -291,13 +291,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         validator = classify_output_validator(self.config.input_validator)
 
         if is_dataclass_validator(validator):
-            return asdict(input)
+            return asdict(cast(DataclassInstance, input))
 
         if is_basemodel_validator(validator):
-            return input.model_dump(mode="json")
+            return cast(BaseModel, input).model_dump(mode="json")
 
         raise ValueError(
-            f"Input must be a BaseModel or `None`, got {type(input)} instead."
+            f"Input must be a BaseModel or dataclass, got {type(input)} instead."
         )
 
     @cached_property

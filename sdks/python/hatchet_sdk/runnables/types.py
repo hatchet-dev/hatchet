@@ -60,7 +60,7 @@ class ConcurrencyExpression(BaseModel):
         )
 
 
-TWorkflowInput = TypeVar("TWorkflowInput")
+TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel | DataclassInstance)
 
 
 class TaskDefaults(BaseModel):

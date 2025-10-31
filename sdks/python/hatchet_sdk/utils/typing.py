@@ -3,21 +3,11 @@ from collections.abc import Awaitable, Coroutine, Generator
 from dataclasses import Field as DataclassField
 from dataclasses import dataclass, is_dataclass
 from enum import Enum
-from typing import (
-    Any,
-    ClassVar,
-    Literal,
-    Protocol,
-    TypeAlias,
-    TypeGuard,
-    TypeVar,
-    runtime_checkable,
-)
+from typing import Any, ClassVar, Literal, Protocol, TypeAlias, TypeGuard, TypeVar
 
 from pydantic import BaseModel, SkipValidation
 
 
-@runtime_checkable
 class DataclassInstance(Protocol):
     __dataclass_fields__: ClassVar[dict[str, DataclassField[Any]]]
 

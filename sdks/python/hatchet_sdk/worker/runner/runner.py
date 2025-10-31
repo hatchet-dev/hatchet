@@ -49,6 +49,7 @@ from hatchet_sdk.runnables.contextvars import (
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.utils.serde import remove_null_unicode_character
+from hatchet_sdk.utils.typing import DataclassInstance
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.utils.capture_logs import (
     AsyncLogSender,
@@ -481,7 +482,7 @@ class Runner:
         if isinstance(output, BaseModel):
             output = output.model_dump(mode="json")
         elif is_dataclass(output):
-            output = asdict(output)
+            output = asdict(cast(DataclassInstance, output))
 
         if not isinstance(output, dict):
             raise IllegalTaskOutputError(
