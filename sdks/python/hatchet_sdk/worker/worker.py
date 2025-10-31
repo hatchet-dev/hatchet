@@ -24,7 +24,7 @@ from pydantic import BaseModel
 from hatchet_sdk.client import Client
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
-from hatchet_sdk.exceptions import LoopAlreadyRunningError
+from hatchet_sdk.exceptions import LifespanSetupError, LoopAlreadyRunningError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
@@ -273,12 +273,18 @@ class Worker:
                 "no actions registered, register workflows or actions before starting worker"
             )
 
-        if self.config.healthcheck.enabled:
-            await self._start_health_server()
-
         lifespan_context = None
         if self.lifespan:
-            lifespan_context = await self._setup_lifespan()
+            try:
+                lifespan_context = await self._setup_lifespan()
+            except LifespanSetupError as e:
+                logger.exception("lifespan setup failed")
+                if self.loop:
+                    self.loop.stop()
+                raise e
+
+        if self.config.healthcheck.enabled:
+            await self._start_health_server()
 
         if self.has_any_non_durable:
             self.action_listener_process = self._start_action_listener(is_durable=False)
@@ -328,8 +334,8 @@ class Worker:
 
         self.lifespan_stack = AsyncExitStack()
 
-        lifespan_gen = self.lifespan()
         try:
+            lifespan_gen = self.lifespan()
             context = await anext(lifespan_gen)
             await self.lifespan_stack.enter_async_context(
                 _create_async_context_manager(lifespan_gen)
@@ -337,10 +343,16 @@ class Worker:
             return context
         except StopAsyncIteration:
             return None
+        except Exception as e:
+            raise LifespanSetupError("An error occurred during lifespan setup") from e
 
     async def _cleanup_lifespan(self) -> None:
-        if self.lifespan_stack is not None:
-            await self.lifespan_stack.aclose()
+        try:
+            if self.lifespan_stack is not None:
+                await self.lifespan_stack.aclose()
+        except Exception as e:
+            logger.exception("error during lifespan cleanup")
+            raise LifespanSetupError("An error occurred during lifespan cleanup") from e
 
     def _start_action_listener(
         self, is_durable: bool
@@ -472,7 +484,10 @@ class Worker:
         ):
             self.durable_action_listener_process.kill()
 
-        await self._cleanup_lifespan()
+        try:
+            await self._cleanup_lifespan()
+        except LifespanSetupError:
+            logger.exception("lifespan cleanup failed")
 
         await self._close()
         if self.loop and self.owned_loop:
