@@ -18,6 +18,14 @@ func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeo
 	tx, err := pool.Begin(ctx)
 
 	if err != nil {
+		if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
+			l.Error().Dur(
+				"duration", sinceStart,
+			).Int(
+				"acquired_connections", int(pool.Stat().AcquiredConns()),
+			).Caller(1).Msgf("long transaction start with error: %v", err)
+		}
+
 		return nil, nil, nil, err
 	}
 
