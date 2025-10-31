@@ -10,26 +10,50 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 )
 
 type debugger struct {
 	callerCounts map[string]int
+	activeConns  map[*pgx.Conn]string
 	callerMu     sync.Mutex
 
 	lastPrint *time.Time
 
-	l *zerolog.Logger
+	l      *zerolog.Logger
+	pool   *pgxpool.Pool
+	poolMu sync.Mutex
+}
+
+func (d *debugger) setup(pool *pgxpool.Pool) {
+	d.poolMu.Lock()
+	defer d.poolMu.Unlock()
+
+	d.pool = pool
+	d.activeConns = make(map[*pgx.Conn]string)
+}
+
+func (d *debugger) getPool() *pgxpool.Pool {
+	d.poolMu.Lock()
+	defer d.poolMu.Unlock()
+
+	return d.pool
 }
 
 func (d *debugger) beforeAcquire(ctx context.Context, conn *pgx.Conn) bool {
-	_, file, line, ok := runtime.Caller(4)
+	// if we don't have a pool set yet, skip
+	if d.getPool() == nil {
+		return true
+	}
+
+	_, file, line, ok := runtime.Caller(5)
 
 	caller := "unknown"
 
 	if ok {
 		if strings.Contains(file, "tx.go") {
-			_, file, line, _ = runtime.Caller(5)
+			_, file, line, _ = runtime.Caller(6)
 		}
 
 		caller = fmt.Sprintf("%s:%d", file, line)
@@ -37,11 +61,28 @@ func (d *debugger) beforeAcquire(ctx context.Context, conn *pgx.Conn) bool {
 
 	d.callerMu.Lock()
 	d.callerCounts[caller]++
+	d.activeConns[conn] = caller
 	d.callerMu.Unlock()
 
-	if d.lastPrint == nil || time.Since(*d.lastPrint) > 15*time.Second {
+	if d.lastPrint == nil || time.Since(*d.lastPrint) > 120*time.Second {
 		d.printCallerCounts()
 	}
+
+	if d.pool.Stat().AcquiredConns() == d.pool.Config().MaxConns {
+		d.printActiveCallers()
+	}
+
+	return true
+}
+
+func (d *debugger) afterRelease(conn *pgx.Conn) bool {
+	if d.getPool() == nil {
+		return true
+	}
+
+	d.callerMu.Lock()
+	delete(d.activeConns, conn)
+	d.callerMu.Unlock()
 
 	return true
 }
@@ -65,7 +106,7 @@ func (d *debugger) printCallerCounts() {
 		return counts[i].count > counts[j].count
 	})
 
-	sl := d.l.Debug()
+	sl := d.l.Warn()
 
 	for i, c := range counts {
 		// print only the top 20 callers
@@ -84,4 +125,27 @@ func (d *debugger) printCallerCounts() {
 	d.callerCounts = make(map[string]int)
 	now := time.Now()
 	d.lastPrint = &now
+}
+
+func (d *debugger) printActiveCallers() {
+	// print the active callers, grouped by caller
+	d.callerMu.Lock()
+	defer d.callerMu.Unlock()
+
+	callerMap := make(map[string]int)
+
+	for _, caller := range d.activeConns {
+		callerMap[caller]++
+	}
+
+	sl := d.l.Warn()
+
+	for caller, count := range callerMap {
+		sl.Int(
+			caller,
+			count,
+		)
+	}
+
+	sl.Msg("hit max database connections, showing active callers")
 }
