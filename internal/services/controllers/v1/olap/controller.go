@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -676,6 +677,13 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	err = tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
 
 	if err != nil {
+		if strings.Contains(err.Error(), "invalid input syntax for type json") {
+			fmt.Println("invalid input syntax for type json")
+			for _, opt := range opts {
+				fmt.Printf("tenantId: %s, taskId: %d, taskInsertedAt: %s, output: %s", opt.TenantID, opt.TaskID, opt.TaskInsertedAt.Time, string(opt.Output))
+			}
+		}
+
 		return err
 	}
 

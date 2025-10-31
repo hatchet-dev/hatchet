@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -801,13 +800,6 @@ func (t *MessageQueueImpl) subscribe(
 				t.l.Debug().Msgf("(session: %d) got msg", sessionCount)
 
 				if err := preAck(msg); err != nil {
-					if strings.Contains(err.Error(), "invalid input syntax for type json") {
-						fmt.Println("error in pre-ack on msg payloads")
-						for _, payload := range msg.Payloads {
-							fmt.Printf("payload: %s\n", string(payload))
-						}
-					}
-
 					t.l.Error().Msgf("error in pre-ack on msg %s: %v", msg.ID, err)
 
 					// nack the message
