@@ -329,6 +329,10 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	ringIndex := 0
 	ringMu := sync.Mutex{}
 
+	// Rate limiter: allow up to 3 calls per second
+	rateLimiter := time.NewTicker(time.Second / 3)
+	defer rateLimiter.Stop()
+
 	sendEvent := func(ctx context.Context, e *contracts.WorkflowRunEvent) error {
 		_, sendEventSpan := telemetry.NewSpan(ctx, "subscribe_to_workflow_runs_v1.send_event")
 		defer sendEventSpan.End()
@@ -361,6 +365,16 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	}
 
 	iter := func(workflowRunIds []string) error {
+		// Rate limit: wait for the next tick with 1 second timeout
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-rateLimiter.C:
+			// Proceed with iteration
+		case <-time.After(1 * time.Second):
+			return fmt.Errorf("could not acquire rate limit within 1 second")
+		}
+
 		if len(workflowRunIds) == 0 {
 			return nil
 		}
