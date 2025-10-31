@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"time"
@@ -123,25 +124,17 @@ func WithWorkflowCron(cronExpressions ...string) WorkflowOption {
 // WithWorkflowCronInput sets the input for cron workflows.
 func WithWorkflowCronInput(input any) WorkflowOption {
 	return func(config *workflowConfig) {
-		var inputMap map[string]interface{}
-		if input == nil {
-			inputMap = make(map[string]interface{})
-		} else {
-			inputBytes, err := json.Marshal(input)
+		inputJSON := "{}"
+
+		if input != nil {
+			bytes, err := json.Marshal(input)
 			if err != nil {
-				inputMap = make(map[string]interface{})
-			} else {
-				if err := json.Unmarshal(inputBytes, &inputMap); err != nil {
-					inputMap = make(map[string]interface{})
-				}
+				panic(fmt.Errorf("could not marshal cron input: %w", err))
 			}
+
+			inputJSON = string(bytes)
 		}
 
-		inputJSONBytes, err := json.Marshal(inputMap)
-		if err != nil {
-			inputJSONBytes = []byte("{}")
-		}
-		inputJSON := string(inputJSONBytes)
 		config.cronInput = &inputJSON
 	}
 }
