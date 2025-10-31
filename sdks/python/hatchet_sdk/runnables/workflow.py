@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import cached_property
+from dataclasses import dataclass, is_dataclass
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -10,13 +11,14 @@ from typing import (
     Literal,
     ParamSpec,
     TypeVar,
+    TypeGuard,
     cast,
     get_type_hints,
     overload,
 )
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, TypeAdapter, model_validator
 
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
@@ -42,6 +44,7 @@ from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     EmptyModel,
+    DataclassInstance,
     R,
     StepType,
     TaskDefaults,
@@ -63,6 +66,50 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 P = ParamSpec("P")
+
+
+@dataclass
+class PydanticModelValidator:
+    validator_type: type[BaseModel]
+    kind: Literal["basemodel"] = "basemodel"
+
+
+@dataclass
+class DataclassValidator:
+    validator_type: type[DataclassInstance]
+    kind: Literal["dataclass"] = "dataclass"
+
+
+@dataclass
+class NoValidator:
+    kind: Literal["none"] = "none"
+
+
+OutputValidator = PydanticModelValidator | DataclassValidator | NoValidator
+
+
+def is_basemodel_validator(
+    validator: OutputValidator,
+) -> TypeGuard[PydanticModelValidator]:
+    return validator.kind == "basemodel"
+
+
+def is_dataclass_validator(validator: OutputValidator) -> TypeGuard[DataclassValidator]:
+    return validator.kind == "dataclass"
+
+
+def is_no_validator(validator: OutputValidator) -> TypeGuard[NoValidator]:
+    return validator.kind == "none"
+
+
+def classify_output_validator(return_type: Any | None) -> OutputValidator:
+    if is_basemodel_subclass(return_type):
+        return PydanticModelValidator(validator_type=return_type)
+
+    if is_dataclass(return_type) and isinstance(return_type, type):
+        return DataclassValidator(validator_type=return_type)
+
+    return NoValidator()
 
 
 def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -> T:
@@ -1203,11 +1250,25 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         return_type = get_type_hints(self._task.fn).get("return")
 
-        self._output_validator = (
-            return_type if is_basemodel_subclass(return_type) else None
-        )
+        self._output_validator = self.get_output_validator(return_type)
 
         self.config = self._workflow.config
+
+    def get_output_validator(
+        self, return_type: Any | None
+    ) -> type[BaseModel] | type[DataclassInstance] | None:
+        validator = classify_output_validator(return_type)
+
+        if is_basemodel_validator(validator):
+            return validator.validator_type
+
+        if is_dataclass_validator(validator):
+            return validator.validator_type
+
+        if is_no_validator(validator):
+            return None
+
+        raise AssertionError(f"Unhandled validator type: {validator}")
 
     @overload
     def _extract_result(self, result: dict[str, Any]) -> R: ...
@@ -1223,10 +1284,21 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         output = result.get(self._task.name)
 
-        if not self._output_validator:
+        validator = classify_output_validator(self._output_validator)
+
+        if is_basemodel_validator(validator):
+            return cast(R, validator.validator_type.model_validate(output))
+
+        if is_dataclass_validator(validator):
+            return cast(
+                R,
+                TypeAdapter(validator.validator_type).validate_python(output),
+            )
+
+        if is_no_validator(validator):
             return cast(R, output)
 
-        return cast(R, self._output_validator.model_validate(output))
+        raise TypeError(f"Unhandled validator type: {validator}")
 
     def run(
         self,
