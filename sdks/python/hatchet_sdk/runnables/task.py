@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Callable
+from dataclasses import asdict, is_dataclass
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
     TYPE_CHECKING,
@@ -37,7 +38,6 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
 from hatchet_sdk.exceptions import InvalidDependencyError
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
-    EmptyModel,
     R,
     StepType,
     TWorkflowInput,
@@ -289,11 +289,14 @@ class Task(Generic[TWorkflowInput, R]):
 
         additional_metadata = additional_metadata or {}
         parent_outputs = parent_outputs or {}
+        serialized_input: dict[str, Any] = {}
 
-        if input is None:
-            input = cast(TWorkflowInput, EmptyModel())
+        if is_dataclass(input):
+            serialized_input = asdict(input)
+        elif isinstance(input, BaseModel):
+            serialized_input = input.model_dump()
 
-        action_payload = ActionPayload(input=input.model_dump(), parents=parent_outputs)
+        action_payload = ActionPayload(input=serialized_input, parents=parent_outputs)
 
         action = Action(
             tenant_id=self.workflow.client.config.tenant_id,
