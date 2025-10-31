@@ -1275,7 +1275,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
                 TypeAdapter(validator.validator_type).validate_python(output),
             )
 
-        if is_no_validator(validator) or not validator:
+        if is_no_validator(validator):
             return cast(R, output)
 
         raise TypeError(f"Unhandled validator type: {validator}")
