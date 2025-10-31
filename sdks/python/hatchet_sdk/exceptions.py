@@ -167,3 +167,7 @@ class LoopAlreadyRunningError(Exception):
 
 class IllegalTaskOutputError(Exception):
     pass
+
+
+class LifespanSetupError(Exception):
+    pass

@@ -5,6 +5,16 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0] - 2025-10-31
+
+### Added
+
+- Adds support for dataclasses as input validators for workflows (and tasks), and also as output validators for tasks.
+
+### Changed
+
+- Fixes a bug where an exception in a lifespan would cause the lifespan to hang indefinitely.
+
 ## [1.20.2] - 2025-10-15
 
 ### Added
