@@ -1,6 +1,6 @@
 import pytest
 
-from examples.dataclasses.worker import say_hello, Input, Output
+from examples.dataclasses.worker import Input, Output, say_hello
 from hatchet_sdk.runnables.workflow import Standalone
 
 
