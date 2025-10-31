@@ -21,6 +21,7 @@ from examples.concurrency_workflow_level.worker import (
 )
 from examples.conditions.worker import task_condition_workflow
 from examples.dag.worker import dag_workflow
+from examples.dataclasses.worker import say_hello
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
 from examples.dependency_injection.worker import (
     async_task_with_dependencies,
@@ -92,6 +93,7 @@ def main() -> None:
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
             durable_sync_task_with_dependencies,
+            say_hello,
         ],
         lifespan=lifespan,
     )

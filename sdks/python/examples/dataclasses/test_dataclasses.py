@@ -4,7 +4,6 @@ from examples.dataclasses.worker import Input, Output, say_hello
 from hatchet_sdk.runnables.workflow import Standalone
 
 
-@pytest.mark.parametrize("task", [say_hello])
 @pytest.mark.asyncio(loop_scope="session")
 async def test_dataclass_usage(
     task: Standalone[Input, Output],
