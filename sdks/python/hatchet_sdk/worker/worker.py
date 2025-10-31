@@ -346,8 +346,12 @@ class Worker:
             raise LifespanSetupError("An error occurred during lifespan setup") from e
 
     async def _cleanup_lifespan(self) -> None:
-        if self.lifespan_stack is not None:
-            await self.lifespan_stack.aclose()
+        try:
+            if self.lifespan_stack is not None:
+                await self.lifespan_stack.aclose()
+        except Exception as e:
+            logger.exception("error during lifespan cleanup")
+            raise LifespanSetupError("An error occurred during lifespan cleanup") from e
 
     def _start_action_listener(
         self, is_durable: bool
@@ -479,7 +483,10 @@ class Worker:
         ):
             self.durable_action_listener_process.kill()
 
-        await self._cleanup_lifespan()
+        try:
+            await self._cleanup_lifespan()
+        except LifespanSetupError:
+            logger.exception("lifespan cleanup failed")
 
         await self._close()
         if self.loop and self.owned_loop:
