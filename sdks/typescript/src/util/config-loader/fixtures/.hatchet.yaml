@@ -6,3 +6,6 @@ tls_config:
   key_file: 'TLS_KEY_FILE_YAML'
   ca_file: 'TLS_ROOT_CA_FILE_YAML'
   server_name: 'TLS_SERVER_NAME_YAML'
+healthcheck:
+  enabled: true
+  port: 8002

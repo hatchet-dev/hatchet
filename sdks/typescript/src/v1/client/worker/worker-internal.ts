@@ -37,6 +37,7 @@ import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
+import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
@@ -45,6 +46,8 @@ export interface WorkerOpts {
   handleKill?: boolean;
   maxRuns?: number;
   labels?: WorkerLabels;
+  healthPort?: number;
+  enableHealthServer?: boolean;
 }
 
 export class V1Worker {
@@ -67,6 +70,12 @@ export class V1Worker {
 
   labels: WorkerLabels = {};
 
+  healthPort: number;
+  enableHealthServer: boolean;
+
+  private healthServer: HealthServer | undefined;
+  private status: WorkerStatus = workerStatus.INITIALIZED;
+
   constructor(
     client: HatchetClient,
     options: {
@@ -83,6 +92,9 @@ export class V1Worker {
 
     this.labels = options.labels || {};
 
+    this.enableHealthServer = client.config.healthcheck?.enabled ?? false;
+    this.healthPort = client.config.healthcheck?.port ?? 8001;
+
     process.on('SIGTERM', () => this.exitGracefully(true));
     process.on('SIGINT', () => this.exitGracefully(true));
 
@@ -90,6 +102,54 @@ export class V1Worker {
     this.handle_kill = options.handleKill === undefined ? true : options.handleKill;
 
     this.logger = client.config.logger(`Worker/${this.name}`, this.client.config.log_level);
+
+    if (this.enableHealthServer && this.healthPort) {
+      this.initializeHealthServer();
+    }
+  }
+
+  private initializeHealthServer(): void {
+    if (!this.healthPort) {
+      this.logger.warn('Health server enabled but no port specified');
+      return;
+    }
+
+    this.healthServer = new HealthServer(
+      this.healthPort,
+      () => this.status,
+      this.name,
+      () => this.getAvailableSlots(),
+      () => this.getRegisteredActions(),
+      () => this.getFilteredLabels(),
+      this.logger
+    );
+  }
+
+  private getAvailableSlots(): number {
+    if (!this.maxRuns) {
+      return 0;
+    }
+    const currentRuns = Object.keys(this.futures).length;
+    return Math.max(0, this.maxRuns - currentRuns);
+  }
+
+  private getRegisteredActions(): string[] {
+    return Object.keys(this.action_registry);
+  }
+
+  private getFilteredLabels(): Record<string, string | number> {
+    const filtered: Record<string, string | number> = {};
+    for (const [key, value] of Object.entries(this.labels)) {
+      if (value !== undefined) {
+        filtered[key] = value;
+      }
+    }
+    return filtered;
+  }
+
+  private setStatus(status: WorkerStatus): void {
+    this.status = status;
+    this.logger.debug(`Worker status changed to: ${status}`);
   }
 
   private registerActions(workflow: Workflow) {
@@ -768,6 +828,7 @@ export class V1Worker {
 
   async exitGracefully(handleKill: boolean) {
     this.killing = true;
+    this.setStatus(workerStatus.UNHEALTHY);
 
     this.logger.info('Starting to exit...');
 
@@ -784,6 +845,14 @@ export class V1Worker {
 
     this.logger.info('Successfully finished pending tasks.');
 
+    if (this.healthServer) {
+      try {
+        await this.healthServer.stop();
+      } catch (e: any) {
+        this.logger.error(`Could not stop health server: ${e.message}`);
+      }
+    }
+
     if (handleKill) {
       this.logger.info('Exiting hatchet worker...');
       process.exit(0);
@@ -791,6 +860,18 @@ export class V1Worker {
   }
 
   async start() {
+    this.setStatus(workerStatus.STARTING);
+
+    if (this.healthServer) {
+      try {
+        await this.healthServer.start();
+      } catch (e: any) {
+        this.logger.error(`Could not start health server: ${e.message}`);
+        this.setStatus(workerStatus.UNHEALTHY);
+        return;
+      }
+    }
+
     // ensure all workflows are registered
     await Promise.all(this.registeredWorkflowPromises);
 
@@ -808,6 +889,7 @@ export class V1Worker {
       });
 
       this.workerId = this.listener.workerId;
+      this.setStatus(workerStatus.HEALTHY);
 
       const generator = this.listener.actions();
 
@@ -821,6 +903,7 @@ export class V1Worker {
         void this.handleAction(action);
       }
     } catch (e: any) {
+      this.setStatus(workerStatus.UNHEALTHY);
       if (this.killing) {
         this.logger.info(`Exiting worker, ignoring error: ${e.message}`);
         return;
