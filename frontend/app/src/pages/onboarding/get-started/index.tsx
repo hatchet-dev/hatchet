@@ -192,8 +192,8 @@ export default function GetStarted() {
                   </TabsList>
                   <TabsContent value="python" className="mt-4">
                     <CodeHighlighter
-                      code={`export HATCHET_CLIENT_TOKEN=$YOUR_TOKEN\npoetry run python src/worker.py`}
-                      copyCode={`export HATCHET_CLIENT_TOKEN=$YOUR_TOKEN\npoetry run python src/worker.py`}
+                      code="poetry run python src/worker.py"
+                      copyCode="poetry run python src/worker.py"
                       language="shell"
                       copy
                     />
@@ -210,24 +210,24 @@ export default function GetStarted() {
                       </TabsList>
                       <TabsContent value="npm" className="mt-3">
                         <CodeHighlighter
-                          code={`export HATCHET_CLIENT_TOKEN=$YOUR_TOKEN\nnpm run build && npm run start`}
-                          copyCode={`export HATCHET_CLIENT_TOKEN=$YOUR_TOKEN\nnpm run build && npm run start`}
+                          code="npm run build && npm run start"
+                          copyCode="npm run build && npm run start"
                           language="shell"
                           copy
                         />
                       </TabsContent>
                       <TabsContent value="pnpm" className="mt-3">
                         <CodeHighlighter
-                          code={`export HATCHET_CLIENT_TOKEN=$YOUR_TOKEN\npnpm run build && pnpm run start`}
-                          copyCode={`export HATCHET_CLIENT_TOKEN=$YOUR_TOKEN\npnpm run build && pnpm run start`}
+                          code="pnpm run build && pnpm run start"
+                          copyCode="pnpm run build && pnpm run start"
                           language="shell"
                           copy
                         />
                       </TabsContent>
                       <TabsContent value="yarn" className="mt-3">
                         <CodeHighlighter
-                          code={`export HATCHET_CLIENT_TOKEN=$YOUR_TOKEN\nyarn run build && yarn run start`}
-                          copyCode={`export HATCHET_CLIENT_TOKEN=$YOUR_TOKEN\nyarn run build && yarn run start`}
+                          code="yarn run build && yarn run start"
+                          copyCode="yarn run build && yarn run start"
                           language="shell"
                           copy
                         />
@@ -236,8 +236,8 @@ export default function GetStarted() {
                   </TabsContent>
                   <TabsContent value="go" className="mt-4">
                     <CodeHighlighter
-                      code={`export HATCHET_CLIENT_TOKEN=$YOUR_TOKEN\ngo run cmd/worker/main.go`}
-                      copyCode={`export HATCHET_CLIENT_TOKEN=$YOUR_TOKEN\ngo run cmd/worker/main.go`}
+                      code="go run cmd/worker/main.go"
+                      copyCode="go run cmd/worker/main.go"
                       language="shell"
                       copy
                     />

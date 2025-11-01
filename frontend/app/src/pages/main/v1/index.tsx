@@ -9,29 +9,29 @@ import {
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
-import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
+import { SidePanel } from '@/components/side-panel';
+import { useSidebar } from '@/components/sidebar-provider';
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
+import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
+import {
+  Collapsible,
+  CollapsibleContent,
+} from '@/components/v1/ui/collapsible';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { SidePanelProvider } from '@/hooks/use-side-panel';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TenantMember } from '@/lib/api';
-import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
-import React, { useCallback } from 'react';
 import {
   MembershipsContextType,
   UserContextType,
   useContextFromParent,
 } from '@/lib/outlet';
-import { Loading } from '@/components/v1/ui/loading.tsx';
-import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
-import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
-import {
-  Collapsible,
-  CollapsibleContent,
-} from '@/components/v1/ui/collapsible';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
-import { useSidebar } from '@/components/sidebar-provider';
+import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
 import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { SidePanel } from '@/components/side-panel';
-import { SidePanelProvider } from '@/hooks/use-side-panel';
+import React, { useCallback } from 'react';
+import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -264,6 +264,12 @@ function Sidebar({ className, memberships }: SidebarProps) {
                     onNavLinkClick={onNavLinkClick}
                     to={`/tenants/${tenantId}/tenant-settings/ingestors`}
                     name="Ingestors"
+                  />,
+                  <SidebarButtonSecondary
+                    key="quickstart"
+                    onNavLinkClick={onNavLinkClick}
+                    to={`/tenants/${tenantId}/onboarding/get-started`}
+                    name="Quickstart"
                   />,
                 ]}
               />

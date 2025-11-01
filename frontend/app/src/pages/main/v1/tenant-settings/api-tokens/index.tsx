@@ -1,15 +1,15 @@
-import { Button } from '@/components/v1/ui/button';
-import { Separator } from '@/components/v1/ui/separator';
-import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { Button } from '@/components/v1/ui/button';
+import { Dialog } from '@/components/v1/ui/dialog';
+import { Separator } from '@/components/v1/ui/separator';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { columns as apiTokensColumns } from './components/api-tokens-columns';
 import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
-import { Dialog } from '@/components/v1/ui/dialog';
-import { useApiError } from '@/lib/hooks';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function APITokens() {
   const { tenantId } = useCurrentTenantId();
