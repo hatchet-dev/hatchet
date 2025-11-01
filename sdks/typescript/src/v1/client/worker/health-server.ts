@@ -42,11 +42,9 @@ export class HealthServer {
 
     if (url === '/health' && req.method === 'GET') {
       await this.handleHealth(res);
-    }
-    else if (url === '/metrics' && req.method === 'GET') {
+    } else if (url === '/metrics' && req.method === 'GET') {
       await this.handleMetrics(res);
-    }
-    else {
+    } else {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not Found');
     }
@@ -79,9 +77,7 @@ export class HealthServer {
         help: 'Current status of the Hatchet worker',
         registers: [this.register],
         collect: () => {
-          this.workerStatusGauge!.set(
-            this.getStatus() === WorkerStatus.HEALTHY ? 1 : 0
-          );
+          this.workerStatusGauge!.set(this.getStatus() === WorkerStatus.HEALTHY ? 1 : 0);
         },
       });
 
@@ -90,9 +86,7 @@ export class HealthServer {
         help: 'Total slots available on the worker',
         registers: [this.register],
         collect: () => {
-          this.workerSlotsGauge!.set(
-            this.getSlots()
-          );
+          this.workerSlotsGauge!.set(this.getSlots());
         },
       });
 
@@ -101,13 +95,11 @@ export class HealthServer {
         help: 'Number of registered actions on the worker',
         registers: [this.register],
         collect: () => {
-          this.workerActionsGauge!.set(
-            this.getActions().length
-          );
+          this.workerActionsGauge!.set(this.getActions().length);
         },
       });
       this.metricsInitialized = true;
-    }catch (error) {
+    } catch (error) {
       this.metricsInitialized = false;
       this.logger.error('Metrics initialization failed - prom-client dependency not installed');
     }
