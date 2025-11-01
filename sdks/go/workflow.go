@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"time"
@@ -68,25 +69,18 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 		return inputValue
 	}
 
-	// Try to convert using JSON marshal/unmarshal
 	if expectedType.Kind() == reflect.Struct {
-		// Marshal the input to JSON
 		jsonData, err := json.Marshal(input)
 		if err != nil {
-			// If marshaling fails, return the original input value
 			return reflect.ValueOf(input)
 		}
 
-		// Create a new instance of the expected type
 		result := reflect.New(expectedType)
-
-		// Unmarshal JSON into the new instance
 		err = json.Unmarshal(jsonData, result.Interface())
 		if err != nil {
 			panic(err)
 		}
 
-		// Return the dereferenced value (not the pointer)
 		return result.Elem()
 	}
 
@@ -116,6 +110,7 @@ type workflowConfig struct {
 	taskDefaults    *create.TaskDefaults
 	defaultPriority *RunPriority
 	stickyStrategy  *types.StickyStrategy
+	cronInput       *string
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -123,6 +118,24 @@ type workflowConfig struct {
 func WithWorkflowCron(cronExpressions ...string) WorkflowOption {
 	return func(config *workflowConfig) {
 		config.onCron = cronExpressions
+	}
+}
+
+// WithWorkflowCronInput sets the input for cron workflows.
+func WithWorkflowCronInput(input any) WorkflowOption {
+	return func(config *workflowConfig) {
+		inputJSON := "{}"
+
+		if input != nil {
+			bytes, err := json.Marshal(input)
+			if err != nil {
+				panic(fmt.Errorf("could not marshal cron input: %w", err))
+			}
+
+			inputJSON = string(bytes)
+		}
+
+		config.cronInput = &inputJSON
 	}
 }
 
@@ -183,12 +196,18 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		opt(config)
 	}
 
+	if len(config.onCron) > 0 && config.cronInput == nil {
+		emptyJSON := "{}"
+		config.cronInput = &emptyJSON
+	}
+
 	createOpts := create.WorkflowCreateOpts[any]{
 		Name:           name,
 		Version:        config.version,
 		Description:    config.description,
 		OnEvents:       config.onEvents,
 		OnCron:         config.onCron,
+		CronInput:      config.cronInput,
 		Concurrency:    config.concurrency,
 		TaskDefaults:   config.taskDefaults,
 		StickyStrategy: config.stickyStrategy,

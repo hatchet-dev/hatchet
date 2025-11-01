@@ -41,6 +41,9 @@ type WorkflowCreateOpts[I any] struct {
 	// (optional) The cron expressions for scheduled workflow runs
 	OnCron []string
 
+	// (optional) The JSON-serialized input for cron workflows (defaults to "{}" if nil)
+	CronInput *string
+
 	// (optional) Concurrency settings to control parallel execution
 	Concurrency []types.Concurrency
 

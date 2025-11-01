@@ -610,7 +610,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		})
 	}
 
-	var cronInput []byte
+	cronInput := []byte("{}")
 
 	if req.CronInput != nil {
 		cronInput = []byte(*req.CronInput)

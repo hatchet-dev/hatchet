@@ -119,6 +119,7 @@ type workflowDeclarationImpl[I any, O any] struct {
 	Description    *string
 	OnEvents       []string
 	OnCron         []string
+	CronInput      *string
 	Concurrency    []types.Concurrency
 	OnFailureTask  *task.OnFailureTaskDeclaration[I]
 	StickyStrategy *types.StickyStrategy
@@ -179,6 +180,7 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 		name:        workflowName,
 		OnEvents:    onEvents,
 		OnCron:      opts.OnCron,
+		CronInput:   opts.CronInput,
 		Concurrency: opts.Concurrency,
 		// OnFailureTask:    opts.OnFailureTask, // TODO: add this back in
 		StickyStrategy:   opts.StickyStrategy,
@@ -588,6 +590,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		Name:            w.name,
 		EventTriggers:   w.OnEvents,
 		CronTriggers:    w.OnCron,
+		CronInput:       w.CronInput,
 		DefaultPriority: w.DefaultPriority,
 	}
 
