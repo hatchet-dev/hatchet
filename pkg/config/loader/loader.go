@@ -185,15 +185,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	config.MaxConnLifetime = 15 * 60 * time.Second
 
-	if cf.Logger.Level == "debug" {
-		debugger := &debugger{
-			callerCounts: make(map[string]int),
-			l:            &l,
-		}
-
-		config.BeforeAcquire = debugger.beforeAcquire
-	}
-
 	// Check database instance timezone if enforcement is enabled
 	if cf.EnforceUTCTimezone {
 		if err := checkDatabaseTimezone(config.ConnConfig, cf.PostgresDbName, "primary database", &l); err != nil {
@@ -201,11 +192,25 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 	}
 
+	// TODO: make this configurable
+	debugger := &debugger{
+		callerCounts: make(map[string]int),
+		activeConns:  make(map[*pgx.Conn]string),
+		l:            &l,
+	}
+
+	config.BeforeAcquire = debugger.beforeAcquire // nolint: staticcheck
+	config.AfterRelease = debugger.afterRelease
+
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
+
+	// pool needs the debugger hooks (BeforeAcquire/AfterRelease) but debugger needs the pool
+	// to track active connections, so we add the pool later
+	debugger.setup(pool)
 
 	// a pool for read replicas, if enabled
 	var readReplicaPool *pgxpool.Pool
