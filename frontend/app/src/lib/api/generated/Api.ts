@@ -212,10 +212,31 @@ export class Api<
    * @request GET:/api/v1/stable/tasks/{task}/logs
    * @secure
    */
-  v1LogLineList = (task: string, params: RequestParams = {}) =>
+  v1LogLineList = (
+    task: string,
+    query?: {
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * The start time to get logs for
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end time to get logs for
+       * @format date-time
+       */
+      until?: string;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<V1LogLineList, APIErrors>({
       path: `/api/v1/stable/tasks/${task}/logs`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,

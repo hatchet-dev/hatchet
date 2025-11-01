@@ -1,6 +1,8 @@
 package tasks
 
 import (
+	"time"
+
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -26,7 +28,33 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		telemetry.AttributeKV{Key: "task.id", Value: task.ID},
 	)
 
-	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, task.ID, task.InsertedAt, &v1.ListLogsOpts{})
+	var (
+		limit = int64(50)
+		since *time.Time
+		until *time.Time
+	)
+
+	if request.Params.Limit != nil {
+		limit = *request.Params.Limit
+	}
+
+	if request.Params.Since != nil {
+		since = request.Params.Since
+	}
+
+	if request.Params.Until != nil {
+		until = request.Params.Until
+	}
+
+	limitInt := int(limit)
+
+	opts := &v1.ListLogsOpts{
+		Limit: &limitInt,
+		Since: since,
+		Until: until,
+	}
+
+	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, task.ID, task.InsertedAt, opts)
 
 	if err != nil {
 		span.RecordError(err)
@@ -43,10 +71,9 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		rows[i] = *transformers.ToV1LogLine(log)
 	}
 
-	// use the total rows and limit to calculate the total pages
-	totalPages := int64(1)
-	currPage := int64(1)
-	nextPage := int64(1)
+	totalPages := int64(0)
+	currPage := int64(0)
+	nextPage := int64(0)
 
 	return gen.V1LogLineList200JSONResponse(
 		gen.V1LogLineList{
