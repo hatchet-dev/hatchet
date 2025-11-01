@@ -37,7 +37,7 @@ import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
-import { HealthServer, WorkerStatus } from './health-server';
+import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
@@ -74,7 +74,7 @@ export class V1Worker {
   enableHealthServer: boolean;
 
   private healthServer: HealthServer | undefined;
-  private status: WorkerStatus = WorkerStatus.INITIALIZED;
+  private status: WorkerStatus = workerStatus.INITIALIZED;
 
   constructor(
     client: HatchetClient,
@@ -828,7 +828,7 @@ export class V1Worker {
 
   async exitGracefully(handleKill: boolean) {
     this.killing = true;
-    this.setStatus(WorkerStatus.UNHEALTHY);
+    this.setStatus(workerStatus.UNHEALTHY);
 
     this.logger.info('Starting to exit...');
 
@@ -860,14 +860,14 @@ export class V1Worker {
   }
 
   async start() {
-    this.setStatus(WorkerStatus.STARTING);
+    this.setStatus(workerStatus.STARTING);
 
     if (this.healthServer) {
       try {
         await this.healthServer.start();
       } catch (e: any) {
         this.logger.error(`Could not start health server: ${e.message}`);
-        this.setStatus(WorkerStatus.UNHEALTHY);
+        this.setStatus(workerStatus.UNHEALTHY);
         return;
       }
     }
@@ -889,7 +889,7 @@ export class V1Worker {
       });
 
       this.workerId = this.listener.workerId;
-      this.setStatus(WorkerStatus.HEALTHY);
+      this.setStatus(workerStatus.HEALTHY);
 
       const generator = this.listener.actions();
 
@@ -903,7 +903,7 @@ export class V1Worker {
         void this.handleAction(action);
       }
     } catch (e: any) {
-      this.setStatus(WorkerStatus.UNHEALTHY);
+      this.setStatus(workerStatus.UNHEALTHY);
       if (this.killing) {
         this.logger.info(`Exiting worker, ignoring error: ${e.message}`);
         return;

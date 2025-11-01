@@ -1,12 +1,13 @@
 import { createServer, Server, IncomingMessage, ServerResponse } from 'node:http';
 import { Logger } from '@hatchet/util/logger';
 
-export enum WorkerStatus {
-  INITIALIZED = 'INITIALIZED',
-  STARTING = 'STARTING',
-  HEALTHY = 'HEALTHY',
-  UNHEALTHY = 'UNHEALTHY',
-}
+export const workerStatus = {
+  INITIALIZED: 'INITIALIZED',
+  STARTING: 'STARTING',
+  HEALTHY: 'HEALTHY',
+  UNHEALTHY: 'UNHEALTHY',
+} as const;
+export type WorkerStatus = (typeof workerStatus)[keyof typeof workerStatus];
 
 interface HealthCheckResponse {
   status: string;
@@ -67,6 +68,7 @@ export class HealthServer {
   private initializeMetrics(): void {
     try {
       // @ts-ignore - prom-client is an optional dependency
+      // eslint-disable-next-line
       const { Registry, Gauge, collectDefaultMetrics } = require('prom-client');
 
       this.register = new Registry();
@@ -77,7 +79,7 @@ export class HealthServer {
         help: 'Current status of the Hatchet worker',
         registers: [this.register],
         collect: () => {
-          this.workerStatusGauge!.set(this.getStatus() === WorkerStatus.HEALTHY ? 1 : 0);
+          this.workerStatusGauge!.set(this.getStatus() === workerStatus.HEALTHY ? 1 : 0);
         },
       });
 
@@ -156,5 +158,7 @@ export class HealthServer {
         });
       });
     }
+
+    return Promise.resolve();
   }
 }
