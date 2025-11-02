@@ -276,9 +276,17 @@ type TaskRepositoryImpl struct {
 	reassignLimit         int
 	retryQueueLimit       int
 	durableSleepLimit     int
+	probabilityFactor     float64
 }
 
 func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, maxInternalRetryCount int32, timeoutLimit, reassignLimit, retryQueueLimit, durableSleepLimit int) TaskRepository {
+	p := os.Getenv("CACHE_PROBABILITY_FACTOR")
+	probabilityFactor, err := strconv.ParseFloat(p, 64)
+	if err != nil {
+		s.l.Error().Msgf("failed to parse CACHE_PROBABILITY_FACTOR: %v", err)
+		probabilityFactor = 1.0
+	}
+
 	return &TaskRepositoryImpl{
 		sharedRepository:      s,
 		taskRetentionPeriod:   taskRetentionPeriod,
@@ -287,6 +295,7 @@ func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, m
 		reassignLimit:         reassignLimit,
 		retryQueueLimit:       retryQueueLimit,
 		durableSleepLimit:     durableSleepLimit,
+		probabilityFactor:     probabilityFactor,
 	}
 }
 
@@ -383,16 +392,10 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 
 func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
 
-	p := os.Getenv("CACHE_PROBABILITY_FACTOR")
-	probabilityFactor, err := strconv.ParseFloat(p, 64)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse CACHE_PROBABILITY_FACTOR: %w", err)
-	}
-
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.GetTaskByExternalId")
 	defer span.End()
 
-	if !skipCache && rand.Float64() < probabilityFactor {
+	if !skipCache && rand.Float64() < r.probabilityFactor {
 		// check the cache first
 		key := taskExternalIdTenantIdTuple{
 			externalId: taskExternalId,
