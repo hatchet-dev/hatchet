@@ -406,9 +406,9 @@ func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, 
 			span.SetAttributes(attribute.Bool("cache_hit", true))
 			return val, nil
 		}
-
-		span.SetAttributes(attribute.Bool("cache_hit", false))
 	}
+
+	span.SetAttributes(attribute.Bool("cache_hit", false))
 
 	// lookup the task
 	dbTasks, err := r.queries.FlattenExternalIds(ctx, r.pool, sqlcv1.FlattenExternalIdsParams{
