@@ -180,7 +180,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		}
 	}
 
-	payloads, err := s.payloadStore.Retrieve(ctx, retrievePayloadOpts...)
+	payloads, err := s.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
 
 	if err != nil {
 		return err
