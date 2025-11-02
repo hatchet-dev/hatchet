@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"time"
@@ -116,6 +117,7 @@ type workflowConfig struct {
 	taskDefaults    *create.TaskDefaults
 	defaultPriority *RunPriority
 	stickyStrategy  *types.StickyStrategy
+	cronInput       *string
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -123,6 +125,24 @@ type workflowConfig struct {
 func WithWorkflowCron(cronExpressions ...string) WorkflowOption {
 	return func(config *workflowConfig) {
 		config.onCron = cronExpressions
+	}
+}
+
+// WithWorkflowCronInput sets the input for cron workflows.
+func WithWorkflowCronInput(input any) WorkflowOption {
+	return func(config *workflowConfig) {
+		inputJSON := "{}"
+
+		if input != nil {
+			bytes, err := json.Marshal(input)
+			if err != nil {
+				panic(fmt.Errorf("could not marshal cron input: %w", err))
+			}
+
+			inputJSON = string(bytes)
+		}
+
+		config.cronInput = &inputJSON
 	}
 }
 
@@ -181,6 +201,11 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 
 	for _, opt := range options {
 		opt(config)
+	}
+
+	if len(config.onCron) > 0 && config.cronInput == nil {
+		emptyJSON := "{}"
+		config.cronInput = &emptyJSON
 	}
 
 	createOpts := create.WorkflowCreateOpts[any]{
