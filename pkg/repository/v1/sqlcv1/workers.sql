@@ -83,3 +83,16 @@ WHERE
     AND runtime.worker_id = @workerId::uuid
 LIMIT
     COALESCE(sqlc.narg('limit')::int, 100);
+
+-- name: ListTotalActiveSlotsPerTenant :many
+SELECT "tenantId", SUM("maxRuns") AS "totalActiveSlots"
+FROM "Worker"
+WHERE "lastHeartbeatAt" > NOW() - INTERVAL '30 seconds'
+GROUP BY "tenantId"
+;
+
+-- name: ListActiveSDKsPerTenant :many
+SELECT "tenantId", "language", "languageVersion", "sdkVersion", "os"
+FROM "Worker"
+WHERE "lastHeartbeatAt" > NOW() - INTERVAL '30 seconds'
+;

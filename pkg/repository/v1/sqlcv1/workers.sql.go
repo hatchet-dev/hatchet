@@ -65,6 +65,46 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*
 	return &i, err
 }
 
+const listActiveSDKsPerTenant = `-- name: ListActiveSDKsPerTenant :many
+SELECT "tenantId", "language", "languageVersion", "sdkVersion", "os"
+FROM "Worker"
+WHERE "lastHeartbeatAt" > NOW() - INTERVAL '30 seconds'
+`
+
+type ListActiveSDKsPerTenantRow struct {
+	TenantId        pgtype.UUID    `json:"tenantId"`
+	Language        NullWorkerSDKS `json:"language"`
+	LanguageVersion pgtype.Text    `json:"languageVersion"`
+	SdkVersion      pgtype.Text    `json:"sdkVersion"`
+	Os              pgtype.Text    `json:"os"`
+}
+
+func (q *Queries) ListActiveSDKsPerTenant(ctx context.Context, db DBTX) ([]*ListActiveSDKsPerTenantRow, error) {
+	rows, err := db.Query(ctx, listActiveSDKsPerTenant)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListActiveSDKsPerTenantRow
+	for rows.Next() {
+		var i ListActiveSDKsPerTenantRow
+		if err := rows.Scan(
+			&i.TenantId,
+			&i.Language,
+			&i.LanguageVersion,
+			&i.SdkVersion,
+			&i.Os,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listManyWorkerLabels = `-- name: ListManyWorkerLabels :many
 SELECT
     "id",
@@ -236,6 +276,38 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.RetryBackoffFactor,
 			&i.RetryMaxBackoff,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTotalActiveSlotsPerTenant = `-- name: ListTotalActiveSlotsPerTenant :many
+SELECT "tenantId", SUM("maxRuns") AS "totalActiveSlots"
+FROM "Worker"
+WHERE "lastHeartbeatAt" > NOW() - INTERVAL '30 seconds'
+GROUP BY "tenantId"
+`
+
+type ListTotalActiveSlotsPerTenantRow struct {
+	TenantId         pgtype.UUID `json:"tenantId"`
+	TotalActiveSlots int64       `json:"totalActiveSlots"`
+}
+
+func (q *Queries) ListTotalActiveSlotsPerTenant(ctx context.Context, db DBTX) ([]*ListTotalActiveSlotsPerTenantRow, error) {
+	rows, err := db.Query(ctx, listTotalActiveSlotsPerTenant)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTotalActiveSlotsPerTenantRow
+	for rows.Next() {
+		var i ListTotalActiveSlotsPerTenantRow
+		if err := rows.Scan(&i.TenantId, &i.TotalActiveSlots); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
