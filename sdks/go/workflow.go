@@ -214,6 +214,7 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		Description:    config.description,
 		OnEvents:       config.onEvents,
 		OnCron:         config.onCron,
+		CronInput:      config.cronInput,
 		Concurrency:    config.concurrency,
 		TaskDefaults:   config.taskDefaults,
 		StickyStrategy: config.stickyStrategy,
