@@ -20,6 +20,28 @@ func (q *Queries) AnalyzeV1Payload(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const computeWALMetrics = `-- name: ComputeWALMetrics :one
+SELECT
+    MIN(offload_at) AS min_offload_at,
+    MIN(offload_at) - NOW() AS longest_offload_lag,
+    COUNT(*) AS total_wal_records
+FROM
+    v1_payload_wal
+`
+
+type ComputeWALMetricsRow struct {
+	MinOffloadAt      interface{} `json:"min_offload_at"`
+	LongestOffloadLag int32       `json:"longest_offload_lag"`
+	TotalWalRecords   int64       `json:"total_wal_records"`
+}
+
+func (q *Queries) ComputeWALMetrics(ctx context.Context, db DBTX) (*ComputeWALMetricsRow, error) {
+	row := db.QueryRow(ctx, computeWALMetrics)
+	var i ComputeWALMetricsRow
+	err := row.Scan(&i.MinOffloadAt, &i.LongestOffloadLag, &i.TotalWalRecords)
+	return &i, err
+}
+
 const cutOverPayloadsToExternal = `-- name: CutOverPayloadsToExternal :one
 WITH tenants AS (
     SELECT UNNEST(

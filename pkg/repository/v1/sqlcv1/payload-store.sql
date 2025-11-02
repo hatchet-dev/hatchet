@@ -214,3 +214,11 @@ FROM queue_items
 
 -- name: AnalyzeV1Payload :exec
 ANALYZE v1_payload;
+
+-- name: ComputeWALMetrics :one
+SELECT
+    MIN(offload_at) AS min_offload_at,
+    MIN(offload_at) - NOW() AS longest_offload_lag,
+    COUNT(*) AS total_wal_records
+FROM
+    v1_payload_wal;
