@@ -406,6 +406,8 @@ func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, 
 			span.SetAttributes(attribute.Bool("cache_hit", true))
 			return val, nil
 		}
+
+		span.SetAttributes(attribute.Bool("cache_hit", false))
 	}
 
 	// lookup the task
