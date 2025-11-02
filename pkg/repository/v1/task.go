@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"math/rand/v2"
+	"os"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -379,7 +382,17 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 }
 
 func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
-	if !skipCache {
+
+	p := os.Getenv("CACHE_PROBABILITY_FACTOR")
+	probabilityFactor, err := strconv.ParseFloat(p, 64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse CACHE_PROBABILITY_FACTOR: %w", err)
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.GetTaskByExternalId")
+	defer span.End()
+
+	if !skipCache && rand.Float64() < probabilityFactor {
 		// check the cache first
 		key := taskExternalIdTenantIdTuple{
 			externalId: taskExternalId,
@@ -387,6 +400,7 @@ func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, 
 		}
 
 		if val, ok := r.taskLookupCache.Get(key); ok {
+			span.SetAttributes(attribute.Bool("cache_hit", true))
 			return val, nil
 		}
 	}
