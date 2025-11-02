@@ -8,6 +8,8 @@ fdescribe('ConfigLoader', () => {
     process.env.HATCHET_CLIENT_TLS_KEY_FILE = 'TLS_KEY_FILE';
     process.env.HATCHET_CLIENT_TLS_ROOT_CA_FILE = 'TLS_ROOT_CA_FILE';
     process.env.HATCHET_CLIENT_TLS_SERVER_NAME = 'TLS_SERVER_NAME';
+    process.env.HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED = 'true';
+    process.env.HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT = '8001';
   });
 
   it('should load from environment variables', () => {
@@ -26,6 +28,10 @@ fdescribe('ConfigLoader', () => {
         key_file: 'TLS_KEY_FILE',
         ca_file: 'TLS_ROOT_CA_FILE',
         server_name: 'TLS_SERVER_NAME',
+      },
+      healthcheck: {
+        enabled: true,
+        port: 8001,
       },
     });
   });
@@ -75,6 +81,10 @@ fdescribe('ConfigLoader', () => {
         ca_file: 'TLS_ROOT_CA_FILE_YAML',
         server_name: 'TLS_SERVER_NAME_YAML',
       },
+      healthcheck: {
+        enabled: true,
+        port: 8002,
+      },
     });
   });
 
@@ -96,6 +106,10 @@ fdescribe('ConfigLoader', () => {
         key_file: 'TLS_KEY_FILE_YAML',
         ca_file: 'TLS_ROOT_CA_FILE_YAML',
         server_name: 'TLS_SERVER_NAME_YAML',
+      },
+      healthcheck: {
+        enabled: true,
+        port: 8002,
       },
     });
   });
