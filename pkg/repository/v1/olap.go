@@ -1594,7 +1594,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 
 			innerSpan.SetAttributes(
 				attribute.Int("olap_repository.update_task_statuses.partition.events_processed", eventCount),
-				attribute.Bool("olap_repository.update_task_statuses.partition.is_saturated", eventCount == int(limit)),
+				attribute.Bool("olap_repository.update_task_statuses.partition.is_saturated", eventCount > int(limit)),
 			)
 
 			return nil
@@ -1604,6 +1604,10 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 	if err := eg.Wait(); err != nil {
 		return false, nil, err
 	}
+
+	span.SetAttributes(
+		attribute.Bool("olap_repository.update_task_statuses.is_saturated", isSaturated),
+	)
 
 	return isSaturated, rows, nil
 }
@@ -1698,7 +1702,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 
 			innerSpan.SetAttributes(
 				attribute.Int("olap_repository.update_dag_statuses.partition.events_processed", eventCount),
-				attribute.Bool("olap_repository.update_dag_statuses.partition.is_saturated", eventCount == int(limit)),
+				attribute.Bool("olap_repository.update_dag_statuses.partition.is_saturated", eventCount > int(limit)),
 			)
 
 			return nil
@@ -1708,6 +1712,10 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 	if err := eg.Wait(); err != nil {
 		return false, nil, fmt.Errorf("failed to wait for status update goroutines: %w", err)
 	}
+
+	span.SetAttributes(
+		attribute.Bool("olap_repository.update_dag_statuses.is_saturated", isSaturated),
+	)
 
 	return isSaturated, rows, nil
 }
