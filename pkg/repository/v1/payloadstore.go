@@ -270,7 +270,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		}
 	}
 
-	err := p.queries.WritePayloads(ctx, p.pool, sqlcv1.WritePayloadsParams{
+	err := p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
 		Ids:                  taskIds,
 		Insertedats:          taskInsertedAts,
 		Types:                payloadTypes,
