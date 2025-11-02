@@ -7,15 +7,285 @@ package sqlcv1
 
 import (
 	"context"
+	"net/netip"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const checkBloat = `-- name: CheckBloat :one
-SELECT COUNT(*) FROM "Workflow" WHERE "deletedAt" IS NULL
+const checkBloat = `-- name: CheckBloat :many
+SELECT
+    schemaname,
+    relname AS tablename,
+    pg_size_pretty(pg_total_relation_size(quote_ident(schemaname)||'.'||quote_ident(relname))) AS total_size,
+    pg_size_pretty(pg_relation_size(quote_ident(schemaname)||'.'||quote_ident(relname))) AS table_size,
+    n_live_tup AS live_tuples,
+    n_dead_tup AS dead_tuples,
+    ROUND(100 * n_dead_tup::numeric / NULLIF(n_live_tup, 0), 2) AS dead_pct,
+    last_vacuum,
+    last_autovacuum,
+    last_analyze
+FROM
+    pg_stat_user_tables
+WHERE
+    n_dead_tup > 1000 
+    AND n_live_tup > 1000 
+    AND ROUND(100 * n_dead_tup::numeric / NULLIF(n_live_tup, 0), 2) > 50 
+    AND relname NOT IN (
+        'Lease'
+        )
+ORDER BY
+    dead_pct DESC NULLS LAST
 `
 
-func (q *Queries) CheckBloat(ctx context.Context, db DBTX) (int64, error) {
-	row := db.QueryRow(ctx, checkBloat)
+type CheckBloatRow struct {
+	Schemaname     pgtype.Text        `json:"schemaname"`
+	Tablename      pgtype.Text        `json:"tablename"`
+	TotalSize      string             `json:"total_size"`
+	TableSize      string             `json:"table_size"`
+	LiveTuples     pgtype.Int8        `json:"live_tuples"`
+	DeadTuples     pgtype.Int8        `json:"dead_tuples"`
+	DeadPct        pgtype.Numeric     `json:"dead_pct"`
+	LastVacuum     pgtype.Timestamptz `json:"last_vacuum"`
+	LastAutovacuum pgtype.Timestamptz `json:"last_autovacuum"`
+	LastAnalyze    pgtype.Timestamptz `json:"last_analyze"`
+}
+
+func (q *Queries) CheckBloat(ctx context.Context, db DBTX) ([]*CheckBloatRow, error) {
+	rows, err := db.Query(ctx, checkBloat)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*CheckBloatRow
+	for rows.Next() {
+		var i CheckBloatRow
+		if err := rows.Scan(
+			&i.Schemaname,
+			&i.Tablename,
+			&i.TotalSize,
+			&i.TableSize,
+			&i.LiveTuples,
+			&i.DeadTuples,
+			&i.DeadPct,
+			&i.LastVacuum,
+			&i.LastAutovacuum,
+			&i.LastAnalyze,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const checkLongRunningQueries = `-- name: CheckLongRunningQueries :many
+SELECT 
+    pid,
+    usename,
+    application_name,
+    client_addr,
+    state,
+    now() - query_start AS duration,
+    query
+FROM 
+    pg_stat_activity
+WHERE 
+    state = 'active'
+    AND now() - query_start > interval '5 minutes'
+    AND query NOT LIKE 'autovacuum:%'
+    AND query NOT LIKE '%pg_stat_activity%'
+ORDER BY 
+    query_start
+`
+
+type CheckLongRunningQueriesRow struct {
+	Pid             pgtype.Int4 `json:"pid"`
+	Usename         pgtype.Text `json:"usename"`
+	ApplicationName pgtype.Text `json:"application_name"`
+	ClientAddr      *netip.Addr `json:"client_addr"`
+	State           pgtype.Text `json:"state"`
+	Duration        int32       `json:"duration"`
+	Query           pgtype.Text `json:"query"`
+}
+
+func (q *Queries) CheckLongRunningQueries(ctx context.Context, db DBTX) ([]*CheckLongRunningQueriesRow, error) {
+	rows, err := db.Query(ctx, checkLongRunningQueries)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*CheckLongRunningQueriesRow
+	for rows.Next() {
+		var i CheckLongRunningQueriesRow
+		if err := rows.Scan(
+			&i.Pid,
+			&i.Usename,
+			&i.ApplicationName,
+			&i.ClientAddr,
+			&i.State,
+			&i.Duration,
+			&i.Query,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const checkPGStatStatementsEnabled = `-- name: CheckPGStatStatementsEnabled :one
+SELECT COUNT(*) FROM pg_available_extensions WHERE name = 'pg_stat_statements'
+`
+
+func (q *Queries) CheckPGStatStatementsEnabled(ctx context.Context, db DBTX) (int64, error) {
+	row := db.QueryRow(ctx, checkPGStatStatementsEnabled)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const checkQueryCaches = `-- name: CheckQueryCaches :many
+SELECT 
+    schemaname,
+    relname AS tablename,
+    heap_blks_read,
+    heap_blks_hit,
+    heap_blks_hit + heap_blks_read AS total_reads,
+    ROUND(
+        100.0 * heap_blks_hit / NULLIF(heap_blks_hit + heap_blks_read, 0),
+        2
+    )::float AS cache_hit_ratio_pct,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) AS total_size
+FROM 
+    pg_statio_user_tables
+WHERE 
+    heap_blks_read + heap_blks_hit > 0
+ORDER BY 
+    heap_blks_read DESC
+LIMIT 20
+`
+
+type CheckQueryCachesRow struct {
+	Schemaname       pgtype.Text `json:"schemaname"`
+	Tablename        pgtype.Text `json:"tablename"`
+	HeapBlksRead     pgtype.Int8 `json:"heap_blks_read"`
+	HeapBlksHit      pgtype.Int8 `json:"heap_blks_hit"`
+	TotalReads       int32       `json:"total_reads"`
+	CacheHitRatioPct float64     `json:"cache_hit_ratio_pct"`
+	TotalSize        string      `json:"total_size"`
+}
+
+func (q *Queries) CheckQueryCaches(ctx context.Context, db DBTX) ([]*CheckQueryCachesRow, error) {
+	rows, err := db.Query(ctx, checkQueryCaches)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*CheckQueryCachesRow
+	for rows.Next() {
+		var i CheckQueryCachesRow
+		if err := rows.Scan(
+			&i.Schemaname,
+			&i.Tablename,
+			&i.HeapBlksRead,
+			&i.HeapBlksHit,
+			&i.TotalReads,
+			&i.CacheHitRatioPct,
+			&i.TotalSize,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const longRunningVacuum = `-- name: LongRunningVacuum :many
+SELECT 
+    p.pid,
+    p.relid::regclass AS table_name,
+    pg_size_pretty(pg_total_relation_size(p.relid)) AS table_size,
+    p.phase,
+    p.heap_blks_total AS total_blocks,
+    p.heap_blks_scanned AS scanned_blocks,
+    ROUND(100.0 * p.heap_blks_scanned / NULLIF(p.heap_blks_total, 0), 2) AS pct_scanned,
+    p.heap_blks_vacuumed AS vacuumed_blocks,
+    p.index_vacuum_count,
+    now() - a.query_start AS elapsed_time,
+    CASE 
+        WHEN p.heap_blks_scanned > 0 THEN
+            ((now() - a.query_start) * (p.heap_blks_total - p.heap_blks_scanned) / p.heap_blks_scanned)
+        ELSE interval '0'
+    END AS estimated_time_remaining,
+    a.wait_event_type,
+    a.wait_event,
+    a.query
+FROM 
+    pg_stat_progress_vacuum p
+    JOIN pg_stat_activity a ON p.pid = a.pid
+WHERE 
+    now() - a.query_start > interval '3 hours'
+ORDER BY 
+    a.query_start
+`
+
+type LongRunningVacuumRow struct {
+	Pid                    pgtype.Int4     `json:"pid"`
+	TableName              interface{}     `json:"table_name"`
+	TableSize              string          `json:"table_size"`
+	Phase                  pgtype.Text     `json:"phase"`
+	TotalBlocks            pgtype.Int8     `json:"total_blocks"`
+	ScannedBlocks          pgtype.Int8     `json:"scanned_blocks"`
+	PctScanned             pgtype.Numeric  `json:"pct_scanned"`
+	VacuumedBlocks         pgtype.Int8     `json:"vacuumed_blocks"`
+	IndexVacuumCount       pgtype.Int8     `json:"index_vacuum_count"`
+	ElapsedTime            int32           `json:"elapsed_time"`
+	EstimatedTimeRemaining pgtype.Interval `json:"estimated_time_remaining"`
+	WaitEventType          pgtype.Text     `json:"wait_event_type"`
+	WaitEvent              pgtype.Text     `json:"wait_event"`
+	Query                  pgtype.Text     `json:"query"`
+}
+
+func (q *Queries) LongRunningVacuum(ctx context.Context, db DBTX) ([]*LongRunningVacuumRow, error) {
+	rows, err := db.Query(ctx, longRunningVacuum)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*LongRunningVacuumRow
+	for rows.Next() {
+		var i LongRunningVacuumRow
+		if err := rows.Scan(
+			&i.Pid,
+			&i.TableName,
+			&i.TableSize,
+			&i.Phase,
+			&i.TotalBlocks,
+			&i.ScannedBlocks,
+			&i.PctScanned,
+			&i.VacuumedBlocks,
+			&i.IndexVacuumCount,
+			&i.ElapsedTime,
+			&i.EstimatedTimeRemaining,
+			&i.WaitEventType,
+			&i.WaitEvent,
+			&i.Query,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
