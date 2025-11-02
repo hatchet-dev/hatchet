@@ -1114,3 +1114,15 @@ SELECT
     key,
     count
 FROM running_tasks;
+
+-- name: FindOldestRunningTask :one
+SELECT *
+FROM v1_task_runtime
+ORDER BY task_id, task_inserted_at
+LIMIT 1;
+
+-- name: FindOldestTask :one
+SELECT *
+FROM v1_task
+ORDER BY id, inserted_at
+LIMIT 1;

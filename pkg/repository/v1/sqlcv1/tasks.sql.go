@@ -439,6 +439,79 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 	return items, nil
 }
 
+const findOldestRunningTask = `-- name: FindOldestRunningTask :one
+SELECT task_id, task_inserted_at, retry_count, worker_id, tenant_id, timeout_at
+FROM v1_task_runtime
+ORDER BY task_id, task_inserted_at
+LIMIT 1
+`
+
+func (q *Queries) FindOldestRunningTask(ctx context.Context, db DBTX) (*V1TaskRuntime, error) {
+	row := db.QueryRow(ctx, findOldestRunningTask)
+	var i V1TaskRuntime
+	err := row.Scan(
+		&i.TaskID,
+		&i.TaskInsertedAt,
+		&i.RetryCount,
+		&i.WorkerID,
+		&i.TenantID,
+		&i.TimeoutAt,
+	)
+	return &i, err
+}
+
+const findOldestTask = `-- name: FindOldestTask :one
+SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
+FROM v1_task
+ORDER BY id, inserted_at
+LIMIT 1
+`
+
+func (q *Queries) FindOldestTask(ctx context.Context, db DBTX) (*V1Task, error) {
+	row := db.QueryRow(ctx, findOldestTask)
+	var i V1Task
+	err := row.Scan(
+		&i.ID,
+		&i.InsertedAt,
+		&i.TenantID,
+		&i.Queue,
+		&i.ActionID,
+		&i.StepID,
+		&i.StepReadableID,
+		&i.WorkflowID,
+		&i.WorkflowVersionID,
+		&i.WorkflowRunID,
+		&i.ScheduleTimeout,
+		&i.StepTimeout,
+		&i.Priority,
+		&i.Sticky,
+		&i.DesiredWorkerID,
+		&i.ExternalID,
+		&i.DisplayName,
+		&i.Input,
+		&i.RetryCount,
+		&i.InternalRetryCount,
+		&i.AppRetryCount,
+		&i.StepIndex,
+		&i.AdditionalMetadata,
+		&i.DagID,
+		&i.DagInsertedAt,
+		&i.ParentTaskExternalID,
+		&i.ParentTaskID,
+		&i.ParentTaskInsertedAt,
+		&i.ChildIndex,
+		&i.ChildKey,
+		&i.InitialState,
+		&i.InitialStateReason,
+		&i.ConcurrencyParentStrategyIds,
+		&i.ConcurrencyStrategyIds,
+		&i.ConcurrencyKeys,
+		&i.RetryBackoffFactor,
+		&i.RetryMaxBackoff,
+	)
+	return &i, err
+}
+
 const flattenExternalIds = `-- name: FlattenExternalIds :many
 WITH lookup_rows AS (
     SELECT
