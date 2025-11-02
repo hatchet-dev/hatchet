@@ -35,6 +35,7 @@ type Repository interface {
 	Webhooks() WebhookRepository
 	Idempotency() IdempotencyRepository
 	IntervalSettings() IntervalSettingsRepository
+	PGHealth() PGHealthRepository
 }
 
 type repositoryImpl struct {
@@ -52,6 +53,7 @@ type repositoryImpl struct {
 	payloadStore PayloadStoreRepository
 	idempotency  IdempotencyRepository
 	intervals    IntervalSettingsRepository
+	pgHealth     PGHealthRepository
 }
 
 func NewRepository(
@@ -83,6 +85,7 @@ func NewRepository(
 		payloadStore: shared.payloadStore,
 		idempotency:  newIdempotencyRepository(shared),
 		intervals:    newIntervalSettingsRepository(shared),
+		pgHealth:     newPGHealthRepository(shared),
 	}
 
 	return impl, func() error {
@@ -156,4 +159,8 @@ func (r *repositoryImpl) Idempotency() IdempotencyRepository {
 
 func (r *repositoryImpl) IntervalSettings() IntervalSettingsRepository {
 	return r.intervals
+}
+
+func (r *repositoryImpl) PGHealth() PGHealthRepository {
+	return r.pgHealth
 }
