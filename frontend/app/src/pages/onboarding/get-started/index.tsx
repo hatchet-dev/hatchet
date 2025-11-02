@@ -1,15 +1,15 @@
-import { Loading } from '@/components/ui/loading';
-import { useTenant } from '@/lib/atoms';
-import { UserContextType, MembershipsContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { Loading } from '@/components/ui/loading';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Step, Steps } from '@/components/v1/ui/steps';
+import { useTenant } from '@/lib/atoms';
+import { MembershipsContextType, UserContextType } from '@/lib/outlet';
+import { useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-auth';
 import { DefaultOnboardingWorkflow } from './platforms/defaults/default-onboarding-workflow';
-import { useState } from 'react';
 import { WorkerListener } from './platforms/defaults/default-worker-listener';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
 
 export default function GetStarted() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -210,24 +210,24 @@ export default function GetStarted() {
                       </TabsList>
                       <TabsContent value="npm" className="mt-3">
                         <CodeHighlighter
-                          code="npm run start"
-                          copyCode="npm run start"
+                          code="npm run build && npm run start"
+                          copyCode="npm run build && npm run start"
                           language="shell"
                           copy
                         />
                       </TabsContent>
                       <TabsContent value="pnpm" className="mt-3">
                         <CodeHighlighter
-                          code="pnpm run start"
-                          copyCode="pnpm run start"
+                          code="pnpm run build && pnpm run start"
+                          copyCode="pnpm run build && pnpm run start"
                           language="shell"
                           copy
                         />
                       </TabsContent>
                       <TabsContent value="yarn" className="mt-3">
                         <CodeHighlighter
-                          code="yarn run start"
-                          copyCode="yarn run start"
+                          code="yarn run build && yarn run start"
+                          copyCode="yarn run build && yarn run start"
                           language="shell"
                           copy
                         />
