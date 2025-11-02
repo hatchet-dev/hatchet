@@ -10,6 +10,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func getChildSignalEventKey(parentExternalId string, stepIndex, childIndex int64, childKeyArg *string) string {
@@ -110,6 +111,10 @@ func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, t
 }
 
 func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error {
+
+	ctx, span := telemetry.NewSpan(ctx, "ids.generate_external_ids_for_child_workflows")
+	defer span.End()
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
 
 	if err != nil {
