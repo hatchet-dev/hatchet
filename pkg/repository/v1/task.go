@@ -284,7 +284,7 @@ func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, m
 	probabilityFactor, err := strconv.ParseFloat(p, 64)
 	if err != nil {
 		s.l.Error().Msgf("failed to parse CACHE_PROBABILITY_FACTOR: %v", err)
-		probabilityFactor = 0.0
+		probabilityFactor = 1.0
 	}
 
 	return &TaskRepositoryImpl{
