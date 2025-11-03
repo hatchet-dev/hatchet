@@ -87,12 +87,30 @@ LIMIT
 -- name: ListTotalActiveSlotsPerTenant :many
 SELECT "tenantId", SUM("maxRuns") AS "totalActiveSlots"
 FROM "Worker"
-WHERE "lastHeartbeatAt" > NOW() - INTERVAL '30 seconds'
+WHERE
+    w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
 GROUP BY "tenantId"
 ;
 
 -- name: ListActiveSDKsPerTenant :many
 SELECT "tenantId", "language", "languageVersion", "sdkVersion", "os"
 FROM "Worker"
-WHERE "lastHeartbeatAt" > NOW() - INTERVAL '30 seconds'
+WHERE
+    w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+;
+
+-- name: ListActiveWorkersPerTenant :many
+SELECT "tenantId", COUNT(*)
+FROM "Worker"
+WHERE
+    w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false;
 ;

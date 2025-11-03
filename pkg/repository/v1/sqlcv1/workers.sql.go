@@ -68,7 +68,11 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*
 const listActiveSDKsPerTenant = `-- name: ListActiveSDKsPerTenant :many
 SELECT "tenantId", "language", "languageVersion", "sdkVersion", "os"
 FROM "Worker"
-WHERE "lastHeartbeatAt" > NOW() - INTERVAL '30 seconds'
+WHERE
+    w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
 `
 
 type ListActiveSDKsPerTenantRow struct {
@@ -95,6 +99,41 @@ func (q *Queries) ListActiveSDKsPerTenant(ctx context.Context, db DBTX) ([]*List
 			&i.SdkVersion,
 			&i.Os,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveWorkersPerTenant = `-- name: ListActiveWorkersPerTenant :many
+SELECT "tenantId", COUNT(*)
+FROM "Worker"
+WHERE
+    w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+`
+
+type ListActiveWorkersPerTenantRow struct {
+	TenantId pgtype.UUID `json:"tenantId"`
+	Count    int64       `json:"count"`
+}
+
+func (q *Queries) ListActiveWorkersPerTenant(ctx context.Context, db DBTX) ([]*ListActiveWorkersPerTenantRow, error) {
+	rows, err := db.Query(ctx, listActiveWorkersPerTenant)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListActiveWorkersPerTenantRow
+	for rows.Next() {
+		var i ListActiveWorkersPerTenantRow
+		if err := rows.Scan(&i.TenantId, &i.Count); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -289,7 +328,11 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 const listTotalActiveSlotsPerTenant = `-- name: ListTotalActiveSlotsPerTenant :many
 SELECT "tenantId", SUM("maxRuns") AS "totalActiveSlots"
 FROM "Worker"
-WHERE "lastHeartbeatAt" > NOW() - INTERVAL '30 seconds'
+WHERE
+    w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
 GROUP BY "tenantId"
 `
 

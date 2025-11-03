@@ -18,7 +18,8 @@ type WorkerRepository interface {
 	ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
 	GetWorkerById(workerId string) (*sqlcv1.GetWorkerByIdRow, error)
 	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error)
-	ListActiveSlotsPerTenant() (map[string]int64, error)
+	CountActiveSlotsPerTenant() (map[string]int64, error)
+	CountActiveWorkersPerTenant() (map[string]int64, error)
 	ListActiveSDKsPerTenant() (map[string][]SDK, error)
 }
 
@@ -92,7 +93,7 @@ func (w *workerRepository) ListWorkerState(tenantId, workerId string, maxRuns in
 	return slots, []*dbsqlc.GetStepRunForEngineRow{}, nil
 }
 
-func (w *workerRepository) ListActiveSlotsPerTenant() (map[string]int64, error) {
+func (w *workerRepository) CountActiveSlotsPerTenant() (map[string]int64, error) {
 	slots, err := w.queries.ListTotalActiveSlotsPerTenant(context.Background(), w.pool)
 
 	if err != nil {
@@ -157,4 +158,20 @@ func (w *workerRepository) ListActiveSDKsPerTenant() (map[string][]SDK, error) {
 	}
 
 	return tenantToSDKs, nil
+}
+
+func (w *workerRepository) CountActiveWorkersPerTenant() (map[string]int64, error) {
+	workers, err := w.queries.ListActiveWorkersPerTenant(context.Background(), w.pool)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list active workers per tenant: %w", err)
+	}
+
+	tenantToWorkers := make(map[string]int64)
+
+	for _, worker := range workers {
+		tenantToWorkers[worker.TenantId.String()] = worker.Count
+	}
+
+	return tenantToWorkers, nil
 }
