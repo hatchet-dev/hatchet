@@ -98,7 +98,7 @@ GROUP BY "tenantId"
 -- name: ListActiveSDKsPerTenant :many
 SELECT
     "tenantId",
-    COALESCE("language", 'unknown') AS "language",
+    COALESCE("language"::TEXT, 'unknown')::TEXT AS "language",
     COALESCE("languageVersion", 'unknown') AS "languageVersion",
     COALESCE("sdkVersion", 'unknown') AS "sdkVersion",
     COALESCE("os", 'unknown') AS "os",

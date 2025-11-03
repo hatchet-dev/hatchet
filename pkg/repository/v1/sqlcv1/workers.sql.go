@@ -68,7 +68,7 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*
 const listActiveSDKsPerTenant = `-- name: ListActiveSDKsPerTenant :many
 SELECT
     "tenantId",
-    COALESCE("language", 'unknown') AS "language",
+    COALESCE("language"::TEXT, 'unknown')::TEXT AS "language",
     COALESCE("languageVersion", 'unknown') AS "languageVersion",
     COALESCE("sdkVersion", 'unknown') AS "sdkVersion",
     COALESCE("os", 'unknown') AS "os",
@@ -84,7 +84,7 @@ GROUP BY "tenantId", "language", "languageVersion", "sdkVersion", "os"
 
 type ListActiveSDKsPerTenantRow struct {
 	TenantId        pgtype.UUID `json:"tenantId"`
-	Language        WorkerSDKS  `json:"language"`
+	Language        string      `json:"language"`
 	LanguageVersion string      `json:"languageVersion"`
 	SdkVersion      string      `json:"sdkVersion"`
 	Os              string      `json:"os"`

@@ -136,7 +136,7 @@ func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64
 			TenantId: tenantId,
 			SDK: SDK{
 				OperatingSystem: sdk.Os,
-				Language:        string(sdk.Language),
+				Language:        sdk.Language,
 				LanguageVersion: sdk.LanguageVersion,
 				SdkVersion:      sdk.SdkVersion,
 			},
