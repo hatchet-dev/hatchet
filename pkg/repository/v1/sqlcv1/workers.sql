@@ -88,10 +88,10 @@ LIMIT
 SELECT "tenantId", SUM("maxRuns") AS "totalActiveSlots"
 FROM "Worker"
 WHERE
-    w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-    AND w."isActive" = true
-    AND w."isPaused" = false
+    "dispatcherId" IS NOT NULL
+    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND "isActive" = true
+    AND "isPaused" = false
 GROUP BY "tenantId"
 ;
 
@@ -99,18 +99,18 @@ GROUP BY "tenantId"
 SELECT "tenantId", "language", "languageVersion", "sdkVersion", "os"
 FROM "Worker"
 WHERE
-    w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-    AND w."isActive" = true
-    AND w."isPaused" = false
+    "dispatcherId" IS NOT NULL
+    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND "isActive" = true
+    AND "isPaused" = false
 ;
 
 -- name: ListActiveWorkersPerTenant :many
 SELECT "tenantId", COUNT(*)
 FROM "Worker"
 WHERE
-    w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-    AND w."isActive" = true
-    AND w."isPaused" = false;
+    "dispatcherId" IS NOT NULL
+    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND "isActive" = true
+    AND "isPaused" = false;
 ;
