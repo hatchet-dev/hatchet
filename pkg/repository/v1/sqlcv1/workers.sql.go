@@ -66,21 +66,29 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*
 }
 
 const listActiveSDKsPerTenant = `-- name: ListActiveSDKsPerTenant :many
-SELECT "tenantId", "language", "languageVersion", "sdkVersion", "os"
+SELECT
+    "tenantId",
+    COALESCE("language", 'unknown') AS "language",
+    COALESCE("languageVersion", 'unknown') AS "languageVersion",
+    COALESCE("sdkVersion", 'unknown') AS "sdkVersion",
+    COALESCE("os", 'unknown') AS "os",
+    COUNT(*) AS "count"
 FROM "Worker"
 WHERE
     "dispatcherId" IS NOT NULL
     AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND "isActive" = true
     AND "isPaused" = false
+GROUP BY "tenantId", "language", "languageVersion", "sdkVersion", "os"
 `
 
 type ListActiveSDKsPerTenantRow struct {
-	TenantId        pgtype.UUID    `json:"tenantId"`
-	Language        NullWorkerSDKS `json:"language"`
-	LanguageVersion pgtype.Text    `json:"languageVersion"`
-	SdkVersion      pgtype.Text    `json:"sdkVersion"`
-	Os              pgtype.Text    `json:"os"`
+	TenantId        pgtype.UUID `json:"tenantId"`
+	Language        WorkerSDKS  `json:"language"`
+	LanguageVersion string      `json:"languageVersion"`
+	SdkVersion      string      `json:"sdkVersion"`
+	Os              string      `json:"os"`
+	Count           int64       `json:"count"`
 }
 
 func (q *Queries) ListActiveSDKsPerTenant(ctx context.Context, db DBTX) ([]*ListActiveSDKsPerTenantRow, error) {
@@ -98,6 +106,7 @@ func (q *Queries) ListActiveSDKsPerTenant(ctx context.Context, db DBTX) ([]*List
 			&i.LanguageVersion,
 			&i.SdkVersion,
 			&i.Os,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -117,6 +126,7 @@ WHERE
     AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND "isActive" = true
     AND "isPaused" = false
+GROUP BY "tenantId"
 `
 
 type ListActiveWorkersPerTenantRow struct {

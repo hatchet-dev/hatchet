@@ -96,13 +96,20 @@ GROUP BY "tenantId"
 ;
 
 -- name: ListActiveSDKsPerTenant :many
-SELECT "tenantId", "language", "languageVersion", "sdkVersion", "os"
+SELECT
+    "tenantId",
+    COALESCE("language", 'unknown') AS "language",
+    COALESCE("languageVersion", 'unknown') AS "languageVersion",
+    COALESCE("sdkVersion", 'unknown') AS "sdkVersion",
+    COALESCE("os", 'unknown') AS "os",
+    COUNT(*) AS "count"
 FROM "Worker"
 WHERE
     "dispatcherId" IS NOT NULL
     AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND "isActive" = true
     AND "isPaused" = false
+GROUP BY "tenantId", "language", "languageVersion", "sdkVersion", "os"
 ;
 
 -- name: ListActiveWorkersPerTenant :many
@@ -112,5 +119,6 @@ WHERE
     "dispatcherId" IS NOT NULL
     AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND "isActive" = true
-    AND "isPaused" = false;
+    AND "isPaused" = false
+GROUP BY "tenantId"
 ;

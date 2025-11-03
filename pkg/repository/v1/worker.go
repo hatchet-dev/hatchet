@@ -20,7 +20,7 @@ type WorkerRepository interface {
 	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error)
 	CountActiveSlotsPerTenant() (map[string]int64, error)
 	CountActiveWorkersPerTenant() (map[string]int64, error)
-	ListActiveSDKsPerTenant() (map[string][]SDK, error)
+	ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error)
 }
 
 type workerRepository struct {
@@ -110,54 +110,42 @@ func (w *workerRepository) CountActiveSlotsPerTenant() (map[string]int64, error)
 }
 
 type SDK struct {
-	OperatingSystem *string
-	Language        *string
-	LanguageVersion *string
-	SdkVersion      *string
+	OperatingSystem string
+	Language        string
+	LanguageVersion string
+	SdkVersion      string
 }
 
-func (w *workerRepository) ListActiveSDKsPerTenant() (map[string][]SDK, error) {
+type TenantIdSDKTuple struct {
+	TenantId string
+	SDK      SDK
+}
+
+func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error) {
 	sdks, err := w.queries.ListActiveSDKsPerTenant(context.Background(), w.pool)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not list active sdks per tenant: %w", err)
 	}
 
-	tenantToSDKs := make(map[string][]SDK)
+	tenantIdSDKTupleToCount := make(map[TenantIdSDKTuple]int64)
 
 	for _, sdk := range sdks {
 		tenantId := sdk.TenantId.String()
-
-		language := ""
-		languageVersion := ""
-		os := ""
-		sdkVersion := ""
-
-		if sdk.Language.Valid {
-			language = string(sdk.Language.WorkerSDKS)
+		tenantIdSdkTuple := TenantIdSDKTuple{
+			TenantId: tenantId,
+			SDK: SDK{
+				OperatingSystem: sdk.Os,
+				Language:        string(sdk.Language),
+				LanguageVersion: sdk.LanguageVersion,
+				SdkVersion:      sdk.SdkVersion,
+			},
 		}
 
-		if sdk.LanguageVersion.Valid {
-			languageVersion = sdk.LanguageVersion.String
-		}
-
-		if sdk.Os.Valid {
-			os = sdk.Os.String
-		}
-
-		if sdk.SdkVersion.Valid {
-			sdkVersion = sdk.SdkVersion.String
-		}
-
-		tenantToSDKs[tenantId] = append(tenantToSDKs[tenantId], SDK{
-			OperatingSystem: &os,
-			Language:        &language,
-			LanguageVersion: &languageVersion,
-			SdkVersion:      &sdkVersion,
-		})
+		tenantIdSDKTupleToCount[tenantIdSdkTuple] = sdk.Count
 	}
 
-	return tenantToSDKs, nil
+	return tenantIdSDKTupleToCount, nil
 }
 
 func (w *workerRepository) CountActiveWorkersPerTenant() (map[string]int64, error) {
