@@ -18,6 +18,8 @@ type WorkerRepository interface {
 	ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
 	GetWorkerById(workerId string) (*sqlcv1.GetWorkerByIdRow, error)
 	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error)
+	ListActiveSlotsPerTenant() (map[string]int64, error)
+	ListActiveSDKsPerTenant() (map[string][]SDK, error)
 }
 
 type workerRepository struct {
@@ -88,4 +90,71 @@ func (w *workerRepository) ListWorkerState(tenantId, workerId string, maxRuns in
 	}
 
 	return slots, []*dbsqlc.GetStepRunForEngineRow{}, nil
+}
+
+func (w *workerRepository) ListActiveSlotsPerTenant() (map[string]int64, error) {
+	slots, err := w.queries.ListTotalActiveSlotsPerTenant(context.Background(), w.pool)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list active slots per tenant: %w", err)
+	}
+
+	tenantToSlots := make(map[string]int64)
+
+	for _, slot := range slots {
+		tenantToSlots[slot.TenantId.String()] = slot.TotalActiveSlots
+	}
+
+	return tenantToSlots, nil
+}
+
+type SDK struct {
+	OperatingSystem *string
+	Language        *string
+	LanguageVersion *string
+	SdkVersion      *string
+}
+
+func (w *workerRepository) ListActiveSDKsPerTenant() (map[string][]SDK, error) {
+	sdks, err := w.queries.ListActiveSDKsPerTenant(context.Background(), w.pool)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list active sdks per tenant: %w", err)
+	}
+
+	tenantToSDKs := make(map[string][]SDK)
+
+	for _, sdk := range sdks {
+		tenantId := sdk.TenantId.String()
+
+		language := ""
+		languageVersion := ""
+		os := ""
+		sdkVersion := ""
+
+		if sdk.Language.Valid {
+			language = string(sdk.Language.WorkerSDKS)
+		}
+
+		if sdk.LanguageVersion.Valid {
+			languageVersion = sdk.LanguageVersion.String
+		}
+
+		if sdk.Os.Valid {
+			os = sdk.Os.String
+		}
+
+		if sdk.SdkVersion.Valid {
+			sdkVersion = sdk.SdkVersion.String
+		}
+
+		tenantToSDKs[tenantId] = append(tenantToSDKs[tenantId], SDK{
+			OperatingSystem: &os,
+			Language:        &language,
+			LanguageVersion: &languageVersion,
+			SdkVersion:      &sdkVersion,
+		})
+	}
+
+	return tenantToSDKs, nil
 }
