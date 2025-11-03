@@ -151,13 +151,13 @@ func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParam
 	return count, err
 }
 
-const countOLAPStatusUpdatesTempTableSizes = `-- name: CountOLAPStatusUpdatesTempTableSizes :one
+const countOLAPStatusUpdatesTempTableSize = `-- name: CountOLAPStatusUpdatesTempTableSize :one
 SELECT COUNT(*) AS total
 FROM v1_task_status_updates_tmp
 `
 
-func (q *Queries) CountOLAPStatusUpdatesTempTableSizes(ctx context.Context, db DBTX) (int64, error) {
-	row := db.QueryRow(ctx, countOLAPStatusUpdatesTempTableSizes)
+func (q *Queries) CountOLAPStatusUpdatesTempTableSize(ctx context.Context, db DBTX) (int64, error) {
+	row := db.QueryRow(ctx, countOLAPStatusUpdatesTempTableSize)
 	var total int64
 	err := row.Scan(&total)
 	return total, err
@@ -1157,26 +1157,6 @@ func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, arg
 	return items, nil
 }
 
-const listRunsPerDayByStatus = `-- name: ListRunsPerDayByStatus :one
-SELECT DATE_TRUNC('day', inserted_at), readable_status, COUNT(*)
-FROM v1_runs_olap
-GROUP BY DATE_TRUNC('day', inserted_at), readable_status
-ORDER BY 1 DESC, 2
-`
-
-type ListRunsPerDayByStatusRow struct {
-	DateTrunc      pgtype.Interval      `json:"date_trunc"`
-	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
-	Count          int64                `json:"count"`
-}
-
-func (q *Queries) ListRunsPerDayByStatus(ctx context.Context, db DBTX) (*ListRunsPerDayByStatusRow, error) {
-	row := db.QueryRow(ctx, listRunsPerDayByStatus)
-	var i ListRunsPerDayByStatusRow
-	err := row.Scan(&i.DateTrunc, &i.ReadableStatus, &i.Count)
-	return &i, err
-}
-
 const listTaskEvents = `-- name: ListTaskEvents :many
 WITH aggregated_events AS (
   SELECT
@@ -1613,6 +1593,38 @@ func (q *Queries) ListWorkflowRunExternalIds(ctx context.Context, db DBTX, arg L
 			return nil, err
 		}
 		items = append(items, external_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listYesterdayRunCountsByStatus = `-- name: ListYesterdayRunCountsByStatus :many
+SELECT readable_status, COUNT(*)
+FROM v1_runs_olap
+WHERE inserted_at::DATE = (NOW() - INTERVAL '1 day')::DATE
+GROUP BY readable_status
+`
+
+type ListYesterdayRunCountsByStatusRow struct {
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	Count          int64                `json:"count"`
+}
+
+func (q *Queries) ListYesterdayRunCountsByStatus(ctx context.Context, db DBTX) ([]*ListYesterdayRunCountsByStatusRow, error) {
+	rows, err := db.Query(ctx, listYesterdayRunCountsByStatus)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListYesterdayRunCountsByStatusRow
+	for rows.Next() {
+		var i ListYesterdayRunCountsByStatusRow
+		if err := rows.Scan(&i.ReadableStatus, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

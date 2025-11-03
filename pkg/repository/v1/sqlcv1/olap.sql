@@ -1717,14 +1717,14 @@ WHERE
     )
 ;
 
--- name: CountOLAPStatusUpdatesTempTableSizes :one
+-- name: CountOLAPStatusUpdatesTempTableSize :one
 SELECT COUNT(*) AS total
 FROM v1_task_status_updates_tmp
 ;
 
--- name: ListRunsPerDayByStatus :one
-SELECT DATE_TRUNC('day', inserted_at), readable_status, COUNT(*)
+-- name: ListYesterdayRunCountsByStatus :many
+SELECT readable_status, COUNT(*)
 FROM v1_runs_olap
-GROUP BY DATE_TRUNC('day', inserted_at), readable_status
-ORDER BY 1 DESC, 2
+WHERE inserted_at::DATE = (NOW() - INTERVAL '1 day')::DATE
+GROUP BY readable_status
 ;
