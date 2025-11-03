@@ -1716,3 +1716,15 @@ WHERE
         sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
     )
 ;
+
+-- name: CountOLAPStatusUpdatesTempTableSizes :one
+SELECT COUNT(*) AS total
+FROM v1_task_status_updates_tmp
+;
+
+-- name: ListRunsPerDayByStatus :one
+SELECT DATE_TRUNC('day', inserted_at), readable_status, COUNT(*)
+FROM v1_runs_olap
+GROUP BY DATE_TRUNC('day', inserted_at), readable_status
+ORDER BY 1 DESC, 2
+;

@@ -151,6 +151,18 @@ func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParam
 	return count, err
 }
 
+const countOLAPStatusUpdatesTempTableSizes = `-- name: CountOLAPStatusUpdatesTempTableSizes :one
+SELECT COUNT(*) AS total
+FROM v1_task_status_updates_tmp
+`
+
+func (q *Queries) CountOLAPStatusUpdatesTempTableSizes(ctx context.Context, db DBTX) (int64, error) {
+	row := db.QueryRow(ctx, countOLAPStatusUpdatesTempTableSizes)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 type CreateDAGsOLAPParams struct {
 	TenantID             pgtype.UUID        `json:"tenant_id"`
 	ID                   int64              `json:"id"`
@@ -1143,6 +1155,26 @@ func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, arg
 		return nil, err
 	}
 	return items, nil
+}
+
+const listRunsPerDayByStatus = `-- name: ListRunsPerDayByStatus :one
+SELECT DATE_TRUNC('day', inserted_at), readable_status, COUNT(*)
+FROM v1_runs_olap
+GROUP BY DATE_TRUNC('day', inserted_at), readable_status
+ORDER BY 1 DESC, 2
+`
+
+type ListRunsPerDayByStatusRow struct {
+	DateTrunc      pgtype.Interval      `json:"date_trunc"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	Count          int64                `json:"count"`
+}
+
+func (q *Queries) ListRunsPerDayByStatus(ctx context.Context, db DBTX) (*ListRunsPerDayByStatusRow, error) {
+	row := db.QueryRow(ctx, listRunsPerDayByStatus)
+	var i ListRunsPerDayByStatusRow
+	err := row.Scan(&i.DateTrunc, &i.ReadableStatus, &i.Count)
+	return &i, err
 }
 
 const listTaskEvents = `-- name: ListTaskEvents :many
