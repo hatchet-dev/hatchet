@@ -6,6 +6,22 @@
 /* Root Variables & Theming  */
 /* ========================= */
 @layer base {
+  @font-face {
+    font-family: "JudgeMedium";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(./fonts/F37Judge-MediumExtended.woff2) format("woff2");
+  }
+
+  @font-face {
+    font-family: "JudgeRegular";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(./fonts/F37Judge-Regular.woff2) format("woff2");
+  }
+
   :root {
     --nextra-primary-hue: 228;
     --nextra-primary-saturation: 61%;
@@ -163,8 +179,20 @@
 /* Dark Mode Fixes (Nextra)  */
 /* ========================= */
 
-html :is([class*="_border"], .nextra-sidebar-footer, .nextra-toc-footer) {
+html
+  :is(
+    kbd,
+    ._border-gray-200,
+    .dark\:_border-neutral-800,
+    .nx-border,
+    .nextra-sidebar-footer,
+    .nextra-toc-footer,
+    .nextra-code-block pre,
+    .nextra-code pre,
+
+  ) {
   @apply border-[color:hsl(var(--border))] dark:border-[color:hsl(var(--border))];
+  @apply ring-[color:hsl(var(--border))] dark:ring-[color:hsl(var(--border))];
 }
 
 /* ========================= */
@@ -176,12 +204,15 @@ html :is([class*="_border"], .nextra-sidebar-footer, .nextra-toc-footer) {
   background-color: #ccc;
   border-radius: 0.375rem; /* rounded-md */
   font-size: 0.875rem;
-  border: 1px solid #333;
+  border-width: 1px;
+  border-style: solid;
 }
 
 html.dark .nextra-code-block pre,
+html.dark .nextra-code pre,
 .dark .shiki {
   background-color: transparent !important;
+  border-color: hsl(var(--border)) !important;
 }
 
 pre.shiki {
@@ -196,6 +227,19 @@ pre.shiki {
 /* ========================= */
 /* Miscellaneous Fixes       */
 /* ========================= */
+
+h1 {
+  font-family: "JudgeMedium", sans-serif;
+  font-weight: normal !important;
+}
+
+h2,
+h3 {
+  font-family: "JudgeRegular", sans-serif;
+  font-weight: normal !important;
+  letter-spacing: 0 !important;
+}
+
 .nextra-steps h3::before {
   line-height: 25px;
 }
