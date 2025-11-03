@@ -4,7 +4,7 @@
   "description": "Nextra docs template",
   "packageManager": "pnpm@10.16.1",
   "scripts": {
-    "taskfile-dev": "pnpm run generate-examples",
+    "taskfile-dev": "pnpm run generate-examples && next dev",
     "dev": "next dev",
     "build": "pnpm run generate-examples && next build",
     "start": "next start",
