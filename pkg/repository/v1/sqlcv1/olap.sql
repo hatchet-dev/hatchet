@@ -1717,9 +1717,14 @@ WHERE
     )
 ;
 
--- name: CountOLAPStatusUpdatesTempTableSize :one
+-- name: CountOLAPTempTableSizeForDAGStatusUpdates :one
 SELECT COUNT(*) AS total
 FROM v1_task_status_updates_tmp
+;
+
+-- name: CountOLAPTempTableSizeForTaskStatusUpdates :one
+SELECT COUNT(*) AS total
+FROM v1_task_events_olap_tmp
 ;
 
 -- name: ListYesterdayRunCountsByStatus :many

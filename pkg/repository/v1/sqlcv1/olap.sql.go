@@ -151,13 +151,25 @@ func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParam
 	return count, err
 }
 
-const countOLAPStatusUpdatesTempTableSize = `-- name: CountOLAPStatusUpdatesTempTableSize :one
+const countOLAPTempTableSizeForDAGStatusUpdates = `-- name: CountOLAPTempTableSizeForDAGStatusUpdates :one
 SELECT COUNT(*) AS total
 FROM v1_task_status_updates_tmp
 `
 
-func (q *Queries) CountOLAPStatusUpdatesTempTableSize(ctx context.Context, db DBTX) (int64, error) {
-	row := db.QueryRow(ctx, countOLAPStatusUpdatesTempTableSize)
+func (q *Queries) CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context, db DBTX) (int64, error) {
+	row := db.QueryRow(ctx, countOLAPTempTableSizeForDAGStatusUpdates)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
+const countOLAPTempTableSizeForTaskStatusUpdates = `-- name: CountOLAPTempTableSizeForTaskStatusUpdates :one
+SELECT COUNT(*) AS total
+FROM v1_task_events_olap_tmp
+`
+
+func (q *Queries) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context, db DBTX) (int64, error) {
+	row := db.QueryRow(ctx, countOLAPTempTableSizeForTaskStatusUpdates)
 	var total int64
 	err := row.Scan(&total)
 	return total, err
