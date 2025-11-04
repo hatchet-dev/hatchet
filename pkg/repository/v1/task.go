@@ -6,10 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"math/rand/v2"
-	"os"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -276,17 +273,9 @@ type TaskRepositoryImpl struct {
 	reassignLimit         int
 	retryQueueLimit       int
 	durableSleepLimit     int
-	probabilityFactor     float64
 }
 
 func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, maxInternalRetryCount int32, timeoutLimit, reassignLimit, retryQueueLimit, durableSleepLimit int) TaskRepository {
-	p := os.Getenv("CACHE_PROBABILITY_FACTOR")
-	probabilityFactor, err := strconv.ParseFloat(p, 64)
-	if err != nil {
-		s.l.Error().Msgf("failed to parse CACHE_PROBABILITY_FACTOR: %v", err)
-		probabilityFactor = 1.0
-	}
-
 	return &TaskRepositoryImpl{
 		sharedRepository:      s,
 		taskRetentionPeriod:   taskRetentionPeriod,
@@ -295,7 +284,6 @@ func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, m
 		reassignLimit:         reassignLimit,
 		retryQueueLimit:       retryQueueLimit,
 		durableSleepLimit:     durableSleepLimit,
-		probabilityFactor:     probabilityFactor,
 	}
 }
 
@@ -395,7 +383,7 @@ func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, 
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.GetTaskByExternalId")
 	defer span.End()
 
-	if !skipCache && rand.Float64() < r.probabilityFactor {
+	if !skipCache {
 		// check the cache first
 		key := taskExternalIdTenantIdTuple{
 			externalId: taskExternalId,
