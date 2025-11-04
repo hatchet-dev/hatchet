@@ -196,10 +196,10 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	var debug *debugger.Debugger
 
 	if cf.Logger.Level == "debug" {
-		debugger := debugger.NewDebugger(&l)
+		debug = debugger.NewDebugger(&l)
 
-		config.BeforeAcquire = debugger.BeforeAcquire // nolint: staticcheck
-		config.AfterRelease = debugger.AfterRelease
+		config.BeforeAcquire = debug.BeforeAcquire // nolint: staticcheck
+		config.AfterRelease = debug.AfterRelease
 	}
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
