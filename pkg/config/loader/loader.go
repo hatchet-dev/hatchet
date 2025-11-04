@@ -43,6 +43,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
 	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
@@ -185,15 +186,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	config.MaxConnLifetime = 15 * 60 * time.Second
 
-	if cf.Logger.Level == "debug" {
-		debugger := &debugger{
-			callerCounts: make(map[string]int),
-			l:            &l,
-		}
-
-		config.BeforeAcquire = debugger.beforeAcquire
-	}
-
 	// Check database instance timezone if enforcement is enabled
 	if cf.EnforceUTCTimezone {
 		if err := checkDatabaseTimezone(config.ConnConfig, cf.PostgresDbName, "primary database", &l); err != nil {
@@ -201,10 +193,25 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 	}
 
+	var debug *debugger.Debugger
+
+	if cf.Logger.Level == "debug" {
+		debug = debugger.NewDebugger(&l)
+
+		config.BeforeAcquire = debug.BeforeAcquire // nolint: staticcheck
+		config.AfterRelease = debug.AfterRelease
+	}
+
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
+	}
+
+	if debug != nil {
+		// pool needs the debugger hooks (BeforeAcquire/AfterRelease) but debugger needs the pool
+		// to track active connections, so we add the pool later
+		debug.Setup(pool)
 	}
 
 	// a pool for read replicas, if enabled

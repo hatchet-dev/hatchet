@@ -47,6 +47,12 @@ type OLAPControllerImpl struct {
 	olapConfig                   *server.ConfigFileOperations
 	prometheusMetricsEnabled     bool
 	analyzeCronInterval          time.Duration
+	taskPrometheusUpdateCh       chan taskPrometheusUpdate
+	taskPrometheusWorkerCtx      context.Context
+	taskPrometheusWorkerCancel   context.CancelFunc
+	dagPrometheusUpdateCh        chan dagPrometheusUpdate
+	dagPrometheusWorkerCtx       context.Context
+	dagPrometheusWorkerCancel    context.CancelFunc
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
@@ -184,6 +190,14 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "olap-controller"})
 
+	// Channel size = 2 * batch_size * num_partitions for overhead
+	// batch_size = 1000, num_partitions from partition config
+	numPartitions := 4
+	prometheusChannelSize := 2 * 1000 * numPartitions
+
+	taskPrometheusUpdateCh := make(chan taskPrometheusUpdate, prometheusChannelSize)
+	dagPrometheusUpdateCh := make(chan dagPrometheusUpdate, prometheusChannelSize)
+
 	o := &OLAPControllerImpl{
 		mq:                       opts.mq,
 		l:                        opts.l,
@@ -197,6 +211,8 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		olapConfig:               opts.olapConfig,
 		prometheusMetricsEnabled: opts.prometheusMetricsEnabled,
 		analyzeCronInterval:      opts.analyzeCronInterval,
+		taskPrometheusUpdateCh:   taskPrometheusUpdateCh,
+		dagPrometheusUpdateCh:    dagPrometheusUpdateCh,
 	}
 
 	// Default jitter value
@@ -239,6 +255,23 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start prometheus workers if metrics are enabled
+	if o.prometheusMetricsEnabled {
+		o.taskPrometheusWorkerCtx, o.taskPrometheusWorkerCancel = context.WithCancel(context.Background())
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			o.runTaskPrometheusUpdateWorker()
+		}()
+
+		o.dagPrometheusWorkerCtx, o.dagPrometheusWorkerCancel = context.WithCancel(context.Background())
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			o.runDAGPrometheusUpdateWorker()
+		}()
+	}
 
 	_, err := o.s.NewJob(
 		gocron.DurationJob(time.Minute*15),
@@ -323,6 +356,14 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	cleanup := func() error {
 		cancel()
 
+		// Stop prometheus workers if running
+		if o.taskPrometheusWorkerCancel != nil {
+			o.taskPrometheusWorkerCancel()
+		}
+		if o.dagPrometheusWorkerCancel != nil {
+			o.dagPrometheusWorkerCancel()
+		}
+
 		if err := cleanupBuffer(); err != nil {
 			return err
 		}
@@ -336,6 +377,14 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		}
 
 		wg.Wait()
+
+		// Close prometheus channels after all workers are done
+		if o.taskPrometheusUpdateCh != nil {
+			close(o.taskPrometheusUpdateCh)
+		}
+		if o.dagPrometheusUpdateCh != nil {
+			close(o.dagPrometheusUpdateCh)
+		}
 
 		return nil
 	}
