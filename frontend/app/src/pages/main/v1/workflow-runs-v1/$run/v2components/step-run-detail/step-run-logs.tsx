@@ -168,12 +168,16 @@ export function StepRunLogs({
     }, 1000);
 
     return () => {
-      if (interval) clearInterval(interval);
+      if (interval) {
+        clearInterval(interval);
+      }
     };
   }, [isTaskRunning, lastPageTimestampRef.current]);
 
   const allLogs = useMemo(() => {
-    if (!getLogsQuery.data?.pages) return [];
+    if (!getLogsQuery.data?.pages) {
+      return [];
+    }
 
     return getLogsQuery.data.pages.flatMap(
       (page) =>
