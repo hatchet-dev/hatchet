@@ -43,6 +43,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
 	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
@@ -192,15 +193,14 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 	}
 
-	// TODO: make this configurable
-	debugger := &debugger{
-		callerCounts: make(map[string]int),
-		activeConns:  make(map[*pgx.Conn]string),
-		l:            &l,
-	}
+	var debug *debugger.Debugger
 
-	config.BeforeAcquire = debugger.beforeAcquire // nolint: staticcheck
-	config.AfterRelease = debugger.afterRelease
+	if cf.Logger.Level == "debug" {
+		debugger := debugger.NewDebugger(&l)
+
+		config.BeforeAcquire = debugger.BeforeAcquire // nolint: staticcheck
+		config.AfterRelease = debugger.AfterRelease
+	}
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
@@ -208,9 +208,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 
-	// pool needs the debugger hooks (BeforeAcquire/AfterRelease) but debugger needs the pool
-	// to track active connections, so we add the pool later
-	debugger.setup(pool)
+	if debug != nil {
+		// pool needs the debugger hooks (BeforeAcquire/AfterRelease) but debugger needs the pool
+		// to track active connections, so we add the pool later
+		debug.Setup(pool)
+	}
 
 	// a pool for read replicas, if enabled
 	var readReplicaPool *pgxpool.Pool

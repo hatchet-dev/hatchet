@@ -1,4 +1,4 @@
-package loader
+package debugger
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type debugger struct {
+type Debugger struct {
 	callerCounts map[string]int
 	activeConns  map[*pgx.Conn]string
 	callerMu     sync.Mutex
@@ -26,7 +26,15 @@ type debugger struct {
 	poolMu sync.Mutex
 }
 
-func (d *debugger) setup(pool *pgxpool.Pool) {
+func NewDebugger(l *zerolog.Logger) *Debugger {
+	return &Debugger{
+		callerCounts: make(map[string]int),
+		activeConns:  make(map[*pgx.Conn]string),
+		l:            l,
+	}
+}
+
+func (d *Debugger) Setup(pool *pgxpool.Pool) {
 	d.poolMu.Lock()
 	defer d.poolMu.Unlock()
 
@@ -34,14 +42,14 @@ func (d *debugger) setup(pool *pgxpool.Pool) {
 	d.activeConns = make(map[*pgx.Conn]string)
 }
 
-func (d *debugger) getPool() *pgxpool.Pool {
+func (d *Debugger) getPool() *pgxpool.Pool {
 	d.poolMu.Lock()
 	defer d.poolMu.Unlock()
 
 	return d.pool
 }
 
-func (d *debugger) beforeAcquire(ctx context.Context, conn *pgx.Conn) bool {
+func (d *Debugger) BeforeAcquire(ctx context.Context, conn *pgx.Conn) bool {
 	// if we don't have a pool set yet, skip
 	if d.getPool() == nil {
 		return true
@@ -75,7 +83,7 @@ func (d *debugger) beforeAcquire(ctx context.Context, conn *pgx.Conn) bool {
 	return true
 }
 
-func (d *debugger) afterRelease(conn *pgx.Conn) bool {
+func (d *Debugger) AfterRelease(conn *pgx.Conn) bool {
 	if d.getPool() == nil {
 		return true
 	}
@@ -92,7 +100,7 @@ type callerCount struct {
 	count  int
 }
 
-func (d *debugger) printCallerCounts() {
+func (d *Debugger) printCallerCounts() {
 	d.callerMu.Lock()
 	defer d.callerMu.Unlock()
 
@@ -127,7 +135,7 @@ func (d *debugger) printCallerCounts() {
 	d.lastPrint = &now
 }
 
-func (d *debugger) printActiveCallers() {
+func (d *Debugger) printActiveCallers() {
 	// print the active callers, grouped by caller
 	d.callerMu.Lock()
 	defer d.callerMu.Unlock()
