@@ -172,7 +172,7 @@ export function StepRunLogs({
         clearInterval(interval);
       }
     };
-  }, [isTaskRunning, lastPageTimestampRef.current]);
+  }, [isTaskRunning, getLogsQuery]);
 
   const allLogs = useMemo(() => {
     if (!getLogsQuery.data?.pages) {
@@ -251,7 +251,7 @@ export function StepRunLogs({
       lastScrollTopRef.current = scrollTop;
       lastScrollPercentageRef.current = scrollPercentage;
     },
-    [getLogsQuery],
+    [getLogsQuery, isTaskRunning],
   );
 
   return (
