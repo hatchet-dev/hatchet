@@ -4,7 +4,7 @@ import { Callout } from "nextra/components";
 
 # Dataclass Support
 
-Throughout the docs, we use Pydantic models in virtually all of our Python examples for validating task inputs and outputs. This is the recommended path, as it provides lots of safety guarantees as you're writing tasks. With that said, Hatchet also supports using `dataclasses` as both input and output types to tasks.
+Throughout the docs, we use Pydantic models in virtually all of our Python examples for validating task inputs and outputs. This is the recommended path, as it provides lots of safety guarantees as you're writing tasks. With that said, Hatchet also supports using `dataclasses` as both input and output types to tasks. **Dataclass support was added in SDK version 1.21.0.**
 
 <Callout type="warning">
   Dataclasses do not perform any type validation on instantiation like Pydantic
