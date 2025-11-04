@@ -1512,7 +1512,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		}
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, retrievePayloadOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)

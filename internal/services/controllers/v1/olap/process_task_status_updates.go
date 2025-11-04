@@ -6,13 +6,11 @@ import (
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
-	"golang.org/x/sync/errgroup"
 )
 
 func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
@@ -61,7 +59,6 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 
 func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.UpdateTaskStatusRow) error {
 	tenantIdToPayloads := make(map[pgtype.UUID][]tasktypes.NotifyFinalizedPayload)
-	tenantIdToWorkflowIds := make(map[string][]pgtype.UUID)
 
 	for _, row := range rows {
 		if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
@@ -72,66 +69,31 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
 			Status:     row.ReadableStatus,
 		})
-
-		tenantId := sqlchelpers.UUIDToStr(row.TenantId)
-		tenantIdToWorkflowIds[tenantId] = append(tenantIdToWorkflowIds[tenantId], row.WorkflowId)
 	}
 
-	if o.prometheusMetricsEnabled {
-		var eg errgroup.Group
-
-		for currentTenantId, workflowIds := range tenantIdToWorkflowIds {
-			tenantId := currentTenantId
-			workflowIds := workflowIds
-
-			var tenantTaskIds []int64
-			var tenantTaskInsertedAts []pgtype.Timestamptz
-			var tenantReadableStatuses []sqlcv1.V1ReadableStatusOlap
-			var tenantRows []v1.UpdateTaskStatusRow
-
-			for _, row := range rows {
-				if sqlchelpers.UUIDToStr(row.TenantId) == tenantId {
-					tenantTaskIds = append(tenantTaskIds, row.TaskId)
-					tenantTaskInsertedAts = append(tenantTaskInsertedAts, row.TaskInsertedAt)
-					tenantReadableStatuses = append(tenantReadableStatuses, row.ReadableStatus)
-					tenantRows = append(tenantRows, row)
-				}
+	// Send prometheus updates asynchronously
+	if o.prometheusMetricsEnabled && o.taskPrometheusUpdateCh != nil {
+		for _, row := range rows {
+			if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
+				continue
 			}
 
-			eg.Go(func() error {
-				workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
-				if err != nil {
-					return err
-				}
+			update := taskPrometheusUpdate{
+				tenantId:       sqlchelpers.UUIDToStr(row.TenantId),
+				taskId:         row.TaskId,
+				taskInsertedAt: row.TaskInsertedAt,
+				readableStatus: row.ReadableStatus,
+				workflowId:     row.WorkflowId,
+				isDAGTask:      row.IsDAGTask,
+			}
 
-				taskDurations, err := o.repo.OLAP().GetTaskDurationsByTaskIds(ctx, tenantId, tenantTaskIds, tenantTaskInsertedAts, tenantReadableStatuses)
-				if err != nil {
-					return err
-				}
-
-				for _, row := range tenantRows {
-					if !row.IsDAGTask {
-						workflowName := workflowNames[row.WorkflowId]
-						if workflowName == "" {
-							continue
-						}
-
-						taskDuration := taskDurations[row.TaskId]
-						if taskDuration == nil || !taskDuration.StartedAt.Valid || !taskDuration.FinishedAt.Valid {
-							continue
-						}
-
-						duration := int(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds())
-						prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(duration))
-					}
-				}
-
-				return nil
-			})
-		}
-
-		if err := eg.Wait(); err != nil {
-			return err
+			select {
+			case o.taskPrometheusUpdateCh <- update:
+				// Successfully sent
+			default:
+				// Channel full, discard with warning
+				o.l.Warn().Msgf("task prometheus update channel full, discarding update for task %d", row.TaskId)
+			}
 		}
 	}
 

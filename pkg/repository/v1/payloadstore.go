@@ -53,7 +53,7 @@ type ExternalStore interface {
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
-	Retrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
+	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64, pubBuffer *msgqueue.MQPubBuffer) (bool, error)
 	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
@@ -270,7 +270,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		}
 	}
 
-	err := p.queries.WritePayloads(ctx, p.pool, sqlcv1.WritePayloadsParams{
+	err := p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
 		Ids:                  taskIds,
 		Insertedats:          taskInsertedAts,
 		Types:                payloadTypes,
@@ -304,8 +304,12 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	return err
 }
 
-func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
-	return p.retrieve(ctx, p.pool, opts...)
+func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+	if tx == nil {
+		tx = p.pool
+	}
+
+	return p.retrieve(ctx, tx, opts...)
 }
 
 func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error) {

@@ -1503,6 +1503,9 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 }
 
 func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateTaskStatusRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "olap_repository.update_task_statuses")
+	defer span.End()
+
 	var limit int32 = 1000
 
 	// each partition gets its own goroutine
@@ -1521,7 +1524,15 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 	for i := 0; i < NUM_PARTITIONS; i++ {
 		partitionNumber := i
 
+		innerCtx, innerSpan := telemetry.NewSpan(ctx, "olap_repository.update_task_statuses.partition")
+		defer innerSpan.End()
+
+		innerSpan.SetAttributes(
+			attribute.Int("olap_repository.update_task_statuses.partition.number", partitionNumber),
+		)
+
 		eg.Go(func() error {
+			ctx := innerCtx
 			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 15000)
 
 			if err != nil {
@@ -1578,7 +1589,13 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 				})
 			}
 
-			isSaturated = isSaturated || eventCount == int(limit)
+			// not super precise, but good enough to know whether to iterate
+			isSaturated = isSaturated || eventCount > int(limit)
+
+			innerSpan.SetAttributes(
+				attribute.Int("olap_repository.update_task_statuses.partition.events_processed", eventCount),
+				attribute.Bool("olap_repository.update_task_statuses.partition.is_saturated", eventCount > int(limit)),
+			)
 
 			return nil
 		})
@@ -1588,10 +1605,17 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 		return false, nil, err
 	}
 
+	span.SetAttributes(
+		attribute.Bool("olap_repository.update_task_statuses.is_saturated", isSaturated),
+	)
+
 	return isSaturated, rows, nil
 }
 
 func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateDAGStatusRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "olap_repository.update_dag_statuses")
+	defer span.End()
+
 	var limit int32 = 1000
 
 	// each partition gets its own goroutine
@@ -1610,7 +1634,15 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 	for i := 0; i < NUM_PARTITIONS; i++ {
 		partitionNumber := i
 
+		innerCtx, innerSpan := telemetry.NewSpan(ctx, "olap_repository.update_dag_statuses.partition")
+		defer innerSpan.End()
+
+		innerSpan.SetAttributes(
+			attribute.Int("olap_repository.update_dag_statuses.partition.number", partitionNumber),
+		)
+
 		eg.Go(func() error {
+			ctx := innerCtx
 			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 15000)
 
 			if err != nil {
@@ -1665,7 +1697,13 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 				})
 			}
 
-			isSaturated = isSaturated || eventCount == int(limit)
+			// not super precise, but good enough to know whether to iterate
+			isSaturated = isSaturated || eventCount > int(limit)
+
+			innerSpan.SetAttributes(
+				attribute.Int("olap_repository.update_dag_statuses.partition.events_processed", eventCount),
+				attribute.Bool("olap_repository.update_dag_statuses.partition.is_saturated", eventCount > int(limit)),
+			)
 
 			return nil
 		})
@@ -1674,6 +1712,10 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 	if err := eg.Wait(); err != nil {
 		return false, nil, fmt.Errorf("failed to wait for status update goroutines: %w", err)
 	}
+
+	span.SetAttributes(
+		attribute.Bool("olap_repository.update_dag_statuses.is_saturated", isSaturated),
+	)
 
 	return isSaturated, rows, nil
 }

@@ -6,13 +6,11 @@ import (
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
-	"golang.org/x/sync/errgroup"
 )
 
 func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
@@ -62,7 +60,6 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 
 func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.UpdateDAGStatusRow) error {
 	tenantIdToPayloads := make(map[pgtype.UUID][]tasktypes.NotifyFinalizedPayload)
-	tenantIdToWorkflowIds := make(map[string][]pgtype.UUID)
 
 	for _, row := range rows {
 		tenantIdToPayloads[row.TenantId] = append(tenantIdToPayloads[row.TenantId], tasktypes.NotifyFinalizedPayload{
@@ -73,69 +70,30 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED {
 			o.processTenantAlertOperations.RunOrContinue(row.TenantId.String())
 		}
-
-		tenantId := sqlchelpers.UUIDToStr(row.TenantId)
-		tenantIdToWorkflowIds[tenantId] = append(tenantIdToWorkflowIds[tenantId], row.WorkflowId)
 	}
 
-	if o.prometheusMetricsEnabled {
-		var eg errgroup.Group
-
-		for currentTenantId, workflowIds := range tenantIdToWorkflowIds {
-			tenantId := currentTenantId
-			workflowIds := workflowIds
-
-			var tenantRows []v1.UpdateDAGStatusRow
-
-			dagExternalIds := make([]pgtype.UUID, 0, len(rows))
-			var minInsertedAt pgtype.Timestamptz
-
-			for _, row := range rows {
-				if sqlchelpers.UUIDToStr(row.TenantId) == tenantId {
-					tenantRows = append(tenantRows, row)
-
-					dagExternalIds = append(dagExternalIds, row.ExternalId)
-
-					if !minInsertedAt.Valid || row.DagInsertedAt.Time.Before(minInsertedAt.Time) {
-						minInsertedAt = row.DagInsertedAt
-					}
-				}
+	// Send prometheus updates asynchronously
+	if o.prometheusMetricsEnabled && o.dagPrometheusUpdateCh != nil {
+		for _, row := range rows {
+			if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
+				continue
 			}
 
-			eg.Go(func() error {
-				workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
-				if err != nil {
-					return err
-				}
+			update := dagPrometheusUpdate{
+				tenantId:       sqlchelpers.UUIDToStr(row.TenantId),
+				dagExternalId:  row.ExternalId,
+				dagInsertedAt:  row.DagInsertedAt,
+				readableStatus: row.ReadableStatus,
+				workflowId:     row.WorkflowId,
+			}
 
-				dagDurations, err := o.repo.OLAP().GetDAGDurations(ctx, tenantId, dagExternalIds, minInsertedAt)
-				if err != nil {
-					return err
-				}
-
-				for _, row := range tenantRows {
-					if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
-						workflowName := workflowNames[row.WorkflowId]
-						if workflowName == "" {
-							continue
-						}
-
-						dagDuration := dagDurations[sqlchelpers.UUIDToStr(row.ExternalId)]
-						if dagDuration == nil || !dagDuration.StartedAt.Valid || !dagDuration.FinishedAt.Valid {
-							continue
-						}
-
-						duration := int(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds())
-						prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(duration))
-					}
-				}
-
-				return nil
-			})
-		}
-
-		if err := eg.Wait(); err != nil {
-			return err
+			select {
+			case o.dagPrometheusUpdateCh <- update:
+				// Successfully sent
+			default:
+				// Channel full, discard with warning
+				o.l.Warn().Msgf("dag prometheus update channel full, discarding update for dag %s", sqlchelpers.UUIDToStr(row.ExternalId))
+			}
 		}
 	}
 
