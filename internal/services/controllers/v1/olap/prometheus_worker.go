@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
@@ -44,26 +45,16 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 			return
 		}
 
-		defer func() {
-			if r := recover(); r != nil {
-				_ = recoveryutils.RecoverWithAlert(o.l, o.a, r)
-			}
-		}()
-
 		// Group by tenant
 		tenantToUpdates := make(map[string][]taskPrometheusUpdate)
 		for _, update := range updates {
 			tenantToUpdates[update.tenantId] = append(tenantToUpdates[update.tenantId], update)
 		}
 
-		for tenantId, tenantUpdates := range tenantToUpdates {
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						o.l.Error().Msgf("panic processing task prometheus updates for tenant %s: %v", tenantId, r)
-					}
-				}()
+		eg := errgroup.Group{}
 
+		for tenantId, tenantUpdates := range tenantToUpdates {
+			eg.Go(func() error {
 				workflowIds := make([]pgtype.UUID, 0, len(tenantUpdates))
 				for _, update := range tenantUpdates {
 					workflowIds = append(workflowIds, update.workflowId)
@@ -71,8 +62,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 
 				workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(o.taskPrometheusWorkerCtx, tenantId, workflowIds)
 				if err != nil {
-					o.l.Error().Err(err).Msgf("failed to get workflow names for task prometheus metrics")
-					return
+					return err
 				}
 
 				taskIds := make([]int64, 0, len(tenantUpdates))
@@ -87,8 +77,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 
 				taskDurations, err := o.repo.OLAP().GetTaskDurationsByTaskIds(o.taskPrometheusWorkerCtx, tenantId, taskIds, taskInsertedAts, readableStatuses)
 				if err != nil {
-					o.l.Error().Err(err).Msgf("failed to get task durations for prometheus metrics")
-					return
+					return err
 				}
 
 				for _, update := range tenantUpdates {
@@ -109,7 +98,15 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 					duration := int(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds())
 					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(update.readableStatus)).Observe(float64(duration))
 				}
-			}()
+
+				return nil
+			})
+		}
+
+		err := eg.Wait()
+
+		if err != nil {
+			o.l.Error().Err(err).Msg("failed to process task prometheus updates")
 		}
 	}
 
@@ -155,26 +152,16 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 			return
 		}
 
-		defer func() {
-			if r := recover(); r != nil {
-				_ = recoveryutils.RecoverWithAlert(o.l, o.a, r)
-			}
-		}()
-
 		// Group by tenant
 		tenantToUpdates := make(map[string][]dagPrometheusUpdate)
 		for _, update := range updates {
 			tenantToUpdates[update.tenantId] = append(tenantToUpdates[update.tenantId], update)
 		}
 
-		for tenantId, tenantUpdates := range tenantToUpdates {
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						o.l.Error().Msgf("panic processing dag prometheus updates for tenant %s: %v", tenantId, r)
-					}
-				}()
+		eg := errgroup.Group{}
 
+		for tenantId, tenantUpdates := range tenantToUpdates {
+			eg.Go(func() error {
 				workflowIds := make([]pgtype.UUID, 0, len(tenantUpdates))
 				for _, update := range tenantUpdates {
 					workflowIds = append(workflowIds, update.workflowId)
@@ -182,8 +169,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 
 				workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(o.dagPrometheusWorkerCtx, tenantId, workflowIds)
 				if err != nil {
-					o.l.Error().Err(err).Msgf("failed to get workflow names for dag prometheus metrics")
-					return
+					return err
 				}
 
 				dagExternalIds := make([]pgtype.UUID, 0, len(tenantUpdates))
@@ -199,8 +185,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 
 				dagDurations, err := o.repo.OLAP().GetDAGDurations(o.dagPrometheusWorkerCtx, tenantId, dagExternalIds, minInsertedAt)
 				if err != nil {
-					o.l.Error().Err(err).Msgf("failed to get dag durations for prometheus metrics")
-					return
+					return err
 				}
 
 				for _, update := range tenantUpdates {
@@ -217,7 +202,15 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 					duration := int(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds())
 					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(update.readableStatus)).Observe(float64(duration))
 				}
-			}()
+
+				return nil
+			})
+		}
+
+		err := eg.Wait()
+
+		if err != nil {
+			o.l.Error().Err(err).Msg("failed to process dag prometheus updates")
 		}
 	}
 
