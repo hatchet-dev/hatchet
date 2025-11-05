@@ -1626,7 +1626,8 @@ WITH inputs AS (
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(@payloads::JSONB[]) AS payload,
         UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(CAST(@locations::TEXT[] AS v1_payload_location_olap[])) AS location
+        UNNEST(CAST(@locations::TEXT[] AS v1_payload_location_olap[])) AS location,
+        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key
 )
 
 INSERT INTO v1_payloads_olap (
@@ -1644,7 +1645,7 @@ SELECT
     i.inserted_at,
     i.location,
     CASE
-        WHEN i.location = 'EXTERNAL' THEN i.payload
+        WHEN i.location = 'EXTERNAL' THEN i.external_location_key
         ELSE NULL
     END,
     CASE
