@@ -26,9 +26,11 @@ type StorePayloadOpts struct {
 }
 
 type StoreOLAPPayloadOpts struct {
-	ExternalId pgtype.UUID
-	InsertedAt pgtype.Timestamptz
-	Payload    []byte
+	ExternalId          pgtype.UUID
+	InsertedAt          pgtype.Timestamptz
+	Payload             []byte
+	ExternalLocationKey *ExternalPayloadLocationKey
+	Location            *sqlcv1.V1PayloadLocationOlap
 }
 
 type OffloadToExternalStoreOpts struct {
@@ -64,6 +66,7 @@ type PayloadStoreRepository interface {
 	OLAPDualWritesEnabled() bool
 	WALPollLimit() int
 	WALProcessInterval() time.Duration
+	WALEnabled() bool
 	ExternalCutoverProcessInterval() time.Duration
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
@@ -695,6 +698,10 @@ func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
 
 func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
 	return p.externalStore
+}
+
+func (p *payloadStoreRepositoryImpl) WALEnabled() bool {
+	return p.walEnabled
 }
 
 type NoOpExternalStore struct{}
