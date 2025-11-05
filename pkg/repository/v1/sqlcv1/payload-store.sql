@@ -15,7 +15,7 @@ WHERE (tenant_id, id, inserted_at, type) IN (
     )
 ;
 
--- name: WritePayloads :exec
+-- name: WritePayloads :many
 WITH inputs AS (
     SELECT DISTINCT
         UNNEST(@ids::BIGINT[]) AS id,
@@ -55,6 +55,7 @@ DO UPDATE SET
     external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location != 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,
     inline_content = EXCLUDED.inline_content,
     updated_at = NOW()
+RETURNING v1_payload.*
 ;
 
 

@@ -367,7 +367,7 @@ func (q *Queries) WritePayloadWAL(ctx context.Context, db DBTX, arg WritePayload
 	return err
 }
 
-const writePayloads = `-- name: WritePayloads :exec
+const writePayloads = `-- name: WritePayloads :many
 WITH inputs AS (
     SELECT DISTINCT
         UNNEST($1::BIGINT[]) AS id,
@@ -407,6 +407,7 @@ DO UPDATE SET
     external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location != 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,
     inline_content = EXCLUDED.inline_content,
     updated_at = NOW()
+RETURNING v1_payload.tenant_id, v1_payload.id, v1_payload.inserted_at, v1_payload.external_id, v1_payload.type, v1_payload.location, v1_payload.external_location_key, v1_payload.inline_content, v1_payload.updated_at
 `
 
 type WritePayloadsParams struct {
@@ -420,8 +421,8 @@ type WritePayloadsParams struct {
 	Tenantids            []pgtype.UUID        `json:"tenantids"`
 }
 
-func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsParams) error {
-	_, err := db.Exec(ctx, writePayloads,
+func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsParams) ([]*V1Payload, error) {
+	rows, err := db.Query(ctx, writePayloads,
 		arg.Ids,
 		arg.Insertedats,
 		arg.Externalids,
@@ -431,5 +432,30 @@ func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsP
 		arg.Inlinecontents,
 		arg.Tenantids,
 	)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Payload
+	for rows.Next() {
+		var i V1Payload
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.Type,
+			&i.Location,
+			&i.ExternalLocationKey,
+			&i.InlineContent,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

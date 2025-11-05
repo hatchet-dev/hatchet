@@ -2422,7 +2422,31 @@ type OffloadPayloadOpts struct {
 	ExternalLocationKey string
 }
 
+type PutPreOffloadedPayloadOpts struct {
+	InsertedAt          pgtype.Timestamptz
+	ExternalId          pgtype.UUID
+	ExternalLocationKey string
+}
+
 func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId string, putPayloadOpts []StoreOLAPPayloadOpts) error {
+	localTx := false
+	var (
+		commit   func(context.Context) error
+		rollback func()
+		err      error
+	)
+
+	if tx == nil {
+		localTx = true
+		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+		if err != nil {
+			return fmt.Errorf("error beginning transaction in `PutPayload`: %v", err)
+		}
+
+		defer rollback()
+	}
+
 	insertedAts := make([]pgtype.Timestamptz, len(putPayloadOpts))
 	tenantIds := make([]pgtype.UUID, len(putPayloadOpts))
 	externalIds := make([]pgtype.UUID, len(putPayloadOpts))
@@ -2451,7 +2475,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 		}
 	}
 
-	return r.queries.PutPayloads(ctx, tx, sqlcv1.PutPayloadsParams{
+	err = r.queries.PutPayloads(ctx, tx, sqlcv1.PutPayloadsParams{
 		Externalids:          externalIds,
 		Insertedats:          insertedAts,
 		Tenantids:            tenantIds,
@@ -2459,6 +2483,18 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 		Locations:            locations,
 		Externallocationkeys: externalKeys,
 	})
+
+	if err != nil {
+		return fmt.Errorf("error putting payloads: %v", err)
+	}
+
+	if localTx {
+		if err := commit(ctx); err != nil {
+			return fmt.Errorf("error committing transaction in `PutPayload`: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId string, externalId pgtype.UUID) ([]byte, error) {

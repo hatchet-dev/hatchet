@@ -427,6 +427,8 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 		return tc.handleCelEvaluationFailure(context.Background(), tenantId, payloads)
 	case "offload-payload":
 		return tc.handlePayloadOffload(context.Background(), tenantId, payloads)
+	case "put-payload":
+		return tc.handlePayloadPut(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -444,11 +446,48 @@ func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId
 				continue
 			}
 
-			offloads = append(offloads, v1.OffloadPayloadOpts(payload))
+			offloads = append(offloads, v1.OffloadPayloadOpts{
+				ExternalId:          payload.ExternalId,
+				ExternalLocationKey: payload.ExternalLocationKey,
+			})
 		}
 	}
 
 	return tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloads)
+}
+
+func (tc *OLAPControllerImpl) handlePayloadPut(ctx context.Context, tenantId string, payloads [][]byte) error {
+	offloads := make([]v1.StoreOLAPPayloadOpts, 0)
+
+	msgs := msgqueue.JSONConvert[v1.OLAPPayloadsToOffload](payloads)
+
+	for _, msg := range msgs {
+		for _, payload := range msg.Payloads {
+			if !tc.sample(payload.ExternalId.String()) {
+				tc.l.Debug().Msgf("skipping payload offload external id %s", payload.ExternalId)
+				continue
+			}
+
+			key := v1.ExternalPayloadLocationKey(payload.ExternalLocationKey)
+
+			if key == "" {
+				continue
+			}
+
+			externalLocation := sqlcv1.V1PayloadLocationOlapEXTERNAL
+
+			offloads = append(offloads, v1.StoreOLAPPayloadOpts{
+				ExternalId:          payload.ExternalId,
+				InsertedAt:          payload.InsertedAt,
+				ExternalLocationKey: &key,
+				Payload:             nil,
+				Location:            &externalLocation,
+			})
+		}
+	}
+
+	// nil tx to use local transaction inside `PutPayloads`
+	return tc.repo.OLAP().PutPayloads(ctx, nil, tenantId, offloads)
 }
 
 func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, tenantId string, payloads [][]byte) error {
