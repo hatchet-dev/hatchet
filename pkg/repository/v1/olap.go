@@ -233,8 +233,8 @@ type OLAPRepository interface {
 	CreateTaskEvents(ctx context.Context, tenantId string, events []sqlcv1.CreateTaskEventsOLAPParams) error
 	CreateDAGs(ctx context.Context, tenantId string, dags []*DAGWithData) error
 	GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
-	UpdateTaskStatuses(ctx context.Context, tenantIds []string, batchSizeLimit int32) (bool, []UpdateTaskStatusRow, error)
-	UpdateDAGStatuses(ctx context.Context, tenantIds []string, batchSizeLimit int32) (bool, []UpdateDAGStatusRow, error)
+	UpdateTaskStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateTaskStatusRow, error)
+	UpdateDAGStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateDAGStatusRow, error)
 	ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error)
 	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID, includePayloads bool) ([]*TaskWithPayloads, map[int64]uuid.UUID, error)
 	ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata, includePayloads bool) ([]*TaskWithPayloads, error)
@@ -1510,7 +1510,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 	return nil
 }
 
-func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds []string, batchSizeLimit int32) (bool, []UpdateTaskStatusRow, error) {
+func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateTaskStatusRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "olap_repository.update_task_statuses")
 	defer span.End()
 
@@ -1518,6 +1518,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 	eg := &errgroup.Group{}
 	mu := sync.Mutex{}
 	rows := make([]UpdateTaskStatusRow, 0)
+	batchSizeLimit := r.statusUpdateBatchSizeLimits.Task
 
 	// if any of the partitions are saturated, we return true
 	isSaturated := false
@@ -1618,7 +1619,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 	return isSaturated, rows, nil
 }
 
-func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []string, batchSizeLimit int32) (bool, []UpdateDAGStatusRow, error) {
+func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateDAGStatusRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "olap_repository.update_dag_statuses")
 	defer span.End()
 
@@ -1629,6 +1630,8 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 
 	// if any of the partitions are saturated, we return true
 	isSaturated := false
+
+	batchSizeLimit := r.statusUpdateBatchSizeLimits.DAG
 
 	tenantIdUUIDs := make([]pgtype.UUID, len(tenantIds))
 	for i, tenantId := range tenantIds {

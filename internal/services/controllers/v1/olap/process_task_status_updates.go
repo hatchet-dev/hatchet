@@ -40,7 +40,7 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 
 			var rows []v1.UpdateTaskStatusRow
 
-			shouldContinue, rows, err = o.repo.OLAP().UpdateTaskStatuses(ctx, tenantIds, o.statusUpdateBatchSizeLimits.Task)
+			shouldContinue, rows, err = o.repo.OLAP().UpdateTaskStatuses(ctx, tenantIds)
 
 			if err != nil {
 				o.l.Error().Err(err).Msg("could not update task statuses")
