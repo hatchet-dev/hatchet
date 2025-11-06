@@ -368,3 +368,10 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS`     | Flush period for queue step run buffer                |               |
 | `SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD`         | Items threshold for queue step run buffer             |               |
 | `SERVER_QUEUESTEPRUNBUFFER_FLUSH_STRATEGY`                | Flush strategy for queue step run buffer              |               |
+
+## OLAP Database Configuration
+
+| Variable                                          | Description                                      | Default Value |
+| ------------------------------------------------- | ------------------------------------------------ | ------------- |
+| `SERVER_OLAP_STATUS_UPDATE_DAG_BATCH_SIZE_LIMIT`  | Batch size limit for running DAG status updates  | `1000`        |
+| `SERVER_OLAP_STATUS_UPDATE_TASK_BATCH_SIZE_LIMIT` | Batch size limit for running task status updates | `1000`        |
