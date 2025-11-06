@@ -262,6 +262,7 @@ type OLAPRepository interface {
 	OffloadPayloads(ctx context.Context, tenantId string, payloads []OffloadPayloadOpts) error
 
 	PayloadStore() PayloadStoreRepository
+	StatusUpdateBatchSizeLimits() StatusUpdateBatchSizeLimits
 
 	ListWorkflowRunExternalIds(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]pgtype.UUID, error)
 }
@@ -2660,4 +2661,8 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 
 	return result, nil
 
+}
+
+func (r *OLAPRepositoryImpl) StatusUpdateBatchSizeLimits() StatusUpdateBatchSizeLimits {
+	return r.statusUpdateBatchSizeLimits
 }
