@@ -83,6 +83,8 @@ type ServerConfigFile struct {
 	PayloadStore PayloadStoreConfig `mapstructure:"payloadStore" json:"payloadStore,omitempty"`
 
 	CronOperations CronOperationsConfigFile `mapstructure:"cronOperations" json:"cronOperations,omitempty"`
+
+	OLAPStatusUpdates OLAPStatusUpdateConfigFile `mapstructure:"statusUpdates" json:"statusUpdates,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -130,6 +132,15 @@ type CronOperationsConfigFile struct {
 
 	// OLAPAnalyzeCronInterval is the interval for the olap analyze cron operation
 	OLAPAnalyzeCronInterval time.Duration `mapstructure:"olapAnalyzeCronInterval" json:"olapAnalyzeCronInterval,omitempty" default:"3h"`
+}
+
+// OLAPStatusUpdateConfigFile is the configuration for OLAP status updates
+type OLAPStatusUpdateConfigFile struct {
+	// DagBatchSizeLimit is the limit for how many DAG status updates to process in a single batch update
+	DagBatchSizeLimit int `mapstructure:"dagBatchSizeLimit" json:"dagBatchSizeLimit,omitempty" default:"1000"`
+
+	// TaskBatchSizeLimit is the limit for how many task status updates to process in a single batch update
+	TaskBatchSizeLimit int `mapstructure:"taskBatchSizeLimit" json:"taskBatchSizeLimit,omitempty" default:"1000"`
 }
 
 // General server runtime options
@@ -618,6 +629,8 @@ type ServerConfig struct {
 	Version string
 
 	CronOperations CronOperationsConfigFile
+
+	OLAPStatusUpdates OLAPStatusUpdateConfigFile
 }
 
 type PayloadStoreConfig struct {
@@ -910,4 +923,8 @@ func BindAllEnv(v *viper.Viper) {
 	// cron operations options
 	_ = v.BindEnv("cronOperations.taskAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL")
 	_ = v.BindEnv("cronOperations.olapAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_OLAP_ANALYZE_CRON_INTERVAL")
+
+	// OLAP status update options
+	_ = v.BindEnv("statusUpdates.dagBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_DAG_BATCH_SIZE_LIMIT")
+	_ = v.BindEnv("statusUpdates.taskBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_TASK_BATCH_SIZE_LIMIT")
 }

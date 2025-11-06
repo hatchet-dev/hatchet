@@ -307,7 +307,12 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		WALEnabled:                       scf.PayloadStore.WALEnabled,
 	}
 
-	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, payloadStoreOpts)
+	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{
+		Task: int32(scf.OLAPStatusUpdates.TaskBatchSizeLimit),
+		DAG:  int32(scf.OLAPStatusUpdates.DagBatchSizeLimit),
+	}
+
+	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, payloadStoreOpts, statusUpdateOpts)
 
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
@@ -729,6 +734,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Sampling:               cf.Sampling,
 		Operations:             cf.OLAP,
 		CronOperations:         cf.CronOperations,
+		OLAPStatusUpdates:      cf.OLAPStatusUpdates,
 	}, nil
 }
 
