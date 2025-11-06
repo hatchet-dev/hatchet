@@ -6,7 +6,7 @@ The Hatchet server and engine can be configured via environment variables using 
 
 Hatchet uses the following environment variable prefixes:
 
-- **`SERVER_`** (172 variables) - Main server configuration including runtime, authentication, encryption, monitoring, and integrations
+- **`SERVER_`** (173 variables) - Main server configuration including runtime, authentication, encryption, monitoring, and integrations
 - **`DATABASE_`** (13 variables) - PostgreSQL database connection and configuration
 - **`READ_REPLICA_`** (4 variables) - Read replica database configuration
 - **`ADMIN_`** (3 variables) - Administrator user setup for initial seeding
@@ -306,6 +306,7 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_OTEL_COLLECTOR_URL`         | Collector URL for OpenTelemetry                            |               |
 | `SERVER_OTEL_INSECURE`              | Whether to use an insecure connection to the collector URL |               |
 | `SERVER_OTEL_TRACE_ID_RATIO`        | OpenTelemetry trace ID ratio                               |               |
+| `SERVER_OTEL_COLLECTOR_AUTH`        | OpenTelemetry Collector Authorization header value         |               |
 | `SERVER_PROMETHEUS_ENABLED`         | Enable Prometheus                                          | `false`       |
 | `SERVER_PROMETHEUS_ADDRESS`         | Prometheus address                                         | `:9090`       |
 | `SERVER_PROMETHEUS_PATH`            | Prometheus metrics path                                    | `/metrics`    |
