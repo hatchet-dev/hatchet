@@ -55,7 +55,7 @@ type ExternalStore interface {
 }
 
 type PayloadStoreRepository interface {
-	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) (map[TenantID][]OLAPPayloadToOffload, error)
+	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64, pubBuffer *msgqueue.MQPubBuffer) (bool, error)
@@ -141,7 +141,7 @@ type PayloadUniqueKey struct {
 	Type       sqlcv1.V1PayloadType
 }
 
-func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) (map[TenantID][]OLAPPayloadToOffload, error) {
+func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
 	// We store payloads as array in order to use PostgreSQL's UNNEST to batch insert them
 	taskIds := make([]int64, 0, len(payloads))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
@@ -200,7 +200,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		// 2. Call external store first to get storage keys (S3/GCS URLs)
 		// 3. Process results and prepare for PostgreSQL with external keys only
 		if !p.externalStoreEnabled {
-			return nil, fmt.Errorf("external store must be enabled when WAL is disabled")
+			return fmt.Errorf("external store must be enabled when WAL is disabled")
 		}
 
 		// 1. Prepare external store options for immediate offload
@@ -232,7 +232,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		// 2. Call external store first to get storage keys (S3/GCS URLs)
 		externalKeys, err := p.externalStore.Store(ctx, externalOpts...)
 		if err != nil {
-			return nil, fmt.Errorf("failed to store in external store: %w", err)
+			return fmt.Errorf("failed to store in external store: %w", err)
 		}
 
 		// 3. Process results and prepare for PostgreSQL with external keys only
@@ -259,7 +259,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 
 			externalKey, exists := externalKeys[retrieveOpts]
 			if !exists {
-				return nil, fmt.Errorf("external key not found for payload %d", payload.Id)
+				return fmt.Errorf("external key not found for payload %d", payload.Id)
 			}
 
 			taskIds = append(taskIds, payload.Id)
@@ -274,7 +274,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		}
 	}
 
-	writtenPayloads, err := p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
+	err := p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
 		Ids:                  taskIds,
 		Insertedats:          taskInsertedAts,
 		Types:                payloadTypes,
@@ -286,7 +286,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to write payloads: %w", err)
+		return fmt.Errorf("failed to write payloads: %w", err)
 	}
 
 	// Only write to WAL if external store is configured AND WAL is enabled
@@ -301,22 +301,11 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		})
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to write payload WAL: %w", err)
+			return fmt.Errorf("failed to write payload WAL: %w", err)
 		}
-	} else if !p.walEnabled {
-		tenantIdToOLAPPayloadsToOffload := make(map[TenantID][]OLAPPayloadToOffload)
-		for _, p := range writtenPayloads {
-			tenantIdToOLAPPayloadsToOffload[TenantID(p.TenantID.String())] = append(tenantIdToOLAPPayloadsToOffload[TenantID(p.TenantID.String())], OLAPPayloadToOffload{
-				ExternalId:          p.ExternalID,
-				InsertedAt:          p.InsertedAt,
-				ExternalLocationKey: p.ExternalLocationKey.String,
-			})
-		}
-
-		return tenantIdToOLAPPayloadsToOffload, nil
 	}
 
-	return nil, err
+	return err
 }
 
 func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {

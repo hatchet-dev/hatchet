@@ -15,7 +15,7 @@ WHERE (tenant_id, id, inserted_at, type) IN (
     )
 ;
 
--- name: WritePayloads :many
+-- name: WritePayloads :exec
 WITH inputs AS (
     SELECT DISTINCT
         UNNEST(@ids::BIGINT[]) AS id,

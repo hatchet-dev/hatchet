@@ -367,7 +367,7 @@ func (q *Queries) WritePayloadWAL(ctx context.Context, db DBTX, arg WritePayload
 	return err
 }
 
-const writePayloads = `-- name: WritePayloads :many
+const writePayloads = `-- name: WritePayloads :exec
 WITH inputs AS (
     SELECT DISTINCT
         UNNEST($1::BIGINT[]) AS id,
@@ -421,8 +421,8 @@ type WritePayloadsParams struct {
 	Tenantids            []pgtype.UUID        `json:"tenantids"`
 }
 
-func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsParams) ([]*V1Payload, error) {
-	rows, err := db.Query(ctx, writePayloads,
+func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsParams) error {
+	_, err := db.Exec(ctx, writePayloads,
 		arg.Ids,
 		arg.Insertedats,
 		arg.Externalids,
@@ -432,30 +432,5 @@ func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsP
 		arg.Inlinecontents,
 		arg.Tenantids,
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1Payload
-	for rows.Next() {
-		var i V1Payload
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.ID,
-			&i.InsertedAt,
-			&i.ExternalID,
-			&i.Type,
-			&i.Location,
-			&i.ExternalLocationKey,
-			&i.InlineContent,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return err
 }
