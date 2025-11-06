@@ -32,6 +32,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/rs/zerolog"
 
@@ -371,6 +372,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanupTasks,
 		})
 
+		sizeLimits := v1.StatusUpdateBatchSizeLimits{
+			Task: int32(sc.OLAPStatusUpdates.TaskBatchSizeLimit),
+			DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),
+		}
+
 		olap, err := olap.New(
 			olap.WithAlerter(sc.Alerter),
 			olap.WithMessageQueue(sc.MessageQueueV1),
@@ -381,6 +387,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			olap.WithSamplingConfig(sc.Sampling),
 			olap.WithOperationsConfig(sc.Operations),
 			olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
+			olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
 		)
 
 		if err != nil {
@@ -824,6 +831,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		}
 
 		if isControllerActive(sc.PausedControllers, OLAPController) {
+			sizeLimits := v1.StatusUpdateBatchSizeLimits{
+				Task: int32(sc.OLAPStatusUpdates.TaskBatchSizeLimit),
+				DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),
+			}
+
 			olap, err := olap.New(
 				olap.WithAlerter(sc.Alerter),
 				olap.WithMessageQueue(sc.MessageQueueV1),
@@ -835,6 +847,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				olap.WithOperationsConfig(sc.Operations),
 				olap.WithPrometheusMetricsEnabled(sc.Prometheus.Enabled),
 				olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
+				olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
 			)
 
 			if err != nil {

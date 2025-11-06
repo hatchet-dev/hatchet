@@ -59,17 +59,18 @@ type OLAPControllerImpl struct {
 type OLAPControllerOpt func(*OLAPControllerOpts)
 
 type OLAPControllerOpts struct {
-	mq                       msgqueue.MessageQueue
-	l                        *zerolog.Logger
-	repo                     v1.Repository
-	dv                       datautils.DataDecoderValidator
-	alerter                  hatcheterrors.Alerter
-	p                        *partition.Partition
-	ta                       *alerting.TenantAlertManager
-	samplingHashThreshold    *int64
-	olapConfig               *server.ConfigFileOperations
-	prometheusMetricsEnabled bool
-	analyzeCronInterval      time.Duration
+	mq                          msgqueue.MessageQueue
+	l                           *zerolog.Logger
+	repo                        v1.Repository
+	dv                          datautils.DataDecoderValidator
+	alerter                     hatcheterrors.Alerter
+	p                           *partition.Partition
+	ta                          *alerting.TenantAlertManager
+	samplingHashThreshold       *int64
+	olapConfig                  *server.ConfigFileOperations
+	prometheusMetricsEnabled    bool
+	analyzeCronInterval         time.Duration
+	statusUpdateBatchSizeLimits v1.StatusUpdateBatchSizeLimits
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -156,6 +157,12 @@ func WithAnalyzeCronInterval(interval time.Duration) OLAPControllerOpt {
 	}
 }
 
+func WithOLAPStatusUpdateBatchSizeLimits(limits v1.StatusUpdateBatchSizeLimits) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		opts.statusUpdateBatchSizeLimits = limits
+	}
+}
+
 func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	opts := defaultOLAPControllerOpts()
 
@@ -200,20 +207,21 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	dagPrometheusUpdateCh := make(chan dagPrometheusUpdate, prometheusChannelSize)
 
 	o := &OLAPControllerImpl{
-		mq:                       opts.mq,
-		l:                        opts.l,
-		s:                        s,
-		p:                        opts.p,
-		repo:                     opts.repo,
-		dv:                       opts.dv,
-		a:                        a,
-		ta:                       opts.ta,
-		samplingHashThreshold:    opts.samplingHashThreshold,
-		olapConfig:               opts.olapConfig,
-		prometheusMetricsEnabled: opts.prometheusMetricsEnabled,
-		analyzeCronInterval:      opts.analyzeCronInterval,
-		taskPrometheusUpdateCh:   taskPrometheusUpdateCh,
-		dagPrometheusUpdateCh:    dagPrometheusUpdateCh,
+		mq:                          opts.mq,
+		l:                           opts.l,
+		s:                           s,
+		p:                           opts.p,
+		repo:                        opts.repo,
+		dv:                          opts.dv,
+		a:                           a,
+		ta:                          opts.ta,
+		samplingHashThreshold:       opts.samplingHashThreshold,
+		olapConfig:                  opts.olapConfig,
+		prometheusMetricsEnabled:    opts.prometheusMetricsEnabled,
+		analyzeCronInterval:         opts.analyzeCronInterval,
+		taskPrometheusUpdateCh:      taskPrometheusUpdateCh,
+		dagPrometheusUpdateCh:       dagPrometheusUpdateCh,
+		statusUpdateBatchSizeLimits: opts.statusUpdateBatchSizeLimits,
 	}
 
 	// Default jitter value
