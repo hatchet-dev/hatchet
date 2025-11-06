@@ -45,6 +45,13 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 		durationPtr = &duration
 	}
 
+	var parentTaskExternalId *uuid.UUID
+
+	if task.ParentTaskExternalID.Valid {
+		parentTaskExternalIdValue := uuid.MustParse(sqlchelpers.UUIDToStr(task.ParentTaskExternalID))
+		parentTaskExternalId = &parentTaskExternalIdValue
+	}
+
 	taskExternalId := uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID))
 	stepId := uuid.MustParse(sqlchelpers.UUIDToStr(task.StepID))
 
@@ -77,6 +84,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 		WorkflowVersionId:     &workflowVersionID,
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
+		ParentTaskExternalId:  parentTaskExternalId,
 	}
 }
 

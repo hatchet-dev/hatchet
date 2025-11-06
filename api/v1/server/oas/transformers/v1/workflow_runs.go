@@ -69,6 +69,12 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 	}
 	attempt := retryCount + 1
 
+	var parentTaskExternalId *uuid.UUID
+	if task.ParentTaskExternalId != nil && task.ParentTaskExternalId.Valid {
+		parentTaskExternalIdValue := uuid.MustParse(sqlchelpers.UUIDToStr(*task.ParentTaskExternalId))
+		parentTaskExternalId = &parentTaskExternalIdValue
+	}
+
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
@@ -98,6 +104,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		WorkflowRunExternalId: uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID)),
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
+		ParentTaskExternalId:  parentTaskExternalId,
 	}
 }
 
@@ -176,6 +183,13 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 
 	retryCount := int(task.RetryCount)
 	attempt := retryCount + 1
+
+	var parentTaskExternalId *uuid.UUID
+	if task.ParentTaskExternalID.Valid {
+		parentTaskExternalIdValue := uuid.MustParse(sqlchelpers.UUIDToStr(task.ParentTaskExternalID))
+		parentTaskExternalId = &parentTaskExternalIdValue
+	}
+
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
@@ -206,6 +220,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
 		WorkflowRunExternalId: uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowRunID)),
+		ParentTaskExternalId:  parentTaskExternalId,
 	}
 }
 
