@@ -17,42 +17,12 @@ go mod init hatchet-tutorial
 #### Create project directories
 
 ```bash copy
-mkdir workflows &&
-mkdir workers
+mkdir workflows && mkdir workers
 ```
 
 #### Instantiate your Hatchet Client
 
-It is recommended to instantiate a shared Hatchet Client Factory in a separate file.
-
-Create a new directory called `hatchet_client` and a new file called `main.go` in it.
-
-```bash copy
-mkdir hatchet_client &&
-touch hatchet_client/main.go
-```
-
-Add the following code to the file:
-
-```go copy
-package hatchet
-
-import (
-	"github.com/hatchet-dev/hatchet/pkg/client"
-)
-
-func Client() (client.Client, error) {
-	return client.New()
-}
-```
-
-#### Install the Hatchet SDK and required dependencies
-
-<InstallCommand installOnly />
-
-#### Import the Hatchet Client Factory
-
-You can now import the Hatchet Client Factory in any file that needs it.
+In the `workers` directory, create a Hatchet client
 
 ```go copy
 package main
@@ -60,13 +30,13 @@ package main
 import (
 	"log"
 
-	hatchet "hatchet-tutorial/hatchet_client"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 func main() {
-	hatchet, err := hatchet.Client()
+	client, err := hatchet.NewClient()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 }
 ```
