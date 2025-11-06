@@ -233,8 +233,8 @@ type OLAPRepository interface {
 	CreateTaskEvents(ctx context.Context, tenantId string, events []sqlcv1.CreateTaskEventsOLAPParams) error
 	CreateDAGs(ctx context.Context, tenantId string, dags []*DAGWithData) error
 	GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
-	UpdateTaskStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateTaskStatusRow, error)
-	UpdateDAGStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateDAGStatusRow, error)
+	UpdateTaskStatuses(ctx context.Context, tenantIds []string, batchSizeLimit int32) (bool, []UpdateTaskStatusRow, error)
+	UpdateDAGStatuses(ctx context.Context, tenantIds []string, batchSizeLimit int32) (bool, []UpdateDAGStatusRow, error)
 	ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error)
 	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID, includePayloads bool) ([]*TaskWithPayloads, map[int64]uuid.UUID, error)
 	ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata, includePayloads bool) ([]*TaskWithPayloads, error)
@@ -266,6 +266,10 @@ type OLAPRepository interface {
 	ListWorkflowRunExternalIds(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]pgtype.UUID, error)
 }
 
+type StatusUpdateBatchSizeLimits struct {
+	Task int32
+	DAG  int32
+}
 type OLAPRepositoryImpl struct {
 	*sharedRepository
 
@@ -276,17 +280,19 @@ type OLAPRepositoryImpl struct {
 	olapRetentionPeriod time.Duration
 
 	shouldPartitionEventsTables bool
+
+	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits
 }
 
-func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables bool, payloadStoreOpts PayloadStoreRepositoryOpts) (OLAPRepository, func() error) {
+func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables bool, payloadStoreOpts PayloadStoreRepositoryOpts, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
 	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, payloadStoreOpts)
 
-	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables), cleanupShared
+	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, statusUpdateBatchSizeLimits), cleanupShared
 }
 
-func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldPartitionEventsTables bool) OLAPRepository {
+func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldPartitionEventsTables bool, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
@@ -299,6 +305,7 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 		eventCache:                  eventCache,
 		olapRetentionPeriod:         olapRetentionPeriod,
 		shouldPartitionEventsTables: shouldPartitionEventsTables,
+		statusUpdateBatchSizeLimits: statusUpdateBatchSizeLimits,
 	}
 }
 
@@ -1502,11 +1509,9 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 	return nil
 }
 
-func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateTaskStatusRow, error) {
+func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds []string, batchSizeLimit int32) (bool, []UpdateTaskStatusRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "olap_repository.update_task_statuses")
 	defer span.End()
-
-	var limit int32 = 1000
 
 	// each partition gets its own goroutine
 	eg := &errgroup.Group{}
@@ -1544,7 +1549,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 			minInsertedAt, err := r.queries.FindMinInsertedAtForTaskStatusUpdates(ctx, tx, sqlcv1.FindMinInsertedAtForTaskStatusUpdatesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIdUUIDs,
-				Eventlimit:      limit,
+				Eventlimit:      batchSizeLimit,
 			})
 
 			if err != nil {
@@ -1554,7 +1559,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 			statusUpdateRes, err := r.queries.UpdateTaskStatuses(ctx, tx, sqlcv1.UpdateTaskStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIdUUIDs,
-				Eventlimit:      limit,
+				Eventlimit:      batchSizeLimit,
 				Mininsertedat:   minInsertedAt,
 			})
 
@@ -1590,11 +1595,11 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 			}
 
 			// not super precise, but good enough to know whether to iterate
-			isSaturated = isSaturated || eventCount > int(limit)
+			isSaturated = isSaturated || eventCount > int(batchSizeLimit)
 
 			innerSpan.SetAttributes(
 				attribute.Int("olap_repository.update_task_statuses.partition.events_processed", eventCount),
-				attribute.Bool("olap_repository.update_task_statuses.partition.is_saturated", eventCount > int(limit)),
+				attribute.Bool("olap_repository.update_task_statuses.partition.is_saturated", eventCount > int(batchSizeLimit)),
 			)
 
 			return nil
@@ -1612,11 +1617,9 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 	return isSaturated, rows, nil
 }
 
-func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateDAGStatusRow, error) {
+func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []string, batchSizeLimit int32) (bool, []UpdateDAGStatusRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "olap_repository.update_dag_statuses")
 	defer span.End()
-
-	var limit int32 = 1000
 
 	// each partition gets its own goroutine
 	eg := &errgroup.Group{}
@@ -1654,7 +1657,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 			minInsertedAt, err := r.queries.FindMinInsertedAtForDAGStatusUpdates(ctx, tx, sqlcv1.FindMinInsertedAtForDAGStatusUpdatesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIdUUIDs,
-				Eventlimit:      limit,
+				Eventlimit:      batchSizeLimit,
 			})
 
 			if err != nil {
@@ -1664,7 +1667,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 			statusUpdateRes, err := r.queries.UpdateDAGStatuses(ctx, tx, sqlcv1.UpdateDAGStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIdUUIDs,
-				Eventlimit:      limit,
+				Eventlimit:      batchSizeLimit,
 				Mininsertedat:   minInsertedAt,
 			})
 
@@ -1698,11 +1701,11 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 			}
 
 			// not super precise, but good enough to know whether to iterate
-			isSaturated = isSaturated || eventCount > int(limit)
+			isSaturated = isSaturated || eventCount > int(batchSizeLimit)
 
 			innerSpan.SetAttributes(
 				attribute.Int("olap_repository.update_dag_statuses.partition.events_processed", eventCount),
-				attribute.Bool("olap_repository.update_dag_statuses.partition.is_saturated", eventCount > int(limit)),
+				attribute.Bool("olap_repository.update_dag_statuses.partition.is_saturated", eventCount > int(batchSizeLimit)),
 			)
 
 			return nil

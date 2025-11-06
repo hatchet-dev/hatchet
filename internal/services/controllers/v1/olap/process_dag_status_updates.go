@@ -40,7 +40,7 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 
 			var rows []v1.UpdateDAGStatusRow
 
-			shouldContinue, rows, err = o.repo.OLAP().UpdateDAGStatuses(ctx, tenantIds)
+			shouldContinue, rows, err = o.repo.OLAP().UpdateDAGStatuses(ctx, tenantIds, o.statusUpdateBatchSizeLimits.DAG)
 
 			if err != nil {
 				o.l.Error().Err(err).Msg("could not update DAG statuses")

@@ -53,6 +53,7 @@ type OLAPControllerImpl struct {
 	dagPrometheusUpdateCh        chan dagPrometheusUpdate
 	dagPrometheusWorkerCtx       context.Context
 	dagPrometheusWorkerCancel    context.CancelFunc
+	statusUpdateBatchSizeLimits  v1.StatusUpdateBatchSizeLimits
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
