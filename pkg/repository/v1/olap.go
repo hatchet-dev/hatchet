@@ -1,3 +1,8 @@
+// todo: finish cleanup of payload put logic so every time we call putpayloads and the external store is enabled we just immediately
+// offload to the external store if it's enabled, and otherwise just write the inline content to the payloads table
+// to test: wal enabled, external enabled; wal enabled, external disabled; wal disabled, external enabled; wal disabled, external disabled
+// also test dual writes
+
 package v1
 
 import (
@@ -1460,6 +1465,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 
 		if event.ExternalID.Valid {
 			payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
+				Id:         event.TaskID,
 				ExternalId: event.ExternalID,
 				InsertedAt: event.TaskInsertedAt,
 				Payload:    event.Output,
@@ -1772,6 +1778,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 		})
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
+			Id:         task.ID,
 			ExternalId: task.ExternalID,
 			InsertedAt: task.InsertedAt,
 			Payload:    payload,
@@ -1833,6 +1840,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 		})
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
+			Id:         dag.ID,
 			ExternalId: dag.ExternalID,
 			InsertedAt: dag.InsertedAt,
 			Payload:    dag.Input,
@@ -2090,6 +2098,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 			}
 
 			tenantIdToPutPayloadOpts[event.TenantID.String()] = append(tenantIdToPutPayloadOpts[event.TenantID.String()], StoreOLAPPayloadOpts{
+				Id:         event.ID,
 				ExternalId: event.ExternalID,
 				InsertedAt: event.SeenAt,
 				Payload:    event.Payload,
@@ -2104,7 +2113,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 			}
 		}
 	} else {
-		// if the external store is enabled,
+		// if the external store is enabled, we offload the payloads to the external store without
 		offloadToExternalOpts := make([]OffloadToExternalStoreOpts, 0)
 		idInsertedAtToExternalId := make(map[IdInsertedAt]pgtype.UUID)
 
@@ -2144,11 +2153,9 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 				}]
 
 				opt := StoreOLAPPayloadOpts{
-					ExternalId:          externalId,
-					InsertedAt:          retrieveOpts.InsertedAt,
-					Payload:             nil,
-					ExternalLocationKey: &key,
-					Location:            &externalLocation,
+					ExternalId: externalId,
+					InsertedAt: retrieveOpts.InsertedAt,
+					Payload:    nil,
 				}
 
 				tenantIdToPutPayloadOpts[retrieveOpts.TenantId.String()] = append(tenantIdToPutPayloadOpts[retrieveOpts.TenantId.String()], opt)
@@ -2429,6 +2436,9 @@ type PutPreOffloadedPayloadOpts struct {
 }
 
 func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId string, putPayloadOpts []StoreOLAPPayloadOpts) error {
+	// todo: need to handle external store not enabled here somehow
+	// can't be guaranteed to write to the external store
+
 	localTx := false
 	var (
 		commit   func(context.Context) error
@@ -2447,32 +2457,54 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 		defer rollback()
 	}
 
-	insertedAts := make([]pgtype.Timestamptz, len(putPayloadOpts))
-	tenantIds := make([]pgtype.UUID, len(putPayloadOpts))
-	externalIds := make([]pgtype.UUID, len(putPayloadOpts))
-	payloads := make([][]byte, len(putPayloadOpts))
-	locations := make([]string, len(putPayloadOpts))
-	externalKeys := make([]string, len(putPayloadOpts))
-
-	const defaultLocation = string(sqlcv1.V1PayloadLocationOlapINLINE)
-	const defaultExternalKey = ""
+	storeExternalPayloadOpts := make([]OffloadToExternalStoreOpts, len(putPayloadOpts))
+	idInsertedAtToStoreOpts := make(map[IdInsertedAt]StoreOLAPPayloadOpts)
 
 	for i, opt := range putPayloadOpts {
-		externalIds[i] = opt.ExternalId
-		insertedAts[i] = opt.InsertedAt
-		tenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
-		payloads[i] = opt.Payload
-
-		locations[i] = defaultLocation
-
-		if opt.Location != nil {
-			locations[i] = string(*opt.Location)
+		storeOpts := OffloadToExternalStoreOpts{
+			StorePayloadOpts: &StorePayloadOpts{
+				Id:         opt.Id,
+				InsertedAt: opt.InsertedAt,
+				ExternalId: opt.ExternalId,
+				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA, // placeholder, not used in OLAP
+				Payload:    opt.Payload,
+				TenantId:   tenantId,
+			},
+			OffloadAt: opt.InsertedAt.Time, // placeholder, offloaded immediately
 		}
 
-		externalKeys[i] = defaultExternalKey
-		if opt.ExternalLocationKey != nil {
-			externalKeys[i] = string(*opt.ExternalLocationKey)
-		}
+		storeExternalPayloadOpts[i] = storeOpts
+		idInsertedAtToStoreOpts[IdInsertedAt{
+			ID:         opt.Id,
+			InsertedAt: opt.InsertedAt,
+		}] = opt
+	}
+
+	retrieveOptsToKey, err := r.payloadStore.ExternalStore().Store(ctx, storeExternalPayloadOpts...)
+
+	if err != nil {
+		return fmt.Errorf("error offloading payloads to external store: %v", err)
+	}
+
+	insertedAts := make([]pgtype.Timestamptz, 0, len(putPayloadOpts))
+	tenantIds := make([]pgtype.UUID, 0, len(putPayloadOpts))
+	externalIds := make([]pgtype.UUID, 0, len(putPayloadOpts))
+	payloads := make([][]byte, 0, len(putPayloadOpts))
+	locations := make([]string, 0, len(putPayloadOpts))
+	externalKeys := make([]string, 0, len(putPayloadOpts))
+
+	for retrieveOpts, key := range retrieveOptsToKey {
+		storeOpts := idInsertedAtToStoreOpts[IdInsertedAt{
+			ID:         retrieveOpts.Id,
+			InsertedAt: retrieveOpts.InsertedAt,
+		}]
+
+		externalIds = append(externalIds, storeOpts.ExternalId)
+		insertedAts = append(insertedAts, storeOpts.InsertedAt)
+		tenantIds = append(tenantIds, retrieveOpts.TenantId)
+		payloads = append(payloads, nil)
+		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapEXTERNAL))
+		externalKeys = append(externalKeys, string(key))
 	}
 
 	err = r.queries.PutPayloads(ctx, tx, sqlcv1.PutPayloadsParams{

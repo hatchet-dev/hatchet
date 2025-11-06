@@ -26,11 +26,10 @@ type StorePayloadOpts struct {
 }
 
 type StoreOLAPPayloadOpts struct {
-	ExternalId          pgtype.UUID
-	InsertedAt          pgtype.Timestamptz
-	Payload             []byte
-	ExternalLocationKey *ExternalPayloadLocationKey
-	Location            *sqlcv1.V1PayloadLocationOlap
+	Id         int64
+	ExternalId pgtype.UUID
+	InsertedAt pgtype.Timestamptz
+	Payload    []byte
 }
 
 type OffloadToExternalStoreOpts struct {
