@@ -6,7 +6,6 @@ import (
 )
 
 type OLAPPayloadToOffload struct {
-	InsertedAt          pgtype.Timestamptz
 	ExternalId          pgtype.UUID
 	ExternalLocationKey string
 }

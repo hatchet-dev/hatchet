@@ -444,16 +444,12 @@ func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId
 				continue
 			}
 
-			offloads = append(offloads, v1.OffloadPayloadOpts{
-				ExternalId:          payload.ExternalId,
-				ExternalLocationKey: payload.ExternalLocationKey,
-			})
+			offloads = append(offloads, v1.OffloadPayloadOpts(payload))
 		}
 	}
 
 	return tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloads)
 }
-
 
 func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, tenantId string, payloads [][]byte) error {
 	failures := make([]v1.CELEvaluationFailure, 0)
