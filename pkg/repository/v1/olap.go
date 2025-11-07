@@ -2373,12 +2373,6 @@ type OffloadPayloadOpts struct {
 	ExternalLocationKey string
 }
 
-type PutPreOffloadedPayloadOpts struct {
-	InsertedAt          pgtype.Timestamptz
-	ExternalId          pgtype.UUID
-	ExternalLocationKey string
-}
-
 func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId string, putPayloadOpts []StoreOLAPPayloadOpts) error {
 	localTx := false
 	var (
