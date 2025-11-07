@@ -2089,85 +2089,24 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 
 	tenantIdToPutPayloadOpts := make(map[string][]StoreOLAPPayloadOpts)
 
-	if !r.payloadStore.ExternalStoreEnabled() {
-		// if the external store is not enabled, we write the payloads inline
-		// to the payload store
-		for _, event := range insertedEvents {
-			if event == nil {
-				continue
-			}
-
-			tenantIdToPutPayloadOpts[event.TenantID.String()] = append(tenantIdToPutPayloadOpts[event.TenantID.String()], StoreOLAPPayloadOpts{
-				Id:         event.ID,
-				ExternalId: event.ExternalID,
-				InsertedAt: event.SeenAt,
-				Payload:    event.Payload,
-			})
+	for _, event := range insertedEvents {
+		if event == nil {
+			continue
 		}
 
-		for tenantId, putPayloadOpts := range tenantIdToPutPayloadOpts {
-			err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts)
+		tenantIdToPutPayloadOpts[event.TenantID.String()] = append(tenantIdToPutPayloadOpts[event.TenantID.String()], StoreOLAPPayloadOpts{
+			Id:         event.ID,
+			ExternalId: event.ExternalID,
+			InsertedAt: event.SeenAt,
+			Payload:    event.Payload,
+		})
+	}
 
-			if err != nil {
-				return fmt.Errorf("error putting event payloads: %v", err)
-			}
-		}
-	} else {
-		// if the external store is enabled, we offload the payloads to the external store without
-		offloadToExternalOpts := make([]OffloadToExternalStoreOpts, 0)
-		idInsertedAtToExternalId := make(map[IdInsertedAt]pgtype.UUID)
+	for tenantId, putPayloadOpts := range tenantIdToPutPayloadOpts {
+		err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts)
 
-		for _, event := range insertedEvents {
-			payload := eventExternalIdToPayload[event.ExternalID]
-			offloadToExternalOpts = append(offloadToExternalOpts, OffloadToExternalStoreOpts{
-				StorePayloadOpts: &StorePayloadOpts{
-					Id:         event.ID,
-					InsertedAt: event.SeenAt,
-					ExternalId: event.ExternalID,
-					Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-					Payload:    payload,
-					TenantId:   event.TenantID.String(),
-				},
-				OffloadAt: time.Now(),
-			})
-			idInsertedAtToExternalId[IdInsertedAt{
-				ID:         event.ID,
-				InsertedAt: event.SeenAt,
-			}] = event.ExternalID
-		}
-
-		if len(tenantIdToPutPayloadOpts) > 0 {
-			retrieveOptsToKey, err := r.PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
-
-			if err != nil {
-				return err
-			}
-
-			tenantIdToPutPayloadOpts := make(map[string][]StoreOLAPPayloadOpts, 0)
-			externalLocation := sqlcv1.V1PayloadLocationOlapEXTERNAL
-
-			for retrieveOpts, key := range retrieveOptsToKey {
-				externalId := idInsertedAtToExternalId[IdInsertedAt{
-					ID:         retrieveOpts.Id,
-					InsertedAt: retrieveOpts.InsertedAt,
-				}]
-
-				opt := StoreOLAPPayloadOpts{
-					ExternalId: externalId,
-					InsertedAt: retrieveOpts.InsertedAt,
-					Payload:    nil,
-				}
-
-				tenantIdToPutPayloadOpts[retrieveOpts.TenantId.String()] = append(tenantIdToPutPayloadOpts[retrieveOpts.TenantId.String()], opt)
-			}
-
-			for tenantId, opts := range tenantIdToPutPayloadOpts {
-				err = r.PutPayloads(ctx, tx, tenantId, opts)
-
-				if err != nil {
-					return fmt.Errorf("error putting event payloads: %v", err)
-				}
-			}
+		if err != nil {
+			return fmt.Errorf("error putting event payloads: %v", err)
 		}
 	}
 
