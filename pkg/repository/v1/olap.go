@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -1464,10 +1465,17 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 		}
 
 		if event.ExternalID.Valid {
+			// generating a dummy id + inserted at to use for creating the external keys for the task events
+			// we do this since we don't have the id + inserted at of the events themselves on the opts, and we don't
+			// actually need those for anything once the keys are created.
+			dummyId := rand.Int63()
+			// randomly jitter the inserted at time by +/- 300ms to make collisions virtually impossible
+			dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
+
 			payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
-				Id:         event.TaskID,
+				Id:         dummyId,
 				ExternalId: event.ExternalID,
-				InsertedAt: event.TaskInsertedAt,
+				InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
 				Payload:    event.Output,
 			})
 		}
