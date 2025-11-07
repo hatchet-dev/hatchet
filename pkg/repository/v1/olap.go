@@ -2094,11 +2094,13 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 			continue
 		}
 
+		payload := eventExternalIdToPayload[event.ExternalID]
+
 		tenantIdToPutPayloadOpts[event.TenantID.String()] = append(tenantIdToPutPayloadOpts[event.TenantID.String()], StoreOLAPPayloadOpts{
 			Id:         event.ID,
 			ExternalId: event.ExternalID,
 			InsertedAt: event.SeenAt,
-			Payload:    event.Payload,
+			Payload:    payload,
 		})
 	}
 
