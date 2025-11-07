@@ -1,8 +1,3 @@
-// todo: finish cleanup of payload put logic so every time we call putpayloads and the external store is enabled we just immediately
-// offload to the external store if it's enabled, and otherwise just write the inline content to the payloads table
-// to test: wal enabled, external enabled; wal enabled, external disabled; wal disabled, external enabled; wal disabled, external disabled
-// also test dual writes
-
 package v1
 
 import (
@@ -2385,9 +2380,6 @@ type PutPreOffloadedPayloadOpts struct {
 }
 
 func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId string, putPayloadOpts []StoreOLAPPayloadOpts) error {
-	// todo: need to handle external store not enabled here somehow
-	// can't be guaranteed to write to the external store
-
 	localTx := false
 	var (
 		commit   func(context.Context) error
