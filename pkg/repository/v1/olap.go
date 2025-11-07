@@ -2395,7 +2395,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	placeholderPayloadType := sqlcv1.V1PayloadTypeTASKEVENTDATA // placeholder, not used in OLAP
 	retrieveOptsToKey := make(map[RetrievePayloadOpts]ExternalPayloadLocationKey)
 
-	if r.payloadStore.ExternalStoreEnabled() {
+	if r.payloadStore.ExternalStoreEnabled() && !r.payloadStore.WALEnabled() {
 		storeExternalPayloadOpts := make([]OffloadToExternalStoreOpts, len(putPayloadOpts))
 
 		for i, opt := range putPayloadOpts {
