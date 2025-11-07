@@ -2165,7 +2165,8 @@ WITH inputs AS (
         UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST($3::JSONB[]) AS payload,
         UNNEST($4::UUID[]) AS tenant_id,
-        UNNEST(CAST($5::TEXT[] AS v1_payload_location_olap[])) AS location
+        UNNEST(CAST($5::TEXT[] AS v1_payload_location_olap[])) AS location,
+        UNNEST($6::TEXT[]) AS external_location_key
 )
 
 INSERT INTO v1_payloads_olap (
@@ -2183,7 +2184,7 @@ SELECT
     i.inserted_at,
     i.location,
     CASE
-        WHEN i.location = 'EXTERNAL' THEN i.payload
+        WHEN i.location = 'EXTERNAL' THEN i.external_location_key
         ELSE NULL
     END,
     CASE
@@ -2200,11 +2201,12 @@ SET
 `
 
 type PutPayloadsParams struct {
-	Externalids []pgtype.UUID        `json:"externalids"`
-	Insertedats []pgtype.Timestamptz `json:"insertedats"`
-	Payloads    [][]byte             `json:"payloads"`
-	Tenantids   []pgtype.UUID        `json:"tenantids"`
-	Locations   []string             `json:"locations"`
+	Externalids          []pgtype.UUID        `json:"externalids"`
+	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
+	Payloads             [][]byte             `json:"payloads"`
+	Tenantids            []pgtype.UUID        `json:"tenantids"`
+	Locations            []string             `json:"locations"`
+	Externallocationkeys []string             `json:"externallocationkeys"`
 }
 
 func (q *Queries) PutPayloads(ctx context.Context, db DBTX, arg PutPayloadsParams) error {
@@ -2214,6 +2216,7 @@ func (q *Queries) PutPayloads(ctx context.Context, db DBTX, arg PutPayloadsParam
 		arg.Payloads,
 		arg.Tenantids,
 		arg.Locations,
+		arg.Externallocationkeys,
 	)
 	return err
 }
