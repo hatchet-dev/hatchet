@@ -164,6 +164,7 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 				worker.WithClient(w.v0),
 				worker.WithName(w.name),
 				worker.WithMaxRuns(w.slots),
+				worker.WithLogger(w.logger),
 				worker.WithLogLevel(w.logLevel),
 				worker.WithLabels(w.labels),
 			}
@@ -194,6 +195,8 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 				worker.WithName(w.name + "-durable"),
 				worker.WithMaxRuns(w.durableSlots),
 				worker.WithLogger(logger),
+				worker.WithLogLevel(w.logLevel),
+				worker.WithLabels(w.labels),
 			}
 
 			durableWorker, err := worker.NewWorker(
