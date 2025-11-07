@@ -407,7 +407,6 @@ DO UPDATE SET
     external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location != 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,
     inline_content = EXCLUDED.inline_content,
     updated_at = NOW()
-RETURNING v1_payload.tenant_id, v1_payload.id, v1_payload.inserted_at, v1_payload.external_id, v1_payload.type, v1_payload.location, v1_payload.external_location_key, v1_payload.inline_content, v1_payload.updated_at
 `
 
 type WritePayloadsParams struct {
