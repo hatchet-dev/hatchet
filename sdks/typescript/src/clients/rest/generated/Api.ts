@@ -63,6 +63,7 @@ import {
   StepRun,
   StepRunArchiveList,
   StepRunEventList,
+  TaskStats,
   Tenant,
   TenantAlertEmailGroup,
   TenantAlertEmailGroupList,
@@ -75,8 +76,10 @@ import {
   TenantResourcePolicy,
   TenantStepRunQueueMetrics,
   TriggerWorkflowRunRequest,
+  UpdateCronWorkflowTriggerRequest,
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
+  UpdateTenantMemberRequest,
   UpdateTenantRequest,
   UpdateWorkerRequest,
   User,
@@ -106,11 +109,13 @@ import {
   V1TaskTimingList,
   V1TriggerWorkflowRunRequest,
   V1UpdateFilterRequest,
+  V1UpdateWebhookRequest,
   V1Webhook,
   V1WebhookList,
   V1WebhookSourceName,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
+  V1WorkflowRunExternalIdList,
   WebhookWorkerCreated,
   WebhookWorkerCreateRequest,
   WebhookWorkerListResponse,
@@ -403,6 +408,45 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Lists external ids for workflow runs matching filters
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunExternalIdsList
+   * @summary List workflow run external ids
+   * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs/external-ids
+   * @secure
+   */
+  v1WorkflowRunExternalIdsList = (
+    tenant: string,
+    query: {
+      /** A list of statuses to filter by */
+      statuses?: V1TaskStatus[];
+      /**
+       * The earliest date to filter by
+       * @format date-time
+       */
+      since: string;
+      /**
+       * The latest date to filter by
+       * @format date-time
+       */
+      until?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
+      /** The workflow ids to find runs for */
+      workflow_ids?: string[];
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1WorkflowRunExternalIdList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs/external-ids`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Trigger a new workflow run
    *
    * @tags Workflow Runs
@@ -558,6 +602,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       triggering_event_external_id?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
     },
     params: RequestParams = {}
   ) =>
@@ -886,16 +932,34 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
    */
   v1WebhookReceive = (tenant: string, v1Webhook: string, data?: any, params: RequestParams = {}) =>
-    this.request<
-      {
-        /** @example "OK" */
-        message?: string;
-      },
-      APIErrors
-    >({
+    this.request<Record<string, any>, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
       method: 'POST',
       body: data,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Update a webhook
+   *
+   * @tags Webhook
+   * @name V1WebhookUpdate
+   * @summary Update a webhook
+   * @request PATCH:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
+   */
+  v1WebhookUpdate = (
+    tenant: string,
+    v1Webhook: string,
+    data: V1UpdateWebhookRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: 'PATCH',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: 'json',
       ...params,
     });
@@ -927,7 +991,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/ready
    */
   readinessGet = (params: RequestParams = {}) =>
-    this.request<void, void>({
+    this.request<void, APIErrors>({
       path: `/api/ready`,
       method: 'GET',
       ...params,
@@ -941,7 +1005,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/live
    */
   livenessGet = (params: RequestParams = {}) =>
-    this.request<void, void>({
+    this.request<void, APIErrors>({
       path: `/api/live`,
       method: 'GET',
       ...params,
@@ -1873,6 +1937,30 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Update a tenant member
+   *
+   * @tags Tenant
+   * @name TenantMemberUpdate
+   * @summary Update a tenant member
+   * @request PATCH:/api/v1/tenants/{tenant}/members/{member}
+   * @secure
+   */
+  tenantMemberUpdate = (
+    tenant: string,
+    member: string,
+    data: UpdateTenantMemberRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<TenantMember, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/members/${member}`,
+      method: 'PATCH',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Delete a member from a tenant
    *
    * @tags Tenant
@@ -2215,6 +2303,29 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
       method: 'DELETE',
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Update a cron workflow for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowCronUpdate
+   * @summary Update cron job workflow run
+   * @request PATCH:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
+   * @secure
+   */
+  workflowCronUpdate = (
+    tenant: string,
+    cronWorkflow: string,
+    data: UpdateCronWorkflowTriggerRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<void, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
+      method: 'PATCH',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
     });
   /**
@@ -3022,6 +3133,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
       method: 'GET',
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Get task stats for tenant
+   *
+   * @tags Tenant
+   * @name TenantGetTaskStats
+   * @summary Get task stats for tenant
+   * @request GET:/api/v1/tenants/{tenant}/task-stats
+   * @secure
+   */
+  tenantGetTaskStats = (tenant: string, params: RequestParams = {}) =>
+    this.request<TaskStats, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/task-stats`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
       ...params,
     });
 }

@@ -19,7 +19,7 @@ class LogsClient(BaseRestClient):
     def list(
         self,
         task_run_id: str,
-        limit: int = 100,
+        limit: int = 1000,
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> V1LogLineList:
@@ -27,7 +27,7 @@ class LogsClient(BaseRestClient):
         List log lines for a given task run.
 
         :param task_run_id: The ID of the task run to list logs for.
-        :param limit: Maximum number of log lines to return (default: 100).
+        :param limit: Maximum number of log lines to return (default: 1000).
         :param since: The start time to get logs for.
         :param until: The end time to get logs for.
         :return: A list of log lines for the specified task run.
@@ -40,7 +40,7 @@ class LogsClient(BaseRestClient):
     async def aio_list(
         self,
         task_run_id: str,
-        limit: int = 100,
+        limit: int = 1000,
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> V1LogLineList:
@@ -48,7 +48,7 @@ class LogsClient(BaseRestClient):
         List log lines for a given task run.
 
         :param task_run_id: The ID of the task run to list logs for.
-        :param limit: Maximum number of log lines to return (default: 100).
+        :param limit: Maximum number of log lines to return (default: 1000).
         :param since: The start time to get logs for.
         :param until: The end time to get logs for.
         :return: A list of log lines for the specified task run.
