@@ -121,7 +121,6 @@ func InitMeter(opts *TracerOpts) (func(context.Context) error, error) {
 	if !opts.Insecure {
 		secureOption = otlpmetricgrpc.WithTLSCredentials(credentials.NewClientTLSFromCert(nil, ""))
 	} else {
-		otlpmetricgrpc.WithInsecure()
 		secureOption = otlpmetricgrpc.WithInsecure()
 	}
 
@@ -160,20 +159,36 @@ func InitMeter(opts *TracerOpts) (func(context.Context) error, error) {
 		return nil, fmt.Errorf("failed to set resources: %w", err)
 	}
 
-	otel.SetMeterProvider(
-		metric.NewMeterProvider(
-			metric.WithResource(resources),
-			metric.WithReader(
-				metric.NewPeriodicReader(
-					exporter,
-					metric.WithInterval(3*time.Second),
-				),
+	meterProvider := metric.NewMeterProvider(
+		metric.WithReader(
+			metric.NewPeriodicReader(
+				exporter,
+				metric.WithInterval(3*time.Second),
 			),
-			metric.WithResource(resources),
 		),
+		metric.WithResource(resources),
 	)
 
-	return nil, nil
+	otel.SetMeterProvider(
+		meterProvider,
+	)
+
+	return func(ctx context.Context) error {
+		var shutdownErr error
+
+		if err := meterProvider.Shutdown(ctx); err != nil {
+			shutdownErr = fmt.Errorf("failed to shutdown meter provider: %w", err)
+		}
+
+		if err := exporter.Shutdown(ctx); err != nil {
+			if shutdownErr != nil {
+				shutdownErr = fmt.Errorf("%v; failed to shutdown exporter: %w", shutdownErr, err)
+			} else {
+				shutdownErr = fmt.Errorf("failed to shutdown exporter: %w", err)
+			}
+		}
+		return shutdownErr
+	}, nil
 }
 
 func NewSpan(ctx context.Context, name string) (context.Context, trace.Span) {

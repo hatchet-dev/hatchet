@@ -129,9 +129,7 @@ func (h *pgHealthRepository) CheckQueryCache(ctx context.Context) (PGHealthError
 
 	for _, table := range tables {
 		hitRatio := table.CacheHitRatioPct
-		if err != nil {
-			return PGHealthOK, 0, err
-		}
+
 		if hitRatio < 95.0 && hitRatio > 10.0 {
 			problemTables[table.Tablename.String] = hitRatio
 		}
