@@ -27,9 +27,9 @@ SELECT
 FROM
     pg_stat_user_tables
 WHERE
-    n_dead_tup > 1000 
-    AND n_live_tup > 1000 
-    AND ROUND(100 * n_dead_tup::numeric / NULLIF(n_live_tup, 0), 2) > 50 
+    n_dead_tup > 1000
+    AND n_live_tup > 1000
+    AND ROUND(100 * n_dead_tup::numeric / NULLIF(n_live_tup, 0), 2) > 50
     AND relname NOT IN (
         'Lease'
         )
@@ -82,7 +82,7 @@ func (q *Queries) CheckBloat(ctx context.Context, db DBTX) ([]*CheckBloatRow, er
 }
 
 const checkLongRunningQueries = `-- name: CheckLongRunningQueries :many
-SELECT 
+SELECT
     pid,
     usename,
     application_name,
@@ -90,14 +90,14 @@ SELECT
     state,
     now() - query_start AS duration,
     query
-FROM 
+FROM
     pg_stat_activity
-WHERE 
+WHERE
     state = 'active'
     AND now() - query_start > interval '5 minutes'
     AND query NOT LIKE 'autovacuum:%'
     AND query NOT LIKE '%pg_stat_activity%'
-ORDER BY 
+ORDER BY
     query_start
 `
 
@@ -151,7 +151,7 @@ func (q *Queries) CheckPGStatStatementsEnabled(ctx context.Context, db DBTX) (in
 }
 
 const checkQueryCaches = `-- name: CheckQueryCaches :many
-SELECT 
+SELECT
     schemaname,
     relname AS tablename,
     heap_blks_read,
@@ -162,11 +162,11 @@ SELECT
         2
     )::float AS cache_hit_ratio_pct,
     pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) AS total_size
-FROM 
+FROM
     pg_statio_user_tables
-WHERE 
+WHERE
     heap_blks_read + heap_blks_hit > 0
-ORDER BY 
+ORDER BY
     heap_blks_read DESC
 LIMIT 20
 `
@@ -210,7 +210,7 @@ func (q *Queries) CheckQueryCaches(ctx context.Context, db DBTX) ([]*CheckQueryC
 }
 
 const longRunningVacuum = `-- name: LongRunningVacuum :many
-SELECT 
+SELECT
     p.pid,
     p.relid::regclass AS table_name,
     pg_size_pretty(pg_total_relation_size(p.relid)) AS table_size,
@@ -221,7 +221,7 @@ SELECT
     p.heap_blks_vacuumed AS vacuumed_blocks,
     p.index_vacuum_count,
     now() - a.query_start AS elapsed_time,
-    CASE 
+    CASE
         WHEN p.heap_blks_scanned > 0 THEN
             ((now() - a.query_start) * (p.heap_blks_total - p.heap_blks_scanned) / p.heap_blks_scanned)
         ELSE interval '0'
@@ -229,12 +229,12 @@ SELECT
     a.wait_event_type,
     a.wait_event,
     a.query
-FROM 
+FROM
     pg_stat_progress_vacuum p
     JOIN pg_stat_activity a ON p.pid = a.pid
-WHERE 
+WHERE
     now() - a.query_start > interval '3 hours'
-ORDER BY 
+ORDER BY
     a.query_start
 `
 
