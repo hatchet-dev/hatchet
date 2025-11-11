@@ -15,7 +15,7 @@ interface DeleteTenantModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tenant: OrganizationTenant | null;
-  tenantName?: string;
+  tenantName: string;
   organizationName: string;
   onSuccess: () => void;
 }
@@ -31,8 +31,6 @@ export function DeleteTenantModal({
   const { handleDeleteTenant, deleteTenantLoading } = useOrganizations();
   const [typedName, setTypedName] = useState('');
 
-  const displayName = tenantName || tenant?.id || '';
-
   // Reset typed name when modal opens/closes
   useEffect(() => {
     if (!open) {
@@ -44,7 +42,7 @@ export function DeleteTenantModal({
     return null;
   }
 
-  const isNameMatch = typedName === displayName;
+  const isNameMatch = typedName === tenantName;
 
   const handleSubmit = () => {
     if (isNameMatch) {
@@ -61,7 +59,7 @@ export function DeleteTenantModal({
         <div>
           <div className="text-sm text-foreground mb-4 space-y-3">
             <p>
-              Are you sure you want to archive <strong>{displayName}</strong>{' '}
+              Are you sure you want to archive <strong>{tenantName}</strong>{' '}
               from {organizationName}?
             </p>
             <p className="text-sm text-muted-foreground">
@@ -78,12 +76,12 @@ export function DeleteTenantModal({
             </p>
             <div className="space-y-2 pt-2">
               <label className="text-sm font-medium">
-                To confirm, type <strong>{displayName}</strong>:
+                To confirm, type <strong>{tenantName}</strong>:
               </label>
               <Input
                 value={typedName}
                 onChange={(e) => setTypedName(e.target.value)}
-                placeholder={displayName}
+                placeholder={tenantName}
                 className="w-full"
                 autoFocus
               />

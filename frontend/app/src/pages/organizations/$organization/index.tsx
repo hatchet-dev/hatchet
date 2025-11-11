@@ -1084,22 +1084,30 @@ export default function OrganizationPage() {
         )}
 
         {/* Archive Tenant Modal */}
-        {tenantToArchive && organization && (
-          <DeleteTenantModal
-            open={!!tenantToArchive}
-            onOpenChange={(open) => !open && setTenantToArchive(null)}
-            tenant={tenantToArchive}
-            tenantName={
-              detailedTenants.find((t) => t?.metadata.id === tenantToArchive.id)
-                ?.name
-            }
-            organizationName={organization.name}
-            onSuccess={() => {
-              organizationQuery.refetch();
-              tenantQueries.forEach((query) => query.refetch());
-            }}
-          />
-        )}
+        {(() => {
+          const foundTenant = tenantToArchive
+            ? detailedTenants.find((t) => t?.metadata.id === tenantToArchive.id)
+            : undefined;
+          return (
+            tenantToArchive &&
+            organization &&
+            foundTenant && (
+              <DeleteTenantModal
+                open={!!tenantToArchive}
+                onOpenChange={(open) => !open && setTenantToArchive(null)}
+                tenant={tenantToArchive}
+                tenantName={foundTenant.name}
+                organizationName={organization.name}
+                onSuccess={() => {
+                  queryClient.invalidateQueries({
+                    queryKey: ['organization:get', orgId],
+                  });
+                  queryClient.invalidateQueries({ queryKey: ['tenant:get'] });
+                }}
+              />
+            )
+          );
+        })()}
       </div>
     </div>
   );
