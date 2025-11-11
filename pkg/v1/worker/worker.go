@@ -190,13 +190,18 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 				logger = w.nonDurableWorker.Logger()
 			}
 
+			labels := make(map[string]interface{})
+			for k, v := range w.labels {
+				labels[k] = fmt.Sprintf("%v-durable", v)
+			}
+
 			opts := []worker.WorkerOpt{
 				worker.WithClient(w.v0),
 				worker.WithName(w.name + "-durable"),
 				worker.WithMaxRuns(w.durableSlots),
 				worker.WithLogger(logger),
 				worker.WithLogLevel(w.logLevel),
-				worker.WithLabels(w.labels),
+				worker.WithLabels(labels),
 			}
 
 			durableWorker, err := worker.NewWorker(
