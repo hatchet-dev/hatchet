@@ -566,17 +566,8 @@ func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*Wor
 		return nil, err
 	}
 
-	result, err := workflowRunRef.v0Workflow.Result()
-	if err != nil {
-		return nil, err
-	}
-
-	workflowResult, err := result.Results()
-	if err != nil {
-		return nil, err
-	}
-
-	return &WorkflowResult{result: workflowResult, RunId: workflowRunRef.RunId}, nil
+	// Use the Result() method instead of accessing unexported fields
+	return workflowRunRef.Result()
 }
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
@@ -621,7 +612,7 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 		return nil, err
 	}
 
-	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
+	return features.NewWorkflowRunRef(v0Workflow), nil
 }
 
 // RunMany executes multiple workflow instances with different inputs.
