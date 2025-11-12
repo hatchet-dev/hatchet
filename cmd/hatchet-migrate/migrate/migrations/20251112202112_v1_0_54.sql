@@ -12,8 +12,23 @@ CREATE TABLE v1_event_lookup_table_olap_new (
     PRIMARY KEY (external_id, event_seen_at)
 ) PARTITION BY RANGE(event_seen_at);
 
-SELECT create_v1_weekly_range_partition('v1_event_lookup_table_olap_new'::text, (NOW() - INTERVAL '1 week')::DATE);
-SELECT create_v1_weekly_range_partition('v1_event_lookup_table_olap_new'::text, DATE 'today');
+WITH existing_partitions AS (
+    SELECT
+        child.relname AS partition_name,
+        regexp_replace(
+            pg_get_expr(child.relpartbound, child.oid),
+            '.*FROM \(''([^'']+)''\) TO \(''([^'']+)''\).*',
+            '\1'
+        )::timestamp AS range_start
+    FROM pg_inherits
+    JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
+    JOIN pg_class child ON pg_inherits.inhrelid = child.oid
+    WHERE parent.relname = 'v1_event_lookup_table_olap'
+    ORDER BY range_start
+)
+
+SELECT create_v1_weekly_range_partition('v1_event_lookup_table_olap_new'::text, range_start::DATE)
+FROM existing_partitions;
 
 CREATE OR REPLACE FUNCTION v1_event_lookup_table_olap_new_insert_function()
 RETURNS TRIGGER AS
@@ -99,8 +114,23 @@ CREATE TABLE v1_event_lookup_table_olap_new (
     PRIMARY KEY (tenant_id, external_id, event_seen_at)
 ) PARTITION BY RANGE(event_seen_at);
 
-SELECT create_v1_weekly_range_partition('v1_event_lookup_table_olap_new'::text, (NOW() - INTERVAL '1 week')::DATE);
-SELECT create_v1_weekly_range_partition('v1_event_lookup_table_olap_new'::text, NOW()::DATE);
+WITH existing_partitions AS (
+    SELECT
+        child.relname AS partition_name,
+        regexp_replace(
+            pg_get_expr(child.relpartbound, child.oid),
+            '.*FROM \(''([^'']+)''\) TO \(''([^'']+)''\).*',
+            '\1'
+        )::timestamp AS range_start
+    FROM pg_inherits
+    JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
+    JOIN pg_class child ON pg_inherits.inhrelid = child.oid
+    WHERE parent.relname = 'v1_event_lookup_table_olap'
+    ORDER BY range_start
+)
+
+SELECT create_v1_weekly_range_partition('v1_event_lookup_table_olap_new'::text, range_start::DATE)
+FROM existing_partitions;
 
 CREATE OR REPLACE FUNCTION v1_event_lookup_table_olap_new_insert_function()
 RETURNS TRIGGER AS
