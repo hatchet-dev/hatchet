@@ -94,6 +94,8 @@ BEGIN
         new_name := REPLACE(partition_record.tablename, 'v1_event_lookup_table_olap_new_', 'v1_event_lookup_table_olap_');
         EXECUTE format('ALTER TABLE %I RENAME TO %I', partition_record.tablename, new_name);
         RAISE NOTICE 'Renamed % to %', partition_record.tablename, new_name;
+        EXECUTE format('ALTER INDEX %I RENAME TO %I', partition_record.tablename || '_pkey', new_name || '_pkey');
+        RAISE NOTICE 'Renamed % to % and index to %', partition_record.tablename, new_name, new_name || '_pkey';
     END LOOP;
 END $$;
 
@@ -196,6 +198,8 @@ BEGIN
         new_name := REPLACE(partition_record.tablename, 'v1_event_lookup_table_olap_new_', 'v1_event_lookup_table_olap_');
         EXECUTE format('ALTER TABLE %I RENAME TO %I', partition_record.tablename, new_name);
         RAISE NOTICE 'Renamed % to %', partition_record.tablename, new_name;
+        EXECUTE format('ALTER INDEX %I RENAME TO %I', partition_record.tablename || '_pkey', new_name || '_pkey');
+        RAISE NOTICE 'Renamed % to % and index to %', partition_record.tablename, new_name, new_name || '_pkey';
     END LOOP;
 END $$;
 
