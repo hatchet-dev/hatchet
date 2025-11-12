@@ -398,6 +398,17 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 		parentNames[i] = parent.GetName()
 	}
 
+	labels := make(map[string]*types.DesiredWorkerLabel)
+
+	for k, v := range opts.WorkerLabels {
+		labels[k] = &types.DesiredWorkerLabel{
+			Value:      fmt.Sprintf("%v-durable", v.Value),
+			Required:   v.Required,
+			Weight:     v.Weight,
+			Comparator: v.Comparator,
+		}
+	}
+
 	taskDecl := &task.DurableTaskDeclaration[I]{
 		Name:     opts.Name,
 		Fn:       genericFn,
@@ -412,7 +423,7 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 			RetryBackoffFactor:     retryBackoffFactor,
 			RetryMaxBackoffSeconds: retryMaxBackoffSeconds,
 			RateLimits:             opts.RateLimits,
-			WorkerLabels:           opts.WorkerLabels,
+			WorkerLabels:           labels,
 			Concurrency:            opts.Concurrency,
 		},
 	}
