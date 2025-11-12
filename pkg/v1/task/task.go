@@ -199,6 +199,45 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 		taskOpts.BackoffMaxSeconds = t.RetryMaxBackoffSeconds
 	}
 
+	if len(t.WorkerLabels) > 0 {
+		taskOpts.WorkerLabels = make(map[string]*contracts.DesiredWorkerLabels)
+
+		for key, value := range t.WorkerLabels {
+			taskOpts.WorkerLabels[key] = &contracts.DesiredWorkerLabels{}
+
+			switch v := value.Value.(type) {
+			case string:
+				strValue := v
+				taskOpts.WorkerLabels[key].StrValue = &strValue
+			case int:
+				intValue := int32(v) // nolint: gosec
+				taskOpts.WorkerLabels[key].IntValue = &intValue
+			case int32:
+				taskOpts.WorkerLabels[key].IntValue = &v
+			case int64:
+				intValue := int32(v) // nolint: gosec
+				taskOpts.WorkerLabels[key].IntValue = &intValue
+			default:
+				// For any other type, convert to string
+				strValue := fmt.Sprintf("%v", v)
+				taskOpts.WorkerLabels[key].StrValue = &strValue
+			}
+
+			if value.Required {
+				taskOpts.WorkerLabels[key].Required = &value.Required
+			}
+
+			if value.Weight != 0 {
+				taskOpts.WorkerLabels[key].Weight = &value.Weight
+			}
+
+			if value.Comparator != nil {
+				c := contracts.WorkerLabelComparator(*value.Comparator)
+				taskOpts.WorkerLabels[key].Comparator = &c
+			}
+		}
+	}
+
 	// Apply workflow task defaults if they are not set
 	if taskDefaults != nil {
 		if t.Retries == nil && taskDefaults.Retries != 0 {
