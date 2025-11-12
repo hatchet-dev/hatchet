@@ -89,8 +89,18 @@ func (t *tickerRepository) PollGetGroupKeyRuns(ctx context.Context, tickerId str
 	return t.queries.PollGetGroupKeyRuns(ctx, t.pool, sqlchelpers.UUIDFromStr(tickerId))
 }
 
-func (t *tickerRepository) PollCronSchedules(ctx context.Context, tickerId string) ([]*dbsqlc.PollCronSchedulesRow, error) {
-	return t.queries.PollCronSchedules(ctx, t.pool, sqlchelpers.UUIDFromStr(tickerId))
+func (t *tickerRepository) PollCronSchedules(ctx context.Context, tickerId string, batchSize int32) (bool, []*dbsqlc.PollCronSchedulesRow, error) {
+	crons, err := t.queries.PollCronSchedules(ctx, t.pool, dbsqlc.PollCronSchedulesParams{
+		Tickerid:  sqlchelpers.UUIDFromStr(tickerId),
+		Batchsize: batchSize,
+	})
+	if err != nil {
+		return false, nil, err
+	}
+
+	shouldContinue := len(crons) == int(batchSize)
+
+	return shouldContinue, crons, nil
 }
 
 func (t *tickerRepository) PollScheduledWorkflows(ctx context.Context, tickerId string) ([]*dbsqlc.PollScheduledWorkflowsRow, error) {

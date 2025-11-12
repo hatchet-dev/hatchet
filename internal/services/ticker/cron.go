@@ -27,12 +27,10 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 
 		t.l.Debug().Msgf("ticker: polling cron schedules")
 
-		crons, err := t.repo.Ticker().PollCronSchedules(ctx, t.tickerId)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not poll cron schedules")
-			return
-		}
+		const batchSize int32 = 1000
+		shouldContinue := true
+		var crons []*dbsqlc.PollCronSchedulesRow
+		var err error
 
 		// guard access to the userCronScheduler and userCronSchedulesToIds
 		t.userCronSchedulerLock.Lock()
@@ -40,21 +38,30 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 
 		newCronKeys := make(map[string]bool)
 
-		for _, cron := range crons {
-			cronKey := getCronKey(cron)
+		for shouldContinue {
+			shouldContinue, crons, err = t.repo.Ticker().PollCronSchedules(ctx, t.tickerId, batchSize)
 
-			newCronKeys[cronKey] = true
-
-			t.l.Debug().Msgf("ticker: handling cron %s", cronKey)
-
-			// if the cron is already scheduled, skip
-			if _, ok := t.userCronSchedulesToIds[cronKey]; ok {
-				continue
+			if err != nil {
+				t.l.Err(err).Msg("could not poll cron schedules")
+				return
 			}
 
-			// if the cron is not scheduled, schedule it
-			if err := t.handleScheduleCron(ctx, cron); err != nil {
-				t.l.Err(err).Msg("could not schedule cron")
+			for _, cron := range crons {
+				cronKey := getCronKey(cron)
+
+				newCronKeys[cronKey] = true
+
+				t.l.Debug().Msgf("ticker: handling cron %s", cronKey)
+
+				// if the cron is already scheduled, skip
+				if _, ok := t.userCronSchedulesToIds[cronKey]; ok {
+					continue
+				}
+
+				// if the cron is not scheduled, schedule it
+				if err := t.handleScheduleCron(ctx, cron); err != nil {
+					t.l.Err(err).Msg("could not schedule cron")
+				}
 			}
 		}
 

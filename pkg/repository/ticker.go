@@ -38,8 +38,9 @@ type TickerEngineRepository interface {
 	// PollJobRuns looks for get group key runs who are close to past their timeoutAt value and are in a running state
 	PollGetGroupKeyRuns(ctx context.Context, tickerId string) ([]*dbsqlc.GetGroupKeyRun, error)
 
-	// PollCronSchedules returns all cron schedules which should be managed by the ticker
-	PollCronSchedules(ctx context.Context, tickerId string) ([]*dbsqlc.PollCronSchedulesRow, error)
+	// PollCronSchedules returns cron schedules which should be managed by the ticker.
+	// Returns (shouldContinue, rows, error) where shouldContinue is true if there may be more rows to process.
+	PollCronSchedules(ctx context.Context, tickerId string, batchSize int32) (bool, []*dbsqlc.PollCronSchedulesRow, error)
 
 	PollScheduledWorkflows(ctx context.Context, tickerId string) ([]*dbsqlc.PollScheduledWorkflowsRow, error)
 

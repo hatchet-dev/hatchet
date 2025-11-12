@@ -220,6 +220,7 @@ active_cron_schedules AS (
             OR "tickerId" = $1::uuid
         )
     FOR UPDATE SKIP LOCKED
+    LIMIT $2::integer
 )
 UPDATE
     "WorkflowTriggerCronRef" as cronSchedules
@@ -231,6 +232,11 @@ WHERE
     cronSchedules."parentId" = active_cron_schedules."parentId"
 RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId", cronschedules.input, cronschedules.enabled, cronschedules."additionalMetadata", cronschedules."createdAt", cronschedules."deletedAt", cronschedules."updatedAt", cronschedules.name, cronschedules.id, cronschedules.method, cronschedules.priority, active_cron_schedules."workflowVersionId", active_cron_schedules."tenantId"
 `
+
+type PollCronSchedulesParams struct {
+	Tickerid  pgtype.UUID `json:"tickerid"`
+	Batchsize int32       `json:"batchsize"`
+}
 
 type PollCronSchedulesRow struct {
 	ParentId           pgtype.UUID                   `json:"parentId"`
@@ -250,8 +256,8 @@ type PollCronSchedulesRow struct {
 	TenantId           pgtype.UUID                   `json:"tenantId"`
 }
 
-func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*PollCronSchedulesRow, error) {
-	rows, err := db.Query(ctx, pollCronSchedules, tickerid)
+func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, arg PollCronSchedulesParams) ([]*PollCronSchedulesRow, error) {
+	rows, err := db.Query(ctx, pollCronSchedules, arg.Tickerid, arg.Batchsize)
 	if err != nil {
 		return nil, err
 	}

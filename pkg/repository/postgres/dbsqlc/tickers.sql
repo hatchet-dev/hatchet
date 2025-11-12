@@ -132,6 +132,7 @@ active_cron_schedules AS (
             OR "tickerId" = @tickerId::uuid
         )
     FOR UPDATE SKIP LOCKED
+    LIMIT @batchSize::integer
 )
 UPDATE
     "WorkflowTriggerCronRef" as cronSchedules
