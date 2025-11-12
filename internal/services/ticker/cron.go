@@ -31,6 +31,7 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 		shouldContinue := true
 		var crons []*dbsqlc.PollCronSchedulesRow
 		var err error
+		var offset int32
 
 		// guard access to the userCronScheduler and userCronSchedulesToIds
 		t.userCronSchedulerLock.Lock()
@@ -39,7 +40,13 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 		newCronKeys := make(map[string]bool)
 
 		for shouldContinue {
-			shouldContinue, crons, err = t.repo.Ticker().PollCronSchedules(ctx, t.tickerId, batchSize)
+			var offsetPtr *int32
+			if offset > 0 {
+				offsetPtr = &offset
+			}
+
+			shouldContinue, crons, err = t.repo.Ticker().PollCronSchedules(ctx, t.tickerId, batchSize, offsetPtr)
+			offset += int32(len(crons))
 
 			if err != nil {
 				t.l.Err(err).Msg("could not poll cron schedules")

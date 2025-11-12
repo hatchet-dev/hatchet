@@ -89,11 +89,17 @@ func (t *tickerRepository) PollGetGroupKeyRuns(ctx context.Context, tickerId str
 	return t.queries.PollGetGroupKeyRuns(ctx, t.pool, sqlchelpers.UUIDFromStr(tickerId))
 }
 
-func (t *tickerRepository) PollCronSchedules(ctx context.Context, tickerId string, batchSize int32) (bool, []*dbsqlc.PollCronSchedulesRow, error) {
-	crons, err := t.queries.PollCronSchedules(ctx, t.pool, dbsqlc.PollCronSchedulesParams{
+func (t *tickerRepository) PollCronSchedules(ctx context.Context, tickerId string, batchSize int32, offset *int32) (bool, []*dbsqlc.PollCronSchedulesRow, error) {
+	params := dbsqlc.PollCronSchedulesParams{
 		Tickerid:  sqlchelpers.UUIDFromStr(tickerId),
 		Batchsize: batchSize,
-	})
+	}
+
+	if offset != nil {
+		params.Offset = sqlchelpers.ToInt(*offset)
+	}
+
+	crons, err := t.queries.PollCronSchedules(ctx, t.pool, params)
 	if err != nil {
 		return false, nil, err
 	}

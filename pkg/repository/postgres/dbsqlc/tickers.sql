@@ -110,6 +110,7 @@ WITH latest_workflow_versions AS (
 ),
 active_cron_schedules AS (
     SELECT
+        cronSchedule."id",
         cronSchedule."parentId",
         versions."id" AS "workflowVersionId",
         triggers."tenantId" AS "tenantId"
@@ -131,8 +132,10 @@ active_cron_schedules AS (
             )
             OR "tickerId" = @tickerId::uuid
         )
+    ORDER BY cronSchedule."id" ASC
     FOR UPDATE SKIP LOCKED
     LIMIT @batchSize::integer
+    OFFSET COALESCE(sqlc.narg('offset')::integer, 0)
 )
 UPDATE
     "WorkflowTriggerCronRef" as cronSchedules

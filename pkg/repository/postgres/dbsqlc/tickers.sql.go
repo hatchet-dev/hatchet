@@ -198,6 +198,7 @@ WITH latest_workflow_versions AS (
 ),
 active_cron_schedules AS (
     SELECT
+        cronSchedule."id",
         cronSchedule."parentId",
         versions."id" AS "workflowVersionId",
         triggers."tenantId" AS "tenantId"
@@ -219,8 +220,10 @@ active_cron_schedules AS (
             )
             OR "tickerId" = $1::uuid
         )
+    ORDER BY cronSchedule."id" ASC
     FOR UPDATE SKIP LOCKED
-    LIMIT $2::integer
+    LIMIT $3::integer
+    OFFSET COALESCE($2::integer, 0)
 )
 UPDATE
     "WorkflowTriggerCronRef" as cronSchedules
@@ -235,6 +238,7 @@ RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId"
 
 type PollCronSchedulesParams struct {
 	Tickerid  pgtype.UUID `json:"tickerid"`
+	Offset    pgtype.Int4 `json:"offset"`
 	Batchsize int32       `json:"batchsize"`
 }
 
@@ -257,7 +261,7 @@ type PollCronSchedulesRow struct {
 }
 
 func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, arg PollCronSchedulesParams) ([]*PollCronSchedulesRow, error) {
-	rows, err := db.Query(ctx, pollCronSchedules, arg.Tickerid, arg.Batchsize)
+	rows, err := db.Query(ctx, pollCronSchedules, arg.Tickerid, arg.Offset, arg.Batchsize)
 	if err != nil {
 		return nil, err
 	}
