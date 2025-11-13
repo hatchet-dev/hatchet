@@ -23,7 +23,7 @@ const badgeVariants = cva(
         outlineDestructive:
           'border border-destructive rounded-sm font-normal text-red-800 dark:text-red-300 bg-transparent',
         queued:
-          'border-transparent rounded-sm font-normal text-fuchsia-800 dark:text-fuchsia-300 bg-fuchsia-500/20 ring-fuchsia-500/30',
+          'border-transparent rounded-sm font-normal text-slate-800 dark:text-slate-300 bg-slate-500/20 ring-slate-500/30',
         cancelled:
           'border-transparent rounded-sm font-normal text-orange-800 dark:text-orange-300 bg-orange-500/20 ring-orange-500/30',
       },

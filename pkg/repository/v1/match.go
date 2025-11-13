@@ -12,9 +12,9 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type CandidateEventMatch struct {
@@ -262,6 +262,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
+			ExternalId: task.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			Payload:    task.Payload,
 			TenantId:   task.TenantID.String(),
@@ -304,6 +305,7 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
+			ExternalId: task.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			Payload:    task.Payload,
 			TenantId:   task.TenantID.String(),
@@ -483,11 +485,41 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			return nil, fmt.Errorf("failed to get DAG data: %w", err)
 		}
 
+		retrievePayloadOpts := make([]RetrievePayloadOpts, len(dagInputDatas))
+		for i, dagData := range dagInputDatas {
+			retrievePayloadOpts[i] = RetrievePayloadOpts{
+				Id:         dagData.DagID,
+				InsertedAt: dagData.DagInsertedAt,
+				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
+				TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+			}
+		}
+
+		payloads, err := m.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve dag input payloads: %w", err)
+		}
+
 		dagIdsToInput := make(map[int64][]byte)
 		dagIdsToMetadata := make(map[int64][]byte)
 
 		for _, dagData := range dagInputDatas {
-			dagIdsToInput[dagData.DagID] = dagData.Input
+			retrieveOpts := RetrievePayloadOpts{
+				Id:         dagData.DagID,
+				InsertedAt: dagData.DagInsertedAt,
+				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
+				TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+			}
+
+			payload, ok := payloads[retrieveOpts]
+
+			if !ok {
+				m.l.Error().Msgf("dag %d with inserted at %s has empty payload, falling back to input", dagData.DagID, dagData.DagInsertedAt.Time)
+				payload = dagData.Input
+			}
+
+			dagIdsToInput[dagData.DagID] = payload
 			dagIdsToMetadata[dagData.DagID] = dagData.AdditionalMetadata
 		}
 

@@ -27,7 +27,7 @@ import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { FullscreenIcon } from 'lucide-react';
 
@@ -94,7 +94,7 @@ export const TaskRunDetail = ({
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
   const { open } = useSidePanel();
-
+  const [logsResetKey, setLogsResetKey] = useState(0);
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
       open({
@@ -202,7 +202,15 @@ export const TaskRunDetail = ({
             <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
           </div>
           <div className="h-4" />
-          <Tabs defaultValue={defaultOpenTab}>
+          <Tabs
+            defaultValue={defaultOpenTab}
+            onValueChange={(value) => {
+              if (value === TabOption.Logs) {
+                // Increment counter to force remount when Logs tab is opened
+                setLogsResetKey((prev: number) => prev + 1);
+              }
+            }}
+          >
             <TabsList layout="underlined">
               <TabsTrigger variant="underlined" value={TabOption.Output}>
                 Output
@@ -267,7 +275,7 @@ export const TaskRunDetail = ({
               )}
             </TabsContent>
             <TabsContent value={TabOption.Logs}>
-              <StepRunLogs taskRun={taskRun} />
+              <StepRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
             </TabsContent>
             <TabsContent value={TabOption.AdditionalMetadata}>
               <CodeHighlighter

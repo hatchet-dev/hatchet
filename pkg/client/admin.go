@@ -294,8 +294,9 @@ func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, e
 			return nil, fmt.Errorf("could not marshal input: %w", err)
 		}
 
+		workflowName := client.ApplyNamespace(workflow.Name, &a.namespace)
 		triggerWorkflowRequests[i] = &admincontracts.TriggerWorkflowRequest{
-			Name:  workflow.Name,
+			Name:  workflowName,
 			Input: string(inputBytes),
 		}
 
@@ -642,7 +643,6 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 					c := admincontracts.WorkerLabelComparator(*desiredLabel.Comparator)
 					stepOpt.WorkerLabels[key].Comparator = &c
 				}
-
 			}
 		}
 

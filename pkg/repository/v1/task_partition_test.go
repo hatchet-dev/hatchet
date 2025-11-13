@@ -53,7 +53,16 @@ func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
 	migrate.RunMigrations(ctx)
 	t.Log("Migration completed successfully")
 
-	pool, err := pgxpool.New(ctx, connStr)
+	config, err := pgxpool.ParseConfig(connStr)
+	require.NoError(t, err)
+
+	// Set timezone to UTC for all test connections
+	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.Exec(ctx, "SET TIME ZONE 'UTC'")
+		return err
+	}
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	require.NoError(t, err)
 
 	err = pool.Ping(ctx)

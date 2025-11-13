@@ -49,7 +49,7 @@ function MetricBadge({
   status: V1TaskStatus;
   className?: string;
 }) {
-  const { filters, metrics } = useRunsContext();
+  const { filters, runStatusCounts } = useRunsContext();
   const currentStatuses = useMemo(
     () => filters.apiFilters.statuses || [],
     [filters.apiFilters.statuses],
@@ -86,7 +86,7 @@ function MetricBadge({
     [currentStatuses, setStatuses],
   );
 
-  const metric = metrics.find((m) => m.status === status);
+  const metric = runStatusCounts.find((m) => m.status === status);
 
   if (!metric) {
     return null;
@@ -188,15 +188,15 @@ export const V1WorkflowRunsMetricsView = () => {
       <MetricBadge
         status={V1TaskStatus.QUEUED}
         className={`
-          text-fuchsia-800 dark:text-fuchsia-300
+          text-slate-800 dark:text-slate-300
 
-          data-[is-selected=false]:border data-[is-selected=false]:border-fuchsia-500/20
+          data-[is-selected=false]:border data-[is-selected=false]:border-slate-500/20
 
-          data-[is-selected=true]:bg-fuchsia-500/20
+          data-[is-selected=true]:bg-slate-500/20
 
-          hover:data-[is-selected=true]:bg-fuchsia-500/20
+          hover:data-[is-selected=true]:bg-slate-500/20
 
-          hover:data-[is-selected=false]:bg-fuchsia-500/20 hover:data-[is-selected=false]:border-transparent
+          hover:data-[is-selected=false]:bg-slate-500/20 hover:data-[is-selected=false]:border-transparent
           `}
       />
 

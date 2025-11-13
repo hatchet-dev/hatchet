@@ -6,7 +6,32 @@
 /* Root Variables & Theming  */
 /* ========================= */
 @layer base {
+  @font-face {
+    font-family: "JudgeMedium";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(./fonts/F37Judge-MediumExtended.woff2) format("woff2");
+  }
+
+  @font-face {
+    font-family: "JudgeRegular";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(./fonts/F37Judge-Regular.woff2) format("woff2");
+  }
+
   :root {
+    --nextra-primary-hue: 228;
+    --nextra-primary-saturation: 61%;
+    --nextra-primary-lightness: 44%;
+    --nextra-bg: 255 255 255;
+
+    --navy: 228 61% 10%;
+    --cyan: 212 100% 86%;
+    --brand: hsl(var(--navy));
+
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
 
@@ -46,6 +71,13 @@
   }
 
   .dark {
+    --nextra-primary-hue: 212;
+    --nextra-primary-saturation: 100%;
+    --nextra-primary-lightness: 60%;
+    --nextra-bg: 2 8 29;
+
+    --brand: hsl(var(--cyan));
+
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
 
@@ -80,15 +112,6 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-  }
-
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-    height: 100vh;
   }
 }
 
@@ -155,39 +178,21 @@
 /* ========================= */
 /* Dark Mode Fixes (Nextra)  */
 /* ========================= */
-html {
-  background-color: hsl(var(--background));
-}
 
-body {
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
-}
+html
+  :is(
+    kbd,
+    ._border-gray-200,
+    .dark\:_border-neutral-800,
+    .nx-border,
+    .nextra-sidebar-footer,
+    .nextra-toc-footer,
+    .nextra-code-block pre,
+    .nextra-code pre,
 
-html.dark main,
-html.dark body,
-html.dark .nx-fixed,
-html.dark ._fixed,
-html.dark .dark\:nx-bg-dark,
-html.dark .dark\:_bg-dark,
-html.dark .nx-bg-white,
-html.dark ._bg-white,
-html.dark div.nx-sticky.nx-bottom-0,
-html.dark div._sticky._bottom-0,
-html.dark div.nextra-nav-container {
-  background-color: var(--background) !important;
-}
-
-html.dark .nx-text-gray-800,
-html.dark ._text-gray-800 {
-  color: #f8fafc !important;
-}
-
-html.dark .nx-border-gray-200,
-html.dark ._border-gray-200,
-html.dark .nx-border,
-html.dark ._border {
-  border-color: #1e293b !important;
+  ) {
+  @apply border-[color:hsl(var(--border))] dark:border-[color:hsl(var(--border))];
+  @apply ring-[color:hsl(var(--border))] dark:ring-[color:hsl(var(--border))];
 }
 
 /* ========================= */
@@ -199,12 +204,15 @@ html.dark ._border {
   background-color: #ccc;
   border-radius: 0.375rem; /* rounded-md */
   font-size: 0.875rem;
-  border: 1px solid #333;
+  border-width: 1px;
+  border-style: solid;
 }
 
 html.dark .nextra-code-block pre,
+html.dark .nextra-code pre,
 .dark .shiki {
   background-color: transparent !important;
+  border-color: hsl(var(--border)) !important;
 }
 
 pre.shiki {
@@ -219,6 +227,19 @@ pre.shiki {
 /* ========================= */
 /* Miscellaneous Fixes       */
 /* ========================= */
+
+h1 {
+  font-family: "JudgeMedium", sans-serif;
+  font-weight: normal !important;
+}
+
+h2,
+h3 {
+  font-family: "JudgeRegular", sans-serif;
+  font-weight: normal !important;
+  letter-spacing: 0 !important;
+}
+
 .nextra-steps h3::before {
   line-height: 25px;
 }

@@ -14,10 +14,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cache"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type PostgresMessageQueue struct {
@@ -111,6 +111,8 @@ func (p *PostgresMessageQueue) SendMessage(ctx context.Context, queue msgqueue.Q
 	ctx, span := telemetry.NewSpan(ctx, "PostgresMessageQueue.SendMessage")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: task.TenantID})
+
 	err := p.addMessage(ctx, queue, task)
 
 	if err != nil {
@@ -125,6 +127,8 @@ func (p *PostgresMessageQueue) SendMessage(ctx context.Context, queue msgqueue.Q
 func (p *PostgresMessageQueue) addMessage(ctx context.Context, queue msgqueue.Queue, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "add-message")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: task.TenantID})
 
 	// inject otel carrier into the message
 	if task.OtelCarrier == nil {

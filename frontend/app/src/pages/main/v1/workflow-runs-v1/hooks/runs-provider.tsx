@@ -62,11 +62,12 @@ type RunsContextType = {
   numPages: number;
   isRunsLoading: boolean;
   isRunsFetching: boolean;
-  isMetricsLoading: boolean;
-  isMetricsFetching: boolean;
+  isStatusCountsLoading: boolean;
+  isStatusCountsFetching: boolean;
+  isQueueMetricsLoading: boolean;
   isRefetching: boolean;
-  metrics: V1TaskRunMetrics;
-  tenantMetrics: object;
+  runStatusCounts: V1TaskRunMetrics;
+  queueMetrics: object;
   isActionModalOpen: boolean;
   isActionDropdownOpen: boolean;
   selectedActionType: ActionType | null;
@@ -176,20 +177,22 @@ export const RunsProvider = ({
   );
 
   const {
-    metrics,
-    tenantMetrics,
-    isLoading: isMetricsLoading,
-    isFetching: isMetricsFetching,
+    runStatusCounts,
+    queueMetrics,
+    isStatusCountsLoading,
+    isStatusCountsFetching,
     refetch: refetchMetrics,
-    isRefetching: isMetricsRefetching,
+    isStatusCountsRefetching,
+    isQueueMetricsLoading,
   } = useMetrics({
     workflow,
     parentTaskExternalId,
     createdAfter: filters.apiFilters.since,
     additionalMetadata: filters.apiFilters.additionalMetadata,
+    showQueueMetrics,
   });
 
-  const isRefetching = isRunsRefetching || isMetricsRefetching;
+  const isRefetching = isRunsRefetching || isStatusCountsRefetching;
 
   const value = useMemo<RunsContextType>(
     () => ({
@@ -200,11 +203,12 @@ export const RunsProvider = ({
       numPages,
       isRunsLoading,
       isRunsFetching,
-      isMetricsLoading,
-      isMetricsFetching,
+      isStatusCountsFetching,
+      isStatusCountsLoading,
+      isQueueMetricsLoading,
       isRefetching,
-      metrics,
-      tenantMetrics,
+      runStatusCounts,
+      queueMetrics,
       isActionModalOpen,
       isActionDropdownOpen,
       actionModalParams,
@@ -247,10 +251,11 @@ export const RunsProvider = ({
       numPages,
       isRunsLoading,
       isRunsFetching,
-      isMetricsLoading,
-      isMetricsFetching,
-      metrics,
-      tenantMetrics,
+      isStatusCountsFetching,
+      isStatusCountsLoading,
+      isQueueMetricsLoading,
+      runStatusCounts,
+      queueMetrics,
       isActionModalOpen,
       isActionDropdownOpen,
       hideMetrics,

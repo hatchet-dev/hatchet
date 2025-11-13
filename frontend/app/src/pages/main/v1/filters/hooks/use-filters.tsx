@@ -15,6 +15,7 @@ import { FilterOption } from '@/components/v1/molecules/data-table/data-table-to
 
 type UseFiltersProps = {
   key: string;
+  scopeOverrides?: string[];
 };
 
 type FilterQueryShape = {
@@ -54,7 +55,7 @@ const parseFilterParam = (searchParams: URLSearchParams, key: string) => {
   };
 };
 
-export const useFilters = ({ key }: UseFiltersProps) => {
+export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
@@ -73,10 +74,14 @@ export const useFilters = ({ key }: UseFiltersProps) => {
   }, [searchParams, paramKey]);
 
   const selectedScopes = useMemo(() => {
+    if (scopeOverrides && scopeOverrides.length > 0) {
+      return scopeOverrides;
+    }
+
     const { s } = parseFilterParam(searchParams, paramKey);
 
     return s;
-  }, [searchParams, paramKey]);
+  }, [searchParams, paramKey, scopeOverrides]);
 
   const columnFilters = useMemo<ColumnFiltersState>(() => {
     const { w, s } = parseFilterParam(searchParams, paramKey);

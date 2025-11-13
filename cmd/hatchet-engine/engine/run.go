@@ -28,11 +28,12 @@ import (
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/internal/services/webhooks"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/rs/zerolog"
 
 	"golang.org/x/sync/errgroup"
@@ -164,7 +165,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	var h *health.Health
 	healthProbes := sc.HasService("health")
 	if healthProbes {
-		h = health.New(sc.EngineRepository, sc.MessageQueue, sc.Version)
+		h = health.New(sc.EngineRepository, sc.MessageQueue, sc.Version, l)
 		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
 		if err != nil {
 			return nil, fmt.Errorf("could not start health: %w", err)
@@ -353,6 +354,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			task.WithPartition(p),
 			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+			task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
 		)
 
 		if err != nil {
@@ -370,6 +372,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanupTasks,
 		})
 
+		sizeLimits := v1.StatusUpdateBatchSizeLimits{
+			Task: int32(sc.OLAPStatusUpdates.TaskBatchSizeLimit),
+			DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),
+		}
+
 		olap, err := olap.New(
 			olap.WithAlerter(sc.Alerter),
 			olap.WithMessageQueue(sc.MessageQueueV1),
@@ -379,6 +386,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			olap.WithTenantAlertManager(sc.TenantAlerter),
 			olap.WithSamplingConfig(sc.Sampling),
 			olap.WithOperationsConfig(sc.Operations),
+			olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
+			olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
 		)
 
 		if err != nil {
@@ -601,14 +610,10 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 	l.Debug().Msgf("engine has started")
 
-	if healthProbes {
-		h.SetReady(true)
-	}
-
 	<-ctx.Done()
 
 	if healthProbes {
-		h.SetReady(false)
+		h.SetShuttingDown(true)
 	}
 
 	return teardown, nil
@@ -649,7 +654,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	var h *health.Health
 
 	if healthProbes {
-		h = health.New(sc.EngineRepository, sc.MessageQueue, sc.Version)
+		h = health.New(sc.EngineRepository, sc.MessageQueue, sc.Version, l)
 
 		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
 
@@ -806,6 +811,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 				task.WithOpsPoolJitter(sc.Operations),
 				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
+				task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
 			)
 
 			if err != nil {
@@ -825,6 +831,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		}
 
 		if isControllerActive(sc.PausedControllers, OLAPController) {
+			sizeLimits := v1.StatusUpdateBatchSizeLimits{
+				Task: int32(sc.OLAPStatusUpdates.TaskBatchSizeLimit),
+				DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),
+			}
+
 			olap, err := olap.New(
 				olap.WithAlerter(sc.Alerter),
 				olap.WithMessageQueue(sc.MessageQueueV1),
@@ -835,6 +846,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				olap.WithSamplingConfig(sc.Sampling),
 				olap.WithOperationsConfig(sc.Operations),
 				olap.WithPrometheusMetricsEnabled(sc.Prometheus.Enabled),
+				olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
+				olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
 			)
 
 			if err != nil {
@@ -1099,14 +1112,10 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 	l.Debug().Msgf("engine has started")
 
-	if healthProbes {
-		h.SetReady(true)
-	}
-
 	<-ctx.Done()
 
 	if healthProbes {
-		h.SetReady(false)
+		h.SetShuttingDown(true)
 	}
 
 	return teardown, nil

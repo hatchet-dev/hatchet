@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
@@ -22,7 +22,7 @@ import (
 type RunPriority = features.RunPriority
 
 type runOpts struct {
-	AdditionalMetadata *map[string]interface{}
+	AdditionalMetadata *map[string]string
 	Priority           *RunPriority
 	Sticky             *bool
 	Key                *string
@@ -31,7 +31,7 @@ type runOpts struct {
 type RunOptFunc func(*runOpts)
 
 // WithRunMetadata sets the additional metadata for the workflow run.
-func WithRunMetadata(metadata map[string]interface{}) RunOptFunc {
+func WithRunMetadata(metadata map[string]string) RunOptFunc {
 	return func(opts *runOpts) {
 		opts.AdditionalMetadata = &metadata
 	}
@@ -117,6 +117,7 @@ type workflowConfig struct {
 	taskDefaults    *create.TaskDefaults
 	defaultPriority *RunPriority
 	stickyStrategy  *types.StickyStrategy
+	cronInput       *string
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -124,6 +125,24 @@ type workflowConfig struct {
 func WithWorkflowCron(cronExpressions ...string) WorkflowOption {
 	return func(config *workflowConfig) {
 		config.onCron = cronExpressions
+	}
+}
+
+// WithWorkflowCronInput sets the input for cron workflows.
+func WithWorkflowCronInput(input any) WorkflowOption {
+	return func(config *workflowConfig) {
+		inputJSON := "{}"
+
+		if input != nil {
+			bytes, err := json.Marshal(input)
+			if err != nil {
+				panic(fmt.Errorf("could not marshal cron input: %w", err))
+			}
+
+			inputJSON = string(bytes)
+		}
+
+		config.cronInput = &inputJSON
 	}
 }
 
@@ -184,12 +203,18 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		opt(config)
 	}
 
+	if len(config.onCron) > 0 && config.cronInput == nil {
+		emptyJSON := "{}"
+		config.cronInput = &emptyJSON
+	}
+
 	createOpts := create.WorkflowCreateOpts[any]{
 		Name:           name,
 		Version:        config.version,
 		Description:    config.description,
 		OnEvents:       config.onEvents,
 		OnCron:         config.onCron,
+		CronInput:      config.cronInput,
 		Concurrency:    config.concurrency,
 		TaskDefaults:   config.taskDefaults,
 		StickyStrategy: config.stickyStrategy,
@@ -463,9 +488,14 @@ func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *T
 	return w.NewTask(name, fn, durableOptions...)
 }
 
+// Dump implements the WorkflowBase interface for internal use.
+func (w *Workflow) Dump() (*v1.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
+	return w.declaration.Dump()
+}
+
 // OnFailure sets a failure handler for the workflow.
 // The handler will be called when any task in the workflow fails.
-func (w *Workflow) OnFailure(fn any) *Workflow {
+func (w *Workflow) OnFailure(fn any) {
 	fnValue := reflect.ValueOf(fn)
 	fnType := fnValue.Type()
 
@@ -525,13 +555,6 @@ func (w *Workflow) OnFailure(fn any) *Workflow {
 		create.WorkflowOnFailureTask[any, any]{},
 		wrapper,
 	)
-
-	return w
-}
-
-// Dump implements the WorkflowBase interface for internal use.
-func (w *Workflow) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
-	return w.declaration.Dump()
 }
 
 // Workflow execution methods
@@ -553,7 +576,7 @@ func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*Wor
 		return nil, err
 	}
 
-	return &WorkflowResult{result: workflowResult}, nil
+	return &WorkflowResult{result: workflowResult, RunId: workflowRunRef.RunId}, nil
 }
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
@@ -569,18 +592,12 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 		priority = &[]int32{int32(*runOpts.Priority)}[0]
 	}
 
-	var additionalMetadata *map[string]string
+	var v0Opts []v0Client.RunOptFunc
+
 	if runOpts.AdditionalMetadata != nil {
-		additionalMetadata = &map[string]string{}
-		for key, value := range *runOpts.AdditionalMetadata {
-			(*additionalMetadata)[key] = fmt.Sprintf("%v", value)
-		}
+		v0Opts = append(v0Opts, v0Client.WithRunMetadata(*runOpts.AdditionalMetadata))
 	}
 
-	var v0Opts []v0Client.RunOptFunc
-	if additionalMetadata != nil {
-		v0Opts = append(v0Opts, v0Client.WithRunMetadata(*additionalMetadata))
-	}
 	if priority != nil {
 		v0Opts = append(v0Opts, v0Client.WithPriority(*priority))
 	}
@@ -594,7 +611,7 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 			Key:                runOpts.Key,
 			Sticky:             runOpts.Sticky,
 			Priority:           priority,
-			AdditionalMetadata: additionalMetadata,
+			AdditionalMetadata: runOpts.AdditionalMetadata,
 		})
 	} else {
 		v0Workflow, err = w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input, v0Opts...)

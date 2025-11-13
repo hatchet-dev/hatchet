@@ -24,9 +24,6 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import (
-    GROUP_KEY_EVENT_TYPE_COMPLETED,
-    GROUP_KEY_EVENT_TYPE_FAILED,
-    GROUP_KEY_EVENT_TYPE_STARTED,
     STEP_EVENT_TYPE_COMPLETED,
     STEP_EVENT_TYPE_FAILED,
     STEP_EVENT_TYPE_STARTED,
@@ -53,6 +50,7 @@ from hatchet_sdk.runnables.contextvars import (
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.utils.serde import remove_null_unicode_character
+from hatchet_sdk.utils.typing import DataclassInstance
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.utils.capture_logs import (
     AsyncLogSender,
@@ -144,10 +142,6 @@ class Runner:
                 log = f"cancel: step run:  {action.action_id}/{action.step_run_id}/{action.retry_count}"
                 logger.info(log)
                 t = asyncio.create_task(self.handle_cancel_action(action))
-            case ActionType.START_GET_GROUP_KEY:
-                log = f"run: get group key:  {action.action_id}/{action.get_group_key_run_id}"
-                logger.info(log)
-                t = asyncio.create_task(self.handle_start_group_key_run(action))
             case _:
                 log = f"unknown action type: {action.action_type}"
                 logger.error(log)
@@ -220,67 +214,6 @@ class Runner:
 
         return inner_callback
 
-    def group_key_run_callback(
-        self, action: Action
-    ) -> Callable[[asyncio.Task[Any]], None]:
-        def inner_callback(task: asyncio.Task[Any]) -> None:
-            self.cleanup_run_id(action.key)
-
-            if task.cancelled():
-                return
-
-            try:
-                output = task.result()
-            except Exception as e:
-                exc = TaskRunError.from_exception(e, action.step_run_id)
-
-                self.event_queue.put(
-                    ActionEvent(
-                        action=action,
-                        type=GROUP_KEY_EVENT_TYPE_FAILED,
-                        payload=exc.serialize(include_metadata=True),
-                        should_not_retry=False,
-                    )
-                )
-
-                logger.exception(
-                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
-                )
-
-                return
-
-            try:
-                output = self.serialize_output(output)
-
-                self.event_queue.put(
-                    ActionEvent(
-                        action=action,
-                        type=GROUP_KEY_EVENT_TYPE_COMPLETED,
-                        payload=output,
-                        should_not_retry=False,
-                    )
-                )
-            except IllegalTaskOutputError as e:
-                exc = TaskRunError.from_exception(e, action.step_run_id)
-                self.event_queue.put(
-                    ActionEvent(
-                        action=action,
-                        type=STEP_EVENT_TYPE_FAILED,
-                        payload=exc.serialize(include_metadata=True),
-                        should_not_retry=False,
-                    )
-                )
-
-                logger.exception(
-                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
-                )
-
-                return
-
-            logger.info(f"finished step run: {action.action_id}/{action.step_run_id}")
-
-        return inner_callback
-
     def thread_action_func(
         self,
         ctx: Context,
@@ -288,7 +221,7 @@ class Runner:
         action: Action,
         dependencies: dict[str, Any],
     ) -> R:
-        if action.step_run_id or action.get_group_key_run_id:
+        if action.step_run_id:
             self.threads[action.key] = current_thread()
 
         return task.call(ctx, dependencies)
@@ -488,42 +421,6 @@ class Runner:
 
         return None
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    async def handle_start_group_key_run(self, action: Action) -> Exception | None:
-        action_name = action.action_id
-        context = self.create_context(action)
-
-        self.contexts[action.key] = context
-
-        # Find the corresponding action function from the registry
-        action_func = self.action_registry.get(action_name)
-
-        if action_func:
-            # send an event that the group key run has started
-            self.event_queue.put(
-                ActionEvent(
-                    action=action,
-                    type=GROUP_KEY_EVENT_TYPE_STARTED,
-                    payload="",
-                    should_not_retry=False,
-                )
-            )
-
-            loop = asyncio.get_event_loop()
-            task = loop.create_task(
-                self.async_wrapped_action_func(context, action_func, action)
-            )
-
-            task.add_done_callback(self.group_key_run_callback(action))
-            self.tasks[action.key] = task
-
-            try:
-                await task
-            except Exception as e:
-                return e
-
-        return None
-
     def force_kill_thread(self, thread: Thread) -> None:
         """Terminate a python threading.Thread."""
         try:
@@ -586,13 +483,15 @@ class Runner:
 
         if isinstance(output, BaseModel):
             output = output.model_dump(mode="json")
+        elif is_dataclass(output):
+            output = asdict(cast(DataclassInstance, output))
 
         if is_dataclass(output) and not isinstance(output, type):
             output = asdict(output)
 
         if not isinstance(output, dict):
             raise IllegalTaskOutputError(
-                f"Tasks must return either a dictionary or a Pydantic BaseModel which can be serialized to a JSON object. Got object of type {type(output)} instead."
+                f"Tasks must return either a dictionary, a Pydantic BaseModel, or a dataclass which can be serialized to a JSON object. Got object of type {type(output)} instead."
             )
 
         if output is None:

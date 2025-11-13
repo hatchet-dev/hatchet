@@ -40,6 +40,9 @@ func main() {
 		}, nil
 	},
 		hatchet.WithWorkflowCron("0 2 * * *"),
+		hatchet.WithWorkflowCronInput(CronInput{
+			Timestamp: time.Now().Format(time.RFC3339),
+		}),
 		hatchet.WithWorkflowDescription("Daily cleanup and maintenance tasks"),
 	)
 	// !!

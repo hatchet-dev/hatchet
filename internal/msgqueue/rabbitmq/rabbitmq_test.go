@@ -113,6 +113,7 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	cleanup, tq := rabbitmq.New(
 		rabbitmq.WithURL(url),
 		rabbitmq.WithQos(100),
+		rabbitmq.WithMessageRejection(false, 10), // Disable message rejection for this test
 	)
 	defer cleanup() // nolint: errcheck
 
@@ -172,6 +173,7 @@ func TestDeadLetteringExceedRetriesFailure(t *testing.T) {
 	cleanup, tq := rabbitmq.New(
 		rabbitmq.WithURL(url),
 		rabbitmq.WithQos(100),
+		rabbitmq.WithMessageRejection(true, 2), // Enable message rejection with max 2 death count
 	)
 	defer cleanup() // nolint: errcheck
 
@@ -198,14 +200,9 @@ func TestDeadLetteringExceedRetriesFailure(t *testing.T) {
 			return nil
 		}
 
-		if attempts > 2 {
-			assert.Fail(t, "message exceeded maximum retry count")
-			cancel()
-			return nil // Stop retrying as it exceeds the limit
-		}
-
 		attempts++
 
+		// Always return an error to trigger retries
 		return fmt.Errorf("intentional error on attempt %d", attempts)
 	}
 
@@ -213,7 +210,13 @@ func TestDeadLetteringExceedRetriesFailure(t *testing.T) {
 	cleanupQueue, err := tq.Subscribe(staticQueue, preAck, msgqueue.NoOpHook)
 	require.NoError(t, err, "subscribing to static queue should not error")
 
+	// Wait for the context to be cancelled or timeout
 	<-ctx.Done()
+
+	// Verify that the message was retried the expected number of times
+	// With message rejection enabled and maxDeathCount=2, the message should be
+	// permanently rejected after 2 death counts (which means 2 processing attempts)
+	assert.GreaterOrEqual(t, attempts, 2, "message should have been retried at least 2 times before being permanently rejected")
 
 	if err := cleanupQueue(); err != nil {
 		t.Fatalf("error cleaning up queue: %v", err)

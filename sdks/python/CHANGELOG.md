@@ -5,6 +5,41 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.1] - 2025-11-08
+
+### Changed
+
+- The `list` methods for the logs client now allow for pagination via the `limit`, `since`, and `until` params.
+
+## [1.21.0] - 2025-10-31
+
+### Added
+
+- Adds support for dataclasses as input validators for workflows (and tasks), and also as output validators for tasks.
+
+### Changed
+
+- Fixes a bug where an exception in a lifespan would cause the lifespan to hang indefinitely.
+
+## [1.20.2] - 2025-10-15
+
+### Added
+
+- Adds a `include_payloads` parameter to the `list` methods on the runs client (defaults to true, so no change in behavior).
+
+## [1.20.1] - 2025-10-14
+
+### Added
+
+- Adds wrapper methods for bulk cancelling / replaying large numbers of runs with pagination.
+
+## [1.20.0] - 2025-10-3
+
+### Removed
+
+- Removes all references to `get_group_key_*` which is no longer available in V1
+- Removes all checks + references to V0
+
 ## [1.19.0] - 2025-09-24
 
 ### Removed

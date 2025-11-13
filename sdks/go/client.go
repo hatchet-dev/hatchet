@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
@@ -252,6 +252,11 @@ func (st *StandaloneTask) GetName() string {
 	return st.workflow.declaration.Name()
 }
 
+// Dump implements the WorkflowBase interface for internal use.
+func (st *StandaloneTask) Dump() (*v1.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
+	return st.workflow.declaration.Dump()
+}
+
 // StandaloneTaskOption represents options that can be applied to standalone tasks.
 // This interface allows both WorkflowOption and TaskOption to be used interchangeably.
 type StandaloneTaskOption any
@@ -349,11 +354,9 @@ func (st *StandaloneTask) Run(ctx context.Context, input any, opts ...RunOptFunc
 		return nil, err
 	}
 
-	res := WorkflowResult{result: workflowRunRef.result}
+	res := WorkflowResult{result: workflowRunRef.result, RunId: workflowRunRef.RunId}
 
-	// Extract the task result from the workflow result
-	taskResult := res.TaskOutput(st.task.name)
-	return taskResult, nil
+	return res.TaskOutput(st.task.name), nil
 }
 
 // RunNoWait executes the standalone task with the provided input without waiting for completion.
@@ -378,9 +381,10 @@ func (st *StandaloneTask) RunMany(ctx context.Context, inputs []RunManyOpt) ([]W
 	return workflowRefs, nil
 }
 
-// Dump implements the WorkflowBase interface for internal use, delegating to the underlying workflow.
-func (st *StandaloneTask) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
-	return st.workflow.Dump()
+// OnFailure sets a failure handler for the standalone task.
+// The handler will be called when the standalone task fails.
+func (st *StandaloneTask) OnFailure(fn any) {
+	st.workflow.OnFailure(fn)
 }
 
 // WorkflowRunRef is a type that represents a reference to a workflow run.
@@ -401,16 +405,18 @@ func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
 		return nil, err
 	}
 
-	return &WorkflowResult{result: workflowResult}, nil
+	return &WorkflowResult{result: workflowResult, RunId: wr.RunId}, nil
 }
 
 // WorkflowResult wraps workflow execution results and provides type-safe conversion methods.
 type WorkflowResult struct {
+	RunId  string
 	result any
 }
 
 // TaskResult wraps a single task's output and provides type-safe conversion methods.
 type TaskResult struct {
+	RunId  string
 	result any
 }
 
@@ -426,13 +432,15 @@ func (wr *WorkflowResult) TaskOutput(taskName string) *TaskResult {
 	// Handle different result structures that might come from workflow execution
 	resultData := wr.result
 
+	taskResult := &TaskResult{RunId: wr.RunId}
+
 	// Check if this is a raw v0Client.WorkflowResult that we need to extract from
 	if workflowResult, ok := resultData.(*v0Client.WorkflowResult); ok {
 		// Try to get the workflow results as a map
 		results, err := workflowResult.Results()
 		if err != nil {
 			// Return empty TaskResult if we can't extract results
-			return &TaskResult{result: nil}
+			return taskResult
 		}
 		resultData = results
 	}
@@ -440,13 +448,15 @@ func (wr *WorkflowResult) TaskOutput(taskName string) *TaskResult {
 	// If the result is a map, look for the specific task
 	if resultMap, ok := resultData.(map[string]any); ok {
 		if taskOutput, exists := resultMap[taskName]; exists {
-			return &TaskResult{result: taskOutput}
+			taskResult.result = taskOutput
+			return taskResult
 		}
 	}
 
 	// If we can't find the specific task, return the entire result
 	// This handles cases where there's only one task
-	return &TaskResult{result: resultData}
+	taskResult.result = resultData
+	return taskResult
 }
 
 // Into converts the task result into the provided destination using JSON marshal/unmarshal.

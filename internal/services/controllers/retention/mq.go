@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (rc *RetentionControllerImpl) runDeleteMessageQueueItems(ctx context.Context) func() {

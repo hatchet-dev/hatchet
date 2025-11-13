@@ -13,11 +13,7 @@ import (
 
 func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantMemberUpdateRequestObject) (gen.TenantMemberUpdateResponseObject, error) {
 	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
-	memberToUpdate, err := t.config.APIRepository.Tenant().GetTenantMemberByID(ctx.Request().Context(), request.Member.String())
-
-	if err != nil {
-		return nil, err
-	}
+	memberToUpdate := ctx.Get("member").(*dbsqlc.PopulateTenantMembersRow)
 
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
 		return nil, err

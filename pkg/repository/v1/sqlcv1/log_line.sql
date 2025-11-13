@@ -23,10 +23,12 @@ SELECT
 FROM
     v1_log_line l
 WHERE
-    l.tenant_id = @tenantId::uuid
-    AND l.task_id = @taskId::bigint
-    AND l.task_inserted_at = @taskInsertedAt::timestamptz
-    AND (sqlc.narg('search')::text IS NULL OR l.message iLIKE concat('%', sqlc.narg('search')::text, '%'))
+    l.tenant_id = @tenantId::UUID
+    AND l.task_id = @taskId::BIGINT
+    AND l.task_inserted_at = @taskInsertedAt::TIMESTAMPTZ
+    AND (sqlc.narg('search')::TEXT IS NULL OR l.message iLIKE concat('%', sqlc.narg('search')::TEXT, '%'))
+    AND (sqlc.narg('since')::TIMESTAMPTZ IS NULL OR l.created_at > sqlc.narg('since')::TIMESTAMPTZ)
+    AND (sqlc.narg('until')::TIMESTAMPTZ IS NULL OR l.created_at < sqlc.narg('until')::TIMESTAMPTZ)
 ORDER BY
     l.created_at ASC
 LIMIT COALESCE(sqlc.narg('limit'), 1000)

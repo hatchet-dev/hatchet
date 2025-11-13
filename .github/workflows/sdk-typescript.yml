@@ -28,7 +28,7 @@ jobs:
           submodules: recursive
 
       - name: Install pnpm
-        run: npm install -g pnpm@8
+        run: npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         shell: bash
@@ -61,7 +61,7 @@ jobs:
           submodules: recursive
 
       - name: Install pnpm
-        run: npm install -g pnpm@8
+        run: npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         shell: bash
@@ -109,7 +109,7 @@ jobs:
           go-version: '1.24'
 
       - name: Install pnpm
-        run: npm install -g pnpm@8
+        run: npm install -g pnpm@10.16.1
 
       - name: Install Atlas
         run: |
@@ -179,9 +179,9 @@ jobs:
           submodules: recursive
 
       - name: Install pnpm
-        run: npm install -g pnpm@8
+        run: npm install -g pnpm@10.16.1
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: "20.x"
           registry-url: "https://registry.npmjs.org"

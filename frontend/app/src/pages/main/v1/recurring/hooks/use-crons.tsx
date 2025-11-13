@@ -1,17 +1,19 @@
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import {
+import api, {
   queries,
   CronWorkflowsOrderByField,
   WorkflowRunOrderByDirection,
+  UpdateCronWorkflowTriggerRequest,
 } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
 import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { z } from 'zod';
 import { workflowKey, metadataKey } from '../components/recurring-columns';
+import queryClient from '@/query-client';
 
 type UseCronsProps = {
   key: string;
@@ -57,6 +59,42 @@ export const useCrons = ({ key }: UseCronsProps) => {
     refetchInterval,
   });
 
+  const updateCronMutation = useMutation({
+    mutationKey: ['cron:update'],
+    mutationFn: async ({
+      tenantId,
+      cronId,
+      data,
+    }: {
+      tenantId: string;
+      cronId: string;
+      data: UpdateCronWorkflowTriggerRequest;
+    }) => {
+      await api.workflowCronUpdate(tenantId, cronId, data);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queries.cronJobs.list(tenantId, {}).queryKey,
+      });
+    },
+  });
+
+  const updatingCronId = updateCronMutation.variables?.cronId;
+
+  const updateCron = useCallback(
+    (
+      tenantId: string,
+      cronId: string,
+      data: UpdateCronWorkflowTriggerRequest,
+    ) =>
+      updateCronMutation.mutate({
+        tenantId: tenantId,
+        cronId: cronId,
+        data: data,
+      }),
+    [updateCronMutation],
+  );
+
   const crons = data?.rows ?? [];
   const numPages = data?.pagination?.num_pages ?? 1;
 
@@ -94,5 +132,8 @@ export const useCrons = ({ key }: UseCronsProps) => {
     workflowKeyFilters,
     isRefetching,
     resetFilters,
+    updateCron,
+    isUpdatePending: updateCronMutation.isPending,
+    updatingCronId,
   };
 };

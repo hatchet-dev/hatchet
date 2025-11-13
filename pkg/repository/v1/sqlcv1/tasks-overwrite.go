@@ -269,7 +269,9 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 	return items, nil
 }
 
-const createTaskEvents = `-- name: CreateTaskEvents :exec
+const createTaskEvents = `-- name: CreateTaskEvents :many
+-- We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
+-- tables for each task
 WITH locked_tasks AS (
     SELECT
         id
@@ -284,17 +286,13 @@ WITH locked_tasks AS (
     FOR UPDATE
 ), input AS (
     SELECT
-        task_id, task_inserted_at, retry_count, event_type, event_key, data
-    FROM
-        (
-            SELECT
-                unnest($2::bigint[]) AS task_id,
-				unnest($3::timestamptz[]) AS task_inserted_at,
-                unnest($4::integer[]) AS retry_count,
-                unnest(cast($5::text[] as v1_task_event_type[])) AS event_type,
-                unnest($6::text[]) AS event_key,
-                unnest($7::jsonb[]) AS data
-        ) AS subquery
+		UNNEST($2::BIGINT[]) AS task_id,
+		UNNEST($3::TIMESTAMPTZ[]) AS task_inserted_at,
+		UNNEST($4::INTEGER[]) AS retry_count,
+		UNNEST(CAST($5::TEXT[] as v1_task_event_type[])) AS event_type,
+		UNNEST($6::TEXT[]) AS event_key,
+		UNNEST($7::JSONB[]) AS data,
+		UNNEST($8::UUID[]) as external_id
 )
 INSERT INTO v1_task_event (
     tenant_id,
@@ -303,7 +301,8 @@ INSERT INTO v1_task_event (
     retry_count,
     event_type,
     event_key,
-    data
+    data,
+	external_id
 )
 SELECT
     $1::uuid,
@@ -312,10 +311,24 @@ SELECT
     i.retry_count,
     i.event_type,
     i.event_key,
-    i.data
+    i.data,
+	i.external_id
 FROM
     input i
 ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING
+RETURNING
+    v1_task_event.id,
+	v1_task_event.inserted_at,
+	v1_task_event.tenant_id,
+	v1_task_event.task_id,
+	v1_task_event.task_inserted_at,
+	v1_task_event.retry_count,
+	v1_task_event.event_type,
+	v1_task_event.event_key,
+	v1_task_event.created_at,
+	v1_task_event.data,
+	v1_task_event.external_id
+;
 `
 
 type CreateTaskEventsParams struct {
@@ -326,12 +339,13 @@ type CreateTaskEventsParams struct {
 	Eventtypes      []string             `json:"eventtypes"`
 	Eventkeys       []pgtype.Text        `json:"eventkeys"`
 	Datas           [][]byte             `json:"datas"`
+	Externalids     []pgtype.UUID        `json:"externalids"`
 }
 
 // We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
 // tables for each task
-func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskEventsParams) error {
-	_, err := db.Exec(ctx, createTaskEvents,
+func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskEventsParams) ([]*V1TaskEvent, error) {
+	rows, err := db.Query(ctx, createTaskEvents,
 		arg.Tenantid,
 		arg.Taskids,
 		arg.Taskinsertedats,
@@ -339,8 +353,41 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 		arg.Eventtypes,
 		arg.Eventkeys,
 		arg.Datas,
+		arg.Externalids,
 	)
-	return err
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var items []*V1TaskEvent
+	for rows.Next() {
+		var i V1TaskEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.TenantID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.EventType,
+			&i.EventKey,
+			&i.CreatedAt,
+			&i.Data,
+			&i.ExternalID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return items, nil
 }
 
 const replayTasks = `-- name: ReplayTasks :many

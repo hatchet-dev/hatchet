@@ -1,23 +1,22 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.19.1"
-description = ""
-authors = ["Alexander Belanger <alexander@hatchet.run>"]
+version = "1.21.1"
+description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
+authors = [
+    "Alexander Belanger <alexander@hatchet.run>",
+    "Matt Kaye <matt@hatchet.run>",
+    "Gabe Ruttner <gabe@hatchet.run>",
+    "Mohammed Nafees <nafees@hatchet.run>",
+]
 readme = "README.md"
 include = ["hatchet_sdk/py.typed"]
 license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-grpcio = [
-    { version = ">=1.64.1, !=1.68.*", markers = "python_version < '3.13'" },
-    { version = ">=1.69.0", markers = "python_version >= '3.13'" },
-]
-grpcio-tools = [
-    { version = ">=1.64.1, !=1.68.*", markers = "python_version < '3.13'" },
-    { version = ">=1.69.0", markers = "python_version >= '3.13'" },
-]
-protobuf = "^5.29.5"
+grpcio = "^1.76.0"
+grpcio-tools = "^1.76.0"
+protobuf = "^6.30.0"
 pydantic = "^2.6.3"
 python-dateutil = "^2.9.0.post0"
 aiohttp = "^3.10.5"

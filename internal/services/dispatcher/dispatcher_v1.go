@@ -17,10 +17,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (worker *subscribedWorker) StartTaskFromBulk(
@@ -55,7 +55,7 @@ func (worker *subscribedWorker) sendToWorker(
 	telemetry.WithAttributes(
 		span,
 		telemetry.AttributeKV{
-			Key:   "worker_id",
+			Key:   "worker.id",
 			Value: worker.workerId,
 		},
 	)
@@ -63,7 +63,7 @@ func (worker *subscribedWorker) sendToWorker(
 	telemetry.WithAttributes(
 		span,
 		telemetry.AttributeKV{
-			Key:   "payload_size",
+			Key:   "payload.size_bytes",
 			Value: len(action.ActionPayload),
 		},
 	)
@@ -91,7 +91,7 @@ func (worker *subscribedWorker) sendToWorker(
 	lockSpan.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
-		Key:   "lock_duration_ms",
+		Key:   "lock.duration_ms",
 		Value: time.Since(lockBegin).Milliseconds(),
 	})
 
@@ -237,7 +237,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			}
 		}
 
-		inputs, err := d.repov1.Payloads().BulkRetrieve(ctx, retrievePayloadOpts...)
+		inputs, err := d.repov1.Payloads().Retrieve(ctx, nil, retrievePayloadOpts...)
 
 		if err != nil {
 			d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
@@ -254,10 +254,10 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				TenantId:   task.TenantID,
 			}]
 
-			if input == nil || !ok {
+			if !ok {
 				// If the input wasn't found in the payload store,
 				// fall back to the input stored on the task itself.
-				d.l.Error().Msgf("task %s has empty payload, falling back to input", task.ExternalID.String())
+				d.l.Error().Msgf("handleTaskBulkAssignedTask-1: task %s with ID %d and inserted_at %s has empty payload, falling back to input", task.ExternalID.String(), task.ID, task.InsertedAt.Time)
 				input = task.Input
 			}
 
@@ -278,7 +278,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				for _, outputEvent := range parentData {
 					outputMap := make(map[string]interface{})
 
-					if outputEvent.Output != nil {
+					if len(outputEvent.Output) > 0 {
 						err := json.Unmarshal(outputEvent.Output, &outputMap)
 
 						if err != nil {
@@ -311,10 +311,10 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				TenantId:   task.TenantID,
 			}]
 
-			if input == nil || !ok {
+			if !ok {
 				// If the input wasn't found in the payload store,
 				// fall back to the input stored on the task itself.
-				d.l.Error().Msgf("task %s has empty payload, falling back to input", task.ExternalID.String())
+				d.l.Error().Msgf("handleTaskBulkAssignedTask-2: task %s witth id %d and inserted_at %s has empty payload, falling back to input", task.ExternalID.String(), task.ID, task.InsertedAt.Time)
 				input = task.Input
 			}
 

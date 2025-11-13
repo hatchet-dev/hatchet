@@ -177,7 +177,7 @@ function AccountDropdown({ user }: { user: User }) {
           <VersionInfo />
         </DropdownMenuItem>
         {tenant?.version == TenantVersion.V1 &&
-          location.pathname.includes('v1') && (
+          location.pathname.includes(`/tenants/${tenant.metadata.id}`) && (
             <DropdownMenuItem
               onClick={() => navigate('/workflow-runs?previewV0=true')}
             >

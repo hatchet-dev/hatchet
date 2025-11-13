@@ -146,18 +146,18 @@ jobs:
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
 
-          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
 
       - name: Upload engine logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: $HATCHET_CLIENT_NAMESPACE-engine-logs
           path: $HATCHET_CLIENT_NAMESPACE-engine.log
 
       - name: Upload API logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: $HATCHET_CLIENT_NAMESPACE-api-logs
           path: $HATCHET_CLIENT_NAMESPACE-api.log

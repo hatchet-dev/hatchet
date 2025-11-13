@@ -29,6 +29,7 @@ import { useRunsContext } from '../hooks/runs-provider';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { Loading } from '@/components/v1/ui/loading';
 
 export interface RunsTableProps {
   headerClassName?: string;
@@ -99,11 +100,12 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     numPages,
     isRunsLoading,
     isRunsFetching,
-    isMetricsLoading,
-    isMetricsFetching,
+    isStatusCountsFetching,
+    isStatusCountsLoading,
+    isQueueMetricsLoading,
     isRefetching,
-    metrics,
-    tenantMetrics,
+    runStatusCounts,
+    queueMetrics,
     actionModalParams,
     selectedActionType,
     pagination,
@@ -203,8 +205,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     return () => clearInterval(interval);
   }, [filters, filters.isCustomTimeRange, filters.updateCurrentTimeWindow]);
 
-  const hasLoaded = !isRunsLoading && !isMetricsLoading;
-  const isFetching = !hasLoaded && (isRunsFetching || isMetricsFetching);
+  const hasLoaded = !isRunsLoading && !isStatusCountsLoading;
+  const isFetching = !hasLoaded && (isRunsFetching || isStatusCountsFetching);
 
   return (
     <div className="flex flex-col h-full overflow-hidden gap-y-2">
@@ -223,14 +225,15 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
               <DialogTitle>Queue Metrics</DialogTitle>
             </DialogHeader>
             <Separator />
-            {tenantMetrics && (
+            {!queueMetrics || isQueueMetricsLoading ? (
+              <Loading />
+            ) : (
               <CodeHighlighter
                 language="json"
                 className="max-h-[400px] overflow-y-auto"
-                code={JSON.stringify(tenantMetrics || '{}', null, 2)}
+                code={JSON.stringify(queueMetrics || '{}', null, 2)}
               />
             )}
-            {isMetricsLoading && 'Loading...'}
           </DialogContent>
         </Dialog>
       )}
@@ -262,7 +265,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
             ...(!hideCounts
               ? [
                   <div key="metrics" className="flex justify-start mr-auto">
-                    {metrics.length > 0 ? (
+                    {runStatusCounts.length > 0 ? (
                       <V1WorkflowRunsMetricsView />
                     ) : (
                       <Skeleton className="max-w-[800px] w-[40vw] h-8" />

@@ -8,16 +8,24 @@ export const useMetrics = ({
   parentTaskExternalId,
   additionalMetadata,
   createdAfter,
+  showQueueMetrics,
 }: {
   workflow: string | undefined;
   parentTaskExternalId: string | undefined;
   additionalMetadata?: string[] | undefined;
   createdAfter?: string;
+  showQueueMetrics: boolean;
 }) => {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
 
-  const metricsQuery = useQuery({
+  const {
+    data: rawStatusCounts,
+    isLoading: isStatusCountsLoading,
+    isFetching: isStatusCountsFetching,
+    isRefetching: isStatusCountsRefetching,
+    refetch,
+  } = useQuery({
     ...queries.v1TaskRuns.metrics(tenantId, {
       since:
         createdAfter ||
@@ -30,24 +38,23 @@ export const useMetrics = ({
     refetchInterval,
   });
 
-  const metrics = metricsQuery.data || [];
+  const runStatusCounts = rawStatusCounts || [];
 
-  const tenantMetricsQuery = useQuery({
+  const { data: queueMetricsRaw, isLoading: isQueueMetricsLoading } = useQuery({
     ...queries.metrics.getStepRunQueueMetrics(tenantId),
-    refetchInterval,
+    refetchInterval: 5000,
+    enabled: showQueueMetrics,
   });
 
-  const tenantMetrics = tenantMetricsQuery.data?.queues || {};
+  const queueMetrics = queueMetricsRaw?.queues || {};
 
   return {
-    isLoading: metricsQuery.isLoading || tenantMetricsQuery.isLoading,
-    isFetching: metricsQuery.isFetching || tenantMetricsQuery.isFetching,
-    isRefetching: metricsQuery.isRefetching || tenantMetricsQuery.isRefetching,
-    tenantMetrics,
-    metrics,
-    refetch: () => {
-      tenantMetricsQuery.refetch();
-      metricsQuery.refetch();
-    },
+    runStatusCounts,
+    isStatusCountsRefetching,
+    isStatusCountsLoading,
+    isStatusCountsFetching,
+    isQueueMetricsLoading,
+    refetch,
+    queueMetrics,
   };
 };

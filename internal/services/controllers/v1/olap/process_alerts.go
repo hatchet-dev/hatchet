@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() {
@@ -40,6 +40,8 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 
 	ctx, span := telemetry.NewSpan(ctx, "process-tenant-alerts")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	isActive, lastAlerted, err := o.repo.Ticker().IsTenantAlertActive(ctx, tenantId)
 

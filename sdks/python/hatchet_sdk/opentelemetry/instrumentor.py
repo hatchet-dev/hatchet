@@ -217,11 +217,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "worker.runner.runner.Runner.handle_start_step_run",
             self._wrap_handle_start_step_run,
         )
-        wrap_function_wrapper(
-            hatchet_sdk,
-            "worker.runner.runner.Runner.handle_start_group_key_run",
-            self._wrap_handle_get_group_key_run,
-        )
+
         wrap_function_wrapper(
             hatchet_sdk,
             "worker.runner.runner.Runner.handle_cancel_action",
@@ -303,28 +299,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "hatchet.start_step_run",
             attributes=action.get_otel_attributes(self.config),
             context=traceparent,
-            kind=SpanKind.CONSUMER,
-        ) as span:
-            result = await wrapped(*args, **kwargs)
-
-            if isinstance(result, Exception):
-                span.set_status(StatusCode.ERROR, str(result))
-
-            return result
-
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
-    async def _wrap_handle_get_group_key_run(
-        self,
-        wrapped: Callable[[Action], Coroutine[None, None, Exception | None]],
-        instance: Runner,
-        args: tuple[Action],
-        kwargs: Any,
-    ) -> Exception | None:
-        action = args[0]
-
-        with self._tracer.start_as_current_span(
-            "hatchet.get_group_key_run",
-            attributes=action.get_otel_attributes(self.config),
             kind=SpanKind.CONSUMER,
         ) as span:
             result = await wrapped(*args, **kwargs)
@@ -740,7 +714,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         self.meter_provider = NoOpMeterProvider()
 
         unwrap(hatchet_sdk, "worker.runner.runner.Runner.handle_start_step_run")
-        unwrap(hatchet_sdk, "worker.runner.runner.Runner.handle_start_group_key_run")
         unwrap(hatchet_sdk, "worker.runner.runner.Runner.handle_cancel_action")
         unwrap(hatchet_sdk, "clients.events.EventClient.push")
         unwrap(hatchet_sdk, "clients.events.EventClient.bulk_push")

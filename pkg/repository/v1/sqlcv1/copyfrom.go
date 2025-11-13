@@ -197,6 +197,7 @@ func (r iteratorForCreateTaskEventsOLAP) Values() ([]interface{}, error) {
 		r.rows[0].WorkerID,
 		r.rows[0].AdditionalEventData,
 		r.rows[0].AdditionalEventMessage,
+		r.rows[0].ExternalID,
 	}, nil
 }
 
@@ -205,7 +206,7 @@ func (r iteratorForCreateTaskEventsOLAP) Err() error {
 }
 
 func (q *Queries) CreateTaskEventsOLAP(ctx context.Context, db DBTX, arg []CreateTaskEventsOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_task_events_olap"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "workflow_id", "event_timestamp", "readable_status", "retry_count", "error_message", "output", "worker_id", "additional__event_data", "additional__event_message"}, &iteratorForCreateTaskEventsOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_task_events_olap"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "workflow_id", "event_timestamp", "readable_status", "retry_count", "error_message", "output", "worker_id", "additional__event_data", "additional__event_message", "external_id"}, &iteratorForCreateTaskEventsOLAP{rows: arg})
 }
 
 // iteratorForCreateTaskEventsOLAPTmp implements pgx.CopyFromSource.

@@ -119,6 +119,7 @@ type workflowDeclarationImpl[I any, O any] struct {
 	Description    *string
 	OnEvents       []string
 	OnCron         []string
+	CronInput      *string
 	Concurrency    []types.Concurrency
 	OnFailureTask  *task.OnFailureTaskDeclaration[I]
 	StickyStrategy *types.StickyStrategy
@@ -179,6 +180,7 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 		name:        workflowName,
 		OnEvents:    onEvents,
 		OnCron:      opts.OnCron,
+		CronInput:   opts.CronInput,
 		Concurrency: opts.Concurrency,
 		// OnFailureTask:    opts.OnFailureTask, // TODO: add this back in
 		StickyStrategy:   opts.StickyStrategy,
@@ -389,6 +391,17 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 		parentNames[i] = parent.GetName()
 	}
 
+	labels := make(map[string]*types.DesiredWorkerLabel)
+
+	for k, v := range opts.WorkerLabels {
+		labels[k] = &types.DesiredWorkerLabel{
+			Value:      fmt.Sprintf("%v-durable", v.Value),
+			Required:   v.Required,
+			Weight:     v.Weight,
+			Comparator: v.Comparator,
+		}
+	}
+
 	taskDecl := &task.DurableTaskDeclaration[I]{
 		Name:     opts.Name,
 		Fn:       genericFn,
@@ -403,7 +416,7 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 			RetryBackoffFactor:     retryBackoffFactor,
 			RetryMaxBackoffSeconds: retryMaxBackoffSeconds,
 			RateLimits:             opts.RateLimits,
-			WorkerLabels:           opts.WorkerLabels,
+			WorkerLabels:           labels,
 			Concurrency:            opts.Concurrency,
 		},
 	}
@@ -588,6 +601,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		Name:            w.name,
 		EventTriggers:   w.OnEvents,
 		CronTriggers:    w.OnCron,
+		CronInput:       w.CronInput,
 		DefaultPriority: w.DefaultPriority,
 	}
 
