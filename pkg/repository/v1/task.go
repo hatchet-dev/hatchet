@@ -1912,6 +1912,9 @@ func (r *sharedRepository) insertTasks(
 						String: failTaskError.Error(),
 						Valid:  true,
 					}
+
+					// set to empty slice to avoid nil in multi-dimensional array
+					concurrencyKeys[i] = []string{}
 				} else {
 					concurrencyKeys[i] = taskConcurrencyKeys
 				}
@@ -2237,6 +2240,9 @@ func (r *sharedRepository) replayTasks(
 
 		taskIds[i] = task.TaskId
 		taskInsertedAts[i] = task.InsertedAt
+
+		// initialize to empty slice to avoid nil in multi-dimensional array
+		concurrencyKeys[i] = []string{}
 
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
