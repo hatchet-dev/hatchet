@@ -15,6 +15,7 @@ try:
     from opentelemetry.metrics import MeterProvider, NoOpMeterProvider, get_meter
     from opentelemetry.trace import (
         NoOpTracerProvider,
+        SpanKind,
         StatusCode,
         TracerProvider,
         get_tracer,
@@ -298,6 +299,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "hatchet.start_step_run",
             attributes=action.get_otel_attributes(self.config),
             context=traceparent,
+            kind=SpanKind.CONSUMER,
         ) as span:
             result = await wrapped(*args, **kwargs)
 
@@ -321,6 +323,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             attributes={
                 "hatchet.step_run_id": action.step_run_id,
             },
+            kind=SpanKind.CONSUMER,
         ):
             return await wrapped(*args, **kwargs)
 
@@ -366,6 +369,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 and v != "{}"
                 and v != "[]"
             },
+            kind=SpanKind.PRODUCER,
         ):
             options = PushEventOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
@@ -403,6 +407,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 "hatchet.num_events": num_bulk_events,
                 "hatchet.unique_event_keys": json.dumps(unique_event_keys, default=str),
             },
+            kind=SpanKind.PRODUCER,
         ):
             bulk_events_with_meta = [
                 BulkPushEventWithMetadata(
@@ -466,6 +471,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 and v != "{}"
                 and v != "[]"
             },
+            kind=SpanKind.PRODUCER,
         ):
             options = TriggerWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
@@ -523,6 +529,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 and v != "{}"
                 and v != "[]"
             },
+            kind=SpanKind.PRODUCER,
         ):
             options = TriggerWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
@@ -604,6 +611,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 and v != "{}"
                 and v != "[]"
             },
+            kind=SpanKind.PRODUCER,
         ):
             options = ScheduleTriggerWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
@@ -641,6 +649,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                     unique_workflow_names, default=str
                 ),
             },
+            kind=SpanKind.PRODUCER,
         ):
             workflow_run_configs_with_meta = [
                 WorkflowRunTriggerConfig(
@@ -670,9 +679,20 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ) -> list[WorkflowRunRef]:
         params = self.extract_bound_args(wrapped, args, kwargs)
         workflow_run_configs = cast(list[WorkflowRunTriggerConfig], params[0])
+        num_workflows = len(workflow_run_configs)
+        unique_workflow_names = {
+            config.workflow_name for config in workflow_run_configs
+        }
 
         with self._tracer.start_as_current_span(
             "hatchet.run_workflows",
+            attributes={
+                "hatchet.num_workflows": num_workflows,
+                "hatchet.unique_workflow_names": json.dumps(
+                    unique_workflow_names, default=str
+                ),
+            },
+            kind=SpanKind.PRODUCER,
         ):
             workflow_run_configs_with_meta = [
                 WorkflowRunTriggerConfig(
