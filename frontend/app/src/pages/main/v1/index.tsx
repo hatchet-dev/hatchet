@@ -9,29 +9,29 @@ import {
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
-import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
+import { SidePanel } from '@/components/side-panel';
+import { useSidebar } from '@/components/sidebar-provider';
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
+import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
+import {
+  Collapsible,
+  CollapsibleContent,
+} from '@/components/v1/ui/collapsible';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { SidePanelProvider } from '@/hooks/use-side-panel';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TenantMember } from '@/lib/api';
-import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
-import React, { useCallback } from 'react';
 import {
   MembershipsContextType,
   UserContextType,
   useContextFromParent,
 } from '@/lib/outlet';
-import { Loading } from '@/components/v1/ui/loading.tsx';
-import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
-import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
-import {
-  Collapsible,
-  CollapsibleContent,
-} from '@/components/v1/ui/collapsible';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
-import { useSidebar } from '@/components/sidebar-provider';
+import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
 import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { SidePanel } from '@/components/side-panel';
-import { SidePanelProvider } from '@/hooks/use-side-panel';
+import React, { useCallback } from 'react';
+import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -50,7 +50,10 @@ function Main() {
     <SidePanelProvider>
       <div className="flex flex-row flex-1 w-full h-full">
         <Sidebar memberships={memberships} />
-        <div className="p-8 flex-grow overflow-y-auto overflow-x-hidden">
+        <div
+          className="px-8 py-4 flex-grow overflow-y-auto overflow-x-hidden"
+          style={{ containerType: 'inline-size' }}
+        >
           <Outlet context={childCtx} />
         </div>
         <SidePanel />
@@ -69,7 +72,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
   const { tenantId } = useCurrentTenantId();
 
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { data: cloudMeta, isCloudEnabled } = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(tenantId);
 
   const onNavLinkClick = useCallback(() => {
@@ -102,7 +105,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
   return (
     <div
       className={cn(
-        'h-full border-r overflow-y-auto w-full md:min-w-80 md:w-80 top-16 absolute z-[100] md:relative md:top-0 md:bg-[unset] md:dark:bg-[unset] bg-slate-100 dark:bg-slate-900',
+        'h-full border-r overflow-y-auto w-full md:min-w-64 md:w-64 top-16 absolute z-[100] md:relative md:top-0 md:bg-[unset] md:dark:bg-[unset] bg-slate-100 dark:bg-slate-900',
         className,
       )}
     >
@@ -262,12 +265,18 @@ function Sidebar({ className, memberships }: SidebarProps) {
                     to={`/tenants/${tenantId}/tenant-settings/ingestors`}
                     name="Ingestors"
                   />,
+                  <SidebarButtonSecondary
+                    key="quickstart"
+                    onNavLinkClick={onNavLinkClick}
+                    to={`/tenants/${tenantId}/onboarding/get-started`}
+                    name="Quickstart"
+                  />,
                 ]}
               />
             </div>
           </div>
         </div>
-        {cloudMeta ? (
+        {isCloudEnabled ? (
           <OrganizationSelector memberships={memberships} />
         ) : (
           <TenantSwitcher memberships={memberships} />

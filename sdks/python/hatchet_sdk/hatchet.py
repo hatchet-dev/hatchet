@@ -2,15 +2,15 @@ import asyncio
 import logging
 from collections.abc import Callable
 from datetime import timedelta
-from functools import cached_property
 from typing import Any, Concatenate, ParamSpec, cast, overload
+
+from pydantic import BaseModel
 
 from hatchet_sdk import Context, DurableContext
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
-from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
@@ -38,7 +38,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
-from hatchet_sdk.utils.typing import CoroutineLike
+from hatchet_sdk.utils.typing import CoroutineLike, DataclassInstance
 from hatchet_sdk.worker.worker import LifespanFn, Worker
 
 P = ParamSpec("P")
@@ -64,11 +64,6 @@ class Hatchet:
         self._client = (
             client if client else Client(config=config or ClientConfig(), debug=debug)
         )
-
-        if self.tenant_engine_version != TenantVersion.V1:
-            logger.warning(
-                "🚨⚠️‼️ YOU ARE USING A V0 ENGINE WITH A V1 SDK, WHICH IS NOT SUPPORTED. PLEASE UPGRADE YOUR ENGINE TO V1.🚨⚠️‼️"
-            )
 
     @property
     def cel(self) -> CELClient:
@@ -178,19 +173,6 @@ class Hatchet:
         The current namespace you're interacting with.
         """
         return self._client.config.namespace
-
-    @cached_property
-    def tenant_engine_version(self) -> TenantVersion:
-        """
-        Get the version of the Hatchet engine running in your tenant.
-        """
-        try:
-            return self._client.tenant.get().version
-        except Exception:
-            ## Nothing we can do here - if this fails, it's probably
-            ## because they don't have this endpoint yet, so we need to just
-            ## assume V1 to swallow the warning.
-            return TenantVersion.V1
 
     def worker(
         self,
@@ -322,8 +304,10 @@ class Hatchet:
                 on_crons=on_crons or [],
                 sticky=sticky,
                 concurrency=concurrency,
-                input_validator=input_validator
-                or cast(type[TWorkflowInput], EmptyModel),
+                input_validator=cast(
+                    type[BaseModel] | type[DataclassInstance],
+                    input_validator or EmptyModel,
+                ),
                 task_defaults=task_defaults,
                 default_priority=default_priority,
                 default_filters=default_filters or [],
@@ -469,8 +453,10 @@ class Hatchet:
                     on_crons=on_crons or [],
                     sticky=sticky,
                     default_priority=default_priority,
-                    input_validator=input_validator
-                    or cast(type[TWorkflowInput], EmptyModel),
+                    input_validator=cast(
+                        type[BaseModel] | type[DataclassInstance],
+                        input_validator or EmptyModel,
+                    ),
                     default_filters=default_filters or [],
                 ),
                 self,
@@ -653,8 +639,10 @@ class Hatchet:
                     on_events=on_events or [],
                     on_crons=on_crons or [],
                     sticky=sticky,
-                    input_validator=input_validator
-                    or cast(type[TWorkflowInput], EmptyModel),
+                    input_validator=cast(
+                        type[BaseModel] | type[DataclassInstance],
+                        input_validator or EmptyModel,
+                    ),
                     default_priority=default_priority,
                     default_filters=default_filters or [],
                 ),

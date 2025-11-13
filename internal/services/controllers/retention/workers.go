@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (rc *RetentionControllerImpl) runDeleteOldWorkers(ctx context.Context) func() {
@@ -48,6 +48,8 @@ func (wc *RetentionControllerImpl) runDeleteOldWorkersTenant(ctx context.Context
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
+
 	// hard-coded to last heartbeat before 24 hours
 	lastHeartbeatBefore := time.Now().UTC().Add(-24 * time.Hour)
 
@@ -77,6 +79,8 @@ func (wc *RetentionControllerImpl) runDeleteOldWorkerAssignEventsTenant(ctx cont
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	// hard-coded to last heartbeat after 24 hours
 	lastHeartbeatAfter := time.Now().UTC().Add(-24 * time.Hour)

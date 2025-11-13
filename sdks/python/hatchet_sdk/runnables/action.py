@@ -49,16 +49,16 @@ class ActionPayload(BaseModel):
 class ActionType(str, Enum):
     START_STEP_RUN = "START_STEP_RUN"
     CANCEL_STEP_RUN = "CANCEL_STEP_RUN"
-    START_GET_GROUP_KEY = "START_GET_GROUP_KEY"
 
 
 class Action(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     worker_id: str
     tenant_id: str
     workflow_run_id: str
     workflow_id: str | None = None
     workflow_version_id: str | None = None
-    get_group_key_run_id: str
     job_id: str
     job_name: str
     job_run_id: str
@@ -101,7 +101,6 @@ class Action(BaseModel):
             OTelAttribute.ACTION_PAYLOAD: payload_str,
             OTelAttribute.WORKFLOW_NAME: self.job_name,
             OTelAttribute.ACTION_NAME: self.action_id,
-            OTelAttribute.GET_GROUP_KEY_RUN_ID: self.get_group_key_run_id,
             OTelAttribute.WORKFLOW_ID: self.workflow_id,
             OTelAttribute.WORKFLOW_VERSION_ID: self.workflow_version_id,
         }
@@ -119,6 +118,4 @@ class Action(BaseModel):
         It's used when storing references to a task, a context, etc. in a dictionary so that
         we can look up those items in the dictionary by a unique key.
         """
-        if self.action_type == ActionType.START_GET_GROUP_KEY:
-            return f"{self.get_group_key_run_id}/{self.retry_count}"
         return f"{self.step_run_id}/{self.retry_count}"

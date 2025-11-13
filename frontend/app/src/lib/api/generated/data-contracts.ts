@@ -203,6 +203,7 @@ export enum TenantResource {
   TASK_RUN = "TASK_RUN",
   CRON = "CRON",
   SCHEDULE = "SCHEDULE",
+  INCOMING_WEBHOOK = "INCOMING_WEBHOOK",
 }
 
 /** The status of the CEL evaluation */
@@ -562,6 +563,9 @@ export interface V1WorkflowRunDisplayNameList {
   /** The list of display names */
   rows: V1WorkflowRunDisplayName[];
 }
+
+/** The list of external IDs */
+export type V1WorkflowRunExternalIdList = string[];
 
 export interface V1TriggerWorkflowRunRequest {
   /** The name of the workflow. */
@@ -1661,6 +1665,10 @@ export interface CronWorkflowsList {
   pagination?: PaginationResponse;
 }
 
+export interface UpdateCronWorkflowTriggerRequest {
+  enabled?: boolean;
+}
+
 export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }
@@ -1978,6 +1986,16 @@ export interface RerunStepRunRequest {
   input: object;
 }
 
+export interface RegisteredWorkflow {
+  /**
+   * The workflow id registered on this worker.
+   * @format uuid
+   */
+  id: string;
+  /** The name of the workflow registered on this worker. */
+  name: string;
+}
+
 export interface SemaphoreSlots {
   /**
    * The step run id.
@@ -2054,6 +2072,8 @@ export interface Worker {
   lastListenerEstablished?: string;
   /** The actions this worker can perform. */
   actions?: string[];
+  /** The workflow ids registered on this worker. */
+  registeredWorkflows?: RegisteredWorkflow[];
   /** The semaphore slot state for the worker. */
   slots?: SemaphoreSlots[];
   /** The recent step runs for the worker. */
@@ -2145,6 +2165,26 @@ export interface WebhookWorkerRequestListResponse {
   /** The list of webhook requests. */
   requests?: WebhookWorkerRequest[];
 }
+
+export interface ConcurrencyStat {
+  expression?: string;
+  type?: string;
+  keys?: Record<string, number>;
+}
+
+export interface TaskStatusStat {
+  /** @format int64 */
+  total?: number;
+  queues?: Record<string, number>;
+  concurrency?: ConcurrencyStat[];
+}
+
+export interface TaskStat {
+  queued?: TaskStatusStat;
+  running?: TaskStatusStat;
+}
+
+export type TaskStats = Record<string, TaskStat>;
 
 export interface TenantList {
   pagination?: PaginationResponse;

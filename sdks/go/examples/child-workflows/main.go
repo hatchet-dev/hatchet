@@ -4,14 +4,57 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
+// > Declaring the tasks
 type ParentInput struct {
 	Count int `json:"count"`
+}
+
+type ParentOutput struct {
+	Sum int `json:"sum"`
+}
+
+func Parent(client *hatchet.Client) *hatchet.StandaloneTask {
+	return client.NewStandaloneTask("parent-task",
+		func(ctx hatchet.Context, input ParentInput) (ParentOutput, error) {
+			log.Printf("Parent workflow spawning %d child workflows", input.Count)
+
+			// Spawn multiple child workflows and collect results
+			sum := 0
+			for i := 0; i < input.Count; i++ {
+				log.Printf("Spawning child workflow %d/%d", i+1, input.Count)
+
+				// Spawn child workflow and wait for result
+				childResult, err := Child(client).Run(ctx, ChildInput{
+					Value: i + 1,
+				})
+				if err != nil {
+					return ParentOutput{}, fmt.Errorf("failed to spawn child workflow %d: %w", i, err)
+				}
+
+				var childOutput ChildOutput
+				err = childResult.Into(&childOutput)
+				if err != nil {
+					return ParentOutput{}, fmt.Errorf("failed to get child workflow result: %w", err)
+				}
+
+				sum += childOutput.Result
+
+				log.Printf("Child workflow %d completed with result: %d", i+1, childOutput.Result)
+			}
+
+			log.Printf("All child workflows completed. Total sum: %d", sum)
+			return ParentOutput{
+				Sum: sum,
+			}, nil
+		},
+	)
 }
 
 type ChildInput struct {
@@ -22,9 +65,17 @@ type ChildOutput struct {
 	Result int `json:"result"`
 }
 
-type ParentOutput struct {
-	Sum int `json:"sum"`
+func Child(client *hatchet.Client) *hatchet.StandaloneTask {
+	return client.NewStandaloneTask("child-task",
+		func(ctx hatchet.Context, input ChildInput) (ChildOutput, error) {
+			return ChildOutput{
+				Result: input.Value * 2,
+			}, nil
+		},
+	)
 }
+
+// !!
 
 func main() {
 	client, err := hatchet.NewClient()
@@ -32,62 +83,8 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
-	// Create child workflow
-	childWorkflow := client.NewWorkflow("child-workflow",
-		hatchet.WithWorkflowDescription("Child workflow that processes a single value"),
-		hatchet.WithWorkflowVersion("1.0.0"),
-	)
-
-	processValueTask := childWorkflow.NewTask("process-value", func(ctx hatchet.Context, input ChildInput) (ChildOutput, error) {
-		log.Printf("Child workflow processing value: %d", input.Value)
-
-		// Simulate some processing
-		result := input.Value * 2
-
-		return ChildOutput{
-			Result: result,
-		}, nil
-	})
-
-	// Create parent workflow that spawns multiple child workflows
-	parentWorkflow := client.NewWorkflow("parent-workflow",
-		hatchet.WithWorkflowDescription("Parent workflow that spawns child workflows"),
-		hatchet.WithWorkflowVersion("1.0.0"),
-	)
-
-	_ = parentWorkflow.NewTask("spawn-children", func(ctx hatchet.Context, input ParentInput) (ParentOutput, error) {
-		log.Printf("Parent workflow spawning %d child workflows", input.Count)
-
-		// Spawn multiple child workflows and collect results
-		sum := 0
-		for i := 0; i < input.Count; i++ {
-			log.Printf("Spawning child workflow %d/%d", i+1, input.Count)
-
-			// Spawn child workflow and wait for result
-			childResult, err := childWorkflow.RunAsChild(ctx, ChildInput{
-				Value: i + 1,
-			}, hatchet.RunAsChildOpts{})
-			if err != nil {
-				return ParentOutput{}, fmt.Errorf("failed to spawn child workflow %d: %w", i, err)
-			}
-
-			var childOutput ChildOutput
-			taskResult := childResult.TaskOutput(processValueTask.GetName())
-			err = taskResult.Into(&childOutput)
-			if err != nil {
-				return ParentOutput{}, fmt.Errorf("failed to get child workflow result: %w", err)
-			}
-
-			sum += childOutput.Result
-
-			log.Printf("Child workflow %d completed with result: %d", i+1, childOutput.Result)
-		}
-
-		log.Printf("All child workflows completed. Total sum: %d", sum)
-		return ParentOutput{
-			Sum: sum,
-		}, nil
-	})
+	parentWorkflow := Parent(client)
+	childWorkflow := Child(client)
 
 	// Create a worker with both workflows
 	worker, err := client.NewWorker("child-workflow-worker",
@@ -112,13 +109,73 @@ func main() {
 		}
 
 		log.Println("Triggering parent workflow...")
-		_, err := client.Run(context.Background(), "parent-workflow", ParentInput{
+		_, err := parentWorkflow.Run(context.Background(), ParentInput{
 			Count: 5, // Spawn 5 child workflows
 		})
 		if err != nil {
 			log.Printf("failed to run parent workflow: %v", err)
 		}
 	}()
+
+	_ = func() error {
+		var hCtx hatchet.Context
+		// > Spawning a child workflow
+		// Inside a parent task
+		childResult, err := childWorkflow.Run(hCtx, ChildInput{
+			Value: 1,
+		})
+		if err != nil {
+			return err
+		}
+
+		// !!
+
+		_ = childResult
+
+		n := 5
+
+		// > Parallel child task execution
+		// Run multiple child tasks in parallel using goroutines
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		results := make([]*ChildOutput, 0, n)
+
+		wg.Add(n)
+		for i := 0; i < n; i++ {
+			go func(index int) {
+				defer wg.Done()
+				result, err := childWorkflow.Run(hCtx, ChildInput{Value: index})
+				if err != nil {
+					return
+				}
+
+				var childOutput ChildOutput
+				err = result.Into(&childOutput)
+				if err != nil {
+					return
+				}
+
+				mu.Lock()
+				results = append(results, &childOutput)
+				mu.Unlock()
+			}(i)
+		}
+		wg.Wait()
+		// !!
+
+		// > Error handling
+		result, err := childWorkflow.Run(hCtx, ChildInput{Value: 1})
+		if err != nil {
+			// Handle error from child workflow
+			fmt.Printf("Child workflow failed: %v\n", err)
+			// Decide how to proceed - retry, skip, or fail the parent
+		}
+		// !!
+
+		_ = result
+
+		return nil
+	}
 
 	log.Println("Starting worker for child workflows demo...")
 	log.Println("Features demonstrated:")

@@ -12,21 +12,20 @@ import {
   TabOption,
 } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
 import { DocPage } from '@/components/v1/docs/docs-button';
-import { V1Event, V1Filter } from '@/lib/api';
+import { V1Event, V1Filter, ScheduledWorkflows } from '@/lib/api';
 import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
 import { ExpandedEventContent } from '@/pages/main/v1/events';
+import { ExpandedScheduledRunContent } from '@/pages/main/v1/scheduled-runs/components/expanded-scheduled-run-content';
 import { useTheme } from '@/components/theme-provider';
 
 type SidePanelContent =
   | {
       isDocs: false;
       component: React.ReactNode;
-      title: React.ReactNode;
       actions?: React.ReactNode;
     }
   | {
       isDocs: true;
-      title: string;
       component: React.ReactNode;
     };
 
@@ -45,6 +44,9 @@ type UseSidePanelProps =
   | {
       type: 'docs';
       content: DocPage;
+      queryParams?: Record<string, string>;
+      // fixme: make this type safe based on the hashes available in the doc
+      scrollTo?: string;
     }
   | {
       type: 'task-run-details';
@@ -64,6 +66,12 @@ type UseSidePanelProps =
       type: 'filter-detail';
       content: {
         filter: V1Filter;
+      };
+    }
+  | {
+      type: 'scheduled-run-details';
+      content: {
+        scheduledRun: ScheduledWorkflows;
       };
     };
 
@@ -98,13 +106,11 @@ export function useSidePanelData(): SidePanelData {
         return {
           isDocs: false,
           component: <TaskRunDetail {...props.content} />,
-          title: 'Run details',
         };
       case 'event-details':
         return {
           isDocs: false,
           component: <ExpandedEventContent event={props.content.event} />,
-          title: `Event ${props.content.event.key} details`,
         };
       case 'filter-detail':
         return {
@@ -112,25 +118,38 @@ export function useSidePanelData(): SidePanelData {
           component: (
             <FilterDetailView filterId={props.content.filter.metadata.id} />
           ),
-          title: 'Filter details',
+        };
+      case 'scheduled-run-details':
+        return {
+          isDocs: false,
+          component: (
+            <ExpandedScheduledRunContent
+              scheduledRun={props.content.scheduledRun}
+            />
+          ),
         };
       case 'docs':
+        const query = props.queryParams ?? {};
+        query.theme = theme;
+
+        const queryString = new URLSearchParams(query).toString();
+        const url =
+          `${props.content.href}?${queryString}` +
+          (props.scrollTo ? `#${props.scrollTo}` : '');
+
         return {
           isDocs: true,
           component: (
             <div className="p-4 size-full">
               <iframe
-                src={`${props.content.href}?theme=${theme}`}
+                src={url}
                 className="inset-0 w-full rounded-md border border-slate-800 size-full"
-                title={`Documentation: ${props.content.title}`}
                 loading="lazy"
               />
             </div>
           ),
-          title: props.content.title,
         };
       default:
-        // eslint-disable-next-line no-case-declarations
         const exhaustiveCheck: never = panelType;
         throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
     }

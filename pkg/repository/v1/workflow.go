@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -14,10 +16,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 var ErrDagParentNotFound = errors.New("dag parent not found")
@@ -185,7 +187,17 @@ type CreateWorkflowStepRateLimitOpts struct {
 	LimitExpr *string `validate:"omitnil,celsteprunstr"`
 
 	// (optional) the rate limit duration, defaults to MINUTE
-	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR DAY WEEK MONTH YEAR"`
+	Duration *string `validate:"omitnil"`
+}
+
+var allowedRateLimitDurations = []string{
+	"SECOND",
+	"MINUTE",
+	"HOUR",
+	"DAY",
+	"WEEK",
+	"MONTH",
+	"YEAR",
 }
 
 type WorkflowRepository interface {
@@ -524,6 +536,11 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			priority = sqlchelpers.ToInt(*opts.DefaultPriority)
 		}
 
+		var oldWorkflowVersionId pgtype.UUID
+		if oldWorkflowVersion != nil {
+			oldWorkflowVersionId = oldWorkflowVersion.WorkflowVersion.ID
+		}
+
 		_, err := r.queries.CreateWorkflowTriggerCronRef(
 			ctx,
 			tx,
@@ -535,7 +552,8 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 					String: "",
 					Valid:  true,
 				},
-				Priority: priority,
+				Priority:             priority,
+				OldWorkflowVersionId: oldWorkflowVersionId,
 			},
 		)
 
@@ -800,7 +818,11 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					windowExpr := cel.Str("MINUTE")
 
 					if rateLimit.Duration != nil {
-						windowExpr = fmt.Sprintf(`"%s"`, *rateLimit.Duration)
+						if slices.Contains(allowedRateLimitDurations, strings.ToUpper(*rateLimit.Duration)) {
+							windowExpr = cel.Str(strings.ToUpper(*rateLimit.Duration))
+						} else {
+							windowExpr = *rateLimit.Duration
+						}
 					}
 
 					if rateLimit.KeyExpr != nil {

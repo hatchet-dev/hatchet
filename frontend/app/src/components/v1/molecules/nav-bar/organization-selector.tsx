@@ -23,6 +23,14 @@ import {
   Popover,
   PopoverContent,
 } from '@radix-ui/react-popover';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/v1/ui/dialog';
+import { Input } from '@/components/v1/ui/input';
 import { TooltipProvider } from '@/components/v1/ui/tooltip';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -114,37 +122,44 @@ function OrganizationGroup({
       </CommandItem>
 
       {isExpanded &&
-        tenants.map((membership) => (
-          <CommandItem
-            key={membership.metadata.id}
-            value={`tenant-${membership.tenant?.metadata.id}`}
-            onSelect={() => {
-              invariant(membership.tenant);
-              onTenantSelect(membership.tenant);
-              onClose();
-            }}
-            className="text-sm cursor-pointer pl-6 hover:bg-accent focus:bg-accent"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
+        tenants
+          .sort(
+            (a, b) =>
+              a.tenant?.name
+                ?.toLowerCase()
+                .localeCompare(b.tenant?.name?.toLowerCase() ?? '') ?? 0,
+          )
+          .map((membership) => (
+            <CommandItem
+              key={membership.metadata.id}
+              value={`tenant-${membership.tenant?.metadata.id}`}
+              onSelect={() => {
+                invariant(membership.tenant);
+                onTenantSelect(membership.tenant);
+                onClose();
+              }}
+              className="text-sm cursor-pointer pl-6 hover:bg-accent focus:bg-accent"
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 flex items-center justify-center">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                  </div>
+                  <span className="text-muted-foreground">
+                    {membership.tenant?.name}
+                  </span>
                 </div>
-                <span className="text-muted-foreground">
-                  {membership.tenant?.name}
-                </span>
+                <CheckIcon
+                  className={cn(
+                    'h-4 w-4',
+                    currentTenant?.slug === membership.tenant?.slug
+                      ? 'opacity-100'
+                      : 'opacity-0',
+                  )}
+                />
               </div>
-              <CheckIcon
-                className={cn(
-                  'h-4 w-4',
-                  currentTenant?.slug === membership.tenant?.slug
-                    ? 'opacity-100'
-                    : 'opacity-0',
-                )}
-              />
-            </div>
-          </CommandItem>
-        ))}
+            </CommandItem>
+          ))}
     </>
   );
 }
@@ -162,8 +177,15 @@ export function OrganizationSelector({
   const { tenant: currTenant, setTenant: setCurrTenant } = useTenantDetails();
   const [open, setOpen] = useState(false);
   const [expandedOrgs, setExpandedOrgs] = useState<string[]>([]);
-  const { organizations, getOrganizationForTenant, isTenantArchivedInOrg } =
-    useOrganizations();
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [orgName, setOrgName] = useState('');
+  const {
+    organizations,
+    getOrganizationForTenant,
+    isTenantArchivedInOrg,
+    handleCreateOrganization,
+    createOrganizationLoading,
+  } = useOrganizations();
 
   const handleClose = () => setOpen(false);
   const handleNavigate = (path: string) => {
@@ -189,6 +211,28 @@ export function OrganizationSelector({
         ? prev.filter((id) => id !== orgId)
         : [...prev, orgId],
     );
+  };
+
+  const handleCreateOrgClick = () => {
+    setOpen(false);
+    setShowCreateModal(true);
+  };
+
+  const handleCreateOrgSubmit = () => {
+    if (!orgName.trim()) {
+      return;
+    }
+
+    handleCreateOrganization(orgName.trim(), (organizationId) => {
+      setShowCreateModal(false);
+      setOrgName('');
+      navigate(`/organizations/${organizationId}`);
+    });
+  };
+
+  const handleCreateOrgCancel = () => {
+    setShowCreateModal(false);
+    setOrgName('');
   };
 
   // Group memberships by organization
@@ -226,7 +270,12 @@ export function OrganizationSelector({
       .map((org) => ({
         organization: org,
         tenants: orgMap.get(org.metadata.id) || [],
-      }));
+      }))
+      .sort((a, b) =>
+        a.organization.name
+          .toLowerCase()
+          .localeCompare(b.organization.name.toLowerCase()),
+      );
 
     return {
       currentOrgData: currentOrg
@@ -293,6 +342,17 @@ export function OrganizationSelector({
                     onClose={handleClose}
                     onNavigate={handleNavigate}
                   />
+                  <div className="px-2 py-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-center gap-2 h-8 text-sm hover:bg-accent"
+                      onClick={handleCreateOrgClick}
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      Create Organization
+                    </Button>
+                  </div>
                 </CommandGroup>
               )}
 
@@ -349,6 +409,47 @@ export function OrganizationSelector({
           </Command>
         </PopoverContent>
       </Popover>
+
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Organization</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="org-name" className="text-sm font-medium">
+                Organization Name
+              </label>
+              <Input
+                id="org-name"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                placeholder="Enter organization name"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleCreateOrgSubmit();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleCreateOrgCancel}
+              disabled={createOrganizationLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateOrgSubmit}
+              disabled={!orgName.trim() || createOrganizationLoading}
+            >
+              {createOrganizationLoading ? 'Creating...' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }

@@ -106,7 +106,6 @@ function GithubInstallationsList() {
         isLoading={listInstallationsQuery.isLoading}
         columns={cols}
         data={listInstallationsQuery.data?.rows || []}
-        filters={[]}
         getRowId={(row) => row.metadata.id}
       />
       <ConfirmDialog

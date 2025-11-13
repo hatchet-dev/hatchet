@@ -98,6 +98,15 @@ FROM
     dag_to_task_partitions
 ;
 
+-- name: DefaultTaskActivityGauge :one
+SELECT
+    COUNT(*)
+FROM
+    v1_queue
+WHERE
+    tenant_id = @tenantId::uuid
+    AND last_active > @activeSince::timestamptz;
+
 -- name: FlattenExternalIds :many
 WITH lookup_rows AS (
     SELECT
@@ -414,28 +423,22 @@ WHERE
 -- modify the events.
 WITH input AS (
     SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
-                unnest(@eventKeys::text[]) AS event_key
-        ) AS subquery
-),
-distinct_events AS (
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST(@eventKeys::TEXT[]) AS event_key
+), distinct_events AS (
     SELECT DISTINCT
         task_id, task_inserted_at
     FROM
         input
-),
-events_to_lock AS (
+), events_to_lock AS (
     SELECT
         e.id,
         e.event_key,
         e.data,
 		e.task_id,
-		e.task_inserted_at
+		e.task_inserted_at,
+        e.inserted_at
     FROM
         v1_task_event e
     JOIN
@@ -448,6 +451,7 @@ events_to_lock AS (
 )
 SELECT
 	e.id,
+    e.inserted_at,
 	e.event_key,
 	e.data
 FROM
@@ -631,13 +635,8 @@ LEFT JOIN
 -- of the tasks as well.
 WITH input AS (
     SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at
-        ) AS subquery
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at
 ), task_outputs AS (
     SELECT
         t.id,
@@ -650,6 +649,8 @@ WITH input AS (
         t.workflow_run_id,
         t.step_id,
         t.workflow_id,
+        e.id AS task_event_id,
+        e.inserted_at AS task_event_inserted_at,
         e.data AS output
     FROM
         v1_task t1
@@ -681,7 +682,10 @@ WITH input AS (
 )
 SELECT
     DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
-    task_outputs.*
+    task_outputs.task_event_id,
+    task_outputs.task_event_inserted_at,
+    task_outputs.workflow_run_id,
+    task_outputs.output
 FROM
     task_outputs
 JOIN
@@ -936,3 +940,199 @@ ANALYZE v1_task_event;
 
 -- name: AnalyzeV1DAGToTask :exec
 ANALYZE v1_dag_to_task;
+
+-- name: AnalyzeV1Dag :exec
+ANALYZE v1_dag;
+
+-- name: CleanupV1TaskRuntime :execresult
+WITH locked_trs AS (
+    SELECT vtr.task_id, vtr.task_inserted_at, vtr.retry_count
+    FROM v1_task_runtime vtr
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE vtr.task_id = vt.id
+            AND vtr.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY vtr.task_id ASC
+    LIMIT @batchSize::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_task_runtime
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_trs
+);
+
+-- name: CleanupV1ConcurrencySlot :execresult
+WITH locked_cs AS (
+    SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
+    FROM v1_concurrency_slot cs
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE cs.task_id = vt.id
+            AND cs.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id
+    LIMIT @batchSize::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_concurrency_slot
+WHERE (task_id, task_inserted_at, task_retry_count) IN (
+    SELECT task_id, task_inserted_at, task_retry_count
+    FROM locked_cs
+);
+
+-- name: GetTenantTaskStats :many
+WITH queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count
+    FROM
+        v1_queue_item qi
+    JOIN
+        v1_task t ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
+    WHERE
+        qi.tenant_id = @tenantId::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
+), retry_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count
+    FROM
+        v1_retry_queue_item rqi
+    JOIN
+        v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
+    WHERE
+        rqi.tenant_id = @tenantId::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
+), rate_limited_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count
+    FROM
+        v1_rate_limited_queue_items rqi
+    JOIN
+        v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at
+    WHERE
+        rqi.tenant_id = @tenantId::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
+), concurrency_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        sc.expression,
+        sc.strategy,
+        cs.key,
+        COUNT(*) as count
+    FROM
+        v1_concurrency_slot cs
+    JOIN
+        v1_task t ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
+    JOIN
+        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id AND cs.strategy_id = sc.id
+    WHERE
+        cs.tenant_id = @tenantId::uuid
+        AND cs.is_filled = FALSE
+        AND sc.tenant_id = @tenantId::uuid
+        AND sc.is_active = TRUE
+        AND sc.id = ANY(t.concurrency_strategy_ids)
+    GROUP BY
+        t.step_readable_id,
+        t.queue,
+        sc.expression,
+        sc.strategy,
+        cs.key
+), running_tasks AS (
+    SELECT
+        t.step_readable_id,
+        COALESCE(sc.expression, '') as expression,
+        COALESCE(sc.strategy, 'NONE'::v1_concurrency_strategy) as strategy,
+        COALESCE(cs.key, '') as key,
+        COUNT(*) as count
+    FROM
+        v1_task_runtime tr
+    JOIN
+        v1_task t ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+    LEFT JOIN
+        v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
+    LEFT JOIN
+        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id
+    WHERE
+        t.tenant_id = @tenantId::uuid
+        AND tr.tenant_id = @tenantId::uuid
+        AND tr.worker_id IS NOT NULL
+        AND (t.concurrency_strategy_ids IS NULL OR array_length(t.concurrency_strategy_ids, 1) IS NULL OR sc.id = ANY(t.concurrency_strategy_ids))
+    GROUP BY
+        t.step_readable_id,
+        sc.expression,
+        sc.strategy,
+        cs.key
+)
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count
+FROM queued_tasks
+
+UNION ALL
+
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count
+FROM retry_queued_tasks
+
+UNION ALL
+
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count
+FROM rate_limited_queued_tasks
+
+UNION ALL
+
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    expression,
+    strategy::text,
+    key,
+    count
+FROM concurrency_queued_tasks
+
+UNION ALL
+
+SELECT
+    'running' as task_status,
+    step_readable_id,
+    ''::text as queue,
+    expression,
+    strategy::text,
+    key,
+    count
+FROM running_tasks;

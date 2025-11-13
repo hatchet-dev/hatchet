@@ -17,7 +17,9 @@ type EnvVars =
   | 'HATCHET_CLIENT_TLS_ROOT_CA_FILE'
   | 'HATCHET_CLIENT_TLS_SERVER_NAME'
   | 'HATCHET_CLIENT_LOG_LEVEL'
-  | 'HATCHET_CLIENT_NAMESPACE';
+  | 'HATCHET_CLIENT_NAMESPACE'
+  | 'HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED'
+  | 'HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT';
 
 type TLSStrategy = 'tls' | 'mtls';
 
@@ -45,6 +47,12 @@ export class ConfigLoader {
     };
 
     const token = override?.token ?? yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN');
+
+    const healthCheckConfig = override?.healthcheck ??
+      yaml?.healthcheck ?? {
+        enabled: this.env('HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED') === 'true',
+        port: parseInt(this.env('HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT') || '8001', 10),
+      };
 
     if (!token) {
       throw new Error(
@@ -91,6 +99,7 @@ export class ConfigLoader {
       host_port: grpcBroadcastAddress,
       api_url: apiUrl,
       tls_config: tlsConfig,
+      healthcheck: healthCheckConfig,
       log_level:
         override?.log_level ??
         yaml?.log_level ??

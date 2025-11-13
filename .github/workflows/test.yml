@@ -35,7 +35,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.15.4
+          version: 10.16.1
           run_install: false
 
       - name: Compose
@@ -91,7 +91,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.15.4
+          version: 10.16.1
           run_install: false
 
       - name: Install Atlas
@@ -139,7 +139,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.15.4
+          version: 10.16.1
           run_install: false
 
       - name: Install Atlas
@@ -229,7 +229,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.15.4
+          version: 10.16.1
           run_install: false
 
       - name: Install Atlas
@@ -324,7 +324,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.15.4
+          version: 10.16.1
           run_install: false
 
       - name: Go deps
@@ -363,7 +363,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.15.4
+          version: 10.16.1
           run_install: false
 
       - name: Go deps

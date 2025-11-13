@@ -190,7 +190,7 @@ export class DurableEventGrpcPooledListener {
     this.client.logger.debug(`Replaying ${subscriptionEntries.length} requests...`);
 
     for (const [key, _] of subscriptionEntries) {
-      const [taskId, signalKey] = key.split('-');
+      const [taskId, signalKey] = key.split('|');
       this.requestEmitter.emit('subscribe', { taskId, signalKey });
     }
   }
@@ -203,7 +203,7 @@ export class DurableEventGrpcPooledListener {
 
     for (const key in this.taskSignalKeyToSubscriptionIds) {
       if (this.taskSignalKeyToSubscriptionIds[key].length > 0) {
-        const [taskId, signalKey] = key.split('-');
+        const [taskId, signalKey] = key.split('|');
         existingSubscriptions.add(key);
         yield { taskId, signalKey };
       }
@@ -225,4 +225,4 @@ export class DurableEventGrpcPooledListener {
   }
 }
 
-const keyHelper = (taskId: string, signalKey: string) => `${taskId}-${signalKey}`;
+const keyHelper = (taskId: string, signalKey: string) => `${taskId}|${signalKey}`;

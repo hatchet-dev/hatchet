@@ -34,6 +34,7 @@ type Repository interface {
 	Filters() FilterRepository
 	Webhooks() WebhookRepository
 	Idempotency() IdempotencyRepository
+	IntervalSettings() IntervalSettingsRepository
 }
 
 type repositoryImpl struct {
@@ -49,20 +50,30 @@ type repositoryImpl struct {
 	filters      FilterRepository
 	webhooks     WebhookRepository
 	payloadStore PayloadStoreRepository
-	idempotency IdempotencyRepository
+	idempotency  IdempotencyRepository
+	intervals    IntervalSettingsRepository
 }
 
-func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits, enablePayloadDualWrites bool) (Repository, func() error) {
+func NewRepository(
+	pool *pgxpool.Pool,
+	l *zerolog.Logger,
+	taskRetentionPeriod, olapRetentionPeriod time.Duration,
+	maxInternalRetryCount int32,
+	entitlements repository.EntitlementsRepository,
+	taskLimits TaskOperationLimits,
+	payloadStoreOpts PayloadStoreRepositoryOpts,
+	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
+) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, enablePayloadDualWrites)
+	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, payloadStoreOpts)
 
 	impl := &repositoryImpl{
 		triggers:     newTriggerRepository(shared),
 		tasks:        newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler:    newSchedulerRepository(shared),
 		matches:      newMatchRepository(shared),
-		olap:         newOLAPRepository(shared, olapRetentionPeriod, true),
+		olap:         newOLAPRepository(shared, olapRetentionPeriod, true, statusUpdateBatchSizeLimits),
 		logs:         newLogLineRepository(shared),
 		workers:      newWorkerRepository(shared),
 		workflows:    newWorkflowRepository(shared),
@@ -70,7 +81,8 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 		filters:      newFilterRepository(shared),
 		webhooks:     newWebhookRepository(shared),
 		payloadStore: shared.payloadStore,
-		idempotency: newIdempotencyRepository(shared),
+		idempotency:  newIdempotencyRepository(shared),
+		intervals:    newIntervalSettingsRepository(shared),
 	}
 
 	return impl, func() error {
@@ -140,4 +152,8 @@ func (r *repositoryImpl) Webhooks() WebhookRepository {
 
 func (r *repositoryImpl) Idempotency() IdempotencyRepository {
 	return r.idempotency
+}
+
+func (r *repositoryImpl) IntervalSettings() IntervalSettingsRepository {
+	return r.intervals
 }

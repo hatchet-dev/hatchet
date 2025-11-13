@@ -1,0 +1,16 @@
+# -------- ignored ---------
+**/examples/** linguist-detectable=false
+api-contracts/** linguist-detectable=false
+.github/** linguist-detectable=false
+
+# -------- generated ---------
+
+### docs
+frontend/docs/snippets/** linguist-generated
+
+### sdks
+sdks/python/hatchet-sdk/clients/rest/api/** linguist-generated
+sdks/python/hatchet-sdk/clients/rest/models/** linguist-generated
+sdks/python/hatchet-sdk/contracts/** linguist-generated
+sdks/typescript/src/clients/rest/generated/** linguist-generated
+sdks/typescript/src/protoc/** linguist-generated

@@ -74,6 +74,7 @@ func main() {
 
 	log.Printf("Running bulk operations with %d items...", len(bulkInputs))
 
+	// > Bulk run tasks
 	// Prepare inputs as []RunManyOpt for bulk run
 	inputs := make([]hatchet.RunManyOpt, len(bulkInputs))
 	for i, input := range bulkInputs {
@@ -84,12 +85,18 @@ func main() {
 
 	// Run workflows in bulk
 	ctx := context.Background()
-	runIDs, err := client.RunMany(ctx, "bulk-processing-workflow", inputs)
+	runRefs, err := workflow.RunMany(ctx, inputs)
 	if err != nil {
 		log.Fatalf("failed to run bulk workflows: %v", err)
 	}
+	// !!
 
-	log.Printf("Started %d bulk workflows with run IDs: %v", len(runIDs), runIDs)
+	runIDs := make([]string, len(runRefs))
+	for i, runRef := range runRefs {
+		runIDs[i] = runRef.RunId
+	}
+
+	log.Printf("Started %d bulk workflows with run IDs: %v", len(runRefs), runRefs)
 
 	// Optionally monitor some of the runs
 	for i, runID := range runIDs {

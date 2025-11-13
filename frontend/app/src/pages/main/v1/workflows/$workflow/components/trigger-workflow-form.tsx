@@ -15,7 +15,7 @@ import { useCallback, useMemo, useState, useEffect } from 'react';
 import { Button } from '@/components/v1/ui/button';
 import { debounce } from 'lodash';
 import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { CodeEditor } from '@/components/v1/ui/code-editor';
 import { Input } from '@/components/v1/ui/input';
@@ -45,6 +45,7 @@ export function TriggerWorkflowForm({
   onClose: () => void;
   defaultTimingOption?: TimingOption;
 }) {
+  const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenantId();
   const navigate = useNavigate();
 
@@ -194,11 +195,14 @@ export function TriggerWorkflowForm({
     onMutate: () => {
       setErrors([]);
     },
-    onSuccess: (workflowRun: ScheduledWorkflows | undefined) => {
+    onSuccess: async (workflowRun: ScheduledWorkflows | undefined) => {
       if (!workflowRun) {
         return;
       }
       handleClose();
+      await queryClient.invalidateQueries({
+        queryKey: ['scheduledRuns', 'list'],
+      });
       navigate(`/tenants/${tenantId}/scheduled`);
     },
     onError: handleApiError,
@@ -232,11 +236,14 @@ export function TriggerWorkflowForm({
     onMutate: () => {
       setErrors([]);
     },
-    onSuccess: (workflowRun: CronWorkflows | undefined) => {
+    onSuccess: async (workflowRun: CronWorkflows | undefined) => {
       if (!workflowRun) {
         return;
       }
       handleClose();
+      await queryClient.invalidateQueries({
+        queryKey: ['cronJobs', 'list'],
+      });
       navigate(`/tenants/${tenantId}/cron-jobs`);
     },
     onError: handleApiError,

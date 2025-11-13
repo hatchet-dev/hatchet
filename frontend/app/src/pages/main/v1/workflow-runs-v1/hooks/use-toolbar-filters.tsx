@@ -4,16 +4,19 @@ import {
   FilterOption,
   ToolbarFilters,
   ToolbarType,
+  TimeRangeConfig,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import {
   additionalMetadataKey,
+  createdAtKey,
   flattenDAGsKey,
   statusKey,
   workflowKey,
 } from '../components/v1/task-runs-columns';
 import { useWorkflows } from './use-workflows';
+import { FilterActions } from './use-runs-table-filters';
 
-const workflowRunStatusFilters = [
+export const workflowRunStatusFilters = [
   {
     value: V1TaskStatus.COMPLETED,
     label: 'Succeeded',
@@ -38,8 +41,10 @@ const workflowRunStatusFilters = [
 
 export const useToolbarFilters = ({
   filterVisibility,
+  filterActions,
 }: {
   filterVisibility: { [key: string]: boolean };
+  filterActions: FilterActions;
 }): ToolbarFilters => {
   const workflows = useWorkflows();
 
@@ -52,7 +57,50 @@ export const useToolbarFilters = ({
     );
   }, [workflows]);
 
+  const timeRangeConfig: TimeRangeConfig = {
+    onTimeWindowChange: (value: string) => {
+      if (value !== 'custom') {
+        filterActions.setTimeWindow(value as any);
+      } else {
+        filterActions.setCustomTimeRange({
+          start:
+            filterActions.apiFilters.since ||
+            new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          end: filterActions.apiFilters.until || new Date().toISOString(),
+        });
+      }
+    },
+    onCreatedAfterChange: (date?: string) => {
+      if (filterActions.isCustomTimeRange && filterActions.apiFilters.until) {
+        filterActions.setCustomTimeRange({
+          start:
+            date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          end: filterActions.apiFilters.until,
+        });
+      }
+    },
+    onFinishedBeforeChange: (date?: string) => {
+      if (filterActions.isCustomTimeRange && filterActions.apiFilters.since) {
+        filterActions.setCustomTimeRange({
+          start: filterActions.apiFilters.since,
+          end: date || new Date().toISOString(),
+        });
+      }
+    },
+    onClearTimeRange: () => filterActions.setCustomTimeRange(null),
+    currentTimeWindow: filterActions.timeWindow,
+    isCustomTimeRange: filterActions.isCustomTimeRange,
+    createdAfter: filterActions.apiFilters.since,
+    finishedBefore: filterActions.apiFilters.until,
+  };
+
   return [
+    {
+      columnId: createdAtKey,
+      title: 'Time Range',
+      type: ToolbarType.TimeRange,
+      timeRangeConfig,
+    },
     {
       columnId: workflowKey,
       title: 'Workflow',

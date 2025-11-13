@@ -34,6 +34,7 @@ func main() {
 		hatchet.WithWorkflowVersion("1.0.0"),
 	)
 
+	// > Cancelled task
 	// Add a long-running task that can be cancelled
 	_ = workflow.NewTask("long-running-task", func(ctx hatchet.Context, input CancellationInput) (CancellationOutput, error) {
 		log.Printf("Starting long-running task with message: %s", input.Message)
@@ -59,6 +60,7 @@ func main() {
 			Completed: true,
 		}, nil
 	}, hatchet.WithExecutionTimeout(30*time.Second))
+	// !!
 
 	// Create a worker
 	worker, err := client.NewWorker("cancellation-worker",

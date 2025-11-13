@@ -14,7 +14,7 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import {
   TabOption,
   TaskRunDetail,
@@ -50,8 +50,11 @@ function statusToBadgeVariant(status: V1TaskStatus) {
     case V1TaskStatus.COMPLETED:
       return 'successful';
     case V1TaskStatus.FAILED:
-    case V1TaskStatus.CANCELLED:
       return 'failed';
+    case V1TaskStatus.CANCELLED:
+      return 'cancelled';
+    case V1TaskStatus.QUEUED:
+      return 'queued';
     default:
       return 'inProgress';
   }
@@ -188,9 +191,18 @@ function ExpandedTaskRun({ id }: { id: string }) {
 
 function ExpandedWorkflowRun({ id }: { id: string }) {
   const { open } = useSidePanel();
+  const executingRef = useRef(false);
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
+      // hack to prevent click handler from firing multiple times,
+      // causing index offset issues
+      if (executingRef.current) {
+        return;
+      }
+
+      executingRef.current = true;
+
       open({
         type: 'task-run-details',
         content: {
@@ -199,6 +211,10 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
           showViewTaskRunButton: true,
         },
       });
+
+      setTimeout(() => {
+        executingRef.current = false;
+      }, 100);
     },
     [open],
   );

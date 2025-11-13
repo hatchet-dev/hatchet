@@ -5,26 +5,27 @@ import {
   CalendarDaysIcon,
   CpuChipIcon,
   QueueListIcon,
+  RocketLaunchIcon,
   ScaleIcon,
   ServerStackIcon,
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
-import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
+import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
+import { useSidebar } from '@/components/sidebar-provider';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { Loading } from '@/components/ui/loading.tsx';
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import { Tenant, TenantMember } from '@/lib/api';
-import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
-import React, { useCallback } from 'react';
+import { useTenant } from '@/lib/atoms';
 import {
   MembershipsContextType,
   UserContextType,
   useContextFromParent,
 } from '@/lib/outlet';
-import { useTenant } from '@/lib/atoms';
-import { Loading } from '@/components/ui/loading.tsx';
-import { useSidebar } from '@/components/sidebar-provider';
-import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
-import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
-import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
+import React, { useCallback } from 'react';
+import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
 import useCloudApiMeta from '../auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '../auth/hooks/use-cloud-feature-flags';
 
@@ -64,7 +65,7 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
 
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { data: cloudMeta, isCloudEnabled } = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(currTenant.metadata.id);
 
   const onNavLinkClick = useCallback(() => {
@@ -245,10 +246,17 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                   />,
                 ]}
               />
+              <SidebarButtonPrimary
+                key={0}
+                onNavLinkClick={onNavLinkClick}
+                to="/onboarding/get-started"
+                name="Quickstart"
+                icon={<RocketLaunchIcon className="mr-2 h-4 w-4" />}
+              />
             </div>
           </div>
         </div>
-        {cloudMeta ? (
+        {isCloudEnabled ? (
           <OrganizationSelector memberships={memberships} />
         ) : (
           <TenantSwitcher memberships={memberships} currTenant={currTenant} />

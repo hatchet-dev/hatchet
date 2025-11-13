@@ -1,5 +1,6 @@
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import api, {
   queries,
   V1CreateFilterRequest,
@@ -14,6 +15,7 @@ import { FilterOption } from '@/components/v1/molecules/data-table/data-table-to
 
 type UseFiltersProps = {
   key: string;
+  scopeOverrides?: string[];
 };
 
 type FilterQueryShape = {
@@ -53,10 +55,11 @@ const parseFilterParam = (searchParams: URLSearchParams, key: string) => {
   };
 };
 
-export const useFilters = ({ key }: UseFiltersProps) => {
+export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
   const { limit, offset, pagination, setPagination, setPageSize } =
     usePagination({
       key,
@@ -71,10 +74,14 @@ export const useFilters = ({ key }: UseFiltersProps) => {
   }, [searchParams, paramKey]);
 
   const selectedScopes = useMemo(() => {
+    if (scopeOverrides && scopeOverrides.length > 0) {
+      return scopeOverrides;
+    }
+
     const { s } = parseFilterParam(searchParams, paramKey);
 
     return s;
-  }, [searchParams, paramKey]);
+  }, [searchParams, paramKey, scopeOverrides]);
 
   const columnFilters = useMemo<ColumnFiltersState>(() => {
     const { w, s } = parseFilterParam(searchParams, paramKey);
@@ -130,7 +137,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
     [columnFilters, paramKey, setSearchParams],
   );
 
-  const { data, isLoading, refetch, error } = useQuery({
+  const { data, isLoading, isRefetching, refetch, error } = useQuery({
     queryKey: [
       'v1:filter:list',
       tenantId,
@@ -150,7 +157,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
 
       return response.data;
     },
-    refetchInterval: 10000,
+    refetchInterval,
     placeholderData: (prev) => prev,
   });
 
@@ -260,6 +267,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
     numFilters,
     isLoading: isLoading || workflowKeysIsLoading,
     refetch,
+    isRefetching,
     error: error || workflowKeysError,
     pagination,
     setPagination,

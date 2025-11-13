@@ -18,10 +18,8 @@ from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.dispatcher_pb2 import (
-    GROUP_KEY_EVENT_TYPE_STARTED,
     STEP_EVENT_TYPE_STARTED,
     ActionEventResponse,
-    GroupKeyActionEvent,
     StepActionEvent,
 )
 from hatchet_sdk.logger import logger
@@ -79,11 +77,6 @@ class WorkerActionListenerProcess:
         self.running_step_runs: dict[str, float] = {}
         self.step_action_events: set[
             asyncio.Task[UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None]
-        ] = set()
-        self.group_key_action_events: set[
-            asyncio.Task[
-                UnaryUnaryCall[GroupKeyActionEvent, ActionEventResponse] | None
-            ]
         ] = set()
 
         if self.debug:
@@ -213,16 +206,6 @@ class WorkerActionListenerProcess:
                     )
                 case ActionType.CANCEL_STEP_RUN:
                     logger.debug("unimplemented event send")
-                case ActionType.START_GET_GROUP_KEY:
-                    get_group_key_task = asyncio.create_task(
-                        self.dispatcher_client.send_group_key_action_event(
-                            event.action, event.type, event.payload
-                        )
-                    )
-                    self.group_key_action_events.add(get_group_key_task)
-                    get_group_key_task.add_done_callback(
-                        lambda t: self.group_key_action_events.discard(t)
-                    )
                 case _:
                     logger.error("unknown action type for event send")
         except Exception:
@@ -273,18 +256,6 @@ class WorkerActionListenerProcess:
 
                     case ActionType.CANCEL_STEP_RUN:
                         logger.info(f"rx: cancel step run: {action.step_run_id}")
-                    case ActionType.START_GET_GROUP_KEY:
-                        self.event_queue.put(
-                            ActionEvent(
-                                action=action,
-                                type=GROUP_KEY_EVENT_TYPE_STARTED,  # TODO ack type
-                                payload="",
-                                should_not_retry=False,
-                            )
-                        )
-                        logger.info(
-                            f"rx: start group key: {action.get_group_key_run_id}"
-                        )
                     case _:
                         logger.error(
                             f"rx: unknown action type ({action.action_type}): {action.action_type}"

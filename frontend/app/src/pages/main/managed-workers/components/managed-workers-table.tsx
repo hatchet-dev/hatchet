@@ -4,7 +4,7 @@ import { queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
 import { TenantContextType } from '@/lib/outlet';
 import { Link, useOutletContext } from 'react-router-dom';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
 import { columns } from './managed-worker-columns';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { Button } from '@/components/v1/ui/button';

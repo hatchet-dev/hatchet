@@ -2,7 +2,6 @@ import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading';
-import { LinkIcon } from '@heroicons/react/24/outline';
 import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
@@ -28,8 +27,9 @@ import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Toaster } from '@/components/v1/ui/toaster';
+import { FullscreenIcon } from 'lucide-react';
 
 export enum TabOption {
   Output = 'output',
@@ -37,6 +37,7 @@ export enum TabOption {
   Input = 'input',
   Logs = 'logs',
   Waterfall = 'waterfall',
+  AdditionalMetadata = 'additional-metadata',
 }
 
 interface TaskRunDetailProps {
@@ -64,8 +65,8 @@ const TaskRunPermalinkOrBacklink = ({
     return (
       <Link to={`/tenants/${tenantId}/runs/${taskRun.metadata.id}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
-          <LinkIcon className="w-4 h-4" />
-          View Run
+          <FullscreenIcon className="w-4 h-4" />
+          Expand
         </Button>
       </Link>
     );
@@ -77,7 +78,7 @@ const TaskRunPermalinkOrBacklink = ({
     return (
       <Link to={`/tenants/${tenantId}/runs/${taskRun.workflowRunExternalId}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
-          <LinkIcon className="w-4 h-4" />
+          <FullscreenIcon className="w-4 h-4" />
           View DAG Run
         </Button>
       </Link>
@@ -93,7 +94,7 @@ export const TaskRunDetail = ({
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
   const { open } = useSidePanel();
-
+  const [logsResetKey, setLogsResetKey] = useState(0);
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
       open({
@@ -154,27 +155,33 @@ export const TaskRunDetail = ({
           parentTaskExternalId={taskRun.parentTaskExternalId}
         />
       )}
-      <div className="flex flex-row gap-2 items-center">
-        <RunsProvider tableKey="task-run-detail">
-          <TaskRunActionButton
-            actionType="replay"
-            paramOverrides={{ externalIds: [taskRunId] }}
-            disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
-            showModal={false}
-          />
-          <TaskRunActionButton
-            actionType="cancel"
-            paramOverrides={{ externalIds: [taskRunId] }}
-            disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
-            showModal={false}
-          />
-        </RunsProvider>
-        <TaskRunPermalinkOrBacklink
-          taskRun={taskRun}
-          showViewTaskRunButton={showViewTaskRunButton || false}
-        />
-        <WorkflowDefinitionLink workflowId={taskRun.workflowId} />
-        <CopyWorkflowConfigButton workflowConfig={taskRun.workflowConfig} />
+      <div className="flex flex-col gap-2 items-start justify-start side-responsive-layout">
+        <div className="flex flex-col gap-2 items-start w-full side-responsive-inner">
+          <div className="flex flex-row gap-2 items-center">
+            <RunsProvider tableKey="task-run-detail">
+              <TaskRunActionButton
+                actionType="replay"
+                paramOverrides={{ externalIds: [taskRunId] }}
+                disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+                showModal={false}
+              />
+              <TaskRunActionButton
+                actionType="cancel"
+                paramOverrides={{ externalIds: [taskRunId] }}
+                disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+                showModal={false}
+              />
+            </RunsProvider>
+          </div>
+          <div className="flex flex-row gap-2 items-center">
+            <TaskRunPermalinkOrBacklink
+              taskRun={taskRun}
+              showViewTaskRunButton={showViewTaskRunButton || false}
+            />
+            <WorkflowDefinitionLink workflowId={taskRun.workflowId} />
+            <CopyWorkflowConfigButton workflowConfig={taskRun.workflowConfig} />
+          </div>
+        </div>
       </div>
       <div className="flex flex-row gap-2 items-center">
         <V1StepRunSummary taskRunId={taskRunId} />
@@ -195,7 +202,15 @@ export const TaskRunDetail = ({
             <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
           </div>
           <div className="h-4" />
-          <Tabs defaultValue={defaultOpenTab}>
+          <Tabs
+            defaultValue={defaultOpenTab}
+            onValueChange={(value) => {
+              if (value === TabOption.Logs) {
+                // Increment counter to force remount when Logs tab is opened
+                setLogsResetKey((prev: number) => prev + 1);
+              }
+            }}
+          >
             <TabsList layout="underlined">
               <TabsTrigger variant="underlined" value={TabOption.Output}>
                 Output
@@ -213,6 +228,18 @@ export const TaskRunDetail = ({
               </TabsTrigger>
               <TabsTrigger variant="underlined" value={TabOption.Logs}>
                 Logs
+              </TabsTrigger>
+              <TabsTrigger
+                variant="underlined"
+                value={TabOption.AdditionalMetadata}
+                className="side-responsive-layout"
+              >
+                <span className="flex side-responsive-inner">
+                  <span className="block side-sm:hidden">Metadata</span>
+                  <span className="hidden side-sm:block">
+                    Additional Metadata
+                  </span>
+                </span>
               </TabsTrigger>
             </TabsList>
             <TabsContent value={TabOption.Output}>
@@ -248,7 +275,16 @@ export const TaskRunDetail = ({
               )}
             </TabsContent>
             <TabsContent value={TabOption.Logs}>
-              <StepRunLogs taskRun={taskRun} />
+              <StepRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
+            </TabsContent>
+            <TabsContent value={TabOption.AdditionalMetadata}>
+              <CodeHighlighter
+                className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
+                maxHeight="400px"
+                minHeight="400px"
+                language="json"
+                code={JSON.stringify(taskRun.additionalMetadata ?? {}, null, 2)}
+              />
             </TabsContent>
           </Tabs>
         </TabsContent>

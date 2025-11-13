@@ -260,3 +260,20 @@ JOIN
 ORDER BY
     m.id
 FOR UPDATE;
+
+-- name: CleanupMatchWithMatchConditions :exec
+WITH deleted_match_ids AS (
+    DELETE FROM
+        v1_match
+    WHERE
+        signal_task_inserted_at < @date::date
+        OR trigger_dag_inserted_at < @date::date
+        OR trigger_parent_task_inserted_at < @date::date
+        OR trigger_existing_task_inserted_at < @date::date
+    RETURNING
+        id
+)
+DELETE FROM
+    v1_match_condition
+WHERE
+    v1_match_id IN (SELECT id FROM deleted_match_ids);

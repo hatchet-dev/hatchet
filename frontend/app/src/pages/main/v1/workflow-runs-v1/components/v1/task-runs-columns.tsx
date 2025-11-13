@@ -42,6 +42,11 @@ export const additionalMetadataKey: TaskRunColumnKeys = 'additionalMetadata';
 export const taskNameKey: TaskRunColumnKeys = 'taskName';
 export const statusKey: TaskRunColumnKeys = 'status';
 
+export const createdAfterKey = 'createdAfter';
+export const finishedBeforeKey = 'finishedBefore';
+export const isCustomTimeRangeKey = 'isCustomTimeRange';
+export const timeWindowKey = 'timeWindow';
+
 export const columns: (
   tenantId: string,
   selectedAdditionalMetaRunId: string | null,
@@ -99,29 +104,10 @@ export const columns: (
     enableSorting: false,
     enableHiding: false,
   },
-  // {
-  //   accessorKey: 'task_id',
-  //   header: ({ column }) => (
-  //     <DataTableColumnHeader column={column} title="Id" />
-  //   ),
-  //   cell: ({ row }) => (
-  //     <div
-  //       className="cursor-pointer hover:underline min-w-fit whitespace-nowrap items-center flex-row flex gap-x-1"
-  //       onClick={() => {
-  //         navigator.clipboard.writeText(row.original.taskId.toString());
-  //       }}
-  //     >
-  //       {row.original.taskId}
-  //       <ClipboardDocumentIcon className="size-4 ml-1" />
-  //     </div>
-  //   ),
-  //   enableSorting: false,
-  //   enableHiding: true,
-  // },
   {
     accessorKey: taskNameKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Task" />
+      <DataTableColumnHeader column={column} title={TaskRunColumn.taskName} />
     ),
     cell: ({ row }) => {
       if (row.getCanExpand()) {
@@ -153,6 +139,7 @@ export const columns: (
     ),
     cell: ({ row }) => (
       <V1RunStatus
+        className="text-center items-center justify-center px-2"
         status={row.original.status}
         errorMessage={row.original.errorMessage}
       />
@@ -208,17 +195,6 @@ export const columns: (
     enableSorting: false,
     enableHiding: false,
   },
-  // {
-  //   accessorKey: 'Triggered by',
-  //   header: ({ column }) => (
-  //     <DataTableColumnHeader column={column} title="Triggered by" />
-  //   ),
-  //   cell: ({ row }) => {
-  //     return <div>{row.original.triggeredBy}</div>;
-  //   },
-  //   enableSorting: false,
-  //   enableHiding: true,
-  // },
   {
     accessorKey: createdAtKey,
     header: ({ column }) => (

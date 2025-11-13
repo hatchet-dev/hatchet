@@ -19,21 +19,22 @@ var l zerolog.Logger
 
 // LoadTestConfig holds all configuration for the load test
 type LoadTestConfig struct {
-	Namespace      string
-	Events         int
-	Concurrency    int
-	Duration       time.Duration
-	Wait           time.Duration
-	Delay          time.Duration
-	WorkerDelay    time.Duration
-	Slots          int
-	FailureRate    float32
-	PayloadSize    string
-	EventFanout    int
-	DagSteps       int
-	RlKeys         int
-	RlLimit        int
-	RlDurationUnit string
+	Namespace                string
+	Events                   int
+	Concurrency              int
+	Duration                 time.Duration
+	Wait                     time.Duration
+	Delay                    time.Duration
+	WorkerDelay              time.Duration
+	Slots                    int
+	FailureRate              float32
+	PayloadSize              string
+	EventFanout              int
+	DagSteps                 int
+	RlKeys                   int
+	RlLimit                  int
+	RlDurationUnit           string
+	AverageDurationThreshold time.Duration
 }
 
 func main() {
@@ -81,6 +82,7 @@ func main() {
 	loadtest.Flags().IntVar(&config.RlLimit, "rlLimit", 0, "rlLimit specifies the rate limit")
 	loadtest.Flags().StringVar(&config.RlDurationUnit, "rlDurationUnit", "second", "rlDurationUnit specifies the duration unit for the rate limit (second, minute, hour)")
 	loadtest.Flags().StringVarP(&logLevel, "level", "l", "info", "logLevel specifies the log level (debug, info, warn, error)")
+	loadtest.Flags().DurationVar(&config.AverageDurationThreshold, "averageDurationThreshold", 100*time.Millisecond, "averageDurationThreshold specifies the threshold for the average duration per executed event to be considered a success")
 
 	cmd := &cobra.Command{Use: "app"}
 	cmd.AddCommand(loadtest)

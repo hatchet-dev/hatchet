@@ -177,13 +177,14 @@ const (
 
 // Defines values for TenantResource.
 const (
-	CRON        TenantResource = "CRON"
-	EVENT       TenantResource = "EVENT"
-	SCHEDULE    TenantResource = "SCHEDULE"
-	TASKRUN     TenantResource = "TASK_RUN"
-	WORKER      TenantResource = "WORKER"
-	WORKERSLOT  TenantResource = "WORKER_SLOT"
-	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
+	CRON            TenantResource = "CRON"
+	EVENT           TenantResource = "EVENT"
+	INCOMINGWEBHOOK TenantResource = "INCOMING_WEBHOOK"
+	SCHEDULE        TenantResource = "SCHEDULE"
+	TASKRUN         TenantResource = "TASK_RUN"
+	WORKER          TenantResource = "WORKER"
+	WORKERSLOT      TenantResource = "WORKER_SLOT"
+	WORKFLOWRUN     TenantResource = "WORKFLOW_RUN"
 )
 
 // Defines values for TenantUIVersion.
@@ -453,6 +454,13 @@ type CancelEventRequest struct {
 
 // ConcurrencyLimitStrategy defines model for ConcurrencyLimitStrategy.
 type ConcurrencyLimitStrategy string
+
+// ConcurrencyStat defines model for ConcurrencyStat.
+type ConcurrencyStat struct {
+	Expression *string           `json:"expression,omitempty"`
+	Keys       *map[string]int64 `json:"keys,omitempty"`
+	Type       *string           `json:"type,omitempty"`
+}
 
 // CreateAPITokenRequest defines model for CreateAPITokenRequest.
 type CreateAPITokenRequest struct {
@@ -792,6 +800,15 @@ type RecentStepRuns struct {
 	WorkflowRunId openapi_types.UUID `json:"workflowRunId"`
 }
 
+// RegisteredWorkflow defines model for RegisteredWorkflow.
+type RegisteredWorkflow struct {
+	// Id The workflow id registered on this worker.
+	Id openapi_types.UUID `json:"id"`
+
+	// Name The name of the workflow registered on this worker.
+	Name string `json:"name"`
+}
+
 // RejectInviteRequest defines model for RejectInviteRequest.
 type RejectInviteRequest struct {
 	Invite string `json:"invite" validate:"required,uuid"`
@@ -1011,6 +1028,22 @@ type StepRunEventSeverity string
 // StepRunStatus defines model for StepRunStatus.
 type StepRunStatus string
 
+// TaskStat defines model for TaskStat.
+type TaskStat struct {
+	Queued  *TaskStatusStat `json:"queued,omitempty"`
+	Running *TaskStatusStat `json:"running,omitempty"`
+}
+
+// TaskStats defines model for TaskStats.
+type TaskStats map[string]TaskStat
+
+// TaskStatusStat defines model for TaskStatusStat.
+type TaskStatusStat struct {
+	Concurrency *[]ConcurrencyStat `json:"concurrency,omitempty"`
+	Queues      *map[string]int64  `json:"queues,omitempty"`
+	Total       *int64             `json:"total,omitempty"`
+}
+
 // Tenant defines model for Tenant.
 type Tenant struct {
 	// AlertMemberEmails Whether to alert tenant members.
@@ -1159,6 +1192,11 @@ type TenantVersion string
 type TriggerWorkflowRunRequest struct {
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
 	Input              map[string]interface{}  `json:"input"`
+}
+
+// UpdateCronWorkflowTriggerRequest defines model for UpdateCronWorkflowTriggerRequest.
+type UpdateCronWorkflowTriggerRequest struct {
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // UpdateTenantAlertEmailGroupRequest defines model for UpdateTenantAlertEmailGroupRequest.
@@ -1892,6 +1930,9 @@ type V1WorkflowRunDisplayNameList struct {
 	Rows []V1WorkflowRunDisplayName `json:"rows"`
 }
 
+// V1WorkflowRunExternalIdList The list of external IDs
+type V1WorkflowRunExternalIdList = []openapi_types.UUID
+
 // V1WorkflowType defines model for V1WorkflowType.
 type V1WorkflowType string
 
@@ -1985,8 +2026,11 @@ type Worker struct {
 	Name string `json:"name"`
 
 	// RecentStepRuns The recent step runs for the worker.
-	RecentStepRuns *[]RecentStepRuns  `json:"recentStepRuns,omitempty"`
-	RuntimeInfo    *WorkerRuntimeInfo `json:"runtimeInfo,omitempty"`
+	RecentStepRuns *[]RecentStepRuns `json:"recentStepRuns,omitempty"`
+
+	// RegisteredWorkflows The workflow ids registered on this worker.
+	RegisteredWorkflows *[]RegisteredWorkflow `json:"registeredWorkflows,omitempty"`
+	RuntimeInfo         *WorkerRuntimeInfo    `json:"runtimeInfo,omitempty"`
 
 	// Slots The semaphore slot state for the worker.
 	Slots *[]SemaphoreSlots `json:"slots,omitempty"`
@@ -2284,6 +2328,18 @@ type V1TaskGetParams struct {
 	Attempt *int `form:"attempt,omitempty" json:"attempt,omitempty"`
 }
 
+// V1LogLineListParams defines parameters for V1LogLineList.
+type V1LogLineListParams struct {
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Since The start time to get logs for
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+
+	// Until The end time to get logs for
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+}
+
 // V1TaskEventListParams defines parameters for V1TaskEventList.
 type V1TaskEventListParams struct {
 	// Offset The number to skip
@@ -2429,6 +2485,24 @@ type V1WorkflowRunListParams struct {
 type V1WorkflowRunDisplayNamesListParams struct {
 	// ExternalIds The external ids of the workflow runs to get display names for
 	ExternalIds []openapi_types.UUID `form:"external_ids" json:"external_ids"`
+}
+
+// V1WorkflowRunExternalIdsListParams defines parameters for V1WorkflowRunExternalIdsList.
+type V1WorkflowRunExternalIdsListParams struct {
+	// Statuses A list of statuses to filter by
+	Statuses *[]V1TaskStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// Since The earliest date to filter by
+	Since time.Time `form:"since" json:"since"`
+
+	// Until The latest date to filter by
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// AdditionalMetadata Additional metadata k-v pairs to filter by
+	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
+
+	// WorkflowIds The workflow ids to find runs for
+	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
 }
 
 // V1WorkflowRunTaskEventsListParams defines parameters for V1WorkflowRunTaskEventsList.
@@ -2788,6 +2862,9 @@ type WorkflowRunUpdateReplayJSONRequestBody = ReplayWorkflowRunsRequest
 // WorkflowRunCancelJSONRequestBody defines body for WorkflowRunCancel for application/json ContentType.
 type WorkflowRunCancelJSONRequestBody = WorkflowRunsCancelRequest
 
+// WorkflowCronUpdateJSONRequestBody defines body for WorkflowCronUpdate for application/json ContentType.
+type WorkflowCronUpdateJSONRequestBody = UpdateCronWorkflowTriggerRequest
+
 // CronWorkflowTriggerCreateJSONRequestBody defines body for CronWorkflowTriggerCreate for application/json ContentType.
 type CronWorkflowTriggerCreateJSONRequestBody = CreateCronWorkflowTriggerRequest
 
@@ -3030,7 +3107,7 @@ type ClientInterface interface {
 	V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1LogLineList request
-	V1LogLineList(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1LogLineList(ctx context.Context, task openapi_types.UUID, params *V1LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1TaskEventList request
 	V1TaskEventList(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3108,6 +3185,9 @@ type ClientInterface interface {
 
 	// V1WorkflowRunDisplayNamesList request
 	V1WorkflowRunDisplayNamesList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunExternalIdsList request
+	V1WorkflowRunExternalIdsList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunExternalIdsListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunCreateWithBody request with any body
 	V1WorkflowRunCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3263,6 +3343,9 @@ type ClientInterface interface {
 	// StepRunGetSchema request
 	StepRunGetSchema(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// TenantGetTaskStats request
+	TenantGetTaskStats(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// WebhookList request
 	WebhookList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3307,6 +3390,11 @@ type ClientInterface interface {
 
 	// WorkflowCronGet request
 	WorkflowCronGet(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowCronUpdateWithBody request with any body
+	WorkflowCronUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WorkflowCronUpdate(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, body WorkflowCronUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunList request
 	WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3632,8 +3720,8 @@ func (c *Client) V1TaskGet(ctx context.Context, task openapi_types.UUID, params 
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1LogLineList(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1LogLineListRequest(c.Server, task)
+func (c *Client) V1LogLineList(ctx context.Context, task openapi_types.UUID, params *V1LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1LogLineListRequest(c.Server, task, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3970,6 +4058,18 @@ func (c *Client) V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUI
 
 func (c *Client) V1WorkflowRunDisplayNamesList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1WorkflowRunDisplayNamesListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunExternalIdsList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunExternalIdsListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunExternalIdsListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4652,6 +4752,18 @@ func (c *Client) StepRunGetSchema(ctx context.Context, tenant openapi_types.UUID
 	return c.Client.Do(req)
 }
 
+func (c *Client) TenantGetTaskStats(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantGetTaskStatsRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) WebhookList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWebhookListRequest(c.Server, tenant)
 	if err != nil {
@@ -4834,6 +4946,30 @@ func (c *Client) WorkflowCronDelete(ctx context.Context, tenant openapi_types.UU
 
 func (c *Client) WorkflowCronGet(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowCronGetRequest(c.Server, tenant, cronWorkflow)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowCronUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowCronUpdateRequestWithBody(c.Server, tenant, cronWorkflow, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowCronUpdate(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, body WorkflowCronUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowCronUpdateRequest(c.Server, tenant, cronWorkflow, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5935,7 +6071,7 @@ func NewV1TaskGetRequest(server string, task openapi_types.UUID, params *V1TaskG
 }
 
 // NewV1LogLineListRequest generates requests for V1LogLineList
-func NewV1LogLineListRequest(server string, task openapi_types.UUID) (*http.Request, error) {
+func NewV1LogLineListRequest(server string, task openapi_types.UUID, params *V1LogLineListParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5958,6 +6094,60 @@ func NewV1LogLineListRequest(server string, task openapi_types.UUID) (*http.Requ
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Since != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, *params.Since); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -7499,6 +7689,122 @@ func NewV1WorkflowRunDisplayNamesListRequest(server string, tenant openapi_types
 					queryValues.Add(k, v2)
 				}
 			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WorkflowRunExternalIdsListRequest generates requests for V1WorkflowRunExternalIdsList
+func NewV1WorkflowRunExternalIdsListRequest(server string, tenant openapi_types.UUID, params *V1WorkflowRunExternalIdsListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/workflow-runs/external-ids", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Statuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, params.Since); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -9699,6 +10005,40 @@ func NewStepRunGetSchemaRequest(server string, tenant openapi_types.UUID, stepRu
 	return req, nil
 }
 
+// NewTenantGetTaskStatsRequest generates requests for TenantGetTaskStats
+func NewTenantGetTaskStatsRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/task-stats", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWebhookListRequest generates requests for WebhookList
 func NewWebhookListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -10428,6 +10768,60 @@ func NewWorkflowCronGetRequest(server string, tenant openapi_types.UUID, cronWor
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewWorkflowCronUpdateRequest calls the generic WorkflowCronUpdate builder with application/json body
+func NewWorkflowCronUpdateRequest(server string, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, body WorkflowCronUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWorkflowCronUpdateRequestWithBody(server, tenant, cronWorkflow, "application/json", bodyReader)
+}
+
+// NewWorkflowCronUpdateRequestWithBody generates requests for WorkflowCronUpdate with any type of body
+func NewWorkflowCronUpdateRequestWithBody(server string, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "cron-workflow", runtime.ParamLocationPath, cronWorkflow)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/crons/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -12304,7 +12698,7 @@ type ClientWithResponsesInterface interface {
 	V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error)
 
 	// V1LogLineListWithResponse request
-	V1LogLineListWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1LogLineListResponse, error)
+	V1LogLineListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1LogLineListParams, reqEditors ...RequestEditorFn) (*V1LogLineListResponse, error)
 
 	// V1TaskEventListWithResponse request
 	V1TaskEventListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*V1TaskEventListResponse, error)
@@ -12382,6 +12776,9 @@ type ClientWithResponsesInterface interface {
 
 	// V1WorkflowRunDisplayNamesListWithResponse request
 	V1WorkflowRunDisplayNamesListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunDisplayNamesListResponse, error)
+
+	// V1WorkflowRunExternalIdsListWithResponse request
+	V1WorkflowRunExternalIdsListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunExternalIdsListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunExternalIdsListResponse, error)
 
 	// V1WorkflowRunCreateWithBodyWithResponse request with any body
 	V1WorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WorkflowRunCreateResponse, error)
@@ -12537,6 +12934,9 @@ type ClientWithResponsesInterface interface {
 	// StepRunGetSchemaWithResponse request
 	StepRunGetSchemaWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetSchemaResponse, error)
 
+	// TenantGetTaskStatsWithResponse request
+	TenantGetTaskStatsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetTaskStatsResponse, error)
+
 	// WebhookListWithResponse request
 	WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookListResponse, error)
 
@@ -12581,6 +12981,11 @@ type ClientWithResponsesInterface interface {
 
 	// WorkflowCronGetWithResponse request
 	WorkflowCronGetWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowCronGetResponse, error)
+
+	// WorkflowCronUpdateWithBodyWithResponse request with any body
+	WorkflowCronUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowCronUpdateResponse, error)
+
+	WorkflowCronUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, body WorkflowCronUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowCronUpdateResponse, error)
 
 	// WorkflowRunListWithResponse request
 	WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*WorkflowRunListResponse, error)
@@ -12705,6 +13110,7 @@ type ClientWithResponsesInterface interface {
 type LivenessGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON500      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -12726,6 +13132,7 @@ func (r LivenessGetResponse) StatusCode() int {
 type ReadinessGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON500      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -13614,6 +14021,31 @@ func (r V1WorkflowRunDisplayNamesListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1WorkflowRunDisplayNamesListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunExternalIdsListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1WorkflowRunExternalIdList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunExternalIdsListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunExternalIdsListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -14647,6 +15079,31 @@ func (r StepRunGetSchemaResponse) StatusCode() int {
 	return 0
 }
 
+type TenantGetTaskStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TaskStats
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantGetTaskStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantGetTaskStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WebhookListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -14960,6 +15417,29 @@ func (r WorkflowCronGetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r WorkflowCronGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WorkflowCronUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowCronUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowCronUpdateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -15912,8 +16392,8 @@ func (c *ClientWithResponses) V1TaskGetWithResponse(ctx context.Context, task op
 }
 
 // V1LogLineListWithResponse request returning *V1LogLineListResponse
-func (c *ClientWithResponses) V1LogLineListWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1LogLineListResponse, error) {
-	rsp, err := c.V1LogLineList(ctx, task, reqEditors...)
+func (c *ClientWithResponses) V1LogLineListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1LogLineListParams, reqEditors ...RequestEditorFn) (*V1LogLineListResponse, error) {
+	rsp, err := c.V1LogLineList(ctx, task, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16163,6 +16643,15 @@ func (c *ClientWithResponses) V1WorkflowRunDisplayNamesListWithResponse(ctx cont
 		return nil, err
 	}
 	return ParseV1WorkflowRunDisplayNamesListResponse(rsp)
+}
+
+// V1WorkflowRunExternalIdsListWithResponse request returning *V1WorkflowRunExternalIdsListResponse
+func (c *ClientWithResponses) V1WorkflowRunExternalIdsListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunExternalIdsListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunExternalIdsListResponse, error) {
+	rsp, err := c.V1WorkflowRunExternalIdsList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunExternalIdsListResponse(rsp)
 }
 
 // V1WorkflowRunCreateWithBodyWithResponse request with arbitrary body returning *V1WorkflowRunCreateResponse
@@ -16655,6 +17144,15 @@ func (c *ClientWithResponses) StepRunGetSchemaWithResponse(ctx context.Context, 
 	return ParseStepRunGetSchemaResponse(rsp)
 }
 
+// TenantGetTaskStatsWithResponse request returning *TenantGetTaskStatsResponse
+func (c *ClientWithResponses) TenantGetTaskStatsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetTaskStatsResponse, error) {
+	rsp, err := c.TenantGetTaskStats(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantGetTaskStatsResponse(rsp)
+}
+
 // WebhookListWithResponse request returning *WebhookListResponse
 func (c *ClientWithResponses) WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookListResponse, error) {
 	rsp, err := c.WebhookList(ctx, tenant, reqEditors...)
@@ -16794,6 +17292,23 @@ func (c *ClientWithResponses) WorkflowCronGetWithResponse(ctx context.Context, t
 		return nil, err
 	}
 	return ParseWorkflowCronGetResponse(rsp)
+}
+
+// WorkflowCronUpdateWithBodyWithResponse request with arbitrary body returning *WorkflowCronUpdateResponse
+func (c *ClientWithResponses) WorkflowCronUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowCronUpdateResponse, error) {
+	rsp, err := c.WorkflowCronUpdateWithBody(ctx, tenant, cronWorkflow, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowCronUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) WorkflowCronUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, body WorkflowCronUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowCronUpdateResponse, error) {
+	rsp, err := c.WorkflowCronUpdate(ctx, tenant, cronWorkflow, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowCronUpdateResponse(rsp)
 }
 
 // WorkflowRunListWithResponse request returning *WorkflowRunListResponse
@@ -17186,6 +17701,16 @@ func ParseLivenessGetResponse(rsp *http.Response) (*LivenessGetResponse, error) 
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
 	return response, nil
 }
 
@@ -17200,6 +17725,16 @@ func ParseReadinessGetResponse(rsp *http.Response) (*ReadinessGetResponse, error
 	response := &ReadinessGetResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
@@ -18698,6 +19233,53 @@ func ParseV1WorkflowRunDisplayNamesListResponse(rsp *http.Response) (*V1Workflow
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest V1WorkflowRunDisplayNameList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunExternalIdsListResponse parses an HTTP response from a V1WorkflowRunExternalIdsListWithResponse call
+func ParseV1WorkflowRunExternalIdsListResponse(rsp *http.Response) (*V1WorkflowRunExternalIdsListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunExternalIdsListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1WorkflowRunExternalIdList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -20527,6 +21109,53 @@ func ParseStepRunGetSchemaResponse(rsp *http.Response) (*StepRunGetSchemaRespons
 	return response, nil
 }
 
+// ParseTenantGetTaskStatsResponse parses an HTTP response from a TenantGetTaskStatsWithResponse call
+func ParseTenantGetTaskStatsResponse(rsp *http.Response) (*TenantGetTaskStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantGetTaskStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TaskStats
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseWebhookListResponse parses an HTTP response from a WebhookListWithResponse call
 func ParseWebhookListResponse(rsp *http.Response) (*WebhookListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -21078,6 +21707,39 @@ func ParseWorkflowCronGetResponse(rsp *http.Response) (*WorkflowCronGetResponse,
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowCronUpdateResponse parses an HTTP response from a WorkflowCronUpdateWithResponse call
+func ParseWorkflowCronUpdateResponse(rsp *http.Response) (*WorkflowCronUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowCronUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

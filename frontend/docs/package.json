@@ -2,7 +2,7 @@
   "name": "nextra-docs-template",
   "version": "0.0.1",
   "description": "Nextra docs template",
-  "packageManager": "pnpm@9.15.4",
+  "packageManager": "pnpm@10.16.1",
   "scripts": {
     "taskfile-dev": "pnpm run generate-examples && next dev",
     "dev": "next dev",
@@ -27,37 +27,47 @@
   "dependencies": {
     "@radix-ui/react-icons": "^1.3.2",
     "@radix-ui/react-slot": "^1.2.3",
+    "@types/js-yaml": "^4.0.9",
+    "@types/swagger-ui-react": "^5.18.0",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "estree-util-value-to-estree": "^3.4.0",
+    "js-yaml": "^4.1.0",
     "loops": "^5.0.1",
     "lucide-react": "^0.459.0",
-    "next": "^14.2.32",
+    "next": "^14.2.33",
     "nextra": "^3.3.1",
     "nextra-theme-docs": "^3.3.1",
     "postcss": "^8.5.6",
-    "posthog-js": "^1.260.1",
+    "posthog-js": "^1.272.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-lottie-player": "^2.1.0",
     "react-tweet": "^3.2.2",
     "recharts": "^2.15.4",
     "shiki": "^1.29.2",
+    "swagger-ui-react": "^5.29.3",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^3.4.18",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@types/node": "18.11.10",
-    "@types/react": "^18.3.23",
+    "@types/react": "^18.3.26",
     "@types/react-dom": "^18.3.7",
+    "postcss-import": "^16.1.1",
     "prettier": "^3.6.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.3"
   },
   "resolutions": {
     "nanoid": "^3.3.8",
     "katex": "^0.16.21"
   },
-  "type": "module"
+  "type": "module",
+  "pnpm": {
+    "overrides": {
+      "prismjs": "^1.30.0"
+    }
+  }
 }

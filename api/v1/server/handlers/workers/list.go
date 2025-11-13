@@ -96,7 +96,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, re
 		slots := int(worker.RemainingSlots)
 		actions := workerIdToActionIds[sqlchelpers.UUIDToStr(workerCp.Worker.ID)]
 
-		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp.Worker, &slots, &workerCp.WebhookUrl.String, actions)
+		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp.Worker, &slots, &workerCp.WebhookUrl.String, actions, nil)
 	}
 
 	return gen.WorkerList200JSONResponse(

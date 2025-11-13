@@ -63,6 +63,7 @@ import {
   StepRun,
   StepRunArchiveList,
   StepRunEventList,
+  TaskStats,
   Tenant,
   TenantAlertEmailGroup,
   TenantAlertEmailGroupList,
@@ -75,6 +76,7 @@ import {
   TenantResourcePolicy,
   TenantStepRunQueueMetrics,
   TriggerWorkflowRunRequest,
+  UpdateCronWorkflowTriggerRequest,
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
   UpdateTenantMemberRequest,
@@ -113,6 +115,7 @@ import {
   V1WebhookSourceName,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
+  V1WorkflowRunExternalIdList,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
   WebhookWorkerListResponse,
@@ -209,10 +212,31 @@ export class Api<
    * @request GET:/api/v1/stable/tasks/{task}/logs
    * @secure
    */
-  v1LogLineList = (task: string, params: RequestParams = {}) =>
+  v1LogLineList = (
+    task: string,
+    query?: {
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * The start time to get logs for
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end time to get logs for
+       * @format date-time
+       */
+      until?: string;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<V1LogLineList, APIErrors>({
       path: `/api/v1/stable/tasks/${task}/logs`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
@@ -387,6 +411,45 @@ export class Api<
   ) =>
     this.request<V1WorkflowRunDisplayNameList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs/display-names`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists external ids for workflow runs matching filters
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunExternalIdsList
+   * @summary List workflow run external ids
+   * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs/external-ids
+   * @secure
+   */
+  v1WorkflowRunExternalIdsList = (
+    tenant: string,
+    query: {
+      /** A list of statuses to filter by */
+      statuses?: V1TaskStatus[];
+      /**
+       * The earliest date to filter by
+       * @format date-time
+       */
+      since: string;
+      /**
+       * The latest date to filter by
+       * @format date-time
+       */
+      until?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
+      /** The workflow ids to find runs for */
+      workflow_ids?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1WorkflowRunExternalIdList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs/external-ids`,
       method: "GET",
       query: query,
       secure: true,
@@ -974,7 +1037,7 @@ export class Api<
    * @request GET:/api/ready
    */
   readinessGet = (params: RequestParams = {}) =>
-    this.request<void, void>({
+    this.request<void, APIErrors>({
       path: `/api/ready`,
       method: "GET",
       ...params,
@@ -988,7 +1051,7 @@ export class Api<
    * @request GET:/api/live
    */
   livenessGet = (params: RequestParams = {}) =>
-    this.request<void, void>({
+    this.request<void, APIErrors>({
       path: `/api/live`,
       method: "GET",
       ...params,
@@ -2345,6 +2408,29 @@ export class Api<
       ...params,
     });
   /**
+   * @description Update a cron workflow for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowCronUpdate
+   * @summary Update cron job workflow run
+   * @request PATCH:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
+   * @secure
+   */
+  workflowCronUpdate = (
+    tenant: string,
+    cronWorkflow: string,
+    data: UpdateCronWorkflowTriggerRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
    * @description Cancel a batch of workflow runs
    *
    * @tags Workflow Run
@@ -3185,6 +3271,23 @@ export class Api<
       path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
       method: "GET",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Get task stats for tenant
+   *
+   * @tags Tenant
+   * @name TenantGetTaskStats
+   * @summary Get task stats for tenant
+   * @request GET:/api/v1/tenants/{tenant}/task-stats
+   * @secure
+   */
+  tenantGetTaskStats = (tenant: string, params: RequestParams = {}) =>
+    this.request<TaskStats, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/task-stats`,
+      method: "GET",
+      secure: true,
+      format: "json",
       ...params,
     });
 }

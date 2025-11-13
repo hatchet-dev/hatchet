@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -15,7 +16,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -25,6 +25,7 @@ import (
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type SchedulerOpt func(*SchedulerOpts)
@@ -125,6 +126,8 @@ type Scheduler struct {
 	ql *zerolog.Logger
 
 	pool *v1.SchedulingPool
+
+	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
 }
 
 func New(
@@ -167,18 +170,22 @@ func New(
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
+	// TODO: replace with config or pull into a constant
+	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
+
 	q := &Scheduler{
-		mq:        opts.mq,
-		pubBuffer: pubBuffer,
-		l:         opts.l,
-		repo:      opts.repo,
-		repov1:    opts.repov1,
-		dv:        opts.dv,
-		s:         s,
-		a:         a,
-		p:         opts.p,
-		ql:        opts.queueLogger,
-		pool:      opts.pool,
+		mq:                     opts.mq,
+		pubBuffer:              pubBuffer,
+		l:                      opts.l,
+		repo:                   opts.repo,
+		repov1:                 opts.repov1,
+		dv:                     opts.dv,
+		s:                      s,
+		a:                      a,
+		p:                      opts.p,
+		ql:                     opts.queueLogger,
+		pool:                   opts.pool,
+		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
 	}
 
 	return q, nil
@@ -535,6 +542,14 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 	if len(res.Unassigned) > 0 {
 		for _, unassigned := range res.Unassigned {
+			taskExternalId := sqlchelpers.UUIDToStr(unassigned.ExternalID)
+
+			// if we have seen this task recently, don't send it again
+			if _, ok := s.tasksWithNoWorkerCache.Get(taskExternalId); ok {
+				s.l.Debug().Msgf("skipping unassigned task %s as it was recently unassigned", taskExternalId)
+				continue
+			}
+
 			taskId := unassigned.TaskID
 
 			msg, err := tasktypes.MonitoringEventMessageFromInternal(
@@ -562,6 +577,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
 			}
+
+			s.tasksWithNoWorkerCache.Add(taskExternalId, struct{}{})
 		}
 	}
 

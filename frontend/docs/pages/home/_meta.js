@@ -20,7 +20,7 @@ export default {
     title: "Ways of Running Tasks",
     type: "separator",
   },
-  "running-tasks": "Inter-Service Triggering",
+  "running-tasks": "Running Tasks",
   "run-with-results": "Run and Wait Trigger",
   "run-no-wait": "Run Without Wait Trigger",
   "scheduled-runs": "Scheduled Trigger",
@@ -28,6 +28,7 @@ export default {
   "run-on-event": "Event Trigger",
   "bulk-run": "Bulk Run Many",
   webhooks: "Webhooks",
+  "inter-service-triggering": "Inter-Service Triggering",
   "--deploying-workers": {
     title: "Deploying Workers",
     type: "separator",
@@ -129,6 +130,7 @@ export default {
   pydantic: "Pydantic",
   lifespans: "Lifespans",
   "dependency-injection": "Dependency Injection",
+  dataclasses: "Dataclass Support",
   blog: {
     title: "Blog",
     type: "page",

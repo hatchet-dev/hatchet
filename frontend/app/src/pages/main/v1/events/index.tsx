@@ -10,11 +10,9 @@ import {
 } from './components/event-columns';
 import { Separator } from '@/components/v1/ui/separator';
 import { useMemo, useState } from 'react';
-import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
+import { VisibilityState } from '@tanstack/react-table';
 import { V1Event, V1Filter } from '@/lib/api';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { RunsTable } from '../workflow-runs-v1/components/runs-table';
@@ -28,10 +26,10 @@ import {
 import { useFilters } from '../filters/hooks/use-filters';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useEvents } from './hooks/use-events';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export default function Events() {
-  const [rotate, setRotate] = useState(false);
-  const [hoveredEventId] = useState<string | null>(null);
   const [openMetadataPopover, setOpenMetadataPopover] = useState<string | null>(
     null,
   );
@@ -54,9 +52,10 @@ export default function Events() {
     eventKeyFilters,
     workflowKeyFilters,
     workflowRunStatusFilters,
+    isRefetching,
+    resetFilters,
   } = useEvents({
     key: 'table',
-    hoveredEventId,
   });
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
@@ -64,8 +63,6 @@ export default function Events() {
     [EventColumn.payload]: false,
     [scopeKey]: false,
   });
-
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const tableColumns = columns({
     onRowClick: (row: V1Event) => {
@@ -82,24 +79,6 @@ export default function Events() {
     setOpenPayloadPopover,
   });
 
-  const actions = [
-    <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        refetch();
-        setRotate(!rotate);
-      }}
-      variant={'outline'}
-      aria-label="Refresh events list"
-    >
-      <ArrowPathIcon
-        className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-      />
-    </Button>,
-  ];
-
   return (
     <>
       <DataTable
@@ -112,16 +91,19 @@ export default function Events() {
             columnId: keyKey,
             title: EventColumn.key,
             options: eventKeyFilters,
+            type: ToolbarType.Array,
           },
           {
             columnId: workflowKey,
             title: EventColumn.workflowId,
             options: workflowKeyFilters,
+            type: ToolbarType.Checkbox,
           },
           {
             columnId: statusKey,
             title: EventColumn.status,
             options: workflowRunStatusFilters,
+            type: ToolbarType.Checkbox,
           },
           {
             columnId: metadataKey,
@@ -142,44 +124,77 @@ export default function Events() {
         showColumnToggle={true}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
-        actions={actions}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         pagination={pagination}
         setPagination={setPagination}
         onSetPageSize={setPageSize}
         pageCount={numEvents}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
         getRowId={(row) => row.metadata.id}
         columnKeyToName={EventColumn}
+        showSelectedRows={false}
+        refetchProps={{
+          isRefetching,
+          onRefetch: refetch,
+        }}
+        onResetFilters={resetFilters}
+        emptyState={
+          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+            <p className="text-lg font-semibold">No events found</p>
+            <div className="w-fit">
+              <DocsButton
+                doc={docsPages.home['run-on-event']}
+                size="full"
+                variant="outline"
+                label="Learn about pushing events to Hatchet"
+              />
+            </div>
+          </div>
+        }
       />
     </>
   );
 }
 
 export function ExpandedEventContent({ event }: { event: V1Event }) {
-  const { filters, workflowIdToName } = useFilters({ key: 'events-table' });
+  const hasScope = Boolean(event.scope && event.scope.length > 0);
+  const { filters, workflowIdToName } = useFilters({
+    key: 'events-table',
+    scopeOverrides: event.scope ? [event.scope] : undefined,
+  });
 
   return (
     <div className="w-full">
       <div className="space-y-6">
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            Seen <RelativeDate date={event.metadata.createdAt} />
-          </p>
+        <div className="flex flex-col justify-center items-start gap-3 pb-4 border-b text-sm">
+          <div className="flex flex-row items-center gap-3 min-w-0 w-full">
+            <span className="text-muted-foreground font-medium shrink-0">
+              Key
+            </span>
+            <div className="px-2 py-1 overflow-x-auto min-w-0 flex-1">
+              <span className="whitespace-nowrap">{event.key}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-muted-foreground font-medium">Seen</span>
+            <span className="font-medium">
+              <RelativeDate date={event.metadata.createdAt} />
+            </span>
+          </div>
         </div>
 
         <div className="space-y-4">
           <div>
             <h3 className="text-sm font-semibold text-foreground mb-2">
-              Event Data
+              Payload
             </h3>
             <Separator className="mb-3" />
-            <EventDataSection event={event} />
+            <div className="max-h-96 overflow-y-auto rounded-lg">
+              <EventDataSection event={event} />
+            </div>
           </div>
 
-          {filters && filters.length > 0 && (
+          {hasScope && filters && filters.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-2">
                 Filters
@@ -240,7 +255,6 @@ function FiltersSection({
         <DataTable
           columns={columns}
           data={filters}
-          filters={[]}
           columnKeyToName={FilterColumn}
         />
       </div>
