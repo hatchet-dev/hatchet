@@ -1,7 +1,6 @@
 import asyncio
 from collections.abc import Callable
-from dataclasses import dataclass, is_dataclass
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from functools import cached_property
 from typing import (
@@ -11,7 +10,6 @@ from typing import (
     Generic,
     Literal,
     ParamSpec,
-    TypeGuard,
     TypeVar,
     cast,
     get_type_hints,
@@ -19,7 +17,6 @@ from typing import (
 )
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, TypeAdapter, model_validator
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 
 from hatchet_sdk.clients.admin import (
@@ -45,7 +42,6 @@ from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
-    DataclassInstance,
     EmptyModel,
     R,
     StepType,
@@ -92,30 +88,6 @@ class NoValidator:
 
 
 OutputValidator = PydanticModelValidator | DataclassValidator | NoValidator
-
-
-def is_basemodel_validator(
-    validator: OutputValidator,
-) -> TypeGuard[PydanticModelValidator]:
-    return validator.kind == "basemodel"
-
-
-def is_dataclass_validator(validator: OutputValidator) -> TypeGuard[DataclassValidator]:
-    return validator.kind == "dataclass"
-
-
-def is_no_validator(validator: OutputValidator) -> TypeGuard[NoValidator]:
-    return validator.kind == "none"
-
-
-def classify_output_validator(return_type: Any | None) -> OutputValidator:
-    if is_basemodel_subclass(return_type):
-        return PydanticModelValidator(validator_type=return_type)
-
-    if is_dataclass(return_type) and isinstance(return_type, type):
-        return DataclassValidator(validator_type=return_type)
-
-    return NoValidator()
 
 
 def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -> T:

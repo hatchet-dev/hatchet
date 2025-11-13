@@ -27,8 +27,6 @@ from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
-from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
-from hatchet_sdk.worker.runner.utils.schemas import LogRecord
 from hatchet_sdk.utils.typing import (
     JSONSerializableMapping,
     LogLevel,
@@ -36,7 +34,8 @@ from hatchet_sdk.utils.typing import (
     is_basemodel_validator,
     is_dataclass_validator,
 )
-from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
+from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender
+from hatchet_sdk.worker.runner.utils.schemas import LogRecord
 
 if TYPE_CHECKING:
     from hatchet_sdk.clients.admin import AdminClient
