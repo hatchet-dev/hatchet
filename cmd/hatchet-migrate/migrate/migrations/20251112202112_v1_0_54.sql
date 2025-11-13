@@ -99,6 +99,29 @@ BEGIN
     END LOOP;
 END $$;
 
+CREATE OR REPLACE FUNCTION v1_events_lookup_table_olap_insert_function()
+RETURNS TRIGGER AS
+$$
+BEGIN
+    INSERT INTO v1_event_lookup_table_olap (
+        tenant_id,
+        external_id,
+        event_id,
+        event_seen_at
+    )
+    SELECT
+        tenant_id,
+        external_id,
+        id,
+        seen_at
+    FROM new_rows
+    ON CONFLICT (external_id, event_seen_at) DO NOTHING;
+
+    RETURN NULL;
+END;
+$$
+LANGUAGE plpgsql;
+
 COMMIT;
 -- +goose StatementEnd
 
@@ -202,6 +225,29 @@ BEGIN
         RAISE NOTICE 'Renamed % to % and index to %', partition_record.tablename, new_name, new_name || '_pkey';
     END LOOP;
 END $$;
+
+CREATE OR REPLACE FUNCTION v1_events_lookup_table_olap_insert_function()
+RETURNS TRIGGER AS
+$$
+BEGIN
+    INSERT INTO v1_event_lookup_table_olap (
+        tenant_id,
+        external_id,
+        event_id,
+        event_seen_at
+    )
+    SELECT
+        tenant_id,
+        external_id,
+        id,
+        seen_at
+    FROM new_rows
+    ON CONFLICT (tenant_id, external_id, event_seen_at) DO NOTHING;
+
+    RETURN NULL;
+END;
+$$
+LANGUAGE plpgsql;
 
 COMMIT;
 -- +goose StatementEnd

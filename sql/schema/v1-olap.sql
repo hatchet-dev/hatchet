@@ -782,7 +782,7 @@ BEGIN
         id,
         seen_at
     FROM new_rows
-    ON CONFLICT (tenant_id, external_id, event_seen_at) DO NOTHING;
+    ON CONFLICT (external_id, event_seen_at) DO NOTHING;
 
     RETURN NULL;
 END;
