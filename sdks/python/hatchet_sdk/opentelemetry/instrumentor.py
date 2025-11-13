@@ -294,9 +294,13 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         action = cast(Action, params[0])
 
         traceparent = _parse_carrier_from_metadata(action.additional_metadata)
+        span_name = "hatchet.start_step_run"
+
+        if self.config.otel.include_task_name_in_root_span_name:
+            span_name += f".{action.action_id}"
 
         with self._tracer.start_as_current_span(
-            "hatchet.start_step_run",
+            span_name,
             attributes=action.get_otel_attributes(self.config),
             context=traceparent,
             kind=SpanKind.CONSUMER,

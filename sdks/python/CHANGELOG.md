@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.21.2] - 2025-11-13
 
+### Added
+
+- Adds an OTel option to allow you to include the action name in the root span name for task runs.
+
 ### Changed
 
 - Span kinds (e.g. producer, consumer) have been added to OpenTelemetry spans created by the SDK to better reflect their roles.

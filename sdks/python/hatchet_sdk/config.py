@@ -48,6 +48,8 @@ class OpenTelemetryConfig(BaseSettings):
         description='Note that if specifying this field via an environment variable, the variable must be a valid JSON array. For example: \'["action_name", "action_payload"]\'',
     )
 
+    include_task_name_in_root_span_name: bool = False
+
 
 DEFAULT_HOST_PORT = "localhost:7070"
 
