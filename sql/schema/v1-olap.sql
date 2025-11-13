@@ -729,7 +729,8 @@ BEGIN
         workflow_id,
         kind,
         readable_status
-    FROM new_rows;
+    FROM new_rows
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
