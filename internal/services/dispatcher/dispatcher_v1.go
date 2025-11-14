@@ -246,6 +246,11 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			}
 		}
 
+		// this is to avoid a nil pointer dereference in the code below
+		if inputs == nil {
+			inputs = make(map[v1.RetrievePayloadOpts][]byte)
+		}
+
 		for _, task := range bulkDatas {
 			input, ok := inputs[v1.RetrievePayloadOpts{
 				Id:         task.ID,
