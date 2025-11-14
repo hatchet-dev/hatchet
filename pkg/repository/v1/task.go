@@ -1913,8 +1913,12 @@ func (r *sharedRepository) insertTasks(
 						Valid:  true,
 					}
 
-					// set to empty slice to avoid nil in multi-dimensional array
-					concurrencyKeys[i] = []string{}
+					// set to "FAILED" for each strategy to maintain cardinality in multi-dimensional array
+					failedKeys := make([]string, len(strats))
+					for j := range failedKeys {
+						failedKeys[j] = "FAILED"
+					}
+					concurrencyKeys[i] = failedKeys
 				} else {
 					concurrencyKeys[i] = taskConcurrencyKeys
 				}
@@ -2241,8 +2245,14 @@ func (r *sharedRepository) replayTasks(
 		taskIds[i] = task.TaskId
 		taskInsertedAts[i] = task.InsertedAt
 
-		// initialize to empty slice to avoid nil in multi-dimensional array
-		concurrencyKeys[i] = []string{}
+		// initialize with empty strings (one per concurrency strategy) to maintain cardinality in multi-dimensional array
+		emptyConcurrencyKeys := make([]string, 0)
+		if strats, ok := concurrencyStrats[task.StepId]; ok {
+			for range strats {
+				emptyConcurrencyKeys = append(emptyConcurrencyKeys, "")
+			}
+		}
+		concurrencyKeys[i] = emptyConcurrencyKeys
 
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
@@ -2319,6 +2329,13 @@ func (r *sharedRepository) replayTasks(
 						String: failTaskError.Error(),
 						Valid:  true,
 					}
+
+					// set to "FAILED" for each strategy to maintain cardinality in multi-dimensional array
+					failedKeys := make([]string, len(strats))
+					for j := range failedKeys {
+						failedKeys[j] = "FAILED"
+					}
+					concurrencyKeys[i] = failedKeys
 				} else {
 					concurrencyKeys[i] = taskConcurrencyKeys
 				}
