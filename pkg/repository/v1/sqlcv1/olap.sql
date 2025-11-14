@@ -4,7 +4,8 @@ SELECT
     create_v1_hash_partitions('v1_task_status_updates_tmp'::text, @partitions::int),
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, @date::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, @date::date),
-    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date)
+    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date),
+    create_v1_range_partition('v1_payloads_olap'::text, @date::date)
 ;
 
 -- name: CreateOLAPEventPartitions :exec
@@ -28,6 +29,9 @@ ANALYZE v1_dags_olap;
 -- name: AnalyzeV1DAGToTaskOLAP :exec
 ANALYZE v1_dag_to_task_olap;
 
+-- name: AnalyzeV1PayloadsOLAP :exec
+ANALYZE v1_payloads_olap;
+
 -- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, @date::date) AS p
@@ -45,6 +49,8 @@ WITH task_partitions AS (
     SELECT 'v1_incoming_webhook_validation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_incoming_webhook_validation_failures_olap', @date::date) AS p
 ), cel_evaluation_failures_partitions AS (
     SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', @date::date) AS p
+), payloads_partitions AS (
+    SELECT 'v1_payloads_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -99,6 +105,13 @@ WITH task_partitions AS (
         *
     FROM
         cel_evaluation_failures_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        payloads_partitions
 )
 
 SELECT *
@@ -106,6 +119,8 @@ FROM candidates
 WHERE
     CASE
         WHEN @shouldPartitionEventsTables::BOOLEAN THEN TRUE
+        -- this is a list of all of the tables which are hypertables in timescale, so we should not manually drop their
+        -- partitions if @shouldPartitionEventsTables is false
         ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap')
     END
 ;
@@ -217,7 +232,8 @@ INSERT INTO v1_task_events_olap (
     output,
     worker_id,
     additional__event_data,
-    additional__event_message
+    additional__event_message,
+    external_id
 ) VALUES (
     $1,
     $2,
@@ -231,7 +247,8 @@ INSERT INTO v1_task_events_olap (
     $10,
     $11,
     $12,
-    $13
+    $13,
+    $14
 );
 
 -- name: ReadTaskByExternalID :one
@@ -248,6 +265,7 @@ WITH lookup_task AS (
 SELECT
     t.*,
     e.output,
+    e.external_id AS event_external_id,
     e.error_message
 FROM
     v1_tasks_olap t
@@ -336,6 +354,7 @@ SELECT
   t.readable_status,
   t.error_message,
   t.output,
+  t.external_id AS event_external_id,
   t.worker_id,
   t.additional__event_data,
   t.additional__event_message
@@ -386,6 +405,7 @@ SELECT
   t.readable_status,
   t.error_message,
   t.output,
+  t.external_id AS event_external_id,
   t.worker_id,
   t.additional__event_data,
   t.additional__event_message,
@@ -439,8 +459,16 @@ WITH selected_retry_count AS (
         relevant_events
     WHERE
         event_type = 'STARTED'
+), queued_at AS (
+    SELECT
+        MAX(event_timestamp) AS queued_at
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'QUEUED'
 ), task_output AS (
     SELECT
+        external_id,
         output
     FROM
         relevant_events
@@ -483,7 +511,9 @@ SELECT
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
-    o.output::jsonb as output,
+    q.queued_at::timestamptz as queued_at,
+    o.external_id::UUID AS output_event_external_id,
+    o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
     (SELECT retry_count FROM selected_retry_count) as retry_count
@@ -493,6 +523,8 @@ LEFT JOIN
     finished_at f ON true
 LEFT JOIN
     started_at s ON true
+LEFT JOIN
+    queued_at q ON true
 LEFT JOIN
     task_output o ON true
 LEFT JOIN
@@ -511,6 +543,7 @@ WITH metadata AS (
         MAX(event_timestamp) FILTER (WHERE event_type = 'STARTED')::TIMESTAMPTZ AS started_at,
         MAX(event_timestamp) FILTER (WHERE readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[]))::TIMESTAMPTZ AS finished_at,
         MAX(output::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::JSONB AS output,
+        MAX(external_id::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::UUID AS output_event_external_id,
         MAX(error_message) FILTER (WHERE readable_status = 'FAILED')::TEXT AS error_message
     FROM
         v1_task_events_olap
@@ -562,7 +595,8 @@ SELECT
     CASE
         WHEN @includePayloads::BOOLEAN THEN m.output::JSONB
         ELSE '{}'::JSONB
-    END::JSONB AS output
+    END::JSONB AS output,
+    m.output_event_external_id::UUID AS output_event_external_id
 FROM
     v1_tasks_olap t, metadata m
 WHERE
@@ -983,6 +1017,7 @@ WITH run AS (
         MAX(e.event_timestamp) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at,
         MAX(e.error_message) FILTER (WHERE e.readable_status = 'FAILED') AS error_message,
         MAX(e.output::TEXT) FILTER (WHERE e.event_type = 'FINISHED')::JSONB AS output,
+        MAX(e.external_id::TEXT) FILTER (WHERE e.event_type = 'FINISHED')::UUID AS output_event_external_id,
         MAX(e.retry_count) AS max_retry_count
     FROM relevant_events e
     WHERE e.retry_count = (
@@ -999,6 +1034,7 @@ SELECT
     -- hack to force this to string since sqlc can't figure out that this should be pgtype.Text
     COALESCE(m.error_message, '')::TEXT AS error_message,
     m.output::JSONB AS output,
+    m.output_event_external_id::UUID AS output_event_external_id,
     COALESCE(m.max_retry_count, 0)::int as retry_count
 FROM run r, metadata m
 ;
@@ -1581,6 +1617,77 @@ INSERT INTO v1_cel_evaluation_failures_olap (
 )
 SELECT @tenantId::UUID, source, error
 FROM inputs
+;
+
+-- name: PutPayloads :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(@payloads::JSONB[]) AS payload,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(CAST(@locations::TEXT[] AS v1_payload_location_olap[])) AS location,
+        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key
+)
+
+INSERT INTO v1_payloads_olap (
+    tenant_id,
+    external_id,
+    inserted_at,
+    location,
+    external_location_key,
+    inline_content
+)
+
+SELECT
+    i.tenant_id,
+    i.external_id,
+    i.inserted_at,
+    i.location,
+    CASE
+        WHEN i.location = 'EXTERNAL' THEN i.external_location_key
+        ELSE NULL
+    END,
+    CASE
+        WHEN i.location = 'INLINE' THEN i.payload
+        ELSE NULL
+    END AS inline_content
+FROM inputs i
+ON CONFLICT (tenant_id, external_id, inserted_at) DO UPDATE
+SET
+    location = EXCLUDED.location,
+    external_location_key = EXCLUDED.external_location_key,
+    inline_content = EXCLUDED.inline_content,
+    updated_at = NOW()
+;
+
+-- name: OffloadPayloads :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key
+)
+
+UPDATE v1_payloads_olap
+SET
+    location = 'EXTERNAL',
+    external_location_key = i.external_location_key,
+    inline_content = NULL,
+    updated_at = NOW()
+FROM inputs i
+WHERE
+    (v1_payloads_olap.tenant_id, v1_payloads_olap.external_id) = (i.tenant_id, i.external_id)
+    AND v1_payloads_olap.location = 'INLINE'
+    AND v1_payloads_olap.external_location_key IS NULL
+;
+
+-- name: ReadPayloadsOLAP :many
+SELECT *
+FROM v1_payloads_olap
+WHERE
+    tenant_id = @tenantId::UUID
+    AND external_id = ANY(@externalIds::UUID[])
 ;
 
 -- name: ListWorkflowRunExternalIds :many

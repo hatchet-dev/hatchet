@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Callable
+from dataclasses import asdict
 from datetime import datetime, timedelta
 from functools import cached_property
 from typing import (
@@ -16,7 +17,7 @@ from typing import (
 )
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
@@ -52,8 +53,12 @@ from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import (
     CoroutineLike,
+    DataclassInstance,
     JSONSerializableMapping,
-    is_basemodel_subclass,
+    classify_output_validator,
+    is_basemodel_validator,
+    is_dataclass_validator,
+    is_no_validator,
 )
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -130,7 +135,8 @@ def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels
 
 
 class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
-    input: TWorkflowInput
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    input: SkipValidation[TWorkflowInput]
     options: TriggerWorkflowOptions
 
 
@@ -217,10 +223,26 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
-        return cast(
-            TWorkflowInput,
-            self.config.input_validator.model_validate(ctx.workflow_input),
-        )
+        validator = classify_output_validator(self.config.input_validator)
+
+        if is_dataclass_validator(validator):
+            return cast(
+                TWorkflowInput,
+                TypeAdapter(validator.validator_type).validate_python(
+                    ctx.workflow_input
+                ),
+            )
+
+        if is_basemodel_validator(validator):
+            return cast(
+                TWorkflowInput,
+                validator.validator_type.model_validate(ctx.workflow_input),
+            )
+
+        ## impossible to reach here since the input validator has to be either a BaseModel or dataclass
+
+        self.client.config.logger.error("input validator is of an unknown type")
+        return cast(TWorkflowInput, EmptyModel())
 
     @property
     def input_validator(self) -> type[TWorkflowInput]:
@@ -271,11 +293,16 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         if not input:
             return {}
 
-        if isinstance(input, BaseModel):
-            return input.model_dump(mode="json")
+        validator = classify_output_validator(self.config.input_validator)
+
+        if is_dataclass_validator(validator):
+            return asdict(cast(DataclassInstance, input))
+
+        if is_basemodel_validator(validator):
+            return cast(BaseModel, input).model_dump(mode="json")
 
         raise ValueError(
-            f"Input must be a BaseModel or `None`, got {type(input)} instead."
+            f"Input must be a BaseModel or dataclass, got {type(input)} instead."
         )
 
     @cached_property
@@ -1203,11 +1230,25 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         return_type = get_type_hints(self._task.fn).get("return")
 
-        self._output_validator = (
-            return_type if is_basemodel_subclass(return_type) else None
-        )
+        self._output_validator = self.get_output_validator(return_type)
 
         self.config = self._workflow.config
+
+    def get_output_validator(
+        self, return_type: Any | None
+    ) -> type[BaseModel] | type[DataclassInstance] | None:
+        validator = classify_output_validator(return_type)
+
+        if is_basemodel_validator(validator):
+            return validator.validator_type
+
+        if is_dataclass_validator(validator):
+            return validator.validator_type
+
+        if is_no_validator(validator):
+            return None
+
+        raise TypeError(f"Unhandled validator type: {validator}")
 
     @overload
     def _extract_result(self, result: dict[str, Any]) -> R: ...
@@ -1223,10 +1264,21 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         output = result.get(self._task.name)
 
-        if not self._output_validator:
+        validator = classify_output_validator(self._output_validator)
+
+        if is_basemodel_validator(validator):
+            return cast(R, validator.validator_type.model_validate(output))
+
+        if is_dataclass_validator(validator):
+            return cast(
+                R,
+                TypeAdapter(validator.validator_type).validate_python(output),
+            )
+
+        if is_no_validator(validator):
             return cast(R, output)
 
-        return cast(R, self._output_validator.model_validate(output))
+        raise TypeError(f"Unhandled validator type: {validator}")
 
     def run(
         self,

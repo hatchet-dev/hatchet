@@ -643,7 +643,6 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 					c := admincontracts.WorkerLabelComparator(*desiredLabel.Comparator)
 					stepOpt.WorkerLabels[key].Comparator = &c
 				}
-
 			}
 		}
 

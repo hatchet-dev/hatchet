@@ -34,6 +34,7 @@ func TestMessageQueueIntegration(t *testing.T) {
 		WithURL(url),
 		WithQos(100),
 		WithDeadLetterBackoff(5*time.Second),
+		WithMessageRejection(false, 10), // Disable message rejection for this test
 	)
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
@@ -271,6 +272,7 @@ func TestDeadLetteringSuccess(t *testing.T) {
 		WithURL(url),
 		WithQos(100),
 		WithDeadLetterBackoff(5*time.Second),
+		WithMessageRejection(false, 10), // Disable message rejection for this test
 	)
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")

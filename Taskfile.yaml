@@ -125,6 +125,7 @@ tasks:
       - go mod download
       - cd frontend/app/ && pnpm install
       - cd frontend/docs/ && pnpm install
+      - npm install -g vite
   generate-api:
     cmds:
       - task: generate-api-server

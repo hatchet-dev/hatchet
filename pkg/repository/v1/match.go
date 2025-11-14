@@ -262,6 +262,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
+			ExternalId: task.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			Payload:    task.Payload,
 			TenantId:   task.TenantID.String(),
@@ -304,6 +305,7 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
+			ExternalId: task.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			Payload:    task.Payload,
 			TenantId:   task.TenantID.String(),
@@ -493,7 +495,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			}
 		}
 
-		payloads, err := m.payloadStore.BulkRetrieve(ctx, retrievePayloadOpts...)
+		payloads, err := m.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve dag input payloads: %w", err)

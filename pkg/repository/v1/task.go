@@ -260,6 +260,8 @@ type TaskRepository interface {
 	// Cleanup makes sure to get rid of invalid old entries
 	// Returns (shouldContinue, error) where shouldContinue indicates if there's more work
 	Cleanup(ctx context.Context) (bool, error)
+
+	GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -290,16 +292,6 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
-	exists, err := r.EnsureTablePartitionsExist(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to check if table partitions exist: %w", err)
-	}
-
-	if exists {
-		r.l.Debug().Msg("table partitions already exist, skipping")
-		return nil
-	}
-
 	const PARTITION_LOCK_OFFSET = 9000000000000000000
 	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
 
@@ -387,6 +379,10 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 }
 
 func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
+
+	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.GetTaskByExternalId")
+	defer span.End()
+
 	if !skipCache {
 		// check the cache first
 		key := taskExternalIdTenantIdTuple{
@@ -395,9 +391,12 @@ func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, 
 		}
 
 		if val, ok := r.taskLookupCache.Get(key); ok {
+			span.SetAttributes(attribute.Bool("cache_hit", true))
 			return val, nil
 		}
 	}
+
+	span.SetAttributes(attribute.Bool("cache_hit", false))
 
 	// lookup the task
 	dbTasks, err := r.queries.FlattenExternalIds(ctx, r.pool, sqlcv1.FlattenExternalIdsParams{
@@ -1106,7 +1105,7 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		matchedEventToRetrieveOpts[event] = opt
 	}
 
-	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
 
 	if err != nil {
 		return nil, err
@@ -1381,6 +1380,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			ExternalId: task.ExternalID,
 			Payload:    task.Payload,
 			TenantId:   task.TenantID.String(),
 		}
@@ -1912,6 +1912,13 @@ func (r *sharedRepository) insertTasks(
 						String: failTaskError.Error(),
 						Valid:  true,
 					}
+
+					// set to "FAILED" for each strategy to maintain cardinality in multi-dimensional array
+					failedKeys := make([]string, len(strats))
+					for j := range failedKeys {
+						failedKeys[j] = "FAILED"
+					}
+					concurrencyKeys[i] = failedKeys
 				} else {
 					concurrencyKeys[i] = taskConcurrencyKeys
 				}
@@ -2313,6 +2320,13 @@ func (r *sharedRepository) replayTasks(
 						String: failTaskError.Error(),
 						Valid:  true,
 					}
+
+					// set to "FAILED" for each strategy to maintain cardinality in multi-dimensional array
+					failedKeys := make([]string, len(strats))
+					for j := range failedKeys {
+						failedKeys[j] = "FAILED"
+					}
+					concurrencyKeys[i] = failedKeys
 				} else {
 					concurrencyKeys[i] = taskConcurrencyKeys
 				}
@@ -2358,6 +2372,7 @@ func (r *sharedRepository) replayTasks(
 			Id:         taskIds[i],
 			InsertedAt: taskInsertedAts[i],
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			ExternalId: sqlchelpers.UUIDFromStr(task.ExternalId),
 			Payload:    input,
 			TenantId:   tenantId,
 		}
@@ -2699,6 +2714,7 @@ func (r *sharedRepository) createTaskEvents(
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         taskEvent.ID,
 			InsertedAt: taskEvent.InsertedAt,
+			ExternalId: taskEvent.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			Payload:    data,
 			TenantId:   tenantId,
@@ -2869,7 +2885,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		}
 	}
 
-	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to bulk retrieve task inputs: %w", err)
@@ -3477,7 +3493,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		retrieveOptToPayload[opt] = outputTask.Output
 	}
 
-	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve task output payloads: %w", err)
@@ -3553,7 +3569,7 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 		retrieveOpts[i] = retrieveOpt
 	}
 
-	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve task event payloads: %w", err)
@@ -3618,6 +3634,12 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_task_event: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1Dag(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_dag: %v", err)
+	}
+
 	err = r.queries.AnalyzeV1Payload(ctx, tx)
 
 	if err != nil {
@@ -3663,6 +3685,35 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		shouldContinue = true
 	}
 
+	result, err = r.queries.CleanupV1RetryQueueItem(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_retry_queue_item: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	result, err = r.queries.CleanupV1RateLimitedQueueItem(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_rate_limited_queue_items: %v", err)
+	}
+
+	if result.RowsAffected() == batchSize {
+		shouldContinue = true
+	}
+
+	today := time.Now().UTC()
+	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
+
+	err = r.queries.CleanupMatchWithMatchConditions(ctx, tx, pgtype.Date{
+		Time:  removeBefore,
+		Valid: true,
+	})
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up v1_match and v1_match_condition: %v", err)
+	}
+
 	result, err = r.queries.CleanupV1TaskRuntime(ctx, tx, batchSize)
 	if err != nil {
 		return false, fmt.Errorf("error cleaning up v1_task_runtime: %v", err)
@@ -3681,18 +3732,110 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		shouldContinue = true
 	}
 
-	result, err = r.queries.CleanupV1WorkflowConcurrencySlot(ctx, tx, batchSize)
-	if err != nil {
-		return false, fmt.Errorf("error cleaning up v1_workflow_concurrency_slot: %v", err)
-	}
-
-	if result.RowsAffected() == batchSize {
-		shouldContinue = true
-	}
-
 	if err := commit(ctx); err != nil {
 		return false, fmt.Errorf("error committing transaction: %v", err)
 	}
 
 	return shouldContinue, nil
+}
+
+// TaskStat represents the statistics for a single task step
+type TaskStat struct {
+	Queued  *TaskStatusStat `json:"queued,omitempty"`
+	Running *TaskStatusStat `json:"running,omitempty"`
+}
+
+// TaskStatusStat represents statistics for a specific task status (queued or running)
+type TaskStatusStat struct {
+	Total       int64             `json:"total"`
+	Queues      map[string]int64  `json:"queues,omitempty"`
+	Concurrency []ConcurrencyStat `json:"concurrency,omitempty"`
+}
+
+// ConcurrencyStat represents concurrency information for a task
+type ConcurrencyStat struct {
+	Expression string           `json:"expression"`
+	Type       string           `json:"type"`
+	Keys       map[string]int64 `json:"keys"`
+}
+
+func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error) {
+	rows, err := r.queries.GetTenantTaskStats(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]TaskStat)
+
+	for _, row := range rows {
+		stepReadableId := row.StepReadableID
+		taskStatus := row.TaskStatus
+		queue := row.Queue
+		expression := row.Expression.String
+		strategy := row.Strategy.String
+		key := row.Key.String
+		count := row.Count
+
+		taskStat, ok := result[stepReadableId]
+		if !ok {
+			result[stepReadableId] = TaskStat{}
+			taskStat = result[stepReadableId]
+		}
+
+		var statusStat *TaskStatusStat
+
+		switch taskStatus {
+		case "queued":
+			if taskStat.Queued == nil {
+				taskStat.Queued = &TaskStatusStat{
+					Queues: make(map[string]int64),
+				}
+				result[stepReadableId] = taskStat
+			}
+			statusStat = result[stepReadableId].Queued
+		case "running":
+			if taskStat.Running == nil {
+				taskStat.Running = &TaskStatusStat{}
+				result[stepReadableId] = taskStat
+			}
+			statusStat = result[stepReadableId].Running
+		}
+
+		statusStat.Total += count
+
+		if taskStatus == "queued" && queue != "" {
+			if statusStat.Queues == nil {
+				statusStat.Queues = make(map[string]int64)
+			}
+			statusStat.Queues[queue] += count
+		}
+
+		if expression != "" && key != "" && strategy != "NONE" {
+			var concurrencyEntry *ConcurrencyStat
+			for i := range statusStat.Concurrency {
+				if statusStat.Concurrency[i].Expression == expression && statusStat.Concurrency[i].Type == strategy {
+					concurrencyEntry = &statusStat.Concurrency[i]
+					break
+				}
+			}
+
+			if concurrencyEntry == nil {
+				newEntry := ConcurrencyStat{
+					Expression: expression,
+					Type:       strategy,
+					Keys:       make(map[string]int64),
+				}
+				statusStat.Concurrency = append(statusStat.Concurrency, newEntry)
+				concurrencyEntry = &statusStat.Concurrency[len(statusStat.Concurrency)-1]
+			}
+
+			if concurrencyEntry.Keys == nil {
+				concurrencyEntry.Keys = make(map[string]int64)
+			}
+			concurrencyEntry.Keys[key] += count
+		}
+	}
+
+	return result, nil
 }

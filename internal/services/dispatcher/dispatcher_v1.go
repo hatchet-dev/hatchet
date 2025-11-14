@@ -237,13 +237,18 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			}
 		}
 
-		inputs, err := d.repov1.Payloads().BulkRetrieve(ctx, retrievePayloadOpts...)
+		inputs, err := d.repov1.Payloads().Retrieve(ctx, nil, retrievePayloadOpts...)
 
 		if err != nil {
 			d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
 			for _, task := range bulkDatas {
 				requeue(task)
 			}
+		}
+
+		// this is to avoid a nil pointer dereference in the code below
+		if inputs == nil {
+			inputs = make(map[v1.RetrievePayloadOpts][]byte)
 		}
 
 		for _, task := range bulkDatas {

@@ -1641,12 +1641,15 @@ CREATE TABLE v1_durable_sleep (
 );
 
 CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA');
+
+-- IMPORTANT: Keep these values in sync with `v1_payload_type_olap` in the OLAP db
 CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payload (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL,
+    external_id UUID,
     type v1_payload_type NOT NULL,
     location v1_payload_location NOT NULL,
     external_location_key TEXT,
@@ -1707,8 +1710,14 @@ BEGIN
 
     EXECUTE format(
         'SELECT ARRAY(
-            SELECT DISTINCT e.tenant_id
-            FROM %I e
+            SELECT t.id
+            FROM "Tenant" t
+            WHERE EXISTS (
+                SELECT 1
+                FROM %I e
+                WHERE e.tenant_id = t.id
+                LIMIT 1
+            )
         )',
         partition_table)
     INTO result;
@@ -1730,9 +1739,15 @@ BEGIN
 
     EXECUTE format(
         'SELECT ARRAY(
-            SELECT DISTINCT e.tenant_id
-            FROM %I e
-            WHERE e.cut_over_at <= NOW()
+            SELECT t.id
+            FROM "Tenant" t
+            WHERE EXISTS (
+                SELECT 1
+                FROM %I e
+                WHERE e.tenant_id = t.id
+                  AND e.cut_over_at <= NOW()
+                LIMIT 1
+            )
         )',
         partition_table)
     INTO result;

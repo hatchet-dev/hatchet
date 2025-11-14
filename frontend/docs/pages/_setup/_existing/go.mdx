@@ -5,7 +5,7 @@ import InstallCommand from "@/components/InstallCommand";
 #### Cd into your project directory
 
 ```bash copy
-cd path-to-your-project
+cd /path/to/your-project
 ```
 
 #### Create project directories
@@ -13,42 +13,18 @@ cd path-to-your-project
 By convention it is recommended to create your workflows in the `workflows` directory and your workers in the `workers` directory.
 
 ```bash copy
-mkdir workflows &&
-mkdir workers
-```
-
-#### Instantiate your Hatchet Client
-
-It is recommended to instantiate a shared Hatchet Client Factory in a separate file.
-
-Create a new directory called `hatchet_client` and a new file called `main.go` in it.
-
-```bash copy
-mkdir hatchet_client &&
-touch hatchet_client/main.go
-```
-
-Add the following code to the file:
-
-```go copy
-package hatchet
-
-import (
-	"github.com/hatchet-dev/hatchet/pkg/client"
-)
-
-func Client() (client.Client, error) {
-	return client.New()
-}
+mkdir workflows && mkdir workers
 ```
 
 #### Install the Hatchet SDK and required dependencies
 
 <InstallCommand installOnly />
 
-#### Import the Hatchet Client Factory
+#### Instantiate your Hatchet Client
 
 You can now import the Hatchet Client Factory in any file that needs it.
+
+In the `workers` directory, create a Hatchet client
 
 ```go copy
 package main
@@ -56,13 +32,13 @@ package main
 import (
 	"log"
 
-	hatchet "hatchet-tutorial/src/hatchet_client"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 func main() {
-	hatchet, err := hatchet.Client()
+	client, err := hatchet.NewClient()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 }
 ```

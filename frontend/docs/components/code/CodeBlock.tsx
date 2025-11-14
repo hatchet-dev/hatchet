@@ -34,7 +34,7 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
 
   return (
     <>
-      <div className="z-10 bg-background flex flex-row gap-4 justify-between items-center pl-2 mb-2">
+      <div className="z-10 flex flex-row gap-4 justify-between items-center pl-2 mb-2">
         <div className="flex flex-row gap-2">
           {source.githubUrl && (
             <a

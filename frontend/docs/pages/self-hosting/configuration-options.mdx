@@ -6,7 +6,7 @@ The Hatchet server and engine can be configured via environment variables using 
 
 Hatchet uses the following environment variable prefixes:
 
-- **`SERVER_`** (172 variables) - Main server configuration including runtime, authentication, encryption, monitoring, and integrations
+- **`SERVER_`** (173 variables) - Main server configuration including runtime, authentication, encryption, monitoring, and integrations
 - **`DATABASE_`** (13 variables) - PostgreSQL database connection and configuration
 - **`READ_REPLICA_`** (4 variables) - Read replica database configuration
 - **`ADMIN_`** (3 variables) - Administrator user setup for initial seeding
@@ -106,36 +106,38 @@ go run ./cmd/hatchet-admin keyset create-local-keys --key-dir ./keys
 
 Variables marked with ⚠️ are conditionally required when specific features are enabled.
 
-| Variable                                | Description                             | Default Value           |
-| --------------------------------------- | --------------------------------------- | ----------------------- |
-| `SERVER_PORT`                           | Port for the core server                | `8080`                  |
-| `SERVER_URL`                            | Full server URL, including protocol     | `http://localhost:8080` |
-| `SERVER_GRPC_PORT`                      | Port for the GRPC service               | `7070`                  |
-| `SERVER_GRPC_BIND_ADDRESS`              | GRPC server bind address                | `127.0.0.1`             |
-| `SERVER_GRPC_BROADCAST_ADDRESS`         | GRPC server broadcast address           | `127.0.0.1:7070`        |
-| `SERVER_GRPC_INSECURE`                  | Controls if the GRPC server is insecure | `false`                 |
-| `SERVER_SHUTDOWN_WAIT`                  | Shutdown wait duration                  | `20s`                   |
-| `SERVER_ENFORCE_LIMITS`                 | Enforce tenant limits                   | `false`                 |
-| `SERVER_ALLOW_SIGNUP`                   | Allow new tenant signups                | `true`                  |
-| `SERVER_ALLOW_INVITES`                  | Allow new invites                       | `true`                  |
-| `SERVER_ALLOW_CREATE_TENANT`            | Allow tenant creation                   | `true`                  |
-| `SERVER_ALLOW_CHANGE_PASSWORD`          | Allow password changes                  | `true`                  |
-| `SERVER_HEALTHCHECK`                    | Enable healthcheck endpoint             | `true`                  |
-| `SERVER_HEALTHCHECK_PORT`               | Healthcheck port                        | `8733`                  |
-| `SERVER_GRPC_MAX_MSG_SIZE`              | gRPC max message size                   | `4194304`               |
-| `SERVER_GRPC_RATE_LIMIT`                | gRPC rate limit                         | `1000`                  |
-| `SCHEDULER_CONCURRENCY_RATE_LIMIT`      | Scheduler concurrency rate limit        | `20`                    |
-| `SERVER_SERVICES`                       | Services to run                         | `["all"]`               |
-| `SERVER_PAUSED_CONTROLLERS`             | Paused controllers                      |                         |
-| `SERVER_ENABLE_DATA_RETENTION`          | Enable data retention                   | `true`                  |
-| `SERVER_ENABLE_WORKER_RETENTION`        | Enable worker retention                 | `false`                 |
-| `SERVER_MAX_PENDING_INVITES`            | Max pending invites                     | `100`                   |
-| `SERVER_BUFFER_CREATE_WORKFLOW_RUNS`    | Buffer workflow run creation            | `true`                  |
-| `SERVER_DISABLE_TENANT_PUBS`            | Disable tenant pubsub                   |                         |
-| `SERVER_MAX_INTERNAL_RETRY_COUNT`       | Max internal retry count                | `10`                    |
-| `SERVER_PREVENT_TENANT_VERSION_UPGRADE` | Prevent tenant version upgrades         | `false`                 |
-| `SERVER_DEFAULT_ENGINE_VERSION`         | Default engine version                  | `V1`                    |
-| `SERVER_REPLAY_ENABLED`                 | Enable task replay                      | `true`                  |
+| Variable                                     | Description                             | Default Value           |
+| -------------------------------------------- | --------------------------------------- | ----------------------- |
+| `SERVER_PORT`                                | Port for the core server                | `8080`                  |
+| `SERVER_URL`                                 | Full server URL, including protocol     | `http://localhost:8080` |
+| `SERVER_GRPC_PORT`                           | Port for the GRPC service               | `7070`                  |
+| `SERVER_GRPC_BIND_ADDRESS`                   | GRPC server bind address                | `127.0.0.1`             |
+| `SERVER_GRPC_BROADCAST_ADDRESS`              | GRPC server broadcast address           | `127.0.0.1:7070`        |
+| `SERVER_GRPC_INSECURE`                       | Controls if the GRPC server is insecure | `false`                 |
+| `SERVER_SHUTDOWN_WAIT`                       | Shutdown wait duration                  | `20s`                   |
+| `SERVER_ENFORCE_LIMITS`                      | Enforce tenant limits                   | `false`                 |
+| `SERVER_ALLOW_SIGNUP`                        | Allow new tenant signups                | `true`                  |
+| `SERVER_ALLOW_INVITES`                       | Allow new invites                       | `true`                  |
+| `SERVER_ALLOW_CREATE_TENANT`                 | Allow tenant creation                   | `true`                  |
+| `SERVER_ALLOW_CHANGE_PASSWORD`               | Allow password changes                  | `true`                  |
+| `SERVER_HEALTHCHECK`                         | Enable healthcheck endpoint             | `true`                  |
+| `SERVER_HEALTHCHECK_PORT`                    | Healthcheck port                        | `8733`                  |
+| `SERVER_GRPC_MAX_MSG_SIZE`                   | gRPC max message size                   | `4194304`               |
+| `SERVER_GRPC_RATE_LIMIT`                     | gRPC rate limit                         | `1000`                  |
+| `SCHEDULER_CONCURRENCY_RATE_LIMIT`           | Scheduler concurrency rate limit        | `20`                    |
+| `SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL` | Minimum concurrency polling interval    | `500ms`                 |
+| `SCHEDULER_CONCURRENCY_POLLING_MAX_INTERVAL` | Maximum concurrency polling interval    | `5s`                    |
+| `SERVER_SERVICES`                            | Services to run                         | `["all"]`               |
+| `SERVER_PAUSED_CONTROLLERS`                  | Paused controllers                      |                         |
+| `SERVER_ENABLE_DATA_RETENTION`               | Enable data retention                   | `true`                  |
+| `SERVER_ENABLE_WORKER_RETENTION`             | Enable worker retention                 | `false`                 |
+| `SERVER_MAX_PENDING_INVITES`                 | Max pending invites                     | `100`                   |
+| `SERVER_BUFFER_CREATE_WORKFLOW_RUNS`         | Buffer workflow run creation            | `true`                  |
+| `SERVER_DISABLE_TENANT_PUBS`                 | Disable tenant pubsub                   |                         |
+| `SERVER_MAX_INTERNAL_RETRY_COUNT`            | Max internal retry count                | `10`                    |
+| `SERVER_PREVENT_TENANT_VERSION_UPGRADE`      | Prevent tenant version upgrades         | `false`                 |
+| `SERVER_DEFAULT_ENGINE_VERSION`              | Default engine version                  | `V1`                    |
+| `SERVER_REPLAY_ENABLED`                      | Enable task replay                      | `true`                  |
 
 ## Database Configuration
 
@@ -304,6 +306,7 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_OTEL_COLLECTOR_URL`         | Collector URL for OpenTelemetry                            |               |
 | `SERVER_OTEL_INSECURE`              | Whether to use an insecure connection to the collector URL |               |
 | `SERVER_OTEL_TRACE_ID_RATIO`        | OpenTelemetry trace ID ratio                               |               |
+| `SERVER_OTEL_COLLECTOR_AUTH`        | OpenTelemetry Collector Authorization header value         |               |
 | `SERVER_PROMETHEUS_ENABLED`         | Enable Prometheus                                          | `false`       |
 | `SERVER_PROMETHEUS_ADDRESS`         | Prometheus address                                         | `:9090`       |
 | `SERVER_PROMETHEUS_PATH`            | Prometheus metrics path                                    | `/metrics`    |
@@ -365,3 +368,10 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS`     | Flush period for queue step run buffer                |               |
 | `SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD`         | Items threshold for queue step run buffer             |               |
 | `SERVER_QUEUESTEPRUNBUFFER_FLUSH_STRATEGY`                | Flush strategy for queue step run buffer              |               |
+
+## OLAP Database Configuration
+
+| Variable                                          | Description                                      | Default Value |
+| ------------------------------------------------- | ------------------------------------------------ | ------------- |
+| `SERVER_OLAP_STATUS_UPDATE_DAG_BATCH_SIZE_LIMIT`  | Batch size limit for running DAG status updates  | `1000`        |
+| `SERVER_OLAP_STATUS_UPDATE_TASK_BATCH_SIZE_LIMIT` | Batch size limit for running task status updates | `1000`        |

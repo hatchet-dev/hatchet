@@ -348,6 +348,9 @@ func (h *hatchetContext) RetryCount() int {
 }
 
 func (h *hatchetContext) CurChildIndex() int {
+	h.indexMu.Lock()
+	defer h.indexMu.Unlock()
+
 	return h.i
 }
 
@@ -393,13 +396,18 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		workflowName = fmt.Sprintf("%s%s", ns, workflowName)
 	}
 
+	h.indexMu.Lock()
+	childIndex := h.i
+	h.i++
+	h.indexMu.Unlock()
+
 	workflowRunId, err := h.client().Admin().RunChildWorkflow(
 		workflowName,
 		input,
 		&client.ChildWorkflowOpts{
 			ParentId:           h.WorkflowRunId(),
 			ParentStepRunId:    h.StepRunId(),
-			ChildIndex:         h.CurChildIndex(),
+			ChildIndex:         childIndex,
 			ChildKey:           opts.Key,
 			DesiredWorkerId:    desiredWorker,
 			AdditionalMetadata: opts.AdditionalMetadata,
@@ -410,9 +418,6 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	if err != nil {
 		return nil, fmt.Errorf("failed to spawn workflow: %w", err)
 	}
-
-	// increment the index
-	h.IncChildIndex()
 
 	return client.NewWorkflow(workflowRunId, listener), nil
 }
@@ -451,8 +456,10 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 			workflowName = fmt.Sprintf("%s%s", ns, workflowName)
 		}
 
-		// increment the index
-		h.IncChildIndex()
+		h.indexMu.Lock()
+		childIndex := h.i
+		h.i++
+		h.indexMu.Unlock()
 
 		triggerWorkflows[i] = &client.RunChildWorkflowsOpts{
 			WorkflowName: workflowName,
@@ -460,7 +467,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 			Opts: &client.ChildWorkflowOpts{
 				ParentId:           h.WorkflowRunId(),
 				ParentStepRunId:    h.StepRunId(),
-				ChildIndex:         h.CurChildIndex(),
+				ChildIndex:         childIndex,
 				ChildKey:           c.Key,
 				DesiredWorkerId:    desiredWorker,
 				AdditionalMetadata: c.AdditionalMetadata,

@@ -405,6 +405,7 @@ class RunsClient(BaseRestClient):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
         triggering_event_external_id: str | None = None,
+        include_payloads: bool = True,
     ) -> list[V1TaskSummary]:
         """
         List task runs according to a set of filters, paginating through days
@@ -420,6 +421,7 @@ class RunsClient(BaseRestClient):
         :param worker_id: The worker ID to filter task runs by.
         :param parent_task_external_id: The parent task external ID to filter task runs by.
         :param triggering_event_external_id: The event id that triggered the task run.
+        :param include_payloads: Whether to include payloads in the response.
 
         :return: A list of task runs matching the specified filters.
         """
@@ -446,6 +448,7 @@ class RunsClient(BaseRestClient):
                     worker_id=worker_id,
                     parent_task_external_id=parent_task_external_id,
                     triggering_event_external_id=triggering_event_external_id,
+                    include_payloads=include_payloads,
                 )
                 for s, u in date_ranges
             ]
@@ -475,6 +478,7 @@ class RunsClient(BaseRestClient):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
         triggering_event_external_id: str | None = None,
+        include_payloads: bool = True,
     ) -> list[V1TaskSummary]:
         """
         List task runs according to a set of filters, paginating through days
@@ -490,6 +494,7 @@ class RunsClient(BaseRestClient):
         :param worker_id: The worker ID to filter task runs by.
         :param parent_task_external_id: The parent task external ID to filter task runs by.
         :param triggering_event_external_id: The event id that triggered the task run.
+        :param include_payloads: Whether to include payloads in the response.
 
         :return: A list of task runs matching the specified filters.
         """
@@ -517,6 +522,7 @@ class RunsClient(BaseRestClient):
                     worker_id=worker_id,
                     parent_task_external_id=parent_task_external_id,
                     triggering_event_external_id=triggering_event_external_id,
+                    include_payloads=include_payloads,
                 )
                 for s, u in date_ranges
             ]
@@ -550,6 +556,7 @@ class RunsClient(BaseRestClient):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
         triggering_event_external_id: str | None = None,
+        include_payloads: bool = True,
     ) -> V1TaskSummaryList:
         """
         List task runs according to a set of filters.
@@ -565,6 +572,7 @@ class RunsClient(BaseRestClient):
         :param worker_id: The worker ID to filter task runs by.
         :param parent_task_external_id: The parent task external ID to filter task runs by.
         :param triggering_event_external_id: The event id that triggered the task run.
+        :param include_payloads: Whether to include payloads in the response.
 
         :return: A list of task runs matching the specified filters.
         """
@@ -581,6 +589,7 @@ class RunsClient(BaseRestClient):
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
+            include_payloads=include_payloads,
         )
 
     @retry
@@ -597,6 +606,7 @@ class RunsClient(BaseRestClient):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
         triggering_event_external_id: str | None = None,
+        include_payloads: bool = True,
     ) -> V1TaskSummaryList:
         """
         List task runs according to a set of filters.
@@ -612,6 +622,7 @@ class RunsClient(BaseRestClient):
         :param worker_id: The worker ID to filter task runs by.
         :param parent_task_external_id: The parent task external ID to filter task runs by.
         :param triggering_event_external_id: The event id that triggered the task run.
+        :param include_payloads: Whether to include payloads in the response.
 
         :return: A list of task runs matching the specified filters.
         """
@@ -643,6 +654,7 @@ class RunsClient(BaseRestClient):
                 worker_id=worker_id,
                 parent_task_external_id=parent_task_external_id,
                 triggering_event_external_id=triggering_event_external_id,
+                include_payloads=include_payloads,
             )
 
     def create(
