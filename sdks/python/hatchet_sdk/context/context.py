@@ -4,6 +4,8 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
+from pydantic import TypeAdapter
+
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
@@ -25,7 +27,13 @@ from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
-from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
+from hatchet_sdk.utils.typing import (
+    JSONSerializableMapping,
+    LogLevel,
+    classify_output_validator,
+    is_basemodel_validator,
+    is_dataclass_validator,
+)
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
@@ -106,7 +114,21 @@ class Context:
             raise ValueError(f"Step output for '{task.name}' not found") from e
 
         if parent_step_data and (v := task.validators.step_output):
-            return cast(R, v.model_validate(parent_step_data))
+            validator = classify_output_validator(v)
+
+            if is_dataclass_validator(validator):
+                return cast(
+                    R,
+                    TypeAdapter(validator.validator_type).validate_python(
+                        parent_step_data
+                    ),
+                )
+
+            if is_basemodel_validator(validator):
+                return cast(
+                    R,
+                    validator.validator_type.model_validate(parent_step_data),
+                )
 
         return parent_step_data
 

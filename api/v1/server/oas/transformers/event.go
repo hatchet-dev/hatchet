@@ -61,7 +61,7 @@ func ToEventFromSQLC(eventRow *dbsqlc.ListEventsRow) (*gen.Event, error) {
 	return res, nil
 }
 
-func ToEventFromSQLCV1(event *v1.ListEventsRow) (*gen.Event, error) {
+func ToEventFromSQLCV1(event *v1.EventWithPayload) (*gen.Event, error) {
 	var metadata map[string]interface{}
 
 	if event.EventAdditionalMetadata != nil {

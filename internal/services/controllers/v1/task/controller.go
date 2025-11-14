@@ -388,7 +388,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = tc.s.NewJob(
-		gocron.DurationJob(6*time.Hour),
+		gocron.DurationJob(1*time.Minute),
 		gocron.NewTask(
 			tc.runCleanup(spanContext),
 		),

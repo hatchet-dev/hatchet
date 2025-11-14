@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
@@ -45,22 +47,30 @@ type OLAPControllerImpl struct {
 	olapConfig                   *server.ConfigFileOperations
 	prometheusMetricsEnabled     bool
 	analyzeCronInterval          time.Duration
+	taskPrometheusUpdateCh       chan taskPrometheusUpdate
+	taskPrometheusWorkerCtx      context.Context
+	taskPrometheusWorkerCancel   context.CancelFunc
+	dagPrometheusUpdateCh        chan dagPrometheusUpdate
+	dagPrometheusWorkerCtx       context.Context
+	dagPrometheusWorkerCancel    context.CancelFunc
+	statusUpdateBatchSizeLimits  v1.StatusUpdateBatchSizeLimits
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
 
 type OLAPControllerOpts struct {
-	mq                       msgqueue.MessageQueue
-	l                        *zerolog.Logger
-	repo                     v1.Repository
-	dv                       datautils.DataDecoderValidator
-	alerter                  hatcheterrors.Alerter
-	p                        *partition.Partition
-	ta                       *alerting.TenantAlertManager
-	samplingHashThreshold    *int64
-	olapConfig               *server.ConfigFileOperations
-	prometheusMetricsEnabled bool
-	analyzeCronInterval      time.Duration
+	mq                          msgqueue.MessageQueue
+	l                           *zerolog.Logger
+	repo                        v1.Repository
+	dv                          datautils.DataDecoderValidator
+	alerter                     hatcheterrors.Alerter
+	p                           *partition.Partition
+	ta                          *alerting.TenantAlertManager
+	samplingHashThreshold       *int64
+	olapConfig                  *server.ConfigFileOperations
+	prometheusMetricsEnabled    bool
+	analyzeCronInterval         time.Duration
+	statusUpdateBatchSizeLimits v1.StatusUpdateBatchSizeLimits
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -147,6 +157,12 @@ func WithAnalyzeCronInterval(interval time.Duration) OLAPControllerOpt {
 	}
 }
 
+func WithOLAPStatusUpdateBatchSizeLimits(limits v1.StatusUpdateBatchSizeLimits) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		opts.statusUpdateBatchSizeLimits = limits
+	}
+}
+
 func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	opts := defaultOLAPControllerOpts()
 
@@ -182,19 +198,30 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "olap-controller"})
 
+	// Channel size = 2 * batch_size * num_partitions for overhead
+	// batch_size = 1000, num_partitions from partition config
+	numPartitions := 4
+	prometheusChannelSize := 2 * 1000 * numPartitions
+
+	taskPrometheusUpdateCh := make(chan taskPrometheusUpdate, prometheusChannelSize)
+	dagPrometheusUpdateCh := make(chan dagPrometheusUpdate, prometheusChannelSize)
+
 	o := &OLAPControllerImpl{
-		mq:                       opts.mq,
-		l:                        opts.l,
-		s:                        s,
-		p:                        opts.p,
-		repo:                     opts.repo,
-		dv:                       opts.dv,
-		a:                        a,
-		ta:                       opts.ta,
-		samplingHashThreshold:    opts.samplingHashThreshold,
-		olapConfig:               opts.olapConfig,
-		prometheusMetricsEnabled: opts.prometheusMetricsEnabled,
-		analyzeCronInterval:      opts.analyzeCronInterval,
+		mq:                          opts.mq,
+		l:                           opts.l,
+		s:                           s,
+		p:                           opts.p,
+		repo:                        opts.repo,
+		dv:                          opts.dv,
+		a:                           a,
+		ta:                          opts.ta,
+		samplingHashThreshold:       opts.samplingHashThreshold,
+		olapConfig:                  opts.olapConfig,
+		prometheusMetricsEnabled:    opts.prometheusMetricsEnabled,
+		analyzeCronInterval:         opts.analyzeCronInterval,
+		taskPrometheusUpdateCh:      taskPrometheusUpdateCh,
+		dagPrometheusUpdateCh:       dagPrometheusUpdateCh,
+		statusUpdateBatchSizeLimits: opts.statusUpdateBatchSizeLimits,
 	}
 
 	// Default jitter value
@@ -225,6 +252,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	o.s.Start()
 
 	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.OLAP_QUEUE, heavyReadMQ, o.handleBufferedMsgs)
+
 	wg := sync.WaitGroup{}
 
 	startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
@@ -236,6 +264,23 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start prometheus workers if metrics are enabled
+	if o.prometheusMetricsEnabled {
+		o.taskPrometheusWorkerCtx, o.taskPrometheusWorkerCancel = context.WithCancel(context.Background())
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			o.runTaskPrometheusUpdateWorker()
+		}()
+
+		o.dagPrometheusWorkerCtx, o.dagPrometheusWorkerCancel = context.WithCancel(context.Background())
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			o.runDAGPrometheusUpdateWorker()
+		}()
+	}
 
 	_, err := o.s.NewJob(
 		gocron.DurationJob(time.Minute*15),
@@ -320,6 +365,14 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	cleanup := func() error {
 		cancel()
 
+		// Stop prometheus workers if running
+		if o.taskPrometheusWorkerCancel != nil {
+			o.taskPrometheusWorkerCancel()
+		}
+		if o.dagPrometheusWorkerCancel != nil {
+			o.dagPrometheusWorkerCancel()
+		}
+
 		if err := cleanupBuffer(); err != nil {
 			return err
 		}
@@ -333,6 +386,14 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		}
 
 		wg.Wait()
+
+		// Close prometheus channels after all workers are done
+		if o.taskPrometheusUpdateCh != nil {
+			close(o.taskPrometheusUpdateCh)
+		}
+		if o.dagPrometheusUpdateCh != nil {
+			close(o.dagPrometheusUpdateCh)
+		}
 
 		return nil
 	}
@@ -364,9 +425,30 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 		return tc.handleFailedWebhookValidation(context.Background(), tenantId, payloads)
 	case "cel-evaluation-failure":
 		return tc.handleCelEvaluationFailure(context.Background(), tenantId, payloads)
+	case "offload-payload":
+		return tc.handlePayloadOffload(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
+}
+
+func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId string, payloads [][]byte) error {
+	offloads := make([]v1.OffloadPayloadOpts, 0)
+
+	msgs := msgqueue.JSONConvert[v1.OLAPPayloadsToOffload](payloads)
+
+	for _, msg := range msgs {
+		for _, payload := range msg.Payloads {
+			if !tc.sample(payload.ExternalId.String()) {
+				tc.l.Debug().Msgf("skipping payload offload external id %s", payload.ExternalId)
+				continue
+			}
+
+			offloads = append(offloads, v1.OffloadPayloadOpts(payload))
+		}
+	}
+
+	return tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloads)
 }
 
 func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, tenantId string, payloads [][]byte) error {
@@ -537,6 +619,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	eventPayloads := make([]string, 0)
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
+	eventExternalIds := make([]pgtype.UUID, 0)
 
 	for _, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -559,6 +642,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		eventPayloads = append(eventPayloads, msg.EventPayload)
 		eventMessages = append(eventMessages, msg.EventMessage)
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
+		eventExternalIds = append(eventExternalIds, sqlchelpers.UUIDFromStr(uuid.New().String()))
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -630,6 +714,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			RetryCount:             retryCounts[i],
 			WorkerID:               workerId,
 			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
+			ExternalID:             eventExternalIds[i],
 		}
 
 		switch eventTypes[i] {
@@ -646,7 +731,76 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		opts = append(opts, event)
 	}
 
-	return tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
+	err = tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
+
+	if err != nil {
+		return err
+	}
+
+	if !tc.repo.OLAP().PayloadStore().ExternalStoreEnabled() {
+		return nil
+	}
+
+	offloadToExternalOpts := make([]v1.OffloadToExternalStoreOpts, 0)
+	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]pgtype.UUID)
+
+	for _, opt := range opts {
+		// generating a dummy id + inserted at to use for creating the external keys for the task events
+		// we do this since we don't have the id + inserted at of the events themselves on the opts, and we don't
+		// actually need those for anything once the keys are created.
+		dummyId := rand.Int63()
+		// randomly jitter the inserted at time by +/- 300ms to make collisions virtually impossible
+		dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
+
+		idInsertedAtToExternalId[v1.IdInsertedAt{
+			ID:         dummyId,
+			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
+		}] = opt.ExternalID
+
+		offloadToExternalOpts = append(offloadToExternalOpts, v1.OffloadToExternalStoreOpts{
+			StorePayloadOpts: &v1.StorePayloadOpts{
+				Id:         dummyId,
+				InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
+				ExternalId: opt.ExternalID,
+				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+				Payload:    opt.Output,
+				TenantId:   tenantId,
+			},
+			OffloadAt: time.Now(),
+		})
+	}
+
+	if len(offloadToExternalOpts) == 0 {
+		return nil
+	}
+
+	// retrieveOptsToKey, err := tc.repo.OLAP().PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
+
+	// if err != nil {
+	// 	return err
+	// }
+
+	// offloadOpts := make([]v1.OffloadPayloadOpts, 0)
+
+	// for opt, key := range retrieveOptsToKey {
+	// 	externalId := idInsertedAtToExternalId[v1.IdInsertedAt{
+	// 		ID:         opt.Id,
+	// 		InsertedAt: opt.InsertedAt,
+	// 	}]
+
+	// 	offloadOpts = append(offloadOpts, v1.OffloadPayloadOpts{
+	// 		ExternalId:          externalId,
+	// 		ExternalLocationKey: string(key),
+	// 	})
+	// }
+
+	// err = tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloadOpts)
+
+	// if err != nil {
+	// 	return err
+	// }
+
+	return nil
 }
 
 func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context, tenantId string, payloads [][]byte) error {

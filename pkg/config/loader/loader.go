@@ -43,6 +43,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
 	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
@@ -185,15 +186,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	config.MaxConnLifetime = 15 * 60 * time.Second
 
-	if cf.Logger.Level == "debug" {
-		debugger := &debugger{
-			callerCounts: make(map[string]int),
-			l:            &l,
-		}
-
-		config.BeforeAcquire = debugger.beforeAcquire
-	}
-
 	// Check database instance timezone if enforcement is enabled
 	if cf.EnforceUTCTimezone {
 		if err := checkDatabaseTimezone(config.ConnConfig, cf.PostgresDbName, "primary database", &l); err != nil {
@@ -201,10 +193,25 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 	}
 
+	var debug *debugger.Debugger
+
+	if cf.Logger.Level == "debug" {
+		debug = debugger.NewDebugger(&l)
+
+		config.BeforeAcquire = debug.BeforeAcquire // nolint: staticcheck
+		config.AfterRelease = debug.AfterRelease
+	}
+
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
+	}
+
+	if debug != nil {
+		// pool needs the debugger hooks (BeforeAcquire/AfterRelease) but debugger needs the pool
+		// to track active connections, so we add the pool later
+		debug.Setup(pool)
 	}
 
 	// a pool for read replicas, if enabled
@@ -292,13 +299,20 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	payloadStoreOpts := repov1.PayloadStoreRepositoryOpts{
 		EnablePayloadDualWrites:          scf.PayloadStore.EnablePayloadDualWrites,
 		EnableTaskEventPayloadDualWrites: scf.PayloadStore.EnableTaskEventPayloadDualWrites,
+		EnableOLAPPayloadDualWrites:      scf.PayloadStore.EnableOLAPPayloadDualWrites,
 		EnableDagDataPayloadDualWrites:   scf.PayloadStore.EnableDagDataPayloadDualWrites,
 		WALPollLimit:                     scf.PayloadStore.WALPollLimit,
 		WALProcessInterval:               scf.PayloadStore.WALProcessInterval,
 		ExternalCutoverProcessInterval:   scf.PayloadStore.ExternalCutoverProcessInterval,
+		WALEnabled:                       scf.PayloadStore.WALEnabled,
 	}
 
-	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, payloadStoreOpts)
+	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{
+		Task: int32(scf.OLAPStatusUpdates.TaskBatchSizeLimit),
+		DAG:  int32(scf.OLAPStatusUpdates.DagBatchSizeLimit),
+	}
+
+	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, payloadStoreOpts, statusUpdateOpts)
 
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
@@ -433,6 +447,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				rabbitmq.WithLogger(&l),
 				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
 				rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
+				rabbitmq.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
 			)
 
 			cleanupv1, mqv1 = rabbitmqv1.New(
@@ -446,6 +461,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 					cf.MessageQueue.RabbitMQ.CompressionEnabled,
 					cf.MessageQueue.RabbitMQ.CompressionThreshold,
 				),
+				rabbitmqv1.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
 			)
 
 			cleanup1 = func() error {
@@ -633,6 +649,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
 		cf.Runtime.SchedulerConcurrencyRateLimit,
+		cf.Runtime.SchedulerConcurrencyPollingMinInterval,
+		cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
 	)
 
 	if err != nil {
@@ -716,6 +734,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Sampling:               cf.Sampling,
 		Operations:             cf.OLAP,
 		CronOperations:         cf.CronOperations,
+		OLAPStatusUpdates:      cf.OLAPStatusUpdates,
 	}, nil
 }
 

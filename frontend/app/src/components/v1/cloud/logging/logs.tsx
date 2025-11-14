@@ -19,6 +19,11 @@ type LogProps = {
   logs: ExtendedLogLine[];
   onTopReached: () => void;
   onBottomReached: () => void;
+  onInfiniteScroll?: (scrollMetrics: {
+    scrollTop: number;
+    scrollHeight: number;
+    clientHeight: number;
+  }) => void;
   autoScroll?: boolean;
 };
 
@@ -35,6 +40,7 @@ const LoggingComponent: React.FC<LogProps> = ({
   logs,
   onTopReached,
   onBottomReached,
+  onInfiniteScroll,
   autoScroll = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -43,7 +49,8 @@ const LoggingComponent: React.FC<LogProps> = ({
   const [lastBottomCall, setLastBottomCall] = useState<number>(0);
   const [firstMount, setFirstMount] = useState<boolean>(true);
   const previousScrollHeightRef = useRef<number>(0);
-
+  const [lastInfiniteScrollCall, setLastInfiniteScrollCall] =
+    useState<number>(0);
   const handleScroll = () => {
     if (!containerRef.current) {
       return;
@@ -51,6 +58,20 @@ const LoggingComponent: React.FC<LogProps> = ({
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     previousScrollHeightRef.current = scrollHeight;
     const now = Date.now();
+
+    if (
+      onInfiniteScroll &&
+      logs.length > 0 &&
+      now - lastInfiniteScrollCall >= 100
+    ) {
+      onInfiniteScroll({
+        scrollTop,
+        scrollHeight,
+        clientHeight,
+      });
+      setLastInfiniteScrollCall(now);
+      return;
+    }
 
     if (scrollTop === 0 && now - lastTopCall >= 1000) {
       if (logs.length > 0) {

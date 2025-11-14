@@ -2,7 +2,7 @@
 
 `Runnables` in the Hatchet SDK are things that can be run, namely tasks and workflows. The two main types of runnables you'll encounter are:
 
-- `Workflow`, which lets you define tasks and call all of the run, schedule, etc. methods.
+- `Workflow`, which lets you define tasks and call all of the run, schedule, etc. methods
 - `Standalone`, which is a single task that's returned by `hatchet.task` and can be run, scheduled, etc.
 
 ## Workflow
@@ -188,7 +188,7 @@ Parameters:
 | `name`                | `str \| None`                         | The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_success_task` decorator. | `None`                  |
 | `schedule_timeout`    | `Duration`                            | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.              | `timedelta(minutes=5)`  |
 | `execution_timeout`   | `Duration`                            | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.               | `timedelta(seconds=60)` |
-| `retries`             | `int`                                 | The number of times to retry the on-success task before failing.                                                                          | `0`                     |
+| `retries`             | `int`                                 | The number of times to retry the on-success task before failing                                                                           | `0`                     |
 | `rate_limits`         | `list[RateLimit] \| None`             | A list of rate limit configurations for the on-success task.                                                                              | `None`                  |
 | `backoff_factor`      | `float \| None`                       | The backoff factor for controlling exponential backoff in retries.                                                                        | `None`                  |
 | `backoff_max_seconds` | `int \| None`                         | The maximum number of seconds to allow retries with exponential backoff to continue.                                                      | `None`                  |
@@ -196,9 +196,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                                                            | Description                                |
-| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `Callable[[Callable[Concatenate[TWorkflowInput, Context, P], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
+| Type                                                                                                            | Description                              |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `Callable[[Callable[Concatenate[TWorkflowInput, Context, P], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a Task object. |
 
 #### `run`
 
@@ -728,9 +728,9 @@ Parameters:
 
 Returns:
 
-| Type                                  | Description                              |
-| ------------------------------------- | ---------------------------------------- |
-| `list[R] \| list[R \| BaseException]` | A list of results for each workflow run. |
+| Type     | Description               |
+| -------- | ------------------------- | ---------------------------------------- |
+| `list[R] | list[R \| BaseException]` | A list of results for each workflow run. |
 
 #### `run_many_no_wait`
 
@@ -1014,13 +1014,14 @@ Mimic the execution of a task. This method is intended to be used to unit test t
 
 Parameters:
 
-| Name                  | Type                                         | Description                                                                                                                                                                                                                                                                                                                  | Default |
-| --------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `input`               | `TWorkflowInput \| None`                     | The input to the task.                                                                                                                                                                                                                                                                                                       | `None`  |
-| `additional_metadata` | `JSONSerializableMapping \| None`            | Additional metadata to attach to the task.                                                                                                                                                                                                                                                                                   | `None`  |
-| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`. | `None`  |
-| `retry_count`         | `int`                                        | The number of times the task has been retried.                                                                                                                                                                                                                                                                               | `0`     |
-| `lifespan`            | `Any`                                        | The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.                                                                                                                                                                         | `None`  |
+| Name                  | Type                                         | Description                                                                                                                                                                                                                                                                                                                                                                                               | Default |
+| --------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `input`               | `TWorkflowInput \| None`                     | The input to the task.                                                                                                                                                                                                                                                                                                                                                                                    | `None`  |
+| `additional_metadata` | `JSONSerializableMapping \| None`            | Additional metadata to attach to the task.                                                                                                                                                                                                                                                                                                                                                                | `None`  |
+| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.                                                                              | `None`  |
+| `retry_count`         | `int`                                        | The number of times the task has been retried.                                                                                                                                                                                                                                                                                                                                                            | `0`     |
+| `lifespan`            | `Any`                                        | The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.                                                                                                                                                                                                                                                      | `None`  |
+| `dependencies`        | `dict[str, Any] \| None`                     | Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`. | `None`  |
 
 Returns:
 
@@ -1034,13 +1035,14 @@ Mimic the execution of a task. This method is intended to be used to unit test t
 
 Parameters:
 
-| Name                  | Type                                         | Description                                                                                                                                                                                                                                                                                                                  | Default |
-| --------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `input`               | `TWorkflowInput \| None`                     | The input to the task.                                                                                                                                                                                                                                                                                                       | `None`  |
-| `additional_metadata` | `JSONSerializableMapping \| None`            | Additional metadata to attach to the task.                                                                                                                                                                                                                                                                                   | `None`  |
-| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`. | `None`  |
-| `retry_count`         | `int`                                        | The number of times the task has been retried.                                                                                                                                                                                                                                                                               | `0`     |
-| `lifespan`            | `Any`                                        | The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.                                                                                                                                                                         | `None`  |
+| Name                  | Type                                         | Description                                                                                                                                                                                                                                                                                                                                                                                               | Default |
+| --------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `input`               | `TWorkflowInput \| None`                     | The input to the task.                                                                                                                                                                                                                                                                                                                                                                                    | `None`  |
+| `additional_metadata` | `JSONSerializableMapping \| None`            | Additional metadata to attach to the task.                                                                                                                                                                                                                                                                                                                                                                | `None`  |
+| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.                                                                              | `None`  |
+| `retry_count`         | `int`                                        | The number of times the task has been retried.                                                                                                                                                                                                                                                                                                                                                            | `0`     |
+| `lifespan`            | `Any`                                        | The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.                                                                                                                                                                                                                                                      | `None`  |
+| `dependencies`        | `dict[str, Any] \| None`                     | Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`. | `None`  |
 
 Returns:
 

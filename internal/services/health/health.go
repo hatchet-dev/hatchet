@@ -9,35 +9,46 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type Health struct {
-	ready   bool
-	version string
+	shuttingDown bool
+	version      string
 
 	repository repository.EngineRepository
 	queue      msgqueue.MessageQueue
+	l          *zerolog.Logger
 }
 
-func New(repo repository.EngineRepository, queue msgqueue.MessageQueue, version string) *Health {
+func New(repo repository.EngineRepository, queue msgqueue.MessageQueue, version string, l *zerolog.Logger) *Health {
 	return &Health{
 		version:    version,
 		repository: repo,
 		queue:      queue,
+		l:          l,
 	}
 }
 
-func (h *Health) SetReady(ready bool) {
-	h.ready = ready
+func (h *Health) SetShuttingDown(shuttingDown bool) {
+	h.shuttingDown = shuttingDown
 }
 
 func (h *Health) Start(port int) (func() error, error) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
-		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy() {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		queueReady := h.queue.IsReady()
+		repositoryReady := h.repository.Health().IsHealthy(ctx)
+
+		if !queueReady || !repositoryReady {
+			h.l.Error().Msgf("liveness check failed - queue ready: %t, repository ready: %t", queueReady, repositoryReady)
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -46,7 +57,17 @@ func (h *Health) Start(port int) (func() error, error) {
 	})
 
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
-		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy() {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		queueReady := h.queue.IsReady()
+		repositoryReady := h.repository.Health().IsHealthy(ctx)
+
+		if h.shuttingDown || !queueReady || !repositoryReady {
+			if !h.shuttingDown {
+				h.l.Error().Msgf("readiness check failed - queue ready: %t, repository ready: %t", queueReady, repositoryReady)
+			}
+
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}

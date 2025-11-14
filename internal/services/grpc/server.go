@@ -35,6 +35,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 )
 
 type Server struct {
@@ -309,6 +311,10 @@ func (s *Server) startGRPC() (func() error, error) {
 
 	serverOpts = append(serverOpts, grpc.StaticStreamWindowSize(
 		s.config.Runtime.GRPCStaticStreamWindowSize,
+	))
+
+	serverOpts = append(serverOpts, grpc.StatsHandler(
+		otelgrpc.NewServerHandler(),
 	))
 
 	grpcServer := grpc.NewServer(serverOpts...)
