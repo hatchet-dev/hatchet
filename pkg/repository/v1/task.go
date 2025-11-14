@@ -2245,15 +2245,6 @@ func (r *sharedRepository) replayTasks(
 		taskIds[i] = task.TaskId
 		taskInsertedAts[i] = task.InsertedAt
 
-		// initialize with empty strings (one per concurrency strategy) to maintain cardinality in multi-dimensional array
-		emptyConcurrencyKeys := make([]string, 0)
-		if strats, ok := concurrencyStrats[task.StepId]; ok {
-			for range strats {
-				emptyConcurrencyKeys = append(emptyConcurrencyKeys, "")
-			}
-		}
-		concurrencyKeys[i] = emptyConcurrencyKeys
-
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
 		if task.Input != nil {
