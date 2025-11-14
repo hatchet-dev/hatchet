@@ -111,6 +111,8 @@ WITH latest_workflow_versions AS (
 active_cron_schedules AS (
     SELECT
         cronSchedule."parentId",
+        cronSchedule."cron",
+        cronSchedule."name",
         versions."id" AS "workflowVersionId",
         triggers."tenantId" AS "tenantId"
     FROM
@@ -141,6 +143,9 @@ FROM
     active_cron_schedules
 WHERE
     cronSchedules."parentId" = active_cron_schedules."parentId"
+    AND cronSchedules."cron" = active_cron_schedules."cron"
+    AND cronSchedules."name" = active_cron_schedules."name"
+
 RETURNING cronSchedules.*, active_cron_schedules."workflowVersionId", active_cron_schedules."tenantId";
 
 -- name: PollScheduledWorkflows :many
