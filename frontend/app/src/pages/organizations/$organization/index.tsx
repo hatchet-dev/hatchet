@@ -16,6 +16,7 @@ import {
   PencilIcon,
   CheckIcon,
   XMarkIcon,
+  ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import {
   Card,
@@ -39,12 +40,14 @@ import { DeleteMemberModal } from './components/delete-member-modal';
 import { CreateTokenModal } from './components/create-token-modal';
 import { DeleteTokenModal } from './components/delete-token-modal';
 import { CancelInviteModal } from './components/cancel-invite-modal';
+import { DeleteTenantModal } from './components/delete-tenant-modal';
 import {
   OrganizationMember,
   ManagementToken,
   OrganizationInvite,
   OrganizationInviteStatus,
   TenantStatusType,
+  OrganizationTenant,
 } from '@/lib/api/generated/cloud/data-contracts';
 import {
   DropdownMenu,
@@ -76,6 +79,8 @@ export default function OrganizationPage() {
   );
   const [inviteToCancel, setInviteToCancel] =
     useState<OrganizationInvite | null>(null);
+  const [tenantToArchive, setTenantToArchive] =
+    useState<OrganizationTenant | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
 
@@ -360,15 +365,35 @@ export default function OrganizationPage() {
                                 {detailedTenant?.slug || '-'}
                               </TableCell>
                               <TableCell>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    navigate(`/tenants/${orgTenant.id}`);
-                                  }}
-                                >
-                                  View Tenant
-                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                    >
+                                      <EllipsisVerticalIcon className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        navigate(`/tenants/${orgTenant.id}`);
+                                      }}
+                                    >
+                                      <ArrowRightIcon className="h-4 w-4 mr-2" />
+                                      View Tenant
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        setTenantToArchive(orgTenant)
+                                      }
+                                    >
+                                      <TrashIcon className="h-4 w-4 mr-2" />
+                                      Archive Tenant
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </TableCell>
                             </TableRow>
                           );
@@ -419,16 +444,35 @@ export default function OrganizationPage() {
                               </span>
                             </div>
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                            onClick={() => {
-                              navigate(`/tenants/${orgTenant.id}`);
-                            }}
-                          >
-                            View Tenant
-                          </Button>
+                          <div className="flex justify-end">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <EllipsisVerticalIcon className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    navigate(`/tenants/${orgTenant.id}`);
+                                  }}
+                                >
+                                  <ArrowRightIcon className="h-4 w-4 mr-2" />
+                                  View Tenant
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => setTenantToArchive(orgTenant)}
+                                >
+                                  <TrashIcon className="h-4 w-4 mr-2" />
+                                  Archive Tenant
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
                       );
                     })}
@@ -1038,6 +1082,32 @@ export default function OrganizationPage() {
             }}
           />
         )}
+
+        {/* Archive Tenant Modal */}
+        {(() => {
+          const foundTenant = tenantToArchive
+            ? detailedTenants.find((t) => t?.metadata.id === tenantToArchive.id)
+            : undefined;
+          return (
+            tenantToArchive &&
+            organization &&
+            foundTenant && (
+              <DeleteTenantModal
+                open={!!tenantToArchive}
+                onOpenChange={(open) => !open && setTenantToArchive(null)}
+                tenant={tenantToArchive}
+                tenantName={foundTenant.name}
+                organizationName={organization.name}
+                onSuccess={() => {
+                  queryClient.invalidateQueries({
+                    queryKey: ['organization:get', orgId],
+                  });
+                  queryClient.invalidateQueries({ queryKey: ['tenant:get'] });
+                }}
+              />
+            )
+          );
+        })()}
       </div>
     </div>
   );
