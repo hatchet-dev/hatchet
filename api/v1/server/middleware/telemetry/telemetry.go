@@ -24,7 +24,8 @@ func (m *OTelMiddleware) Middleware() echo.MiddlewareFunc {
 
 	return otelecho.Middleware(serviceName,
 		otelecho.WithSkipper(func(c echo.Context) bool {
-			return c.Path() == "/api/ready"
+			path := c.Path()
+			return path == "/api/ready" || path == "/api/live"
 		}),
 		otelecho.WithTracerProvider(tracerProvider),
 	)
