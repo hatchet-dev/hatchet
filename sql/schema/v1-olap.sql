@@ -551,7 +551,8 @@ BEGIN
         additional_metadata,
         parent_task_external_id
     FROM new_rows
-    WHERE dag_id IS NULL;
+    WHERE dag_id IS NULL
+    ON CONFLICT (inserted_at, id, readable_status, kind) DO NOTHING;
 
     INSERT INTO v1_lookup_table_olap (
         tenant_id,
@@ -580,7 +581,8 @@ BEGIN
         id,
         inserted_at
     FROM new_rows
-    WHERE dag_id IS NOT NULL;
+    WHERE dag_id IS NOT NULL
+    ON CONFLICT (dag_id, dag_inserted_at, task_id, task_inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -658,7 +660,8 @@ BEGIN
         workflow_version_id,
         additional_metadata,
         parent_task_external_id
-    FROM new_rows;
+    FROM new_rows
+    ON CONFLICT (inserted_at, id, readable_status, kind) DO NOTHING;
 
     INSERT INTO v1_lookup_table_olap (
         tenant_id,
