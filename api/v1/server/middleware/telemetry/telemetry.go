@@ -1,8 +1,6 @@
 package telemetry
 
 import (
-	"fmt"
-
 	"github.com/labstack/echo/v4"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.opentelemetry.io/otel"
