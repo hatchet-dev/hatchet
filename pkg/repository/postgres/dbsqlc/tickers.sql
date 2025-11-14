@@ -102,8 +102,10 @@ WITH latest_workflow_versions AS (
     SELECT
         "workflowId",
         MAX("order") as max_order
-    FROM "WorkflowVersion"
-    WHERE "deletedAt" IS NULL
+    FROM
+        "WorkflowVersion"
+    WHERE
+        "deletedAt" IS NULL
     GROUP BY "workflowId"
 ),
 eligible_cron_with_versions AS (
@@ -115,9 +117,12 @@ eligible_cron_with_versions AS (
         triggers."tenantId",
         versions."workflowId",
         versions."order"
-    FROM "WorkflowTriggerCronRef" cronSchedule
-    JOIN "WorkflowTriggers" triggers ON triggers."id" = cronSchedule."parentId"
-    JOIN "WorkflowVersion" versions ON versions."id" = triggers."workflowVersionId"
+    FROM
+        "WorkflowTriggerCronRef" as cronSchedule
+    JOIN
+        "WorkflowTriggers" as triggers ON triggers."id" = cronSchedule."parentId"
+    JOIN
+        "WorkflowVersion" as versions ON versions."id" = triggers."workflowVersionId"
     WHERE cronSchedule."enabled" = TRUE
         AND versions."deletedAt" IS NULL
         AND (
@@ -136,8 +141,10 @@ eligible_cron_schedules AS (
         ecv."name",
         ecv."workflowVersionId",
         ecv."tenantId"
-    FROM eligible_cron_with_versions ecv
-    JOIN latest_workflow_versions l ON ecv."workflowId" = l."workflowId" AND ecv."order" = l.max_order
+    FROM
+        eligible_cron_with_versions as ecv
+    JOIN
+        latest_workflow_versions as l ON ecv."workflowId" = l."workflowId" AND ecv."order" = l.max_order
 )
 UPDATE
     "WorkflowTriggerCronRef" as cronSchedules
