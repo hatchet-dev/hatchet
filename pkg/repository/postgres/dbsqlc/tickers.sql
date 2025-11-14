@@ -102,51 +102,55 @@ WITH latest_workflow_versions AS (
     SELECT
         "workflowId",
         MAX("order") as max_order
-    FROM
-        "WorkflowVersion"
-    WHERE
-        "deletedAt" IS NULL
+    FROM "WorkflowVersion"
+    WHERE "deletedAt" IS NULL
     GROUP BY "workflowId"
 ),
-active_cron_schedules AS (
+eligible_cron_with_versions AS (
     SELECT
         cronSchedule."parentId",
         cronSchedule."cron",
         cronSchedule."name",
-        versions."id" AS "workflowVersionId",
-        triggers."tenantId" AS "tenantId"
-    FROM
-        "WorkflowTriggerCronRef" as cronSchedule
-    JOIN
-        "WorkflowTriggers" as triggers ON triggers."id" = cronSchedule."parentId"
-    JOIN
-        "WorkflowVersion" as versions ON versions."id" = triggers."workflowVersionId"
-    JOIN
-        latest_workflow_versions l ON versions."workflowId" = l."workflowId" AND versions."order" = l.max_order
-    WHERE
-        "enabled" = TRUE
+        triggers."workflowVersionId",
+        triggers."tenantId",
+        versions."workflowId",
+        versions."order"
+    FROM "WorkflowTriggerCronRef" cronSchedule
+    JOIN "WorkflowTriggers" triggers ON triggers."id" = cronSchedule."parentId"
+    JOIN "WorkflowVersion" versions ON versions."id" = triggers."workflowVersionId"
+    WHERE cronSchedule."enabled" = TRUE
         AND versions."deletedAt" IS NULL
         AND (
-            "tickerId" IS NULL
+            cronSchedule."tickerId" IS NULL
             OR NOT EXISTS (
                 SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
             )
-            OR "tickerId" = @tickerId::uuid
+            OR cronSchedule."tickerId" = @tickerId::uuid
         )
-    FOR UPDATE SKIP LOCKED
+    FOR UPDATE OF cronSchedule SKIP LOCKED
+),
+eligible_cron_schedules AS (
+    SELECT
+        ecv."parentId",
+        ecv."cron",
+        ecv."name",
+        ecv."workflowVersionId",
+        ecv."tenantId"
+    FROM eligible_cron_with_versions ecv
+    JOIN latest_workflow_versions l ON ecv."workflowId" = l."workflowId" AND ecv."order" = l.max_order
 )
 UPDATE
     "WorkflowTriggerCronRef" as cronSchedules
 SET
     "tickerId" = @tickerId::uuid
 FROM
-    active_cron_schedules
+    eligible_cron_schedules
 WHERE
-    cronSchedules."parentId" = active_cron_schedules."parentId"
-    AND cronSchedules."cron" = active_cron_schedules."cron"
-    AND cronSchedules."name" = active_cron_schedules."name"
+    cronSchedules."parentId" = eligible_cron_schedules."parentId"
+    AND cronSchedules."cron" = eligible_cron_schedules."cron"
+    AND cronSchedules."name" = eligible_cron_schedules."name"
 
-RETURNING cronSchedules.*, active_cron_schedules."workflowVersionId", active_cron_schedules."tenantId";
+RETURNING cronSchedules.*, eligible_cron_schedules."workflowVersionId", eligible_cron_schedules."tenantId";
 
 -- name: PollScheduledWorkflows :many
 -- Finds workflows that are either past their execution time or will be in the next 5 seconds and assigns them
