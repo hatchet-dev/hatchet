@@ -2,7 +2,6 @@ package hatchet
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -349,14 +348,12 @@ func (c *Client) NewStandaloneDurableTask(name string, fn any, options ...Standa
 
 // Run executes the standalone task with the provided input and waits for completion.
 func (st *StandaloneTask) Run(ctx context.Context, input any, opts ...RunOptFunc) (*TaskResult, error) {
-	workflowRunRef, err := st.workflow.Run(ctx, input, opts...)
+	workflowResult, err := st.workflow.Run(ctx, input, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	res := WorkflowResult{result: workflowRunRef.result, RunId: workflowRunRef.RunId}
-
-	return res.TaskOutput(st.task.name), nil
+	return workflowResult.TaskOutput(st.task.name), nil
 }
 
 // RunNoWait executes the standalone task with the provided input without waiting for completion.
@@ -388,115 +385,13 @@ func (st *StandaloneTask) OnFailure(fn any) {
 }
 
 // WorkflowRunRef is a type that represents a reference to a workflow run.
-type WorkflowRunRef struct {
-	RunId      string
-	v0Workflow *v0Client.Workflow
-}
-
-// V0Workflow returns the underlying v0Client.Workflow.
-func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
-	result, err := wr.v0Workflow.Result()
-	if err != nil {
-		return nil, err
-	}
-
-	workflowResult, err := result.Results()
-	if err != nil {
-		return nil, err
-	}
-
-	return &WorkflowResult{result: workflowResult, RunId: wr.RunId}, nil
-}
+type WorkflowRunRef = features.WorkflowRunRef
 
 // WorkflowResult wraps workflow execution results and provides type-safe conversion methods.
-type WorkflowResult struct {
-	RunId  string
-	result any
-}
+type WorkflowResult = features.WorkflowResult
 
 // TaskResult wraps a single task's output and provides type-safe conversion methods.
-type TaskResult struct {
-	RunId  string
-	result any
-}
-
-// TaskOutput extracts the output of a specific task from the workflow result.
-// Returns a TaskResult that can be used to convert the task output into the desired type.
-//
-// Example usage:
-//
-//	taskResult := workflowResult.TaskOutput("myTask")
-//	var output MyOutputType
-//	err := taskResult.Into(&output)
-func (wr *WorkflowResult) TaskOutput(taskName string) *TaskResult {
-	// Handle different result structures that might come from workflow execution
-	resultData := wr.result
-
-	taskResult := &TaskResult{RunId: wr.RunId}
-
-	// Check if this is a raw v0Client.WorkflowResult that we need to extract from
-	if workflowResult, ok := resultData.(*v0Client.WorkflowResult); ok {
-		// Try to get the workflow results as a map
-		results, err := workflowResult.Results()
-		if err != nil {
-			// Return empty TaskResult if we can't extract results
-			return taskResult
-		}
-		resultData = results
-	}
-
-	// If the result is a map, look for the specific task
-	if resultMap, ok := resultData.(map[string]any); ok {
-		if taskOutput, exists := resultMap[taskName]; exists {
-			taskResult.result = taskOutput
-			return taskResult
-		}
-	}
-
-	// If we can't find the specific task, return the entire result
-	// This handles cases where there's only one task
-	taskResult.result = resultData
-	return taskResult
-}
-
-// Into converts the task result into the provided destination using JSON marshal/unmarshal.
-// The destination should be a pointer to the desired type.
-//
-// Example usage:
-//
-//	var output MyOutputType
-//	err := taskResult.Into(&output)
-func (tr *TaskResult) Into(dest any) error {
-	// Handle different result structures that might come from task execution
-	resultData := tr.result
-
-	// If the result is a pointer to interface{}, dereference it
-	if ptr, ok := resultData.(*any); ok && ptr != nil {
-		resultData = *ptr
-	}
-
-	// If the result is a pointer to string (JSON), unmarshal it directly
-	if strPtr, ok := resultData.(*string); ok && strPtr != nil {
-		return json.Unmarshal([]byte(*strPtr), dest)
-	}
-
-	// Convert the result to JSON and then unmarshal to destination
-	jsonData, err := json.Marshal(resultData)
-	if err != nil {
-		return fmt.Errorf("failed to marshal result to JSON: %w", err)
-	}
-
-	if err := json.Unmarshal(jsonData, dest); err != nil {
-		return fmt.Errorf("failed to unmarshal JSON to destination: %w", err)
-	}
-
-	return nil
-}
-
-// Raw returns the raw workflow result as interface{}.
-func (wr *WorkflowResult) Raw() any {
-	return wr.result
-}
+type TaskResult = features.TaskResult
 
 // Run executes a workflow with the provided input and waits for completion.
 func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
@@ -561,7 +456,7 @@ func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, 
 		return nil, err
 	}
 
-	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
+	return features.NewWorkflowRunRef(v0Workflow), nil
 }
 
 // RunManyOpt is a type that represents the options for running multiple instances of a workflow with different inputs and options.

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
@@ -12,6 +13,127 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
+
+// WorkflowRunRef is a type that represents a reference to a workflow run.
+type WorkflowRunRef struct {
+	RunId      string
+	v0Workflow *client.Workflow
+}
+
+// NewWorkflowRunRef creates a new WorkflowRunRef from a runId and v0Workflow.
+func NewWorkflowRunRef(v0Workflow *client.Workflow) *WorkflowRunRef {
+	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}
+}
+
+// Result returns the result of the workflow run.
+func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
+	result, err := wr.v0Workflow.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	workflowResult, err := result.Results()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewWorkflowResult(wr.RunId, workflowResult), nil
+}
+
+// WorkflowResult wraps workflow execution results and provides type-safe conversion methods.
+type WorkflowResult struct {
+	RunId  string
+	Result any
+}
+
+// NewWorkflowResult creates a new WorkflowResult.
+func NewWorkflowResult(runId string, result any) *WorkflowResult {
+	return &WorkflowResult{RunId: runId, Result: result}
+}
+
+// TaskResult wraps a single task's output and provides type-safe conversion methods.
+type TaskResult struct {
+	RunId  string
+	Result any
+}
+
+// TaskOutput extracts the output of a specific task from the workflow result.
+// Returns a TaskResult that can be used to convert the task output into the desired type.
+//
+// Example usage:
+//
+//	taskResult := workflowResult.TaskOutput("myTask")
+//	var output MyOutputType
+//	err := taskResult.Into(&output)
+func (wr *WorkflowResult) TaskOutput(taskName string) *TaskResult {
+	// Handle different result structures that might come from workflow execution
+	resultData := wr.Result
+
+	taskResult := &TaskResult{RunId: wr.RunId}
+
+	// Check if this is a raw client.WorkflowResult that we need to extract from
+	if workflowResult, ok := resultData.(*client.WorkflowResult); ok {
+		// Try to get the workflow results as a map
+		results, err := workflowResult.Results()
+		if err != nil {
+			// Return empty TaskResult if we can't extract results
+			return taskResult
+		}
+		resultData = results
+	}
+
+	// If the result is a map, look for the specific task
+	if resultMap, ok := resultData.(map[string]any); ok {
+		if taskOutput, exists := resultMap[taskName]; exists {
+			taskResult.Result = taskOutput
+			return taskResult
+		}
+	}
+
+	// If we can't find the specific task, return the entire result
+	// This handles cases where there's only one task
+	taskResult.Result = resultData
+	return taskResult
+}
+
+// Into converts the task result into the provided destination using JSON marshal/unmarshal.
+// The destination should be a pointer to the desired type.
+//
+// Example usage:
+//
+//	var output MyOutputType
+//	err := taskResult.Into(&output)
+func (tr *TaskResult) Into(dest any) error {
+	// Handle different result structures that might come from task execution
+	resultData := tr.Result
+
+	// If the result is a pointer to interface{}, dereference it
+	if ptr, ok := resultData.(*any); ok && ptr != nil {
+		resultData = *ptr
+	}
+
+	// If the result is a pointer to string (JSON), unmarshal it directly
+	if strPtr, ok := resultData.(*string); ok && strPtr != nil {
+		return json.Unmarshal([]byte(*strPtr), dest)
+	}
+
+	// Convert the result to JSON and then unmarshal to destination
+	jsonData, err := json.Marshal(resultData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal result to JSON: %w", err)
+	}
+
+	if err := json.Unmarshal(jsonData, dest); err != nil {
+		return fmt.Errorf("failed to unmarshal JSON to destination: %w", err)
+	}
+
+	return nil
+}
+
+// Raw returns the raw workflow result as interface{}.
+func (wr *WorkflowResult) Raw() any {
+	return wr.Result
+}
 
 // RunsClient provides methods for interacting with workflow runs
 type RunsClient struct {
@@ -136,6 +258,17 @@ func (r *RunsClient) Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) 
 	}
 
 	return resp.JSON200, nil
+}
+
+func (r *RunsClient) GetRunRef(ctx context.Context, runId string) (*WorkflowRunRef, error) {
+	listener, err := r.v0Client.Subscribe().SubscribeToWorkflowRunEvents(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to subscribe to workflow run events")
+	}
+
+	v0Workflow := client.NewWorkflow(runId, listener)
+
+	return &WorkflowRunRef{RunId: runId, v0Workflow: v0Workflow}, nil
 }
 
 // SubscribeToStream subscribes to streaming events for a specific workflow run.
