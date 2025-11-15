@@ -380,11 +380,13 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			err := s.replenish(ctx, true)
+			innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			err := s.replenish(innerCtx, true)
 
 			if err != nil {
 				s.l.Error().Err(err).Msg("error replenishing slots")
 			}
+			cancel()
 		}
 	}
 }
@@ -410,6 +412,8 @@ func (s *Scheduler) loopSnapshot(ctx context.Context) {
 			}
 
 			s.exts.ReportSnapshot(sqlchelpers.UUIDToStr(s.tenantId), in)
+
+			count++
 		}
 	}
 }
