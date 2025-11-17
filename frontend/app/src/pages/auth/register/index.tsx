@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { UserRegisterForm } from './components/user-register-form';
 import { useMutation } from '@tanstack/react-query';
 import api, { UserRegisterRequest } from '@/lib/api';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApiError } from '@/lib/hooks';
 import useApiMeta from '../hooks/use-api-meta';
 import { Loading } from '@/components/ui/loading';
@@ -14,9 +14,26 @@ export default function Register() {
   useErrorParam();
   const meta = useApiMeta();
 
+  // allows for cross-domain tracking with PostHog
+  // see: https://posthog.com/tutorials/cross-domain-tracking
+  // for setup instructions and more details
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  const distinctId = hashParams.get('distinct_id');
+  const sessionId = hashParams.get('session_id');
+
   if (meta.isLoading) {
     return <Loading />;
   }
+
+  useEffect(() => {
+    if (distinctId) {
+      localStorage.setItem('ph__distinct_id', distinctId);
+    }
+
+    if (sessionId) {
+      localStorage.setItem('ph__session_id', sessionId);
+    }
+  }, [distinctId, sessionId]);
 
   const schemes = meta.data?.auth?.schemes || [];
   const basicEnabled = schemes.includes('basic');
