@@ -9,6 +9,10 @@ import { Loading } from '@/components/ui/loading';
 import { GithubLogin, GoogleLogin, OrContinueWith } from '../login';
 import useErrorParam from '../hooks/use-error-param';
 import React from 'react';
+import {
+  POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY,
+  POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY,
+} from '@/hooks/use-analytics';
 
 export default function Register() {
   useErrorParam();
@@ -17,17 +21,19 @@ export default function Register() {
   // allows for cross-domain tracking with PostHog
   // see: https://posthog.com/tutorials/cross-domain-tracking
   // for setup instructions and more details
+  // important: we need to set these in local storage from here,
+  // because once we redirect after the user signs up, we lose the hash params
   const hashParams = new URLSearchParams(window.location.hash.substring(1));
   const distinctId = hashParams.get('distinct_id');
   const sessionId = hashParams.get('session_id');
 
   useEffect(() => {
     if (distinctId) {
-      localStorage.setItem('ph__distinct_id', distinctId);
+      localStorage.setItem(POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY, distinctId);
     }
 
     if (sessionId) {
-      localStorage.setItem('ph__session_id', sessionId);
+      localStorage.setItem(POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY, sessionId);
     }
   }, [distinctId, sessionId]);
 

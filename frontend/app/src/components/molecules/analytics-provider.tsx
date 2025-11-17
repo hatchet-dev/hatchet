@@ -1,7 +1,7 @@
 import { User } from '@/lib/api';
 import { useTenant } from '@/lib/atoms';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { useAnalytics } from '@/hooks/use-analytics';
+import { POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY, POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY, useAnalytics } from '@/hooks/use-analytics';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 
 interface AnalyticsProviderProps {
@@ -48,8 +48,8 @@ const AnalyticsProvider: React.FC<
     let bootstrapConfig = '';
 
     if (localStorage) {
-      const distinctId = localStorage.getItem('ph__distinct_id');
-      const sessionId = localStorage.getItem('ph__session_id');
+      const distinctId = localStorage.getItem(POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY);
+      const sessionId = localStorage.getItem(POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY);
 
       if (distinctId && sessionId) {
         bootstrapConfig = `bootstrap: ${JSON.stringify({

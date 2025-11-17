@@ -15,6 +15,9 @@ interface UseAnalyticsReturn {
   isAvailable: boolean;
 }
 
+export const POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY = 'ph__distinct_id';
+export const POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY = 'ph__session_id';
+
 /**
  * Hook for PostHog analytics integration
  * Provides a clean interface for tracking events and identifying users
