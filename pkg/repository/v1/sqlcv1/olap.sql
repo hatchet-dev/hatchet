@@ -976,7 +976,7 @@ SELECT
 FROM
     updated_dags d;
 
--- name: PopulateDAGMetadata :one
+-- name: PopulateDAGMetadata :many
 WITH input AS (
     SELECT
         UNNEST(@ids::bigint[]) AS id,
@@ -1036,7 +1036,8 @@ WITH input AS (
 ), task_output AS (
     SELECT
         run_id,
-        output
+        output,
+        external_id
     FROM
         relevant_events
     WHERE
@@ -1053,6 +1054,7 @@ SELECT
         WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
     END::JSONB AS output,
+    o.external_id AS output_event_external_id,
     COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id

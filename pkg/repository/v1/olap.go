@@ -1029,16 +1029,15 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		return nil, 0, err
 	}
 
-	dagIdsInsertedAts := make([]IdInsertedAt, 0, len(workflowRunIds))
+	runIdsWithDAGs := make([]int64, 0)
+	runInsertedAtsWithDAGs := make([]pgtype.Timestamptz, 0)
 	idsInsertedAts := make([]IdInsertedAt, 0, len(workflowRunIds))
 	externalIdsForPayloads := make([]pgtype.UUID, 0)
 
 	for _, row := range workflowRunIds {
 		if row.Kind == sqlcv1.V1RunKindDAG {
-			dagIdsInsertedAts = append(dagIdsInsertedAts, IdInsertedAt{
-				ID:         row.ID,
-				InsertedAt: row.InsertedAt,
-			})
+			runIdsWithDAGs = append(runIdsWithDAGs, row.ID)
+			runInsertedAtsWithDAGs = append(runInsertedAtsWithDAGs, row.InsertedAt)
 		} else {
 			idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 				ID:         row.ID,
@@ -1047,28 +1046,23 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		}
 	}
 
+	populatedDAGs, err := r.queries.PopulateDAGMetadata(ctx, tx, sqlcv1.PopulateDAGMetadataParams{
+		Ids:             runIdsWithDAGs,
+		Insertedats:     runInsertedAtsWithDAGs,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Includepayloads: opts.IncludePayloads,
+	})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, 0, err
+	}
+
 	dagsToPopulated := make(map[string]*sqlcv1.PopulateDAGMetadataRow)
 
-	for _, idInsertedAt := range dagIdsInsertedAts {
-		dag, err := r.queries.PopulateDAGMetadata(ctx, tx, sqlcv1.PopulateDAGMetadataParams{
-			ID:              idInsertedAt.ID,
-			Insertedat:      idInsertedAt.InsertedAt,
-			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-			Includepayloads: opts.IncludePayloads,
-		})
+	for _, dag := range populatedDAGs {
+		externalId := sqlchelpers.UUIDToStr(dag.ExternalID)
 
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return nil, 0, fmt.Errorf("error populating dag metadata for id %d: %v", idInsertedAt.ID, err)
-		}
-
-		if errors.Is(err, pgx.ErrNoRows) {
-			r.l.Error().Msgf("could not find dag with id %d and inserted at %s", idInsertedAt.ID, idInsertedAt.InsertedAt.Time.Format(time.RFC3339))
-			continue
-		}
-
-		dagsToPopulated[sqlchelpers.UUIDToStr(dag.ExternalID)] = dag
-		externalIdsForPayloads = append(externalIdsForPayloads, dag.ExternalID)
-		externalIdsForPayloads = append(externalIdsForPayloads, dag.OutputEventExternalID)
+		dagsToPopulated[externalId] = dag
 	}
 
 	count, err := r.queries.CountWorkflowRuns(ctx, tx, countParams)
@@ -1152,7 +1146,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				CreatedAt:            dag.CreatedAt,
 				StartedAt:            dag.StartedAt,
 				FinishedAt:           dag.FinishedAt,
-				ErrorMessage:         dag.ErrorMessage,
+				ErrorMessage:         dag.ErrorMessage.String,
 				Kind:                 sqlcv1.V1RunKindDAG,
 				WorkflowVersionId:    dag.WorkflowVersionID,
 				TaskExternalId:       nil,
