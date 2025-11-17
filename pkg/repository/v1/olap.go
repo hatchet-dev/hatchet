@@ -1063,6 +1063,8 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		externalId := sqlchelpers.UUIDToStr(dag.ExternalID)
 
 		dagsToPopulated[externalId] = dag
+		externalIdsForPayloads = append(externalIdsForPayloads, dag.ExternalID)
+		externalIdsForPayloads = append(externalIdsForPayloads, dag.OutputEventExternalID)
 	}
 
 	count, err := r.queries.CountWorkflowRuns(ctx, tx, countParams)
