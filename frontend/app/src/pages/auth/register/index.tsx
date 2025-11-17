@@ -21,10 +21,6 @@ export default function Register() {
   const distinctId = hashParams.get('distinct_id');
   const sessionId = hashParams.get('session_id');
 
-  if (meta.isLoading) {
-    return <Loading />;
-  }
-
   useEffect(() => {
     if (distinctId) {
       localStorage.setItem('ph__distinct_id', distinctId);
@@ -34,6 +30,10 @@ export default function Register() {
       localStorage.setItem('ph__session_id', sessionId);
     }
   }, [distinctId, sessionId]);
+
+  if (meta.isLoading) {
+    return <Loading />;
+  }
 
   const schemes = meta.data?.auth?.schemes || [];
   const basicEnabled = schemes.includes('basic');

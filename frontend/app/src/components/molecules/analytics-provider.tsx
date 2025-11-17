@@ -45,7 +45,7 @@ const AnalyticsProvider: React.FC<
       return;
     }
 
-    var bootstrapConfig = '';
+    let bootstrapConfig = '';
 
     if (localStorage) {
       const distinctId = localStorage.getItem('ph__distinct_id');
@@ -75,7 +75,7 @@ posthog.init('${config.apiKey}',{
 `;
     document.head.appendChild(document.createElement('script')).innerHTML =
       posthogScript;
-  }, [config, loaded, tenant, localStorage]);
+  }, [config, loaded, tenant]);
 
   useEffect(() => {
     if (!config) {
