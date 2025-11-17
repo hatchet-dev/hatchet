@@ -17,8 +17,8 @@ const AnalyticsProvider: React.FC<
   // see: https://posthog.com/tutorials/cross-domain-tracking
   // for setup instructions and more details
   const hashParams = new URLSearchParams(window.location.hash.substring(1));
-  const distinct_id = hashParams.get('distinct_id');
-  const session_id = hashParams.get('session_id');
+  const distinctId = hashParams.get('distinct_id');
+  const sessionId = hashParams.get('session_id');
 
   const [loaded, setLoaded] = React.useState(false);
 
@@ -49,10 +49,10 @@ const AnalyticsProvider: React.FC<
     setLoaded(true);
 
     const bootstrapConfig =
-      distinct_id && session_id
+      distinctId && sessionId
         ? `bootstrap: {
-        sessionID: '${session_id}',
-        distinctID: '${distinct_id}'
+        sessionID: '${sessionId}',
+        distinctID: '${distinctId}'
       },`
         : '';
 
@@ -69,7 +69,7 @@ posthog.init('${config.apiKey}',{
 `;
     document.head.appendChild(document.createElement('script')).innerHTML =
       posthogScript;
-  }, [config, loaded, tenant]);
+  }, [config, loaded, tenant, distinctId, sessionId]);
 
   useEffect(() => {
     if (!config) {
