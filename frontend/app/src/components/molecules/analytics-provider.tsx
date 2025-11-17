@@ -50,10 +50,10 @@ const AnalyticsProvider: React.FC<
 
     const bootstrapConfig =
       distinctId && sessionId
-        ? `bootstrap: {
-        sessionID: '${sessionId}',
-        distinctID: '${distinctId}'
-      },`
+        ? `bootstrap: ${JSON.stringify({
+            sessionID: sessionId,
+            distinctID: distinctId,
+          })},`
         : '';
 
     const posthogScript = `
