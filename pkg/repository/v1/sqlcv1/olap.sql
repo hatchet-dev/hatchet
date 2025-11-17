@@ -977,7 +977,11 @@ FROM
     updated_dags d;
 
 -- name: PopulateDAGMetadata :one
-WITH run AS (
+WITH input AS (
+    SELECT
+        UNNEST(@ids::bigint[]) AS id,
+        UNNEST(@insertedAts::timestamptz[]) AS inserted_at
+), runs AS (
     SELECT
         d.id AS dag_id,
         r.id AS run_id,
@@ -995,50 +999,67 @@ WITH run AS (
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id
-    FROM v1_runs_olap r
+    FROM input i
+    JOIN v1_runs_olap r ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
-    WHERE
-        r.id = @id::BIGINT
-        AND r.inserted_at = @insertedAt::TIMESTAMPTZ
-        -- hack to make sure PG correctly prunes partitions
-        AND d.id = @id::BIGINT
-        AND d.inserted_at = @insertedAt::TIMESTAMPTZ
-        AND r.tenant_id = @tenantId::UUID
-        AND r.kind = 'DAG'
+    WHERE r.tenant_id = @tenantId::uuid AND r.kind = 'DAG'
 ), relevant_events AS (
-    SELECT e.*
-    FROM run r
+    SELECT r.run_id, e.*
+    FROM runs r
     JOIN v1_dag_to_task_olap dt ON (r.dag_id, r.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
+    WHERE e.tenant_id = @tenantId::uuid
+), max_retry_count AS (
+    SELECT run_id, MAX(retry_count) AS max_retry_count
+    FROM relevant_events
+    GROUP BY run_id
 ), metadata AS (
     SELECT
-        MIN(e.event_timestamp)::timestamptz AS created_at,
-        MIN(e.event_timestamp) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
-        MAX(e.event_timestamp) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at,
-        MAX(e.error_message) FILTER (WHERE e.readable_status = 'FAILED') AS error_message,
-        MAX(e.output::TEXT) FILTER (WHERE e.event_type = 'FINISHED')::JSONB AS output,
-        MAX(e.external_id::TEXT) FILTER (WHERE e.event_type = 'FINISHED')::UUID AS output_event_external_id,
-        MAX(e.retry_count) AS max_retry_count
-    FROM relevant_events e
-    WHERE e.retry_count = (
-        SELECT MAX(retry_count)
-        FROM relevant_events
-    )
+        e.run_id,
+        MIN(e.inserted_at)::timestamptz AS created_at,
+        MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
+        MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at
+    FROM
+        relevant_events e
+    JOIN max_retry_count mrc ON (e.run_id, e.retry_count) = (mrc.run_id, mrc.max_retry_count)
+    GROUP BY e.run_id
+), error_message AS (
+    SELECT
+        DISTINCT ON (e.run_id) e.run_id::bigint,
+        e.error_message
+    FROM
+        relevant_events e
+    WHERE
+        e.readable_status = 'FAILED'
+    ORDER BY
+        e.run_id, e.retry_count DESC
+), task_output AS (
+    SELECT
+        run_id,
+        output
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
 )
 
 SELECT
     r.*,
-    m.created_at::TIMESTAMPTZ AS created_at,
-    m.started_at::TIMESTAMPTZ AS started_at,
-    m.finished_at::TIMESTAMPTZ AS finished_at,
-    -- hack to force this to string since sqlc can't figure out that this should be pgtype.Text
-    COALESCE(m.error_message, '')::TEXT AS error_message,
-    m.output::JSONB AS output,
-    m.output_event_external_id::UUID AS output_event_external_id,
-    COALESCE(m.max_retry_count, 0)::int as retry_count
-FROM run r, metadata m
-;
-
+    m.created_at,
+    m.started_at,
+    m.finished_at,
+    e.error_message,
+    CASE
+        WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
+        ELSE '{}'::JSONB
+    END::JSONB AS output,
+    COALESCE(mrc.max_retry_count, 0)::int as retry_count
+FROM runs r
+LEFT JOIN metadata m ON r.run_id = m.run_id
+LEFT JOIN error_message e ON r.run_id = e.run_id
+LEFT JOIN task_output o ON r.run_id = o.run_id
+LEFT JOIN max_retry_count mrc ON r.run_id = mrc.run_id
+ORDER BY r.inserted_at DESC, r.run_id DESC;
 
 -- name: GetTaskPointMetrics :many
 SELECT
