@@ -13,6 +13,13 @@ const AnalyticsProvider: React.FC<
 > = ({ user, children }) => {
   const meta = useApiMeta();
 
+  // allows for cross-domain tracking with PostHog
+  // see: https://posthog.com/tutorials/cross-domain-tracking
+  // for setup instructions and more details
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  const distinct_id = hashParams.get('distinct_id') ?? undefined;
+  const session_id = hashParams.get('session_id') ?? undefined;
+
   const [loaded, setLoaded] = React.useState(false);
 
   const { tenant } = useTenant();
@@ -47,6 +54,10 @@ posthog.init('${config.apiKey}',{
   session_recording: {
       maskAllInputs: true,
       maskTextSelector: "*"
+  },
+  bootstrap: {
+    sessionID: '${session_id || ''}',
+    distinctID: '${distinct_id || ''}'
   }
 })
 `;
