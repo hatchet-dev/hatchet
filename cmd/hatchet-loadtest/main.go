@@ -54,7 +54,7 @@ func main() {
 			// enable pprof if requested
 			if os.Getenv("PPROF_ENABLED") == "true" {
 				go func() {
-					log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint: gosec
+					log.Println(http.ListenAndServe("0.0.0.0:6060", nil)) // nolint: gosec
 				}()
 			}
 

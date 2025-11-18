@@ -5,8 +5,8 @@ set -eux
 
 ENCRYPTION_KEYS_DIR=./encryption-keys
 
-# Read CERTS_DIR from args if exists
-if [ -n "$1" ]; then
+# Read ENCRYPTION_KEYS_DIR from args if exists
+if [ -n "${1:-}" ]; then
     ENCRYPTION_KEYS_DIR=$1
 fi
 

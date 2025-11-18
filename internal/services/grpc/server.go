@@ -37,6 +37,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 )
 
 type Server struct {

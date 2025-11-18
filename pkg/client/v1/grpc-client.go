@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 	"google.golang.org/grpc/keepalive"
 	grpcMetadata "google.golang.org/grpc/metadata"
 
@@ -118,6 +119,7 @@ func NewGRPCClient(fs ...GRPCClientOpt) (*GRPCClient, error) {
 	grpcOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(transportCreds),
 		grpc.WithKeepaliveParams(keepAliveParams),
+		grpc.WithDefaultCallOptions(grpc.UseCompressor("gzip")),
 	}
 
 	conn, err := grpc.NewClient(

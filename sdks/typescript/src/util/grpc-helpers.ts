@@ -17,6 +17,8 @@ export const channelFactory = (config: ClientConfig, credentials: ChannelCredent
     'grpc.keepalive_time_ms': 10 * 1000,
     // Allow keepalive pings when there are no gRPC calls.
     'grpc.keepalive_permit_without_calls': 1,
+    // Enable gzip compression for all calls on this channel
+    'grpc.default_compression_algorithm': 2, // 2 = Gzip compression
   });
 
 export const addTokenMiddleware = (token: string) =>
