@@ -23,7 +23,7 @@ BEGIN
     RAISE NOTICE 'Renaming existing table to %', new_table_name;
 
     EXECUTE format('ALTER TABLE v1_dag_data RENAME TO %I', new_table_name);
-    EXECUTE format('ALTER INDEX v1_dag_data_pkey RENAME TO %I', new_table_name || '_pkey');
+    EXECUTE format('ALTER INDEX v1_dag_input_pkey RENAME TO %I', new_table_name || '_pkey');
 
     EXECUTE
         format('ALTER TABLE %s SET (
@@ -69,5 +69,5 @@ SELECT * FROM v1_dag_data;
 
 DROP TABLE v1_dag_data;
 ALTER TABLE v1_dag_data_original RENAME TO v1_dag_data;
-ALTER INDEX v1_dag_data_original_pkey RENAME TO v1_dag_data_pkey;
+ALTER INDEX v1_dag_data_original_pkey RENAME TO v1_dag_input_pkey;
 -- +goose StatementEnd

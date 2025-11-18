@@ -659,7 +659,7 @@ CREATE TABLE v1_dag_data (
     dag_inserted_at TIMESTAMPTZ NOT NULL,
     input JSONB NOT NULL,
     additional_metadata JSONB,
-    CONSTRAINT v1_dag_input_pkey PRIMARY KEY (dag_id, dag_inserted_at)
+    PRIMARY KEY (dag_id, dag_inserted_at)
 );
 
 -- CreateTable
