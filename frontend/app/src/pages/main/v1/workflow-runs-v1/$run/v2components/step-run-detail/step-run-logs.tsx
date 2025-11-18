@@ -72,8 +72,10 @@ export function StepRunLogs({
       );
       const rows = response.data.rows;
 
-      if (isTaskRunning) {
-        lastPageTimestampRef.current = rows?.[rows.length - 1]?.createdAt;
+      const maxCreatedAt = rows?.[rows.length - 1]?.createdAt;
+
+      if (isTaskRunning && maxCreatedAt) {
+        lastPageTimestampRef.current = maxCreatedAt;
         return response.data;
       }
 
