@@ -1912,6 +1912,13 @@ func (r *sharedRepository) insertTasks(
 						String: failTaskError.Error(),
 						Valid:  true,
 					}
+
+					// set to "FAILED" for each strategy to maintain cardinality in multi-dimensional array
+					failedKeys := make([]string, len(strats))
+					for j := range failedKeys {
+						failedKeys[j] = "FAILED"
+					}
+					concurrencyKeys[i] = failedKeys
 				} else {
 					concurrencyKeys[i] = taskConcurrencyKeys
 				}
@@ -2313,6 +2320,13 @@ func (r *sharedRepository) replayTasks(
 						String: failTaskError.Error(),
 						Valid:  true,
 					}
+
+					// set to "FAILED" for each strategy to maintain cardinality in multi-dimensional array
+					failedKeys := make([]string, len(strats))
+					for j := range failedKeys {
+						failedKeys[j] = "FAILED"
+					}
+					concurrencyKeys[i] = failedKeys
 				} else {
 					concurrencyKeys[i] = taskConcurrencyKeys
 				}

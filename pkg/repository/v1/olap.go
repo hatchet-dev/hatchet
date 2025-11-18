@@ -602,7 +602,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtyp
 			FinishedAt:            taskRun.FinishedAt,
 			StartedAt:             taskRun.StartedAt,
 			QueuedAt:              taskRun.QueuedAt,
-			ErrorMessage:          taskRun.ErrorMessage.String,
+			ErrorMessage:          taskRun.ErrorMessage,
 			RetryCount:            taskRun.RetryCount,
 			OutputEventExternalID: taskRun.OutputEventExternalID,
 		},
@@ -1029,16 +1029,15 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		return nil, 0, err
 	}
 
-	dagIdsInsertedAts := make([]IdInsertedAt, 0, len(workflowRunIds))
+	runIdsWithDAGs := make([]int64, 0)
+	runInsertedAtsWithDAGs := make([]pgtype.Timestamptz, 0)
 	idsInsertedAts := make([]IdInsertedAt, 0, len(workflowRunIds))
 	externalIdsForPayloads := make([]pgtype.UUID, 0)
 
 	for _, row := range workflowRunIds {
 		if row.Kind == sqlcv1.V1RunKindDAG {
-			dagIdsInsertedAts = append(dagIdsInsertedAts, IdInsertedAt{
-				ID:         row.ID,
-				InsertedAt: row.InsertedAt,
-			})
+			runIdsWithDAGs = append(runIdsWithDAGs, row.ID)
+			runInsertedAtsWithDAGs = append(runInsertedAtsWithDAGs, row.InsertedAt)
 		} else {
 			idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 				ID:         row.ID,
@@ -1047,26 +1046,23 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		}
 	}
 
+	populatedDAGs, err := r.queries.PopulateDAGMetadata(ctx, tx, sqlcv1.PopulateDAGMetadataParams{
+		Ids:             runIdsWithDAGs,
+		Insertedats:     runInsertedAtsWithDAGs,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Includepayloads: opts.IncludePayloads,
+	})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, 0, err
+	}
+
 	dagsToPopulated := make(map[string]*sqlcv1.PopulateDAGMetadataRow)
 
-	for _, idInsertedAt := range dagIdsInsertedAts {
-		dag, err := r.queries.PopulateDAGMetadata(ctx, tx, sqlcv1.PopulateDAGMetadataParams{
-			ID:              idInsertedAt.ID,
-			Insertedat:      idInsertedAt.InsertedAt,
-			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-			Includepayloads: opts.IncludePayloads,
-		})
+	for _, dag := range populatedDAGs {
+		externalId := sqlchelpers.UUIDToStr(dag.ExternalID)
 
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return nil, 0, fmt.Errorf("error populating dag metadata for id %d: %v", idInsertedAt.ID, err)
-		}
-
-		if errors.Is(err, pgx.ErrNoRows) {
-			r.l.Error().Msgf("could not find dag with id %d and inserted at %s", idInsertedAt.ID, idInsertedAt.InsertedAt.Time.Format(time.RFC3339))
-			continue
-		}
-
-		dagsToPopulated[sqlchelpers.UUIDToStr(dag.ExternalID)] = dag
+		dagsToPopulated[externalId] = dag
 		externalIdsForPayloads = append(externalIdsForPayloads, dag.ExternalID)
 		externalIdsForPayloads = append(externalIdsForPayloads, dag.OutputEventExternalID)
 	}
@@ -1152,7 +1148,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				CreatedAt:            dag.CreatedAt,
 				StartedAt:            dag.StartedAt,
 				FinishedAt:           dag.FinishedAt,
-				ErrorMessage:         dag.ErrorMessage,
+				ErrorMessage:         dag.ErrorMessage.String,
 				Kind:                 sqlcv1.V1RunKindDAG,
 				WorkflowVersionId:    dag.WorkflowVersionID,
 				TaskExternalId:       nil,
@@ -1203,7 +1199,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				CreatedAt:          task.InsertedAt,
 				StartedAt:          task.StartedAt,
 				FinishedAt:         task.FinishedAt,
-				ErrorMessage:       task.ErrorMessage,
+				ErrorMessage:       task.ErrorMessage.String,
 				Kind:               sqlcv1.V1RunKindTASK,
 				TaskExternalId:     &task.ExternalID,
 				TaskId:             &task.ID,
@@ -2673,42 +2669,34 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 		return []*sqlcv1.PopulateTaskRunDataRow{}, nil
 	}
 
-	idInsertedAtToData := make(map[IdInsertedAt]*sqlcv1.PopulateTaskRunDataRow)
+	taskIds := make([]int64, 0)
+	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 
 	for idInsertedAt := range uniqueTaskIdInsertedAts {
-		taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
-			Taskid:          idInsertedAt.ID,
-			Taskinsertedat:  idInsertedAt.InsertedAt,
-			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-			Includepayloads: includePayloads,
-		})
-
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return nil, err
-		}
-
-		if errors.Is(err, pgx.ErrNoRows) {
-			r.l.Warn().Msgf("task %d not found with inserted at %s", idInsertedAt.ID, idInsertedAt.InsertedAt.Time)
-			continue
-		}
-
-		idInsertedAtToData[idInsertedAt] = taskData
+		taskIds = append(taskIds, idInsertedAt.ID)
+		taskInsertedAts = append(taskInsertedAts, idInsertedAt.InsertedAt)
 	}
 
-	result := make([]*sqlcv1.PopulateTaskRunDataRow, 0)
-	for _, taskData := range idInsertedAtToData {
-		result = append(result, taskData)
-	}
-
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].InsertedAt.Time.Equal(result[j].InsertedAt.Time) {
-			return result[i].ID < result[j].ID
-		}
-
-		return result[i].InsertedAt.Time.After(result[j].InsertedAt.Time)
+	taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Includepayloads: includePayloads,
 	})
 
-	return result, nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+
+	sort.Slice(taskData, func(i, j int) bool {
+		if taskData[i].InsertedAt.Time.Equal(taskData[j].InsertedAt.Time) {
+			return taskData[i].ID < taskData[j].ID
+		}
+
+		return taskData[i].InsertedAt.Time.After(taskData[j].InsertedAt.Time)
+	})
+
+	return taskData, nil
 
 }
 
