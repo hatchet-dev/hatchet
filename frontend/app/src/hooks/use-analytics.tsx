@@ -15,6 +15,9 @@ interface UseAnalyticsReturn {
   isAvailable: boolean;
 }
 
+export const POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY = 'ph__distinct_id';
+export const POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY = 'ph__session_id';
+
 /**
  * Hook for PostHog analytics integration
  * Provides a clean interface for tracking events and identifying users
@@ -61,6 +64,11 @@ export function useAnalytics(): UseAnalyticsReturn {
       } catch (error) {
         console.warn('Analytics identify failed:', error);
       }
+
+      // important: clear out the distinct_id and session_id from local storage
+      // after identifying the user so we don't re-bootstrap over and over
+      localStorage.removeItem(POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY);
+      localStorage.removeItem(POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY);
     },
     [isAvailable],
   );
