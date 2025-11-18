@@ -51,11 +51,11 @@ const AnalyticsProvider: React.FC<
 
     let bootstrapConfig = '';
 
-    if (localStorage) {
-      const distinctId = localStorage.getItem(
+    if (sessionStorage) {
+      const distinctId = sessionStorage.getItem(
         POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY,
       );
-      const sessionId = localStorage.getItem(
+      const sessionId = sessionStorage.getItem(
         POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY,
       );
 
