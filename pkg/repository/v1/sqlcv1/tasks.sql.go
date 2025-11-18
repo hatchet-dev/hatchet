@@ -21,6 +21,15 @@ func (q *Queries) AnalyzeV1Dag(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const analyzeV1DagData = `-- name: AnalyzeV1DagData :exec
+ANALYZE v1_dag_data
+`
+
+func (q *Queries) AnalyzeV1DagData(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1DagData)
+	return err
+}
+
 const analyzeV1Task = `-- name: AnalyzeV1Task :exec
 ANALYZE v1_task
 `
@@ -126,7 +135,8 @@ SELECT
     create_v1_range_partition('v1_dag', $1::date),
     create_v1_range_partition('v1_task_event', $1::date),
     create_v1_range_partition('v1_log_line', $1::date),
-    create_v1_range_partition('v1_payload', $1::date)
+    create_v1_range_partition('v1_payload', $1::date),
+    create_v1_range_partition('v1_dag_data', $1::date)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -218,6 +228,10 @@ WITH tomorrow_date AS (
     SELECT 'v1_task_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_log_line_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_payload' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_dag_data' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -979,6 +993,8 @@ WITH task_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', $1::date) AS p
 ), payload_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', $1::date) AS p
+), dag_data_partitions AS (
+    SELECT 'v1_dag_data' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_data', $1::date) AS p
 )
 
 SELECT
@@ -1013,6 +1029,13 @@ SELECT
     parent_table, partition_name
 FROM
     payload_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    dag_data_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {
