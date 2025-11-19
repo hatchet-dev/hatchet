@@ -64,11 +64,6 @@ export function useAnalytics(): UseAnalyticsReturn {
       } catch (error) {
         console.warn('Analytics identify failed:', error);
       }
-
-      // important: clear out the distinct_id and session_id from local storage
-      // after identifying the user so we don't re-bootstrap over and over
-      localStorage.removeItem(POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY);
-      localStorage.removeItem(POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY);
     },
     [isAvailable],
   );

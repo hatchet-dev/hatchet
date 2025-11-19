@@ -29,11 +29,11 @@ export default function Register() {
 
   useEffect(() => {
     if (distinctId) {
-      localStorage.setItem(POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY, distinctId);
+      sessionStorage.setItem(POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY, distinctId);
     }
 
     if (sessionId) {
-      localStorage.setItem(POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY, sessionId);
+      sessionStorage.setItem(POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY, sessionId);
     }
   }, [distinctId, sessionId]);
 
