@@ -34,11 +34,8 @@ WITH tomorrow_date AS (
     FROM expected_partitions ep
     LEFT JOIN pg_catalog.pg_tables pt ON pt.tablename = ep.expected_partition_name
 )
-SELECT
-    CASE
-        WHEN existing_partitions = total_tables THEN TRUE
-        ELSE FALSE
-    END AS all_partitions_exist
+
+SELECT existing_partitions = total_tables AS all_partitions_exist
 FROM partition_check;
 
 -- name: ListPartitionsBeforeDate :many
@@ -64,6 +61,11 @@ task_partitions AS (
 )
 , dag_to_task_partitions AS (
     SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', @date::date) AS p
+)
+, lookup_table_partitions AS (
+    -- using one week before the provided date here since the lookup table partitions are weekly, and we don't want to
+    -- drop the current week's partition if the date is in the current week
+    SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_lookup_table', (@date - INTERVAL '1 week')::date) AS p
 )
 
 SELECT
@@ -111,6 +113,12 @@ UNION ALL
 SELECT *
 FROM
     dag_data_partitions
+
+UNION ALL
+
+SELECT *
+FROM
+    lookup_table_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one
