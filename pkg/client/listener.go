@@ -215,7 +215,7 @@ func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
 		time.Sleep(DefaultActionListenerRetryInterval)
 	}
 
-	return fmt.Errorf("could not send to the worker after %d retries", DefaultActionListenerRetryCount)
+	return fmt.Errorf("could not send to the worker after %d retries, please restart the worker and try again", DefaultActionListenerRetryCount)
 }
 
 func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
