@@ -19,7 +19,7 @@ func newBulkStepRunQueuer(shared *sharedRepository, conf buffer.ConfigFileBuffer
 		Name:       "step_run_queuer",
 		OutputFunc: shared.bulkQueueStepRuns,
 		SizeFunc:   sizeOfQueueData,
-		L:          shared.l,
+		L:          &shared.l.Logger,
 		V:          shared.v,
 		Config:     conf,
 	}
@@ -58,8 +58,8 @@ func (w *sharedRepository) bulkQueueStepRuns(ctx context.Context, opts []bulkQue
 	res := make([]*pgtype.UUID, 0, len(opts))
 	orderedOpts := sortForQueueStepRuns(opts)
 
-	err := sqlchelpers.DeadlockRetry(w.l, func() (err error) {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 10000)
+	err := sqlchelpers.DeadlockRetry(&w.l.Logger, func() (err error) {
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, &w.l.Logger, 10000)
 
 		if err != nil {
 			return err

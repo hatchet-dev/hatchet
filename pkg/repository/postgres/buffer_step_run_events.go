@@ -20,7 +20,7 @@ func newBulkEventWriter(shared *sharedRepository, conf buffer.ConfigFileBuffer) 
 	eventBufOpts := buffer.TenantBufManagerOpts[*repository.CreateStepRunEventOpts, int]{
 		Name:     "step_run_event_buffer",
 		SizeFunc: sizeOfEventData,
-		L:        shared.l,
+		L:        &shared.l.Logger,
 		V:        shared.v,
 		Config:   conf,
 	}
@@ -78,7 +78,7 @@ func (w *sharedRepository) serialWriteStepRunEvent(ctx context.Context, opts []*
 			}
 		}
 
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 1000)
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, &w.l.Logger, 1000)
 		if err != nil {
 			return nil, fmt.Errorf("could not prepare transaction: %w", err)
 		}
@@ -157,8 +157,8 @@ func (w *sharedRepository) bulkWriteStepRunEvents(ctx context.Context, opts []*r
 		}
 	}
 
-	err := sqlchelpers.DeadlockRetry(w.l, func() (err error) {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 10000)
+	err := sqlchelpers.DeadlockRetry(&w.l.Logger, func() (err error) {
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, &w.l.Logger, 10000)
 
 		if err != nil {
 			return err
@@ -168,7 +168,7 @@ func (w *sharedRepository) bulkWriteStepRunEvents(ctx context.Context, opts []*r
 
 		err = bulkStepRunEvents(
 			ctx,
-			w.l,
+			&w.l.Logger,
 			tx,
 			w.queries,
 			eventStepRunIds,

@@ -14,7 +14,7 @@ func newCreateWorkflowRunBuffer(shared *sharedRepository, conf buffer.ConfigFile
 		Name:       "workflow_run_buffer",
 		OutputFunc: shared.bulkCreateWorkflowRuns,
 		SizeFunc:   sizeOfWorkflowRunData,
-		L:          shared.l,
+		L:          &shared.l.Logger,
 		V:          shared.v,
 		Config:     conf,
 	}
@@ -45,5 +45,5 @@ func (w *sharedRepository) bulkCreateWorkflowRuns(ctx context.Context, opts []*r
 
 	w.l.Debug().Msgf("bulk creating %d workflow runs", len(opts))
 
-	return createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
+	return createNewWorkflowRuns(ctx, w.pool, w.queries, &w.l.Logger, opts)
 }

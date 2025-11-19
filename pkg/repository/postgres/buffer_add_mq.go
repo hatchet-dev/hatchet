@@ -17,7 +17,7 @@ func newAddMQBuffer(shared *sharedRepository) (*buffer.TenantBufferManager[addMe
 		Name:       "add_mq",
 		OutputFunc: shared.bulkAddMessages,
 		SizeFunc:   sizeOfMQMessage,
-		L:          shared.l,
+		L:          &shared.l.Logger,
 		V:          shared.v,
 	}
 
@@ -59,7 +59,7 @@ func (r *sharedRepository) bulkAddMessages(ctx context.Context, opts []addMessag
 		})
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 10000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 10000)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not prepare transaction: %w", err)

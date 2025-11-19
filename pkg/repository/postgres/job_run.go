@@ -38,7 +38,7 @@ func (j *jobRunAPIRepository) SetJobRunStatusRunning(tenantId, jobRunId string) 
 	}
 
 	for _, cb := range j.wrRunningCallbacks {
-		cb.Do(j.l, tenantId, *wrId)
+		cb.Do(&j.l.Logger, tenantId, *wrId)
 	}
 
 	return nil
@@ -74,7 +74,7 @@ func (j *jobRunEngineRepository) RegisterWorkflowRunRunningCallback(callback rep
 
 func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, tenantId, jobRunId string) error {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, j.pool, j.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, j.pool, &j.l.Logger, 5000)
 
 	if err != nil {
 		return err
@@ -105,7 +105,7 @@ func (s *sharedRepository) setJobRunStatusRunningWithTx(ctx context.Context, tx 
 	}
 
 	for _, cb := range s.wrRunningCallbacks {
-		cb.Do(s.l, tenantId, *wrId)
+		cb.Do(&s.l.Logger, tenantId, *wrId)
 	}
 
 	return nil

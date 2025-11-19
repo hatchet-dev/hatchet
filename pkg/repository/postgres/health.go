@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
@@ -39,10 +39,10 @@ func (a *healthAPIRepository) PgStat() *pgxpool.Stat {
 type healthEngineRepository struct {
 	queries *dbsqlc.Queries
 	pool    *pgxpool.Pool
-	l       *zerolog.Logger
+	l       *logger.Logger
 }
 
-func NewHealthEngineRepository(pool *pgxpool.Pool, l *zerolog.Logger) repository.HealthRepository {
+func NewHealthEngineRepository(pool *pgxpool.Pool, l *logger.Logger) repository.HealthRepository {
 	queries := dbsqlc.New()
 
 	return &healthEngineRepository{

@@ -48,3 +48,13 @@ func NewStdErr(cf *shared.LoggerConfigFile, service string) zerolog.Logger {
 
 	return l
 }
+
+func NewContextLogger(service string) *Logger {
+	l := NewDefaultLogger(service)
+	return New(&l)
+}
+
+func NewContextLoggerFromConfig(cf *shared.LoggerConfigFile, service string) *Logger {
+	l := NewStdErr(cf, service)
+	return New(&l)
+}

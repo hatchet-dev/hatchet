@@ -74,7 +74,7 @@ func (s *stepRunAPIRepository) ListStepRunEvents(stepRunId string, opts *reposit
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(context.Background(), s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), &s.l.Logger, tx.Rollback)
 
 	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
 
@@ -129,7 +129,7 @@ func (s *stepRunAPIRepository) ListStepRunEventsByWorkflowRunId(ctx context.Cont
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(context.Background(), s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), &s.l.Logger, tx.Rollback)
 
 	listParams := dbsqlc.ListStepRunEventsByWorkflowRunIdParams{
 		Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
@@ -192,7 +192,7 @@ func (s *stepRunAPIRepository) ListStepRunArchives(tenantId string, stepRunId st
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(context.Background(), s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), &s.l.Logger, tx.Rollback)
 
 	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
@@ -297,7 +297,7 @@ func (s *stepRunEngineRepository) ListRunningStepRunsForTicker(ctx context.Conte
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &s.l.Logger, tx.Rollback)
 
 	srs, err := s.queries.ListStepRuns(ctx, tx, dbsqlc.ListStepRunsParams{
 		Status: dbsqlc.NullStepRunStatus{
@@ -340,7 +340,7 @@ func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId str
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &s.l.Logger, tx.Rollback)
 
 	listOpts := dbsqlc.ListStepRunsParams{
 		TenantId: sqlchelpers.UUIDFromStr(tenantId),
@@ -416,7 +416,7 @@ func (s *stepRunEngineRepository) ListStepRunsToCancel(ctx context.Context, tena
 func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, tenantId string) ([]string, []*dbsqlc.GetStepRunForEngineRow, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, &s.l.Logger, 5000)
 
 	if err != nil {
 		return nil, nil, err
@@ -497,7 +497,7 @@ func (s *stepRunEngineRepository) InternalRetryStepRuns(ctx context.Context, ten
 		stepRuns = append(stepRuns, sqlchelpers.UUIDFromStr(id))
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, &s.l.Logger, 5000)
 
 	if err != nil {
 		return nil, nil, err
@@ -553,7 +553,7 @@ func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, ten
 		return false, nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &s.l.Logger, tx.Rollback)
 
 	limit := 100
 
@@ -609,7 +609,7 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 	}
 
 	if isUserTriggered {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, &s.l.Logger, 5000)
 
 		if err != nil {
 			return err
@@ -739,7 +739,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdatesV2(ctx context.Context, q
 		limit = s.cf.SingleQueueLimit * s.updateConcurrentFactor
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, &s.l.Logger, 25000)
 
 	if err != nil {
 		return emptyRes, err
@@ -801,7 +801,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdatesV2(ctx context.Context, q
 	for _, cb := range s.callbacks {
 		for _, wr := range completedWorkflowRuns {
 			wrCp := wr
-			cb.Do(s.l, tenantId, wrCp)
+			cb.Do(&s.l.Logger, tenantId, wrCp)
 		}
 	}
 
@@ -961,7 +961,7 @@ func (s *stepRunEngineRepository) bulkProcessStepRunUpdates(ctx context.Context,
 	pgTenantId pgtype.UUID,
 ) (completedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow, err error) {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, &s.l.Logger, 25000)
 
 	if err != nil {
 		return nil, err
@@ -1279,7 +1279,7 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 		return err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &s.l.Logger, tx.Rollback)
 
 	// update the job run lookup data
 	err = s.queries.UpdateJobRunLookupDataWithStepRun(ctx, tx, dbsqlc.UpdateJobRunLookupDataWithStepRunParams{
@@ -1516,7 +1516,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 	ctx, span := telemetry.NewSpan(ctx, "replay-step-run")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, &s.l.Logger, 5000)
 
 	if err != nil {
 		return nil, err
@@ -1681,7 +1681,7 @@ func (s *stepRunEngineRepository) UpdateStepRunOverridesData(ctx context.Context
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &s.l.Logger, tx.Rollback)
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
@@ -1730,7 +1730,7 @@ func (s *stepRunEngineRepository) UpdateStepRunInputSchema(ctx context.Context, 
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &s.l.Logger, tx.Rollback)
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
@@ -1762,7 +1762,7 @@ func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, ten
 	cacheKey := fmt.Sprintf("t-%s-q-%s", tenantId, innerStepRun.SRQueue)
 
 	_, err := cache.MakeCacheable(s.queueActionTenantCache, cacheKey, func() (*bool, error) {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, &s.l.Logger, 5000)
 
 		if err != nil {
 			return nil, err
@@ -2002,7 +2002,7 @@ func (s *sharedRepository) ListInitialStepRunsForJobRun(ctx context.Context, ten
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &s.l.Logger, tx.Rollback)
 
 	res, err := s.listInitialStepRunsForJobRunWithTx(ctx, tx, tenantId, jobRunId)
 
@@ -2038,7 +2038,7 @@ func (s *stepRunEngineRepository) ListStartableStepRuns(ctx context.Context, ten
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &s.l.Logger, tx.Rollback)
 
 	var srs []pgtype.UUID
 
@@ -2101,7 +2101,7 @@ func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId
 		return pgtype.Timestamp{}, err
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, &s.l.Logger, 5000)
 
 	if err != nil {
 		return pgtype.Timestamp{}, err

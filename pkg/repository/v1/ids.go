@@ -110,7 +110,7 @@ func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, t
 }
 
 func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, &s.l.Logger, 5000)
 
 	if err != nil {
 		return err

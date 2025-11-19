@@ -16,7 +16,7 @@ func NewBulkSemaphoreReleaser(shared *sharedRepository, conf buffer.ConfigFileBu
 		Name:       "semaphore_releaser",
 		OutputFunc: shared.bulkReleaseSemaphores,
 		SizeFunc:   sizeOfSemaphoreReleaseData,
-		L:          shared.l,
+		L:          &shared.l.Logger,
 		V:          shared.v,
 		Config:     conf,
 	}
@@ -75,8 +75,8 @@ func (w *sharedRepository) bulkReleaseSemaphores(ctx context.Context, opts []sem
 		return nil, err
 	}
 
-	err = sqlchelpers.DeadlockRetry(w.l, func() (err error) {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 5000)
+	err = sqlchelpers.DeadlockRetry(&w.l.Logger, func() (err error) {
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, &w.l.Logger, 5000)
 
 		if err != nil {
 			return err
@@ -97,8 +97,8 @@ func (w *sharedRepository) bulkReleaseSemaphores(ctx context.Context, opts []sem
 		return nil, err
 	}
 
-	err = sqlchelpers.DeadlockRetry(w.l, func() (err error) {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 5000)
+	err = sqlchelpers.DeadlockRetry(&w.l.Logger, func() (err error) {
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, &w.l.Logger, 5000)
 
 		if err != nil {
 			return err

@@ -126,7 +126,7 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &r.l.Logger, tx.Rollback)
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 

@@ -496,7 +496,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		return fmt.Errorf("could not cleanup queue: %w", err)
 	}
 
-	waitFor(&wg, 60*time.Second, s.l)
+	waitFor(&wg, 60*time.Second, &s.l.Logger)
 
 	return nil
 }
@@ -980,7 +980,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 		return fmt.Errorf("could not cleanup queue: %w", err)
 	}
 
-	waitFor(&wg, 60*time.Second, s.l)
+	waitFor(&wg, 60*time.Second, &s.l.Logger)
 
 	return nil
 }
@@ -1112,7 +1112,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 		return fmt.Errorf("could not cleanup queue: %w", err)
 	}
 
-	waitFor(&wg, 60*time.Second, s.l)
+	waitFor(&wg, 60*time.Second, &s.l.Logger)
 
 	return nil
 }

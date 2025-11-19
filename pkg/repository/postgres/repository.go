@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -363,6 +364,8 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 	mq, cleanupMQ := NewMessageQueueRepository(shared)
 
+	wrappedLogger := logger.New(opts.l)
+
 	return func() error {
 			rlCache.Stop()
 			queueCache.Stop()
@@ -374,24 +377,24 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 			return cleanup()
 		}, &engineRepository{
-			health:         NewHealthEngineRepository(pool, opts.l),
+			health:         NewHealthEngineRepository(pool, wrappedLogger),
 			apiToken:       NewAPITokenRepository(shared, opts.cache),
-			dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
+			dispatcher:     NewDispatcherRepository(pool, opts.v, wrappedLogger),
 			event:          NewEventEngineRepository(shared, opts.metered, cf.EventBuffer),
-			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
+			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, wrappedLogger),
 			jobRun:         NewJobRunEngineRepository(shared),
 			stepRun:        NewStepRunEngineRepository(shared, cf, rlCache, queueCache),
-			step:           NewStepRepository(pool, opts.v, opts.l),
-			tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
+			step:           NewStepRepository(pool, opts.v, wrappedLogger),
+			tenant:         NewTenantEngineRepository(pool, opts.v, wrappedLogger, opts.cache),
 			tenantAlerting: NewTenantAlertingRepository(shared, opts.cache),
-			ticker:         NewTickerRepository(pool, opts.v, opts.l),
-			worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
+			ticker:         NewTickerRepository(pool, opts.v, wrappedLogger),
+			worker:         NewWorkerEngineRepository(pool, opts.v, wrappedLogger, opts.metered),
 			workflow:       NewWorkflowEngineRepository(shared, opts.metered, opts.cache),
 			workflowRun:    NewWorkflowRunEngineRepository(shared, opts.metered, cf),
-			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
+			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, wrappedLogger),
 			log:            logRepo,
-			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
-			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
+			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, wrappedLogger),
+			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, wrappedLogger),
 			scheduler:      newSchedulerRepository(shared),
 			mq:             mq,
 		},

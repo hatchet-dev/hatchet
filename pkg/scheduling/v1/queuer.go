@@ -62,16 +62,16 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 		repo:          queueRepo,
 		tenantId:      tenantId,
 		queueName:     queueName,
-		l:             conf.l,
+		l:             &conf.l.Logger,
 		s:             s,
 		limit:         defaultLimit,
 		resultsCh:     resultsCh,
 		notifyQueueCh: notifyQueueCh,
-		queueMu:       newMu(conf.l),
-		unackedMu:     newRWMu(conf.l),
+		queueMu:       newMu(&conf.l.Logger),
+		unackedMu:     newRWMu(&conf.l.Logger),
 		unacked:       make(map[int64]struct{}),
 		unassigned:    make(map[int64]*sqlcv1.V1QueueItem),
-		unassignedMu:  newMu(conf.l),
+		unassignedMu:  newMu(&conf.l.Logger),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

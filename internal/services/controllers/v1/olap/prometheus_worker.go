@@ -31,7 +31,7 @@ type dagPrometheusUpdate struct {
 func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 	defer func() {
 		if r := recover(); r != nil {
-			_ = recoveryutils.RecoverWithAlert(o.l, o.a, r)
+			_ = recoveryutils.RecoverWithAlert(&o.l.Logger, o.a, r)
 		}
 	}()
 
@@ -138,7 +138,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 	defer func() {
 		if r := recover(); r != nil {
-			_ = recoveryutils.RecoverWithAlert(o.l, o.a, r)
+			_ = recoveryutils.RecoverWithAlert(&o.l.Logger, o.a, r)
 		}
 	}()
 

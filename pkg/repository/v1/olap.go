@@ -616,7 +616,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 	ctx, span := telemetry.NewSpan(ctx, "list-tasks-olap")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 10000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, &r.l.Logger, 10000)
 
 	if err != nil {
 		return nil, 0, err
@@ -778,7 +778,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 	ctx, span := telemetry.NewSpan(ctx, "list-tasks-by-dag-id-olap")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, &r.l.Logger, 15000)
 	taskIdToDagExternalId := make(map[int64]uuid.UUID)
 
 	if err != nil {
@@ -869,7 +869,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 	ctx, span := telemetry.NewSpan(ctx, "list-tasks-by-id-and-inserted-at-olap")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, &r.l.Logger, 15000)
 
 	if err != nil {
 		return nil, err
@@ -948,7 +948,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	ctx, span := telemetry.NewSpan(ctx, "list-workflow-runs-olap")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 30000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, &r.l.Logger, 30000)
 
 	if err != nil {
 		return nil, 0, err
@@ -1219,7 +1219,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, ten
 	ctx, span := telemetry.NewSpan(ctx, "list-workflow-run-external-ids-olap")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 30000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, &r.l.Logger, 30000)
 
 	if err != nil {
 		return nil, err
@@ -1480,7 +1480,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 		return nil
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 5000)
 
 	if err != nil {
 		return err
@@ -1545,7 +1545,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 
 		eg.Go(func() error {
 			ctx := innerCtx
-			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 15000)
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 15000)
 
 			if err != nil {
 				return err
@@ -1655,7 +1655,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 
 		eg.Go(func() error {
 			ctx := innerCtx
-			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 15000)
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 15000)
 
 			if err != nil {
 				return fmt.Errorf("failed to prepare transaction: %w", err)
@@ -1784,7 +1784,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 		})
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 5000)
 	if err != nil {
 		return err
 	}
@@ -1846,7 +1846,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 		})
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 5000)
 	if err != nil {
 		return err
 	}
@@ -1995,7 +1995,7 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 		})
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 30000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, &r.l.Logger, 30000)
 	defer rollback()
 
 	if err != nil {
@@ -2024,7 +2024,7 @@ type EventTriggersFromExternalId struct {
 }
 
 func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 5000)
 
 	if err != nil {
 		return fmt.Errorf("error beginning transaction: %v", err)
@@ -2379,7 +2379,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 
 	if tx == nil {
 		localTx = true
-		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 5000)
 
 		if err != nil {
 			return fmt.Errorf("error beginning transaction in `PutPayload`: %v", err)
@@ -2530,7 +2530,7 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 }
 
 func (r *OLAPRepositoryImpl) OffloadPayloads(ctx context.Context, tenantId string, payloads []OffloadPayloadOpts) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 5000)
 
 	if err != nil {
 		return fmt.Errorf("error beginning transaction: %v", err)
@@ -2567,7 +2567,7 @@ func (r *OLAPRepositoryImpl) OffloadPayloads(ctx context.Context, tenantId strin
 
 func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 	const timeout = 1000 * 60 * 60 // 60 minute timeout
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, timeout)
 
 	if err != nil {
 		return fmt.Errorf("error beginning transaction: %v", err)

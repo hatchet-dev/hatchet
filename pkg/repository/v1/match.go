@@ -163,7 +163,7 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 	// 	return err
 	// }
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, &m.l.Logger, 5000)
 
 	if err != nil {
 		return err
@@ -242,7 +242,7 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 
 // ProcessInternalEventMatches processes a list of internal events
 func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, tenantId string, events []CandidateEventMatch) (*EventMatchResults, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, &m.l.Logger, 5000)
 
 	if err != nil {
 		return nil, err
@@ -286,7 +286,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 
 // ProcessUserEventMatches processes a list of user events
 func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenantId string, events []CandidateEventMatch) (*EventMatchResults, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, &m.l.Logger, 5000)
 
 	if err != nil {
 		return nil, err

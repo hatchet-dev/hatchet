@@ -8,8 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -19,11 +19,11 @@ import (
 type getGroupKeyRunRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
-	l       *zerolog.Logger
+	l       *logger.Logger
 	queries *dbsqlc.Queries
 }
 
-func NewGetGroupKeyRunRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.GetGroupKeyRunEngineRepository {
+func NewGetGroupKeyRunRepository(pool *pgxpool.Pool, v validator.Validator, l *logger.Logger) repository.GetGroupKeyRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &getGroupKeyRunRepository{
@@ -46,7 +46,7 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToWorker(ctx context.Cont
 	// var assigned
 	var assigned *dbsqlc.AssignGetGroupKeyRunToWorkerRow
 
-	err = sqlchelpers.DeadlockRetry(s.l, func() (err error) {
+	err = sqlchelpers.DeadlockRetry(&s.l.Logger, func() (err error) {
 		assigned, err = s.queries.AssignGetGroupKeyRunToWorker(ctx, s.pool, dbsqlc.AssignGetGroupKeyRunToWorkerParams{
 			Getgroupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
 			Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
@@ -74,7 +74,7 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToTicker(ctx context.Cont
 	// var assigned
 	var assigned *dbsqlc.AssignGetGroupKeyRunToTickerRow
 
-	err = sqlchelpers.DeadlockRetry(s.l, func() (err error) {
+	err = sqlchelpers.DeadlockRetry(&s.l.Logger, func() (err error) {
 		assigned, err = s.queries.AssignGetGroupKeyRunToTicker(ctx, s.pool, dbsqlc.AssignGetGroupKeyRunToTickerParams{
 			Getgroupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
 			Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
@@ -164,7 +164,7 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &s.l.Logger, tx.Rollback)
 
 	res1, err := s.queries.UpdateGetGroupKeyRun(ctx, tx, updateParams)
 

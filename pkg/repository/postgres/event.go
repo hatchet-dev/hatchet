@@ -120,7 +120,7 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), &r.l.Logger, tx.Rollback)
 
 	events, err := r.queries.ListEvents(ctx, tx, queryParams)
 
@@ -283,7 +283,7 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 		}
 
 		for _, cb := range r.callbacks {
-			cb.Do(r.l, opts.TenantId, event)
+			cb.Do(&r.l.Logger, opts.TenantId, event)
 		}
 
 		id := sqlchelpers.UUIDToStr(event.ID)
@@ -352,7 +352,7 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 			return nil, nil, err
 		}
 
-		defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
+		defer sqlchelpers.DeferRollback(ctx, &r.l.Logger, tx.Rollback)
 
 		err = r.createEventKeys(ctx, tx, uniqueEventKeys)
 
@@ -388,7 +388,7 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 		for _, e := range events {
 
 			for _, cb := range r.callbacks {
-				cb.Do(r.l, opts.TenantId, e)
+				cb.Do(&r.l.Logger, opts.TenantId, e)
 			}
 
 		}
@@ -453,7 +453,7 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &r.l.Logger, tx.Rollback)
 
 	insertCount, err := r.queries.CreateEvents(
 		ctx,
@@ -483,7 +483,7 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 		tenantId := sqlchelpers.UUIDToStr(e.TenantId)
 
 		for _, cb := range r.callbacks {
-			cb.Do(r.l, tenantId, e)
+			cb.Do(&r.l.Logger, tenantId, e)
 		}
 
 	}

@@ -21,6 +21,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -82,10 +83,10 @@ func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
 }
 
 func createTaskRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
-	logger := zerolog.Nop()
+	l := zerolog.Nop()
 	shared := &sharedRepository{
 		pool:    pool,
-		l:       &logger,
+		l:       logger.New(&l),
 		queries: sqlcv1.New(),
 	}
 	return &TaskRepositoryImpl{
