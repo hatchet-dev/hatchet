@@ -63,4 +63,3 @@ INSERT INTO v1_dag_data (
     $3,
     $4
 );
-
