@@ -7,7 +7,8 @@ SELECT
     , create_v1_range_partition('v1_log_line', @date::date)
     , create_v1_range_partition('v1_payload', @date::date)
     , create_v1_range_partition('v1_dag_to_task', @date::date)
-    ;
+    , create_v1_range_partition('v1_dag_data', @date::date)
+;
 
 -- name: EnsureTablePartitionsExist :one
 WITH tomorrow_date AS (
@@ -21,6 +22,10 @@ WITH tomorrow_date AS (
     SELECT 'v1_task_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_log_line_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_payload' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_dag_data' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -52,6 +57,9 @@ task_partitions AS (
 )
 , payload_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', @date::date) AS p
+)
+, dag_data_partitions AS (
+    SELECT 'v1_dag_data' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_data', @date::date) AS p
 )
 , dag_to_task_partitions AS (
     SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', @date::date) AS p
@@ -96,6 +104,12 @@ SELECT
     *
 FROM
     dag_to_task_partitions
+
+UNION ALL
+
+SELECT *
+FROM
+    dag_data_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one
@@ -943,6 +957,9 @@ ANALYZE v1_dag_to_task;
 
 -- name: AnalyzeV1Dag :exec
 ANALYZE v1_dag;
+
+-- name: AnalyzeV1DagData :exec
+ANALYZE v1_dag_data;
 
 -- name: CleanupV1TaskRuntime :execresult
 WITH locked_trs AS (

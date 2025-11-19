@@ -3652,6 +3652,12 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_payload: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1DagData(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_dag_data: %v", err)
+	}
+
 	if err := commit(ctx); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}
