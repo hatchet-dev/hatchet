@@ -2,6 +2,52 @@
 -- +goose Up
 -- +goose StatementBegin
 BEGIN;
+
+CREATE OR REPLACE FUNCTION rename_partitions(
+    parent_table_name TEXT,
+    new_prefix TEXT
+)
+RETURNS TABLE(old_name TEXT, new_name TEXT)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    partition_record RECORD;
+    old_partition_name TEXT;
+    new_partition_name TEXT;
+    partition_suffix TEXT;
+BEGIN
+    FOR partition_record IN
+        SELECT c.relname AS partition_name
+        FROM pg_inherits i
+        JOIN pg_class c ON i.inhrelid = c.oid
+        JOIN pg_namespace n ON c.relnamespace = n.oid
+        JOIN pg_class parent ON i.inhparent = parent.oid
+        WHERE parent.relname = parent_table_name
+        ORDER BY c.relname
+    LOOP
+        old_partition_name := partition_record.partition_name;
+
+        partition_suffix := replace(old_partition_name, parent_table_name || '_', '');
+        new_partition_name := new_prefix || '_' || partition_suffix;
+
+        EXECUTE format('ALTER TABLE %I RENAME TO %I',
+            old_partition_name,
+            new_partition_name
+        );
+        EXECUTE format('ALTER INDEX %I RENAME TO %I',
+            old_partition_name || '_pkey',
+            new_partition_name || '_pkey'
+        );
+
+        RETURN NEXT;
+
+        RAISE NOTICE 'Renamed: % -> %', old_partition_name, new_partition_name;
+    END LOOP;
+
+    RETURN;
+END;
+$$;
+
 CREATE TABLE IF NOT EXISTS v1_lookup_table_partitioned (
     tenant_id UUID NOT NULL,
     external_id UUID NOT NULL,
@@ -139,8 +185,12 @@ ON CONFLICT (external_id, inserted_at) DO NOTHING;
 -- +goose StatementBegin
 BEGIN;
 DROP TABLE IF EXISTS v1_lookup_table;
+
+SELECT rename_partitions('v1_lookup_table_partitioned', 'v1_lookup_table');
+
 ALTER TABLE v1_lookup_table_partitioned
     RENAME TO v1_lookup_table;
+
 
 CREATE OR REPLACE FUNCTION v1_dag_insert_function()
 RETURNS TRIGGER AS
@@ -317,7 +367,28 @@ ALTER INDEX v1_lookup_table_partitioned_pkey
 
 DROP TRIGGER IF EXISTS v1_lookup_table_partitioned_insert_trigger ON v1_lookup_table_partitioned;
 DROP FUNCTION IF EXISTS v1_lookup_table_partitioned_insert_function;
+
+
 COMMIT;
+
+CREATE OR REPLACE FUNCTION get_v1_weekly_partitions_before_date(
+    targetTableName text,
+    targetDate date
+) RETURNS TABLE(partition_name text)
+    LANGUAGE plpgsql AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT
+        inhrelid::regclass::text AS partition_name
+    FROM
+        pg_inherits
+    WHERE
+        inhparent = targetTableName::regclass
+        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
+        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < targetDate;
+END;
+$$;
 -- +goose StatementEnd
 
 -- +goose Down
@@ -544,6 +615,7 @@ BEGIN
 END;
 $$
 LANGUAGE plpgsql;
+DROP FUNCTION rename_partitions(TEXT, TEXT);
 
 COMMIT;
 -- +goose StatementEnd
