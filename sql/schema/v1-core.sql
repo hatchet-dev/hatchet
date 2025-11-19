@@ -313,8 +313,8 @@ CREATE TABLE v1_lookup_table (
     dag_id BIGINT,
     inserted_at TIMESTAMPTZ NOT NULL,
 
-    PRIMARY KEY (external_id)
-);
+    PRIMARY KEY (external_id, inserted_at)
+) PARTITION BY RANGE (inserted_at);
 
 CREATE TYPE v1_task_event_type AS ENUM (
     'COMPLETED',
@@ -652,7 +652,7 @@ CREATE TABLE v1_dag_to_task (
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT v1_dag_to_task_pkey PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
-);
+) PARTITION BY RANGE(dag_inserted_at);
 
 CREATE TABLE v1_dag_data (
     dag_id BIGINT NOT NULL,
@@ -1095,7 +1095,7 @@ BEGIN
         id,
         inserted_at
     FROM new_table
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -1583,7 +1583,7 @@ BEGIN
         id,
         inserted_at
     FROM new_table
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
