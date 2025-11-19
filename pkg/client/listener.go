@@ -196,20 +196,27 @@ func (l *WorkflowRunsListener) RemoveWorkflowRun(
 }
 
 func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
-	l.clientMu.RLock()
-	defer l.clientMu.RUnlock()
-
-	if l.client == nil {
-		return fmt.Errorf("client is not connected")
-	}
-
 	for i := 0; i < DefaultActionListenerRetryCount; i++ {
-		err := l.client.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{
+		l.clientMu.RLock()
+		client := l.client
+		l.clientMu.RUnlock()
+
+		if client == nil {
+			return fmt.Errorf("client is not connected")
+		}
+
+		err := client.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{
 			WorkflowRunId: workflowRunId,
 		})
 
 		if err == nil {
 			return nil
+		}
+
+		l.l.Warn().Err(err).Msgf("failed to send workflow run subscription, attempt %d/%d", i+1, DefaultActionListenerRetryCount)
+
+		if retryErr := l.retrySubscribe(context.Background()); retryErr != nil {
+			l.l.Error().Err(retryErr).Msg("failed to resubscribe after send failure")
 		}
 
 		time.Sleep(DefaultActionListenerRetryInterval)
