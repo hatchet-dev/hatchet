@@ -1,10 +1,13 @@
 -- name: CreatePartitions :exec
 SELECT
-    create_v1_range_partition('v1_task', @date::date),
-    create_v1_range_partition('v1_dag', @date::date),
-    create_v1_range_partition('v1_task_event', @date::date),
-    create_v1_range_partition('v1_log_line', @date::date),
-    create_v1_range_partition('v1_payload', @date::date);
+    -- intentionally formatted this way to limit merge conflicts
+    create_v1_range_partition('v1_task', @date::date)
+    , create_v1_range_partition('v1_dag', @date::date)
+    , create_v1_range_partition('v1_task_event', @date::date)
+    , create_v1_range_partition('v1_log_line', @date::date)
+    , create_v1_range_partition('v1_payload', @date::date)
+    , create_v1_range_partition('v1_dag_to_task', @date::date)
+    ;
 
 -- name: EnsureTablePartitionsExist :one
 WITH tomorrow_date AS (
@@ -33,16 +36,25 @@ SELECT
 FROM partition_check;
 
 -- name: ListPartitionsBeforeDate :many
-WITH task_partitions AS (
+WITH
+-- intentionally formatted this way to limit merge conflicts
+task_partitions AS (
     SELECT 'v1_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task', @date::date) AS p
-), dag_partitions AS (
+)
+, dag_partitions AS (
     SELECT 'v1_dag' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag', @date::date) AS p
-), task_event_partitions AS (
+)
+, task_event_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', @date::date) AS p
-), log_line_partitions AS (
+)
+, log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', @date::date) AS p
-), payload_partitions AS (
+)
+, payload_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', @date::date) AS p
+)
+, dag_to_task_partitions AS (
+    SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', @date::date) AS p
 )
 
 SELECT
@@ -77,6 +89,13 @@ SELECT
     *
 FROM
     payload_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    dag_to_task_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one
@@ -918,6 +937,9 @@ ANALYZE v1_task;
 
 -- name: AnalyzeV1TaskEvent :exec
 ANALYZE v1_task_event;
+
+-- name: AnalyzeV1DAGToTask :exec
+ANALYZE v1_dag_to_task;
 
 -- name: AnalyzeV1Dag :exec
 ANALYZE v1_dag;
