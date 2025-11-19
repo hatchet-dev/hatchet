@@ -35,7 +35,7 @@ WITH tomorrow_date AS (
     LEFT JOIN pg_catalog.pg_tables pt ON pt.tablename = ep.expected_partition_name
 )
 
-SELECT (existing_partitions = total_tables) AS all_partitions_exist
+SELECT existing_partitions = total_tables AS all_partitions_exist
 FROM partition_check;
 
 -- name: ListPartitionsBeforeDate :many
