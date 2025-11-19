@@ -63,9 +63,7 @@ task_partitions AS (
     SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', @date::date) AS p
 )
 , lookup_table_partitions AS (
-    -- using one week before the provided date here since the lookup table partitions are weekly, and we don't want to
-    -- drop the current week's partition if the date is in the current week
-    SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_lookup_table', (@date - INTERVAL '1 week')::date) AS p
+    SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', @oneWeekAgo::date) AS p
 )
 
 SELECT

@@ -317,6 +317,10 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
+	// using one week before the provided date here since the lookup table partitions are weekly, and we don't want to
+	// drop the current week's partition if the date is in the current week
+	oneAdditionalWeekBefore := removeBefore.AddDate(0, 0, -7)
+
 	err = r.queries.CreatePartitions(ctx, r.pool, pgtype.Date{
 		Time:  today,
 		Valid: true,
@@ -335,9 +339,15 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, r.pool, pgtype.Date{
-		Time:  removeBefore,
-		Valid: true,
+	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, r.pool, sqlcv1.ListPartitionsBeforeDateParams{
+		Date: pgtype.Date{
+			Time:  removeBefore,
+			Valid: true,
+		},
+		Oneweekago: pgtype.Date{
+			Time:  oneAdditionalWeekBefore,
+			Valid: true,
+		},
 	})
 
 	if err != nil {

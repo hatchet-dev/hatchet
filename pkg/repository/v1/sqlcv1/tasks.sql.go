@@ -251,11 +251,8 @@ WITH tomorrow_date AS (
     FROM expected_partitions ep
     LEFT JOIN pg_catalog.pg_tables pt ON pt.tablename = ep.expected_partition_name
 )
-SELECT
-    CASE
-        WHEN existing_partitions = total_tables THEN TRUE
-        ELSE FALSE
-    END AS all_partitions_exist
+
+SELECT existing_partitions = total_tables AS all_partitions_exist
 FROM partition_check
 `
 
@@ -1017,6 +1014,9 @@ task_partitions AS (
 , dag_to_task_partitions AS (
     SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', $1::date) AS p
 )
+, lookup_table_partitions AS (
+    SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', $2::date) AS p
+)
 
 SELECT
     parent_table, partition_name
@@ -1063,7 +1063,18 @@ UNION ALL
 SELECT parent_table, partition_name
 FROM
     dag_data_partitions
+
+UNION ALL
+
+SELECT parent_table, partition_name
+FROM
+    lookup_table_partitions
 `
+
+type ListPartitionsBeforeDateParams struct {
+	Date       pgtype.Date `json:"date"`
+	Oneweekago pgtype.Date `json:"oneweekago"`
+}
 
 type ListPartitionsBeforeDateRow struct {
 	ParentTable   string `json:"parent_table"`
@@ -1071,8 +1082,8 @@ type ListPartitionsBeforeDateRow struct {
 }
 
 // intentionally formatted this way to limit merge conflicts + diff sizes
-func (q *Queries) ListPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*ListPartitionsBeforeDateRow, error) {
-	rows, err := db.Query(ctx, listPartitionsBeforeDate, date)
+func (q *Queries) ListPartitionsBeforeDate(ctx context.Context, db DBTX, arg ListPartitionsBeforeDateParams) ([]*ListPartitionsBeforeDateRow, error) {
+	rows, err := db.Query(ctx, listPartitionsBeforeDate, arg.Date, arg.Oneweekago)
 	if err != nil {
 		return nil, err
 	}
