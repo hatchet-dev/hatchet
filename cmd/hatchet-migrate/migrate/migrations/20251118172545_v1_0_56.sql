@@ -43,8 +43,8 @@ BEGIN
         );
 END $$;
 
-SELECT rename_partitions('v1_dag_data_partitioned', 'v1_dag_data');
-
+ALTER TABLE v1_dag_data_partitioned RENAME TO v1_dag_data;
+ALTER INDEX v1_dag_data_partitioned_pkey RENAME TO v1_dag_data_pkey;
 SELECT create_v1_range_partition('v1_dag_data', (NOW() + INTERVAL '1 day')::DATE);
 COMMIT;
 
