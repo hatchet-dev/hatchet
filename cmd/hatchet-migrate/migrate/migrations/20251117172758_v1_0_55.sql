@@ -43,8 +43,7 @@ BEGIN
         );
 END $$;
 
-ALTER TABLE v1_dag_to_task_partitioned RENAME TO v1_dag_to_task;
-ALTER INDEX v1_dag_to_task_partitioned_pkey RENAME TO v1_dag_to_task_pkey;
+SELECT rename_partitions('v1_dag_to_task_partitioned', 'v1_dag_to_task');
 
 SELECT create_v1_range_partition('v1_dag_to_task', (NOW() + INTERVAL '1 day')::DATE);
 COMMIT;
@@ -68,6 +67,7 @@ INSERT INTO v1_dag_to_task_original
 SELECT * FROM v1_dag_to_task;
 
 DROP TABLE v1_dag_to_task;
+
 ALTER TABLE v1_dag_to_task_original RENAME TO v1_dag_to_task;
 ALTER INDEX v1_dag_to_task_original_pkey RENAME TO v1_dag_to_task_pkey;
 -- +goose StatementEnd
