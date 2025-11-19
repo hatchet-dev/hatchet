@@ -11,15 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const analyzeV1DAG = `-- name: AnalyzeV1DAG :exec
-ANALYZE v1_dag
-`
-
-func (q *Queries) AnalyzeV1DAG(ctx context.Context, db DBTX) error {
-	_, err := db.Exec(ctx, analyzeV1DAG)
-	return err
-}
-
 type CreateDAGDataParams struct {
 	DagID              int64              `json:"dag_id"`
 	DagInsertedAt      pgtype.Timestamptz `json:"dag_inserted_at"`

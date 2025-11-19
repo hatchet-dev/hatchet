@@ -8,6 +8,7 @@ SELECT
     , create_v1_range_partition('v1_payload', @date::date)
     , create_v1_range_partition('v1_dag_to_task', @date::date)
     , create_v1_range_partition('v1_dag_data', @date::date)
+    , create_v1_weekly_range_partition('v1_lookup_table', @date::date)
 ;
 
 -- name: EnsureTablePartitionsExist :one
