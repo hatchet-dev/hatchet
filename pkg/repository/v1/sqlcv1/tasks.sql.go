@@ -140,7 +140,7 @@ func (q *Queries) CleanupWorkflowConcurrencySlotsAfterInsert(ctx context.Context
 
 const createPartitions = `-- name: CreatePartitions :exec
 SELECT
-    -- intentionally formatted this way to limit merge conflicts
+    -- intentionally formatted this way to limit merge conflicts + diff sizes
     create_v1_range_partition('v1_task', $1::date)
     , create_v1_range_partition('v1_dag', $1::date)
     , create_v1_range_partition('v1_task_event', $1::date)
@@ -148,6 +148,7 @@ SELECT
     , create_v1_range_partition('v1_payload', $1::date)
     , create_v1_range_partition('v1_dag_to_task', $1::date)
     , create_v1_range_partition('v1_dag_data', $1::date)
+    , create_v1_weekly_range_partition('v1_lookup_table', $1::date)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -1069,7 +1070,7 @@ type ListPartitionsBeforeDateRow struct {
 	PartitionName string `json:"partition_name"`
 }
 
-// intentionally formatted this way to limit merge conflicts
+// intentionally formatted this way to limit merge conflicts + diff sizes
 func (q *Queries) ListPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*ListPartitionsBeforeDateRow, error) {
 	rows, err := db.Query(ctx, listPartitionsBeforeDate, date)
 	if err != nil {

@@ -1,6 +1,6 @@
 -- name: CreatePartitions :exec
 SELECT
-    -- intentionally formatted this way to limit merge conflicts
+    -- intentionally formatted this way to limit merge conflicts + diff sizes
     create_v1_range_partition('v1_task', @date::date)
     , create_v1_range_partition('v1_dag', @date::date)
     , create_v1_range_partition('v1_task_event', @date::date)
@@ -43,7 +43,7 @@ FROM partition_check;
 
 -- name: ListPartitionsBeforeDate :many
 WITH
--- intentionally formatted this way to limit merge conflicts
+-- intentionally formatted this way to limit merge conflicts + diff sizes
 task_partitions AS (
     SELECT 'v1_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task', @date::date) AS p
 )
