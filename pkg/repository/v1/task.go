@@ -1826,13 +1826,13 @@ func (r *sharedRepository) insertTasks(
 
 		concurrencyKeys[i] = make([]string, 0)
 
-		// we write any parent strategy ids to the task regardless of initial state, as we need to know
-		// when to release the parent concurrency slot
-		taskParentStrategyIds := make([]pgtype.Int8, 0)
-		taskStrategyIds := make([]int64, 0)
-		emptyConcurrencyKeys := make([]string, 0)
-
 		if strats, ok := concurrencyStrats[task.StepId]; ok {
+			// we write any parent strategy ids to the task regardless of initial state, as we need to know
+			// when to release the parent concurrency slot
+			taskParentStrategyIds := make([]pgtype.Int8, 0)
+			taskStrategyIds := make([]int64, 0)
+			emptyConcurrencyKeys := make([]string, 0)
+
 			for _, strat := range strats {
 				taskStrategyIds = append(taskStrategyIds, strat.ID)
 				taskParentStrategyIds = append(taskParentStrategyIds, strat.ParentStrategyID)
@@ -1846,11 +1846,11 @@ func (r *sharedRepository) insertTasks(
 					cleanupWorkflowVersionIds = append(cleanupWorkflowVersionIds, stepConfig.WorkflowVersionId)
 				}
 			}
-		}
 
-		parentStrategyIds[i] = taskParentStrategyIds
-		strategyIds[i] = taskStrategyIds
-		concurrencyKeys[i] = emptyConcurrencyKeys
+			parentStrategyIds[i] = taskParentStrategyIds
+			strategyIds[i] = taskStrategyIds
+			concurrencyKeys[i] = emptyConcurrencyKeys
+		}
 
 		// only check for concurrency if the task is in a queued state, otherwise we don't need to
 		// evaluate the expression (and it will likely fail if we do)
@@ -2260,17 +2260,17 @@ func (r *sharedRepository) replayTasks(
 			additionalMetadatas[i] = task.AdditionalMetadata
 		}
 
-		concurrencyKeys[i] = make([]string, 0)
-
-		emptyConcurrencyKeys := make([]string, 0)
-
 		if strats, ok := concurrencyStrats[task.StepId]; ok {
+			emptyConcurrencyKeys := make([]string, 0)
+
 			for range strats {
 				emptyConcurrencyKeys = append(emptyConcurrencyKeys, "")
 			}
-		}
 
-		concurrencyKeys[i] = emptyConcurrencyKeys
+			concurrencyKeys[i] = emptyConcurrencyKeys
+		} else {
+			concurrencyKeys[i] = make([]string, 0)
+		}
 
 		// only check for concurrency if the task is in a queued state, otherwise we don't need to
 		// evaluate the expression (and it will likely fail if we do)
