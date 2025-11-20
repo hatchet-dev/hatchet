@@ -186,10 +186,16 @@ ON CONFLICT (external_id, inserted_at) DO NOTHING;
 BEGIN;
 DROP TABLE IF EXISTS v1_lookup_table;
 
+DROP TRIGGER IF EXISTS v1_lookup_table_partitioned_insert_trigger ON v1_lookup_table_partitioned;
+DROP FUNCTION IF EXISTS v1_lookup_table_partitioned_insert_function;
+
 SELECT rename_partitions('v1_lookup_table_partitioned', 'v1_lookup_table');
 
 ALTER TABLE v1_lookup_table_partitioned
     RENAME TO v1_lookup_table;
+
+ALTER INDEX v1_lookup_table_partitioned_pkey
+    RENAME TO v1_lookup_table_pkey;
 
 
 CREATE OR REPLACE FUNCTION v1_dag_insert_function()
@@ -360,17 +366,6 @@ END;
 $$
 LANGUAGE plpgsql;
 
-
-
-ALTER INDEX v1_lookup_table_partitioned_pkey
-    RENAME TO v1_lookup_table_pkey;
-
-DROP TRIGGER IF EXISTS v1_lookup_table_partitioned_insert_trigger ON v1_lookup_table_partitioned;
-DROP FUNCTION IF EXISTS v1_lookup_table_partitioned_insert_function;
-
-
-COMMIT;
-
 CREATE OR REPLACE FUNCTION get_v1_weekly_partitions_before_date(
     targetTableName text,
     targetDate date
@@ -389,6 +384,8 @@ BEGIN
         AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < targetDate;
 END;
 $$;
+
+COMMIT;
 -- +goose StatementEnd
 
 -- +goose Down
