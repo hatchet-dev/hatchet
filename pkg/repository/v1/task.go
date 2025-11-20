@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -1663,6 +1664,40 @@ func (r *sharedRepository) createTasks(
 	return r.insertTasks(ctx, tx, tenantId, tasks, stepIdsToConfig)
 }
 
+func partitionTasksByStepConfig(
+	tasks []CreateTaskOpts,
+	stepIdsToConfig map[string]*sqlcv1.ListStepsByIdsRow,
+) ([]CreateTaskOpts, []string) {
+	if len(tasks) == 0 {
+		return nil, nil
+	}
+
+	validTasks := make([]CreateTaskOpts, 0, len(tasks))
+	missing := make(map[string]struct{})
+
+	for _, task := range tasks {
+		stepConfig, ok := stepIdsToConfig[task.StepId]
+		if !ok || stepConfig == nil {
+			missing[task.StepId] = struct{}{}
+			continue
+		}
+
+		validTasks = append(validTasks, task)
+	}
+
+	if len(missing) == 0 {
+		return validTasks, nil
+	}
+
+	missingIds := make([]string, 0, len(missing))
+
+	for id := range missing {
+		missingIds = append(missingIds, id)
+	}
+
+	return validTasks, missingIds
+}
+
 // insertTasks inserts new tasks into the database. note that we're using Postgres rules to automatically insert the created
 // tasks into the queue_items table.
 func (r *sharedRepository) insertTasks(
@@ -1675,6 +1710,26 @@ func (r *sharedRepository) insertTasks(
 	if len(tasks) == 0 {
 		return nil, nil
 	}
+
+	validTasks, missingStepIds := partitionTasksByStepConfig(tasks, stepIdsToConfig)
+
+	if len(validTasks) == 0 {
+		if len(missingStepIds) > 0 {
+			return nil, fmt.Errorf("missing step config for steps: %s", strings.Join(missingStepIds, ", "))
+		}
+
+		return nil, nil
+	}
+
+	if len(missingStepIds) > 0 && r.l != nil {
+		r.l.Warn().
+			Str("tenant_id", tenantId).
+			Strs("missing_step_ids", missingStepIds).
+			Int("skipped_tasks", len(tasks)-len(validTasks)).
+			Msg("skipping tasks without step config")
+	}
+
+	tasks = validTasks
 
 	expressions, err := r.getStepExpressions(ctx, tx, stepIdsToConfig)
 
