@@ -117,9 +117,11 @@ func (c *Workflow) Result() (*WorkflowResult, error) {
 			defer func() {
 				c.listener.RemoveWorkflowRun(c.workflowRunId, sessionId)
 			}()
-		} else {
-			time.Sleep(DefaultActionListenerRetryInterval)
+
+			break
 		}
+
+		time.Sleep(DefaultActionListenerRetryInterval)
 	}
 
 	if err != nil {
