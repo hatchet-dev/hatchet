@@ -99,8 +99,13 @@ func (c *Workflow) Result() (*WorkflowResult, error) {
 	sessionId := uuid.NewString()
 
 	var err error
+	retries := 0
 
-	for range DefaultActionListenerRetryCount {
+	for retries < DefaultActionListenerRetryCount {
+		if retries > 0 {
+			time.Sleep(DefaultActionListenerRetryInterval)
+		}
+
 		err = c.listener.AddWorkflowRun(
 			c.workflowRunId,
 			sessionId,
@@ -114,17 +119,13 @@ func (c *Workflow) Result() (*WorkflowResult, error) {
 		)
 
 		if err == nil {
-			defer func() {
-				c.listener.RemoveWorkflowRun(c.workflowRunId, sessionId)
-			}()
+			defer c.listener.RemoveWorkflowRun(c.workflowRunId, sessionId)
 
 			break
 		}
-
-		time.Sleep(DefaultActionListenerRetryInterval)
 	}
 
-	if err != nil {
+	if retries == DefaultActionListenerRetryCount && err != nil {
 		return nil, fmt.Errorf("failed to listen for workflow events: %w", err)
 	}
 
