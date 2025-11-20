@@ -1,0 +1,49 @@
+FROM node:20-alpine AS builder
+
+# Install pnpm
+RUN npm install -g pnpm
+
+WORKDIR /app
+
+# Copy package files
+COPY sdks/typescript/package*.json ./sdks/typescript/
+COPY sdks/typescript/pnpm-lock.yaml ./sdks/typescript/
+COPY sdks/typescript/tsconfig.json ./sdks/typescript/
+
+# Copy scripts directory (needed for postinstall script)
+COPY sdks/typescript/scripts/ ./sdks/typescript/scripts/
+
+# Install dependencies
+WORKDIR /app/sdks/typescript
+RUN pnpm install --frozen-lockfile
+
+# Copy source code (only TypeScript SDK)
+COPY sdks/typescript/src/ ./src/
+COPY sdks/typescript/package.json ./
+
+# Build the SDK
+RUN pnpm run tsc:build
+
+# Copy test file into the SDK directory
+COPY testing/compression-test/tests/typescript_test.ts ./test.ts
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy built files and dependencies
+COPY --from=builder /app/sdks/typescript/dist ./dist
+COPY --from=builder /app/sdks/typescript/node_modules ./node_modules
+COPY --from=builder /app/sdks/typescript/package.json ./
+COPY --from=builder /app/sdks/typescript/test.ts ./typescript_test.ts
+
+# Install ts-node, typescript, and tsconfig-paths globally for running TypeScript
+# Also ensure tsconfig-paths is available locally for module resolution
+RUN npm install -g ts-node typescript tsconfig-paths && \
+    npm install tsconfig-paths
+
+# Set NODE_PATH to include dist
+ENV NODE_PATH=/app/dist
+
+CMD ["ts-node", "-r", "tsconfig-paths/register", "typescript_test.ts"]
+

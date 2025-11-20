@@ -1,0 +1,83 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs/
+frontend/docs/
+
+# Frontend
+frontend/
+web/
+
+# Test files (except compression test)
+testing/
+!testing/compression-test/
+
+# Build artifacts
+dist/
+build/
+bin/
+*.o
+*.a
+*.so
+
+# Dependencies
+node_modules/
+vendor/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Certificates and keys (permission issues)
+hack/
+*.key
+*.pem
+*.crt
+
+# Large binary files
+*.bin
+*.exe
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Coverage
+coverage/
+*.coverprofile
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+

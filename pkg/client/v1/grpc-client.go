@@ -122,6 +122,8 @@ func NewGRPCClient(fs ...GRPCClientOpt) (*GRPCClient, error) {
 		grpc.WithDefaultCallOptions(grpc.UseCompressor("gzip")),
 	}
 
+	opts.l.Info().Msg("gzip compression enabled for gRPC client")
+
 	conn, err := grpc.NewClient(
 		opts.hostPort,
 		grpcOpts...,

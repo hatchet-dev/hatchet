@@ -214,6 +214,7 @@ func (s *Server) Start() (func() error, error) {
 
 func (s *Server) startGRPC() (func() error, error) {
 	s.l.Debug().Msgf("starting grpc server on %s:%d", s.bindAddress, s.port)
+	s.l.Info().Msg("gzip compression enabled for gRPC server")
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.bindAddress, s.port))
 

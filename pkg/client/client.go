@@ -13,9 +13,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
-	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 
 	"github.com/hatchet-dev/hatchet/pkg/client/loader"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
@@ -268,6 +268,8 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		grpc.WithKeepaliveParams(keepAliveParams),
 		grpc.WithDefaultCallOptions(grpc.UseCompressor("gzip")),
 	}
+
+	opts.l.Info().Msg("gzip compression enabled for gRPC client")
 
 	if !opts.noGrpcRetry {
 		retryOnCodes := []codes.Code{
