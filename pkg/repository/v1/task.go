@@ -317,6 +317,10 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
+	// using one week before the provided date here since the lookup table partitions are weekly, and we don't want to
+	// drop the current week's partition if the date is in the current week
+	oneAdditionalWeekBefore := removeBefore.AddDate(0, 0, -7)
+
 	err = r.queries.CreatePartitions(ctx, r.pool, pgtype.Date{
 		Time:  today,
 		Valid: true,
@@ -335,9 +339,15 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, r.pool, pgtype.Date{
-		Time:  removeBefore,
-		Valid: true,
+	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, r.pool, sqlcv1.ListPartitionsBeforeDateParams{
+		Date: pgtype.Date{
+			Time:  removeBefore,
+			Valid: true,
+		},
+		Oneweekago: pgtype.Date{
+			Time:  oneAdditionalWeekBefore,
+			Valid: true,
+		},
 	})
 
 	if err != nil {
@@ -3634,6 +3644,12 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_task_event: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1DAGToTask(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_dag_to_task: %v", err)
+	}
+
 	err = r.queries.AnalyzeV1Dag(ctx, tx)
 
 	if err != nil {
@@ -3644,6 +3660,12 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 
 	if err != nil {
 		return fmt.Errorf("error analyzing v1_payload: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DagData(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_dag_data: %v", err)
 	}
 
 	if err := commit(ctx); err != nil {
