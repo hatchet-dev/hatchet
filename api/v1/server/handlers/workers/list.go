@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
@@ -23,22 +24,38 @@ func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListReque
 	case dbsqlc.TenantMajorEngineVersionV1:
 		return t.workerListV1(ctx, tenant, request)
 	default:
-		return nil, fmt.Errorf("unsupported tenant version: %s", string(tenant.Version))
+		err := fmt.Errorf("unsupported tenant version: %s", string(tenant.Version))
+		return nil, err
 	}
 }
 
 func (t *WorkerService) workerListV0(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
+	reqCtx := ctx.Request().Context()
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
-	workers, err := t.config.APIRepository.Worker().ListWorkers(tenantId, &repository.ListWorkersOpts{
+	opts := &repository.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
-	})
+	}
+
+	_, listSpan := telemetry.NewSpan(reqCtx, "worker-service.v0.list-workers")
+	defer listSpan.End()
+
+	telemetry.WithAttributes(listSpan,
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenant.ID},
+	)
+
+	workers, err := t.config.APIRepository.Worker().ListWorkers(tenantId, opts)
 
 	if err != nil {
+		listSpan.RecordError(err)
 		return nil, err
 	}
+
+	telemetry.WithAttributes(listSpan,
+		telemetry.AttributeKV{Key: "workers.count", Value: len(workers)},
+	)
 
 	rows := make([]gen.Worker, len(workers))
 
@@ -57,17 +74,32 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *dbsqlc.Tenant, re
 }
 
 func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
+	reqCtx := ctx.Request().Context()
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
-	workers, err := t.config.V1.Workers().ListWorkers(tenantId, &repository.ListWorkersOpts{
+	opts := &repository.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
-	})
+	}
+
+	listCtx, listSpan := telemetry.NewSpan(reqCtx, "worker-service.v1.list-workers")
+	defer listSpan.End()
+
+	telemetry.WithAttributes(listSpan,
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenant.ID},
+	)
+
+	workers, err := t.config.V1.Workers().ListWorkers(tenantId, opts)
 
 	if err != nil {
+		listSpan.RecordError(err)
 		return nil, err
 	}
+
+	telemetry.WithAttributes(listSpan,
+		telemetry.AttributeKV{Key: "workers.count", Value: len(workers)},
+	)
 
 	workerIdSet := make(map[string]struct{})
 
@@ -80,14 +112,26 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, re
 		workerIds = append(workerIds, workerId)
 	}
 
+	_, actionsSpan := telemetry.NewSpan(listCtx, "worker-service.v1.get-worker-actions")
+	defer actionsSpan.End()
+
+	telemetry.WithAttributes(actionsSpan,
+		telemetry.AttributeKV{Key: "workers.unique_ids.count", Value: len(workerIds)},
+	)
+
 	workerIdToActionIds, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
 		sqlchelpers.UUIDToStr(tenant.ID),
 		workerIds,
 	)
 
 	if err != nil {
+		actionsSpan.RecordError(err)
 		return nil, err
 	}
+
+	telemetry.WithAttributes(actionsSpan,
+		telemetry.AttributeKV{Key: "worker_actions.mappings.count", Value: len(workerIdToActionIds)},
+	)
 
 	rows := make([]gen.Worker, len(workers))
 
