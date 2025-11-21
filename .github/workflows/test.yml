@@ -332,7 +332,38 @@ jobs:
 
       - name: Test
         run: |
+          # Start background CPU/memory monitoring
+          while true; do
+            echo "=== $(date) ==="
+            echo "CPU Usage:"
+            top -bn1 | head -20
+            echo ""
+            echo "Memory Usage:"
+            free -h
+            echo ""
+            echo "Process CPU/Memory:"
+            ps aux --sort=-%cpu | head -10
+            echo "=========================================="
+            sleep 5
+          done > /tmp/resource_monitor.log 2>&1 &
+          MONITOR_PID=$!
+          echo "Started resource monitor with PID: $MONITOR_PID"
+          
+          # Run the test
           go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+          TEST_EXIT_CODE=$?
+          
+          # Kill the monitor
+          echo "Stopping resource monitor (PID: $MONITOR_PID)"
+          kill $MONITOR_PID 2>/dev/null || true
+          wait $MONITOR_PID 2>/dev/null || true
+          
+          # Print the monitor log
+          echo "=== Resource Monitor Log ==="
+          cat /tmp/resource_monitor.log || true
+          
+          # Exit with test result
+          exit $TEST_EXIT_CODE
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
