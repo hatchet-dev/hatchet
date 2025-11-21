@@ -224,7 +224,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: "1.24"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -332,36 +332,57 @@ jobs:
 
       - name: Test
         run: |
-          # Start background CPU/memory monitoring
-          while true; do
-            echo "=== $(date) ==="
-            echo "CPU Usage:"
-            top -bn1 | head -20
-            echo ""
-            echo "Memory Usage:"
-            free -h
-            echo ""
-            echo "Process CPU/Memory:"
-            ps aux --sort=-%cpu | head -10
-            echo "=========================================="
-            sleep 5
-          done > /tmp/resource_monitor.log 2>&1 &
+          # Start background CPU/memory monitoring that outputs to both file and stdout
+          (
+            while true; do
+              TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+              echo "[$TIMESTAMP] === RESOURCE MONITOR ===" | tee -a /tmp/resource_monitor.log
+              echo "CPU Usage:" | tee -a /tmp/resource_monitor.log
+              top -bn1 | head -20 | tee -a /tmp/resource_monitor.log
+              echo "" | tee -a /tmp/resource_monitor.log
+              echo "Memory Usage:" | tee -a /tmp/resource_monitor.log
+              free -h | tee -a /tmp/resource_monitor.log
+              echo "" | tee -a /tmp/resource_monitor.log
+              echo "Process CPU/Memory (top 10 by CPU):" | tee -a /tmp/resource_monitor.log
+              ps aux --sort=-%cpu | head -10 | tee -a /tmp/resource_monitor.log
+              echo "" | tee -a /tmp/resource_monitor.log
+              echo "Go test processes:" | tee -a /tmp/resource_monitor.log
+              ps aux | grep -E "(go test|hatchet)" | grep -v grep | tee -a /tmp/resource_monitor.log || true
+              echo "==========================================" | tee -a /tmp/resource_monitor.log
+              sleep 5
+            done
+          ) &
           MONITOR_PID=$!
           echo "Started resource monitor with PID: $MONITOR_PID"
-          
+
+          # Function to cleanup and show logs
+          cleanup() {
+            echo ""
+            echo "=========================================="
+            echo "Stopping resource monitor (PID: $MONITOR_PID)"
+            echo "=========================================="
+            kill $MONITOR_PID 2>/dev/null || true
+            wait $MONITOR_PID 2>/dev/null || true
+            sleep 1
+            echo ""
+            echo "=========================================="
+            echo "=== Final Resource Monitor Summary ==="
+            echo "=========================================="
+            if [ -f /tmp/resource_monitor.log ]; then
+              tail -100 /tmp/resource_monitor.log || cat /tmp/resource_monitor.log
+            else
+              echo "Monitor log file not found!"
+            fi
+            echo "=========================================="
+          }
+
+          # Trap to ensure cleanup runs on exit (including failures)
+          trap cleanup EXIT ERR
+
           # Run the test
           go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
           TEST_EXIT_CODE=$?
-          
-          # Kill the monitor
-          echo "Stopping resource monitor (PID: $MONITOR_PID)"
-          kill $MONITOR_PID 2>/dev/null || true
-          wait $MONITOR_PID 2>/dev/null || true
-          
-          # Print the monitor log
-          echo "=== Resource Monitor Log ==="
-          cat /tmp/resource_monitor.log || true
-          
+
           # Exit with test result
           exit $TEST_EXIT_CODE
         env:
