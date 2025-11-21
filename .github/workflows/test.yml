@@ -332,60 +332,9 @@ jobs:
 
       - name: Test
         run: |
-          # Start background CPU/memory monitoring that outputs to both file and stdout
-          (
-            while true; do
-              TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-              echo "[$TIMESTAMP] === RESOURCE MONITOR ===" | tee -a /tmp/resource_monitor.log
-              echo "CPU Usage:" | tee -a /tmp/resource_monitor.log
-              top -bn1 | head -20 | tee -a /tmp/resource_monitor.log
-              echo "" | tee -a /tmp/resource_monitor.log
-              echo "Memory Usage:" | tee -a /tmp/resource_monitor.log
-              free -h | tee -a /tmp/resource_monitor.log
-              echo "" | tee -a /tmp/resource_monitor.log
-              echo "Process CPU/Memory (top 10 by CPU):" | tee -a /tmp/resource_monitor.log
-              ps aux --sort=-%cpu | head -10 | tee -a /tmp/resource_monitor.log
-              echo "" | tee -a /tmp/resource_monitor.log
-              echo "Go test processes:" | tee -a /tmp/resource_monitor.log
-              ps aux | grep -E "(go test|hatchet)" | grep -v grep | tee -a /tmp/resource_monitor.log || true
-              echo "==========================================" | tee -a /tmp/resource_monitor.log
-              sleep 5
-            done
-          ) &
-          MONITOR_PID=$!
-          echo "Started resource monitor with PID: $MONITOR_PID"
-
-          # Function to cleanup and show logs
-          cleanup() {
-            echo ""
-            echo "=========================================="
-            echo "Stopping resource monitor (PID: $MONITOR_PID)"
-            echo "=========================================="
-            kill $MONITOR_PID 2>/dev/null || true
-            wait $MONITOR_PID 2>/dev/null || true
-            sleep 1
-            echo ""
-            echo "=========================================="
-            echo "=== Final Resource Monitor Summary ==="
-            echo "=========================================="
-            if [ -f /tmp/resource_monitor.log ]; then
-              tail -100 /tmp/resource_monitor.log || cat /tmp/resource_monitor.log
-            else
-              echo "Monitor log file not found!"
-            fi
-            echo "=========================================="
-          }
-
-          # Trap to ensure cleanup runs on exit (including failures)
-          trap cleanup EXIT ERR
-
-          # Run the test with compression disabled for load tests
-          # Compression adds CPU overhead that slows down tests with 0kb payloads
+          # Disable gzip compression for load tests to reduce CPU overhead
+          # Compression adds overhead without benefit for 0kb payloads
           HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
-          TEST_EXIT_CODE=$?
-
-          # Exit with test result
-          exit $TEST_EXIT_CODE
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
