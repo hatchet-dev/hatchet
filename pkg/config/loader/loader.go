@@ -137,19 +137,13 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		_ = os.Setenv("DATABASE_URL", databaseUrl)
 	}
 
-	config, err := pgxpool.ParseConfig(databaseUrl)
-	if err != nil {
-		return nil, err
-	}
-
-	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+	pgxpoolConnAfterConnect := func(ctx context.Context, conn *pgx.Conn) error {
 		// Set timezone to UTC for all connections
 		if _, err := conn.Exec(ctx, "SET TIME ZONE 'UTC'"); err != nil {
 			return err
 		}
 
 		// ref: https://github.com/jackc/pgx/issues/1549
-
 		t, err := conn.LoadType(ctx, "v1_readable_status_olap")
 		if err != nil {
 			return err
@@ -166,6 +160,13 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 		return nil
 	}
+
+	config, err := pgxpool.ParseConfig(databaseUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	config.AfterConnect = pgxpoolConnAfterConnect
 
 	if cf.LogQueries {
 		config.ConnConfig.Tracer = &tracelog.TraceLog{
@@ -246,11 +247,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			}
 		}
 
-		// Set timezone to UTC for read replica connections
-		readReplicaConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-			_, err := conn.Exec(ctx, "SET TIME ZONE 'UTC'")
-			return err
-		}
+		readReplicaConfig.AfterConnect = pgxpoolConnAfterConnect
 
 		readReplicaPool, err = pgxpool.NewWithConfig(context.Background(), readReplicaConfig)
 
