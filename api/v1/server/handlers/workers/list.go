@@ -1,7 +1,6 @@
 package workers
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -19,29 +18,19 @@ import (
 func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
-	reqCtx, span := telemetry.NewSpan(ctx.Request().Context(), "GET /api/v1/tenants/{tenant}/worker")
-	defer span.End()
-
-	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "tenant.id", Value: tenant.ID},
-		telemetry.AttributeKV{Key: "tenant.version", Value: string(tenant.Version)},
-	)
-
-	ctx.SetRequest(ctx.Request().WithContext(reqCtx))
-
 	switch tenant.Version {
 	case dbsqlc.TenantMajorEngineVersionV0:
-		return t.workerListV0(ctx, reqCtx, tenant, request)
+		return t.workerListV0(ctx, tenant, request)
 	case dbsqlc.TenantMajorEngineVersionV1:
-		return t.workerListV1(ctx, reqCtx, tenant, request)
+		return t.workerListV1(ctx, tenant, request)
 	default:
 		err := fmt.Errorf("unsupported tenant version: %s", string(tenant.Version))
-		span.RecordError(err)
 		return nil, err
 	}
 }
 
-func (t *WorkerService) workerListV0(ctx echo.Context, reqCtx context.Context, tenant *dbsqlc.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
+func (t *WorkerService) workerListV0(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
+	reqCtx := ctx.Request().Context()
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
@@ -84,7 +73,8 @@ func (t *WorkerService) workerListV0(ctx echo.Context, reqCtx context.Context, t
 	), nil
 }
 
-func (t *WorkerService) workerListV1(ctx echo.Context, reqCtx context.Context, tenant *dbsqlc.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
+func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
+	reqCtx := ctx.Request().Context()
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
