@@ -55,4 +55,3 @@ echo "3. Start engine and run tests:"
 echo "   ./scripts/run_all_tests.sh disabled"
 echo "   ./scripts/run_all_tests.sh enabled"
 echo "   ./scripts/generate_report.sh"
-

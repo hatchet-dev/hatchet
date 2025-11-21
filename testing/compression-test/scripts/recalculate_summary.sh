@@ -50,7 +50,6 @@ parse_stats_to_bytes() {
     
     echo "$rx_bytes $tx_bytes"
 }
-
 # Extract initial and final stats from log file
 # First, strip ANSI codes and get clean lines
 CLEAN_LOG=$(mktemp)

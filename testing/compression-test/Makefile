@@ -69,4 +69,3 @@ report:
 clean:
 	docker rm -f hatchet-engine hatchet-client-go hatchet-client-typescript hatchet-client-python 2>/dev/null || true
 	rm -rf results/*.log results/*.summary
-

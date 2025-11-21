@@ -46,4 +46,3 @@ Results are saved in `results/` directory:
 - `results/disabled/` - Test results without compression (run on main branch)
 
 The final report shows bandwidth savings from compression.
-

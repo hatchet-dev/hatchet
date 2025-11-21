@@ -50,4 +50,3 @@ RUN npm install -g ts-node typescript
 ENV NODE_PATH=/app/dist
 
 CMD ["ts-node", "-r", "tsconfig-paths/register", "typescript_test.ts"]
-

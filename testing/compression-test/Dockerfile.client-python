@@ -31,4 +31,3 @@ RUN pip install *.whl
 COPY testing/compression-test/tests/python_test.py /app/python_test.py
 
 CMD ["python", "python_test.py"]
-

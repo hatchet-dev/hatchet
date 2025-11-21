@@ -60,4 +60,3 @@ done
 } > "$RESULTS_DIR/aggregated_results.txt"
 
 echo "Results collected and saved to: $RESULTS_DIR/aggregated_results.txt"
-

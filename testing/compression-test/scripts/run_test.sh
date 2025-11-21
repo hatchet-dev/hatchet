@@ -213,4 +213,3 @@ else
 fi
 
 echo "Test complete for ${SDK} SDK (${STATE})"
-

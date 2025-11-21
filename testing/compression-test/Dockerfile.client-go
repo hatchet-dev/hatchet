@@ -33,4 +33,3 @@ CMD ["./hatchet-loadtest", "loadtest", \
      "--dagSteps", "1", \
      "--eventFanout", "1", \
      "--slots", "100"]
-

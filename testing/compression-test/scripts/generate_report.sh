@@ -100,4 +100,3 @@ EOF
 cat "$REPORT_FILE"
 echo ""
 echo "Full report saved to: $REPORT_FILE"
-

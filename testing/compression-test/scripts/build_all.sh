@@ -52,4 +52,3 @@ echo "Images created:"
 echo "  - go-${STATE}-compression"
 echo "  - typescript-${STATE}-compression"
 echo "  - python-${STATE}-compression"
-

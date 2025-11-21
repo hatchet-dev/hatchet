@@ -266,4 +266,3 @@ echo "Total: $TOTAL_FORMATTED"
     echo "TX_BYTES=$TOTAL_TX"
     echo "TOTAL_BYTES=$TOTAL_BYTES"
 } > "${OUTPUT_FILE}.summary"
-
