@@ -154,11 +154,24 @@ fi
 kill $LOGS_PID 2>/dev/null || true
 wait $LOGS_PID 2>/dev/null || true
 
-# Wait a bit for final network stats
-sleep 2
+# Wait for monitoring to complete - it needs to finish to write the summary file
+# The monitoring script runs for MONITOR_DURATION seconds, then writes the summary
+# Wait for it to complete (MONITOR_DURATION + small buffer for file I/O)
+MONITOR_TIMEOUT=$((MONITOR_DURATION + 5))
+ELAPSED=0
+while [ $ELAPSED -lt $MONITOR_TIMEOUT ]; do
+    if ! kill -0 $MONITOR_PID 2>/dev/null; then
+        # Monitoring script finished
+        break
+    fi
+    sleep 1
+    ELAPSED=$((ELAPSED + 1))
+done
 
-# Stop monitoring
-kill $MONITOR_PID 2>/dev/null || true
+# If still running after timeout, force kill it
+if kill -0 $MONITOR_PID 2>/dev/null; then
+    kill -KILL $MONITOR_PID 2>/dev/null || true
+fi
 wait $MONITOR_PID 2>/dev/null || true
 
 # Clean up container

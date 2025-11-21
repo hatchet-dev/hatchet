@@ -114,17 +114,70 @@ INITIAL_BYTES=$(parse_stats_to_bytes "$INITIAL_STATS")
 INITIAL_RX=$(echo $INITIAL_BYTES | awk '{print $1}')
 INITIAL_TX=$(echo $INITIAL_BYTES | awk '{print $2}')
 
+# Set up trap to write summary if interrupted (after INITIAL_STATS is set)
+handle_exit() {
+    # Ensure summary is written before exiting
+    if [ -n "$OUTPUT_FILE" ] && [ -n "$INITIAL_STATS" ] && [ ! -f "${OUTPUT_FILE}.summary" ]; then
+        # Get final stats one more time, or use last valid stats
+        FINAL_STATS="0B / 0B"
+        for i in {1..5}; do
+            if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+                RAW_STATS=$(docker stats --no-stream --format "{{.NetIO}}" "$CONTAINER_NAME" 2>/dev/null || echo "0B / 0B")
+                FINAL_STATS=$(strip_ansi "$RAW_STATS")
+                if [ -n "$FINAL_STATS" ] && [ "$FINAL_STATS" != "-- / --" ] && [ "$FINAL_STATS" != "" ] && [ "$FINAL_STATS" != "0B / 0B" ]; then
+                    LAST_VALID_STATS="$FINAL_STATS"
+                    break
+                fi
+            fi
+            sleep 0.2
+        done
+        
+        # If final stats are 0B / 0B but we have a last valid stats, use that
+        if [ "$FINAL_STATS" = "0B / 0B" ] && [ -n "$LAST_VALID_STATS" ] && [ "$LAST_VALID_STATS" != "0B / 0B" ]; then
+            FINAL_STATS="$LAST_VALID_STATS"
+        fi
+        
+        if [ -n "$FINAL_STATS" ] && [ "$FINAL_STATS" != "0B / 0B" ]; then
+            echo "Final: $FINAL_STATS" >> "$OUTPUT_FILE"
+            FINAL_BYTES=$(parse_stats_to_bytes "$FINAL_STATS")
+            FINAL_RX=$(echo $FINAL_BYTES | awk '{print $1}')
+            FINAL_TX=$(echo $FINAL_BYTES | awk '{print $2}')
+            TOTAL_RX=$((FINAL_RX - INITIAL_RX))
+            TOTAL_TX=$((FINAL_TX - INITIAL_TX))
+            TOTAL_BYTES=$((TOTAL_RX + TOTAL_TX))
+            
+            {
+                echo "RX_BYTES=$TOTAL_RX"
+                echo "TX_BYTES=$TOTAL_TX"
+                echo "TOTAL_BYTES=$TOTAL_BYTES"
+            } > "${OUTPUT_FILE}.summary"
+        fi
+    fi
+    exit 0
+}
+trap 'handle_exit' TERM INT
+
 # Monitor periodically and capture stats
 INTERVAL=5  # Check every 5 seconds
 ITERATIONS=$((DURATION / INTERVAL))
+LAST_VALID_STATS="0B / 0B"
 for i in $(seq 1 $ITERATIONS); do
+    # Check if container still exists - if not, break early but still write summary
+    if ! docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        break
+    fi
     RAW_STATS=$(docker stats --no-stream --format "{{.NetIO}}" "$CONTAINER_NAME" 2>/dev/null || echo "0B / 0B")
     STATS=$(strip_ansi "$RAW_STATS")
     echo "$STATS" >> "$OUTPUT_FILE"
+    # Keep track of last valid (non-zero) stats
+    if [ -n "$STATS" ] && [ "$STATS" != "0B / 0B" ] && [ "$STATS" != "-- / --" ] && [ "$STATS" != "" ]; then
+        LAST_VALID_STATS="$STATS"
+    fi
     sleep "$INTERVAL"
 done
 
 # Get final stats (retry a few times, even if container stopped)
+# Use last valid stats if container stopped and returns 0B / 0B
 FINAL_STATS="0B / 0B"
 for i in {1..10}; do
     # Check if container exists (running or stopped)
@@ -132,11 +185,18 @@ for i in {1..10}; do
         RAW_STATS=$(docker stats --no-stream --format "{{.NetIO}}" "$CONTAINER_NAME" 2>/dev/null || echo "0B / 0B")
         FINAL_STATS=$(strip_ansi "$RAW_STATS")
         if [ -n "$FINAL_STATS" ] && [ "$FINAL_STATS" != "-- / --" ] && [ "$FINAL_STATS" != "" ] && [ "$FINAL_STATS" != "0B / 0B" ]; then
+            LAST_VALID_STATS="$FINAL_STATS"
             break
         fi
     fi
     sleep 0.5
 done
+
+# If final stats are 0B / 0B but we have a last valid stats, use that
+if [ "$FINAL_STATS" = "0B / 0B" ] && [ -n "$LAST_VALID_STATS" ] && [ "$LAST_VALID_STATS" != "0B / 0B" ]; then
+    FINAL_STATS="$LAST_VALID_STATS"
+fi
+
 echo "Final: $FINAL_STATS" >> "$OUTPUT_FILE"
 
 FINAL_BYTES=$(parse_stats_to_bytes "$FINAL_STATS")
