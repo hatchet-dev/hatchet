@@ -124,13 +124,16 @@ for i in $(seq 1 $ITERATIONS); do
     sleep "$INTERVAL"
 done
 
-# Get final stats (retry a few times)
+# Get final stats (retry a few times, even if container stopped)
 FINAL_STATS="0B / 0B"
-for i in {1..5}; do
-    RAW_STATS=$(docker stats --no-stream --format "{{.NetIO}}" "$CONTAINER_NAME" 2>/dev/null || echo "0B / 0B")
-    FINAL_STATS=$(strip_ansi "$RAW_STATS")
-    if [ -n "$FINAL_STATS" ] && [ "$FINAL_STATS" != "-- / --" ] && [ "$FINAL_STATS" != "" ]; then
-        break
+for i in {1..10}; do
+    # Check if container exists (running or stopped)
+    if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        RAW_STATS=$(docker stats --no-stream --format "{{.NetIO}}" "$CONTAINER_NAME" 2>/dev/null || echo "0B / 0B")
+        FINAL_STATS=$(strip_ansi "$RAW_STATS")
+        if [ -n "$FINAL_STATS" ] && [ "$FINAL_STATS" != "-- / --" ] && [ "$FINAL_STATS" != "" ] && [ "$FINAL_STATS" != "0B / 0B" ]; then
+            break
+        fi
     fi
     sleep 0.5
 done
@@ -157,22 +160,45 @@ fi
 # TOTAL_RX and TOTAL_TX are already calculated above as the difference
 # between initial and final stats
 
+# Helper function to format bytes in human-readable format
+format_bytes() {
+    local bytes=$1
+    if [ "$USE_BC" = true ]; then
+        if [ $(echo "$bytes >= 1099511627776" | bc) -eq 1 ]; then
+            echo "$(echo "scale=2; $bytes / 1099511627776" | bc) TB"
+        elif [ $(echo "$bytes >= 1073741824" | bc) -eq 1 ]; then
+            echo "$(echo "scale=2; $bytes / 1073741824" | bc) GB"
+        elif [ $(echo "$bytes >= 1048576" | bc) -eq 1 ]; then
+            echo "$(echo "scale=2; $bytes / 1048576" | bc) MB"
+        elif [ $(echo "$bytes >= 1024" | bc) -eq 1 ]; then
+            echo "$(echo "scale=2; $bytes / 1024" | bc) KB"
+        else
+            echo "${bytes} B"
+        fi
+    else
+        if [ $bytes -ge 1099511627776 ]; then
+            awk "BEGIN {printf \"%.2f TB\", $bytes / 1099511627776}"
+        elif [ $bytes -ge 1073741824 ]; then
+            awk "BEGIN {printf \"%.2f GB\", $bytes / 1073741824}"
+        elif [ $bytes -ge 1048576 ]; then
+            awk "BEGIN {printf \"%.2f MB\", $bytes / 1048576}"
+        elif [ $bytes -ge 1024 ]; then
+            awk "BEGIN {printf \"%.2f KB\", $bytes / 1024}"
+        else
+            echo "${bytes} B"
+        fi
+    fi
+}
+
 # Output summary
 echo "=== Network Summary ==="
-if [ "$USE_BC" = true ]; then
-    echo "Total Received: $(echo "scale=2; $TOTAL_RX / 1024 / 1024" | bc) MB"
-    echo "Total Sent: $(echo "scale=2; $TOTAL_TX / 1024 / 1024" | bc) MB"
-    echo "Total: $(echo "scale=2; ($TOTAL_RX + $TOTAL_TX) / 1024 / 1024" | bc) MB"
-    TOTAL_BYTES=$(echo "$TOTAL_RX + $TOTAL_TX" | bc)
-else
-    RX_MB=$(awk "BEGIN {printf \"%.2f\", $TOTAL_RX / 1024 / 1024}")
-    TX_MB=$(awk "BEGIN {printf \"%.2f\", $TOTAL_TX / 1024 / 1024}")
-    TOTAL_MB=$(awk "BEGIN {printf \"%.2f\", ($TOTAL_RX + $TOTAL_TX) / 1024 / 1024}")
-    echo "Total Received: $RX_MB MB"
-    echo "Total Sent: $TX_MB MB"
-    echo "Total: $TOTAL_MB MB"
-    TOTAL_BYTES=$(awk "BEGIN {print $TOTAL_RX + $TOTAL_TX}")
-fi
+TOTAL_BYTES=$((TOTAL_RX + TOTAL_TX))
+RX_FORMATTED=$(format_bytes $TOTAL_RX)
+TX_FORMATTED=$(format_bytes $TOTAL_TX)
+TOTAL_FORMATTED=$(format_bytes $TOTAL_BYTES)
+echo "Total Received: $RX_FORMATTED"
+echo "Total Sent: $TX_FORMATTED"
+echo "Total: $TOTAL_FORMATTED"
 
 # Save summary to file
 {

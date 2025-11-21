@@ -127,7 +127,12 @@ LOGS_PID=$!
 
 # Wait for container to complete (with timeout)
 echo "Waiting for test to complete..."
-TIMEOUT=120  # 2 minutes timeout
+# Increase timeout for TypeScript (it may take longer to process)
+if [ "$SDK" = "typescript" ]; then
+    TIMEOUT=180  # 3 minutes timeout for TypeScript
+else
+    TIMEOUT=120  # 2 minutes timeout for others
+fi
 ELAPSED=0
 while [ $ELAPSED -lt $TIMEOUT ]; do
     if ! docker ps --format '{{.Names}}' | grep -q "^${CLIENT_CONTAINER}$"; then
@@ -142,6 +147,7 @@ done
 if docker ps --format '{{.Names}}' | grep -q "^${CLIENT_CONTAINER}$"; then
     echo "Warning: Test timed out after ${TIMEOUT}s, stopping container..."
     docker stop "$CLIENT_CONTAINER" > /dev/null 2>&1 || true
+    sleep 2  # Give it a moment to stop
 fi
 
 # Stop log streaming
@@ -158,16 +164,35 @@ wait $MONITOR_PID 2>/dev/null || true
 # Clean up container
 docker rm -f "$CLIENT_CONTAINER" > /dev/null 2>&1 || true
 
+# Helper function to format bytes in human-readable format
+format_bytes() {
+    local bytes=$1
+    if [ $bytes -ge 1099511627776 ]; then
+        awk "BEGIN {printf \"%.2f TB\", $bytes / 1099511627776}"
+    elif [ $bytes -ge 1073741824 ]; then
+        awk "BEGIN {printf \"%.2f GB\", $bytes / 1073741824}"
+    elif [ $bytes -ge 1048576 ]; then
+        awk "BEGIN {printf \"%.2f MB\", $bytes / 1048576}"
+    elif [ $bytes -ge 1024 ]; then
+        awk "BEGIN {printf \"%.2f KB\", $bytes / 1024}"
+    else
+        echo "${bytes} B"
+    fi
+}
+
 # Extract network summary
 if [ -f "$RESULTS_DIR/${SDK}_network.log.summary" ]; then
     source "$RESULTS_DIR/${SDK}_network.log.summary"
+    RX_FORMATTED=$(format_bytes $RX_BYTES)
+    TX_FORMATTED=$(format_bytes $TX_BYTES)
+    TOTAL_FORMATTED=$(format_bytes $TOTAL_BYTES)
     echo ""
     echo "=== Test Results ==="
     echo "SDK: $SDK"
     echo "State: $STATE"
-    echo "RX Bytes: $RX_BYTES"
-    echo "TX Bytes: $TX_BYTES"
-    echo "Total Bytes: $TOTAL_BYTES"
+    echo "RX Bytes: $RX_FORMATTED ($RX_BYTES bytes)"
+    echo "TX Bytes: $TX_FORMATTED ($TX_BYTES bytes)"
+    echo "Total Bytes: $TOTAL_FORMATTED ($TOTAL_BYTES bytes)"
     echo ""
     echo "Results saved to: $RESULTS_DIR/${SDK}_network.log.summary"
 else

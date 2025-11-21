@@ -24,6 +24,10 @@ COPY sdks/typescript/package.json ./
 # Build the SDK
 RUN pnpm run tsc:build
 
+# Install tsconfig-paths as a dev dependency so it's available in node_modules
+# This is needed for ts-node -r tsconfig-paths/register to work
+RUN pnpm add -D tsconfig-paths
+
 # Copy test file into the SDK directory
 COPY testing/compression-test/tests/typescript_test.ts ./test.ts
 
@@ -35,12 +39,12 @@ WORKDIR /app
 COPY --from=builder /app/sdks/typescript/dist ./dist
 COPY --from=builder /app/sdks/typescript/node_modules ./node_modules
 COPY --from=builder /app/sdks/typescript/package.json ./
+COPY --from=builder /app/sdks/typescript/tsconfig.json ./
 COPY --from=builder /app/sdks/typescript/test.ts ./typescript_test.ts
 
-# Install ts-node, typescript, and tsconfig-paths globally for running TypeScript
-# Also ensure tsconfig-paths is available locally for module resolution
-RUN npm install -g ts-node typescript tsconfig-paths && \
-    npm install tsconfig-paths
+# Install ts-node and typescript globally for running TypeScript
+# tsconfig-paths is already in node_modules from the builder stage
+RUN npm install -g ts-node typescript
 
 # Set NODE_PATH to include dist
 ENV NODE_PATH=/app/dist

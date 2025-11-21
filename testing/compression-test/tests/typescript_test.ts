@@ -25,9 +25,13 @@ async function main() {
     slots: 100,
   });
 
+  // Get compression state from environment (default to 'enabled')
+  const compressionState = process.env.COMPRESSION_STATE || 'enabled';
+  const workflowId = `${compressionState}-typescript`;
+
   // Register workflow
   await worker.registerWorkflow({
-    id: 'compression-test-workflow',
+    id: workflowId,
     description: 'Test workflow for compression testing',
     on: {
       event: 'compression-test:event',
@@ -48,18 +52,20 @@ async function main() {
     ],
   });
 
-  // Start worker
-  console.log('Starting worker...');
-  await worker.start();
-
-  // Wait for worker to register
-  await new Promise((resolve) => setTimeout(resolve, 5000));
-
   // Get number of events from environment variable
   const totalEvents = parseInt(process.env.TEST_EVENTS_COUNT || '10', 10);
   const eventsPerSecond = 10;
   const interval = 1000 / eventsPerSecond; // 100ms between events
   const duration = Math.max(1000, (totalEvents / eventsPerSecond) * 1000); // Calculate duration from events
+
+  // Start worker in background (don't await - it's blocking)
+  console.log('Starting worker...');
+  const workerPromise = worker.start().catch((error) => {
+    console.error('Worker error:', error);
+  });
+
+  // Wait for worker to register
+  await new Promise((resolve) => setTimeout(resolve, 5000));
 
   console.log(`Emitting ${totalEvents} events over ${duration / 1000} seconds...`);
 
@@ -87,15 +93,30 @@ async function main() {
     console.log(`Finished emitting ${eventId} events`);
   };
 
-  // Start emitting events
-  emitEvents().catch(console.error);
+  // Start emitting events and wait for completion
+  await emitEvents();
 
-  // Wait for test duration + buffer
-  const waitTime = duration + 10000;
+  // Wait additional time for events to be processed
+  // Add buffer for processing time (events take time to execute)
+  const processingBuffer = 10000; // 10 seconds buffer for processing
+  const waitTime = duration + processingBuffer;
+  console.log(`Waiting ${waitTime / 1000} seconds for events to be processed...`);
   await new Promise((resolve) => setTimeout(resolve, waitTime));
 
   console.log('Test complete, stopping worker...');
-  await worker.stop();
+  try {
+    // Stop worker with a timeout to prevent hanging
+    await Promise.race([
+      worker.stop(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Worker stop timeout')), 10000)
+      )
+    ]);
+  } catch (error) {
+    console.error('Error stopping worker:', error);
+    // Force exit if stop hangs
+  }
+  console.log('Worker stopped, exiting...');
   process.exit(0);
 }
 

@@ -13,6 +13,7 @@ services:
       - HATCHET_CLIENT_NAMESPACE=${HATCHET_CLIENT_NAMESPACE:-compression-test}
       - HATCHET_CLIENT_LOG_LEVEL=${HATCHET_CLIENT_LOG_LEVEL:-debug}
       - HATCHET_CLIENT_TLS_STRATEGY=none
+      - COMPRESSION_STATE=${COMPRESSION_STATE:-enabled}
     command:
       - ./hatchet-loadtest
       - loadtest
@@ -43,6 +44,7 @@ services:
       - HATCHET_CLIENT_NAMESPACE=${HATCHET_CLIENT_NAMESPACE:-compression-test}
       - HATCHET_CLIENT_TLS_STRATEGY=none
       - TEST_EVENTS_COUNT=${TEST_EVENTS_COUNT:-10}
+      - COMPRESSION_STATE=${COMPRESSION_STATE:-enabled}
     command: ["ts-node", "-r", "tsconfig-paths/register", "typescript_test.ts"]
 
   client-python:
@@ -56,4 +58,5 @@ services:
       - HATCHET_CLIENT_NAMESPACE=${HATCHET_CLIENT_NAMESPACE:-compression-test}
       - HATCHET_CLIENT_TLS_STRATEGY=none
       - TEST_EVENTS_COUNT=${TEST_EVENTS_COUNT:-10}
+      - COMPRESSION_STATE=${COMPRESSION_STATE:-enabled}
     command: ["python", "python_test.py"]

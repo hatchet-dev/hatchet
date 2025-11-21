@@ -52,9 +52,13 @@ def main() -> None:
     # Namespace is set via environment variable HATCHET_CLIENT_NAMESPACE
     hatchet = Hatchet(debug=False)
 
+    # Get compression state from environment (default to 'enabled')
+    compression_state = os.getenv("COMPRESSION_STATE", "enabled")
+    workflow_name = f"{compression_state}-python"
+
     # Create workflow
     workflow = hatchet.workflow(
-        name="compression-test-workflow",
+        name=workflow_name,
         on_events=["compression-test:event"],
     )
 
