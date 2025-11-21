@@ -379,8 +379,9 @@ jobs:
           # Trap to ensure cleanup runs on exit (including failures)
           trap cleanup EXIT ERR
 
-          # Run the test
-          go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+          # Run the test with compression disabled for load tests
+          # Compression adds CPU overhead that slows down tests with 0kb payloads
+          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
           TEST_EXIT_CODE=$?
 
           # Exit with test result
