@@ -626,7 +626,7 @@ WITH input AS (
     SELECT
         UNNEST($1::bigint[]) AS task_id,
         UNNEST($2::timestamptz[]) AS inserted_at,
-        UNNEST($3::v1_readable_status_olap[]) AS readable_status
+        UNNEST($3::TEXT[])::v1_readable_status_olap AS readable_status
 ), task_data AS (
     SELECT
         i.task_id,
@@ -672,10 +672,10 @@ ORDER BY td.task_id, td.inserted_at
 `
 
 type GetTaskDurationsByTaskIdsParams struct {
-	Taskids          []int64                `json:"taskids"`
-	Taskinsertedats  []pgtype.Timestamptz   `json:"taskinsertedats"`
-	Readablestatuses []V1ReadableStatusOlap `json:"readablestatuses"`
-	Tenantid         pgtype.UUID            `json:"tenantid"`
+	Taskids          []int64              `json:"taskids"`
+	Taskinsertedats  []pgtype.Timestamptz `json:"taskinsertedats"`
+	Readablestatuses []string             `json:"readablestatuses"`
+	Tenantid         pgtype.UUID          `json:"tenantid"`
 }
 
 type GetTaskDurationsByTaskIdsRow struct {

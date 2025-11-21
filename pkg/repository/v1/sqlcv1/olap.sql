@@ -1668,7 +1668,7 @@ WITH input AS (
     SELECT
         UNNEST(@taskIds::bigint[]) AS task_id,
         UNNEST(@taskInsertedAts::timestamptz[]) AS inserted_at,
-        UNNEST(@readableStatuses::v1_readable_status_olap[]) AS readable_status
+        UNNEST(@readableStatuses::TEXT[])::v1_readable_status_olap AS readable_status
 ), task_data AS (
     SELECT
         i.task_id,

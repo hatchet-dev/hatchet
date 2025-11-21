@@ -2301,11 +2301,17 @@ func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId strin
 }
 
 func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
+	statusStrings := make([]string, len(readableStatuses))
+
+	for i, status := range readableStatuses {
+		statusStrings[i] = string(status)
+	}
+
 	rows, err := r.queries.GetTaskDurationsByTaskIds(ctx, r.readPool, sqlcv1.GetTaskDurationsByTaskIdsParams{
 		Taskids:          taskIds,
 		Taskinsertedats:  taskInsertedAts,
 		Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
-		Readablestatuses: readableStatuses,
+		Readablestatuses: statusStrings,
 	})
 	if err != nil {
 		return nil, err
