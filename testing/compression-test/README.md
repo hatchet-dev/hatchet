@@ -5,6 +5,7 @@ This directory contains scripts and configurations to test gRPC compression acro
 ## Overview
 
 Tests measure network traffic bytes for each SDK comparing:
+
 - **Baseline**: Main branch (no compression)
 - **With Compression**: Current branch (compression enabled)
 
@@ -70,22 +71,26 @@ docker build -t python-enabled-compression -f testing/compression-test/Dockerfil
 ### Prerequisites
 
 1. **Engine must be running**: Start your Hatchet engine separately (not managed by these scripts)
+
    - The engine should be accessible at the host/port you specify in `HATCHET_CLIENT_HOST_PORT`
 
 2. **Set required environment variables**:
+
    ```bash
    export HATCHET_CLIENT_TOKEN="your-token-here"
    export HATCHET_CLIENT_HOST_PORT="localhost:7070"  # gRPC address where your engine is running
    ```
-   
+
    **Optional environment variables**:
+
    ```bash
    export HATCHET_CLIENT_SERVER_URL="http://localhost:8080"  # HTTP server URL (for Go SDK, defaults to http://localhost:8080)
    export HATCHET_CLIENT_API_URL="http://localhost:8080"     # API URL (for TypeScript SDK, defaults to http://localhost:8080)
    export HATCHET_CLIENT_NAMESPACE="compression-test"        # Namespace (optional, defaults to compression-test)
    ```
 
-   **Note**: 
+   **Note**:
+
    - `HATCHET_CLIENT_TENANT_ID` is extracted from the token automatically, so you don't need to set it.
    - The scripts use `host` network mode, so containers can access your engine running on the host.
 
@@ -129,6 +134,7 @@ cd testing/compression-test
 ## Test Parameters
 
 All tests use standardized parameters:
+
 - Duration: 60 seconds
 - Events per second: 10
 - Payload size: 100KB
@@ -138,6 +144,7 @@ All tests use standardized parameters:
 ## Results
 
 Results are saved in `results/` directory:
+
 - `results/baseline/` - Baseline test results
 - `results/compressed/` - Compression test results
 

@@ -27,10 +27,10 @@ parse_stats_to_bytes() {
     local stats_line="$1"
     local rx_bytes=0
     local tx_bytes=0
-    
+
     # Strip any remaining ANSI codes and clean up
     stats_line=$(echo "$stats_line" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\r' | xargs)
-    
+
     # Docker stats format: "1.2MB / 3.4MB" or "1.2KB / 3.4KB" or "2.95kB / 2.35kB" etc.
     # Try to match the pattern - handle both uppercase and lowercase 'k'
     if [[ $stats_line =~ ([0-9.]+)([kmgtKMG]?B)\ */\ *([0-9.]+)([kmgtKMG]?B) ]]; then
@@ -38,11 +38,11 @@ parse_stats_to_bytes() {
         RX_UNIT=${BASH_REMATCH[2]}
         TX_VAL=${BASH_REMATCH[3]}
         TX_UNIT=${BASH_REMATCH[4]}
-        
+
         # Normalize units to uppercase
         RX_UNIT=$(echo "$RX_UNIT" | tr '[:lower:]' '[:upper:]')
         TX_UNIT=$(echo "$TX_UNIT" | tr '[:lower:]' '[:upper:]')
-        
+
         rx_bytes=$(awk -v val="$RX_VAL" -v unit="$RX_UNIT" 'BEGIN {
             if (unit == "B") print int(val)
             else if (unit == "KB") print int(val * 1024)
@@ -51,7 +51,7 @@ parse_stats_to_bytes() {
             else if (unit == "TB") print int(val * 1024 * 1024 * 1024 * 1024)
             else print int(val)
         }')
-        
+
         tx_bytes=$(awk -v val="$TX_VAL" -v unit="$TX_UNIT" 'BEGIN {
             if (unit == "B") print int(val)
             else if (unit == "KB") print int(val * 1024)
@@ -66,7 +66,7 @@ parse_stats_to_bytes() {
         RX_UNIT=${BASH_REMATCH[2]}
         TX_VAL=${BASH_REMATCH[3]}
         TX_UNIT=${BASH_REMATCH[4]}
-        
+
         rx_bytes=$(awk -v val="$RX_VAL" -v unit="$RX_UNIT" 'BEGIN {
             if (unit == "KiB") print int(val * 1024)
             else if (unit == "MiB") print int(val * 1024 * 1024)
@@ -74,7 +74,7 @@ parse_stats_to_bytes() {
             else if (unit == "TiB") print int(val * 1024 * 1024 * 1024 * 1024)
             else print int(val)
         }')
-        
+
         tx_bytes=$(awk -v val="$TX_VAL" -v unit="$TX_UNIT" 'BEGIN {
             if (unit == "KiB") print int(val * 1024)
             else if (unit == "MiB") print int(val * 1024 * 1024)
@@ -83,7 +83,7 @@ parse_stats_to_bytes() {
             else print int(val)
         }')
     fi
-    
+
     echo "$rx_bytes $tx_bytes"
 }
 
@@ -131,12 +131,12 @@ handle_exit() {
             fi
             sleep 0.2
         done
-        
+
         # If final stats are 0B / 0B but we have a last valid stats, use that
         if [ "$FINAL_STATS" = "0B / 0B" ] && [ -n "$LAST_VALID_STATS" ] && [ "$LAST_VALID_STATS" != "0B / 0B" ]; then
             FINAL_STATS="$LAST_VALID_STATS"
         fi
-        
+
         if [ -n "$FINAL_STATS" ] && [ "$FINAL_STATS" != "0B / 0B" ]; then
             echo "Final: $FINAL_STATS" >> "$OUTPUT_FILE"
             FINAL_BYTES=$(parse_stats_to_bytes "$FINAL_STATS")
@@ -145,7 +145,7 @@ handle_exit() {
             TOTAL_RX=$((FINAL_RX - INITIAL_RX))
             TOTAL_TX=$((FINAL_TX - INITIAL_TX))
             TOTAL_BYTES=$((TOTAL_RX + TOTAL_TX))
-            
+
             {
                 echo "RX_BYTES=$TOTAL_RX"
                 echo "TX_BYTES=$TOTAL_TX"

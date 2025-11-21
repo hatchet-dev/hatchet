@@ -17,18 +17,18 @@ parse_stats_to_bytes() {
     local stats_line="$1"
     local rx_bytes=0
     local tx_bytes=0
-    
+
     stats_line=$(echo "$stats_line" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\r' | xargs)
-    
+
     if [[ $stats_line =~ ([0-9.]+)([kmgtKMG]?B)\ */\ *([0-9.]+)([kmgtKMG]?B) ]]; then
         RX_VAL=${BASH_REMATCH[1]}
         RX_UNIT=${BASH_REMATCH[2]}
         TX_VAL=${BASH_REMATCH[3]}
         TX_UNIT=${BASH_REMATCH[4]}
-        
+
         RX_UNIT=$(echo "$RX_UNIT" | tr '[:lower:]' '[:upper:]')
         TX_UNIT=$(echo "$TX_UNIT" | tr '[:lower:]' '[:upper:]')
-        
+
         rx_bytes=$(awk -v val="$RX_VAL" -v unit="$RX_UNIT" 'BEGIN {
             if (unit == "B") print int(val)
             else if (unit == "KB") print int(val * 1024)
@@ -37,7 +37,7 @@ parse_stats_to_bytes() {
             else if (unit == "TB") print int(val * 1024 * 1024 * 1024 * 1024)
             else print int(val)
         }')
-        
+
         tx_bytes=$(awk -v val="$TX_VAL" -v unit="$TX_UNIT" 'BEGIN {
             if (unit == "B") print int(val)
             else if (unit == "KB") print int(val * 1024)
@@ -47,7 +47,7 @@ parse_stats_to_bytes() {
             else print int(val)
         }')
     fi
-    
+
     echo "$rx_bytes $tx_bytes"
 }
 # Extract initial and final stats from log file

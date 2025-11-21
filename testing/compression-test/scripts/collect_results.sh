@@ -33,7 +33,7 @@ declare -A compressed_results
 for SDK in go typescript python; do
     baseline_file="$RESULTS_DIR/disabled/${SDK}_network.log.summary"
     compressed_file="$RESULTS_DIR/enabled/${SDK}_network.log.summary"
-    
+
     baseline_results[$SDK]=$(parse_bytes "$baseline_file")
     compressed_results[$SDK]=$(parse_bytes "$compressed_file")
 done
