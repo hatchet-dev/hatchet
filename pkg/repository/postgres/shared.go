@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -16,7 +17,7 @@ import (
 type sharedRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
-	l       *zerolog.Logger
+	l       *logger.Logger
 	queries *dbsqlc.Queries
 
 	bulkStatusBuffer      *buffer.TenantBufferManager[*updateStepRunQueueData, pgtype.UUID]
@@ -33,11 +34,12 @@ type sharedRepository struct {
 
 func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) (*sharedRepository, func() error, error) {
 	queries := dbsqlc.New()
+	wrappedLogger := logger.New(l)
 
 	s := &sharedRepository{
 		pool:    pool,
 		v:       v,
-		l:       l,
+		l:       wrappedLogger,
 		queries: queries,
 	}
 

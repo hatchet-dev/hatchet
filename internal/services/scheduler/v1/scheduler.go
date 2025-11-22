@@ -9,7 +9,6 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/golang-lru/v2/expirable"
-	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
@@ -32,13 +31,13 @@ type SchedulerOpt func(*SchedulerOpts)
 
 type SchedulerOpts struct {
 	mq          msgqueue.MessageQueue
-	l           *zerolog.Logger
+	l           *logger.Logger
 	repo        repository.EngineRepository
 	repov1      repov1.Repository
 	dv          datautils.DataDecoderValidator
 	alerter     hatcheterrors.Alerter
 	p           *partition.Partition
-	queueLogger *zerolog.Logger
+	queueLogger *logger.Logger
 	pool        *v1.SchedulingPool
 }
 
@@ -49,10 +48,10 @@ func defaultSchedulerOpts() *SchedulerOpts {
 	queueLogger := logger.NewDefaultLogger("queue")
 
 	return &SchedulerOpts{
-		l:           &l,
+		l:           logger.New(&l),
 		dv:          datautils.NewDataDecoderValidator(),
 		alerter:     alerter,
-		queueLogger: &queueLogger,
+		queueLogger: logger.New(&queueLogger),
 	}
 }
 
@@ -62,7 +61,7 @@ func WithMessageQueue(mq msgqueue.MessageQueue) SchedulerOpt {
 	}
 }
 
-func WithLogger(l *zerolog.Logger) SchedulerOpt {
+func WithLogger(l *logger.Logger) SchedulerOpt {
 	return func(opts *SchedulerOpts) {
 		opts.l = l
 	}
@@ -71,7 +70,7 @@ func WithLogger(l *zerolog.Logger) SchedulerOpt {
 func WithQueueLoggerConfig(lc *shared.LoggerConfigFile) SchedulerOpt {
 	return func(opts *SchedulerOpts) {
 		l := logger.NewStdErr(lc, "queue")
-		opts.queueLogger = &l
+		opts.queueLogger = logger.New(&l)
 	}
 }
 
@@ -114,7 +113,7 @@ func WithSchedulerPool(s *v1.SchedulingPool) SchedulerOpt {
 type Scheduler struct {
 	mq        msgqueue.MessageQueue
 	pubBuffer *msgqueue.MQPubBuffer
-	l         *zerolog.Logger
+	l         *logger.Logger
 	repo      repository.EngineRepository
 	repov1    repov1.Repository
 	dv        datautils.DataDecoderValidator
@@ -123,7 +122,7 @@ type Scheduler struct {
 	p         *partition.Partition
 
 	// a custom queue logger
-	ql *zerolog.Logger
+	ql *logger.Logger
 
 	pool *v1.SchedulingPool
 
@@ -304,7 +303,7 @@ func (s *Scheduler) Start() (func() error, error) {
 func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			recoverErr := recoveryutils.RecoverWithAlert(s.l, s.a, r)
+			recoverErr := recoveryutils.RecoverWithAlert(&s.l.Logger, s.a, r)
 
 			if recoverErr != nil {
 				err = recoverErr

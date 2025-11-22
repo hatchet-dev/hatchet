@@ -12,7 +12,6 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
@@ -35,7 +34,7 @@ type OLAPController interface {
 
 type OLAPControllerImpl struct {
 	mq                           msgqueue.MessageQueue
-	l                            *zerolog.Logger
+	l                            *logger.Logger
 	repo                         v1.Repository
 	dv                           datautils.DataDecoderValidator
 	a                            *hatcheterrors.Wrapped
@@ -60,7 +59,7 @@ type OLAPControllerOpt func(*OLAPControllerOpts)
 
 type OLAPControllerOpts struct {
 	mq                          msgqueue.MessageQueue
-	l                           *zerolog.Logger
+	l                           *logger.Logger
 	repo                        v1.Repository
 	dv                          datautils.DataDecoderValidator
 	alerter                     hatcheterrors.Alerter
@@ -78,7 +77,7 @@ func defaultOLAPControllerOpts() *OLAPControllerOpts {
 	alerter := hatcheterrors.NoOpAlerter{}
 
 	return &OLAPControllerOpts{
-		l:                        &l,
+		l:                        logger.New(&l),
 		dv:                       datautils.NewDataDecoderValidator(),
 		alerter:                  alerter,
 		prometheusMetricsEnabled: false,
@@ -92,7 +91,7 @@ func WithMessageQueue(mq msgqueue.MessageQueue) OLAPControllerOpt {
 	}
 }
 
-func WithLogger(l *zerolog.Logger) OLAPControllerOpt {
+func WithLogger(l *logger.Logger) OLAPControllerOpt {
 	return func(opts *OLAPControllerOpts) {
 		opts.l = l
 	}
@@ -187,7 +186,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	}
 
 	newLogger := opts.l.With().Str("service", "olap-controller").Logger()
-	opts.l = &newLogger
+	opts.l = logger.New(&newLogger)
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
 
@@ -236,7 +235,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	timeout := 15 * time.Second
 
 	o.processTenantAlertOperations = queueutils.NewOperationPool(
-		opts.l,
+		&opts.l.Logger,
 		timeout,
 		"process tenant alerts",
 		o.processTenantAlerts,
@@ -404,7 +403,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloads [][]byte) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			recoverErr := recoveryutils.RecoverWithAlert(tc.l, tc.a, r)
+			recoverErr := recoveryutils.RecoverWithAlert(&tc.l.Logger, tc.a, r)
 
 			if recoverErr != nil {
 				err = recoverErr
@@ -440,7 +439,7 @@ func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
 			if !tc.sample(payload.ExternalId.String()) {
-				tc.l.Debug().Msgf("skipping payload offload external id %s", payload.ExternalId)
+				tc.l.Ctx(ctx).Debug().Msgf("skipping payload offload external id %s", payload.ExternalId)
 				continue
 			}
 
@@ -459,7 +458,7 @@ func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, te
 	for _, msg := range msgs {
 		for _, failure := range msg.Failures {
 			if !tc.sample(failure.ErrorMessage) {
-				tc.l.Debug().Msgf("skipping CEL evaluation failure %s for source %s", failure.ErrorMessage, failure.Source)
+				tc.l.Ctx(ctx).Debug().Msgf("skipping CEL evaluation failure %s for source %s", failure.ErrorMessage, failure.Source)
 				continue
 			}
 
@@ -478,7 +477,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 
 	for _, msg := range msgs {
 		if !tc.sample(sqlchelpers.UUIDToStr(msg.WorkflowRunID)) {
-			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.ID, sqlchelpers.UUIDToStr(msg.WorkflowRunID))
+			tc.l.Ctx(ctx).Debug().Msgf("skipping task %d for workflow run %s", msg.ID, sqlchelpers.UUIDToStr(msg.WorkflowRunID))
 			continue
 		}
 
@@ -495,7 +494,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 
 	for _, msg := range msgs {
 		if !tc.sample(sqlchelpers.UUIDToStr(msg.ExternalID)) {
-			tc.l.Debug().Msgf("skipping dag %s", sqlchelpers.UUIDToStr(msg.ExternalID))
+			tc.l.Ctx(ctx).Debug().Msgf("skipping dag %s", sqlchelpers.UUIDToStr(msg.ExternalID))
 			continue
 		}
 
@@ -625,12 +624,12 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		taskMeta := taskIdsToMetas[msg.TaskId]
 
 		if taskMeta == nil {
-			tc.l.Error().Msgf("could not find task meta for task id %d", msg.TaskId)
+			tc.l.Ctx(ctx).Error().Msgf("could not find task meta for task id %d", msg.TaskId)
 			continue
 		}
 
 		if !tc.sample(sqlchelpers.UUIDToStr(taskMeta.WorkflowRunID)) {
-			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.TaskId, sqlchelpers.UUIDToStr(taskMeta.WorkflowRunID))
+			tc.l.Ctx(ctx).Debug().Msgf("skipping task %d for workflow run %s", msg.TaskId, sqlchelpers.UUIDToStr(taskMeta.WorkflowRunID))
 			continue
 		}
 
@@ -810,7 +809,7 @@ func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context,
 
 	for _, msg := range msgs {
 		if !tc.sample(msg.ErrorText) {
-			tc.l.Debug().Msgf("skipping failure logging for webhook %s", msg.WebhookName)
+			tc.l.Ctx(ctx).Debug().Msgf("skipping failure logging for webhook %s", msg.WebhookName)
 			continue
 		}
 

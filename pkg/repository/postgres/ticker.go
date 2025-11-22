@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -16,10 +16,10 @@ type tickerRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	queries *dbsqlc.Queries
-	l       *zerolog.Logger
+	l       *logger.Logger
 }
 
-func NewTickerRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.TickerEngineRepository {
+func NewTickerRepository(pool *pgxpool.Pool, v validator.Validator, l *logger.Logger) repository.TickerEngineRepository {
 	queries := dbsqlc.New()
 
 	return &tickerRepository{

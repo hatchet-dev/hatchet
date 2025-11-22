@@ -21,7 +21,7 @@ type messageQueueRepository struct {
 }
 
 func NewMessageQueueRepository(shared *sharedRepository) (*messageQueueRepository, func() error) {
-	m := newMultiplexedListener(shared.l, shared.pool)
+	m := newMultiplexedListener(&shared.l.Logger, shared.pool)
 
 	return &messageQueueRepository{
 			sharedRepository: shared,

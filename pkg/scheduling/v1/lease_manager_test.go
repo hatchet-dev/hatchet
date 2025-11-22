@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -57,7 +58,7 @@ func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 	mockLeaseRepo := &mockLeaseRepo{}
 	leaseManager := &LeaseManager{
 		lr:       mockLeaseRepo,
-		conf:     &sharedConfig{l: &l},
+		conf:     &sharedConfig{l: logger.New(&l)},
 		tenantId: tenantId,
 	}
 
@@ -84,7 +85,7 @@ func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
 	mockLeaseRepo := &mockLeaseRepo{}
 	leaseManager := &LeaseManager{
 		lr:       mockLeaseRepo,
-		conf:     &sharedConfig{l: &l},
+		conf:     &sharedConfig{l: logger.New(&l)},
 		tenantId: tenantId,
 	}
 

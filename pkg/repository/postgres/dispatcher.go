@@ -5,8 +5,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -17,10 +17,10 @@ type dispatcherRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	queries *dbsqlc.Queries
-	l       *zerolog.Logger
+	l       *logger.Logger
 }
 
-func NewDispatcherRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.DispatcherEngineRepository {
+func NewDispatcherRepository(pool *pgxpool.Pool, v validator.Validator, l *logger.Logger) repository.DispatcherEngineRepository {
 	queries := dbsqlc.New()
 
 	return &dispatcherRepository{
@@ -63,7 +63,7 @@ func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onSta
 		return err
 	}
 
-	defer sqlchelpers.DeferRollback(context.Background(), d.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), &d.l.Logger, tx.Rollback)
 
 	staleDispatchers, err := d.queries.ListStaleDispatchers(context.Background(), tx)
 

@@ -56,11 +56,11 @@ func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter, exts 
 		actions:         make(map[string]*action),
 		unackedSlots:    make(map[int]*slot),
 		rl:              rl,
-		actionsMu:       newRWMu(cf.l),
-		replenishMu:     newMu(cf.l),
-		workersMu:       newMu(cf.l),
-		assignedCountMu: newMu(cf.l),
-		unackedMu:       newMu(cf.l),
+		actionsMu:       newRWMu(&cf.l.Logger),
+		replenishMu:     newMu(&cf.l.Logger),
+		workersMu:       newMu(&cf.l.Logger),
+		assignedCountMu: newMu(&cf.l.Logger),
+		unackedMu:       newMu(&cf.l.Logger),
 		exts:            exts,
 	}
 }

@@ -247,7 +247,7 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 				return nil, nil, err
 			}
 		} else {
-			workflowRuns, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
+			workflowRuns, err := createNewWorkflowRuns(ctx, w.pool, w.queries, &w.l.Logger, []*repository.CreateWorkflowRunOpts{opts})
 
 			if err != nil {
 				return nil, nil, err
@@ -258,7 +258,7 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 		id := sqlchelpers.UUIDToStr(wfr.ID)
 
 		for _, cb := range w.createCallbacks {
-			cb.Do(w.l, tenantId, wfr)
+			cb.Do(&w.l.Logger, tenantId, wfr)
 		}
 
 		return &id, wfr, nil
@@ -306,7 +306,7 @@ func (w *workflowRunEngineRepository) ProcessWorkflowRunUpdates(ctx context.Cont
 
 	limit := 100
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, &w.l.Logger, 25000)
 
 	if err != nil {
 		return false, err
@@ -394,7 +394,7 @@ func (w *workflowRunEngineRepository) ProcessWorkflowRunUpdates(ctx context.Cont
 	}
 
 	// NOTE: actually not deferred
-	bulkWorkflowRunEvents(ctx, w.l, tx, w.queries, eventWorkflowRunIds, eventTimeSeen, eventReasons, eventSeverities, eventMessages, eventData)
+	bulkWorkflowRunEvents(ctx, &w.l.Logger, tx, w.queries, eventWorkflowRunIds, eventTimeSeen, eventReasons, eventSeverities, eventMessages, eventData)
 
 	err = commit(ctx)
 
@@ -414,7 +414,7 @@ type unpauseWorkflowRunQueueData struct {
 
 func (w *workflowRunEngineRepository) ProcessUnpausedWorkflowRuns(ctx context.Context, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error) {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, &w.l.Logger, 25000)
 
 	if err != nil {
 		return nil, false, err
@@ -844,7 +844,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsCancelInProgress(ctx contex
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-in-progress")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, &w.l.Logger, 15000)
 
 	if err != nil {
 		return nil, nil, err
@@ -952,7 +952,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsCancelNewest(ctx context.Co
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-newest")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, &w.l.Logger, 15000)
 
 	if err != nil {
 		return nil, nil, err
@@ -1056,7 +1056,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsCancelNewest(ctx context.Co
 
 func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId string, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.GetStepRunForEngineRow, error) {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, &w.l.Logger, 5000)
 
 	if err != nil {
 		return nil, nil, err
@@ -1108,7 +1108,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 	return poppedWorkflowRuns, startableStepRuns, nil
 }
 func (w *workflowRunEngineRepository) QueueWorkflowRunJobs(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, &w.l.Logger, 15000)
 
 	if err != nil {
 		return nil, err
@@ -1194,7 +1194,7 @@ func (w workflowRunEngineRepository) startManyJobRuns(ctx context.Context, tx db
 }
 
 func (j *jobRunEngineRepository) StartJobRun(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, j.pool, j.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, j.pool, &j.l.Logger, 15000)
 
 	if err != nil {
 		return nil, err
@@ -1245,7 +1245,7 @@ func (w *workflowRunAPIRepository) BulkCreateWorkflowRuns(ctx context.Context, o
 
 	w.l.Debug().Msgf("bulk creating %d workflow runs", len(opts))
 
-	return createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
+	return createNewWorkflowRuns(ctx, w.pool, w.queries, &w.l.Logger, opts)
 }
 
 func (w *workflowRunEngineRepository) GetUpstreamErrorsForOnFailureStep(
@@ -1279,7 +1279,7 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context,
 
 	wfrs, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, int32(meteredAmount), func() (*string, *[]*dbsqlc.WorkflowRun, error) { // nolint: gosec
 
-		wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
+		wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, &w.l.Logger, opts)
 
 		if err != nil {
 			return nil, nil, err
@@ -1287,7 +1287,7 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context,
 
 		for _, cb := range w.createCallbacks {
 			for _, wfr := range wfrs {
-				cb.Do(w.l, tenantId, wfr) // nolint: errcheck
+				cb.Do(&w.l.Logger, tenantId, wfr) // nolint: errcheck
 			}
 		}
 
@@ -1329,7 +1329,7 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 				return nil, nil, err
 			}
 		} else {
-			wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
+			wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, &w.l.Logger, []*repository.CreateWorkflowRunOpts{opts})
 			if err != nil {
 				return nil, nil, err
 			}
@@ -1380,14 +1380,14 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 	ctx, span := telemetry.NewSpan(ctx, "replay-workflow-run")
 	defer span.End()
 
-	err := sqlchelpers.DeadlockRetry(s.l, func() error {
+	err := sqlchelpers.DeadlockRetry(&s.l.Logger, func() error {
 		tx, err := s.pool.Begin(ctx)
 
 		if err != nil {
 			return err
 		}
 
-		defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
+		defer sqlchelpers.DeferRollback(ctx, &s.l.Logger, tx.Rollback)
 
 		pgWorkflowRunId := sqlchelpers.UUIDFromStr(workflowRunId)
 
@@ -1548,7 +1548,7 @@ func (s *workflowRunEngineRepository) UpdateWorkflowRunFromGroupKeyEval(ctx cont
 	}
 
 	for _, cb := range s.queuedCallbacks {
-		cb.Do(s.l, tenantId, pgWorkflowRunId)
+		cb.Do(&s.l.Logger, tenantId, pgWorkflowRunId)
 	}
 
 	defer insertWorkflowRunQueueItem( // nolint: errcheck

@@ -10,7 +10,6 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
-	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -48,7 +47,7 @@ type DispatcherImpl struct {
 	sharedReader              *msgqueue.SharedTenantReader
 	sharedNonBufferedReaderv1 *msgqueuev1.SharedTenantReader
 	sharedBufferedReaderv1    *msgqueuev1.SharedBufferedTenantReader
-	l                         *zerolog.Logger
+	l                         *logger.Logger
 	dv                        datautils.DataDecoderValidator
 	v                         validator.Validator
 	repo                      repository.EngineRepository
@@ -129,7 +128,7 @@ type DispatcherOpt func(*DispatcherOpts)
 type DispatcherOpts struct {
 	mq                   msgqueue.MessageQueue
 	mqv1                 msgqueuev1.MessageQueue
-	l                    *zerolog.Logger
+	l                    *logger.Logger
 	dv                   datautils.DataDecoderValidator
 	repo                 repository.EngineRepository
 	repov1               v1.Repository
@@ -141,11 +140,11 @@ type DispatcherOpts struct {
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
-	logger := logger.NewDefaultLogger("dispatcher")
+	l := logger.NewDefaultLogger("dispatcher")
 	alerter := hatcheterrors.NoOpAlerter{}
 
 	return &DispatcherOpts{
-		l:                    &logger,
+		l:                    logger.New(&l),
 		dv:                   datautils.NewDataDecoderValidator(),
 		dispatcherId:         uuid.New().String(),
 		alerter:              alerter,
@@ -189,7 +188,7 @@ func WithEntitlementsRepository(r repository.EntitlementsRepository) DispatcherO
 	}
 }
 
-func WithLogger(l *zerolog.Logger) DispatcherOpt {
+func WithLogger(l *logger.Logger) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.l = l
 	}
@@ -251,7 +250,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	}
 
 	newLogger := opts.l.With().Str("service", "dispatcher").Logger()
-	opts.l = &newLogger
+	opts.l = logger.New(&newLogger)
 
 	// create a new scheduler
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
@@ -325,7 +324,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		err := d.handleTask(ctx, task)
 		if err != nil {
-			d.l.Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
+			d.l.Ctx(ctx).Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
 			return err
 		}
 
@@ -347,7 +346,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		err := d.handleV1Task(ctx, task)
 		if err != nil {
-			d.l.Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
+			d.l.Ctx(ctx).Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
 			return err
 		}
 
@@ -421,7 +420,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			recoverErr := recoveryutils.RecoverWithAlert(d.l, d.a, r)
+			recoverErr := recoveryutils.RecoverWithAlert(&d.l.Logger, d.a, r)
 
 			if recoverErr != nil {
 				err = recoverErr
@@ -446,7 +445,7 @@ func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message)
 func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueuev1.Message) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			recoverErr := recoveryutils.RecoverWithAlert(d.l, d.a, r)
+			recoverErr := recoveryutils.RecoverWithAlert(&d.l.Logger, d.a, r)
 
 			if recoverErr != nil {
 				err = recoverErr

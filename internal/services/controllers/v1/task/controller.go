@@ -10,7 +10,6 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
-	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 
@@ -44,9 +43,9 @@ type TasksController interface {
 type TasksControllerImpl struct {
 	mq                                       msgqueue.MessageQueue
 	pubBuffer                                *msgqueue.MQPubBuffer
-	l                                        *zerolog.Logger
-	queueLogger                              *zerolog.Logger
-	pgxStatsLogger                           *zerolog.Logger
+	l                                        *logger.Logger
+	queueLogger                              *logger.Logger
+	pgxStatsLogger                           *logger.Logger
 	repo                                     repository.EngineRepository
 	repov1                                   v1.Repository
 	dv                                       datautils.DataDecoderValidator
@@ -71,14 +70,14 @@ type TasksControllerOpt func(*TasksControllerOpts)
 
 type TasksControllerOpts struct {
 	mq                  msgqueue.MessageQueue
-	l                   *zerolog.Logger
+	l                   *logger.Logger
 	repo                repository.EngineRepository
 	repov1              v1.Repository
 	dv                  datautils.DataDecoderValidator
 	alerter             hatcheterrors.Alerter
 	p                   *partition.Partition
-	queueLogger         *zerolog.Logger
-	pgxStatsLogger      *zerolog.Logger
+	queueLogger         *logger.Logger
+	pgxStatsLogger      *logger.Logger
 	opsPoolJitter       time.Duration
 	opsPoolPollInterval time.Duration
 	replayEnabled       bool
@@ -93,11 +92,11 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 	pgxStatsLogger := logger.NewDefaultLogger("pgx-stats")
 
 	return &TasksControllerOpts{
-		l:                   &l,
+		l:                   logger.New(&l),
 		dv:                  datautils.NewDataDecoderValidator(),
 		alerter:             alerter,
-		queueLogger:         &queueLogger,
-		pgxStatsLogger:      &pgxStatsLogger,
+		queueLogger:         logger.New(&queueLogger),
+		pgxStatsLogger:      logger.New(&pgxStatsLogger),
 		opsPoolJitter:       1500 * time.Millisecond,
 		opsPoolPollInterval: 2 * time.Second,
 		replayEnabled:       true, // default to enabled for backward compatibility
@@ -111,7 +110,7 @@ func WithMessageQueue(mq msgqueue.MessageQueue) TasksControllerOpt {
 	}
 }
 
-func WithLogger(l *zerolog.Logger) TasksControllerOpt {
+func WithLogger(l *logger.Logger) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
 		opts.l = l
 	}
@@ -120,14 +119,14 @@ func WithLogger(l *zerolog.Logger) TasksControllerOpt {
 func WithQueueLoggerConfig(lc *shared.LoggerConfigFile) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
 		l := logger.NewStdErr(lc, "queue")
-		opts.queueLogger = &l
+		opts.queueLogger = logger.New(&l)
 	}
 }
 
 func WithPgxStatsLoggerConfig(lc *shared.LoggerConfigFile) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
 		l := logger.NewStdErr(lc, "pgx-stats")
-		opts.pgxStatsLogger = &l
+		opts.pgxStatsLogger = logger.New(&l)
 	}
 }
 
@@ -204,7 +203,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	}
 
 	newLogger := opts.l.With().Str("service", "tasks-controller").Logger()
-	opts.l = &newLogger
+	opts.l = logger.New(&newLogger)
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
 
@@ -239,7 +238,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	jitter := t.opsPoolJitter
 	timeout := time.Second * 30
 
-	t.timeoutTaskOperations = operation.NewOperationPool(opts.p, opts.l, "timeout-step-runs", timeout, "timeout step runs", t.processTaskTimeouts, operation.WithPoolInterval(
+	t.timeoutTaskOperations = operation.NewOperationPool(opts.p, &opts.l.Logger, "timeout-step-runs", timeout, "timeout step runs", t.processTaskTimeouts, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -248,7 +247,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.emitSleepOperations = operation.NewOperationPool(opts.p, opts.l, "emit-sleep-step-runs", timeout, "emit sleep step runs", t.processSleeps, operation.WithPoolInterval(
+	t.emitSleepOperations = operation.NewOperationPool(opts.p, &opts.l.Logger, "emit-sleep-step-runs", timeout, "emit sleep step runs", t.processSleeps, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -257,7 +256,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.reassignTaskOperations = operation.NewOperationPool(opts.p, opts.l, "reassign-step-runs", timeout, "reassign step runs", t.processTaskReassignments, operation.WithPoolInterval(
+	t.reassignTaskOperations = operation.NewOperationPool(opts.p, &opts.l.Logger, "reassign-step-runs", timeout, "reassign step runs", t.processTaskReassignments, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -266,7 +265,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.retryTaskOperations = operation.NewOperationPool(opts.p, opts.l, "retry-step-runs", timeout, "retry step runs", t.processTaskRetryQueueItems, operation.WithPoolInterval(
+	t.retryTaskOperations = operation.NewOperationPool(opts.p, &opts.l.Logger, "retry-step-runs", timeout, "retry step runs", t.processTaskRetryQueueItems, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -275,7 +274,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.evictExpiredIdempotencyKeysOperations = operation.NewOperationPool(opts.p, opts.l, "evict-expired-idempotency-keys", timeout, "evict expired idempotency keys", t.evictExpiredIdempotencyKeys, operation.WithPoolInterval(
+	t.evictExpiredIdempotencyKeysOperations = operation.NewOperationPool(opts.p, &opts.l.Logger, "evict-expired-idempotency-keys", timeout, "evict expired idempotency keys", t.evictExpiredIdempotencyKeys, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -284,8 +283,8 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.processPayloadWALOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload WAL", t.processPayloadWAL).WithJitter(jitter)
-	t.processPayloadExternalCutoversOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload external cutovers", t.processPayloadExternalCutovers).WithJitter(jitter)
+	t.processPayloadWALOperations = queueutils.NewOperationPool(&opts.l.Logger, timeout, "process payload WAL", t.processPayloadWAL).WithJitter(jitter)
+	t.processPayloadExternalCutoversOperations = queueutils.NewOperationPool(&opts.l.Logger, timeout, "process payload external cutovers", t.processPayloadExternalCutovers).WithJitter(jitter)
 
 	return t, nil
 }
@@ -441,7 +440,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloads [][]byte) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			recoverErr := recoveryutils.RecoverWithAlert(tc.l, tc.a, r)
+			recoverErr := recoveryutils.RecoverWithAlert(&tc.l.Logger, tc.a, r)
 
 			if recoverErr != nil {
 				err = recoverErr
@@ -555,7 +554,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			tc.l.Ctx(ctx).Error().Err(err).Msg("could not create monitoring event message")
 			err = fmt.Errorf("could not create monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not create monitoring event message")
@@ -565,7 +564,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not publish monitoring event message")
+			tc.l.Ctx(ctx).Error().Err(err).Msg("could not publish monitoring event message")
 			err = fmt.Errorf("could not publish monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not publish monitoring event message")
@@ -733,7 +732,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			tc.l.Ctx(ctx).Error().Err(err).Msg("could not create monitoring event message")
 			err = fmt.Errorf("could not create monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not create monitoring event message")
@@ -749,7 +748,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not publish monitoring event message")
+			tc.l.Ctx(ctx).Error().Err(err).Msg("could not publish monitoring event message")
 			err = fmt.Errorf("could not publish monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not publish monitoring event message")
@@ -809,7 +808,7 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId s
 
 func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
 	if !tc.replayEnabled {
-		tc.l.Debug().Msg("replay is disabled, skipping handleReplayTasks")
+		tc.l.Ctx(ctx).Debug().Msg("replay is disabled, skipping handleReplayTasks")
 		return nil
 	}
 
@@ -959,7 +958,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 	tenant, err := tc.repo.Tenant().GetTenantByID(ctx, tenantId)
 
 	if err != nil {
-		tc.l.Err(err).Msg("could not get tenant")
+		tc.l.Ctx(ctx).Err(err).Msg("could not get tenant")
 		return
 	}
 
@@ -967,7 +966,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 		msg, err := tasktypes.NotifyTaskReleased(tenantId, releasedTasks)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not create message for scheduler partition queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not create message for scheduler partition queue")
 		} else {
 			err = tc.mq.SendMessage(
 				ctx,
@@ -976,7 +975,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 			)
 
 			if err != nil {
-				tc.l.Err(err).Msg("could not add message to scheduler partition queue")
+				tc.l.Ctx(ctx).Err(err).Msg("could not add message to scheduler partition queue")
 			}
 		}
 	}
@@ -998,7 +997,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 	)
 
 	if err != nil {
-		tc.l.Err(err).Msg("could not create message for workflow run finished candidate")
+		tc.l.Ctx(ctx).Err(err).Msg("could not create message for workflow run finished candidate")
 		return
 	}
 
@@ -1009,7 +1008,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 	)
 
 	if err != nil {
-		tc.l.Err(err).Msg("could not send workflow-run-finished-candidate message")
+		tc.l.Ctx(ctx).Err(err).Msg("could not send workflow-run-finished-candidate message")
 		return
 	}
 }
@@ -1169,7 +1168,7 @@ func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, ten
 
 	if err != nil {
 		if err == metered.ErrResourceExhausted {
-			tc.l.Warn().Str("tenantId", tenantId).Msg("resource exhausted while triggering workflows from names. Not retrying")
+			tc.l.Ctx(ctx).Warn().Str("tenantId", tenantId).Msg("resource exhausted while triggering workflows from names. Not retrying")
 
 			return nil
 		}
@@ -1294,7 +1293,7 @@ func (tc *TasksControllerImpl) signalDAGsCreated(ctx context.Context, tenantId s
 		msg, err := tasktypes.CreatedDAGMessage(tenantId, dagCp)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not create message for olap queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not create message for olap queue")
 			continue
 		}
 
@@ -1306,7 +1305,7 @@ func (tc *TasksControllerImpl) signalDAGsCreated(ctx context.Context, tenantId s
 		)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not add message to olap queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not add message to olap queue")
 			continue
 		}
 	}
@@ -1336,7 +1335,7 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 		msg, err := tasktypes.CreatedTaskMessage(tenantId, task)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not create message for olap queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not create message for olap queue")
 			continue
 		}
 
@@ -1348,7 +1347,7 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 		)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not add message to olap queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not add message to olap queue")
 			continue
 		}
 	}
@@ -1408,7 +1407,7 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 
 func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	if !tc.replayEnabled {
-		tc.l.Debug().Msg("replay is disabled, skipping signalTasksReplayedFromMatch")
+		tc.l.Ctx(ctx).Debug().Msg("replay is disabled, skipping signalTasksReplayedFromMatch")
 		return nil
 	}
 
@@ -1575,7 +1574,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 		msg, err := tasktypes.NotifyTaskCreated(tenantId, tasks)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not create message for scheduler partition queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not create message for scheduler partition queue")
 		} else {
 			err = tc.mq.SendMessage(
 				ctx,
@@ -1584,7 +1583,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 			)
 
 			if err != nil {
-				tc.l.Err(err).Msg("could not add message to scheduler partition queue")
+				tc.l.Ctx(ctx).Err(err).Msg("could not add message to scheduler partition queue")
 			}
 		}
 	}
@@ -1614,7 +1613,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 		)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not create monitoring event message")
+			tc.l.Ctx(ctx).Err(err).Msg("could not create monitoring event message")
 			continue
 		}
 
@@ -1626,7 +1625,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 		)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not add monitoring event message to olap queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not add monitoring event message to olap queue")
 			continue
 		}
 	}
@@ -1677,7 +1676,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 		})
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not create message for olap queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not create message for olap queue")
 			continue
 		}
 
@@ -1689,7 +1688,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 		)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not add message to olap queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not add message to olap queue")
 			continue
 		}
 	}
@@ -1743,7 +1742,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 		})
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not create message for olap queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not create message for olap queue")
 			continue
 		}
 
@@ -1755,7 +1754,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 		)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not add message to olap queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not add message to olap queue")
 			continue
 		}
 	}
@@ -1808,7 +1807,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 		})
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not create message for olap queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not create message for olap queue")
 			continue
 		}
 
@@ -1820,7 +1819,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 		)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not add message to olap queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not add message to olap queue")
 			continue
 		}
 	}
@@ -1840,7 +1839,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 
 func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId string, tasks []v1.TaskIdInsertedAtRetryCount) error {
 	if !tc.replayEnabled {
-		tc.l.Debug().Msg("replay is disabled, skipping signalTasksReplayed")
+		tc.l.Ctx(ctx).Debug().Msg("replay is disabled, skipping signalTasksReplayed")
 		return nil
 	}
 
@@ -1861,7 +1860,7 @@ func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not create monitoring event message")
+			tc.l.Ctx(ctx).Err(err).Msg("could not create monitoring event message")
 			continue
 		}
 
@@ -1873,7 +1872,7 @@ func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not add monitoring event message to olap queue")
+			tc.l.Ctx(ctx).Err(err).Msg("could not add monitoring event message to olap queue")
 			continue
 		}
 	}

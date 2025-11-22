@@ -20,7 +20,7 @@ func newUserEventBuffer(shared *sharedRepository, conf buffer.ConfigFileBuffer) 
 		Name:       "create_user_events",
 		OutputFunc: shared.bulkWriteUserEvents,
 		SizeFunc:   sizeOfEvent,
-		L:          shared.l,
+		L:          &shared.l.Logger,
 		V:          shared.v,
 		Config:     conf,
 	}
@@ -89,7 +89,7 @@ func (r *sharedRepository) bulkWriteUserEvents(ctx context.Context, opts []*repo
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &r.l.Logger, tx.Rollback)
 
 	insertCount, err := r.queries.CreateEvents(
 		ctx,

@@ -186,7 +186,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	start := time.Now()
 	checkpoint := start
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, &d.l.Logger, 5000)
 
 	if err != nil {
 		return nil, nil, err
@@ -594,7 +594,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype
 }
 
 func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, &d.l.Logger, 5000)
 
 	if err != nil {
 		return nil, err

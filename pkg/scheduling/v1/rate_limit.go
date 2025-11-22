@@ -48,7 +48,7 @@ func newRateLimiter(conf *sharedConfig, tenantId pgtype.UUID) *rateLimiter {
 	rl := &rateLimiter{
 		rateLimitRepo: conf.repo.RateLimit(),
 		tenantId:      tenantId,
-		l:             conf.l,
+		l:             &conf.l.Logger,
 		unacked:       make(map[int64]rateLimitSet),
 		unflushed:     make(rateLimitSet),
 		dbRateLimits:  make(rateLimitSet),

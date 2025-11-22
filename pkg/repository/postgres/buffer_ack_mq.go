@@ -13,7 +13,7 @@ func newAckMQBuffer(shared *sharedRepository) (*buffer.TenantBufferManager[int64
 		Name:       "ack_mq",
 		OutputFunc: shared.bulkAckMessages,
 		SizeFunc:   sizeOfMessage,
-		L:          shared.l,
+		L:          &shared.l.Logger,
 		V:          shared.v,
 	}
 
@@ -40,7 +40,7 @@ func (r *sharedRepository) bulkAckMessages(ctx context.Context, opts []int64) ([
 		res = append(res, &i)
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 10000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 10000)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not prepare transaction: %w", err)

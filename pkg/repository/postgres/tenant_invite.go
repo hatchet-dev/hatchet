@@ -28,7 +28,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 		return nil, err
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 5000)
 
 	if err != nil {
 		return nil, err

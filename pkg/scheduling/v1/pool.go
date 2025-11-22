@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -15,7 +16,7 @@ import (
 type sharedConfig struct {
 	repo v1.SchedulerRepository
 
-	l *zerolog.Logger
+	l *logger.Logger
 
 	singleQueueLimit int
 
@@ -44,11 +45,13 @@ func NewSchedulingPool(repo v1.SchedulerRepository, l *zerolog.Logger, singleQue
 	resultsCh := make(chan *QueueResults, 1000)
 	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
 
+	wrappedLogger := logger.New(l)
+
 	s := &SchedulingPool{
 		Extensions: &Extensions{},
 		cf: &sharedConfig{
 			repo:                                   repo,
-			l:                                      l,
+			l:                                      wrappedLogger,
 			singleQueueLimit:                       singleQueueLimit,
 			schedulerConcurrencyRateLimit:          schedulerConcurrencyRateLimit,
 			schedulerConcurrencyPollingMinInterval: schedulerConcurrencyPollingMinInterval,
@@ -56,7 +59,7 @@ func NewSchedulingPool(repo v1.SchedulerRepository, l *zerolog.Logger, singleQue
 		},
 		resultsCh:            resultsCh,
 		concurrencyResultsCh: concurrencyResultsCh,
-		setMu:                newMu(l),
+		setMu:                newMu(&wrappedLogger.Logger),
 	}
 
 	return s, func() error {

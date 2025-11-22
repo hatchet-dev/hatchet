@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
@@ -27,7 +28,7 @@ type taskExternalIdTenantIdTuple struct {
 type sharedRepository struct {
 	pool                      *pgxpool.Pool
 	v                         validator.Validator
-	l                         *zerolog.Logger
+	l                         *logger.Logger
 	queries                   *sqlcv1.Queries
 	queueCache                *cache.Cache
 	stepExpressionCache       *cache.Cache
@@ -40,13 +41,14 @@ type sharedRepository struct {
 }
 
 func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, entitlements repository.EntitlementsRepository, payloadStoreOpts PayloadStoreRepositoryOpts) (*sharedRepository, func() error) {
+	wrappedLogger := logger.New(l)
 	m := metered.NewMetered(entitlements, l)
 
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
 	stepExpressionCache := cache.New(5 * time.Minute)
 	tenantIdWorkflowNameCache := cache.New(5 * time.Minute)
-	payloadStore := NewPayloadStoreRepository(pool, l, queries, payloadStoreOpts)
+	payloadStore := NewPayloadStoreRepository(pool, &wrappedLogger.Logger, queries, payloadStoreOpts)
 
 	celParser := cel.NewCELParser()
 
@@ -68,7 +70,7 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 	return &sharedRepository{
 			pool:                      pool,
 			v:                         v,
-			l:                         l,
+			l:                         wrappedLogger,
 			queries:                   queries,
 			queueCache:                queueCache,
 			stepExpressionCache:       stepExpressionCache,

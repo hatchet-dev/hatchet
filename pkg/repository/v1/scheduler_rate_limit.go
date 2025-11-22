@@ -23,7 +23,7 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 }
 
 func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, &d.l.Logger, 5000)
 
 	if err != nil {
 		return nil, nil, err

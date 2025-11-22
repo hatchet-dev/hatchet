@@ -11,8 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -69,7 +69,7 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), &r.l.Logger, tx.Rollback)
 
 	var onboardingDataBytes []byte
 	if opts.OnboardingData != nil {
@@ -360,7 +360,7 @@ func (r *tenantAPIRepository) GetQueueMetrics(ctx context.Context, tenantId stri
 		totalParams.WorkflowIds = uuids
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 60*1000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 60*1000)
 
 	if err != nil {
 		return nil, err
@@ -410,11 +410,11 @@ type tenantEngineRepository struct {
 	cache   cache.Cacheable
 	pool    *pgxpool.Pool
 	v       validator.Validator
-	l       *zerolog.Logger
+	l       *logger.Logger
 	queries *dbsqlc.Queries
 }
 
-func NewTenantEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cache cache.Cacheable) repository.TenantEngineRepository {
+func NewTenantEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *logger.Logger, cache cache.Cacheable) repository.TenantEngineRepository {
 	queries := dbsqlc.New()
 
 	return &tenantEngineRepository{
@@ -443,7 +443,7 @@ func (r *tenantEngineRepository) UpdateControllerPartitionHeartbeat(ctx context.
 		return "", err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &r.l.Logger, tx.Rollback)
 
 	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
@@ -481,7 +481,7 @@ func (r *tenantEngineRepository) UpdateWorkerPartitionHeartbeat(ctx context.Cont
 		return "", err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &r.l.Logger, tx.Rollback)
 
 	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
@@ -600,7 +600,7 @@ func (r *tenantEngineRepository) UpdateSchedulerPartitionHeartbeat(ctx context.C
 		return "", err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, &r.l.Logger, tx.Rollback)
 
 	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, "SET statement_timeout=5000")

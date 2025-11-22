@@ -179,7 +179,7 @@ func (s *queueRepository) removeInvalidStepRuns(ctx context.Context, qis []*dbsq
 
 	// If we've reached this point, we have queue items to cancel. We prepare a transaction in order
 	// to set a statement timeout.
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, &s.l.Logger, 5000)
 
 	if err != nil {
 		return nil, err
@@ -349,7 +349,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *reposi
 	start := time.Now()
 	checkpoint := start
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, &d.l.Logger, 5000)
 
 	if err != nil {
 		return nil, nil, err

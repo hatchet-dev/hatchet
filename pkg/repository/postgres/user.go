@@ -66,7 +66,7 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *repository.Create
 		params.Name = sqlchelpers.TextFromStr(*opts.Name)
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 5000)
 
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *repository.Create
 	}
 
 	for _, cb := range r.createCallbacks {
-		cb.Do(r.l, user)
+		cb.Do(&r.l.Logger, user)
 	}
 
 	return user, nil
@@ -135,7 +135,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *reposi
 		params.Name = sqlchelpers.TextFromStr(*opts.Name)
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, &r.l.Logger, 5000)
 
 	if err != nil {
 		return nil, err

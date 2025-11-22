@@ -19,7 +19,7 @@ func newBulkStepRunStatusBuffer(shared *sharedRepository) (*buffer.TenantBufferM
 		Name:       "update_step_run_status",
 		OutputFunc: shared.bulkUpdateStepRunStatuses,
 		SizeFunc:   sizeOfUpdateData,
-		L:          shared.l,
+		L:          &shared.l.Logger,
 		V:          shared.v,
 	}
 
