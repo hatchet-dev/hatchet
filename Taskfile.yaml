@@ -208,3 +208,6 @@ tasks:
       EXTRA_ARGS: '{{.EXTRA_ARGS | default ""}}'
     cmds:
       - poetry run pytest -n auto --retries 3 --retry-delay 5
+  start-telemetry:
+    cmds:
+      - docker compose -f docker-compose.infra.yml up -d

@@ -151,6 +151,30 @@ func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParam
 	return count, err
 }
 
+const countOLAPTempTableSizeForDAGStatusUpdates = `-- name: CountOLAPTempTableSizeForDAGStatusUpdates :one
+SELECT COUNT(*) AS total
+FROM v1_task_status_updates_tmp
+`
+
+func (q *Queries) CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context, db DBTX) (int64, error) {
+	row := db.QueryRow(ctx, countOLAPTempTableSizeForDAGStatusUpdates)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
+const countOLAPTempTableSizeForTaskStatusUpdates = `-- name: CountOLAPTempTableSizeForTaskStatusUpdates :one
+SELECT COUNT(*) AS total
+FROM v1_task_events_olap_tmp
+`
+
+func (q *Queries) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context, db DBTX) (int64, error) {
+	row := db.QueryRow(ctx, countOLAPTempTableSizeForTaskStatusUpdates)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 type CreateDAGsOLAPParams struct {
 	TenantID             pgtype.UUID        `json:"tenant_id"`
 	ID                   int64              `json:"id"`
@@ -1581,6 +1605,38 @@ func (q *Queries) ListWorkflowRunExternalIds(ctx context.Context, db DBTX, arg L
 			return nil, err
 		}
 		items = append(items, external_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listYesterdayRunCountsByStatus = `-- name: ListYesterdayRunCountsByStatus :many
+SELECT readable_status, COUNT(*)
+FROM v1_runs_olap
+WHERE inserted_at::DATE = (NOW() - INTERVAL '1 day')::DATE
+GROUP BY readable_status
+`
+
+type ListYesterdayRunCountsByStatusRow struct {
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	Count          int64                `json:"count"`
+}
+
+func (q *Queries) ListYesterdayRunCountsByStatus(ctx context.Context, db DBTX) ([]*ListYesterdayRunCountsByStatusRow, error) {
+	rows, err := db.Query(ctx, listYesterdayRunCountsByStatus)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListYesterdayRunCountsByStatusRow
+	for rows.Next() {
+		var i ListYesterdayRunCountsByStatusRow
+		if err := rows.Scan(&i.ReadableStatus, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
