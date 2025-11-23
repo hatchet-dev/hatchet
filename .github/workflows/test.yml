@@ -224,7 +224,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: "1.24"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -332,7 +332,9 @@ jobs:
 
       - name: Test
         run: |
-          go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+          # Disable gzip compression for load tests to reduce CPU overhead
+          # Compression adds overhead without benefit for 0kb payloads
+          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}

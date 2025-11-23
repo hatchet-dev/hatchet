@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"

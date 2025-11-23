@@ -4,12 +4,15 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 	"google.golang.org/grpc/keepalive"
 	grpcMetadata "google.golang.org/grpc/metadata"
 
@@ -118,6 +121,21 @@ func NewGRPCClient(fs ...GRPCClientOpt) (*GRPCClient, error) {
 	grpcOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(transportCreds),
 		grpc.WithKeepaliveParams(keepAliveParams),
+	}
+
+	// Check if compression is disabled via environment variable
+	disableCompression := false
+	if envVal := os.Getenv("HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION"); envVal != "" {
+		if val, err := strconv.ParseBool(envVal); err == nil {
+			disableCompression = val
+		}
+	}
+
+	if !disableCompression {
+		grpcOpts = append(grpcOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor("gzip")))
+		opts.l.Info().Msg("gzip compression enabled for gRPC client")
+	} else {
+		opts.l.Info().Msg("gzip compression disabled for gRPC client (HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true)")
 	}
 
 	conn, err := grpc.NewClient(

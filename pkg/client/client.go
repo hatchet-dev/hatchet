@@ -5,6 +5,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
@@ -13,6 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
@@ -265,6 +268,21 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	grpcOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(transportCreds),
 		grpc.WithKeepaliveParams(keepAliveParams),
+	}
+
+	// Check if compression is disabled via environment variable
+	disableCompression := false
+	if envVal := os.Getenv("HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION"); envVal != "" {
+		if val, err := strconv.ParseBool(envVal); err == nil {
+			disableCompression = val
+		}
+	}
+
+	if !disableCompression {
+		grpcOpts = append(grpcOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor("gzip")))
+		opts.l.Info().Msg("gzip compression enabled for gRPC client")
+	} else {
+		opts.l.Info().Msg("gzip compression disabled for gRPC client (HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true)")
 	}
 
 	if !opts.noGrpcRetry {

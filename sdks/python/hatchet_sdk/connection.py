@@ -56,6 +56,7 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
         ("grpc.client_idle_timeout_ms", 60 * 1000),
         ("grpc.http2.max_pings_without_data", 0),
         ("grpc.keepalive_permit_without_calls", 1),
+        ("grpc.default_compression_algorithm", grpc.Compression.Gzip),
     ]
 
     # Set environment variable to disable fork support. Reference: https://github.com/grpc/grpc/issues/28557
