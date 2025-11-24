@@ -2094,26 +2094,7 @@ func (r *sharedRepository) insertTasks(
 	eventTypes := make([]sqlcv1.V1TaskEventType, 0)
 
 	for stepId, params := range stepIdsToParams {
-		var createdTasks []*sqlcv1.V1Task
-		var err error
-
-		func() {
-			defer func() {
-				if panicErr := recover(); panicErr != nil {
-					r.l.Error().
-						Str("step_id", stepId).
-						Int("num_tasks", len(params.Externalids)).
-						Int("num_concurrency_keys", len(params.ConcurrencyKeys)).
-						Interface("concurrency_keys", params.ConcurrencyKeys).
-						Interface("initial_states", params.InitialStates).
-						Interface("panic", panicErr).
-						Msg("panic during create tasks")
-					panic(panicErr)
-				}
-			}()
-
-			createdTasks, err = r.queries.CreateTasks(ctx, tx, params)
-		}()
+		createdTasks, err := r.queries.CreateTasks(ctx, tx, params)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to create tasks for step id %s: %w", stepId, err)
@@ -2279,17 +2260,17 @@ func (r *sharedRepository) replayTasks(
 			additionalMetadatas[i] = task.AdditionalMetadata
 		}
 
-		// if strats, ok := concurrencyStrats[task.StepId]; ok {
-		// 	emptyConcurrencyKeys := make([]string, 0)
+		if strats, ok := concurrencyStrats[task.StepId]; ok {
+			emptyConcurrencyKeys := make([]string, 0)
 
-		// 	for range strats {
-		// 		emptyConcurrencyKeys = append(emptyConcurrencyKeys, "")
-		// 	}
+			for range strats {
+				emptyConcurrencyKeys = append(emptyConcurrencyKeys, "")
+			}
 
-		// 	concurrencyKeys[i] = emptyConcurrencyKeys
-		// } else {
-		// 	concurrencyKeys[i] = make([]string, 0)
-		// }
+			concurrencyKeys[i] = emptyConcurrencyKeys
+		} else {
+			concurrencyKeys[i] = make([]string, 0)
+		}
 
 		// only check for concurrency if the task is in a queued state, otherwise we don't need to
 		// evaluate the expression (and it will likely fail if we do)
@@ -2420,26 +2401,7 @@ func (r *sharedRepository) replayTasks(
 	eventTypes := make([]sqlcv1.V1TaskEventType, 0)
 
 	for stepId, params := range stepIdsToParams {
-		var replayRes []*sqlcv1.V1Task
-		var err error
-
-		func() {
-			defer func() {
-				if panicErr := recover(); panicErr != nil {
-					r.l.Error().
-						Str("step_id", stepId).
-						Int("num_tasks", len(params.Taskids)).
-						Int("num_concurrency_keys", len(params.Concurrencykeys)).
-						Interface("concurrency_keys", params.Concurrencykeys).
-						Interface("initial_states", params.InitialStates).
-						Interface("panic", panicErr).
-						Msg("panic during replay tasks")
-					panic(panicErr)
-				}
-			}()
-
-			replayRes, err = r.queries.ReplayTasks(ctx, tx, params)
-		}()
+		replayRes, err := r.queries.ReplayTasks(ctx, tx, params)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to replay tasks for step id %s: %w", stepId, err)
