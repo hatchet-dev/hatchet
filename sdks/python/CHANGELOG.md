@@ -5,7 +5,13 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.21.4] - 2025-12-06
+## [1.21.5] - 2025-12-06
+
+### Changed
+
+- Task outputs that fail to serialize to JSON will now raise an `IllegalTaskOutputError` instead of being stringified. This pulls errors from the engine upstream to the SDK, and will allow users to catch and handle these errors more easily.
+
+## [1.21.4] - 2025-12-05
 
 ### Added
 
