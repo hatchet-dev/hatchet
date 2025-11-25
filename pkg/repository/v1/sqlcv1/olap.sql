@@ -32,6 +32,9 @@ ANALYZE v1_dag_to_task_olap;
 -- name: AnalyzeV1PayloadsOLAP :exec
 ANALYZE v1_payloads_olap;
 
+-- name: AnalyzeV1LookupTableOLAP :exec
+ANALYZE v1_lookup_table_olap;
+
 -- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, @date::date) AS p
