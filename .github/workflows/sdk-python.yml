@@ -67,50 +67,50 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: '25.1'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Install Protoc
+      #   uses: arduino/setup-protoc@v3
+      #   with:
+      #     version: '25.1'
+      #     repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Task
-        uses: arduino/setup-task@v2
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Install Task
+      #   uses: arduino/setup-task@v2
+      #   with:
+      #     repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.24'
+      # - name: Setup Go
+      #   uses: actions/setup-go@v6
+      #   with:
+      #     go-version: '1.24'
 
-      - name: Start Docker dependencies
-        working-directory: .
-        run: docker compose up -d
+      # - name: Start Docker dependencies
+      #   working-directory: .
+      #   run: docker compose up -d
 
-      - name: Generate
-        working-directory: .
-        run: |
-          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          go run ./cmd/hatchet-migrate
-          task generate-go
+      # - name: Generate
+      #   working-directory: .
+      #   run: |
+      #     export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
+      #     go run ./cmd/hatchet-migrate
+      #     task generate-go
 
-      - name: Setup
-        working-directory: .
-        run: |
-          export SEED_DEVELOPMENT=true
-          export SERVER_PORT=8080
-          export SERVER_URL=http://localhost:8080
-          export SERVER_AUTH_COOKIE_DOMAIN=localhost
-          export SERVER_AUTH_COOKIE_INSECURE=true
-          export SERVER_DEFAULT_ENGINE_VERSION=V1
-          export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
+      # - name: Setup
+      #   working-directory: .
+      #   run: |
+      #     export SEED_DEVELOPMENT=true
+      #     export SERVER_PORT=8080
+      #     export SERVER_URL=http://localhost:8080
+      #     export SERVER_AUTH_COOKIE_DOMAIN=localhost
+      #     export SERVER_AUTH_COOKIE_INSECURE=true
+      #     export SERVER_DEFAULT_ENGINE_VERSION=V1
+      #     export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
 
-          go run ./cmd/hatchet-admin quickstart
+      #     go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
-          go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
+      #     go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
+      #     go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
 
-          sleep 30
+      #     sleep 30
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
@@ -131,9 +131,10 @@ jobs:
 
       - name: Generate Env File
         working-directory: .
+        env:
+          STAGING_TOKEN: ${{ secrets.CI_STAGING_TOKEN }}
         run: |
-          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
-          echo "HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert" >> $GITHUB_ENV
+          echo "HATCHET_CLIENT_TOKEN=$STAGING_TOKEN" >> $GITHUB_ENV
           echo "HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True" >> $GITHUB_ENV
 
       - name: Set HATCHET_CLIENT_NAMESPACE
