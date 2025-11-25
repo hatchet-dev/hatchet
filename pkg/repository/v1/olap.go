@@ -1440,8 +1440,13 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 
 	for _, event := range events {
 		key := getCacheKey(event)
+		output := event.Output
 
 		if _, ok := r.eventCache.Get(key); !ok {
+			if !r.payloadStore.OLAPDualWritesEnabled() && event.Output != nil {
+				event.Output = []byte("{}")
+			}
+
 			eventsToWrite = append(eventsToWrite, event)
 
 			tmpEventsToWrite = append(tmpEventsToWrite, sqlcv1.CreateTaskEventsOLAPTmpParams{
@@ -1467,12 +1472,8 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 				Id:         dummyId,
 				ExternalId: event.ExternalID,
 				InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-				Payload:    event.Output,
+				Payload:    output,
 			})
-		}
-
-		if !r.payloadStore.OLAPDualWritesEnabled() {
-			event.Output = []byte("{}")
 		}
 	}
 

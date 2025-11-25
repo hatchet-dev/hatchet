@@ -11,8 +11,10 @@ async def test_list_runs(hatchet: Hatchet) -> None:
     dag_result = await dag_workflow.aio_run()
 
     runs = await hatchet.runs.aio_list(
-        limit=10_000,
         only_tasks=True,
+        workflow_ids=[dag_workflow.id],
+        include_payloads=True,
+        limit=100,
     )
 
     for v in dag_result.values():
