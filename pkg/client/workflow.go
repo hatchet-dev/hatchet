@@ -3,12 +3,18 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )
 
+// Workflow represents a running workflow instance and provides methods to retrieve its results.
+//
+// The workflow listener uses a multi-layer best-effort retry strategy to handle transient failures
+// and provides robust recovery from temporary connection issues like brief DB downtime
+// or network interruptions without requiring manual intervention.
 type Workflow struct {
 	workflowRunId string
 	listener      *WorkflowRunsListener
@@ -62,6 +68,10 @@ func (r *WorkflowResult) StepOutput(key string, v interface{}) error {
 	return nil
 }
 
+// Results returns a map of all step outputs from the workflow run.
+//
+// Note: This method operates on an already-fetched WorkflowResult. The retry logic
+// is handled by Workflow.Result() which obtains the WorkflowResult.
 func (r *WorkflowResult) Results() (interface{}, error) {
 	results := make(map[string]interface{})
 
@@ -78,27 +88,44 @@ func (r *WorkflowResult) Results() (interface{}, error) {
 	return results, nil
 }
 
+// Result waits for the workflow run to complete and returns the results.
+//
+// Retry strategy (best-effort):
+// 1. This function retries AddWorkflowRun up to DefaultActionListenerRetryCount times with DefaultActionListenerRetryInterval intervals
+// 2. AddWorkflowRun calls retrySend which retries up to DefaultActionListenerRetryCount times with DefaultActionListenerRetryInterval intervals
+// 3. Each retrySend attempt calls retrySubscribe which itself retries up to DefaultActionListenerRetryCount times with DefaultActionListenerRetryInterval intervals
 func (c *Workflow) Result() (*WorkflowResult, error) {
 	resChan := make(chan *WorkflowResult, 1)
 	sessionId := uuid.NewString()
 
-	err := c.listener.AddWorkflowRun(
-		c.workflowRunId,
-		sessionId,
-		func(event WorkflowRunEvent) error {
-			resChan <- &WorkflowResult{
-				workflowRun: event,
-			}
+	var err error
+	retries := 0
 
-			return nil
-		},
-	)
+	for retries < DefaultActionListenerRetryCount {
+		if retries > 0 {
+			time.Sleep(DefaultActionListenerRetryInterval)
+		}
 
-	defer func() {
-		c.listener.RemoveWorkflowRun(c.workflowRunId, sessionId)
-	}()
+		err = c.listener.AddWorkflowRun(
+			c.workflowRunId,
+			sessionId,
+			func(event WorkflowRunEvent) error {
+				resChan <- &WorkflowResult{
+					workflowRun: event,
+				}
 
-	if err != nil {
+				return nil
+			},
+		)
+
+		if err == nil {
+			defer c.listener.RemoveWorkflowRun(c.workflowRunId, sessionId)
+
+			break
+		}
+	}
+
+	if retries == DefaultActionListenerRetryCount && err != nil {
 		return nil, fmt.Errorf("failed to listen for workflow events: %w", err)
 	}
 
