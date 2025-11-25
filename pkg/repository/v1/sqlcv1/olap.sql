@@ -272,7 +272,7 @@ FROM
 JOIN
     lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
 JOIN
-    v1_task_events_olap e ON (e.tenant_id, e.task_id, e.readable_status, e.retry_count) = (t.tenant_id, t.id, t.readable_status, t.latest_retry_count)
+    v1_task_events_olap e ON (e.tenant_id, e.task_id, e.readable_status, e.retry_count, e.task_inserted_at) = (t.tenant_id, t.id, t.readable_status, t.latest_retry_count, t.inserted_at)
 ;
 
 -- name: ListTasksByExternalIds :many
