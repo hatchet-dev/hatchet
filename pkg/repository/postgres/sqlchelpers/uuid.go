@@ -1,11 +1,13 @@
 package sqlchelpers
 
 import (
+	"fmt"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func UUIDToStr(uuid pgtype.UUID) string {
-	return uuid.String()
+	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid.Bytes[0:4], uuid.Bytes[4:6], uuid.Bytes[6:8], uuid.Bytes[8:10], uuid.Bytes[10:16])
 }
 
 func UUIDFromStr(uuid string) pgtype.UUID {
@@ -19,12 +21,14 @@ func UUIDFromStr(uuid string) pgtype.UUID {
 }
 
 func UniqueSet(uuids []pgtype.UUID) []pgtype.UUID {
-	seen := make(map[[16]byte]struct{})
+	seen := make(map[string]struct{})
 	unique := make([]pgtype.UUID, 0, len(uuids))
 
 	for _, uuid := range uuids {
-		if _, ok := seen[uuid.Bytes]; !ok {
-			seen[uuid.Bytes] = struct{}{}
+		uuidStr := UUIDToStr(uuid)
+
+		if _, ok := seen[uuidStr]; !ok {
+			seen[uuidStr] = struct{}{}
 			unique = append(unique, uuid)
 		}
 	}
