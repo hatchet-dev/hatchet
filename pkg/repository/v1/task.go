@@ -1664,7 +1664,7 @@ func (r *sharedRepository) createTasks(
 	return r.insertTasks(ctx, tx, tenantId, tasks, stepIdsToConfig)
 }
 
-func partitionTasksByStepConfig(
+func partitionInsertTasksByStepConfig(
 	tasks []CreateTaskOpts,
 	stepIdsToConfig map[string]*sqlcv1.ListStepsByIdsRow,
 ) ([]CreateTaskOpts, []string) {
@@ -1745,7 +1745,7 @@ func (r *sharedRepository) insertTasks(
 		return nil, nil
 	}
 
-	validTasks, missingStepIds := partitionTasksByStepConfig(tasks, stepIdsToConfig)
+	validTasks, missingStepIds := partitionInsertTasksByStepConfig(tasks, stepIdsToConfig)
 
 	if len(validTasks) == 0 {
 		if len(missingStepIds) > 0 {
@@ -1760,7 +1760,7 @@ func (r *sharedRepository) insertTasks(
 			Str("tenant_id", tenantId).
 			Strs("missing_step_ids", missingStepIds).
 			Int("skipped_tasks", len(tasks)-len(validTasks)).
-			Msg("skipping tasks without step config")
+			Msg("skipping insert tasks without step config")
 	}
 
 	tasks = validTasks
