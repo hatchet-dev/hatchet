@@ -665,7 +665,7 @@ class RunsClient(BaseRestClient):
         priority: int | None = None,
     ) -> V1WorkflowRunDetails:
         """
-        Trigger a new workflow run.
+        Trigger a new workflow run. Foo dummy change
 
         IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](https://docs.hatchet.run/sdks/python/runnables#workflow).
 
