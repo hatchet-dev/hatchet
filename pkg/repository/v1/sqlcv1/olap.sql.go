@@ -2545,7 +2545,12 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 }
 
 const readWorkflowRunByExternalId = `-- name: ReadWorkflowRunByExternalId :one
-WITH runs AS (
+WITH lookup_data AS (
+    SELECT dag_id, task_id, inserted_at, tenant_id
+    FROM v1_lookup_table_olap 
+    WHERE external_id = $1::uuid
+),
+runs AS (
     SELECT
         lt.dag_id AS dag_id,
         lt.task_id AS task_id,
@@ -2561,15 +2566,22 @@ WITH runs AS (
         d.additional_metadata AS additional_metadata,
         d.workflow_version_id AS workflow_version_id,
         d.parent_task_external_id AS parent_task_external_id
-    FROM
-        v1_lookup_table_olap lt
-    JOIN
-        v1_runs_olap r ON r.inserted_at = lt.inserted_at AND r.id = lt.dag_id
-    JOIN
-        v1_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
-    WHERE
-        lt.external_id = $1::uuid
-        AND lt.dag_id IS NOT NULL
+    FROM lookup_data lt
+    CROSS JOIN LATERAL (
+        SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, workflow_version_id, additional_metadata, parent_task_external_id FROM v1_runs_olap r
+        WHERE r.id = lt.dag_id 
+          AND r.inserted_at = lt.inserted_at
+          AND r.tenant_id = lt.tenant_id
+        LIMIT 1
+    ) r
+    CROSS JOIN LATERAL (
+        SELECT id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, readable_status, input, additional_metadata, parent_task_external_id, total_tasks FROM v1_dags_olap d
+        WHERE d.id = lt.dag_id
+          AND d.inserted_at = lt.inserted_at
+          AND d.tenant_id = lt.tenant_id
+        LIMIT 1
+    ) d
+    WHERE lt.dag_id IS NOT NULL
 
     UNION ALL
 
@@ -2587,22 +2599,39 @@ WITH runs AS (
         t.input AS input,
         t.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
-        NULL :: UUID AS parent_task_external_id
-    FROM
-        v1_lookup_table_olap lt
-    JOIN
-        v1_runs_olap r ON r.inserted_at = lt.inserted_at AND r.id = lt.task_id
-    JOIN
-        v1_tasks_olap t ON (lt.tenant_id, lt.task_id, lt.inserted_at) = (t.tenant_id, t.id, t.inserted_at)
-    WHERE
-        lt.external_id = $1::uuid
-        AND lt.task_id IS NOT NULL
-), relevant_events AS (
+        NULL::UUID AS parent_task_external_id
+    FROM lookup_data lt
+    CROSS JOIN LATERAL (
+        SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, workflow_version_id, additional_metadata, parent_task_external_id FROM v1_runs_olap r
+        WHERE r.id = lt.task_id
+          AND r.inserted_at = lt.inserted_at
+          AND r.tenant_id = lt.tenant_id
+        LIMIT 1
+    ) r
+    CROSS JOIN LATERAL (
+        SELECT tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at, parent_task_external_id FROM v1_tasks_olap t
+        WHERE t.id = lt.task_id
+          AND t.inserted_at = lt.inserted_at
+          AND t.tenant_id = lt.tenant_id
+        LIMIT 1
+    ) t
+    WHERE lt.task_id IS NOT NULL
+), 
+relevant_events AS (
     SELECT
         e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
     FROM runs r
-    JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
-    JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
+    CROSS JOIN LATERAL (
+        SELECT dt.task_id, dt.task_inserted_at
+        FROM v1_dag_to_task_olap dt
+        WHERE dt.dag_id = r.dag_id 
+          AND dt.dag_inserted_at = r.inserted_at
+    ) dt
+    CROSS JOIN LATERAL (
+        SELECT tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message FROM v1_task_events_olap e
+        WHERE e.task_id = dt.task_id
+          AND e.task_inserted_at = dt.task_inserted_at
+    ) e
     WHERE r.dag_id IS NOT NULL
 
     UNION ALL
@@ -2610,34 +2639,50 @@ WITH runs AS (
     SELECT
         e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
     FROM runs r
-    JOIN v1_task_events_olap e ON e.task_id = r.task_id AND e.task_inserted_at = r.inserted_at
+    CROSS JOIN LATERAL (
+        SELECT tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message FROM v1_task_events_olap e
+        WHERE e.task_id = r.task_id 
+          AND e.task_inserted_at = r.inserted_at
+    ) e
     WHERE r.task_id IS NOT NULL
-), max_retry_counts AS (
+), 
+max_retry_counts AS (
     SELECT task_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
     GROUP BY task_id
-), metadata AS (
+), 
+metadata AS (
     SELECT
         MIN(e.inserted_at)::timestamptz AS created_at,
         MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
         MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at,
-        JSON_AGG(JSON_BUILD_OBJECT('task_id', e.task_id,'task_inserted_at', e.task_inserted_at)) AS task_metadata
-    FROM
-        relevant_events e
+        JSON_AGG(JSON_BUILD_OBJECT('task_id', e.task_id, 'task_inserted_at', e.task_inserted_at)) AS task_metadata
+    FROM relevant_events e
     JOIN max_retry_counts mrc ON (e.task_id, e.retry_count) = (mrc.task_id, mrc.max_retry_count)
-), error_message AS (
+), 
+error_message AS (
     SELECT
         e.error_message
-    FROM
-        relevant_events e
-    WHERE
-        e.readable_status = 'FAILED'
-    ORDER BY
-        e.retry_count DESC
+    FROM relevant_events e
+    WHERE e.readable_status = 'FAILED'
+    ORDER BY e.retry_count DESC
     LIMIT 1
 )
 SELECT
-    r.dag_id, r.task_id, r.id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
+    r.dag_id,
+    r.task_id,
+    r.id,
+    r.tenant_id,
+    r.inserted_at,
+    r.external_id,
+    r.readable_status,
+    r.kind,
+    r.workflow_id,
+    r.display_name,
+    r.input,
+    r.additional_metadata,
+    r.workflow_version_id,
+    r.parent_task_external_id,
     m.created_at,
     m.started_at,
     m.finished_at,
