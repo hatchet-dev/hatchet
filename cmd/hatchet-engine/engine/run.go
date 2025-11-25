@@ -708,6 +708,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
 			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
+			ticker.WithCronPollingTimeout(sc.CronOperations.CronPollingTimeout),
 		)
 
 		if err != nil {

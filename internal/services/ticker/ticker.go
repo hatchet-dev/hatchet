@@ -47,6 +47,8 @@ type TickerImpl struct {
 	// maps a unique key for the cron schedule to a UUID, because the gocron library depends on uuids
 	// as unique identifiers for scheduled jobs
 	userCronSchedulesToIds map[string]string
+
+	cronPollingTimeout time.Duration
 }
 
 type TickerOpt func(*TickerOpts)
@@ -63,6 +65,8 @@ type TickerOpts struct {
 	ta           *alerting.TenantAlertManager
 
 	dv datautils.DataDecoderValidator
+
+	cronPollingTimeout time.Duration
 }
 
 func defaultTickerOpts() *TickerOpts {
@@ -113,6 +117,12 @@ func WithLogger(l *zerolog.Logger) TickerOpt {
 func WithTenantAlerter(ta *alerting.TenantAlertManager) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.ta = ta
+	}
+}
+
+func WithCronPollingTimeout(d time.Duration) TickerOpt {
+	return func(opts *TickerOpts) {
+		opts.cronPollingTimeout = d
 	}
 }
 
@@ -168,6 +178,7 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		tickerId:               opts.tickerId,
 		ta:                     opts.ta,
 		userCronSchedulesToIds: make(map[string]string),
+		cronPollingTimeout:     opts.cronPollingTimeout,
 	}, nil
 }
 
@@ -214,7 +225,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		// crons only have a resolution of 1 minute, so only poll every 15 seconds
 		gocron.DurationJob(time.Second*15),
 		gocron.NewTask(
-			t.runPollCronSchedules(ctx),
+			t.runPollCronSchedules(ctx, t.cronPollingTimeout),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
