@@ -26,6 +26,15 @@ ANALYZE v1_tasks_olap;
 -- name: AnalyzeV1DAGsOLAP :exec
 ANALYZE v1_dags_olap;
 
+-- name: AnalyzeV1EventsOLAP :exec
+ANALYZE v1_events_olap;
+
+-- name: AnalyzeV1EventLookupTableOLAP :exec
+ANALYZE v1_event_lookup_table_olap;
+
+-- name: AnalyzeV1EventToRunOLAP :exec
+ANALYZE v1_event_to_run_olap;
+
 -- name: AnalyzeV1DAGToTaskOLAP :exec
 ANALYZE v1_dag_to_task_olap;
 

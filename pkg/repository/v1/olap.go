@@ -2604,6 +2604,24 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_dags_olap: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1EventsOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_events_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1EventLookupTableOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_event_lookup_table_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1EventToRunOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_event_to_run_olap: %v", err)
+	}
+
 	err = r.queries.AnalyzeV1DAGToTaskOLAP(ctx, tx)
 
 	if err != nil {

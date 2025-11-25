@@ -1,10 +1,15 @@
 -- name: CreatePartitions :exec
 SELECT
-    create_v1_range_partition('v1_task', @date::date),
-    create_v1_range_partition('v1_dag', @date::date),
-    create_v1_range_partition('v1_task_event', @date::date),
-    create_v1_range_partition('v1_log_line', @date::date),
-    create_v1_range_partition('v1_payload', @date::date);
+    -- intentionally formatted this way to limit merge conflicts + diff sizes
+    create_v1_range_partition('v1_task', @date::date)
+    , create_v1_range_partition('v1_dag', @date::date)
+    , create_v1_range_partition('v1_task_event', @date::date)
+    , create_v1_range_partition('v1_log_line', @date::date)
+    , create_v1_range_partition('v1_payload', @date::date)
+    , create_v1_range_partition('v1_dag_to_task', @date::date)
+    , create_v1_range_partition('v1_dag_data', @date::date)
+    , create_v1_weekly_range_partition('v1_lookup_table', @date::date)
+;
 
 -- name: EnsureTablePartitionsExist :one
 WITH tomorrow_date AS (
@@ -18,6 +23,10 @@ WITH tomorrow_date AS (
     SELECT 'v1_task_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_log_line_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_payload' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_dag_data' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -25,24 +34,36 @@ WITH tomorrow_date AS (
     FROM expected_partitions ep
     LEFT JOIN pg_catalog.pg_tables pt ON pt.tablename = ep.expected_partition_name
 )
-SELECT
-    CASE
-        WHEN existing_partitions = total_tables THEN TRUE
-        ELSE FALSE
-    END AS all_partitions_exist
+
+SELECT existing_partitions = total_tables AS all_partitions_exist
 FROM partition_check;
 
 -- name: ListPartitionsBeforeDate :many
-WITH task_partitions AS (
+WITH
+-- intentionally formatted this way to limit merge conflicts + diff sizes
+task_partitions AS (
     SELECT 'v1_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task', @date::date) AS p
-), dag_partitions AS (
+)
+, dag_partitions AS (
     SELECT 'v1_dag' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag', @date::date) AS p
-), task_event_partitions AS (
+)
+, task_event_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', @date::date) AS p
-), log_line_partitions AS (
+)
+, log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', @date::date) AS p
-), payload_partitions AS (
+)
+, payload_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', @date::date) AS p
+)
+, dag_data_partitions AS (
+    SELECT 'v1_dag_data' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_data', @date::date) AS p
+)
+, dag_to_task_partitions AS (
+    SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', @date::date) AS p
+)
+, lookup_table_partitions AS (
+    SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', @oneWeekAgo::date) AS p
 )
 
 SELECT
@@ -77,6 +98,25 @@ SELECT
     *
 FROM
     payload_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    dag_to_task_partitions
+
+UNION ALL
+
+SELECT *
+FROM
+    dag_data_partitions
+
+UNION ALL
+
+SELECT *
+FROM
+    lookup_table_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one
@@ -919,8 +959,14 @@ ANALYZE v1_task;
 -- name: AnalyzeV1TaskEvent :exec
 ANALYZE v1_task_event;
 
+-- name: AnalyzeV1DAGToTask :exec
+ANALYZE v1_dag_to_task;
+
 -- name: AnalyzeV1Dag :exec
 ANALYZE v1_dag;
+
+-- name: AnalyzeV1DagData :exec
+ANALYZE v1_dag_data;
 
 -- name: CleanupV1TaskRuntime :execresult
 WITH locked_trs AS (
