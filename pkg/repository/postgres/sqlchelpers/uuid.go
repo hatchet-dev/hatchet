@@ -1,11 +1,16 @@
 package sqlchelpers
 
 import (
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func UUIDToStr(uuid pgtype.UUID) string {
-	return uuid.String()
+func UUIDToStr(u pgtype.UUID) string {
+	if !u.Valid {
+		return uuid.Nil.String()
+	}
+
+	return u.String()
 }
 
 func UUIDFromStr(uuid string) pgtype.UUID {
