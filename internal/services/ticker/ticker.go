@@ -72,9 +72,10 @@ type TickerOpts struct {
 func defaultTickerOpts() *TickerOpts {
 	logger := logger.NewDefaultLogger("ticker")
 	return &TickerOpts{
-		l:        &logger,
-		tickerId: uuid.New().String(),
-		dv:       datautils.NewDataDecoderValidator(),
+		l:                  &logger,
+		tickerId:           uuid.New().String(),
+		dv:                 datautils.NewDataDecoderValidator(),
+		cronPollingTimeout: 5 * time.Second,
 	}
 }
 
