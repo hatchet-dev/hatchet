@@ -19,6 +19,23 @@ defaults:
     working-directory: ./sdks/python
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      python-sdk-changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Check if Python SDK changed
+        id: check
+        run: |
+          if git diff --name-only ${{ github.event.before || github.event.pull_request.base.sha }}...${{ github.sha }} | grep -q "^sdks/python/"; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -59,10 +76,11 @@ jobs:
         run: pip install -e .
 
   test:
+    needs: detect-changes
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ${{ needs.detect-changes.outputs.python-sdk-changed == 'true' && fromJSON('["3.10", "3.11", "3.12", "3.13"]') || fromJSON('["3.13"]') }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
