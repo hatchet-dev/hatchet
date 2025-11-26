@@ -26,17 +26,17 @@ build-baseline:
 	@echo "Building baseline images (main branch)..."
 	@echo "Make sure you're on the main branch!"
 	@read -p "Press enter to continue..."
-	docker build -t go-disabled-compression -f Dockerfile.client-go ..
-	docker build -t typescript-disabled-compression -f Dockerfile.client-ts ..
-	docker build -t python-disabled-compression -f Dockerfile.client-python ..
+	@cd ../.. && docker build -t go-disabled-compression -f hack/dev/compression-test/Dockerfile.client-go .
+	@cd ../.. && docker build -t typescript-disabled-compression -f hack/dev/compression-test/Dockerfile.client-ts .
+	@cd ../.. && docker build -t python-disabled-compression -f hack/dev/compression-test/Dockerfile.client-python .
 	@echo "Baseline images built successfully!"
 
 build-compression:
 	@echo "Building compression images (current branch)..."
 	@read -p "Press enter to continue..."
-	docker build -t go-enabled-compression -f Dockerfile.client-go ..
-	docker build -t typescript-enabled-compression -f Dockerfile.client-ts ..
-	docker build -t python-enabled-compression -f Dockerfile.client-python ..
+	@cd ../.. && docker build -t go-enabled-compression -f hack/dev/compression-test/Dockerfile.client-go .
+	@cd ../.. && docker build -t typescript-enabled-compression -f hack/dev/compression-test/Dockerfile.client-ts .
+	@cd ../.. && docker build -t python-enabled-compression -f hack/dev/compression-test/Dockerfile.client-python .
 	@echo "Compression images built successfully!"
 
 test-baseline:

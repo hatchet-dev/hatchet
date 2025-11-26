@@ -21,7 +21,7 @@ cd "$REPO_ROOT"
 
 # Build each SDK
 echo "Building go SDK image..."
-docker build -t "go-${STATE}-compression" -f "testing/compression-test/Dockerfile.client-go" . || {
+docker build -t "go-${STATE}-compression" -f "hack/dev/compression-test/Dockerfile.client-go" . || {
     echo "Error: Failed to build go SDK image"
     exit 1
 }
@@ -29,7 +29,7 @@ echo "✓ go SDK image built successfully"
 echo ""
 
 echo "Building typescript SDK image..."
-docker build -t "typescript-${STATE}-compression" -f "testing/compression-test/Dockerfile.client-ts" . || {
+docker build -t "typescript-${STATE}-compression" -f "hack/dev/compression-test/Dockerfile.client-ts" . || {
     echo "Error: Failed to build typescript SDK image"
     exit 1
 }
@@ -37,7 +37,7 @@ echo "✓ typescript SDK image built successfully"
 echo ""
 
 echo "Building python SDK image..."
-docker build -t "python-${STATE}-compression" -f "testing/compression-test/Dockerfile.client-python" . || {
+docker build -t "python-${STATE}-compression" -f "hack/dev/compression-test/Dockerfile.client-python" . || {
     echo "Error: Failed to build python SDK image"
     exit 1
 }

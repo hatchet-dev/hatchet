@@ -32,13 +32,13 @@ git checkout main
 cd /path/to/hatchet
 
 # Build Go SDK
-docker build -t go-disabled-compression -f testing/compression-test/Dockerfile.client-go .
+docker build -t go-disabled-compression -f hack/dev/compression-test/Dockerfile.client-go .
 
 # Build TypeScript SDK
-docker build -t typescript-disabled-compression -f testing/compression-test/Dockerfile.client-ts .
+docker build -t typescript-disabled-compression -f hack/dev/compression-test/Dockerfile.client-ts .
 
 # Build Python SDK
-docker build -t python-disabled-compression -f testing/compression-test/Dockerfile.client-python .
+docker build -t python-disabled-compression -f hack/dev/compression-test/Dockerfile.client-python .
 
 # Build Engine (optional - you may manage this separately)
 # docker build -t engine-disabled-compression -f Dockerfile .
@@ -54,13 +54,13 @@ git checkout <your-compression-branch>
 cd /path/to/hatchet
 
 # Build Go SDK
-docker build -t go-enabled-compression -f testing/compression-test/Dockerfile.client-go .
+docker build -t go-enabled-compression -f hack/dev/compression-test/Dockerfile.client-go .
 
 # Build TypeScript SDK
-docker build -t typescript-enabled-compression -f testing/compression-test/Dockerfile.client-ts .
+docker build -t typescript-enabled-compression -f hack/dev/compression-test/Dockerfile.client-ts .
 
 # Build Python SDK
-docker build -t python-enabled-compression -f testing/compression-test/Dockerfile.client-python .
+docker build -t python-enabled-compression -f hack/dev/compression-test/Dockerfile.client-python .
 
 # Build Engine (optional - you may manage this separately)
 # docker build -t engine-enabled-compression -f Dockerfile .
@@ -98,7 +98,7 @@ docker build -t python-enabled-compression -f testing/compression-test/Dockerfil
 
 ```bash
 # Navigate to testing directory
-cd testing/compression-test
+cd hack/dev/compression-test
 
 # Run setup (creates network and directories)
 ./scripts/setup.sh

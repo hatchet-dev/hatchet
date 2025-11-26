@@ -28,6 +28,6 @@ COPY --from=builder /app/sdks/python/dist/*.whl ./
 RUN pip install *.whl
 
 # Copy test file
-COPY testing/compression-test/tests/python_test.py /app/python_test.py
+COPY hack/dev/compression-test/tests/python_test.py /app/python_test.py
 
 CMD ["python", "python_test.py"]

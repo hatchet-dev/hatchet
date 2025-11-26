@@ -30,21 +30,21 @@ echo ""
 
 # Build Go SDK
 echo "Building Go SDK image..."
-docker build -t "go-${STATE}-compression" -f testing/compression-test/Dockerfile.client-go . || {
+docker build -t "go-${STATE}-compression" -f hack/dev/compression-test/Dockerfile.client-go . || {
     echo "Error: Failed to build Go SDK image"
     exit 1
 }
 
 # Build TypeScript SDK
 echo "Building TypeScript SDK image..."
-docker build -t "typescript-${STATE}-compression" -f testing/compression-test/Dockerfile.client-ts . || {
+docker build -t "typescript-${STATE}-compression" -f hack/dev/compression-test/Dockerfile.client-ts . || {
     echo "Error: Failed to build TypeScript SDK image"
     exit 1
 }
 
 # Build Python SDK
 echo "Building Python SDK image..."
-docker build -t "python-${STATE}-compression" -f testing/compression-test/Dockerfile.client-python . || {
+docker build -t "python-${STATE}-compression" -f hack/dev/compression-test/Dockerfile.client-python . || {
     echo "Error: Failed to build Python SDK image"
     exit 1
 }
