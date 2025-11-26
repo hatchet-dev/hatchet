@@ -5,7 +5,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$TEST_DIR/../../.." && pwd)"
 
 # If compression is enabled or disabled (e.g. based on the branch main vs sid/add-gzip-compression)
 STATE=${1:-enabled}

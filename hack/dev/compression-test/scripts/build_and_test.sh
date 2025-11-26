@@ -5,7 +5,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$TEST_DIR/../../.." && pwd)"
 
 STATE=${1:-enabled}
 HATCHET_CLIENT_TOKEN=${HATCHET_CLIENT_TOKEN:-""}
