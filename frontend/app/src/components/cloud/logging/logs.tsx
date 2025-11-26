@@ -162,7 +162,7 @@ const LoggingComponent: React.FC<LogProps> = ({
         return (
           <p
             key={logHash}
-            className="pb-2 break-all overflow-x-hidden"
+            className="pb-2 break-all overflow-x-hidden whitespace-pre-wrap"
             id={'log' + i}
           >
             {log.badge}
