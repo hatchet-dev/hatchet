@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -800,7 +801,16 @@ func (t *MessageQueueImpl) subscribe(
 				t.l.Debug().Msgf("(session: %d) got msg", sessionCount)
 
 				if err := preAck(msg); err != nil {
-					t.l.Error().Msgf("error in pre-ack on msg %s: %v", msg.ID, err)
+					if strings.Contains(err.Error(), "invalid input syntax for type json") {
+						var payloads []string
+						for _, payload := range msg.Payloads {
+							payloads = append(payloads, string(payload))
+						}
+
+						t.l.Error().Strs("payloads", payloads).Msgf("error in pre-ack on msg %s: %v", msg.ID, err)
+					} else {
+						t.l.Error().Msgf("error in pre-ack on msg %s: %v", msg.ID, err)
+					}
 
 					// nack the message
 					if err := rabbitMsg.Reject(false); err != nil {
