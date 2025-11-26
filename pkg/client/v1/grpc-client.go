@@ -4,8 +4,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -28,10 +26,11 @@ type GRPCClient struct {
 }
 
 type clientOpts struct {
-	l        *zerolog.Logger
-	hostPort string
-	token    string
-	tls      *tls.Config
+	l                      *zerolog.Logger
+	hostPort               string
+	token                  string
+	tls                    *tls.Config
+	disableGzipCompression bool
 }
 
 type GRPCClientOpt func(*clientOpts)
@@ -58,6 +57,12 @@ func WithTLS(tls *tls.Config) func(*clientOpts) {
 func WithLogger(l *zerolog.Logger) func(*clientOpts) {
 	return func(opts *clientOpts) {
 		opts.l = l
+	}
+}
+
+func WithDisableGzipCompression(disable bool) func(*clientOpts) {
+	return func(opts *clientOpts) {
+		opts.disableGzipCompression = disable
 	}
 }
 
@@ -123,19 +128,11 @@ func NewGRPCClient(fs ...GRPCClientOpt) (*GRPCClient, error) {
 		grpc.WithKeepaliveParams(keepAliveParams),
 	}
 
-	// Check if compression is disabled via environment variable
-	disableCompression := false
-	if envVal := os.Getenv("HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION"); envVal != "" {
-		if val, err := strconv.ParseBool(envVal); err == nil {
-			disableCompression = val
-		}
-	}
-
-	if !disableCompression {
+	if !opts.disableGzipCompression {
 		grpcOpts = append(grpcOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor("gzip")))
 		opts.l.Info().Msg("gzip compression enabled for gRPC client")
 	} else {
-		opts.l.Info().Msg("gzip compression disabled for gRPC client (HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true)")
+		opts.l.Info().Msg("gzip compression disabled for gRPC client")
 	}
 
 	conn, err := grpc.NewClient(
