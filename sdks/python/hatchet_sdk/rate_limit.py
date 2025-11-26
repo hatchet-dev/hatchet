@@ -62,7 +62,7 @@ class RateLimit(BaseModel):
         if self.dynamic_key and self.static_key:
             raise ValueError("Cannot have both static key and dynamic key set")
 
-        if self.limit and not isinstance(self.limit, (int, str)):
+        if self.limit and not isinstance(self.limit, int | str):
             raise ValueError(f"Invalid limit value: {self.limit}")
 
         if self.dynamic_key and not self.limit:
