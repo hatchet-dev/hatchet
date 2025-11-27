@@ -214,7 +214,9 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 // in response headers to advertise gzip support, as required by gRPC spec.
 // This fixes the grpc-go limitation where registered compressors aren't automatically advertised.
 // See: https://github.com/grpc/grpc-go/issues/2786
-func compressionAcceptEncodingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func (s *Server) compressionAcceptEncodingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	s.l.Debug().Msgf("[compression] Interceptor called for %s", info.FullMethod)
+	
 	// Set grpc-accept-encoding in outgoing metadata
 	// This header tells the client what compression algorithms the server accepts
 	md := metadata.Pairs("grpc-accept-encoding", "gzip,identity")
@@ -222,19 +224,49 @@ func compressionAcceptEncodingInterceptor(ctx context.Context, req interface{}, 
 	// Merge with any existing outgoing metadata
 	if existingMD, ok := metadata.FromOutgoingContext(ctx); ok {
 		md = metadata.Join(existingMD, md)
+		s.l.Debug().Msgf("[compression] Merged grpc-accept-encoding with existing metadata for %s", info.FullMethod)
+	} else {
+		s.l.Debug().Msgf("[compression] Setting grpc-accept-encoding header for %s", info.FullMethod)
+	}
+	
+	// Log what we're setting
+	if values := md.Get("grpc-accept-encoding"); len(values) > 0 {
+		s.l.Debug().Msgf("[compression] Outgoing grpc-accept-encoding: %v", values)
 	}
 	
 	ctx = metadata.NewOutgoingContext(ctx, md)
-	return handler(ctx, req)
+	
+	// Call handler and try to set header after
+	resp, err := handler(ctx, req)
+	
+	// Try to set header explicitly (this may not work from interceptor, but worth trying)
+	if err == nil {
+		if setErr := grpc.SetHeader(ctx, md); setErr != nil {
+			s.l.Debug().Msgf("[compression] Failed to SetHeader: %v", setErr)
+		} else {
+			s.l.Debug().Msgf("[compression] Successfully called SetHeader for %s", info.FullMethod)
+		}
+	}
+	
+	return resp, err
 }
 
-func compressionAcceptEncodingStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (s *Server) compressionAcceptEncodingStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	ctx := ss.Context()
 	
 	md := metadata.Pairs("grpc-accept-encoding", "gzip,identity")
 	if existingMD, ok := metadata.FromOutgoingContext(ctx); ok {
 		md = metadata.Join(existingMD, md)
+		s.l.Debug().Msgf("[compression] Merged grpc-accept-encoding with existing metadata for stream %s", info.FullMethod)
+	} else {
+		s.l.Debug().Msgf("[compression] Setting grpc-accept-encoding header for stream %s", info.FullMethod)
 	}
+	
+	// Log what we're setting
+	if values := md.Get("grpc-accept-encoding"); len(values) > 0 {
+		s.l.Debug().Msgf("[compression] Outgoing grpc-accept-encoding: %v", values)
+	}
+	
 	ctx = metadata.NewOutgoingContext(ctx, md)
 	
 	wrapped := &wrappedServerStream{
@@ -313,7 +345,7 @@ func (s *Server) startGRPC() (func() error, error) {
 
 	serverOpts = append(serverOpts, grpc.ChainStreamInterceptor(
 		logging.StreamServerInterceptor(middleware.InterceptorLogger(s.l), opts...),
-		compressionAcceptEncodingStreamInterceptor, // Advertise gzip support in grpc-accept-encoding header
+		s.compressionAcceptEncodingStreamInterceptor, // Advertise gzip support in grpc-accept-encoding header
 		auth.StreamServerInterceptor(authMiddleware.Middleware),
 		middleware.ServerNameStreamingInterceptor,
 		ratelimit.StreamServerInterceptor(limiter),
@@ -324,7 +356,7 @@ func (s *Server) startGRPC() (func() error, error) {
 	// Prepare base unary interceptors
 	baseUnaryInterceptors := []grpc.UnaryServerInterceptor{
 		logging.UnaryServerInterceptor(middleware.InterceptorLogger(s.l), opts...),
-		compressionAcceptEncodingInterceptor, // Advertise gzip support in grpc-accept-encoding header
+		s.compressionAcceptEncodingInterceptor, // Advertise gzip support in grpc-accept-encoding header
 		auth.UnaryServerInterceptor(authMiddleware.Middleware),
 		middleware.AttachServerNameInterceptor,
 		ratelimit.UnaryServerInterceptor(limiter),
