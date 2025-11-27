@@ -320,16 +320,16 @@ func (s *Server) startGRPC() (func() error, error) {
 		otelgrpc.NewServerHandler(),
 	))
 
-	// Force gzip codec registration by referencing the package
-	// This ensures the package's init() function runs and registers the codec
+	// Force gzip compressor registration by referencing the package
+	// This ensures the package's init() function runs and registers the compressor
 	_ = gzipcodec.Name
 
-	// Ensure gzip codec is registered before server creation
+	// Ensure gzip compressor is registered before server creation
 	// This guarantees the server will advertise gzip in grpc-accept-encoding header
-	if codec := encoding.GetCodec("gzip"); codec == nil {
-		s.l.Warn().Msg("gzip codec not registered - compression may not be advertised")
+	if compressor := encoding.GetCompressor("gzip"); compressor == nil {
+		s.l.Warn().Msg("gzip compressor not registered - compression may not be advertised")
 	} else {
-		s.l.Debug().Msg("gzip codec confirmed registered")
+		s.l.Debug().Msg("gzip compressor confirmed registered")
 	}
 
 	grpcServer := grpc.NewServer(serverOpts...)
