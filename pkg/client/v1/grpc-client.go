@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 	"google.golang.org/grpc/keepalive"
 	grpcMetadata "google.golang.org/grpc/metadata"
 
@@ -25,10 +26,11 @@ type GRPCClient struct {
 }
 
 type clientOpts struct {
-	l        *zerolog.Logger
-	hostPort string
-	token    string
-	tls      *tls.Config
+	l                      *zerolog.Logger
+	hostPort               string
+	token                  string
+	tls                    *tls.Config
+	disableGzipCompression bool
 }
 
 type GRPCClientOpt func(*clientOpts)
@@ -55,6 +57,12 @@ func WithTLS(tls *tls.Config) func(*clientOpts) {
 func WithLogger(l *zerolog.Logger) func(*clientOpts) {
 	return func(opts *clientOpts) {
 		opts.l = l
+	}
+}
+
+func WithDisableGzipCompression(disable bool) func(*clientOpts) {
+	return func(opts *clientOpts) {
+		opts.disableGzipCompression = disable
 	}
 }
 
@@ -118,6 +126,13 @@ func NewGRPCClient(fs ...GRPCClientOpt) (*GRPCClient, error) {
 	grpcOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(transportCreds),
 		grpc.WithKeepaliveParams(keepAliveParams),
+	}
+
+	if !opts.disableGzipCompression {
+		grpcOpts = append(grpcOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor("gzip")))
+		opts.l.Info().Msg("gzip compression enabled for gRPC client")
+	} else {
+		opts.l.Info().Msg("gzip compression disabled for gRPC client")
 	}
 
 	conn, err := grpc.NewClient(

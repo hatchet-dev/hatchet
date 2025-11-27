@@ -133,16 +133,17 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 	}
 
 	return &client.ClientConfig{
-		TenantId:             cf.TenantId,
-		TLSConfig:            tlsConf,
-		Token:                cf.Token,
-		ServerURL:            serverURL,
-		GRPCBroadcastAddress: grpcBroadcastAddress,
-		Namespace:            namespace,
-		CloudRegisterID:      cf.CloudRegisterID,
-		RunnableActions:      rawRunnableActions,
-		NoGrpcRetry:          cf.NoGrpcRetry,
-		PresetWorkerLabels:   presetLabels,
+		TenantId:               cf.TenantId,
+		TLSConfig:              tlsConf,
+		Token:                  cf.Token,
+		ServerURL:              serverURL,
+		GRPCBroadcastAddress:   grpcBroadcastAddress,
+		Namespace:              namespace,
+		CloudRegisterID:        cf.CloudRegisterID,
+		RunnableActions:        rawRunnableActions,
+		NoGrpcRetry:            cf.NoGrpcRetry,
+		PresetWorkerLabels:     presetLabels,
+		DisableGzipCompression: cf.DisableGzipCompression,
 	}, nil
 }
 
