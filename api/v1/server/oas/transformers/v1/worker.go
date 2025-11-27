@@ -63,7 +63,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 
 func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string, workflows *[]*dbsqlc.Workflow) *gen.Worker {
 
-	dispatcherId := uuid.MustParse(sqlchelpers.UUIDToStr(worker.DispatcherId))
+	dispatcherId := worker.DispatcherId
 
 	maxRuns := int(worker.MaxRuns)
 

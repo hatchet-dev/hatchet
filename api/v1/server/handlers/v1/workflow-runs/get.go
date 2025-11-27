@@ -73,7 +73,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		stepIdToTaskExternalId[task.StepID] = task.ExternalID
 	}
 
-	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
+	workflowVersionId := workflowRun.WorkflowVersionId
 
 	shape, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunShape(
 		ctx, workflowVersionId,

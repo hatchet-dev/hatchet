@@ -799,7 +799,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 	idsInsertedAts := make([]IdInsertedAt, 0, len(tasks))
 
 	for _, row := range tasks {
-		taskIdToDagExternalId[row.TaskID] = uuid.MustParse(sqlchelpers.UUIDToStr(row.DagExternalID))
+		taskIdToDagExternalId[row.TaskID] = row.DagExternalID
 		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:         row.TaskID,
 			InsertedAt: row.TaskInsertedAt,

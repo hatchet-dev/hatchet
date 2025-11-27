@@ -306,7 +306,7 @@ func ToStepRun(stepRun *repository.StepRunForJobRun) *gen.StepRun {
 }
 
 func ToRecentStepRun(stepRun *dbsqlc.GetStepRunForEngineRow) (*gen.RecentStepRuns, error) {
-	workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(stepRun.WorkflowRunId))
+	workflowRunId := stepRun.WorkflowRunId
 
 	res := &gen.RecentStepRuns{
 		Metadata:      *toAPIMetadata(sqlchelpers.UUIDToStr(stepRun.SRID), stepRun.SRCreatedAt.Time, stepRun.SRUpdatedAt.Time),
@@ -526,7 +526,7 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 	var workflowRunIdPtr *uuid.UUID
 
 	if scheduled.WorkflowRunId != uuid.Nil {
-		workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(scheduled.WorkflowRunId))
+		workflowRunId := scheduled.WorkflowRunId
 		workflowRunIdPtr = &workflowRunId
 	}
 
