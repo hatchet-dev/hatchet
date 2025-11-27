@@ -19,13 +19,13 @@ func ToSlotState(slots []*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, remain
 
 		var stepRunId uuid.UUID
 
-		if slot.StepRunId.Valid {
+		if slot.StepRunId != uuid.Nil {
 			stepRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.StepRunId))
 		}
 
 		var workflowRunId uuid.UUID
 
-		if slot.WorkflowRunId.Valid {
+		if slot.WorkflowRunId != uuid.Nil {
 			workflowRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.WorkflowRunId))
 		}
 
@@ -97,7 +97,7 @@ func ToWorkerRuntimeInfo(worker *dbsqlc.Worker) *gen.WorkerRuntimeInfo {
 
 func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string, actions []string) *gen.Worker {
 
-	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
+	dispatcherId := worker.DispatcherId
 
 	maxRuns := int(worker.MaxRuns)
 
@@ -118,7 +118,7 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string
 	}
 
 	res := &gen.Worker{
-		Metadata:      *toAPIMetadata(pgUUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),
+		Metadata:      *toAPIMetadata(sqlchelpers.UUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),
 		Name:          worker.Name,
 		Type:          gen.WorkerType(worker.Type),
 		Status:        &status,
@@ -129,8 +129,8 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string
 		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
 	}
 
-	if worker.WebhookId.Valid {
-		wid := uuid.MustParse(pgUUIDToStr(worker.WebhookId))
+	if worker.WebhookId != uuid.Nil {
+		wid := worker.WebhookId
 		res.WebhookId = &wid
 	}
 

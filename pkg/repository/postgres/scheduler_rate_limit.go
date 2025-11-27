@@ -1,9 +1,9 @@
 package postgres
 
 import (
-	"context"
+	"github.com/google/uuid"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"context"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -19,7 +19,7 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 	}
 }
 
-func (d *rateLimitRepository) ListCandidateRateLimits(ctx context.Context, tenantId pgtype.UUID) ([]string, error) {
+func (d *rateLimitRepository) ListCandidateRateLimits(ctx context.Context, tenantId uuid.UUID) ([]string, error) {
 	rls, err := d.queries.ListRateLimitsForTenantNoMutate(ctx, d.pool, dbsqlc.ListRateLimitsForTenantNoMutateParams{
 		Tenantid: tenantId,
 		Limit:    10000,
@@ -38,7 +38,7 @@ func (d *rateLimitRepository) ListCandidateRateLimits(ctx context.Context, tenan
 	return ids, nil
 }
 
-func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, error) {
+func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) (map[string]int, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
 
 	if err != nil {

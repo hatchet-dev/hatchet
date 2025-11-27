@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
@@ -158,7 +159,7 @@ func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int
 		action.AdditionalMetadata = &metadataStr
 	}
 
-	if task.ParentTaskExternalID.Valid {
+	if task.ParentTaskExternalID != uuid.Nil {
 		parentId := sqlchelpers.UUIDToStr(task.ParentTaskExternalID)
 		action.ParentWorkflowRunId = &parentId
 	}

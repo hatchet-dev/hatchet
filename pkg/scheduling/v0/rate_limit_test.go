@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -21,12 +20,12 @@ type mockRateLimitRepo struct {
 	mock.Mock
 }
 
-func (m *mockRateLimitRepo) ListCandidateRateLimits(ctx context.Context, tenantId pgtype.UUID) ([]string, error) {
+func (m *mockRateLimitRepo) ListCandidateRateLimits(ctx context.Context, tenantId uuid.UUID) ([]string, error) {
 	args := m.Called(ctx, tenantId)
 	return args.Get(0).([]string), args.Error(1)
 }
 
-func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, error) {
+func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) (map[string]int, error) {
 	args := m.Called(ctx, tenantId, updates)
 	return args.Get(0).(map[string]int), args.Error(1)
 }

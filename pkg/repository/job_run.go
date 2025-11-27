@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/google/uuid"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 type UpdateJobRunLookupDataOpts struct {
@@ -26,7 +26,7 @@ func JobRunStatusPtr(status dbsqlc.JobRunStatus) *dbsqlc.JobRunStatus {
 }
 
 type JobRunAPIRepository interface {
-	RegisterWorkflowRunRunningCallback(callback TenantScopedCallback[pgtype.UUID])
+	RegisterWorkflowRunRunningCallback(callback TenantScopedCallback[uuid.UUID])
 
 	// SetJobRunStatusRunning resets the status of a job run to a RUNNING status. This is useful if a step
 	// run is being manually replayed, but shouldn't be used by most callers.
@@ -36,7 +36,7 @@ type JobRunAPIRepository interface {
 }
 
 type JobRunEngineRepository interface {
-	RegisterWorkflowRunRunningCallback(callback TenantScopedCallback[pgtype.UUID])
+	RegisterWorkflowRunRunningCallback(callback TenantScopedCallback[uuid.UUID])
 
 	// SetJobRunStatusRunning resets the status of a job run to a RUNNING status. This is useful if a step
 	// run is being manually replayed, but shouldn't be used by most callers.

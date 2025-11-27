@@ -1,6 +1,8 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"fmt"
 	"sort"
@@ -14,8 +16,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
-func newBulkStepRunQueuer(shared *sharedRepository, conf buffer.ConfigFileBuffer) (*buffer.TenantBufferManager[bulkQueueStepRunOpts, pgtype.UUID], error) {
-	stepRunQueuerBufOpts := buffer.TenantBufManagerOpts[bulkQueueStepRunOpts, pgtype.UUID]{
+func newBulkStepRunQueuer(shared *sharedRepository, conf buffer.ConfigFileBuffer) (*buffer.TenantBufferManager[bulkQueueStepRunOpts, uuid.UUID], error) {
+	stepRunQueuerBufOpts := buffer.TenantBufManagerOpts[bulkQueueStepRunOpts, uuid.UUID]{
 		Name:       "step_run_queuer",
 		OutputFunc: shared.bulkQueueStepRuns,
 		SizeFunc:   sizeOfQueueData,
@@ -35,7 +37,7 @@ func newBulkStepRunQueuer(shared *sharedRepository, conf buffer.ConfigFileBuffer
 }
 
 func sizeOfQueueData(item bulkQueueStepRunOpts) int {
-	return len(item.GetStepRunForEngineRow.SRID.Bytes) + len(item.Input)
+	return len(item.SRID) + len(item.Input)
 }
 
 func sortForQueueStepRuns(opts []bulkQueueStepRunOpts) []bulkQueueStepRunOpts {
@@ -54,8 +56,8 @@ type bulkQueueStepRunOpts struct {
 	Input    []byte
 }
 
-func (w *sharedRepository) bulkQueueStepRuns(ctx context.Context, opts []bulkQueueStepRunOpts) ([]*pgtype.UUID, error) {
-	res := make([]*pgtype.UUID, 0, len(opts))
+func (w *sharedRepository) bulkQueueStepRuns(ctx context.Context, opts []bulkQueueStepRunOpts) ([]*uuid.UUID, error) {
+	res := make([]*uuid.UUID, 0, len(opts))
 	orderedOpts := sortForQueueStepRuns(opts)
 
 	err := sqlchelpers.DeadlockRetry(w.l, func() (err error) {
@@ -70,11 +72,11 @@ func (w *sharedRepository) bulkQueueStepRuns(ctx context.Context, opts []bulkQue
 		// we have to split into step runs with input versus without input, as the bulk insert doesn't
 		// allow for null values
 		inputs := make([][]byte, 0, len(orderedOpts))
-		stepRunIdWithInputs := make([]pgtype.UUID, 0, len(orderedOpts))
-		stepRunIdWithoutInputs := make([]pgtype.UUID, 0, len(orderedOpts))
+		stepRunIdWithInputs := make([]uuid.UUID, 0, len(orderedOpts))
+		stepRunIdWithoutInputs := make([]uuid.UUID, 0, len(orderedOpts))
 		retryCountsWithInputs := make([]int32, 0, len(orderedOpts))
 		retryCountsWithoutInputs := make([]int32, 0, len(orderedOpts))
-		res = make([]*pgtype.UUID, 0, len(orderedOpts))
+		res = make([]*uuid.UUID, 0, len(orderedOpts))
 
 		for _, o := range orderedOpts {
 			srId := o.GetStepRunForEngineRow.SRID

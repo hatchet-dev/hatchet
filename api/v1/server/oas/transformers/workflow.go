@@ -1,6 +1,8 @@
 package transformers
 
 import (
+	"github.com/google/uuid"
+
 	"encoding/json"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -54,8 +56,8 @@ func ToWorkflowVersionMeta(version *dbsqlc.WorkflowVersion, workflow *dbsqlc.Wor
 }
 
 type WorkflowConcurrency struct {
-	ID                    pgtype.UUID
-	GetConcurrencyGroupId pgtype.UUID
+	ID                    uuid.UUID
+	GetConcurrencyGroupId uuid.UUID
 	MaxRuns               pgtype.Int4
 	LimitStrategy         dbsqlc.NullConcurrencyLimitStrategy
 }
@@ -105,7 +107,7 @@ func ToWorkflowVersion(
 		res.Sticky = &stickyStrategy
 	}
 
-	if version.WorkflowId.Valid {
+	if version.WorkflowId != uuid.Nil {
 		res.Workflow = ToWorkflowFromSQLC(workflow)
 	}
 
@@ -135,7 +137,7 @@ func ToWorkflowVersion(
 
 		for _, event := range events {
 			eventCp := event
-			if eventCp.ParentId.Valid {
+			if eventCp.ParentId != uuid.Nil {
 				parentId := sqlchelpers.UUIDToStr(eventCp.ParentId)
 				genEvents = append(genEvents, gen.WorkflowTriggerEventRef{
 					EventKey: &eventCp.EventKey,
@@ -194,7 +196,7 @@ func ToJob(job *dbsqlc.Job, steps []*dbsqlc.GetStepsForJobsRow) *gen.Job {
 	return res
 }
 
-func ToStep(step *dbsqlc.Step, parents []pgtype.UUID) *gen.Step {
+func ToStep(step *dbsqlc.Step, parents []uuid.UUID) *gen.Step {
 	res := &gen.Step{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(step.ID),
@@ -225,7 +227,7 @@ func ToStep(step *dbsqlc.Step, parents []pgtype.UUID) *gen.Step {
 
 func ToWorkflowFromSQLC(row *dbsqlc.Workflow) *gen.Workflow {
 	res := &gen.Workflow{
-		Metadata:    *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
+		Metadata:    *toAPIMetadata(sqlchelpers.UUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
 		Name:        row.Name,
 		Description: &row.Description.String,
 		IsPaused:    &row.IsPaused.Bool,
@@ -236,9 +238,9 @@ func ToWorkflowFromSQLC(row *dbsqlc.Workflow) *gen.Workflow {
 
 func ToWorkflowVersionFromSQLC(row *dbsqlc.WorkflowVersion, workflow *gen.Workflow) *gen.WorkflowVersion {
 	res := &gen.WorkflowVersion{
-		Metadata:   *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
+		Metadata:   *toAPIMetadata(sqlchelpers.UUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
 		Version:    row.Version.String,
-		WorkflowId: pgUUIDToStr(row.WorkflowId),
+		WorkflowId: sqlchelpers.UUIDToStr(row.WorkflowId),
 		Order:      int32(row.Order), // nolint: gosec
 		Workflow:   workflow,
 	}

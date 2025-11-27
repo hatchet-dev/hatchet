@@ -8,7 +8,7 @@ package sqlcv1
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
 const listWorkflowsByNames = `-- name: ListWorkflowsByNames :many
@@ -28,14 +28,14 @@ ORDER BY "workflowId", "order" DESC
 `
 
 type ListWorkflowsByNamesParams struct {
-	Tenantid      pgtype.UUID `json:"tenantid"`
-	Workflownames []string    `json:"workflownames"`
+	Tenantid      uuid.UUID `json:"tenantid"`
+	Workflownames []string  `json:"workflownames"`
 }
 
 type ListWorkflowsByNamesRow struct {
-	WorkflowId        pgtype.UUID `json:"workflowId"`
-	WorkflowVersionId pgtype.UUID `json:"workflowVersionId"`
-	WorkflowName      string      `json:"workflowName"`
+	WorkflowId        uuid.UUID `json:"workflowId"`
+	WorkflowVersionId uuid.UUID `json:"workflowVersionId"`
+	WorkflowName      string    `json:"workflowName"`
 }
 
 func (q *Queries) ListWorkflowsByNames(ctx context.Context, db DBTX, arg ListWorkflowsByNamesParams) ([]*ListWorkflowsByNamesRow, error) {
@@ -93,16 +93,16 @@ JOIN event_keys k ON k.event_key LIKE REPLACE(eventRef."eventKey", '*', '%')
 `
 
 type ListWorkflowsForEventsParams struct {
-	Tenantid  pgtype.UUID `json:"tenantid"`
-	Eventkeys []string    `json:"eventkeys"`
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Eventkeys []string  `json:"eventkeys"`
 }
 
 type ListWorkflowsForEventsRow struct {
-	WorkflowVersionId                 pgtype.UUID `json:"workflowVersionId"`
-	WorkflowId                        pgtype.UUID `json:"workflowId"`
-	WorkflowName                      string      `json:"workflowName"`
-	WorkflowTriggeringEventKeyPattern string      `json:"workflowTriggeringEventKeyPattern"`
-	IncomingEventKey                  string      `json:"incomingEventKey"`
+	WorkflowVersionId                 uuid.UUID `json:"workflowVersionId"`
+	WorkflowId                        uuid.UUID `json:"workflowId"`
+	WorkflowName                      string    `json:"workflowName"`
+	WorkflowTriggeringEventKeyPattern string    `json:"workflowTriggeringEventKeyPattern"`
+	IncomingEventKey                  string    `json:"incomingEventKey"`
 }
 
 // Get all of the latest workflow versions

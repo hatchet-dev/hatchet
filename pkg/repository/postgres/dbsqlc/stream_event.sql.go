@@ -8,6 +8,7 @@ package dbsqlc
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -45,8 +46,8 @@ RETURNING id, "createdAt", "tenantId", "stepRunId", message, metadata
 
 type CreateStreamEventParams struct {
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
-	Tenantid  pgtype.UUID      `json:"tenantid"`
-	Steprunid pgtype.UUID      `json:"steprunid"`
+	Tenantid  uuid.UUID        `json:"tenantid"`
+	Steprunid uuid.UUID        `json:"steprunid"`
 	Message   []byte           `json:"message"`
 	Metadata  []byte           `json:"metadata"`
 }
@@ -79,8 +80,8 @@ WHERE
 `
 
 type GetStreamEventParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	ID       int64       `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       int64     `json:"id"`
 }
 
 func (q *Queries) GetStreamEvent(ctx context.Context, db DBTX, arg GetStreamEventParams) (*StreamEvent, error) {
@@ -110,14 +111,14 @@ AND sr."tenantId" = $2::uuid
 `
 
 type GetStreamEventMetaParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
+	Steprunid uuid.UUID `json:"steprunid"`
+	Tenantid  uuid.UUID `json:"tenantid"`
 }
 
 type GetStreamEventMetaRow struct {
-	WorkflowRunId pgtype.UUID `json:"workflowRunId"`
-	RetryCount    int32       `json:"retryCount"`
-	Retries       int32       `json:"retries"`
+	WorkflowRunId uuid.UUID `json:"workflowRunId"`
+	RetryCount    int32     `json:"retryCount"`
+	Retries       int32     `json:"retries"`
 }
 
 func (q *Queries) GetStreamEventMeta(ctx context.Context, db DBTX, arg GetStreamEventMetaParams) (*GetStreamEventMetaRow, error) {

@@ -118,7 +118,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 
 	defer rollback()
 
-	externalIds := make([]pgtype.UUID, 0, len(opts))
+	externalIds := make([]uuid.UUID, 0, len(opts))
 	spawnKeyToOpt := make(map[string]*WorkflowNameTriggerOpts)
 
 	for i, opt := range opts {

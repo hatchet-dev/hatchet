@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -27,7 +29,7 @@ func newFilterRepository(shared *sharedRepository) FilterRepository {
 }
 
 type CreateFilterOpts struct {
-	Workflowid    pgtype.UUID `json:"workflowid" validate:"required,uuid"`
+	Workflowid    uuid.UUID `json:"workflowid" validate:"required,uuid"`
 	Scope         string      `json:"scope" validate:"required"`
 	Expression    string      `json:"expression" validate:"required"`
 	Payload       []byte      `json:"payload"`
@@ -45,7 +47,7 @@ func (r *filterRepository) CreateFilter(ctx context.Context, tenantId string, op
 }
 
 type ListFiltersOpts struct {
-	WorkflowIds []pgtype.UUID `json:"workflow_ids"`
+	WorkflowIds []uuid.UUID `json:"workflow_ids"`
 	Scopes      []string      `json:"scopes"`
 	Limit       int64         `json:"limit" validate:"omitnil,min=1"`
 	Offset      int64         `json:"offset" validate:"omitnil,min=0"`

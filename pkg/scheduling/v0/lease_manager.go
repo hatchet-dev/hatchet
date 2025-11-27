@@ -1,11 +1,11 @@
 package v0
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"sync"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"golang.org/x/sync/errgroup"
 
@@ -20,7 +20,7 @@ type LeaseManager struct {
 
 	conf *sharedConfig
 
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	workerLeasesMu sync.Mutex
 	workerLeases   []*dbsqlc.Lease
@@ -34,7 +34,7 @@ type LeaseManager struct {
 	cleanupMu sync.Mutex
 }
 
-func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []*repository.ListActiveWorkersResult, <-chan []string) {
+func newLeaseManager(conf *sharedConfig, tenantId uuid.UUID) (*LeaseManager, <-chan []*repository.ListActiveWorkersResult, <-chan []string) {
 	workersCh := make(chan []*repository.ListActiveWorkersResult)
 	queuesCh := make(chan []string)
 

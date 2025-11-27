@@ -1,6 +1,8 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"encoding/json"
 	"fmt"
@@ -109,7 +111,7 @@ func (w *sharedRepository) bulkWriteStepRunEvents(ctx context.Context, opts []*r
 	res := make([]*int, 0, len(opts))
 	eventTimeSeen := make([]pgtype.Timestamp, 0, len(opts))
 	eventReasons := make([]dbsqlc.StepRunEventReason, 0, len(opts))
-	eventStepRunIds := make([]pgtype.UUID, 0, len(opts))
+	eventStepRunIds := make([]uuid.UUID, 0, len(opts))
 	eventSeverities := make([]dbsqlc.StepRunEventSeverity, 0, len(opts))
 	eventMessages := make([]string, 0, len(opts))
 	eventData := make([]map[string]interface{}, 0, len(opts))
@@ -198,7 +200,7 @@ func bulkStepRunEvents(
 	l *zerolog.Logger,
 	dbtx dbsqlc.DBTX,
 	queries *dbsqlc.Queries,
-	stepRunIds []pgtype.UUID,
+	stepRunIds []uuid.UUID,
 	timeSeen []pgtype.Timestamp,
 	reasons []dbsqlc.StepRunEventReason,
 	severities []dbsqlc.StepRunEventSeverity,

@@ -8,6 +8,7 @@ package dbsqlc
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -35,9 +36,9 @@ AND
 `
 
 type CleanupInternalQueueItemsParams struct {
-	Minid    int64       `json:"minid"`
-	Maxid    int64       `json:"maxid"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Minid    int64     `json:"minid"`
+	Maxid    int64     `json:"maxid"`
+	Tenantid uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) CleanupInternalQueueItems(ctx context.Context, db DBTX, arg CleanupInternalQueueItemsParams) error {
@@ -55,9 +56,9 @@ AND
 `
 
 type CleanupQueueItemsParams struct {
-	Minid    int64       `json:"minid"`
-	Maxid    int64       `json:"maxid"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Minid    int64     `json:"minid"`
+	Maxid    int64     `json:"maxid"`
+	Tenantid uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) CleanupQueueItems(ctx context.Context, db DBTX, arg CleanupQueueItemsParams) error {
@@ -77,7 +78,7 @@ AND
 type CleanupRetryQueueItemsParams struct {
 	Minretryafter pgtype.Timestamp `json:"minretryafter"`
 	Maxretryafter pgtype.Timestamp `json:"maxretryafter"`
-	Tenantid      pgtype.UUID      `json:"tenantid"`
+	Tenantid      uuid.UUID        `json:"tenantid"`
 }
 
 func (q *Queries) CleanupRetryQueueItems(ctx context.Context, db DBTX, arg CleanupRetryQueueItemsParams) error {
@@ -95,9 +96,9 @@ AND
 `
 
 type CleanupTimeoutQueueItemsParams struct {
-	Minid    int64       `json:"minid"`
-	Maxid    int64       `json:"maxid"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Minid    int64     `json:"minid"`
+	Maxid    int64     `json:"maxid"`
+	Tenantid uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) CleanupTimeoutQueueItems(ctx context.Context, db DBTX, arg CleanupTimeoutQueueItemsParams) error {
@@ -130,9 +131,9 @@ ON CONFLICT DO NOTHING
 `
 
 type CreateInternalQueueItemsBulkParams struct {
-	Queues    []string      `json:"queues"`
-	Datas     [][]byte      `json:"datas"`
-	Tenantids []pgtype.UUID `json:"tenantids"`
+	Queues    []string    `json:"queues"`
+	Datas     [][]byte    `json:"datas"`
+	Tenantids []uuid.UUID `json:"tenantids"`
 }
 
 func (q *Queries) CreateInternalQueueItemsBulk(ctx context.Context, db DBTX, arg CreateInternalQueueItemsBulkParams) error {
@@ -172,16 +173,16 @@ VALUES
 `
 
 type CreateQueueItemParams struct {
-	StepRunId         pgtype.UUID        `json:"stepRunId"`
-	StepId            pgtype.UUID        `json:"stepId"`
+	StepRunId         uuid.UUID          `json:"stepRunId"`
+	StepId            uuid.UUID          `json:"stepId"`
 	ActionId          pgtype.Text        `json:"actionId"`
 	ScheduleTimeoutAt pgtype.Timestamp   `json:"scheduleTimeoutAt"`
 	StepTimeout       pgtype.Text        `json:"stepTimeout"`
 	Priority          pgtype.Int4        `json:"priority"`
-	Tenantid          pgtype.UUID        `json:"tenantid"`
+	Tenantid          uuid.UUID          `json:"tenantid"`
 	Queue             string             `json:"queue"`
 	Sticky            NullStickyStrategy `json:"sticky"`
-	DesiredWorkerId   pgtype.UUID        `json:"desiredWorkerId"`
+	DesiredWorkerId   uuid.UUID          `json:"desiredWorkerId"`
 }
 
 func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueItemParams) error {
@@ -201,17 +202,17 @@ func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueI
 }
 
 type CreateQueueItemsBulkParams struct {
-	StepRunId         pgtype.UUID        `json:"stepRunId"`
-	StepId            pgtype.UUID        `json:"stepId"`
+	StepRunId         uuid.UUID          `json:"stepRunId"`
+	StepId            uuid.UUID          `json:"stepId"`
 	ActionId          pgtype.Text        `json:"actionId"`
 	ScheduleTimeoutAt pgtype.Timestamp   `json:"scheduleTimeoutAt"`
 	StepTimeout       pgtype.Text        `json:"stepTimeout"`
 	Priority          int32              `json:"priority"`
 	IsQueued          bool               `json:"isQueued"`
-	TenantId          pgtype.UUID        `json:"tenantId"`
+	TenantId          uuid.UUID          `json:"tenantId"`
 	Queue             string             `json:"queue"`
 	Sticky            NullStickyStrategy `json:"sticky"`
-	DesiredWorkerId   pgtype.UUID        `json:"desiredWorkerId"`
+	DesiredWorkerId   uuid.UUID          `json:"desiredWorkerId"`
 }
 
 const createRetryQueueItem = `-- name: CreateRetryQueueItem :exec
@@ -232,9 +233,9 @@ VALUES
 `
 
 type CreateRetryQueueItemParams struct {
-	Steprunid  pgtype.UUID      `json:"steprunid"`
+	Steprunid  uuid.UUID        `json:"steprunid"`
 	Retryafter pgtype.Timestamp `json:"retryafter"`
-	Tenantid   pgtype.UUID      `json:"tenantid"`
+	Tenantid   uuid.UUID        `json:"tenantid"`
 }
 
 func (q *Queries) CreateRetryQueueItem(ctx context.Context, db DBTX, arg CreateRetryQueueItemParams) error {
@@ -261,10 +262,10 @@ ON CONFLICT DO NOTHING
 `
 
 type CreateTimeoutQueueItemParams struct {
-	Steprunid  pgtype.UUID      `json:"steprunid"`
+	Steprunid  uuid.UUID        `json:"steprunid"`
 	Retrycount int32            `json:"retrycount"`
 	Timeoutat  pgtype.Timestamp `json:"timeoutat"`
-	Tenantid   pgtype.UUID      `json:"tenantid"`
+	Tenantid   uuid.UUID        `json:"tenantid"`
 }
 
 func (q *Queries) CreateTimeoutQueueItem(ctx context.Context, db DBTX, arg CreateTimeoutQueueItemParams) error {
@@ -304,7 +305,7 @@ ON CONFLICT DO NOTHING
 
 type CreateUniqueInternalQueueItemsBulkParams struct {
 	Queue      InternalQueue `json:"queue"`
-	Tenantid   pgtype.UUID   `json:"tenantid"`
+	Tenantid   uuid.UUID     `json:"tenantid"`
 	Datas      [][]byte      `json:"datas"`
 	Uniquekeys []string      `json:"uniquekeys"`
 }
@@ -335,7 +336,7 @@ type GetMinMaxProcessedInternalQueueItemsRow struct {
 	MaxId int64 `json:"maxId"`
 }
 
-func (q *Queries) GetMinMaxProcessedInternalQueueItems(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*GetMinMaxProcessedInternalQueueItemsRow, error) {
+func (q *Queries) GetMinMaxProcessedInternalQueueItems(ctx context.Context, db DBTX, tenantid uuid.UUID) (*GetMinMaxProcessedInternalQueueItemsRow, error) {
 	row := db.QueryRow(ctx, getMinMaxProcessedInternalQueueItems, tenantid)
 	var i GetMinMaxProcessedInternalQueueItemsRow
 	err := row.Scan(&i.MinId, &i.MaxId)
@@ -358,7 +359,7 @@ type GetMinMaxProcessedQueueItemsRow struct {
 	MaxId int64 `json:"maxId"`
 }
 
-func (q *Queries) GetMinMaxProcessedQueueItems(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*GetMinMaxProcessedQueueItemsRow, error) {
+func (q *Queries) GetMinMaxProcessedQueueItems(ctx context.Context, db DBTX, tenantid uuid.UUID) (*GetMinMaxProcessedQueueItemsRow, error) {
 	row := db.QueryRow(ctx, getMinMaxProcessedQueueItems, tenantid)
 	var i GetMinMaxProcessedQueueItemsRow
 	err := row.Scan(&i.MinId, &i.MaxId)
@@ -381,7 +382,7 @@ type GetMinMaxProcessedRetryQueueItemsRow struct {
 	MaxRetryAfter pgtype.Timestamp `json:"maxRetryAfter"`
 }
 
-func (q *Queries) GetMinMaxProcessedRetryQueueItems(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*GetMinMaxProcessedRetryQueueItemsRow, error) {
+func (q *Queries) GetMinMaxProcessedRetryQueueItems(ctx context.Context, db DBTX, tenantid uuid.UUID) (*GetMinMaxProcessedRetryQueueItemsRow, error) {
 	row := db.QueryRow(ctx, getMinMaxProcessedRetryQueueItems, tenantid)
 	var i GetMinMaxProcessedRetryQueueItemsRow
 	err := row.Scan(&i.MinRetryAfter, &i.MaxRetryAfter)
@@ -404,7 +405,7 @@ type GetMinMaxProcessedTimeoutQueueItemsRow struct {
 	MaxId int64 `json:"maxId"`
 }
 
-func (q *Queries) GetMinMaxProcessedTimeoutQueueItems(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*GetMinMaxProcessedTimeoutQueueItemsRow, error) {
+func (q *Queries) GetMinMaxProcessedTimeoutQueueItems(ctx context.Context, db DBTX, tenantid uuid.UUID) (*GetMinMaxProcessedTimeoutQueueItemsRow, error) {
 	row := db.QueryRow(ctx, getMinMaxProcessedTimeoutQueueItems, tenantid)
 	var i GetMinMaxProcessedTimeoutQueueItemsRow
 	err := row.Scan(&i.MinId, &i.MaxId)
@@ -482,8 +483,8 @@ FROM (
 `
 
 type GetMinUnprocessedQueueItemIdParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Queue    string      `json:"queue"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Queue    string    `json:"queue"`
 }
 
 func (q *Queries) GetMinUnprocessedQueueItemId(ctx context.Context, db DBTX, arg GetMinUnprocessedQueueItemIdParams) (int64, error) {
@@ -511,7 +512,7 @@ type GetQueuedCountsRow struct {
 	Count int64  `json:"count"`
 }
 
-func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetQueuedCountsRow, error) {
+func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*GetQueuedCountsRow, error) {
 	rows, err := db.Query(ctx, getQueuedCounts, tenantid)
 	if err != nil {
 		return nil, err
@@ -550,11 +551,11 @@ WHERE
 `
 
 type ListActionsForAvailableWorkersRow struct {
-	WorkerId pgtype.UUID `json:"workerId"`
-	ActionId string      `json:"actionId"`
+	WorkerId uuid.UUID `json:"workerId"`
+	ActionId string    `json:"actionId"`
 }
 
-func (q *Queries) ListActionsForAvailableWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListActionsForAvailableWorkersRow, error) {
+func (q *Queries) ListActionsForAvailableWorkers(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListActionsForAvailableWorkersRow, error) {
 	rows, err := db.Query(ctx, listActionsForAvailableWorkers, tenantid)
 	if err != nil {
 		return nil, err
@@ -594,12 +595,12 @@ WHERE
 `
 
 type ListActionsForWorkersParams struct {
-	Tenantid  pgtype.UUID   `json:"tenantid"`
-	Workerids []pgtype.UUID `json:"workerids"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
+	Workerids []uuid.UUID `json:"workerids"`
 }
 
 type ListActionsForWorkersRow struct {
-	WorkerId pgtype.UUID `json:"workerId"`
+	WorkerId uuid.UUID   `json:"workerId"`
 	ActionId pgtype.Text `json:"actionId"`
 }
 
@@ -638,11 +639,11 @@ WHERE
 `
 
 type ListActiveWorkersRow struct {
-	ID      pgtype.UUID `json:"id"`
-	MaxRuns int32       `json:"maxRuns"`
+	ID      uuid.UUID `json:"id"`
+	MaxRuns int32     `json:"maxRuns"`
 }
 
-func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListActiveWorkersRow, error) {
+func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListActiveWorkersRow, error) {
 	rows, err := db.Query(ctx, listActiveWorkers, tenantid)
 	if err != nil {
 		return nil, err
@@ -692,12 +693,12 @@ LEFT JOIN
 `
 
 type ListAllAvailableSlotsForWorkersRow struct {
-	ID             pgtype.UUID `json:"id"`
-	AvailableSlots int32       `json:"availableSlots"`
+	ID             uuid.UUID `json:"id"`
+	AvailableSlots int32     `json:"availableSlots"`
 }
 
 // subtract the filled slots from the max runs to get the available slots
-func (q *Queries) ListAllAvailableSlotsForWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListAllAvailableSlotsForWorkersRow, error) {
+func (q *Queries) ListAllAvailableSlotsForWorkers(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListAllAvailableSlotsForWorkersRow, error) {
 	rows, err := db.Query(ctx, listAllAvailableSlotsForWorkers, tenantid)
 	if err != nil {
 		return nil, err
@@ -729,8 +730,8 @@ WHERE
 `
 
 type ListAllWorkerActionsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Workerid pgtype.UUID `json:"workerid"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Workerid uuid.UUID `json:"workerid"`
 }
 
 func (q *Queries) ListAllWorkerActions(ctx context.Context, db DBTX, arg ListAllWorkerActionsParams) ([]pgtype.Text, error) {
@@ -785,13 +786,13 @@ LEFT JOIN
 `
 
 type ListAvailableSlotsForWorkersParams struct {
-	Tenantid  pgtype.UUID   `json:"tenantid"`
-	Workerids []pgtype.UUID `json:"workerids"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
+	Workerids []uuid.UUID `json:"workerids"`
 }
 
 type ListAvailableSlotsForWorkersRow struct {
-	ID             pgtype.UUID `json:"id"`
-	AvailableSlots int32       `json:"availableSlots"`
+	ID             uuid.UUID `json:"id"`
+	AvailableSlots int32     `json:"availableSlots"`
 }
 
 // subtract the filled slots from the max runs to get the available slots
@@ -839,7 +840,7 @@ FOR UPDATE SKIP LOCKED
 `
 
 type ListInternalQueueItemsParams struct {
-	Tenantid pgtype.UUID   `json:"tenantid"`
+	Tenantid uuid.UUID     `json:"tenantid"`
 	Queue    InternalQueue `json:"queue"`
 	GtId     pgtype.Int8   `json:"gtId"`
 	Limit    pgtype.Int4   `json:"limit"`
@@ -904,7 +905,7 @@ LIMIT
 `
 
 type ListQueueItemsForQueueParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Queue    string      `json:"queue"`
 	GtId     pgtype.Int8 `json:"gtId"`
 	Limit    pgtype.Int4 `json:"limit"`
@@ -964,7 +965,7 @@ WHERE
     AND "lastActive" > NOW() - INTERVAL '1 day'
 `
 
-func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*Queue, error) {
+func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*Queue, error) {
 	rows, err := db.Query(ctx, listQueues, tenantid)
 	if err != nil {
 		return nil, err
@@ -1033,19 +1034,19 @@ RETURNING
 `
 
 type PopTimeoutQueueItemsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
-func (q *Queries) PopTimeoutQueueItems(ctx context.Context, db DBTX, arg PopTimeoutQueueItemsParams) ([]pgtype.UUID, error) {
+func (q *Queries) PopTimeoutQueueItems(ctx context.Context, db DBTX, arg PopTimeoutQueueItemsParams) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, popTimeoutQueueItems, arg.Tenantid, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var stepRunId pgtype.UUID
+		var stepRunId uuid.UUID
 		if err := rows.Scan(&stepRunId); err != nil {
 			return nil, err
 		}
@@ -1066,8 +1067,8 @@ WHERE
 `
 
 type RemoveTimeoutQueueItemParams struct {
-	Steprunid  pgtype.UUID `json:"steprunid"`
-	Retrycount int32       `json:"retrycount"`
+	Steprunid  uuid.UUID `json:"steprunid"`
+	Retrycount int32     `json:"retrycount"`
 }
 
 func (q *Queries) RemoveTimeoutQueueItem(ctx context.Context, db DBTX, arg RemoveTimeoutQueueItemParams) error {
@@ -1224,12 +1225,12 @@ SELECT id, "retryAfter", "stepRunId", "tenantId", "isQueued" FROM retries
 type RetryStepRunsRow struct {
 	ID         int64            `json:"id"`
 	RetryAfter pgtype.Timestamp `json:"retryAfter"`
-	StepRunId  pgtype.UUID      `json:"stepRunId"`
-	TenantId   pgtype.UUID      `json:"tenantId"`
+	StepRunId  uuid.UUID        `json:"stepRunId"`
+	TenantId   uuid.UUID        `json:"tenantId"`
 	IsQueued   bool             `json:"isQueued"`
 }
 
-func (q *Queries) RetryStepRuns(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*RetryStepRunsRow, error) {
+func (q *Queries) RetryStepRuns(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*RetryStepRunsRow, error) {
 	rows, err := db.Query(ctx, retryStepRuns, tenantid)
 	if err != nil {
 		return nil, err
@@ -1307,8 +1308,8 @@ ON CONFLICT ("tenantId", "name") DO NOTHING
 `
 
 type UpsertQueueParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Name     string      `json:"name"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Name     string    `json:"name"`
 }
 
 func (q *Queries) UpsertQueue(ctx context.Context, db DBTX, arg UpsertQueueParams) error {

@@ -2,14 +2,11 @@ package transformers
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func ToEventList(events []*dbsqlc.Event) []gen.Event {
@@ -26,7 +23,7 @@ func ToEvent(event *dbsqlc.Event) gen.Event {
 	return gen.Event{
 		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(event.ID), event.CreatedAt.Time, event.UpdatedAt.Time),
 		Key:      event.Key,
-		TenantId: pgUUIDToStr(event.TenantId),
+		TenantId: sqlchelpers.UUIDToStr(event.TenantId),
 	}
 }
 
@@ -43,9 +40,9 @@ func ToEventFromSQLC(eventRow *dbsqlc.ListEventsRow) (*gen.Event, error) {
 	}
 
 	res := &gen.Event{
-		Metadata:           *toAPIMetadata(pgUUIDToStr(event.ID), event.CreatedAt.Time, event.UpdatedAt.Time),
+		Metadata:           *toAPIMetadata(sqlchelpers.UUIDToStr(event.ID), event.CreatedAt.Time, event.UpdatedAt.Time),
 		Key:                event.Key,
-		TenantId:           pgUUIDToStr(event.TenantId),
+		TenantId:           sqlchelpers.UUIDToStr(event.TenantId),
 		AdditionalMetadata: &metadata,
 	}
 
@@ -72,9 +69,9 @@ func ToEventFromSQLCV1(event *v1.EventWithPayload) (*gen.Event, error) {
 	}
 
 	res := &gen.Event{
-		Metadata:           *toAPIMetadata(pgUUIDToStr(event.EventExternalID), event.EventSeenAt.Time, event.EventSeenAt.Time),
+		Metadata:           *toAPIMetadata(sqlchelpers.UUIDToStr(event.EventExternalID), event.EventSeenAt.Time, event.EventSeenAt.Time),
 		Key:                event.EventKey,
-		TenantId:           pgUUIDToStr(event.TenantID),
+		TenantId:           sqlchelpers.UUIDToStr(event.TenantID),
 		AdditionalMetadata: &metadata,
 	}
 
@@ -88,8 +85,4 @@ func ToEventFromSQLCV1(event *v1.EventWithPayload) (*gen.Event, error) {
 	}
 
 	return res, nil
-}
-
-func pgUUIDToStr(uuid pgtype.UUID) string {
-	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid.Bytes[0:4], uuid.Bytes[4:6], uuid.Bytes[6:8], uuid.Bytes[8:10], uuid.Bytes[10:16])
 }

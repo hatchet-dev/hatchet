@@ -1,6 +1,8 @@
 package olap
 
 import (
+	"github.com/google/uuid"
+
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -16,16 +18,16 @@ type taskPrometheusUpdate struct {
 	taskId         int64
 	taskInsertedAt pgtype.Timestamptz
 	readableStatus sqlcv1.V1ReadableStatusOlap
-	workflowId     pgtype.UUID
+	workflowId     uuid.UUID
 	isDAGTask      bool
 }
 
 type dagPrometheusUpdate struct {
 	tenantId       string
-	dagExternalId  pgtype.UUID
+	dagExternalId  uuid.UUID
 	dagInsertedAt  pgtype.Timestamptz
 	readableStatus sqlcv1.V1ReadableStatusOlap
-	workflowId     pgtype.UUID
+	workflowId     uuid.UUID
 }
 
 func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
@@ -55,7 +57,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 
 		for tenantId, tenantUpdates := range tenantToUpdates {
 			eg.Go(func() error {
-				workflowIds := make([]pgtype.UUID, 0, len(tenantUpdates))
+				workflowIds := make([]uuid.UUID, 0, len(tenantUpdates))
 				for _, update := range tenantUpdates {
 					workflowIds = append(workflowIds, update.workflowId)
 				}
@@ -162,7 +164,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 
 		for tenantId, tenantUpdates := range tenantToUpdates {
 			eg.Go(func() error {
-				workflowIds := make([]pgtype.UUID, 0, len(tenantUpdates))
+				workflowIds := make([]uuid.UUID, 0, len(tenantUpdates))
 				for _, update := range tenantUpdates {
 					workflowIds = append(workflowIds, update.workflowId)
 				}
@@ -172,7 +174,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 					return err
 				}
 
-				dagExternalIds := make([]pgtype.UUID, 0, len(tenantUpdates))
+				dagExternalIds := make([]uuid.UUID, 0, len(tenantUpdates))
 				var minInsertedAt pgtype.Timestamptz
 
 				for _, update := range tenantUpdates {

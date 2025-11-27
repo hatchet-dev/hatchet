@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -13,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames map[pgtype.UUID]string, actionId string) gen.V1TaskSummary {
+func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames map[uuid.UUID]string, actionId string) gen.V1TaskSummary {
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -70,9 +69,8 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 	attempt := retryCount + 1
 
 	var parentTaskExternalId *uuid.UUID
-	if task.ParentTaskExternalId != nil && task.ParentTaskExternalId.Valid {
-		parentTaskExternalIdValue := uuid.MustParse(sqlchelpers.UUIDToStr(*task.ParentTaskExternalId))
-		parentTaskExternalId = &parentTaskExternalIdValue
+	if task.ParentTaskExternalId != nil && *task.ParentTaskExternalId != uuid.Nil {
+		parentTaskExternalId = task.ParentTaskExternalId
 	}
 
 	return gen.V1TaskSummary{
@@ -112,7 +110,7 @@ func ToWorkflowRunMany(
 	tasks []*v1.WorkflowRunData,
 	dagExternalIdToChildren map[uuid.UUID][]gen.V1TaskSummary,
 	taskIdToActionId map[int64]string,
-	workflowIdsToNames map[pgtype.UUID]string,
+	workflowIdsToNames map[uuid.UUID]string,
 	total int, limit, offset int64,
 ) gen.V1TaskSummaryList {
 	toReturn := make([]gen.V1TaskSummary, len(tasks))
@@ -185,9 +183,8 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 	attempt := retryCount + 1
 
 	var parentTaskExternalId *uuid.UUID
-	if task.ParentTaskExternalID.Valid {
-		parentTaskExternalIdValue := uuid.MustParse(sqlchelpers.UUIDToStr(task.ParentTaskExternalID))
-		parentTaskExternalId = &parentTaskExternalIdValue
+	if task.ParentTaskExternalID != uuid.Nil {
+		parentTaskExternalId = &task.ParentTaskExternalID
 	}
 
 	return gen.V1TaskSummary{
@@ -279,7 +276,7 @@ func ToWorkflowRunDisplayNamesList(
 }
 
 func ToWorkflowRunExternalIds(
-	externalIds []pgtype.UUID,
+	externalIds []uuid.UUID,
 ) gen.V1WorkflowRunExternalIdList {
 	result := make([]uuid.UUID, len(externalIds))
 

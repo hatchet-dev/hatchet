@@ -1,9 +1,9 @@
 package postgres
 
 import (
-	"context"
+	"github.com/google/uuid"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"context"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -19,7 +19,7 @@ func newAssignmentRepository(shared *sharedRepository) *assignmentRepository {
 	}
 }
 
-func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenantId pgtype.UUID, workerIds []pgtype.UUID) ([]*dbsqlc.ListActionsForWorkersRow, error) {
+func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*dbsqlc.ListActionsForWorkersRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-actions-for-workers")
 	defer span.End()
 
@@ -29,7 +29,7 @@ func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenant
 	})
 }
 
-func (d *assignmentRepository) ListAvailableSlotsForWorkers(ctx context.Context, tenantId pgtype.UUID, params dbsqlc.ListAvailableSlotsForWorkersParams) ([]*dbsqlc.ListAvailableSlotsForWorkersRow, error) {
+func (d *assignmentRepository) ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, params dbsqlc.ListAvailableSlotsForWorkersParams) ([]*dbsqlc.ListAvailableSlotsForWorkersRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-available-slots-for-workers")
 	defer span.End()
 

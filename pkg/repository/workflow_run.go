@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/pkg/random"
@@ -119,7 +118,7 @@ func GetCreateWorkflowRunOptsFromManual(
 		AdditionalMetadata: additionalMetadata,
 	}
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId.Valid {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != uuid.Nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -153,7 +152,7 @@ func GetCreateWorkflowRunOptsFromParent(
 
 	WithParent(parentId, parentStepRunId, childIndex, childKey, additionalMetadata, parentAdditionalMetadata)(opts)
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId.Valid {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != uuid.Nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -181,7 +180,7 @@ func GetCreateWorkflowRunOptsFromEvent(
 		AdditionalMetadata: additionalMetadata,
 	}
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId.Valid {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != uuid.Nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -213,7 +212,7 @@ func GetCreateWorkflowRunOptsFromCron(
 		AdditionalMetadata: additionalMetadata,
 	}
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId.Valid {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != uuid.Nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -242,7 +241,7 @@ func GetCreateWorkflowRunOptsFromSchedule(
 		AdditionalMetadata:  additionalMetadata,
 	}
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId.Valid {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != uuid.Nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -515,7 +514,7 @@ type ChildWorkflowRun struct {
 
 type WorkflowRunEngineRepository interface {
 	RegisterCreateCallback(callback TenantScopedCallback[*dbsqlc.WorkflowRun])
-	RegisterQueuedCallback(callback TenantScopedCallback[pgtype.UUID])
+	RegisterQueuedCallback(callback TenantScopedCallback[uuid.UUID])
 
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)

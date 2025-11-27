@@ -1,12 +1,13 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -182,7 +183,7 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 	}
 
 	getGroupKeyRuns, err := s.queries.GetGroupKeyRunForEngine(ctx, tx, dbsqlc.GetGroupKeyRunForEngineParams{
-		Ids:      []pgtype.UUID{res1.ID},
+		Ids:      []uuid.UUID{res1.ID},
 		Tenantid: pgTenantId,
 	})
 
@@ -207,7 +208,7 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 
 func (s *getGroupKeyRunRepository) GetGroupKeyRunForEngine(ctx context.Context, tenantId, getGroupKeyRunId string) (*dbsqlc.GetGroupKeyRunForEngineRow, error) {
 	res, err := s.queries.GetGroupKeyRunForEngine(ctx, s.pool, dbsqlc.GetGroupKeyRunForEngineParams{
-		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(getGroupKeyRunId)},
+		Ids:      []uuid.UUID{sqlchelpers.UUIDFromStr(getGroupKeyRunId)},
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
 

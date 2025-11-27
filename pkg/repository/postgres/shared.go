@@ -1,8 +1,9 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"github.com/hashicorp/go-multierror"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -19,16 +20,16 @@ type sharedRepository struct {
 	l       *zerolog.Logger
 	queries *dbsqlc.Queries
 
-	bulkStatusBuffer      *buffer.TenantBufferManager[*updateStepRunQueueData, pgtype.UUID]
+	bulkStatusBuffer      *buffer.TenantBufferManager[*updateStepRunQueueData, uuid.UUID]
 	bulkEventBuffer       *buffer.TenantBufferManager[*repository.CreateStepRunEventOpts, int]
-	bulkSemaphoreReleaser *buffer.TenantBufferManager[semaphoreReleaseOpts, pgtype.UUID]
-	bulkQueuer            *buffer.TenantBufferManager[bulkQueueStepRunOpts, pgtype.UUID]
+	bulkSemaphoreReleaser *buffer.TenantBufferManager[semaphoreReleaseOpts, uuid.UUID]
+	bulkQueuer            *buffer.TenantBufferManager[bulkQueueStepRunOpts, uuid.UUID]
 	bulkUserEventBuffer   *buffer.TenantBufferManager[*repository.CreateEventOpts, dbsqlc.Event]
 	bulkWorkflowRunBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, dbsqlc.WorkflowRun]
 	bulkAckMQBuffer       *buffer.TenantBufferManager[int64, int]
 	bulkAddMQBuffer       *buffer.TenantBufferManager[addMessage, int]
 
-	wrRunningCallbacks []repository.TenantScopedCallback[pgtype.UUID]
+	wrRunningCallbacks []repository.TenantScopedCallback[uuid.UUID]
 }
 
 func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) (*sharedRepository, func() error, error) {

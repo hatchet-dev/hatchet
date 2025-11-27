@@ -8,6 +8,7 @@ package dbsqlc
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -39,13 +40,13 @@ RETURNING "GetGroupKeyRun"."id", "GetGroupKeyRun"."tickerId"
 `
 
 type AssignGetGroupKeyRunToTickerParams struct {
-	Getgroupkeyrunid pgtype.UUID `json:"getgroupkeyrunid"`
-	Tenantid         pgtype.UUID `json:"tenantid"`
+	Getgroupkeyrunid uuid.UUID `json:"getgroupkeyrunid"`
+	Tenantid         uuid.UUID `json:"tenantid"`
 }
 
 type AssignGetGroupKeyRunToTickerRow struct {
-	ID       pgtype.UUID `json:"id"`
-	TickerId pgtype.UUID `json:"tickerId"`
+	ID       uuid.UUID `json:"id"`
+	TickerId uuid.UUID `json:"tickerId"`
 }
 
 func (q *Queries) AssignGetGroupKeyRunToTicker(ctx context.Context, db DBTX, arg AssignGetGroupKeyRunToTickerParams) (*AssignGetGroupKeyRunToTickerRow, error) {
@@ -116,14 +117,14 @@ RETURNING "GetGroupKeyRun"."id", "GetGroupKeyRun"."workerId", (SELECT "dispatche
 `
 
 type AssignGetGroupKeyRunToWorkerParams struct {
-	Getgroupkeyrunid pgtype.UUID `json:"getgroupkeyrunid"`
-	Tenantid         pgtype.UUID `json:"tenantid"`
+	Getgroupkeyrunid uuid.UUID `json:"getgroupkeyrunid"`
+	Tenantid         uuid.UUID `json:"tenantid"`
 }
 
 type AssignGetGroupKeyRunToWorkerRow struct {
-	ID           pgtype.UUID `json:"id"`
-	WorkerId     pgtype.UUID `json:"workerId"`
-	DispatcherId pgtype.UUID `json:"dispatcherId"`
+	ID           uuid.UUID `json:"id"`
+	WorkerId     uuid.UUID `json:"workerId"`
+	DispatcherId uuid.UUID `json:"dispatcherId"`
 }
 
 func (q *Queries) AssignGetGroupKeyRunToWorker(ctx context.Context, db DBTX, arg AssignGetGroupKeyRunToWorkerParams) (*AssignGetGroupKeyRunToWorkerRow, error) {
@@ -160,15 +161,15 @@ WHERE
 `
 
 type GetGroupKeyRunForEngineParams struct {
-	Ids      []pgtype.UUID `json:"ids"`
-	Tenantid pgtype.UUID   `json:"tenantid"`
+	Ids      []uuid.UUID `json:"ids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 }
 
 type GetGroupKeyRunForEngineRow struct {
 	GetGroupKeyRun    GetGroupKeyRun `json:"get_group_key_run"`
-	WorkflowRunId     pgtype.UUID    `json:"workflowRunId"`
-	WorkflowVersionId pgtype.UUID    `json:"workflowVersionId"`
-	WorkflowId        pgtype.UUID    `json:"workflowId"`
+	WorkflowRunId     uuid.UUID      `json:"workflowRunId"`
+	WorkflowVersionId uuid.UUID      `json:"workflowVersionId"`
+	WorkflowId        uuid.UUID      `json:"workflowId"`
 	ActionId          string         `json:"actionId"`
 }
 
@@ -282,7 +283,7 @@ WHERE
 RETURNING "GetGroupKeyRun".id, "GetGroupKeyRun"."createdAt", "GetGroupKeyRun"."updatedAt", "GetGroupKeyRun"."deletedAt", "GetGroupKeyRun"."tenantId", "GetGroupKeyRun"."workerId", "GetGroupKeyRun"."tickerId", "GetGroupKeyRun".status, "GetGroupKeyRun".input, "GetGroupKeyRun".output, "GetGroupKeyRun"."requeueAfter", "GetGroupKeyRun".error, "GetGroupKeyRun"."startedAt", "GetGroupKeyRun"."finishedAt", "GetGroupKeyRun"."timeoutAt", "GetGroupKeyRun"."cancelledAt", "GetGroupKeyRun"."cancelledReason", "GetGroupKeyRun"."cancelledError", "GetGroupKeyRun"."workflowRunId", "GetGroupKeyRun"."scheduleTimeoutAt"
 `
 
-func (q *Queries) ListGetGroupKeyRunsToReassign(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetGroupKeyRun, error) {
+func (q *Queries) ListGetGroupKeyRunsToReassign(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*GetGroupKeyRun, error) {
 	rows, err := db.Query(ctx, listGetGroupKeyRunsToReassign, tenantid)
 	if err != nil {
 		return nil, err
@@ -380,7 +381,7 @@ WHERE
 RETURNING "GetGroupKeyRun".id, "GetGroupKeyRun"."createdAt", "GetGroupKeyRun"."updatedAt", "GetGroupKeyRun"."deletedAt", "GetGroupKeyRun"."tenantId", "GetGroupKeyRun"."workerId", "GetGroupKeyRun"."tickerId", "GetGroupKeyRun".status, "GetGroupKeyRun".input, "GetGroupKeyRun".output, "GetGroupKeyRun"."requeueAfter", "GetGroupKeyRun".error, "GetGroupKeyRun"."startedAt", "GetGroupKeyRun"."finishedAt", "GetGroupKeyRun"."timeoutAt", "GetGroupKeyRun"."cancelledAt", "GetGroupKeyRun"."cancelledReason", "GetGroupKeyRun"."cancelledError", "GetGroupKeyRun"."workflowRunId", "GetGroupKeyRun"."scheduleTimeoutAt"
 `
 
-func (q *Queries) ListGetGroupKeyRunsToRequeue(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetGroupKeyRun, error) {
+func (q *Queries) ListGetGroupKeyRunsToRequeue(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*GetGroupKeyRun, error) {
 	rows, err := db.Query(ctx, listGetGroupKeyRunsToRequeue, tenantid)
 	if err != nil {
 		return nil, err
@@ -456,8 +457,8 @@ type UpdateGetGroupKeyRunParams struct {
 	Error             pgtype.Text       `json:"error"`
 	CancelledAt       pgtype.Timestamp  `json:"cancelledAt"`
 	CancelledReason   pgtype.Text       `json:"cancelledReason"`
-	ID                pgtype.UUID       `json:"id"`
-	Tenantid          pgtype.UUID       `json:"tenantid"`
+	ID                uuid.UUID         `json:"id"`
+	Tenantid          uuid.UUID         `json:"tenantid"`
 }
 
 func (q *Queries) UpdateGetGroupKeyRun(ctx context.Context, db DBTX, arg UpdateGetGroupKeyRunParams) (*GetGroupKeyRun, error) {

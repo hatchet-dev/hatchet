@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"fmt"
 
@@ -91,7 +93,7 @@ func (ac *AuthConfig) Validate() error {
 }
 
 type CreateWebhookOpts struct {
-	Tenantid           pgtype.UUID                        `json:"tenantid"`
+	Tenantid           uuid.UUID                          `json:"tenantid"`
 	Sourcename         sqlcv1.V1IncomingWebhookSourceName `json:"sourcename"`
 	Name               string                             `json:"name" validate:"required"`
 	Eventkeyexpression string                             `json:"eventkeyexpression"`

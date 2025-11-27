@@ -3,7 +3,7 @@ package v1
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -19,7 +19,7 @@ func newAssignmentRepository(shared *sharedRepository) *assignmentRepository {
 	}
 }
 
-func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenantId pgtype.UUID, workerIds []pgtype.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-actions-for-workers")
 	defer span.End()
 
@@ -29,7 +29,7 @@ func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenant
 	})
 }
 
-func (d *assignmentRepository) ListAvailableSlotsForWorkers(ctx context.Context, tenantId pgtype.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
+func (d *assignmentRepository) ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-available-slots-for-workers")
 	defer span.End()
 

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -47,7 +46,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 
 	var parentTaskExternalId *uuid.UUID
 
-	if task.ParentTaskExternalID.Valid {
+	if task.ParentTaskExternalID != uuid.Nil {
 		parentTaskExternalIdValue := uuid.MustParse(sqlchelpers.UUIDToStr(task.ParentTaskExternalID))
 		parentTaskExternalId = &parentTaskExternalIdValue
 	}
@@ -156,7 +155,7 @@ func ToTaskRunEventMany(
 	for i, event := range events {
 		var workerId *types.UUID
 
-		if event.WorkerID.Valid {
+		if event.WorkerID != uuid.Nil {
 			workerUUid := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
 			workerId = &workerUUid
 		}
@@ -191,8 +190,8 @@ func ToWorkflowRunTaskRunEventsMany(
 	for i, event := range events {
 		var workerId *uuid.UUID
 
-		if event.WorkerID.Valid {
-			workerUUID := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
+		if event.WorkerID != uuid.Nil {
+			workerUUID := event.WorkerID
 			workerId = &workerUUID
 		}
 
@@ -253,7 +252,7 @@ func ToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 	return toReturn
 }
 
-func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID, workflowVersion *dbsqlc.GetWorkflowVersionByIdRow) gen.V1TaskSummary {
+func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, workflowVersion *dbsqlc.GetWorkflowVersionByIdRow) gen.V1TaskSummary {
 	workflowVersionID := uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.WorkflowVersionID))
 	additionalMetadata := jsonToMap(taskWithData.AdditionalMetadata)
 
@@ -297,12 +296,8 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID
 
 	var parentTaskExternalId *uuid.UUID
 
-	if taskWithData.ParentTaskExternalID.Valid {
-		parentTaskUUID, err := uuid.Parse(sqlchelpers.UUIDToStr(taskWithData.ParentTaskExternalID))
-
-		if err == nil {
-			parentTaskExternalId = &parentTaskUUID
-		}
+	if taskWithData.ParentTaskExternalID != uuid.Nil {
+		parentTaskExternalId = &taskWithData.ParentTaskExternalID
 	}
 
 	return gen.V1TaskSummary{
@@ -343,7 +338,7 @@ func ToWorkflowRunDetails(
 	workflowRun *v1.WorkflowRunData,
 	shape []*dbsqlc.GetWorkflowRunShapeRow,
 	tasks []*v1.TaskWithPayloads,
-	stepIdToTaskExternalId map[pgtype.UUID]pgtype.UUID,
+	stepIdToTaskExternalId map[uuid.UUID]uuid.UUID,
 	workflowVersion *dbsqlc.GetWorkflowVersionByIdRow,
 ) (gen.V1WorkflowRunDetails, error) {
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
@@ -359,8 +354,8 @@ func ToWorkflowRunDetails(
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
 
 	parentTaskExternalId := uuid.UUID{}
-	if workflowRun.ParentTaskExternalId != nil && workflowRun.ParentTaskExternalId.Valid {
-		parentTaskExternalId = uuid.MustParse(sqlchelpers.UUIDToStr(*workflowRun.ParentTaskExternalId))
+	if workflowRun.ParentTaskExternalId != nil && *workflowRun.ParentTaskExternalId != uuid.Nil {
+		parentTaskExternalId = *workflowRun.ParentTaskExternalId
 	}
 
 	parsedWorkflowRun := gen.V1WorkflowRun{
@@ -410,9 +405,8 @@ func ToWorkflowRunDetails(
 	for i, event := range taskRunEvents {
 		var workerId *uuid.UUID
 
-		if event.WorkerID.Valid {
-			workerUUID := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
-			workerId = &workerUUID
+		if event.WorkerID != uuid.Nil {
+			workerId = &event.WorkerID
 		}
 
 		output := string(event.OutputPayload)
@@ -495,9 +489,8 @@ func ToTaskTimings(
 			toReturn[i].FinishedAt = &timing.FinishedAt.Time
 		}
 
-		if timing.ParentTaskExternalID.Valid {
-			parentId := uuid.MustParse(sqlchelpers.UUIDToStr(timing.ParentTaskExternalID))
-			toReturn[i].ParentTaskExternalId = &parentId
+		if timing.ParentTaskExternalID != uuid.Nil {
+			toReturn[i].ParentTaskExternalId = &timing.ParentTaskExternalID
 		}
 	}
 

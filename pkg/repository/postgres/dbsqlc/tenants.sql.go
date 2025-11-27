@@ -8,6 +8,7 @@ package dbsqlc
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -107,7 +108,7 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name,
 `
 
 type CreateTenantParams struct {
-	ID                  pgtype.UUID                  `json:"id"`
+	ID                  uuid.UUID                    `json:"id"`
 	Name                string                       `json:"name"`
 	Slug                string                       `json:"slug"`
 	DataRetentionPeriod pgtype.Text                  `json:"dataRetentionPeriod"`
@@ -164,8 +165,8 @@ INSERT INTO "TenantAlertEmailGroup" (
 `
 
 type CreateTenantAlertGroupParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Emails   string      `json:"emails"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Emails   string    `json:"emails"`
 }
 
 func (q *Queries) CreateTenantAlertGroup(ctx context.Context, db DBTX, arg CreateTenantAlertGroupParams) (*TenantAlertEmailGroup, error) {
@@ -188,7 +189,7 @@ VALUES (gen_random_uuid(), $1::uuid)
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId", "enableExpiringTokenAlerts", "enableWorkflowRunFailureAlerts", "enableTenantResourceLimitAlerts"
 `
 
-func (q *Queries) CreateTenantAlertingSettings(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*TenantAlertingSettings, error) {
+func (q *Queries) CreateTenantAlertingSettings(ctx context.Context, db DBTX, tenantid uuid.UUID) (*TenantAlertingSettings, error) {
 	row := db.QueryRow(ctx, createTenantAlertingSettings, tenantid)
 	var i TenantAlertingSettings
 	err := row.Scan(
@@ -224,8 +225,8 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role
 `
 
 type CreateTenantMemberParams struct {
-	Tenantid pgtype.UUID      `json:"tenantid"`
-	Userid   pgtype.UUID      `json:"userid"`
+	Tenantid uuid.UUID        `json:"tenantid"`
+	Userid   uuid.UUID        `json:"userid"`
 	Role     TenantMemberRole `json:"role"`
 }
 
@@ -310,8 +311,8 @@ WHERE
 `
 
 type DeleteTenantAlertGroupParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	ID       pgtype.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
 }
 
 func (q *Queries) DeleteTenantAlertGroup(ctx context.Context, db DBTX, arg DeleteTenantAlertGroupParams) error {
@@ -324,7 +325,7 @@ DELETE FROM "TenantMember"
 WHERE "id" = $1::uuid
 `
 
-func (q *Queries) DeleteTenantMember(ctx context.Context, db DBTX, id pgtype.UUID) error {
+func (q *Queries) DeleteTenantMember(ctx context.Context, db DBTX, id uuid.UUID) error {
 	_, err := db.Exec(ctx, deleteTenantMember, id)
 	return err
 }
@@ -357,7 +358,7 @@ WHERE
     "tenantId" = $1::uuid
 `
 
-func (q *Queries) GetEmailGroups(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*TenantAlertEmailGroup, error) {
+func (q *Queries) GetEmailGroups(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*TenantAlertEmailGroup, error) {
 	rows, err := db.Query(ctx, getEmailGroups, tenantid)
 	if err != nil {
 		return nil, err
@@ -427,7 +428,7 @@ WHERE u."emailVerified" = true
 AND tm."tenantId" = $1::uuid
 `
 
-func (q *Queries) GetMemberEmailGroup(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]string, error) {
+func (q *Queries) GetMemberEmailGroup(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]string, error) {
 	rows, err := db.Query(ctx, getMemberEmailGroup, tenantid)
 	if err != nil {
 		return nil, err
@@ -456,7 +457,7 @@ WHERE
     "tenantId" = $1::uuid
 `
 
-func (q *Queries) GetSlackWebhooks(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*SlackAppWebhook, error) {
+func (q *Queries) GetSlackWebhooks(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*SlackAppWebhook, error) {
 	rows, err := db.Query(ctx, getSlackWebhooks, tenantid)
 	if err != nil {
 		return nil, err
@@ -496,7 +497,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) GetTenantAlertGroupById(ctx context.Context, db DBTX, id pgtype.UUID) (*TenantAlertEmailGroup, error) {
+func (q *Queries) GetTenantAlertGroupById(ctx context.Context, db DBTX, id uuid.UUID) (*TenantAlertEmailGroup, error) {
 	row := db.QueryRow(ctx, getTenantAlertGroupById, id)
 	var i TenantAlertEmailGroup
 	err := row.Scan(
@@ -519,7 +520,7 @@ WHERE
     "tenantId" = $1::uuid
 `
 
-func (q *Queries) GetTenantAlertingSettings(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*TenantAlertingSettings, error) {
+func (q *Queries) GetTenantAlertingSettings(ctx context.Context, db DBTX, tenantid uuid.UUID) (*TenantAlertingSettings, error) {
 	row := db.QueryRow(ctx, getTenantAlertingSettings, tenantid)
 	var i TenantAlertingSettings
 	err := row.Scan(
@@ -548,7 +549,7 @@ WHERE
     AND "deletedAt" IS NULL
 `
 
-func (q *Queries) GetTenantByID(ctx context.Context, db DBTX, id pgtype.UUID) (*Tenant, error) {
+func (q *Queries) GetTenantByID(ctx context.Context, db DBTX, id uuid.UUID) (*Tenant, error) {
 	row := db.QueryRow(ctx, getTenantByID, id)
 	var i Tenant
 	err := row.Scan(
@@ -621,8 +622,8 @@ WHERE
 `
 
 type GetTenantMemberByEmailParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Email    string      `json:"email"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Email    string    `json:"email"`
 }
 
 func (q *Queries) GetTenantMemberByEmail(ctx context.Context, db DBTX, arg GetTenantMemberByEmailParams) (*TenantMember, error) {
@@ -648,7 +649,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) GetTenantMemberByID(ctx context.Context, db DBTX, id pgtype.UUID) (*TenantMember, error) {
+func (q *Queries) GetTenantMemberByID(ctx context.Context, db DBTX, id uuid.UUID) (*TenantMember, error) {
 	row := db.QueryRow(ctx, getTenantMemberByID, id)
 	var i TenantMember
 	err := row.Scan(
@@ -673,8 +674,8 @@ WHERE
 `
 
 type GetTenantMemberByUserIDParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Userid   pgtype.UUID `json:"userid"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Userid   uuid.UUID `json:"userid"`
 }
 
 func (q *Queries) GetTenantMemberByUserID(ctx context.Context, db DBTX, arg GetTenantMemberByUserIDParams) (*TenantMember, error) {
@@ -730,9 +731,9 @@ LEFT JOIN
 `
 
 type GetTenantTotalQueueMetricsParams struct {
-	TenantId           pgtype.UUID   `json:"tenantId"`
-	AdditionalMetadata []byte        `json:"additionalMetadata"`
-	WorkflowIds        []pgtype.UUID `json:"workflowIds"`
+	TenantId           uuid.UUID   `json:"tenantId"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	WorkflowIds        []uuid.UUID `json:"workflowIds"`
 }
 
 type GetTenantTotalQueueMetricsRow struct {
@@ -790,16 +791,16 @@ GROUP BY
 `
 
 type GetTenantWorkflowQueueMetricsParams struct {
-	TenantId           pgtype.UUID   `json:"tenantId"`
-	AdditionalMetadata []byte        `json:"additionalMetadata"`
-	WorkflowIds        []pgtype.UUID `json:"workflowIds"`
+	TenantId           uuid.UUID   `json:"tenantId"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	WorkflowIds        []uuid.UUID `json:"workflowIds"`
 }
 
 type GetTenantWorkflowQueueMetricsRow struct {
-	WorkflowId             pgtype.UUID `json:"workflowId"`
-	PendingAssignmentCount int64       `json:"pendingAssignmentCount"`
-	PendingCount           int64       `json:"pendingCount"`
-	RunningCount           int64       `json:"runningCount"`
+	WorkflowId             uuid.UUID `json:"workflowId"`
+	PendingAssignmentCount int64     `json:"pendingAssignmentCount"`
+	PendingCount           int64     `json:"pendingCount"`
+	RunningCount           int64     `json:"runningCount"`
 }
 
 func (q *Queries) GetTenantWorkflowQueueMetrics(ctx context.Context, db DBTX, arg GetTenantWorkflowQueueMetricsParams) ([]*GetTenantWorkflowQueueMetricsRow, error) {
@@ -836,7 +837,7 @@ WHERE
     "tenantId" = $1::uuid
 `
 
-func (q *Queries) ListTenantAlertGroups(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*TenantAlertEmailGroup, error) {
+func (q *Queries) ListTenantAlertGroups(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*TenantAlertEmailGroup, error) {
 	rows, err := db.Query(ctx, listTenantAlertGroups, tenantid)
 	if err != nil {
 		return nil, err
@@ -872,7 +873,7 @@ WHERE
     "tenantId" = $1::uuid
 `
 
-func (q *Queries) ListTenantMembers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*TenantMember, error) {
+func (q *Queries) ListTenantMembers(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*TenantMember, error) {
 	rows, err := db.Query(ctx, listTenantMembers, tenantid)
 	if err != nil {
 		return nil, err
@@ -1134,15 +1135,15 @@ WHERE
 `
 
 type PopulateTenantMembersRow struct {
-	ID                pgtype.UUID              `json:"id"`
+	ID                uuid.UUID                `json:"id"`
 	CreatedAt         pgtype.Timestamp         `json:"createdAt"`
 	UpdatedAt         pgtype.Timestamp         `json:"updatedAt"`
-	TenantId          pgtype.UUID              `json:"tenantId"`
-	UserId            pgtype.UUID              `json:"userId"`
+	TenantId          uuid.UUID                `json:"tenantId"`
+	UserId            uuid.UUID                `json:"userId"`
 	Role              TenantMemberRole         `json:"role"`
 	Email             string                   `json:"email"`
 	Name              pgtype.Text              `json:"name"`
-	TenantId_2        pgtype.UUID              `json:"tenantId_2"`
+	TenantId_2        uuid.UUID                `json:"tenantId_2"`
 	TenantCreatedAt   pgtype.Timestamp         `json:"tenantCreatedAt"`
 	TenantUpdatedAt   pgtype.Timestamp         `json:"tenantUpdatedAt"`
 	TenantName        string                   `json:"tenantName"`
@@ -1154,7 +1155,7 @@ type PopulateTenantMembersRow struct {
 	TenantEnvironment NullTenantEnvironment    `json:"tenantEnvironment"`
 }
 
-func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []pgtype.UUID) ([]*PopulateTenantMembersRow, error) {
+func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []uuid.UUID) ([]*PopulateTenantMembersRow, error) {
 	rows, err := db.Query(ctx, populateTenantMembers, ids)
 	if err != nil {
 		return nil, err
@@ -1481,7 +1482,7 @@ type UpdateTenantParams struct {
 	AlertMemberEmails pgtype.Bool                  `json:"alertMemberEmails"`
 	Version           NullTenantMajorEngineVersion `json:"version"`
 	UiVersion         NullTenantMajorUIVersion     `json:"uiVersion"`
-	ID                pgtype.UUID                  `json:"id"`
+	ID                uuid.UUID                    `json:"id"`
 }
 
 func (q *Queries) UpdateTenant(ctx context.Context, db DBTX, arg UpdateTenantParams) (*Tenant, error) {
@@ -1524,8 +1525,8 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", emails
 `
 
 type UpdateTenantAlertGroupParams struct {
-	Emails string      `json:"emails"`
-	ID     pgtype.UUID `json:"id"`
+	Emails string    `json:"emails"`
+	ID     uuid.UUID `json:"id"`
 }
 
 func (q *Queries) UpdateTenantAlertGroup(ctx context.Context, db DBTX, arg UpdateTenantAlertGroupParams) (*TenantAlertEmailGroup, error) {
@@ -1554,7 +1555,7 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency",
 
 type UpdateTenantAlertingSettingsParams struct {
 	LastAlertedAt pgtype.Timestamp `json:"lastAlertedAt"`
-	TenantId      pgtype.UUID      `json:"tenantId"`
+	TenantId      uuid.UUID        `json:"tenantId"`
 }
 
 func (q *Queries) UpdateTenantAlertingSettings(ctx context.Context, db DBTX, arg UpdateTenantAlertingSettingsParams) (*TenantAlertingSettings, error) {
@@ -1586,7 +1587,7 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role
 
 type UpdateTenantMemberParams struct {
 	Role NullTenantMemberRole `json:"role"`
-	ID   pgtype.UUID          `json:"id"`
+	ID   uuid.UUID            `json:"id"`
 }
 
 func (q *Queries) UpdateTenantMember(ctx context.Context, db DBTX, arg UpdateTenantMemberParams) (*TenantMember, error) {
@@ -1627,7 +1628,7 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency",
 `
 
 type UpsertTenantAlertingSettingsParams struct {
-	Tenantid                        pgtype.UUID `json:"tenantid"`
+	Tenantid                        uuid.UUID   `json:"tenantid"`
 	MaxFrequency                    pgtype.Text `json:"maxFrequency"`
 	EnableExpiringTokenAlerts       pgtype.Bool `json:"enableExpiringTokenAlerts"`
 	EnableWorkflowRunFailureAlerts  pgtype.Bool `json:"enableWorkflowRunFailureAlerts"`

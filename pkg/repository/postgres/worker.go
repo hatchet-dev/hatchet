@@ -1,6 +1,8 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"encoding/json"
 	"errors"
@@ -38,7 +40,7 @@ func (w *workerAPIRepository) GetWorkerById(workerId string) (*dbsqlc.GetWorkerB
 }
 
 func (w *workerAPIRepository) GetWorkerActionsByWorkerId(tenantid string, workerIds []string) (map[string][]string, error) {
-	uuidWorkerIds := make([]pgtype.UUID, len(workerIds))
+	uuidWorkerIds := make([]uuid.UUID, len(workerIds))
 	for i, workerId := range workerIds {
 		uuidWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)
 	}
@@ -127,7 +129,7 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 		}
 	}
 
-	stepRunIds := make([]pgtype.UUID, 0, len(uniqueStepRunIds))
+	stepRunIds := make([]uuid.UUID, 0, len(uniqueStepRunIds))
 
 	for stepRunId := range uniqueStepRunIds {
 		stepRunIds = append(stepRunIds, sqlchelpers.UUIDFromStr(stepRunId))
@@ -367,7 +369,7 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 		}
 	}
 
-	svcUUIDs := make([]pgtype.UUID, len(opts.Services))
+	svcUUIDs := make([]uuid.UUID, len(opts.Services))
 
 	for i, svc := range opts.Services {
 		dbSvc, err := w.queries.UpsertService(ctx, tx, dbsqlc.UpsertServiceParams{
@@ -391,7 +393,7 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 		return nil, fmt.Errorf("could not link services to worker: %w", err)
 	}
 
-	actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
+	actionUUIDs := make([]uuid.UUID, len(opts.Actions))
 
 	for i, action := range opts.Actions {
 		dbAction, err := w.queries.UpsertAction(ctx, tx, dbsqlc.UpsertActionParams{
@@ -470,7 +472,7 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 	}
 
 	if len(opts.Actions) > 0 {
-		actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
+		actionUUIDs := make([]uuid.UUID, len(opts.Actions))
 
 		for i, action := range opts.Actions {
 			dbAction, err := w.queries.UpsertAction(ctx, tx, dbsqlc.UpsertActionParams{
@@ -542,7 +544,7 @@ func (w *workerEngineRepository) UpdateWorkerActiveStatus(ctx context.Context, t
 	return worker, nil
 }
 
-func (w *workerEngineRepository) UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*dbsqlc.WorkerLabel, error) {
+func (w *workerEngineRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*dbsqlc.WorkerLabel, error) {
 	if len(opts) == 0 {
 		return nil, nil
 	}
@@ -647,7 +649,7 @@ func (r *workerEngineRepository) DeleteOldWorkerEvents(ctx context.Context, tena
 }
 
 func (r *workerEngineRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId string, workerIds []string) (map[string][]string, error) {
-	pgWorkerIds := make([]pgtype.UUID, len(workerIds))
+	pgWorkerIds := make([]uuid.UUID, len(workerIds))
 
 	for i, workerId := range workerIds {
 		pgWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)

@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -114,7 +115,7 @@ type PollPayloadWALForRecordsToReplicateParams struct {
 }
 
 type PollPayloadWALForRecordsToReplicateRow struct {
-	TenantID          pgtype.UUID           `json:"tenant_id"`
+	TenantID          uuid.UUID             `json:"tenant_id"`
 	OffloadAt         pgtype.Timestamptz    `json:"offload_at"`
 	PayloadID         int64                 `json:"payload_id"`
 	PayloadInsertedAt pgtype.Timestamptz    `json:"payload_inserted_at"`
@@ -173,7 +174,7 @@ WHERE (tenant_id, id, inserted_at, type) IN (
 type ReadPayloadsParams struct {
 	Ids         []int64              `json:"ids"`
 	Insertedats []pgtype.Timestamptz `json:"insertedats"`
-	Tenantids   []pgtype.UUID        `json:"tenantids"`
+	Tenantids   []uuid.UUID          `json:"tenantids"`
 	Types       []string             `json:"types"`
 }
 
@@ -268,14 +269,14 @@ type SetPayloadExternalKeysParams struct {
 	Payloadtypes         []string             `json:"payloadtypes"`
 	Offloadats           []pgtype.Timestamptz `json:"offloadats"`
 	Externallocationkeys []string             `json:"externallocationkeys"`
-	Tenantids            []pgtype.UUID        `json:"tenantids"`
+	Tenantids            []uuid.UUID          `json:"tenantids"`
 }
 
 type SetPayloadExternalKeysRow struct {
-	TenantID            pgtype.UUID        `json:"tenant_id"`
+	TenantID            uuid.UUID          `json:"tenant_id"`
 	ID                  int64              `json:"id"`
 	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID          pgtype.UUID        `json:"external_id"`
+	ExternalID          uuid.UUID          `json:"external_id"`
 	Type                V1PayloadType      `json:"type"`
 	Location            V1PayloadLocation  `json:"location"`
 	ExternalLocationKey pgtype.Text        `json:"external_location_key"`
@@ -353,7 +354,7 @@ type WritePayloadWALParams struct {
 	Payloadinsertedats []pgtype.Timestamptz `json:"payloadinsertedats"`
 	Payloadtypes       []string             `json:"payloadtypes"`
 	Offloadats         []pgtype.Timestamptz `json:"offloadats"`
-	Tenantids          []pgtype.UUID        `json:"tenantids"`
+	Tenantids          []uuid.UUID          `json:"tenantids"`
 }
 
 func (q *Queries) WritePayloadWAL(ctx context.Context, db DBTX, arg WritePayloadWALParams) error {
@@ -412,12 +413,12 @@ DO UPDATE SET
 type WritePayloadsParams struct {
 	Ids                  []int64              `json:"ids"`
 	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
-	Externalids          []pgtype.UUID        `json:"externalids"`
+	Externalids          []uuid.UUID          `json:"externalids"`
 	Types                []string             `json:"types"`
 	Locations            []string             `json:"locations"`
 	Externallocationkeys []string             `json:"externallocationkeys"`
 	Inlinecontents       [][]byte             `json:"inlinecontents"`
-	Tenantids            []pgtype.UUID        `json:"tenantids"`
+	Tenantids            []uuid.UUID          `json:"tenantids"`
 }
 
 func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsParams) error {

@@ -41,3 +41,13 @@ sql:
         emit_methods_with_db_argument: true
         emit_result_struct_pointers: true
         emit_json_tags: true
+        overrides:
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"

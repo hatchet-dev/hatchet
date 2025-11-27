@@ -8,6 +8,7 @@ package dbsqlc
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -38,7 +39,7 @@ RETURNING id, "expiresAt", "tenantId", "resourceId", kind
 
 type AcquireOrExtendLeasesParams struct {
 	LeaseDuration    pgtype.Interval `json:"leaseDuration"`
-	Tenantid         pgtype.UUID     `json:"tenantid"`
+	Tenantid         uuid.UUID       `json:"tenantid"`
 	Kind             LeaseKind       `json:"kind"`
 	Resourceids      []string        `json:"resourceids"`
 	Existingleaseids []int64         `json:"existingleaseids"`
@@ -93,9 +94,9 @@ FOR UPDATE
 `
 
 type GetLeasesToAcquireParams struct {
-	Tenantid    pgtype.UUID `json:"tenantid"`
-	Kind        LeaseKind   `json:"kind"`
-	Resourceids []string    `json:"resourceids"`
+	Tenantid    uuid.UUID `json:"tenantid"`
+	Kind        LeaseKind `json:"kind"`
+	Resourceids []string  `json:"resourceids"`
 }
 
 func (q *Queries) GetLeasesToAcquire(ctx context.Context, db DBTX, arg GetLeasesToAcquireParams) error {

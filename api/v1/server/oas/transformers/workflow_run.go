@@ -103,7 +103,7 @@ func ToWorkflowRun(
 
 	res.TriggeredBy = *ToWorkflowRunTriggeredBy(run.ParentId, &run.WorkflowRunTriggeredBy)
 
-	if run.WorkflowVersionId.Valid {
+	if run.WorkflowVersionId != uuid.Nil {
 		res.WorkflowVersion = ToWorkflowVersion(&run.WorkflowVersion, &run.Workflow, nil, nil, nil, nil)
 	}
 
@@ -229,7 +229,7 @@ func ToStepRunFull(stepRun *repository.GetStepRunFull) *gen.StepRun {
 		res.ChildWorkflowRuns = &stepRun.ChildWorkflowRuns
 	}
 
-	if stepRun.WorkerId.Valid {
+	if stepRun.WorkerId != uuid.Nil {
 		workerId := sqlchelpers.UUIDToStr(stepRun.WorkerId)
 		res.WorkerId = &workerId
 	}
@@ -297,7 +297,7 @@ func ToStepRun(stepRun *repository.StepRunForJobRun) *gen.StepRun {
 		res.TimeoutAtEpoch = getEpochFromPgTime(stepRun.TimeoutAt)
 	}
 
-	if stepRun.WorkerId.Valid {
+	if stepRun.WorkerId != uuid.Nil {
 		workerId := sqlchelpers.UUIDToStr(stepRun.WorkerId)
 		res.WorkerId = &workerId
 	}
@@ -332,12 +332,12 @@ func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
 		Count:         int(stepRunEvent.Count),
 	}
 
-	if stepRunEvent.StepRunId.Valid {
+	if stepRunEvent.StepRunId != uuid.Nil {
 		srId := sqlchelpers.UUIDToStr(stepRunEvent.StepRunId)
 		res.StepRunId = &srId
 	}
 
-	if stepRunEvent.WorkflowRunId.Valid {
+	if stepRunEvent.WorkflowRunId != uuid.Nil {
 		wrId := sqlchelpers.UUIDToStr(stepRunEvent.WorkflowRunId)
 		res.WorkflowRunId = &wrId
 	}
@@ -415,22 +415,22 @@ func getEpochFromTime(t time.Time) *int {
 	return &epoch
 }
 
-func ToWorkflowRunTriggeredBy(parentWorkflowRunId pgtype.UUID, triggeredBy *dbsqlc.WorkflowRunTriggeredBy) *gen.WorkflowRunTriggeredBy {
+func ToWorkflowRunTriggeredBy(parentWorkflowRunId uuid.UUID, triggeredBy *dbsqlc.WorkflowRunTriggeredBy) *gen.WorkflowRunTriggeredBy {
 	res := &gen.WorkflowRunTriggeredBy{
 		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(triggeredBy.ID), triggeredBy.CreatedAt.Time, triggeredBy.UpdatedAt.Time),
 	}
 
-	if parentWorkflowRunId.Valid {
+	if parentWorkflowRunId != uuid.Nil {
 		parent := sqlchelpers.UUIDToStr(parentWorkflowRunId)
 		res.ParentWorkflowRunId = &parent
 	}
 
-	if triggeredBy.EventId.Valid {
+	if triggeredBy.EventId != uuid.Nil {
 		eventId := sqlchelpers.UUIDToStr(triggeredBy.EventId)
 		res.EventId = &eventId
 	}
 
-	if triggeredBy.CronParentId.Valid {
+	if triggeredBy.CronParentId != uuid.Nil {
 		cronParentId := sqlchelpers.UUIDToStr(triggeredBy.CronParentId)
 		res.CronParentId = &cronParentId
 	}
@@ -461,10 +461,10 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 	}
 
 	triggeredBy := &gen.WorkflowRunTriggeredBy{
-		Metadata: *toAPIMetadata(pgUUIDToStr(runTriggeredBy.ID), runTriggeredBy.CreatedAt.Time, runTriggeredBy.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(runTriggeredBy.ID), runTriggeredBy.CreatedAt.Time, runTriggeredBy.UpdatedAt.Time),
 	}
 
-	if run.ParentId.Valid {
+	if run.ParentId != uuid.Nil {
 		parentId := sqlchelpers.UUIDToStr(run.ParentId)
 		triggeredBy.ParentWorkflowRunId = &parentId
 	}
@@ -491,12 +491,12 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 	res := &gen.WorkflowRun{
 		Metadata:           *toAPIMetadata(workflowRunId, run.CreatedAt.Time, run.UpdatedAt.Time),
 		DisplayName:        &run.DisplayName.String,
-		TenantId:           pgUUIDToStr(run.TenantId),
+		TenantId:           sqlchelpers.UUIDToStr(run.TenantId),
 		StartedAt:          startedAt,
 		FinishedAt:         finishedAt,
 		Duration:           &duration,
 		Status:             gen.WorkflowRunStatus(run.Status),
-		WorkflowVersionId:  pgUUIDToStr(run.WorkflowVersionId),
+		WorkflowVersionId:  sqlchelpers.UUIDToStr(run.WorkflowVersionId),
 		WorkflowVersion:    workflowVersion,
 		TriggeredBy:        *triggeredBy,
 		AdditionalMetadata: &additionalMetadata,
@@ -525,7 +525,7 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 
 	var workflowRunIdPtr *uuid.UUID
 
-	if scheduled.WorkflowRunId.Valid {
+	if scheduled.WorkflowRunId != uuid.Nil {
 		workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(scheduled.WorkflowRunId))
 		workflowRunIdPtr = &workflowRunId
 	}

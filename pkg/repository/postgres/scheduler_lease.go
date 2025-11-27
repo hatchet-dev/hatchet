@@ -1,11 +1,12 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -23,7 +24,7 @@ func newLeaseRepository(shared *sharedRepository) *leaseRepository {
 	}
 }
 
-func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId pgtype.UUID, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
+func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId uuid.UUID, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
 	ctx, span := telemetry.NewSpan(ctx, "acquire-leases")
 	defer span.End()
 
@@ -69,7 +70,7 @@ func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId pg
 	return leases, nil
 }
 
-func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId pgtype.UUID, leases []*dbsqlc.Lease) error {
+func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId uuid.UUID, leases []*dbsqlc.Lease) error {
 	ctx, span := telemetry.NewSpan(ctx, "release-leases")
 	defer span.End()
 
@@ -100,14 +101,14 @@ func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId pgtype.UUI
 	return nil
 }
 
-func (d *leaseRepository) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*dbsqlc.Queue, error) {
+func (d *leaseRepository) ListQueues(ctx context.Context, tenantId uuid.UUID) ([]*dbsqlc.Queue, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-queues")
 	defer span.End()
 
 	return d.queries.ListQueues(ctx, d.pool, tenantId)
 }
 
-func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*repository.ListActiveWorkersResult, error) {
+func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.UUID) ([]*repository.ListActiveWorkersResult, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-active-workers")
 	defer span.End()
 
@@ -117,7 +118,7 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId pgtype
 		return nil, err
 	}
 
-	workerIds := make([]pgtype.UUID, 0, len(activeWorkers))
+	workerIds := make([]uuid.UUID, 0, len(activeWorkers))
 
 	for _, worker := range activeWorkers {
 		workerIds = append(workerIds, worker.ID)

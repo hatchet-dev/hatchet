@@ -8,6 +8,7 @@ package dbsqlc
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -22,8 +23,8 @@ WHERE
 `
 
 type CountLogLinesParams struct {
-	Tenantid  pgtype.UUID    `json:"tenantid"`
-	StepRunId pgtype.UUID    `json:"stepRunId"`
+	Tenantid  uuid.UUID      `json:"tenantid"`
+	StepRunId uuid.UUID      `json:"stepRunId"`
 	Search    pgtype.Text    `json:"search"`
 	Levels    []LogLineLevel `json:"levels"`
 }
@@ -64,8 +65,8 @@ RETURNING id, "createdAt", "tenantId", "stepRunId", message, level, metadata
 
 type CreateLogLineParams struct {
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
-	Tenantid  pgtype.UUID      `json:"tenantid"`
-	Steprunid pgtype.UUID      `json:"steprunid"`
+	Tenantid  uuid.UUID        `json:"tenantid"`
+	Steprunid uuid.UUID        `json:"steprunid"`
 	Message   string           `json:"message"`
 	Level     NullLogLineLevel `json:"level"`
 	Metadata  []byte           `json:"metadata"`
@@ -111,8 +112,8 @@ OFFSET COALESCE($6, 0)
 `
 
 type ListLogLinesParams struct {
-	Tenantid  pgtype.UUID    `json:"tenantid"`
-	StepRunId pgtype.UUID    `json:"stepRunId"`
+	Tenantid  uuid.UUID      `json:"tenantid"`
+	StepRunId uuid.UUID      `json:"stepRunId"`
 	Search    pgtype.Text    `json:"search"`
 	Levels    []LogLineLevel `json:"levels"`
 	OrderBy   pgtype.Text    `json:"orderBy"`

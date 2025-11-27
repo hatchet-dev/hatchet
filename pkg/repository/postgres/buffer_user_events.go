@@ -6,7 +6,6 @@ import (
 	"math"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
@@ -56,7 +55,7 @@ func (r *sharedRepository) bulkWriteUserEvents(ctx context.Context, opts []*repo
 		}
 	}
 	params := make([]dbsqlc.CreateEventsParams, len(opts))
-	ids := make([]pgtype.UUID, len(opts))
+	ids := make([]uuid.UUID, len(opts))
 
 	for i, event := range opts {
 

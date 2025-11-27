@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/google/uuid"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 type UpsertTenantAlertingSettingsOpts struct {
@@ -29,7 +29,7 @@ type UpdateTenantAlertGroupOpts struct {
 }
 
 type TenantAlertEmailGroupForSend struct {
-	TenantId pgtype.UUID `json:"tenantId"`
+	TenantId uuid.UUID `json:"tenantId"`
 	Emails   []string    `validate:"required,dive,email,max=255"`
 }
 

@@ -39,7 +39,7 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 
 	res := &repository.ListWorkflowsResult{}
 
-	pgTenantId := &pgtype.UUID{}
+	pgTenantId := &uuid.UUID{}
 
 	if err := pgTenantId.Scan(tenantId); err != nil {
 		return nil, err
@@ -569,7 +569,7 @@ func (r *workflowEngineRepository) CreateNewWorkflow(ctx context.Context, tenant
 
 	workflowVersion, err := r.queries.GetWorkflowVersionForEngine(ctx, tx, dbsqlc.GetWorkflowVersionForEngineParams{
 		Tenantid: pgTenantId,
-		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(workflowVersionId)},
+		Ids:      []uuid.UUID{sqlchelpers.UUIDFromStr(workflowVersionId)},
 	})
 
 	if err != nil {
@@ -645,7 +645,7 @@ func (r *workflowEngineRepository) CreateWorkflowVersion(ctx context.Context, te
 
 	workflowVersion, err := r.queries.GetWorkflowVersionForEngine(ctx, tx, dbsqlc.GetWorkflowVersionForEngineParams{
 		Tenantid: pgTenantId,
-		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(workflowVersionId)},
+		Ids:      []uuid.UUID{sqlchelpers.UUIDFromStr(workflowVersionId)},
 	})
 
 	if err != nil {
@@ -753,7 +753,7 @@ func (r *workflowAPIRepository) CreateScheduledWorkflow(ctx context.Context, ten
 
 func (r *workflowEngineRepository) GetLatestWorkflowVersions(ctx context.Context, tenantId string, workflowIds []string) ([]*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 
-	var workflowVersionIds = make([]pgtype.UUID, len(workflowIds))
+	var workflowVersionIds = make([]uuid.UUID, len(workflowIds))
 
 	for i, id := range workflowIds {
 		workflowVersionIds[i] = sqlchelpers.UUIDFromStr(id)
@@ -789,7 +789,7 @@ func (r *workflowEngineRepository) GetLatestWorkflowVersion(ctx context.Context,
 
 	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, dbsqlc.GetWorkflowVersionForEngineParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Ids:      []pgtype.UUID{versionId},
+		Ids:      []uuid.UUID{versionId},
 	})
 
 	if err != nil {
@@ -864,7 +864,7 @@ func (r *workflowEngineRepository) GetWorkflowsByNames(ctx context.Context, tena
 func (r *workflowEngineRepository) GetWorkflowVersionById(ctx context.Context, tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, dbsqlc.GetWorkflowVersionForEngineParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(workflowId)},
+		Ids:      []uuid.UUID{sqlchelpers.UUIDFromStr(workflowId)},
 	})
 
 	if err != nil {
@@ -939,7 +939,7 @@ func (r *workflowAPIRepository) GetWorkflowWorkerCount(tenantId, workflowId stri
 
 }
 
-func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts, oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (string, error) {
+func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId uuid.UUID, opts *repository.CreateWorkflowVersionOpts, oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (string, error) {
 	workflowVersionId := uuid.New().String()
 
 	// Lock the previous workflow version to prevent concurrent version creation
@@ -1211,7 +1211,7 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 	return workflowVersionId, nil
 }
 
-func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, tenantId, workflowVersionId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts, jobOpts *repository.CreateWorkflowJobOpts) (string, error) {
+func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, tenantId, workflowVersionId uuid.UUID, opts *repository.CreateWorkflowVersionOpts, jobOpts *repository.CreateWorkflowJobOpts) (string, error) {
 	jobId := uuid.New().String()
 
 	var (
@@ -1473,6 +1473,6 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 	return jobId, nil
 }
 
-func (w *workflowEngineRepository) DeleteInvalidCron(ctx context.Context, id pgtype.UUID) error {
+func (w *workflowEngineRepository) DeleteInvalidCron(ctx context.Context, id uuid.UUID) error {
 	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, id)
 }

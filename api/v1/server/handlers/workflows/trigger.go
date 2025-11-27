@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
@@ -31,7 +32,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		workflowVersionId = request.Params.Version.String()
 	} else {
 
-		if !workflow.WorkflowVersionId.Valid {
+		if workflow.WorkflowVersionId == uuid.Nil {
 			return gen.WorkflowRunCreate400JSONResponse(
 				apierrors.NewAPIErrors("workflow has no versions"),
 			), nil
