@@ -10,7 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc/encoding"
-	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
+	gzipcodec "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
@@ -530,6 +530,10 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		if sc.Runtime.GRPCInsecure {
 			grpcOpts = append(grpcOpts, grpc.WithInsecure())
 		}
+
+		// Force gzip codec registration by referencing the package
+		// This ensures the package's init() function runs and registers the codec
+		_ = gzipcodec.Name
 
 		// Ensure gzip codec is registered before server creation
 		// This guarantees the server will advertise gzip in grpc-accept-encoding header
