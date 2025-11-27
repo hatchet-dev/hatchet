@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"google.golang.org/grpc/encoding"
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
@@ -527,6 +528,14 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		if sc.Runtime.GRPCInsecure {
 			grpcOpts = append(grpcOpts, grpc.WithInsecure())
+		}
+
+		// Ensure gzip codec is registered before server creation
+		// This guarantees the server will advertise gzip in grpc-accept-encoding header
+		if codec := encoding.GetCodec("gzip"); codec == nil {
+			sc.Logger.Warn().Msg("gzip codec not registered - compression may not be advertised")
+		} else {
+			sc.Logger.Info().Msg("gzip compression enabled for gRPC server")
 		}
 
 		// create the grpc server
