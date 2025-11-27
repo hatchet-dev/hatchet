@@ -216,11 +216,11 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 // See: https://github.com/grpc/grpc-go/issues/2786
 func (s *Server) compressionAcceptEncodingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	s.l.Debug().Msgf("[compression] Interceptor called for %s", info.FullMethod)
-	
+
 	// Set grpc-accept-encoding in outgoing metadata
 	// This header tells the client what compression algorithms the server accepts
 	md := metadata.Pairs("grpc-accept-encoding", "gzip,identity")
-	
+
 	// Merge with any existing outgoing metadata
 	if existingMD, ok := metadata.FromOutgoingContext(ctx); ok {
 		md = metadata.Join(existingMD, md)
@@ -228,32 +228,31 @@ func (s *Server) compressionAcceptEncodingInterceptor(ctx context.Context, req i
 	} else {
 		s.l.Debug().Msgf("[compression] Setting grpc-accept-encoding header for %s", info.FullMethod)
 	}
-	
+
 	// Log what we're setting
 	if values := md.Get("grpc-accept-encoding"); len(values) > 0 {
 		s.l.Debug().Msgf("[compression] Outgoing grpc-accept-encoding: %v", values)
 	}
-	
+
 	ctx = metadata.NewOutgoingContext(ctx, md)
-	
-	// Call handler and try to set header after
-	resp, err := handler(ctx, req)
-	
-	// Try to set header explicitly (this may not work from interceptor, but worth trying)
-	if err == nil {
-		if setErr := grpc.SetHeader(ctx, md); setErr != nil {
-			s.l.Debug().Msgf("[compression] Failed to SetHeader: %v", setErr)
-		} else {
-			s.l.Debug().Msgf("[compression] Successfully called SetHeader for %s", info.FullMethod)
-		}
+
+	// CRITICAL: SendHeader must be called BEFORE the handler runs
+	// This ensures grpc-accept-encoding is in the initial response headers
+	if sendErr := grpc.SendHeader(ctx, md); sendErr != nil {
+		s.l.Warn().Msgf("[compression] Failed to SendHeader (may be called multiple times): %v", sendErr)
+	} else {
+		s.l.Debug().Msgf("[compression] Successfully called SendHeader for %s", info.FullMethod)
 	}
-	
+
+	// Now call the handler
+	resp, err := handler(ctx, req)
+
 	return resp, err
 }
 
 func (s *Server) compressionAcceptEncodingStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	ctx := ss.Context()
-	
+
 	md := metadata.Pairs("grpc-accept-encoding", "gzip,identity")
 	if existingMD, ok := metadata.FromOutgoingContext(ctx); ok {
 		md = metadata.Join(existingMD, md)
@@ -261,14 +260,22 @@ func (s *Server) compressionAcceptEncodingStreamInterceptor(srv interface{}, ss 
 	} else {
 		s.l.Debug().Msgf("[compression] Setting grpc-accept-encoding header for stream %s", info.FullMethod)
 	}
-	
+
 	// Log what we're setting
 	if values := md.Get("grpc-accept-encoding"); len(values) > 0 {
 		s.l.Debug().Msgf("[compression] Outgoing grpc-accept-encoding: %v", values)
 	}
-	
+
 	ctx = metadata.NewOutgoingContext(ctx, md)
-	
+
+	// CRITICAL: SendHeader must be called BEFORE the handler runs
+	// This ensures grpc-accept-encoding is in the initial response headers
+	if sendErr := grpc.SendHeader(ctx, md); sendErr != nil {
+		s.l.Warn().Msgf("[compression] Failed to SendHeader for stream (may be called multiple times): %v", sendErr)
+	} else {
+		s.l.Debug().Msgf("[compression] Successfully called SendHeader for stream %s", info.FullMethod)
+	}
+
 	wrapped := &wrappedServerStream{
 		ServerStream: ss,
 		ctx:          ctx,
