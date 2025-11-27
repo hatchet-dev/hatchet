@@ -132,6 +132,9 @@ type CronOperationsConfigFile struct {
 
 	// OLAPAnalyzeCronInterval is the interval for the olap analyze cron operation
 	OLAPAnalyzeCronInterval time.Duration `mapstructure:"olapAnalyzeCronInterval" json:"olapAnalyzeCronInterval,omitempty" default:"3h"`
+
+	// CronPollingTimeout is the timeout for polling cron schedules
+	CronPollingTimeout time.Duration `mapstructure:"cronPollingTimeout" json:"cronPollingTimeout,omitempty" default:"5s"`
 }
 
 // OLAPStatusUpdateConfigFile is the configuration for OLAP status updates
@@ -923,6 +926,7 @@ func BindAllEnv(v *viper.Viper) {
 	// cron operations options
 	_ = v.BindEnv("cronOperations.taskAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL")
 	_ = v.BindEnv("cronOperations.olapAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_OLAP_ANALYZE_CRON_INTERVAL")
+	_ = v.BindEnv("cronOperations.cronPollingTimeout", "SERVER_CRON_OPERATIONS_CRON_POLLING_TIMEOUT")
 
 	// OLAP status update options
 	_ = v.BindEnv("statusUpdates.dagBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_DAG_BATCH_SIZE_LIMIT")
