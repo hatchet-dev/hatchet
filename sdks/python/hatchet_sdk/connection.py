@@ -6,6 +6,19 @@ import grpc
 from hatchet_sdk.config import ClientConfig
 
 
+class DebugHeadersInterceptor(grpc.UnaryUnaryClientInterceptor):
+    """Debug interceptor to log outgoing headers for troubleshooting."""
+
+    def intercept_unary_unary(self, continuation, client_call_details, request):
+        print(">>> OUTGOING HEADERS")
+        if client_call_details.metadata:
+            for key, value in client_call_details.metadata:
+                print(f"  {key}: {value}")
+        else:
+            print("  (no metadata)")
+        return continuation(client_call_details, request)
+
+
 @overload
 def new_conn(config: ClientConfig, aio: Literal[False]) -> grpc.Channel: ...
 
@@ -57,6 +70,8 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
         ("grpc.http2.max_pings_without_data", 0),
         ("grpc.keepalive_permit_without_calls", 1),
         ("grpc.default_compression_algorithm", grpc.Compression.Gzip),
+        # Server -> Client acceptable formats
+        ("grpc.default_accept_encoding", "gzip,identity"),
     ]
 
     # Set environment variable to disable fork support. Reference: https://github.com/grpc/grpc/issues/28557
@@ -83,6 +98,12 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
             credentials=credentials,
             options=channel_options,
         )
+
+    # Add debug interceptor if GRPC_TRACE is set (for debugging)
+    if os.getenv("GRPC_TRACE") == "all":
+        if not aio:
+            conn = grpc.intercept_channel(conn, DebugHeadersInterceptor())
+        # Note: aio interceptors work differently, would need separate implementation
 
     return cast(
         grpc.Channel | grpc.aio.Channel,

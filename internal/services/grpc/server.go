@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
@@ -40,22 +41,6 @@ import (
 	"google.golang.org/grpc/encoding"
 	gzipcodec "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 )
-
-// init ensures the gzip compressor is registered at package initialization time.
-// This guarantees the compressor is available before any server instances are created,
-// so the server will advertise gzip in the grpc-accept-encoding header.
-func init() {
-	// Force the gzip package's init() to run by referencing it
-	_ = gzipcodec.Name
-
-	// Verify the compressor is registered
-	if compressor := encoding.GetCompressor("gzip"); compressor == nil {
-		// Use fmt.Printf since logger might not be initialized yet
-		fmt.Printf("[gRPC] WARNING: gzip compressor not registered at package init time - server may not advertise gzip\n")
-	} else {
-		fmt.Printf("[gRPC] SUCCESS: gzip compressor registered at package init time - server will advertise gzip\n")
-	}
-}
 
 type Server struct {
 	eventcontracts.UnimplementedEventsServiceServer
@@ -225,6 +210,49 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 	}, nil
 }
 
+// compressionAcceptEncodingInterceptor ensures the server includes grpc-accept-encoding
+// in response headers to advertise gzip support, as required by gRPC spec.
+// This fixes the grpc-go limitation where registered compressors aren't automatically advertised.
+// See: https://github.com/grpc/grpc-go/issues/2786
+func compressionAcceptEncodingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	// Set grpc-accept-encoding in outgoing metadata
+	// This header tells the client what compression algorithms the server accepts
+	md := metadata.Pairs("grpc-accept-encoding", "gzip,identity")
+	
+	// Merge with any existing outgoing metadata
+	if existingMD, ok := metadata.FromOutgoingContext(ctx); ok {
+		md = metadata.Join(existingMD, md)
+	}
+	
+	ctx = metadata.NewOutgoingContext(ctx, md)
+	return handler(ctx, req)
+}
+
+func compressionAcceptEncodingStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	ctx := ss.Context()
+	
+	md := metadata.Pairs("grpc-accept-encoding", "gzip,identity")
+	if existingMD, ok := metadata.FromOutgoingContext(ctx); ok {
+		md = metadata.Join(existingMD, md)
+	}
+	ctx = metadata.NewOutgoingContext(ctx, md)
+	
+	wrapped := &wrappedServerStream{
+		ServerStream: ss,
+		ctx:          ctx,
+	}
+	return handler(srv, wrapped)
+}
+
+type wrappedServerStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (w *wrappedServerStream) Context() context.Context {
+	return w.ctx
+}
+
 func (s *Server) Start() (func() error, error) {
 	return s.startGRPC()
 }
@@ -285,6 +313,7 @@ func (s *Server) startGRPC() (func() error, error) {
 
 	serverOpts = append(serverOpts, grpc.ChainStreamInterceptor(
 		logging.StreamServerInterceptor(middleware.InterceptorLogger(s.l), opts...),
+		compressionAcceptEncodingStreamInterceptor, // Advertise gzip support in grpc-accept-encoding header
 		auth.StreamServerInterceptor(authMiddleware.Middleware),
 		middleware.ServerNameStreamingInterceptor,
 		ratelimit.StreamServerInterceptor(limiter),
@@ -295,6 +324,7 @@ func (s *Server) startGRPC() (func() error, error) {
 	// Prepare base unary interceptors
 	baseUnaryInterceptors := []grpc.UnaryServerInterceptor{
 		logging.UnaryServerInterceptor(middleware.InterceptorLogger(s.l), opts...),
+		compressionAcceptEncodingInterceptor, // Advertise gzip support in grpc-accept-encoding header
 		auth.UnaryServerInterceptor(authMiddleware.Middleware),
 		middleware.AttachServerNameInterceptor,
 		ratelimit.UnaryServerInterceptor(limiter),
