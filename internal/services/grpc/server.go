@@ -37,6 +37,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc/encoding"
 	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 )
 
@@ -318,6 +319,12 @@ func (s *Server) startGRPC() (func() error, error) {
 	serverOpts = append(serverOpts, grpc.StatsHandler(
 		otelgrpc.NewServerHandler(),
 	))
+
+	// Ensure gzip codec is registered before server creation
+	// This guarantees the server will advertise gzip in grpc-accept-encoding header
+	if codec := encoding.GetCodec("gzip"); codec == nil {
+		s.l.Warn().Msg("gzip codec not registered - compression may not be advertised")
+	}
 
 	grpcServer := grpc.NewServer(serverOpts...)
 

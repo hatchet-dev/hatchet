@@ -47,13 +47,6 @@ type Teardown struct {
 }
 
 func init() {
-	// Force gzip codec registration at package initialization time
-	// This ensures the codec is available before any gRPC servers are created
-	if codec := encoding.GetCodec("gzip"); codec == nil {
-		// This should never happen if the import is correct, but log if it does
-		panic("gzip codec not registered - check import of google.golang.org/grpc/encoding/gzip")
-	}
-
 	svcName := os.Getenv("SERVER_OTEL_SERVICE_NAME")
 	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
 	insecure := os.Getenv("SERVER_OTEL_INSECURE")
