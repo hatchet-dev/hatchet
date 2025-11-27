@@ -41,6 +41,22 @@ import (
 	gzipcodec "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 )
 
+// init ensures the gzip compressor is registered at package initialization time.
+// This guarantees the compressor is available before any server instances are created,
+// so the server will advertise gzip in the grpc-accept-encoding header.
+func init() {
+	// Force the gzip package's init() to run by referencing it
+	_ = gzipcodec.Name
+
+	// Verify the compressor is registered
+	if compressor := encoding.GetCompressor("gzip"); compressor == nil {
+		// Use fmt.Printf since logger might not be initialized yet
+		fmt.Printf("[gRPC] WARNING: gzip compressor not registered at package init time - server may not advertise gzip\n")
+	} else {
+		fmt.Printf("[gRPC] SUCCESS: gzip compressor registered at package init time - server will advertise gzip\n")
+	}
+}
+
 type Server struct {
 	eventcontracts.UnimplementedEventsServiceServer
 	dispatchercontracts.UnimplementedDispatcherServer
