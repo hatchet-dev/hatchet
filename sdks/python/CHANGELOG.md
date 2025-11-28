@@ -5,6 +5,16 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.4] - 2025-11-28
+
+### Added
+
+- Adds support for dynamic rate limits using CEL expressions (strings) for the `limit` parameter.
+
+### Fixed
+
+- Fixes a bug where string-based CEL expressions for `limit` were rejected due to the validation logic.
+
 ## [1.21.2] - 2025-11-13
 
 ### Added
