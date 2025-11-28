@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { CookieIcon } from "@radix-ui/react-icons";
@@ -23,29 +23,37 @@ export default function CookieConsent({
   const [hide, setHide] = useState(false);
   const [consentGiven, setConsentGiven] = useState("");
 
-  const accept = () => {
+  const accept = useCallback(() => {
     setIsOpen(false);
+    // eslint-disable-next-line no-restricted-syntax
     document.cookie =
       "cookieConsent=true; expires=Fri, 31 Dec 9999 23:59:59 GMT";
 
     localStorage.setItem("cookie_consent", "yes");
     setConsentGiven("yes");
 
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new Event("cookie-consent-change"));
+
     setTimeout(() => {
       setHide(true);
     }, 700);
     onAcceptCallback();
-  };
+  }, [onAcceptCallback]);
 
-  const decline = () => {
+  const decline = useCallback(() => {
     setIsOpen(false);
     localStorage.setItem("cookie_consent", "no");
     setConsentGiven("no");
+
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new Event("cookie-consent-change"));
+
     setTimeout(() => {
       setHide(true);
     }, 700);
     onDeclineCallback();
-  };
+  }, [onDeclineCallback]);
 
   useEffect(() => {
     try {
@@ -70,9 +78,9 @@ export default function CookieConsent({
         }
       }
     } catch (e) {
-      // console.log("Error: ", e);
+      console.error("Error checking cookie consent:", e);
     }
-  }, []);
+  }, [accept, demo]);
 
   useEffect(() => {
     const consented = consentGiven === "yes";
