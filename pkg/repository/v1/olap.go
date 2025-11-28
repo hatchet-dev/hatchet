@@ -266,6 +266,10 @@ type OLAPRepository interface {
 	StatusUpdateBatchSizeLimits() StatusUpdateBatchSizeLimits
 
 	ListWorkflowRunExternalIds(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]pgtype.UUID, error)
+
+	CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error)
+	CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error)
+	ListYesterdayRunCountsByStatus(ctx context.Context) (map[sqlcv1.V1ReadableStatusOlap]int64, error)
 }
 
 type StatusUpdateBatchSizeLimits struct {
@@ -2694,4 +2698,28 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 
 func (r *OLAPRepositoryImpl) StatusUpdateBatchSizeLimits() StatusUpdateBatchSizeLimits {
 	return r.statusUpdateBatchSizeLimits
+}
+
+func (r *OLAPRepositoryImpl) CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error) {
+	return r.queries.CountOLAPTempTableSizeForDAGStatusUpdates(ctx, r.readPool)
+}
+
+func (r *OLAPRepositoryImpl) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error) {
+	return r.queries.CountOLAPTempTableSizeForTaskStatusUpdates(ctx, r.readPool)
+}
+
+func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context) (map[sqlcv1.V1ReadableStatusOlap]int64, error) {
+	rows, err := r.queries.ListYesterdayRunCountsByStatus(ctx, r.readPool)
+
+	if err != nil {
+		return nil, err
+	}
+
+	statusToCount := make(map[sqlcv1.V1ReadableStatusOlap]int64)
+
+	for _, row := range rows {
+		statusToCount[row.ReadableStatus] = row.Count
+	}
+
+	return statusToCount, nil
 }

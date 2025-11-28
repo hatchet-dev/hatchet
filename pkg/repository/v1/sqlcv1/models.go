@@ -7,6 +7,7 @@ package sqlcv1
 import (
 	"database/sql/driver"
 	"fmt"
+	"net/netip"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -2473,6 +2474,102 @@ type MessageQueueItem struct {
 	ExpiresAt pgtype.Timestamp       `json:"expiresAt"`
 	QueueId   pgtype.Text            `json:"queueId"`
 	Status    MessageQueueItemStatus `json:"status"`
+}
+
+type PgAvailableExtensions struct {
+	Name             pgtype.Text `json:"name"`
+	DefaultVersion   pgtype.Text `json:"default_version"`
+	InstalledVersion pgtype.Text `json:"installed_version"`
+	Comment          pgtype.Text `json:"comment"`
+}
+
+type PgStatActivity struct {
+	Pid             pgtype.Int4        `json:"pid"`
+	Usename         pgtype.Text        `json:"usename"`
+	ApplicationName pgtype.Text        `json:"application_name"`
+	ClientAddr      *netip.Addr        `json:"client_addr"`
+	State           pgtype.Text        `json:"state"`
+	QueryStart      pgtype.Timestamptz `json:"query_start"`
+	WaitEventType   pgtype.Text        `json:"wait_event_type"`
+	WaitEvent       pgtype.Text        `json:"wait_event"`
+	Query           pgtype.Text        `json:"query"`
+}
+
+type PgStatProgressVacuum struct {
+	Pid              pgtype.Int4   `json:"pid"`
+	Datid            pgtype.Uint32 `json:"datid"`
+	Datname          pgtype.Text   `json:"datname"`
+	Relid            pgtype.Uint32 `json:"relid"`
+	Phase            pgtype.Text   `json:"phase"`
+	HeapBlksTotal    pgtype.Int8   `json:"heap_blks_total"`
+	HeapBlksScanned  pgtype.Int8   `json:"heap_blks_scanned"`
+	HeapBlksVacuumed pgtype.Int8   `json:"heap_blks_vacuumed"`
+	HeapBlksFrozen   pgtype.Int8   `json:"heap_blks_frozen"`
+	IndexVacuumCount pgtype.Int8   `json:"index_vacuum_count"`
+	MaxDeadTuples    pgtype.Int8   `json:"max_dead_tuples"`
+	NumDeadTuples    pgtype.Int8   `json:"num_dead_tuples"`
+}
+
+type PgStatStatements struct {
+	Userid            pgtype.Uint32 `json:"userid"`
+	Dbid              pgtype.Uint32 `json:"dbid"`
+	Queryid           pgtype.Int8   `json:"queryid"`
+	Query             pgtype.Text   `json:"query"`
+	Calls             pgtype.Int8   `json:"calls"`
+	TotalExecTime     pgtype.Float8 `json:"total_exec_time"`
+	Rows              pgtype.Int8   `json:"rows"`
+	SharedBlksHit     pgtype.Int8   `json:"shared_blks_hit"`
+	SharedBlksRead    pgtype.Int8   `json:"shared_blks_read"`
+	SharedBlksDirtied pgtype.Int8   `json:"shared_blks_dirtied"`
+	SharedBlksWritten pgtype.Int8   `json:"shared_blks_written"`
+	LocalBlksHit      pgtype.Int8   `json:"local_blks_hit"`
+	LocalBlksRead     pgtype.Int8   `json:"local_blks_read"`
+	LocalBlksDirtied  pgtype.Int8   `json:"local_blks_dirtied"`
+	LocalBlksWritten  pgtype.Int8   `json:"local_blks_written"`
+	TempBlksRead      pgtype.Int8   `json:"temp_blks_read"`
+	TempBlksWritten   pgtype.Int8   `json:"temp_blks_written"`
+	BlkReadTime       pgtype.Float8 `json:"blk_read_time"`
+	BlkWriteTime      pgtype.Float8 `json:"blk_write_time"`
+}
+
+type PgStatUserTables struct {
+	Relid            pgtype.Uint32      `json:"relid"`
+	Schemaname       pgtype.Text        `json:"schemaname"`
+	Relname          pgtype.Text        `json:"relname"`
+	SeqScan          pgtype.Int8        `json:"seq_scan"`
+	SeqTupRead       pgtype.Int8        `json:"seq_tup_read"`
+	IdxScan          pgtype.Int8        `json:"idx_scan"`
+	IdxTupFetch      pgtype.Int8        `json:"idx_tup_fetch"`
+	NTupIns          pgtype.Int8        `json:"n_tup_ins"`
+	NTupUpd          pgtype.Int8        `json:"n_tup_upd"`
+	NTupDel          pgtype.Int8        `json:"n_tup_del"`
+	NTupHotUpd       pgtype.Int8        `json:"n_tup_hot_upd"`
+	NLiveTup         pgtype.Int8        `json:"n_live_tup"`
+	NDeadTup         pgtype.Int8        `json:"n_dead_tup"`
+	NModSinceAnalyze pgtype.Int8        `json:"n_mod_since_analyze"`
+	NInsSinceVacuum  pgtype.Int8        `json:"n_ins_since_vacuum"`
+	VacuumCount      pgtype.Int8        `json:"vacuum_count"`
+	AutovacuumCount  pgtype.Int8        `json:"autovacuum_count"`
+	AnalyzeCount     pgtype.Int8        `json:"analyze_count"`
+	AutoanalyzeCount pgtype.Int8        `json:"autoanalyze_count"`
+	LastVacuum       pgtype.Timestamptz `json:"last_vacuum"`
+	LastAutovacuum   pgtype.Timestamptz `json:"last_autovacuum"`
+	LastAnalyze      pgtype.Timestamptz `json:"last_analyze"`
+	LastAutoanalyze  pgtype.Timestamptz `json:"last_autoanalyze"`
+}
+
+type PgStatioUserTables struct {
+	Relid         pgtype.Uint32 `json:"relid"`
+	Schemaname    pgtype.Text   `json:"schemaname"`
+	Relname       pgtype.Text   `json:"relname"`
+	HeapBlksRead  pgtype.Int8   `json:"heap_blks_read"`
+	HeapBlksHit   pgtype.Int8   `json:"heap_blks_hit"`
+	IdxBlksRead   pgtype.Int8   `json:"idx_blks_read"`
+	IdxBlksHit    pgtype.Int8   `json:"idx_blks_hit"`
+	ToastBlksRead pgtype.Int8   `json:"toast_blks_read"`
+	ToastBlksHit  pgtype.Int8   `json:"toast_blks_hit"`
+	TidxBlksRead  pgtype.Int8   `json:"tidx_blks_read"`
+	TidxBlksHit   pgtype.Int8   `json:"tidx_blks_hit"`
 }
 
 type Queue struct {
