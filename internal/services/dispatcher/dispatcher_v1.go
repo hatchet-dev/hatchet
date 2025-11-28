@@ -374,6 +374,29 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 						}
 
 						if success {
+							now := time.Now().UTC()
+
+							msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
+								task.TenantID.String(),
+								tasktypesv1.CreateMonitoringEventPayload{
+									TaskId:         task.ID,
+									RetryCount:     task.RetryCount,
+									WorkerId:       &workerId,
+									EventType:      sqlcv1.V1EventTypeOlapSENTTOWORKER,
+									EventTimestamp: now,
+									EventMessage:   "Sent task run to the assigned worker",
+								},
+							)
+
+							if err != nil {
+								multiErr = multierror.Append(
+									multiErr,
+									fmt.Errorf("could not create monitoring event for task %d: %w", task.ID, err),
+								)
+							}
+
+							defer d.pubBuffer.Pub(ctx, msgqueuev1.OLAP_QUEUE, msg, false)
+
 							return nil
 						}
 
