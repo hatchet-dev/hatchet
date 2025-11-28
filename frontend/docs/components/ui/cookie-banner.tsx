@@ -77,8 +77,8 @@ export default function CookieConsent({
           }, 700);
         }
       }
-    } catch {
-      // Silently handle errors during initialization
+    } catch (e) {
+      console.error("Error checking cookie consent:", e);
     }
   }, [accept, demo]);
 
