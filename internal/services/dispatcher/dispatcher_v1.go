@@ -374,8 +374,6 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 						}
 
 						if success {
-							now := time.Now().UTC()
-
 							msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
 								task.TenantID.String(),
 								tasktypesv1.CreateMonitoringEventPayload{
@@ -383,7 +381,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 									RetryCount:     task.RetryCount,
 									WorkerId:       &workerId,
 									EventType:      sqlcv1.V1EventTypeOlapSENTTOWORKER,
-									EventTimestamp: now,
+									EventTimestamp: time.Now().UTC(),
 									EventMessage:   "Sent task run to the assigned worker",
 								},
 							)
