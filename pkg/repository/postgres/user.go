@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -190,7 +189,7 @@ func (r *userRepository) ListTenantMemberships(ctx context.Context, userId strin
 		return nil, err
 	}
 
-	ids := make([]pgtype.UUID, len(memberships))
+	ids := make([]uuid.UUID, len(memberships))
 
 	for i, m := range memberships {
 		ids[i] = m.ID

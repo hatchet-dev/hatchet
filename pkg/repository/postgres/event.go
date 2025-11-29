@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
@@ -37,7 +36,7 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 
 	res := &repository.ListEventResult{}
 
-	pgTenantId := &pgtype.UUID{}
+	pgTenantId := &uuid.UUID{}
 
 	if err := pgTenantId.Scan(tenantId); err != nil {
 		return nil, err
@@ -52,8 +51,8 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 	}
 
 	if opts.Ids != nil {
-		queryParams.EventIds = make([]pgtype.UUID, len(opts.Ids))
-		countParams.EventIds = make([]pgtype.UUID, len(opts.Ids))
+		queryParams.EventIds = make([]uuid.UUID, len(opts.Ids))
+		countParams.EventIds = make([]uuid.UUID, len(opts.Ids))
 
 		for i := range opts.Ids {
 			queryParams.EventIds[i] = sqlchelpers.UUIDFromStr(opts.Ids[i])
@@ -172,7 +171,7 @@ func (r *eventAPIRepository) GetEventById(ctx context.Context, id string) (*dbsq
 }
 
 func (r *eventAPIRepository) ListEventsById(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.Event, error) {
-	pgIds := make([]pgtype.UUID, len(ids))
+	pgIds := make([]uuid.UUID, len(ids))
 
 	for i, id := range ids {
 		pgIds[i] = sqlchelpers.UUIDFromStr(id)
@@ -224,7 +223,7 @@ func (r *eventEngineRepository) createEventKeys(ctx context.Context, tx pgx.Tx, 
 }) error {
 
 	eventKeys := make([]string, 0)
-	eventKeysTenantIds := make([]pgtype.UUID, 0)
+	eventKeysTenantIds := make([]uuid.UUID, 0)
 
 	for _, eventKey := range keys {
 		cacheKey := fmt.Sprintf("%s-%s", eventKey.tenantId, eventKey.key)
@@ -312,7 +311,7 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 			return nil, nil, err
 		}
 		params := make([]dbsqlc.CreateEventsParams, len(opts.Events))
-		ids := make([]pgtype.UUID, len(opts.Events))
+		ids := make([]uuid.UUID, len(opts.Events))
 
 		uniqueEventKeys := make(map[string]struct {
 			key      string
@@ -420,7 +419,7 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 		}
 	}
 	params := make([]dbsqlc.CreateEventsParams, len(opts))
-	ids := make([]pgtype.UUID, len(opts))
+	ids := make([]uuid.UUID, len(opts))
 
 	for i, event := range opts {
 
@@ -494,7 +493,7 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 }
 
 func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.Event, error) {
-	pgIds := make([]pgtype.UUID, len(ids))
+	pgIds := make([]uuid.UUID, len(ids))
 
 	for i, id := range ids {
 		if err := pgIds[i].Scan(id); err != nil {

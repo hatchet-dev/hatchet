@@ -8,6 +8,7 @@ package dbsqlc
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -43,8 +44,8 @@ type CreateWebhookWorkerParams struct {
 	Name       string      `json:"name"`
 	Secret     string      `json:"secret"`
 	Url        string      `json:"url"`
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	TokenId    pgtype.UUID `json:"tokenId"`
+	Tenantid   uuid.UUID   `json:"tenantid"`
+	TokenId    uuid.UUID   `json:"tokenId"`
 	TokenValue pgtype.Text `json:"tokenValue"`
 	Deleted    pgtype.Bool `json:"deleted"`
 }
@@ -81,7 +82,7 @@ FROM "WebhookWorker"
 WHERE "id" = $1::uuid
 `
 
-func (q *Queries) GetWebhookWorkerByID(ctx context.Context, db DBTX, id pgtype.UUID) (*WebhookWorker, error) {
+func (q *Queries) GetWebhookWorkerByID(ctx context.Context, db DBTX, id uuid.UUID) (*WebhookWorker, error) {
 	row := db.QueryRow(ctx, getWebhookWorkerByID, id)
 	var i WebhookWorker
 	err := row.Scan(
@@ -107,8 +108,8 @@ WHERE
 `
 
 type HardDeleteWebhookWorkerParams struct {
-	ID       pgtype.UUID `json:"id"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) HardDeleteWebhookWorker(ctx context.Context, db DBTX, arg HardDeleteWebhookWorkerParams) error {
@@ -139,7 +140,7 @@ INSERT INTO "WebhookWorkerRequest" (
 `
 
 type InsertWebhookWorkerRequestParams struct {
-	Webhookworkerid pgtype.UUID                `json:"webhookworkerid"`
+	Webhookworkerid uuid.UUID                  `json:"webhookworkerid"`
 	Method          WebhookWorkerRequestMethod `json:"method"`
 	Statuscode      int32                      `json:"statuscode"`
 }
@@ -155,7 +156,7 @@ FROM "WebhookWorker"
 WHERE "tenantId" = $1::uuid AND "deleted" = false
 `
 
-func (q *Queries) ListActiveWebhookWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*WebhookWorker, error) {
+func (q *Queries) ListActiveWebhookWorkers(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*WebhookWorker, error) {
 	rows, err := db.Query(ctx, listActiveWebhookWorkers, tenantid)
 	if err != nil {
 		return nil, err
@@ -194,7 +195,7 @@ ORDER BY "createdAt" DESC
 LIMIT 50
 `
 
-func (q *Queries) ListWebhookWorkerRequests(ctx context.Context, db DBTX, webhookworkerid pgtype.UUID) ([]*WebhookWorkerRequest, error) {
+func (q *Queries) ListWebhookWorkerRequests(ctx context.Context, db DBTX, webhookworkerid uuid.UUID) ([]*WebhookWorkerRequest, error) {
 	rows, err := db.Query(ctx, listWebhookWorkerRequests, webhookworkerid)
 	if err != nil {
 		return nil, err
@@ -284,8 +285,8 @@ WHERE
 `
 
 type SoftDeleteWebhookWorkerParams struct {
-	ID       pgtype.UUID `json:"id"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) SoftDeleteWebhookWorker(ctx context.Context, db DBTX, arg SoftDeleteWebhookWorkerParams) error {
@@ -307,9 +308,9 @@ RETURNING id, "createdAt", "updatedAt", name, secret, url, "tokenValue", deleted
 
 type UpdateWebhookWorkerTokenParams struct {
 	TokenValue pgtype.Text `json:"tokenValue"`
-	TokenId    pgtype.UUID `json:"tokenId"`
-	ID         pgtype.UUID `json:"id"`
-	Tenantid   pgtype.UUID `json:"tenantid"`
+	TokenId    uuid.UUID   `json:"tokenId"`
+	ID         uuid.UUID   `json:"id"`
+	Tenantid   uuid.UUID   `json:"tenantid"`
 }
 
 func (q *Queries) UpdateWebhookWorkerToken(ctx context.Context, db DBTX, arg UpdateWebhookWorkerTokenParams) (*WebhookWorker, error) {

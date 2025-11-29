@@ -8,6 +8,7 @@ package dbsqlc
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -47,7 +48,7 @@ RETURNING
 `
 
 type ClearEventPayloadDataParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Limit    interface{} `json:"limit"`
 }
 
@@ -112,14 +113,14 @@ FROM
 `
 
 type CountEventsParams struct {
-	TenantId           pgtype.UUID   `json:"tenantId"`
-	EventIds           []pgtype.UUID `json:"event_ids"`
-	Keys               []string      `json:"keys"`
-	AdditionalMetadata []byte        `json:"additionalMetadata"`
-	Workflows          []string      `json:"workflows"`
-	Search             pgtype.Text   `json:"search"`
-	Statuses           []string      `json:"statuses"`
-	Orderby            interface{}   `json:"orderby"`
+	TenantId           uuid.UUID   `json:"tenantId"`
+	EventIds           []uuid.UUID `json:"event_ids"`
+	Keys               []string    `json:"keys"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	Workflows          []string    `json:"workflows"`
+	Search             pgtype.Text `json:"search"`
+	Statuses           []string    `json:"statuses"`
+	Orderby            interface{} `json:"orderby"`
 }
 
 func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParams) (int64, error) {
@@ -163,13 +164,13 @@ INSERT INTO "Event" (
 `
 
 type CreateEventParams struct {
-	ID                 pgtype.UUID      `json:"id"`
+	ID                 uuid.UUID        `json:"id"`
 	CreatedAt          pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
 	Deletedat          pgtype.Timestamp `json:"deletedat"`
 	Key                string           `json:"key"`
-	Tenantid           pgtype.UUID      `json:"tenantid"`
-	ReplayedFromId     pgtype.UUID      `json:"replayedFromId"`
+	Tenantid           uuid.UUID        `json:"tenantid"`
+	ReplayedFromId     uuid.UUID        `json:"replayedFromId"`
 	Data               []byte           `json:"data"`
 	Additionalmetadata []byte           `json:"additionalmetadata"`
 }
@@ -214,8 +215,8 @@ ON CONFLICT ("key", "tenantId") DO NOTHING
 `
 
 type CreateEventKeysParams struct {
-	Keys      []string      `json:"keys"`
-	Tenantids []pgtype.UUID `json:"tenantids"`
+	Keys      []string    `json:"keys"`
+	Tenantids []uuid.UUID `json:"tenantids"`
 }
 
 func (q *Queries) CreateEventKeys(ctx context.Context, db DBTX, arg CreateEventKeysParams) error {
@@ -224,10 +225,10 @@ func (q *Queries) CreateEventKeys(ctx context.Context, db DBTX, arg CreateEventK
 }
 
 type CreateEventsParams struct {
-	ID                 pgtype.UUID `json:"id"`
+	ID                 uuid.UUID   `json:"id"`
 	Key                string      `json:"key"`
-	TenantId           pgtype.UUID `json:"tenantId"`
-	ReplayedFromId     pgtype.UUID `json:"replayedFromId"`
+	TenantId           uuid.UUID   `json:"tenantId"`
+	ReplayedFromId     uuid.UUID   `json:"replayedFromId"`
 	Data               []byte      `json:"data"`
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
 	InsertOrder        pgtype.Int4 `json:"insertOrder"`
@@ -243,7 +244,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, id pgtype.UUID) (*Event, error) {
+func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, id uuid.UUID) (*Event, error) {
 	row := db.QueryRow(ctx, getEventForEngine, id)
 	var i Event
 	err := row.Scan(
@@ -307,7 +308,7 @@ WHERE "id" = ANY($1::uuid[])
 ORDER BY "insertOrder" ASC
 `
 
-func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX, ids []pgtype.UUID) ([]*Event, error) {
+func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX, ids []uuid.UUID) ([]*Event, error) {
 	rows, err := db.Query(ctx, getInsertedEvents, ids)
 	if err != nil {
 		return nil, err
@@ -348,7 +349,7 @@ WHERE
 ORDER BY "key" ASC
 `
 
-func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]string, error) {
+func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]string, error) {
 	rows, err := db.Query(ctx, listEventKeys, tenantid)
 	if err != nil {
 		return nil, err
@@ -459,16 +460,16 @@ ORDER BY
 `
 
 type ListEventsParams struct {
-	TenantId           pgtype.UUID   `json:"tenantId"`
-	Orderby            interface{}   `json:"orderby"`
-	EventIds           []pgtype.UUID `json:"event_ids"`
-	Keys               []string      `json:"keys"`
-	AdditionalMetadata []byte        `json:"additionalMetadata"`
-	Workflows          []string      `json:"workflows"`
-	Search             pgtype.Text   `json:"search"`
-	Statuses           []string      `json:"statuses"`
-	Offset             interface{}   `json:"offset"`
-	Limit              interface{}   `json:"limit"`
+	TenantId           uuid.UUID   `json:"tenantId"`
+	Orderby            interface{} `json:"orderby"`
+	EventIds           []uuid.UUID `json:"event_ids"`
+	Keys               []string    `json:"keys"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	Workflows          []string    `json:"workflows"`
+	Search             pgtype.Text `json:"search"`
+	Statuses           []string    `json:"statuses"`
+	Offset             interface{} `json:"offset"`
+	Limit              interface{} `json:"limit"`
 }
 
 type ListEventsRow struct {
@@ -541,8 +542,8 @@ WHERE
 `
 
 type ListEventsByIDsParams struct {
-	Tenantid pgtype.UUID   `json:"tenantid"`
-	Ids      []pgtype.UUID `json:"ids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Ids      []uuid.UUID `json:"ids"`
 }
 
 func (q *Queries) ListEventsByIDs(ctx context.Context, db DBTX, arg ListEventsByIDsParams) ([]*Event, error) {
@@ -612,7 +613,7 @@ RETURNING
 `
 
 type SoftDeleteExpiredEventsParams struct {
-	Tenantid      pgtype.UUID      `json:"tenantid"`
+	Tenantid      uuid.UUID        `json:"tenantid"`
 	Createdbefore pgtype.Timestamp `json:"createdbefore"`
 	Limit         interface{}      `json:"limit"`
 }

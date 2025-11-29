@@ -1,11 +1,11 @@
 package v0
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"sync"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"golang.org/x/sync/errgroup"
 
@@ -17,7 +17,7 @@ import (
 // messages to the relevant queuer.
 type tenantManager struct {
 	cf       *sharedConfig
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	scheduler *Scheduler
 	rl        *rateLimiter

@@ -1,6 +1,8 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"encoding/json"
 	"errors"
@@ -354,7 +356,7 @@ func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId str
 	}
 
 	if opts.WorkflowRunIds != nil {
-		listOpts.WorkflowRunIds = make([]pgtype.UUID, len(opts.WorkflowRunIds))
+		listOpts.WorkflowRunIds = make([]uuid.UUID, len(opts.WorkflowRunIds))
 
 		for i, id := range opts.WorkflowRunIds {
 			listOpts.WorkflowRunIds[i] = sqlchelpers.UUIDFromStr(id)
@@ -434,11 +436,11 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 		return nil, nil, err
 	}
 
-	stepRunIds := make([]pgtype.UUID, 0, len(results))
+	stepRunIds := make([]uuid.UUID, 0, len(results))
 	stepRunIdsStr := make([]string, 0, len(results))
-	workerIds := make([]pgtype.UUID, 0, len(results))
+	workerIds := make([]uuid.UUID, 0, len(results))
 
-	failedStepRunIds := make([]pgtype.UUID, 0, len(results))
+	failedStepRunIds := make([]uuid.UUID, 0, len(results))
 
 	for _, sr := range results {
 		if sr.Operation == "REASSIGNED" {
@@ -491,7 +493,7 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 
 func (s *stepRunEngineRepository) InternalRetryStepRuns(ctx context.Context, tenantId string, srIdsIn []string) ([]string, []*dbsqlc.GetStepRunForEngineRow, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-	stepRuns := make([]pgtype.UUID, 0, len(srIdsIn))
+	stepRuns := make([]uuid.UUID, 0, len(srIdsIn))
 
 	for _, id := range srIdsIn {
 		stepRuns = append(stepRuns, sqlchelpers.UUIDFromStr(id))
@@ -518,7 +520,7 @@ func (s *stepRunEngineRepository) InternalRetryStepRuns(ctx context.Context, ten
 
 	stepRunIdsStr := make([]string, 0, len(results))
 
-	failedStepRunIds := make([]pgtype.UUID, 0, len(results))
+	failedStepRunIds := make([]uuid.UUID, 0, len(results))
 
 	for _, sr := range results {
 		if sr.Operation == "FAILED" {
@@ -835,7 +837,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	batches := make([][]updateStepRunQueueData, s.updateConcurrentFactor)
-	completedStepRunIds := make([]pgtype.UUID, 0, len(data))
+	completedStepRunIds := make([]uuid.UUID, 0, len(data))
 
 	for _, item := range data {
 		batch := item.Hash % s.updateConcurrentFactor
@@ -857,8 +859,8 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 			failParams := dbsqlc.BulkFailStepRunParams{}
 			cancelParams := dbsqlc.BulkCancelStepRunParams{}
 			finishParams := dbsqlc.BulkFinishStepRunParams{}
-			backoffParams := []pgtype.UUID{}
-			batchStepRunIds := []pgtype.UUID{}
+			backoffParams := []uuid.UUID{}
+			batchStepRunIds := []uuid.UUID{}
 
 			for _, item := range batch {
 				stepRunId := sqlchelpers.UUIDFromStr(item.StepRunId)
@@ -956,9 +958,9 @@ func (s *stepRunEngineRepository) bulkProcessStepRunUpdates(ctx context.Context,
 	failParams dbsqlc.BulkFailStepRunParams,
 	cancelParams dbsqlc.BulkCancelStepRunParams,
 	finishParams dbsqlc.BulkFinishStepRunParams,
-	backoffParams []pgtype.UUID,
-	batchStepRunIds []pgtype.UUID,
-	pgTenantId pgtype.UUID,
+	backoffParams []uuid.UUID,
+	batchStepRunIds []uuid.UUID,
+	pgTenantId uuid.UUID,
 ) (completedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow, err error) {
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 25000)
@@ -1960,7 +1962,7 @@ func (s *stepRunEngineRepository) GetStepRunForEngine(ctx context.Context, tenan
 
 func (s *stepRunEngineRepository) getStepRunForEngineTx(ctx context.Context, dbtx dbsqlc.DBTX, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error) {
 	res, err := s.queries.GetStepRunForEngine(ctx, dbtx, dbsqlc.GetStepRunForEngineParams{
-		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(stepRunId)},
+		Ids:      []uuid.UUID{sqlchelpers.UUIDFromStr(stepRunId)},
 		TenantId: sqlchelpers.UUIDFromStr(tenantId),
 	})
 
@@ -1983,7 +1985,7 @@ func (s *stepRunEngineRepository) GetStepRunDataForEngine(ctx context.Context, t
 }
 
 func (s *stepRunEngineRepository) GetStepRunBulkDataForEngine(ctx context.Context, tenantId string, stepRunIds []string) ([]*dbsqlc.GetStepRunBulkDataForEngineRow, error) {
-	ids := make([]pgtype.UUID, len(stepRunIds))
+	ids := make([]uuid.UUID, len(stepRunIds))
 
 	for i, id := range stepRunIds {
 		ids[i] = sqlchelpers.UUIDFromStr(id)
@@ -2040,7 +2042,7 @@ func (s *stepRunEngineRepository) ListStartableStepRuns(ctx context.Context, ten
 
 	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
-	var srs []pgtype.UUID
+	var srs []uuid.UUID
 
 	if singleParent {
 		srs, err = s.queries.ListStartableStepRunsSingleParent(ctx, tx, sqlchelpers.UUIDFromStr(parentStepRunId))
@@ -2208,7 +2210,7 @@ func bulkInsertInternalQueueItem(
 	ctx context.Context,
 	dbtx dbsqlc.DBTX,
 	queries *dbsqlc.Queries,
-	tenantIds []pgtype.UUID,
+	tenantIds []uuid.UUID,
 	queues []dbsqlc.InternalQueue,
 	data []any,
 ) error {
@@ -2244,8 +2246,8 @@ func bulkInsertInternalQueueItem(
 	return nil
 }
 
-func hashToBucket(id pgtype.UUID, buckets int) int {
+func hashToBucket(id uuid.UUID, buckets int) int {
 	hasher := fnv.New32a()
-	hasher.Write(id.Bytes[:])
+	hasher.Write(id[:])
 	return int(hasher.Sum32()) % buckets
 }

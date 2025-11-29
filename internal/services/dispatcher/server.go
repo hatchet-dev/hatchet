@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	telemetry_codes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -92,7 +91,7 @@ func (worker *subscribedWorker) StartStepRun(
 		action.ChildWorkflowKey = &stepRunData.ChildKey.String
 	}
 
-	if stepRunData.ParentId.Valid {
+	if stepRunData.ParentId != uuid.Nil {
 		parentId := sqlchelpers.UUIDToStr(stepRunData.ParentId)
 		action.ParentWorkflowRunId = &parentId
 	}
@@ -148,7 +147,7 @@ func (worker *subscribedWorker) StartStepRunFromBulk(
 		action.ChildWorkflowKey = &stepRun.ChildKey.String
 	}
 
-	if stepRun.ParentId.Valid {
+	if stepRun.ParentId != uuid.Nil {
 		parentId := sqlchelpers.UUIDToStr(stepRun.ParentId)
 		action.ParentWorkflowRunId = &parentId
 	}
@@ -295,7 +294,7 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 	}, nil
 }
 
-func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId pgtype.UUID, request map[string]*contracts.WorkerLabels) ([]*dbsqlc.WorkerLabel, error) {
+func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, request map[string]*contracts.WorkerLabels) ([]*dbsqlc.WorkerLabel, error) {
 	affinities := make([]repository.UpsertWorkerLabelOpts, 0, len(request))
 
 	for key, config := range request {
@@ -340,7 +339,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		return err
 	}
 
-	shouldUpdateDispatcherId := !worker.DispatcherId.Valid || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == uuid.Nil || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
@@ -443,7 +442,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		return err
 	}
 
-	shouldUpdateDispatcherId := !worker.DispatcherId.Valid || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == uuid.Nil || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
@@ -1890,7 +1889,7 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 	for _, workflowRun := range workflowRuns {
 		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID))
 
-		if workflowRun.WorkflowVersion.OnFailureJobId.Valid {
+		if workflowRun.WorkflowVersion.OnFailureJobId != uuid.Nil {
 			workflowRunToOnFailureJobIds[sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)] = sqlchelpers.UUIDToStr(workflowRun.WorkflowVersion.OnFailureJobId)
 		}
 	}

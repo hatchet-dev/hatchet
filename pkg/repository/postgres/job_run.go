@@ -1,11 +1,12 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -22,9 +23,9 @@ func NewJobRunAPIRepository(shared *sharedRepository) repository.JobRunAPIReposi
 	}
 }
 
-func (j *jobRunAPIRepository) RegisterWorkflowRunRunningCallback(callback repository.TenantScopedCallback[pgtype.UUID]) {
+func (j *jobRunAPIRepository) RegisterWorkflowRunRunningCallback(callback repository.TenantScopedCallback[uuid.UUID]) {
 	if j.wrRunningCallbacks == nil {
-		j.wrRunningCallbacks = make([]repository.TenantScopedCallback[pgtype.UUID], 0)
+		j.wrRunningCallbacks = make([]repository.TenantScopedCallback[uuid.UUID], 0)
 	}
 
 	j.wrRunningCallbacks = append(j.wrRunningCallbacks, callback)
@@ -64,9 +65,9 @@ func NewJobRunEngineRepository(shared *sharedRepository) repository.JobRunEngine
 	}
 }
 
-func (j *jobRunEngineRepository) RegisterWorkflowRunRunningCallback(callback repository.TenantScopedCallback[pgtype.UUID]) {
+func (j *jobRunEngineRepository) RegisterWorkflowRunRunningCallback(callback repository.TenantScopedCallback[uuid.UUID]) {
 	if j.wrRunningCallbacks == nil {
-		j.wrRunningCallbacks = make([]repository.TenantScopedCallback[pgtype.UUID], 0)
+		j.wrRunningCallbacks = make([]repository.TenantScopedCallback[uuid.UUID], 0)
 	}
 
 	j.wrRunningCallbacks = append(j.wrRunningCallbacks, callback)
@@ -134,7 +135,7 @@ func (j *jobRunEngineRepository) GetJobRunsByWorkflowRunId(ctx context.Context, 
 	})
 }
 
-func (s *sharedRepository) setJobRunStatusRunning(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) (*pgtype.UUID, error) {
+func (s *sharedRepository) setJobRunStatusRunning(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) (*uuid.UUID, error) {
 
 	jobRun, err := s.queries.UpdateJobRunStatus(context.Background(), tx, dbsqlc.UpdateJobRunStatusParams{
 		ID:       sqlchelpers.UUIDFromStr(jobRunId),

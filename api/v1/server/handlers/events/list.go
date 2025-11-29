@@ -1,6 +1,8 @@
 package events
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"encoding/json"
 	"fmt"
@@ -163,7 +165,7 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 		}
 
 		if request.Params.Workflows != nil {
-			workflowIds := make([]pgtype.UUID, len(*request.Params.Workflows))
+			workflowIds := make([]uuid.UUID, len(*request.Params.Workflows))
 
 			for i, workflowId := range *request.Params.Workflows {
 				workflowIds[i] = sqlchelpers.UUIDFromStr(workflowId)
@@ -181,7 +183,7 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 		}
 
 		if request.Params.EventIds != nil {
-			eventIds := make([]pgtype.UUID, len(*request.Params.EventIds))
+			eventIds := make([]uuid.UUID, len(*request.Params.EventIds))
 			for i, eventId := range *request.Params.EventIds {
 				eventIds[i] = sqlchelpers.UUIDFromStr(eventId.String())
 			}

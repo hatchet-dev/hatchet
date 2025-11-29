@@ -1,12 +1,13 @@
 package v1
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"math/rand"
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
@@ -23,7 +24,7 @@ const rateLimitedRequeueAfterThreshold = 2 * time.Second
 // This is tenant-scoped, so each tenant will have its own scheduler.
 type Scheduler struct {
 	repo     v1.AssignmentRepository
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	l *zerolog.Logger
 
@@ -46,7 +47,7 @@ type Scheduler struct {
 	exts *Extensions
 }
 
-func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
+func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
 	l := cf.l.With().Str("tenant_id", sqlchelpers.UUIDToStr(tenantId)).Logger()
 
 	return &Scheduler{
@@ -137,7 +138,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	s.l.Debug().Msg("replenishing slots")
 
 	workers := s.getWorkers()
-	workerIds := make([]pgtype.UUID, 0)
+	workerIds := make([]uuid.UUID, 0)
 
 	for workerIdStr := range workers {
 		workerIds = append(workerIds, sqlchelpers.UUIDFromStr(workerIdStr))
@@ -251,7 +252,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 	}
 
-	workerUUIDs := make([]pgtype.UUID, 0, len(uniqueWorkerIds))
+	workerUUIDs := make([]uuid.UUID, 0, len(uniqueWorkerIds))
 
 	for workerId := range uniqueWorkerIds {
 		workerUUIDs = append(workerUUIDs, sqlchelpers.UUIDFromStr(workerId))
@@ -445,7 +446,7 @@ func (s *scheduleRateLimitResult) shouldRemoveFromQueue() bool {
 type assignSingleResult struct {
 	qi *sqlcv1.V1QueueItem
 
-	workerId pgtype.UUID
+	workerId uuid.UUID
 	ackId    int
 
 	noSlots   bool
@@ -679,7 +680,7 @@ func (s *Scheduler) tryAssignSingleton(
 
 type assignedQueueItem struct {
 	AckId    int
-	WorkerId pgtype.UUID
+	WorkerId uuid.UUID
 
 	QueueItem *sqlcv1.V1QueueItem
 }

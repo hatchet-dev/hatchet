@@ -1,6 +1,8 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"encoding/json"
 	"fmt"
@@ -26,14 +28,14 @@ func newQueueFactoryRepository(shared *sharedRepository) *queueFactoryRepository
 	}
 }
 
-func (q *queueFactoryRepository) NewQueue(tenantId pgtype.UUID, queueName string) repository.QueueRepository {
+func (q *queueFactoryRepository) NewQueue(tenantId uuid.UUID, queueName string) repository.QueueRepository {
 	return newQueueRepository(q.sharedRepository, tenantId, queueName)
 }
 
 type queueRepository struct {
 	*sharedRepository
 
-	tenantId  pgtype.UUID
+	tenantId  uuid.UUID
 	queueName string
 
 	gtId   pgtype.Int8
@@ -44,7 +46,7 @@ type queueRepository struct {
 	cachedStepIdHasRateLimit *cache.Cache
 }
 
-func newQueueRepository(shared *sharedRepository, tenantId pgtype.UUID, queueName string) *queueRepository {
+func newQueueRepository(shared *sharedRepository, tenantId uuid.UUID, queueName string) *queueRepository {
 	c := cache.New(5 * time.Minute)
 
 	return &queueRepository{
@@ -203,8 +205,8 @@ func (s *queueRepository) removeInvalidStepRuns(ctx context.Context, qis []*dbsq
 func (s *queueRepository) bulkStepRunsAssigned(
 	tenantId string,
 	assignedAt time.Time,
-	stepRunIds []pgtype.UUID,
-	workerIds []pgtype.UUID,
+	stepRunIds []uuid.UUID,
+	workerIds []uuid.UUID,
 ) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -239,7 +241,7 @@ func (s *queueRepository) bulkStepRunsAssigned(
 		}
 	}
 
-	orderedWorkerIds := make([]pgtype.UUID, 0)
+	orderedWorkerIds := make([]uuid.UUID, 0)
 	assignedStepRuns := make([][]byte, 0)
 
 	for workerId, stepRunIds := range workerIdToStepRunIds {
@@ -260,7 +262,7 @@ func (s *queueRepository) bulkStepRunsAssigned(
 
 func (s *queueRepository) bulkStepRunsUnassigned(
 	tenantId string,
-	stepRunIds []pgtype.UUID,
+	stepRunIds []uuid.UUID,
 ) {
 	for _, stepRunId := range stepRunIds {
 		message := "No worker available"
@@ -361,8 +363,8 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *reposi
 	checkpoint = time.Now()
 
 	idsToUnqueue := make([]int64, len(r.Assigned))
-	stepRunIds := make([]pgtype.UUID, len(r.Assigned))
-	workerIds := make([]pgtype.UUID, len(r.Assigned))
+	stepRunIds := make([]uuid.UUID, len(r.Assigned))
+	workerIds := make([]uuid.UUID, len(r.Assigned))
 	stepTimeouts := make([]string, len(r.Assigned))
 
 	for i, assignedItem := range r.Assigned {
@@ -372,13 +374,13 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *reposi
 		stepTimeouts[i] = assignedItem.QueueItem.StepTimeout.String
 	}
 
-	unassignedStepRunIds := make([]pgtype.UUID, 0, len(r.Unassigned))
+	unassignedStepRunIds := make([]uuid.UUID, 0, len(r.Unassigned))
 
 	for _, id := range r.Unassigned {
 		unassignedStepRunIds = append(unassignedStepRunIds, id.StepRunId)
 	}
 
-	timedOutStepRuns := make([]pgtype.UUID, 0, len(r.SchedulingTimedOut))
+	timedOutStepRuns := make([]uuid.UUID, 0, len(r.SchedulingTimedOut))
 
 	for _, id := range r.SchedulingTimedOut {
 		idsToUnqueue = append(idsToUnqueue, id.ID)
@@ -421,8 +423,8 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *reposi
 		// if we committed, we can update the min id
 		d.updateMinId()
 
-		assignedStepRuns := make([]pgtype.UUID, len(updatedStepRuns))
-		assignedWorkerIds := make([]pgtype.UUID, len(updatedStepRuns))
+		assignedStepRuns := make([]uuid.UUID, len(updatedStepRuns))
+		assignedWorkerIds := make([]uuid.UUID, len(updatedStepRuns))
 
 		for i, row := range updatedStepRuns {
 			assignedStepRuns[i] = row.StepRunId
@@ -483,8 +485,8 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 	ctx, span := telemetry.NewSpan(ctx, "get-step-run-rate-limits")
 	defer span.End()
 
-	stepRunIds := make([]pgtype.UUID, 0, len(queueItems))
-	stepIds := make([]pgtype.UUID, 0, len(queueItems))
+	stepRunIds := make([]uuid.UUID, 0, len(queueItems))
+	stepIds := make([]uuid.UUID, 0, len(queueItems))
 	stepsWithRateLimits := make(map[string]bool)
 
 	for _, item := range queueItems {
@@ -673,7 +675,7 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 	}
 
 	// get all existing static rate limits for steps to the mapping, mapping back from step ids to step run ids
-	uniqueStepIds := make([]pgtype.UUID, 0, len(stepIdToStepRuns))
+	uniqueStepIds := make([]uuid.UUID, 0, len(stepIdToStepRuns))
 
 	for stepId := range stepIdToStepRuns {
 		uniqueStepIds = append(uniqueStepIds, sqlchelpers.UUIDFromStr(stepId))
@@ -711,7 +713,7 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 	return stepRunToKeyToUnits, nil
 }
 
-func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*dbsqlc.GetDesiredLabelsRow, error) {
+func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []uuid.UUID) (map[string][]*dbsqlc.GetDesiredLabelsRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
 	defer span.End()
 

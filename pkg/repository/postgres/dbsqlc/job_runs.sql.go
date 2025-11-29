@@ -8,6 +8,7 @@ package dbsqlc
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -49,7 +50,7 @@ RETURNING
 `
 
 type ClearJobRunLookupDataParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Limit    interface{} `json:"limit"`
 }
 
@@ -74,14 +75,14 @@ WHERE
 `
 
 type GetJobRunByWorkflowRunIdAndJobIdParams struct {
-	Tenantid      pgtype.UUID `json:"tenantid"`
-	Workflowrunid pgtype.UUID `json:"workflowrunid"`
-	Jobid         pgtype.UUID `json:"jobid"`
+	Tenantid      uuid.UUID `json:"tenantid"`
+	Workflowrunid uuid.UUID `json:"workflowrunid"`
+	Jobid         uuid.UUID `json:"jobid"`
 }
 
 type GetJobRunByWorkflowRunIdAndJobIdRow struct {
-	ID     pgtype.UUID  `json:"id"`
-	JobId  pgtype.UUID  `json:"jobId"`
+	ID     uuid.UUID    `json:"id"`
+	JobId  uuid.UUID    `json:"jobId"`
 	Status JobRunStatus `json:"status"`
 }
 
@@ -106,13 +107,13 @@ WHERE
 `
 
 type GetJobRunsByWorkflowRunIdParams struct {
-	Workflowrunid pgtype.UUID `json:"workflowrunid"`
-	Tenantid      pgtype.UUID `json:"tenantid"`
+	Workflowrunid uuid.UUID `json:"workflowrunid"`
+	Tenantid      uuid.UUID `json:"tenantid"`
 }
 
 type GetJobRunsByWorkflowRunIdRow struct {
-	ID     pgtype.UUID  `json:"id"`
-	JobId  pgtype.UUID  `json:"jobId"`
+	ID     uuid.UUID    `json:"id"`
+	JobId  uuid.UUID    `json:"jobId"`
 	Status JobRunStatus `json:"status"`
 }
 
@@ -147,11 +148,11 @@ WHERE
 `
 
 type ListJobRunsForWorkflowRunRow struct {
-	ID    pgtype.UUID `json:"id"`
-	JobId pgtype.UUID `json:"jobId"`
+	ID    uuid.UUID `json:"id"`
+	JobId uuid.UUID `json:"jobId"`
 }
 
-func (q *Queries) ListJobRunsForWorkflowRun(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) ([]*ListJobRunsForWorkflowRunRow, error) {
+func (q *Queries) ListJobRunsForWorkflowRun(ctx context.Context, db DBTX, workflowrunid uuid.UUID) ([]*ListJobRunsForWorkflowRunRow, error) {
 	rows, err := db.Query(ctx, listJobRunsForWorkflowRun, workflowrunid)
 	if err != nil {
 		return nil, err
@@ -193,18 +194,18 @@ WHERE jr."workflowRunId" = $1::uuid
 `
 
 type ListJobRunsForWorkflowRunFullParams struct {
-	Workflowrunid pgtype.UUID `json:"workflowrunid"`
-	Tenantid      pgtype.UUID `json:"tenantid"`
+	Workflowrunid uuid.UUID `json:"workflowrunid"`
+	Tenantid      uuid.UUID `json:"tenantid"`
 }
 
 type ListJobRunsForWorkflowRunFullRow struct {
-	ID              pgtype.UUID      `json:"id"`
+	ID              uuid.UUID        `json:"id"`
 	CreatedAt       pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
 	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	TenantId        pgtype.UUID      `json:"tenantId"`
-	JobId           pgtype.UUID      `json:"jobId"`
-	TickerId        pgtype.UUID      `json:"tickerId"`
+	TenantId        uuid.UUID        `json:"tenantId"`
+	JobId           uuid.UUID        `json:"jobId"`
+	TickerId        uuid.UUID        `json:"tickerId"`
 	Status          JobRunStatus     `json:"status"`
 	Result          []byte           `json:"result"`
 	StartedAt       pgtype.Timestamp `json:"startedAt"`
@@ -213,7 +214,7 @@ type ListJobRunsForWorkflowRunFullRow struct {
 	CancelledAt     pgtype.Timestamp `json:"cancelledAt"`
 	CancelledReason pgtype.Text      `json:"cancelledReason"`
 	CancelledError  pgtype.Text      `json:"cancelledError"`
-	WorkflowRunId   pgtype.UUID      `json:"workflowRunId"`
+	WorkflowRunId   uuid.UUID        `json:"workflowRunId"`
 	Job             Job              `json:"job"`
 }
 
@@ -321,15 +322,15 @@ WHERE
 RETURNING "JobRun"."id"
 `
 
-func (q *Queries) ResolveJobRunStatus(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]pgtype.UUID, error) {
+func (q *Queries) ResolveJobRunStatus(ctx context.Context, db DBTX, steprunids []uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, resolveJobRunStatus, steprunids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -380,9 +381,9 @@ WHERE
 `
 
 type UpdateJobRunLookupDataWithStepRunParams struct {
-	Jsondata  []byte      `json:"jsondata"`
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
+	Jsondata  []byte    `json:"jsondata"`
+	Steprunid uuid.UUID `json:"steprunid"`
+	Tenantid  uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) UpdateJobRunLookupDataWithStepRun(ctx context.Context, db DBTX, arg UpdateJobRunLookupDataWithStepRunParams) error {
@@ -399,8 +400,8 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobId", "ticke
 
 type UpdateJobRunStatusParams struct {
 	Status   JobRunStatus `json:"status"`
-	ID       pgtype.UUID  `json:"id"`
-	Tenantid pgtype.UUID  `json:"tenantid"`
+	ID       uuid.UUID    `json:"id"`
+	Tenantid uuid.UUID    `json:"tenantid"`
 }
 
 func (q *Queries) UpdateJobRunStatus(ctx context.Context, db DBTX, arg UpdateJobRunStatusParams) (*JobRun, error) {
@@ -451,10 +452,10 @@ SET
 `
 
 type UpsertJobRunLookupDataParams struct {
-	Jobrunid  pgtype.UUID `json:"jobrunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
-	Fieldpath []string    `json:"fieldpath"`
-	Jsondata  []byte      `json:"jsondata"`
+	Jobrunid  uuid.UUID `json:"jobrunid"`
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Fieldpath []string  `json:"fieldpath"`
+	Jsondata  []byte    `json:"jsondata"`
 }
 
 func (q *Queries) UpsertJobRunLookupData(ctx context.Context, db DBTX, arg UpsertJobRunLookupDataParams) error {

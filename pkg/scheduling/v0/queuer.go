@@ -1,13 +1,14 @@
 package v0
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"fmt"
 	"sort"
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -18,7 +19,7 @@ import (
 
 type Queuer struct {
 	repo      repository.QueueRepository
-	tenantId  pgtype.UUID
+	tenantId  uuid.UUID
 	queueName string
 
 	l *zerolog.Logger
@@ -46,7 +47,7 @@ type Queuer struct {
 	unassignedMu mutex
 }
 
-func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
+func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
 	defaultLimit := 100
 
 	if conf.singleQueueLimit > 0 {
@@ -164,7 +165,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		rateLimitTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		stepIds := make([]pgtype.UUID, 0, len(qis))
+		stepIds := make([]uuid.UUID, 0, len(qis))
 
 		for _, qi := range qis {
 			stepIds = append(stepIds, qi.StepId)
@@ -318,7 +319,7 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
 }
 
 type QueueResults struct {
-	TenantId pgtype.UUID
+	TenantId uuid.UUID
 	Assigned []*repository.AssignedItem
 
 	// A list of step run ids that were not assigned because they reached the scheduling

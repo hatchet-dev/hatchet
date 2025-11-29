@@ -1,12 +1,13 @@
 package v1
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -17,7 +18,7 @@ import (
 // messages to the relevant queuer.
 type tenantManager struct {
 	cf       *sharedConfig
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	scheduler *Scheduler
 	rl        *rateLimiter

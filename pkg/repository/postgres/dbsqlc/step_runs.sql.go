@@ -8,6 +8,7 @@ package dbsqlc
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -73,10 +74,10 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "stepRunId", "order", input
 `
 
 type ArchiveStepRunResultFromStepRunParams struct {
-	ID        pgtype.UUID `json:"id"`
+	ID        uuid.UUID   `json:"id"`
 	Error     pgtype.Text `json:"error"`
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
+	Steprunid uuid.UUID   `json:"steprunid"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
 }
 
 func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, arg ArchiveStepRunResultFromStepRunParams) (*StepRunResultArchive, error) {
@@ -123,7 +124,7 @@ FROM (
 WHERE sr."id" = upd."id"
 `
 
-func (q *Queries) BulkBackoffStepRun(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
+func (q *Queries) BulkBackoffStepRun(ctx context.Context, db DBTX, steprunids []uuid.UUID) error {
 	_, err := db.Exec(ctx, bulkBackoffStepRun, steprunids)
 	return err
 }
@@ -153,7 +154,7 @@ WHERE "StepRun"."id" = input."id"
 `
 
 type BulkCancelStepRunParams struct {
-	Steprunids       []pgtype.UUID      `json:"steprunids"`
+	Steprunids       []uuid.UUID        `json:"steprunids"`
 	Finishedats      []pgtype.Timestamp `json:"finishedats"`
 	Cancelledats     []pgtype.Timestamp `json:"cancelledats"`
 	Cancelledreasons []string           `json:"cancelledreasons"`
@@ -240,7 +241,7 @@ WHERE NOT EXISTS (
 
 type BulkCreateStepRunEventParams struct {
 	Timeseen   []pgtype.Timestamp `json:"timeseen"`
-	Steprunids []pgtype.UUID      `json:"steprunids"`
+	Steprunids []uuid.UUID        `json:"steprunids"`
 	Reasons    []string           `json:"reasons"`
 	Severities []string           `json:"severities"`
 	Messages   []string           `json:"messages"`
@@ -281,7 +282,7 @@ WHERE
 `
 
 type BulkFailStepRunParams struct {
-	Steprunids  []pgtype.UUID      `json:"steprunids"`
+	Steprunids  []uuid.UUID        `json:"steprunids"`
 	Finishedats []pgtype.Timestamp `json:"finishedats"`
 	Errors      []string           `json:"errors"`
 }
@@ -312,7 +313,7 @@ WHERE
 `
 
 type BulkFinishStepRunParams struct {
-	Steprunids  []pgtype.UUID      `json:"steprunids"`
+	Steprunids  []uuid.UUID        `json:"steprunids"`
 	Finishedats []pgtype.Timestamp `json:"finishedats"`
 	Outputs     [][]byte           `json:"outputs"`
 }
@@ -341,15 +342,15 @@ WHERE
 RETURNING sr."id"
 `
 
-func (q *Queries) BulkMarkStepRunsAsCancelling(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]pgtype.UUID, error) {
+func (q *Queries) BulkMarkStepRunsAsCancelling(ctx context.Context, db DBTX, steprunids []uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, bulkMarkStepRunsAsCancelling, steprunids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -376,7 +377,7 @@ FROM (
 WHERE sr."id" = upd."id"
 `
 
-func (q *Queries) BulkRetryStepRun(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
+func (q *Queries) BulkRetryStepRun(ctx context.Context, db DBTX, steprunids []uuid.UUID) error {
 	_, err := db.Exec(ctx, bulkRetryStepRun, steprunids)
 	return err
 }
@@ -401,7 +402,7 @@ WHERE
 `
 
 type BulkStartStepRunParams struct {
-	Steprunids []pgtype.UUID      `json:"steprunids"`
+	Steprunids []uuid.UUID        `json:"steprunids"`
 	Startedats []pgtype.Timestamp `json:"startedats"`
 }
 
@@ -425,13 +426,13 @@ WHERE
 `
 
 type CheckWorkerParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Workerid pgtype.UUID `json:"workerid"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Workerid uuid.UUID `json:"workerid"`
 }
 
-func (q *Queries) CheckWorker(ctx context.Context, db DBTX, arg CheckWorkerParams) (pgtype.UUID, error) {
+func (q *Queries) CheckWorker(ctx context.Context, db DBTX, arg CheckWorkerParams) (uuid.UUID, error) {
 	row := db.QueryRow(ctx, checkWorker, arg.Tenantid, arg.Workerid)
-	var id pgtype.UUID
+	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
 }
@@ -491,7 +492,7 @@ RETURNING
 `
 
 type ClearStepRunPayloadDataParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Limit    interface{} `json:"limit"`
 }
 
@@ -511,7 +512,7 @@ WHERE
     "stepRunId" = $1::uuid
 `
 
-func (q *Queries) CountStepRunArchives(ctx context.Context, db DBTX, steprunid pgtype.UUID) (int64, error) {
+func (q *Queries) CountStepRunArchives(ctx context.Context, db DBTX, steprunid uuid.UUID) (int64, error) {
 	row := db.QueryRow(ctx, countStepRunArchives, steprunid)
 	var total int64
 	err := row.Scan(&total)
@@ -527,7 +528,7 @@ WHERE
     "stepRunId" = $1::uuid
 `
 
-func (q *Queries) CountStepRunEvents(ctx context.Context, db DBTX, steprunid pgtype.UUID) (int64, error) {
+func (q *Queries) CountStepRunEvents(ctx context.Context, db DBTX, steprunid uuid.UUID) (int64, error) {
 	row := db.QueryRow(ctx, countStepRunEvents, steprunid)
 	var total int64
 	err := row.Scan(&total)
@@ -594,8 +595,8 @@ WHERE NOT EXISTS (
 `
 
 type CreateStepRunEventParams struct {
-	Steprunid pgtype.UUID          `json:"steprunid"`
-	Jobrunid  pgtype.UUID          `json:"jobrunid"`
+	Steprunid uuid.UUID            `json:"steprunid"`
+	Jobrunid  uuid.UUID            `json:"jobrunid"`
 	Reason    StepRunEventReason   `json:"reason"`
 	Severity  StepRunEventSeverity `json:"severity"`
 	Message   string               `json:"message"`
@@ -632,10 +633,10 @@ SET
 `
 
 type CreateStepRunExpressionEvalIntsParams struct {
-	Keys      []string    `json:"keys"`
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Valuesint []int32     `json:"valuesint"`
-	Kinds     []string    `json:"kinds"`
+	Keys      []string  `json:"keys"`
+	Steprunid uuid.UUID `json:"steprunid"`
+	Valuesint []int32   `json:"valuesint"`
+	Kinds     []string  `json:"kinds"`
 }
 
 func (q *Queries) CreateStepRunExpressionEvalInts(ctx context.Context, db DBTX, arg CreateStepRunExpressionEvalIntsParams) error {
@@ -666,10 +667,10 @@ SET
 `
 
 type CreateStepRunExpressionEvalStrsParams struct {
-	Keys      []string    `json:"keys"`
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Valuesstr []string    `json:"valuesstr"`
-	Kinds     []string    `json:"kinds"`
+	Keys      []string  `json:"keys"`
+	Steprunid uuid.UUID `json:"steprunid"`
+	Valuesstr []string  `json:"valuesstr"`
+	Kinds     []string  `json:"kinds"`
 }
 
 func (q *Queries) CreateStepRunExpressionEvalStrs(ctx context.Context, db DBTX, arg CreateStepRunExpressionEvalStrsParams) error {
@@ -699,8 +700,8 @@ RETURNING id, "workerId", "assignedStepRuns"
 `
 
 type CreateWorkerAssignEventsParams struct {
-	Workerids        []pgtype.UUID `json:"workerids"`
-	Assignedstepruns [][]byte      `json:"assignedstepruns"`
+	Workerids        []uuid.UUID `json:"workerids"`
+	Assignedstepruns [][]byte    `json:"assignedstepruns"`
 }
 
 func (q *Queries) CreateWorkerAssignEvents(ctx context.Context, db DBTX, arg CreateWorkerAssignEventsParams) error {
@@ -730,10 +731,10 @@ type GetDesiredLabelsRow struct {
 	Required   bool                  `json:"required"`
 	Weight     int32                 `json:"weight"`
 	Comparator WorkerLabelComparator `json:"comparator"`
-	StepId     pgtype.UUID           `json:"stepId"`
+	StepId     uuid.UUID             `json:"stepId"`
 }
 
-func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, stepids []pgtype.UUID) ([]*GetDesiredLabelsRow, error) {
+func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, stepids []uuid.UUID) ([]*GetDesiredLabelsRow, error) {
 	rows, err := db.Query(ctx, getDesiredLabels, stepids)
 	if err != nil {
 		return nil, err
@@ -772,11 +773,11 @@ WHERE
 `
 
 type GetFinalizedStepRunsRow struct {
-	ID     pgtype.UUID   `json:"id"`
+	ID     uuid.UUID     `json:"id"`
 	Status StepRunStatus `json:"status"`
 }
 
-func (q *Queries) GetFinalizedStepRuns(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]*GetFinalizedStepRunsRow, error) {
+func (q *Queries) GetFinalizedStepRuns(ctx context.Context, db DBTX, steprunids []uuid.UUID) ([]*GetFinalizedStepRunsRow, error) {
 	rows, err := db.Query(ctx, getFinalizedStepRuns, steprunids)
 	if err != nil {
 		return nil, err
@@ -823,7 +824,7 @@ JOIN
     childStepRuns csr ON sr."id" = csr."id"
 `
 
-func (q *Queries) GetLaterStepRuns(ctx context.Context, db DBTX, steprunid pgtype.UUID) ([]*StepRun, error) {
+func (q *Queries) GetLaterStepRuns(ctx context.Context, db DBTX, steprunid uuid.UUID) ([]*StepRun, error) {
 	rows, err := db.Query(ctx, getLaterStepRuns, steprunid)
 	if err != nil {
 		return nil, err
@@ -893,7 +894,7 @@ WHERE
     dwl."stepId" = $1::uuid
 `
 
-func (q *Queries) GetStepDesiredWorkerLabels(ctx context.Context, db DBTX, stepid pgtype.UUID) ([]byte, error) {
+func (q *Queries) GetStepDesiredWorkerLabels(ctx context.Context, db DBTX, stepid uuid.UUID) ([]byte, error) {
 	row := db.QueryRow(ctx, getStepDesiredWorkerLabels, stepid)
 	var desired_labels []byte
 	err := row.Scan(&desired_labels)
@@ -909,7 +910,7 @@ WHERE
     "stepId" = $1::uuid
 `
 
-func (q *Queries) GetStepExpressions(ctx context.Context, db DBTX, stepid pgtype.UUID) ([]*StepExpression, error) {
+func (q *Queries) GetStepExpressions(ctx context.Context, db DBTX, stepid uuid.UUID) ([]*StepExpression, error) {
 	rows, err := db.Query(ctx, getStepExpressions, stepid)
 	if err != nil {
 		return nil, err
@@ -944,7 +945,7 @@ WHERE
     "deletedAt" IS NULL
 `
 
-func (q *Queries) GetStepRun(ctx context.Context, db DBTX, id pgtype.UUID) (*StepRun, error) {
+func (q *Queries) GetStepRun(ctx context.Context, db DBTX, id uuid.UUID) (*StepRun, error) {
 	row := db.QueryRow(ctx, getStepRun, id)
 	var i StepRun
 	err := row.Scan(
@@ -1033,38 +1034,38 @@ WHERE
 `
 
 type GetStepRunBulkDataForEngineParams struct {
-	Tenantid pgtype.UUID   `json:"tenantid"`
-	Ids      []pgtype.UUID `json:"ids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Ids      []uuid.UUID `json:"ids"`
 }
 
 type GetStepRunBulkDataForEngineRow struct {
-	SRID                pgtype.UUID   `json:"SR_id"`
+	SRID                uuid.UUID     `json:"SR_id"`
 	SRRetryCount        int32         `json:"SR_retryCount"`
 	Input               []byte        `json:"input"`
 	Output              []byte        `json:"output"`
 	Error               pgtype.Text   `json:"error"`
 	Status              StepRunStatus `json:"status"`
 	Priority            int32         `json:"priority"`
-	JobRunId            pgtype.UUID   `json:"jobRunId"`
+	JobRunId            uuid.UUID     `json:"jobRunId"`
 	JobRunStatus        JobRunStatus  `json:"jobRunStatus"`
 	JobRunStatus_2      JobRunStatus  `json:"jobRunStatus_2"`
-	WorkflowRunId       pgtype.UUID   `json:"workflowRunId"`
+	WorkflowRunId       uuid.UUID     `json:"workflowRunId"`
 	JobRunLookupData    []byte        `json:"jobRunLookupData"`
 	AdditionalMetadata  []byte        `json:"additionalMetadata"`
 	ChildIndex          pgtype.Int4   `json:"childIndex"`
 	ChildKey            pgtype.Text   `json:"childKey"`
-	ParentId            pgtype.UUID   `json:"parentId"`
-	JobRunId_2          pgtype.UUID   `json:"jobRunId_2"`
-	StepId              pgtype.UUID   `json:"stepId"`
+	ParentId            uuid.UUID     `json:"parentId"`
+	JobRunId_2          uuid.UUID     `json:"jobRunId_2"`
+	StepId              uuid.UUID     `json:"stepId"`
 	StepRetries         int32         `json:"stepRetries"`
 	StepTimeout         pgtype.Text   `json:"stepTimeout"`
 	StepScheduleTimeout string        `json:"stepScheduleTimeout"`
 	StepReadableId      pgtype.Text   `json:"stepReadableId"`
 	StepCustomUserData  []byte        `json:"stepCustomUserData"`
 	JobName             string        `json:"jobName"`
-	JobId               pgtype.UUID   `json:"jobId"`
+	JobId               uuid.UUID     `json:"jobId"`
 	JobKind             JobKind       `json:"jobKind"`
-	WorkflowVersionId   pgtype.UUID   `json:"workflowVersionId"`
+	WorkflowVersionId   uuid.UUID     `json:"workflowVersionId"`
 	ActionId            string        `json:"actionId"`
 }
 
@@ -1160,8 +1161,8 @@ WHERE
 `
 
 type GetStepRunDataForEngineParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	ID       pgtype.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
 }
 
 type GetStepRunDataForEngineRow struct {
@@ -1172,7 +1173,7 @@ type GetStepRunDataForEngineRow struct {
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
 	ChildIndex         pgtype.Int4 `json:"childIndex"`
 	ChildKey           pgtype.Text `json:"childKey"`
-	ParentId           pgtype.UUID `json:"parentId"`
+	ParentId           uuid.UUID   `json:"parentId"`
 	ExprCount          int64       `json:"exprCount"`
 }
 
@@ -1280,20 +1281,20 @@ WHERE
 `
 
 type GetStepRunForEngineParams struct {
-	Ids      []pgtype.UUID `json:"ids"`
-	TenantId pgtype.UUID   `json:"tenantId"`
+	Ids      []uuid.UUID `json:"ids"`
+	TenantId uuid.UUID   `json:"tenantId"`
 }
 
 type GetStepRunForEngineRow struct {
-	SRID                   pgtype.UUID        `json:"SR_id"`
+	SRID                   uuid.UUID          `json:"SR_id"`
 	SRCreatedAt            pgtype.Timestamp   `json:"SR_createdAt"`
 	SRUpdatedAt            pgtype.Timestamp   `json:"SR_updatedAt"`
 	SRDeletedAt            pgtype.Timestamp   `json:"SR_deletedAt"`
-	SRTenantId             pgtype.UUID        `json:"SR_tenantId"`
+	SRTenantId             uuid.UUID          `json:"SR_tenantId"`
 	SRQueue                string             `json:"SR_queue"`
 	SROrder                int64              `json:"SR_order"`
-	SRWorkerId             pgtype.UUID        `json:"SR_workerId"`
-	SRTickerId             pgtype.UUID        `json:"SR_tickerId"`
+	SRWorkerId             uuid.UUID          `json:"SR_workerId"`
+	SRTickerId             uuid.UUID          `json:"SR_tickerId"`
 	SRStatus               StepRunStatus      `json:"SR_status"`
 	SRRequeueAfter         pgtype.Timestamp   `json:"SR_requeueAfter"`
 	SRScheduleTimeoutAt    pgtype.Timestamp   `json:"SR_scheduleTimeoutAt"`
@@ -1309,8 +1310,8 @@ type GetStepRunForEngineRow struct {
 	SRSemaphoreReleased    bool               `json:"SR_semaphoreReleased"`
 	SRPriority             pgtype.Int4        `json:"SR_priority"`
 	SRChildCount           int64              `json:"SR_childCount"`
-	JobRunId               pgtype.UUID        `json:"jobRunId"`
-	StepId                 pgtype.UUID        `json:"stepId"`
+	JobRunId               uuid.UUID          `json:"jobRunId"`
+	StepId                 uuid.UUID          `json:"stepId"`
 	StepRetries            int32              `json:"stepRetries"`
 	StepTimeout            pgtype.Text        `json:"stepTimeout"`
 	StepScheduleTimeout    string             `json:"stepScheduleTimeout"`
@@ -1319,14 +1320,14 @@ type GetStepRunForEngineRow struct {
 	StepRetryBackoffFactor pgtype.Float8      `json:"stepRetryBackoffFactor"`
 	StepRetryMaxBackoff    pgtype.Int4        `json:"stepRetryMaxBackoff"`
 	JobName                string             `json:"jobName"`
-	JobId                  pgtype.UUID        `json:"jobId"`
+	JobId                  uuid.UUID          `json:"jobId"`
 	JobKind                JobKind            `json:"jobKind"`
-	WorkflowVersionId      pgtype.UUID        `json:"workflowVersionId"`
+	WorkflowVersionId      uuid.UUID          `json:"workflowVersionId"`
 	JobRunStatus           JobRunStatus       `json:"jobRunStatus"`
-	WorkflowRunId          pgtype.UUID        `json:"workflowRunId"`
+	WorkflowRunId          uuid.UUID          `json:"workflowRunId"`
 	ActionId               string             `json:"actionId"`
 	StickyStrategy         NullStickyStrategy `json:"stickyStrategy"`
-	DesiredWorkerId        pgtype.UUID        `json:"desiredWorkerId"`
+	DesiredWorkerId        uuid.UUID          `json:"desiredWorkerId"`
 }
 
 func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepRunForEngineParams) ([]*GetStepRunForEngineRow, error) {
@@ -1405,14 +1406,14 @@ AND sr."tenantId" = $2::uuid
 `
 
 type GetStepRunMetaParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
+	Steprunid uuid.UUID `json:"steprunid"`
+	Tenantid  uuid.UUID `json:"tenantid"`
 }
 
 type GetStepRunMetaRow struct {
-	WorkflowRunId pgtype.UUID `json:"workflowRunId"`
-	RetryCount    int32       `json:"retryCount"`
-	Retries       int32       `json:"retries"`
+	WorkflowRunId uuid.UUID `json:"workflowRunId"`
+	RetryCount    int32     `json:"retryCount"`
+	Retries       int32     `json:"retries"`
 }
 
 func (q *Queries) GetStepRunMeta(ctx context.Context, db DBTX, arg GetStepRunMetaParams) (*GetStepRunMetaRow, error) {
@@ -1452,14 +1453,14 @@ WHERE
 `
 
 type GetWorkerDispatcherActionsParams struct {
-	Tenantid  pgtype.UUID `json:"tenantid"`
-	Actionids []string    `json:"actionids"`
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Actionids []string  `json:"actionids"`
 }
 
 type GetWorkerDispatcherActionsRow struct {
-	ID           pgtype.UUID `json:"id"`
-	ActionId     string      `json:"actionId"`
-	DispatcherId pgtype.UUID `json:"dispatcherId"`
+	ID           uuid.UUID `json:"id"`
+	ActionId     string    `json:"actionId"`
+	DispatcherId uuid.UUID `json:"dispatcherId"`
 }
 
 func (q *Queries) GetWorkerDispatcherActions(ctx context.Context, db DBTX, arg GetWorkerDispatcherActionsParams) ([]*GetWorkerDispatcherActionsRow, error) {
@@ -1499,7 +1500,7 @@ type GetWorkerLabelsRow struct {
 	IntValue pgtype.Int4 `json:"intValue"`
 }
 
-func (q *Queries) GetWorkerLabels(ctx context.Context, db DBTX, workerid pgtype.UUID) ([]*GetWorkerLabelsRow, error) {
+func (q *Queries) GetWorkerLabels(ctx context.Context, db DBTX, workerid uuid.UUID) ([]*GetWorkerLabelsRow, error) {
 	rows, err := db.Query(ctx, getWorkerLabels, workerid)
 	if err != nil {
 		return nil, err
@@ -1536,8 +1537,8 @@ WHERE
 `
 
 type HasActiveWorkersForActionIdParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Actionid string      `json:"actionid"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Actionid string    `json:"actionid"`
 }
 
 func (q *Queries) HasActiveWorkersForActionId(ctx context.Context, db DBTX, arg HasActiveWorkersForActionIdParams) (int64, error) {
@@ -1654,15 +1655,15 @@ FROM
 `
 
 type InternalRetryStepRunsParams struct {
-	Tenantid              pgtype.UUID   `json:"tenantid"`
-	Steprunids            []pgtype.UUID `json:"steprunids"`
-	Maxinternalretrycount int32         `json:"maxinternalretrycount"`
+	Tenantid              uuid.UUID   `json:"tenantid"`
+	Steprunids            []uuid.UUID `json:"steprunids"`
+	Maxinternalretrycount int32       `json:"maxinternalretrycount"`
 }
 
 type InternalRetryStepRunsRow struct {
-	ID         pgtype.UUID `json:"id"`
-	RetryCount int32       `json:"retryCount"`
-	Operation  string      `json:"operation"`
+	ID         uuid.UUID `json:"id"`
+	RetryCount int32     `json:"retryCount"`
+	Operation  string    `json:"operation"`
 }
 
 func (q *Queries) InternalRetryStepRuns(ctx context.Context, db DBTX, arg InternalRetryStepRunsParams) ([]*InternalRetryStepRunsRow, error) {
@@ -1697,19 +1698,19 @@ WHERE
 `
 
 type ListChildWorkflowRunIdsParams struct {
-	Steprun  pgtype.UUID `json:"steprun"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Steprun  uuid.UUID `json:"steprun"`
+	Tenantid uuid.UUID `json:"tenantid"`
 }
 
-func (q *Queries) ListChildWorkflowRunIds(ctx context.Context, db DBTX, arg ListChildWorkflowRunIdsParams) ([]pgtype.UUID, error) {
+func (q *Queries) ListChildWorkflowRunIds(ctx context.Context, db DBTX, arg ListChildWorkflowRunIdsParams) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, listChildWorkflowRunIds, arg.Steprun, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -1738,15 +1739,15 @@ WHERE
     AND step_run_order."A" IS NULL
 `
 
-func (q *Queries) ListInitialStepRuns(ctx context.Context, db DBTX, jobrunid pgtype.UUID) ([]pgtype.UUID, error) {
+func (q *Queries) ListInitialStepRuns(ctx context.Context, db DBTX, jobrunid uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, listInitialStepRuns, jobrunid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -1790,7 +1791,7 @@ WHERE
 `
 
 // Select all child step runs that are not in a final state
-func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, steprunid pgtype.UUID) ([]*StepRun, error) {
+func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, steprunid uuid.UUID) ([]*StepRun, error) {
 	rows, err := db.Query(ctx, listNonFinalChildStepRuns, steprunid)
 	if err != nil {
 		return nil, err
@@ -1877,15 +1878,15 @@ WHERE
     )
 `
 
-func (q *Queries) ListStartableStepRunsManyParents(ctx context.Context, db DBTX, parentsteprunid pgtype.UUID) ([]pgtype.UUID, error) {
+func (q *Queries) ListStartableStepRunsManyParents(ctx context.Context, db DBTX, parentsteprunid uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, listStartableStepRunsManyParents, parentsteprunid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -1925,15 +1926,15 @@ WHERE
     )
 `
 
-func (q *Queries) ListStartableStepRunsSingleParent(ctx context.Context, db DBTX, parentsteprunid pgtype.UUID) ([]pgtype.UUID, error) {
+func (q *Queries) ListStartableStepRunsSingleParent(ctx context.Context, db DBTX, parentsteprunid uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, listStartableStepRunsSingleParent, parentsteprunid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -1965,8 +1966,8 @@ LIMIT
 `
 
 type ListStepRunArchivesParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
+	Steprunid uuid.UUID   `json:"steprunid"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
 	Offset    interface{} `json:"offset"`
 	Limit     interface{} `json:"limit"`
 }
@@ -2029,7 +2030,7 @@ LIMIT
 `
 
 type ListStepRunEventsParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Steprunid uuid.UUID   `json:"steprunid"`
 	Offset    interface{} `json:"offset"`
 	Limit     interface{} `json:"limit"`
 }
@@ -2084,8 +2085,8 @@ ORDER BY
 `
 
 type ListStepRunEventsByWorkflowRunIdParams struct {
-	Workflowrunid pgtype.UUID `json:"workflowrunid"`
-	Tenantid      pgtype.UUID `json:"tenantid"`
+	Workflowrunid uuid.UUID   `json:"workflowrunid"`
+	Tenantid      uuid.UUID   `json:"tenantid"`
 	LastId        pgtype.Int8 `json:"lastId"`
 }
 
@@ -2129,7 +2130,7 @@ WHERE
     "stepRunId" = ANY($1::uuid[])
 `
 
-func (q *Queries) ListStepRunExpressionEvals(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]*StepRunExpressionEval, error) {
+func (q *Queries) ListStepRunExpressionEvals(ctx context.Context, db DBTX, steprunids []uuid.UUID) ([]*StepRunExpressionEval, error) {
 	rows, err := db.Query(ctx, listStepRunExpressionEvals, steprunids)
 	if err != nil {
 		return nil, err
@@ -2191,14 +2192,14 @@ ORDER BY "StepRun"."order" ASC
 `
 
 type ListStepRunsParams struct {
-	TenantId       pgtype.UUID       `json:"tenantId"`
+	TenantId       uuid.UUID         `json:"tenantId"`
 	Status         NullStepRunStatus `json:"status"`
-	WorkflowRunIds []pgtype.UUID     `json:"workflowRunIds"`
-	JobRunId       pgtype.UUID       `json:"jobRunId"`
-	TickerId       pgtype.UUID       `json:"tickerId"`
+	WorkflowRunIds []uuid.UUID       `json:"workflowRunIds"`
+	JobRunId       uuid.UUID         `json:"jobRunId"`
+	TickerId       uuid.UUID         `json:"tickerId"`
 }
 
-func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsParams) ([]pgtype.UUID, error) {
+func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsParams) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, listStepRuns,
 		arg.TenantId,
 		arg.Status,
@@ -2210,9 +2211,9 @@ func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsPar
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -2241,19 +2242,19 @@ WHERE
 `
 
 type ListStepRunsToCancelParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Jobrunid pgtype.UUID `json:"jobrunid"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Jobrunid uuid.UUID `json:"jobrunid"`
 }
 
-func (q *Queries) ListStepRunsToCancel(ctx context.Context, db DBTX, arg ListStepRunsToCancelParams) ([]pgtype.UUID, error) {
+func (q *Queries) ListStepRunsToCancel(ctx context.Context, db DBTX, arg ListStepRunsToCancelParams) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, listStepRunsToCancel, arg.Tenantid, arg.Jobrunid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -2380,15 +2381,15 @@ FROM
 `
 
 type ListStepRunsToReassignParams struct {
-	Tenantid              pgtype.UUID `json:"tenantid"`
-	Maxinternalretrycount int32       `json:"maxinternalretrycount"`
+	Tenantid              uuid.UUID `json:"tenantid"`
+	Maxinternalretrycount int32     `json:"maxinternalretrycount"`
 }
 
 type ListStepRunsToReassignRow struct {
-	ID         pgtype.UUID `json:"id"`
-	WorkerId   pgtype.UUID `json:"workerId"`
-	RetryCount int32       `json:"retryCount"`
-	Operation  string      `json:"operation"`
+	ID         uuid.UUID `json:"id"`
+	WorkerId   uuid.UUID `json:"workerId"`
+	RetryCount int32     `json:"retryCount"`
+	Operation  string    `json:"operation"`
 }
 
 func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, arg ListStepRunsToReassignParams) ([]*ListStepRunsToReassignRow, error) {
@@ -2426,15 +2427,15 @@ WHERE
 LIMIT 100
 `
 
-func (q *Queries) ListStepRunsToTimeout(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]pgtype.UUID, error) {
+func (q *Queries) ListStepRunsToTimeout(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, listStepRunsToTimeout, tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -2458,8 +2459,8 @@ WHERE
 `
 
 type ManualReleaseSemaphoreParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
+	Steprunid uuid.UUID `json:"steprunid"`
+	Tenantid  uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) ManualReleaseSemaphore(ctx context.Context, db DBTX, arg ManualReleaseSemaphoreParams) error {
@@ -2491,8 +2492,8 @@ WHERE
 type QueueStepRunParams struct {
 	Input    []byte      `json:"input"`
 	IsRetry  pgtype.Bool `json:"isRetry"`
-	ID       pgtype.UUID `json:"id"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	ID       uuid.UUID   `json:"id"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 }
 
 func (q *Queries) QueueStepRun(ctx context.Context, db DBTX, arg QueueStepRunParams) error {
@@ -2529,8 +2530,8 @@ WHERE
 `
 
 type QueueStepRunBulkNoInputParams struct {
-	Ids         []pgtype.UUID `json:"ids"`
-	Retrycounts []int32       `json:"retrycounts"`
+	Ids         []uuid.UUID `json:"ids"`
+	Retrycounts []int32     `json:"retrycounts"`
 }
 
 func (q *Queries) QueueStepRunBulkNoInput(ctx context.Context, db DBTX, arg QueueStepRunBulkNoInputParams) error {
@@ -2564,9 +2565,9 @@ WHERE
 `
 
 type QueueStepRunBulkWithInputParams struct {
-	Ids         []pgtype.UUID `json:"ids"`
-	Inputs      [][]byte      `json:"inputs"`
-	Retrycounts []int32       `json:"retrycounts"`
+	Ids         []uuid.UUID `json:"ids"`
+	Inputs      [][]byte    `json:"inputs"`
+	Retrycounts []int32     `json:"retrycounts"`
 }
 
 func (q *Queries) QueueStepRunBulkWithInput(ctx context.Context, db DBTX, arg QueueStepRunBulkWithInputParams) error {
@@ -2610,8 +2611,8 @@ RETURNING "TimeoutQueueItem"."timeoutAt"
 
 type RefreshTimeoutByParams struct {
 	IncrementTimeoutBy pgtype.Text `json:"incrementTimeoutBy"`
-	Steprunid          pgtype.UUID `json:"steprunid"`
-	Tenantid           pgtype.UUID `json:"tenantid"`
+	Steprunid          uuid.UUID   `json:"steprunid"`
+	Tenantid           uuid.UUID   `json:"tenantid"`
 }
 
 func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTimeoutByParams) (pgtype.Timestamp, error) {
@@ -2628,7 +2629,7 @@ WHERE
     "stepRunId" = ANY($1::uuid[])
 `
 
-func (q *Queries) RemoveTimeoutQueueItems(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
+func (q *Queries) RemoveTimeoutQueueItems(ctx context.Context, db DBTX, steprunids []uuid.UUID) error {
 	_, err := db.Exec(ctx, removeTimeoutQueueItems, steprunids)
 	return err
 }
@@ -2650,7 +2651,7 @@ WHERE
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobId", "tickerId", status, result, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId"
 `
 
-func (q *Queries) ReplayStepRunResetJobRun(ctx context.Context, db DBTX, jobrunid pgtype.UUID) (*JobRun, error) {
+func (q *Queries) ReplayStepRunResetJobRun(ctx context.Context, db DBTX, jobrunid uuid.UUID) (*JobRun, error) {
 	row := db.QueryRow(ctx, replayStepRunResetJobRun, jobrunid)
 	var i JobRun
 	err := row.Scan(
@@ -2718,8 +2719,8 @@ RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", 
 `
 
 type ReplayStepRunResetStepRunsParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Input     []byte      `json:"input"`
+	Steprunid uuid.UUID `json:"steprunid"`
+	Input     []byte    `json:"input"`
 }
 
 func (q *Queries) ReplayStepRunResetStepRuns(ctx context.Context, db DBTX, arg ReplayStepRunResetStepRunsParams) ([]*StepRun, error) {
@@ -2789,7 +2790,7 @@ WHERE
 RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority, "insertOrder"
 `
 
-func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) (*WorkflowRun, error) {
+func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, workflowrunid uuid.UUID) (*WorkflowRun, error) {
 	row := db.QueryRow(ctx, replayStepRunResetWorkflowRun, workflowrunid)
 	var i WorkflowRun
 	err := row.Scan(
@@ -2836,7 +2837,7 @@ WHERE
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workerId", "tickerId", status, input, output, "requeueAfter", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId", "scheduleTimeoutAt"
 `
 
-func (q *Queries) ReplayWorkflowRunResetGetGroupKeyRun(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) (*GetGroupKeyRun, error) {
+func (q *Queries) ReplayWorkflowRunResetGetGroupKeyRun(ctx context.Context, db DBTX, workflowrunid uuid.UUID) (*GetGroupKeyRun, error) {
 	row := db.QueryRow(ctx, replayWorkflowRunResetGetGroupKeyRun, workflowrunid)
 	var i GetGroupKeyRun
 	err := row.Scan(
@@ -2885,8 +2886,8 @@ RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", 
 `
 
 type ResetStepRunsByIdsParams struct {
-	Ids      []pgtype.UUID `json:"ids"`
-	Tenantid pgtype.UUID   `json:"tenantid"`
+	Ids      []uuid.UUID `json:"ids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 }
 
 func (q *Queries) ResetStepRunsByIds(ctx context.Context, db DBTX, arg ResetStepRunsByIdsParams) ([]*StepRun, error) {
@@ -2986,7 +2987,7 @@ RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", 
 
 type ResolveLaterStepRunsParams struct {
 	Status    StepRunStatus `json:"status"`
-	Steprunid pgtype.UUID   `json:"steprunid"`
+	Steprunid uuid.UUID     `json:"steprunid"`
 }
 
 func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg ResolveLaterStepRunsParams) ([]*StepRun, error) {
@@ -3053,9 +3054,9 @@ RETURNING "inputSchema"
 `
 
 type UpdateStepRunInputSchemaParams struct {
-	InputSchema []byte      `json:"inputSchema"`
-	Tenantid    pgtype.UUID `json:"tenantid"`
-	Steprunid   pgtype.UUID `json:"steprunid"`
+	InputSchema []byte    `json:"inputSchema"`
+	Tenantid    uuid.UUID `json:"tenantid"`
+	Steprunid   uuid.UUID `json:"steprunid"`
 }
 
 func (q *Queries) UpdateStepRunInputSchema(ctx context.Context, db DBTX, arg UpdateStepRunInputSchemaParams) ([]byte, error) {
@@ -3079,12 +3080,12 @@ RETURNING "input"
 `
 
 type UpdateStepRunOverridesDataParams struct {
-	Fieldpath    []string    `json:"fieldpath"`
-	Jsondata     []byte      `json:"jsondata"`
-	Overrideskey []string    `json:"overrideskey"`
-	Callerfile   string      `json:"callerfile"`
-	Tenantid     pgtype.UUID `json:"tenantid"`
-	Steprunid    pgtype.UUID `json:"steprunid"`
+	Fieldpath    []string  `json:"fieldpath"`
+	Jsondata     []byte    `json:"jsondata"`
+	Overrideskey []string  `json:"overrideskey"`
+	Callerfile   string    `json:"callerfile"`
+	Tenantid     uuid.UUID `json:"tenantid"`
+	Steprunid    uuid.UUID `json:"steprunid"`
 }
 
 func (q *Queries) UpdateStepRunOverridesData(ctx context.Context, db DBTX, arg UpdateStepRunOverridesDataParams) ([]byte, error) {
@@ -3126,13 +3127,13 @@ FROM
 `
 
 type UpdateStepRunUnsetWorkerIdParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
+	Steprunid uuid.UUID `json:"steprunid"`
+	Tenantid  uuid.UUID `json:"tenantid"`
 }
 
 type UpdateStepRunUnsetWorkerIdRow struct {
-	WorkerId   pgtype.UUID `json:"workerId"`
-	RetryCount int32       `json:"retryCount"`
+	WorkerId   uuid.UUID `json:"workerId"`
+	RetryCount int32     `json:"retryCount"`
 }
 
 func (q *Queries) UpdateStepRunUnsetWorkerId(ctx context.Context, db DBTX, arg UpdateStepRunUnsetWorkerIdParams) (*UpdateStepRunUnsetWorkerIdRow, error) {
@@ -3149,7 +3150,7 @@ WHERE
     "stepRunId" = ANY($1::uuid[])
 `
 
-func (q *Queries) UpdateStepRunUnsetWorkerIdBulk(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
+func (q *Queries) UpdateStepRunUnsetWorkerIdBulk(ctx context.Context, db DBTX, steprunids []uuid.UUID) error {
 	_, err := db.Exec(ctx, updateStepRunUnsetWorkerIdBulk, steprunids)
 	return err
 }
@@ -3228,15 +3229,15 @@ FROM
 `
 
 type UpdateStepRunsToAssignedParams struct {
-	Steprunids      []pgtype.UUID `json:"steprunids"`
-	Stepruntimeouts []string      `json:"stepruntimeouts"`
-	Workerids       []pgtype.UUID `json:"workerids"`
-	Tenantid        pgtype.UUID   `json:"tenantid"`
+	Steprunids      []uuid.UUID `json:"steprunids"`
+	Stepruntimeouts []string    `json:"stepruntimeouts"`
+	Workerids       []uuid.UUID `json:"workerids"`
+	Tenantid        uuid.UUID   `json:"tenantid"`
 }
 
 type UpdateStepRunsToAssignedRow struct {
-	StepRunId pgtype.UUID `json:"stepRunId"`
-	WorkerId  pgtype.UUID `json:"workerId"`
+	StepRunId uuid.UUID `json:"stepRunId"`
+	WorkerId  uuid.UUID `json:"workerId"`
 }
 
 func (q *Queries) UpdateStepRunsToAssigned(ctx context.Context, db DBTX, arg UpdateStepRunsToAssignedParams) ([]*UpdateStepRunsToAssignedRow, error) {
@@ -3297,7 +3298,7 @@ RETURNING id, "createdAt", "updatedAt", "stepId", key, "strValue", "intValue", r
 `
 
 type UpsertDesiredWorkerLabelParams struct {
-	Stepid     pgtype.UUID               `json:"stepid"`
+	Stepid     uuid.UUID                 `json:"stepid"`
 	Key        string                    `json:"key"`
 	IntValue   pgtype.Int4               `json:"intValue"`
 	StrValue   pgtype.Text               `json:"strValue"`
@@ -3355,20 +3356,20 @@ ORDER BY sr."id"
 `
 
 type VerifiedStepRunTenantIdsParams struct {
-	Steprunids []pgtype.UUID `json:"steprunids"`
-	Tenantids  []pgtype.UUID `json:"tenantids"`
+	Steprunids []uuid.UUID `json:"steprunids"`
+	Tenantids  []uuid.UUID `json:"tenantids"`
 }
 
 // stable ordering as it minimizes the chance of deadlocks
-func (q *Queries) VerifiedStepRunTenantIds(ctx context.Context, db DBTX, arg VerifiedStepRunTenantIdsParams) ([]pgtype.UUID, error) {
+func (q *Queries) VerifiedStepRunTenantIds(ctx context.Context, db DBTX, arg VerifiedStepRunTenantIdsParams) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, verifiedStepRunTenantIds, arg.Steprunids, arg.Tenantids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}

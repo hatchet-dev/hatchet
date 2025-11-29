@@ -218,7 +218,7 @@ type EventExternalIdFilterId struct {
 }
 
 type WorkflowAndScope struct {
-	WorkflowId pgtype.UUID
+	WorkflowId uuid.UUID
 	Scope      string
 }
 
@@ -265,7 +265,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	// important: need to include all workflow ids here, regardless of whether or
 	// not the corresponding event was pushed with a scope, so we can correctly
 	// tell if there are any filters for the workflows with these events registered
-	workflowIdsForFilterCounts := make([]pgtype.UUID, 0, len(workflowVersionIdsAndEventKeys))
+	workflowIdsForFilterCounts := make([]uuid.UUID, 0, len(workflowVersionIdsAndEventKeys))
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
@@ -288,7 +288,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 	}
 
-	workflowIds := make([]pgtype.UUID, 0, len(workflowIdScopePairs))
+	workflowIds := make([]uuid.UUID, 0, len(workflowIdScopePairs))
 	scopes := make([]string, 0, len(workflowIdScopePairs))
 
 	for pair := range workflowIdScopePairs {
@@ -448,11 +448,11 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 	workflowNames := make([]string, 0, len(opts))
 	uniqueNames := make(map[string]struct{})
 	namesToOpts := make(map[string][]*WorkflowNameTriggerOpts)
-	idempotencyKeyToExternalIds := make(map[IdempotencyKey]pgtype.UUID)
+	idempotencyKeyToExternalIds := make(map[IdempotencyKey]uuid.UUID)
 
 	for _, opt := range opts {
 		if opt.IdempotencyKey != nil {
-			idempotencyKeyToExternalIds[*opt.IdempotencyKey] = sqlchelpers.UUIDFromStr(opt.ExternalId)
+			idempotencyKeyToExternalIds[*opt.IdempotencyKey], _ = uuid.Parse(opt.ExternalId)
 		}
 
 		namesToOpts[opt.WorkflowName] = append(namesToOpts[opt.WorkflowName], opt)
@@ -502,9 +502,10 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 		for _, opt := range opts {
 			if opt.IdempotencyKey != nil {
+				claimedById, _ := uuid.Parse(opt.ExternalId)
 				keyClaimantPair := KeyClaimantPair{
 					IdempotencyKey:      *opt.IdempotencyKey,
-					ClaimedByExternalId: sqlchelpers.UUIDFromStr(opt.ExternalId),
+					ClaimedByExternalId: claimedById,
 				}
 
 				wasSuccessfullyClaimed := keyClaimantPairToWasClaimed[keyClaimantPair]
@@ -689,10 +690,11 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	}
 
 	// get all data for triggering tasks in this workflow
-	workflowVersionIds := make([]pgtype.UUID, 0, len(uniqueWorkflowVersionIds))
+	workflowVersionIds := make([]uuid.UUID, 0, len(uniqueWorkflowVersionIds))
 
 	for id := range uniqueWorkflowVersionIds {
-		workflowVersionIds = append(workflowVersionIds, sqlchelpers.UUIDFromStr(id))
+		parsed, _ := uuid.Parse(id)
+		workflowVersionIds = append(workflowVersionIds, parsed)
 	}
 
 	// get steps for the workflow versions
@@ -745,7 +747,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	}
 
 	// if any steps have additional match conditions, query for the additional matches
-	stepsWithAdditionalMatchConditions := make([]pgtype.UUID, 0)
+	stepsWithAdditionalMatchConditions := make([]uuid.UUID, 0)
 
 	for _, step := range steps {
 		if step.MatchConditionCount > 0 {
@@ -898,7 +900,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				}
 
 				var (
-					parentTaskExternalId pgtype.UUID
+					parentTaskExternalId uuid.UUID
 					parentTaskId         pgtype.Int8
 					parentTaskInsertedAt pgtype.Timestamptz
 					childIndex           pgtype.Int8
@@ -907,7 +909,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				)
 
 				if tuple.parentExternalId != nil {
-					parentTaskExternalId = sqlchelpers.UUIDFromStr(*tuple.parentExternalId)
+					parentTaskExternalId, _ = uuid.Parse(*tuple.parentExternalId)
 				}
 
 				if tuple.parentTaskId != nil {
@@ -1000,7 +1002,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					}
 
 					var (
-						parentTaskExternalId pgtype.UUID
+						parentTaskExternalId uuid.UUID
 						parentTaskId         pgtype.Int8
 						parentTaskInsertedAt pgtype.Timestamptz
 						childIndex           pgtype.Int8
@@ -1009,7 +1011,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					)
 
 					if tuple.parentExternalId != nil {
-						parentTaskExternalId = sqlchelpers.UUIDFromStr(*tuple.parentExternalId)
+						parentTaskExternalId, _ = uuid.Parse(*tuple.parentExternalId)
 					}
 
 					if tuple.parentTaskId != nil {
@@ -1123,7 +1125,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				}
 
 				var (
-					parentTaskExternalId pgtype.UUID
+					parentTaskExternalId uuid.UUID
 					parentTaskId         pgtype.Int8
 					parentTaskInsertedAt pgtype.Timestamptz
 					childIndex           pgtype.Int8
@@ -1132,7 +1134,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				)
 
 				if tuple.parentExternalId != nil {
-					parentTaskExternalId = sqlchelpers.UUIDFromStr(*tuple.parentExternalId)
+					parentTaskExternalId, _ = uuid.Parse(*tuple.parentExternalId)
 				}
 
 				if tuple.parentTaskId != nil {
@@ -1299,7 +1301,7 @@ type DAGWithData struct {
 
 	AdditionalMetadata []byte
 
-	ParentTaskExternalID *pgtype.UUID
+	ParentTaskExternalID *uuid.UUID
 
 	TotalTasks int
 }
@@ -1319,12 +1321,12 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 		return nil, nil
 	}
 
-	tenantIds := make([]pgtype.UUID, 0, len(opts))
-	externalIds := make([]pgtype.UUID, 0, len(opts))
+	tenantIds := make([]uuid.UUID, 0, len(opts))
+	externalIds := make([]uuid.UUID, 0, len(opts))
 	displayNames := make([]string, 0, len(opts))
-	workflowIds := make([]pgtype.UUID, 0, len(opts))
-	workflowVersionIds := make([]pgtype.UUID, 0, len(opts))
-	parentTaskExternalIds := make([]pgtype.UUID, 0, len(opts))
+	workflowIds := make([]uuid.UUID, 0, len(opts))
+	workflowVersionIds := make([]uuid.UUID, 0, len(opts))
+	parentTaskExternalIds := make([]uuid.UUID, 0, len(opts))
 	dagIdToOpt := make(map[string]createDAGOpts, 0)
 
 	unix := time.Now().UnixMilli()
@@ -1337,7 +1339,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 		workflowVersionIds = append(workflowVersionIds, sqlchelpers.UUIDFromStr(opt.WorkflowVersionId))
 
 		if opt.ParentTaskExternalID == nil {
-			parentTaskExternalIds = append(parentTaskExternalIds, pgtype.UUID{})
+			parentTaskExternalIds = append(parentTaskExternalIds, uuid.Nil)
 		} else {
 			parentTaskExternalIds = append(parentTaskExternalIds, sqlchelpers.UUIDFromStr(*opt.ParentTaskExternalID))
 		}
@@ -1397,17 +1399,18 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 			AdditionalMetadata: additionalMeta,
 		})
 
-		parentTaskExternalID := pgtype.UUID{}
+		var parentTaskExternalID *uuid.UUID
 
 		if opt.ParentTaskExternalID != nil {
-			parentTaskExternalID = sqlchelpers.UUIDFromStr(*opt.ParentTaskExternalID)
+			parsed := sqlchelpers.UUIDFromStr(*opt.ParentTaskExternalID)
+			parentTaskExternalID = &parsed
 		}
 
 		res = append(res, &DAGWithData{
 			V1Dag:                dag,
 			Input:                input,
 			AdditionalMetadata:   additionalMeta,
-			ParentTaskExternalID: &parentTaskExternalID,
+			ParentTaskExternalID: parentTaskExternalID,
 			TotalTasks:           len(opt.TaskIds),
 		})
 	}
@@ -1520,7 +1523,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 
 	// parse the event match data, and determine whether the child external ID has already been written
 	// we're safe to do this read since we've acquired a lock on the relevant rows
-	rootExternalIdsToLookup := make([]pgtype.UUID, 0, len(matchingEvents))
+	rootExternalIdsToLookup := make([]uuid.UUID, 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
 		payload, ok := payloads[RetrievePayloadOpts{
@@ -1543,7 +1546,8 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		}
 
 		if c.ChildExternalId != "" {
-			rootExternalIdsToLookup = append(rootExternalIdsToLookup, sqlchelpers.UUIDFromStr(c.ChildExternalId))
+			parsed, _ := uuid.Parse(c.ChildExternalId)
+			rootExternalIdsToLookup = append(rootExternalIdsToLookup, parsed)
 		}
 	}
 

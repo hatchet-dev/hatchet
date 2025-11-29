@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -41,7 +42,7 @@ type IsTenantAlertActiveRow struct {
 	LastAlertedAt pgtype.Timestamp `json:"lastAlertedAt"`
 }
 
-func (q *Queries) IsTenantAlertActive(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*IsTenantAlertActiveRow, error) {
+func (q *Queries) IsTenantAlertActive(ctx context.Context, db DBTX, tenantid uuid.UUID) (*IsTenantAlertActiveRow, error) {
 	row := db.QueryRow(ctx, isTenantAlertActive, tenantid)
 	var i IsTenantAlertActiveRow
 	err := row.Scan(&i.IsActive, &i.LastAlertedAt)

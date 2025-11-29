@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -165,7 +167,7 @@ func (t *TickerImpl) runScheduledWorkflowV0(ctx context.Context, tenantId string
 		}
 	}
 
-	if scheduled.ParentWorkflowRunId.Valid {
+	if scheduled.ParentWorkflowRunId != uuid.Nil {
 		var childKey *string
 
 		if scheduled.ChildKey.Valid {

@@ -1,11 +1,12 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -14,8 +15,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
-func newBulkStepRunStatusBuffer(shared *sharedRepository) (*buffer.TenantBufferManager[*updateStepRunQueueData, pgtype.UUID], error) {
-	statusBufOpts := buffer.TenantBufManagerOpts[*updateStepRunQueueData, pgtype.UUID]{
+func newBulkStepRunStatusBuffer(shared *sharedRepository) (*buffer.TenantBufferManager[*updateStepRunQueueData, uuid.UUID], error) {
+	statusBufOpts := buffer.TenantBufManagerOpts[*updateStepRunQueueData, uuid.UUID]{
 		Name:       "update_step_run_status",
 		OutputFunc: shared.bulkUpdateStepRunStatuses,
 		SizeFunc:   sizeOfUpdateData,
@@ -34,12 +35,12 @@ func newBulkStepRunStatusBuffer(shared *sharedRepository) (*buffer.TenantBufferM
 	return manager, nil
 }
 
-func (s *sharedRepository) bulkUpdateStepRunStatuses(ctx context.Context, opts []*updateStepRunQueueData) ([]*pgtype.UUID, error) {
-	stepRunIds := make([]*pgtype.UUID, 0, len(opts))
+func (s *sharedRepository) bulkUpdateStepRunStatuses(ctx context.Context, opts []*updateStepRunQueueData) ([]*uuid.UUID, error) {
+	stepRunIds := make([]*uuid.UUID, 0, len(opts))
 
 	eventTimeSeen := make([]time.Time, 0, len(opts))
 	eventReasons := make([]dbsqlc.StepRunEventReason, 0, len(opts))
-	eventStepRunIds := make([]pgtype.UUID, 0, len(opts))
+	eventStepRunIds := make([]uuid.UUID, 0, len(opts))
 	eventTenantIds := make([]string, 0, len(opts))
 	eventSeverities := make([]dbsqlc.StepRunEventSeverity, 0, len(opts))
 	eventMessages := make([]string, 0, len(opts))
@@ -104,7 +105,7 @@ func (s *sharedRepository) bulkUpdateStepRunStatuses(ctx context.Context, opts [
 
 	if len(opts) > 0 {
 		eg.Go(func() error {
-			insertInternalQITenantIds := make([]pgtype.UUID, 0, len(opts))
+			insertInternalQITenantIds := make([]uuid.UUID, 0, len(opts))
 			insertInternalQIQueues := make([]dbsqlc.InternalQueue, 0, len(opts))
 			insertInternalQIData := make([]any, 0, len(opts))
 

@@ -1,11 +1,12 @@
 package v0
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -21,7 +22,7 @@ type rateLimitSet map[string]*rateLimit
 type rateLimiter struct {
 	rateLimitRepo repository.RateLimitRepository
 
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	l *zerolog.Logger
 
@@ -38,7 +39,7 @@ type rateLimiter struct {
 	cleanup func()
 }
 
-func newRateLimiter(conf *sharedConfig, tenantId pgtype.UUID) *rateLimiter {
+func newRateLimiter(conf *sharedConfig, tenantId uuid.UUID) *rateLimiter {
 	rl := &rateLimiter{
 		rateLimitRepo: conf.repo.RateLimit(),
 		tenantId:      tenantId,

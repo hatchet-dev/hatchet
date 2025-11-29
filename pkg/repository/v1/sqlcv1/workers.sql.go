@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -36,7 +37,7 @@ type GetWorkerByIdRow struct {
 	RemainingSlots int32       `json:"remainingSlots"`
 }
 
-func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*GetWorkerByIdRow, error) {
+func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*GetWorkerByIdRow, error) {
 	row := db.QueryRow(ctx, getWorkerById, id)
 	var i GetWorkerByIdRow
 	err := row.Scan(
@@ -85,10 +86,10 @@ type ListManyWorkerLabelsRow struct {
 	StrValue  pgtype.Text      `json:"strValue"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
-	WorkerId  pgtype.UUID      `json:"workerId"`
+	WorkerId  uuid.UUID        `json:"workerId"`
 }
 
-func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids []pgtype.UUID) ([]*ListManyWorkerLabelsRow, error) {
+func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids []uuid.UUID) ([]*ListManyWorkerLabelsRow, error) {
 	rows, err := db.Query(ctx, listManyWorkerLabels, workerids)
 	if err != nil {
 		return nil, err
@@ -131,8 +132,8 @@ LIMIT
 `
 
 type ListSemaphoreSlotsWithStateForWorkerParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Workerid pgtype.UUID `json:"workerid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Workerid uuid.UUID   `json:"workerid"`
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
@@ -140,25 +141,25 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	TaskID                       int64              `json:"task_id"`
 	TaskInsertedAt               pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount                   int32              `json:"retry_count"`
-	WorkerID                     pgtype.UUID        `json:"worker_id"`
-	TenantID                     pgtype.UUID        `json:"tenant_id"`
+	WorkerID                     uuid.UUID          `json:"worker_id"`
+	TenantID                     uuid.UUID          `json:"tenant_id"`
 	TimeoutAt                    pgtype.Timestamp   `json:"timeout_at"`
 	ID                           int64              `json:"id"`
 	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`
-	TenantID_2                   pgtype.UUID        `json:"tenant_id_2"`
+	TenantID_2                   uuid.UUID          `json:"tenant_id_2"`
 	Queue                        string             `json:"queue"`
 	ActionID                     string             `json:"action_id"`
-	StepID                       pgtype.UUID        `json:"step_id"`
+	StepID                       uuid.UUID          `json:"step_id"`
 	StepReadableID               string             `json:"step_readable_id"`
-	WorkflowID                   pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID            pgtype.UUID        `json:"workflow_version_id"`
-	WorkflowRunID                pgtype.UUID        `json:"workflow_run_id"`
+	WorkflowID                   uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID            uuid.UUID          `json:"workflow_version_id"`
+	WorkflowRunID                uuid.UUID          `json:"workflow_run_id"`
 	ScheduleTimeout              string             `json:"schedule_timeout"`
 	StepTimeout                  pgtype.Text        `json:"step_timeout"`
 	Priority                     pgtype.Int4        `json:"priority"`
 	Sticky                       V1StickyStrategy   `json:"sticky"`
-	DesiredWorkerID              pgtype.UUID        `json:"desired_worker_id"`
-	ExternalID                   pgtype.UUID        `json:"external_id"`
+	DesiredWorkerID              uuid.UUID          `json:"desired_worker_id"`
+	ExternalID                   uuid.UUID          `json:"external_id"`
 	DisplayName                  string             `json:"display_name"`
 	Input                        []byte             `json:"input"`
 	RetryCount_2                 int32              `json:"retry_count_2"`
@@ -168,7 +169,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	AdditionalMetadata           []byte             `json:"additional_metadata"`
 	DagID                        pgtype.Int8        `json:"dag_id"`
 	DagInsertedAt                pgtype.Timestamptz `json:"dag_inserted_at"`
-	ParentTaskExternalID         pgtype.UUID        `json:"parent_task_external_id"`
+	ParentTaskExternalID         uuid.UUID          `json:"parent_task_external_id"`
 	ParentTaskID                 pgtype.Int8        `json:"parent_task_id"`
 	ParentTaskInsertedAt         pgtype.Timestamptz `json:"parent_task_inserted_at"`
 	ChildIndex                   pgtype.Int8        `json:"child_index"`
@@ -291,7 +292,7 @@ GROUP BY
 `
 
 type ListWorkersWithSlotCountParams struct {
-	Tenantid           pgtype.UUID      `json:"tenantid"`
+	Tenantid           uuid.UUID        `json:"tenantid"`
 	ActionId           pgtype.Text      `json:"actionId"`
 	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
 	Assignable         pgtype.Bool      `json:"assignable"`
@@ -300,7 +301,7 @@ type ListWorkersWithSlotCountParams struct {
 type ListWorkersWithSlotCountRow struct {
 	Worker         Worker      `json:"worker"`
 	WebhookUrl     pgtype.Text `json:"webhookUrl"`
-	WebhookId      pgtype.UUID `json:"webhookId"`
+	WebhookId      uuid.UUID   `json:"webhookId"`
 	RemainingSlots int32       `json:"remainingSlots"`
 }
 

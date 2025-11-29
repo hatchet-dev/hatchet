@@ -241,7 +241,7 @@ func (r *tenantAPIRepository) ListTenantMembers(ctx context.Context, tenantId st
 		return nil, err
 	}
 
-	ids := make([]pgtype.UUID, len(members))
+	ids := make([]uuid.UUID, len(members))
 
 	for i, member := range members {
 		ids[i] = member.ID
@@ -296,8 +296,8 @@ func (r *tenantAPIRepository) UpdateTenantMember(ctx context.Context, memberId s
 	return r.populateSingleTenantMember(ctx, updatedMember.ID)
 }
 
-func (r *sharedRepository) populateSingleTenantMember(ctx context.Context, ids pgtype.UUID) (*dbsqlc.PopulateTenantMembersRow, error) {
-	res, err := r.populateTenantMembers(ctx, []pgtype.UUID{ids})
+func (r *sharedRepository) populateSingleTenantMember(ctx context.Context, ids uuid.UUID) (*dbsqlc.PopulateTenantMembersRow, error) {
+	res, err := r.populateTenantMembers(ctx, []uuid.UUID{ids})
 
 	if err != nil {
 		return nil, err
@@ -310,7 +310,7 @@ func (r *sharedRepository) populateSingleTenantMember(ctx context.Context, ids p
 	return res[0], nil
 }
 
-func (r *sharedRepository) populateTenantMembers(ctx context.Context, ids []pgtype.UUID) ([]*dbsqlc.PopulateTenantMembersRow, error) {
+func (r *sharedRepository) populateTenantMembers(ctx context.Context, ids []uuid.UUID) ([]*dbsqlc.PopulateTenantMembersRow, error) {
 	return r.queries.PopulateTenantMembers(
 		ctx,
 		r.pool,
@@ -350,7 +350,7 @@ func (r *tenantAPIRepository) GetQueueMetrics(ctx context.Context, tenantId stri
 	}
 
 	if opts.WorkflowIds != nil {
-		uuids := make([]pgtype.UUID, len(opts.WorkflowIds))
+		uuids := make([]uuid.UUID, len(opts.WorkflowIds))
 
 		for i, id := range opts.WorkflowIds {
 			uuids[i] = sqlchelpers.UUIDFromStr(id)

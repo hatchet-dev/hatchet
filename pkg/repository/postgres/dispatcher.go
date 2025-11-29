@@ -1,9 +1,10 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -77,7 +78,7 @@ func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onSta
 		return err
 	}
 
-	dispatchersToDelete := make([]pgtype.UUID, 0)
+	dispatchersToDelete := make([]uuid.UUID, 0)
 
 	for i, dispatcher := range staleDispatchers {
 		err := onStale(sqlchelpers.UUIDToStr(dispatcher.Dispatcher.ID), func() string {

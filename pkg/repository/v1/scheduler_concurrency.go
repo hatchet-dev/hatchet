@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const PARENT_STRATEGY_LOCK_OFFSET = 1000000000000 // 1 trillion
@@ -40,9 +41,9 @@ type RunConcurrencyResult struct {
 
 type ConcurrencyRepository interface {
 	// Checks whether the concurrency strategy is active, and if not, sets is_active=False
-	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId pgtype.UUID, strategy *sqlcv1.V1StepConcurrency) error
+	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) error
 
-	RunConcurrencyStrategy(ctx context.Context, tenantId pgtype.UUID, strategy *sqlcv1.V1StepConcurrency) (*RunConcurrencyResult, error)
+	RunConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) (*RunConcurrencyResult, error)
 }
 
 type ConcurrencyRepositoryImpl struct {
@@ -57,7 +58,7 @@ func newConcurrencyRepository(s *sharedRepository) ConcurrencyRepository {
 
 func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	ctx context.Context,
-	tenantId pgtype.UUID,
+	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 30000)
@@ -103,7 +104,7 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 
 func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 	ctx context.Context,
-	tenantId pgtype.UUID,
+	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 	switch strategy.Strategy {
@@ -132,7 +133,7 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 
 func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	ctx context.Context,
-	tenantId pgtype.UUID,
+	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 
@@ -273,7 +274,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 
 func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	ctx context.Context,
-	tenantId pgtype.UUID,
+	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 
@@ -493,7 +494,7 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 
 func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	ctx context.Context,
-	tenantId pgtype.UUID,
+	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 30000)

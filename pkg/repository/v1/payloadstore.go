@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/google/uuid"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -19,7 +20,7 @@ import (
 type StorePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz
-	ExternalId pgtype.UUID
+	ExternalId uuid.UUID
 	Type       sqlcv1.V1PayloadType
 	Payload    []byte
 	TenantId   string
@@ -27,7 +28,7 @@ type StorePayloadOpts struct {
 
 type StoreOLAPPayloadOpts struct {
 	Id         int64
-	ExternalId pgtype.UUID
+	ExternalId uuid.UUID
 	InsertedAt pgtype.Timestamptz
 	Payload    []byte
 }
@@ -41,7 +42,7 @@ type RetrievePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz
 	Type       sqlcv1.V1PayloadType
-	TenantId   pgtype.UUID
+	TenantId   uuid.UUID
 }
 
 type PayloadLocation string
@@ -136,7 +137,7 @@ func NewPayloadStoreRepository(
 type PayloadUniqueKey struct {
 	ID         int64
 	InsertedAt pgtype.Timestamptz
-	TenantId   pgtype.UUID
+	TenantId   uuid.UUID
 	Type       sqlcv1.V1PayloadType
 }
 
@@ -147,9 +148,9 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	payloadTypes := make([]string, 0, len(payloads))
 	inlineContents := make([][]byte, 0, len(payloads))
 	offloadAts := make([]pgtype.Timestamptz, 0, len(payloads))
-	tenantIds := make([]pgtype.UUID, 0, len(payloads))
+	tenantIds := make([]uuid.UUID, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
-	externalIds := make([]pgtype.UUID, 0, len(payloads))
+	externalIds := make([]uuid.UUID, 0, len(payloads))
 	// If the WAL is disabled, we'll store the external location key in the payloads table right away
 	externalLocationKeys := make([]string, 0, len(payloads))
 
@@ -164,7 +165,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	if p.walEnabled {
 		// WAL_ENABLED = true: insert into payloads table and WAL table
 		for _, payload := range payloads {
-			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+			tenantId, _ := uuid.Parse(payload.TenantId)
 			uniqueKey := PayloadUniqueKey{
 				ID:         payload.Id,
 				InsertedAt: payload.InsertedAt,
@@ -207,7 +208,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		payloadIndexMap := make(map[PayloadUniqueKey]int) // Map to track original payload indices
 
 		for i, payload := range payloads {
-			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+			tenantId, _ := uuid.Parse(payload.TenantId)
 			uniqueKey := PayloadUniqueKey{
 				ID:         payload.Id,
 				InsertedAt: payload.InsertedAt,
@@ -236,7 +237,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 
 		// 3. Process results and prepare for PostgreSQL with external keys only
 		for _, payload := range payloads {
-			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+			tenantId, _ := uuid.Parse(payload.TenantId)
 			uniqueKey := PayloadUniqueKey{
 				ID:         payload.Id,
 				InsertedAt: payload.InsertedAt,
@@ -331,7 +332,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	taskIds := make([]int64, len(opts))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
 	payloadTypes := make([]string, len(opts))
-	tenantIds := make([]pgtype.UUID, len(opts))
+	tenantIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
 		taskIds[i] = opt.Id
@@ -527,7 +528,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	ids := make([]int64, 0, len(retrieveOptsToStoredKey))
 	insertedAts := make([]pgtype.Timestamptz, 0, len(retrieveOptsToStoredKey))
 	types := make([]string, 0, len(retrieveOptsToStoredKey))
-	tenantIds := make([]pgtype.UUID, 0, len(retrieveOptsToStoredKey))
+	tenantIds := make([]uuid.UUID, 0, len(retrieveOptsToStoredKey))
 	externalLocationKeys := make([]string, 0, len(retrieveOptsToStoredKey))
 
 	for _, opt := range retrieveOpts {

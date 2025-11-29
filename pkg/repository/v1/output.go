@@ -3,6 +3,8 @@ package v1
 import (
 	"encoding/json"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -50,7 +52,7 @@ func NewSkippedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent
 	e.Output = outputMapBytes
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
 
-	if task.DesiredWorkerID.Valid {
+	if task.DesiredWorkerID != uuid.Nil {
 		workerId := sqlchelpers.UUIDToStr(task.DesiredWorkerID)
 		e.WorkerId = &workerId
 	}
@@ -64,7 +66,7 @@ func NewFailedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent 
 	e.ErrorMessage = task.InitialStateReason.String
 	e.EventType = sqlcv1.V1TaskEventTypeFAILED
 
-	if task.DesiredWorkerID.Valid {
+	if task.DesiredWorkerID != uuid.Nil {
 		workerId := sqlchelpers.UUIDToStr(task.DesiredWorkerID)
 		e.WorkerId = &workerId
 	}
@@ -92,7 +94,7 @@ func NewCompletedTaskOutputEvent(row *sqlcv1.ReleaseTasksRow, output []byte) *Ta
 	e.Output = output
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
 
-	if row.WorkerID.Valid {
+	if row.WorkerID != uuid.Nil {
 		workerId := sqlchelpers.UUIDToStr(row.WorkerID)
 		e.WorkerId = &workerId
 	}
