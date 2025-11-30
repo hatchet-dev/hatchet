@@ -2260,6 +2260,18 @@ func (r *sharedRepository) replayTasks(
 			additionalMetadatas[i] = task.AdditionalMetadata
 		}
 
+		if strats, ok := concurrencyStrats[task.StepId]; ok {
+			emptyConcurrencyKeys := make([]string, 0)
+
+			for range strats {
+				emptyConcurrencyKeys = append(emptyConcurrencyKeys, "")
+			}
+
+			concurrencyKeys[i] = emptyConcurrencyKeys
+		} else {
+			concurrencyKeys[i] = make([]string, 0)
+		}
+
 		// only check for concurrency if the task is in a queued state, otherwise we don't need to
 		// evaluate the expression (and it will likely fail if we do)
 		if task.InitialState == sqlcv1.V1TaskInitialStateQUEUED {
