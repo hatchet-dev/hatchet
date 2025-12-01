@@ -747,24 +747,74 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return false, fmt.Errorf("failed to list payloads for offload: %w", err)
 	}
 
-	rows := make([][]any, len(payloads))
-	for i, payload := range payloads {
-		rows[i] = []any{
-			payload.TenantID,
-			payload.ID,
-			payload.InsertedAt,
-			payload.ExternalID,
-			string(payload.Type),
-			string(sqlcv1.V1PayloadLocationEXTERNAL),
-			payload.ExternalLocationKey.String,
-			nil,
+	alreadyExternalPayloads := make(map[RetrievePayloadOpts]ExternalPayloadLocationKey)
+	offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
+	retrieveOptsToExternalId := make(map[RetrievePayloadOpts]string)
+
+	for _, payload := range payloads {
+		if payload.Location != sqlcv1.V1PayloadLocationINLINE {
+			retrieveOpt := RetrievePayloadOpts{
+				Id:         payload.ID,
+				InsertedAt: payload.InsertedAt,
+				Type:       payload.Type,
+				TenantId:   payload.TenantID,
+			}
+
+			alreadyExternalPayloads[retrieveOpt] = ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
+			retrieveOptsToExternalId[retrieveOpt] = payload.ExternalID.String()
+		} else {
+			offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
+				StorePayloadOpts: &StorePayloadOpts{
+					Id:         payload.ID,
+					InsertedAt: payload.InsertedAt,
+					Type:       payload.Type,
+					Payload:    payload.InlineContent,
+					TenantId:   payload.TenantID.String(),
+					ExternalId: payload.ExternalID,
+				},
+				OffloadAt: time.Now(),
+			})
+			retrieveOptsToExternalId[RetrievePayloadOpts{
+				Id:         payload.ID,
+				InsertedAt: payload.InsertedAt,
+				Type:       payload.Type,
+				TenantId:   payload.TenantID,
+			}] = payload.ExternalID.String()
 		}
+	}
+
+	retrieveOptsToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
+
+	for r, k := range alreadyExternalPayloads {
+		retrieveOptsToKey[r] = k
+	}
+
+	rows := make([][]any, 0, len(payloads))
+	for r, k := range retrieveOptsToKey {
+		// first, offload each payload
+		// next, insert into temp table using new keys
+		// finally, swap the tables
+		// do we need conflict resolution?
+
+		externalId := retrieveOptsToExternalId[r]
+
+		rows = append(rows, []any{
+			r.TenantId,
+			r.Id,
+			r.InsertedAt,
+			externalId,
+			string(r.Type),
+			string(sqlcv1.V1PayloadLocationEXTERNAL),
+			k,
+			nil,
+			time.Now(),
+		})
 	}
 
 	copyCount, err := tx.CopyFrom(
 		ctx,
 		pgx.Identifier{tableName},
-		[]string{"tenant_id", "id", "inserted_at", "external_id", "type", "location", "external_location_key", "inline_content"},
+		[]string{"tenant_id", "id", "inserted_at", "external_id", "type", "location", "external_location_key", "inline_content", "updated_at"},
 		pgx.CopyFromRows(rows),
 	)
 
