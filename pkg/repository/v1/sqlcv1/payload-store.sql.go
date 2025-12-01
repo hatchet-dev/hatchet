@@ -100,8 +100,8 @@ SELECT
     external_id::UUID,
     type::v1_payload_type,
     location::v1_payload_location,
-    external_location_key::TEXT,
-    inline_content::JSONB,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
     updated_at::TIMESTAMPTZ
 FROM function_result
 `

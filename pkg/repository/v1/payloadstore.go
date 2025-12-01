@@ -626,9 +626,25 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return err
 	}
 
+	hashKey := fmt.Sprintf("payload-cutover-temp-table-lease-%s", partitionDate.Format("20060102"))
+
+	lockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash(hashKey))
+
+	if err != nil {
+		rollback()
+		return fmt.Errorf("failed to acquire advisory lock for payload cutover temp table: %w", err)
+	}
+
+	if !lockAcquired {
+		rollback()
+		fmt.Println("lock not acquired, another process is likely running")
+		return nil
+	}
+
 	partitionDateStr := partitionDate.Format("20060102")
 	// todo: this should also set up a trigger on insert into the new temp table
 	// on insert, we just write the record from the payload partition
+	// todo: acquire an advisory lock or a lease here so this doesn't run concurrently
 	err = p.queries.CreateV1PayloadCutoverTemporaryTable(ctx, tx, pgtype.Date{
 		Time:  partitionDate,
 		Valid: true,
