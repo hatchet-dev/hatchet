@@ -20,6 +20,15 @@ func (q *Queries) AnalyzeV1Payload(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const createV1PayloadCutoverTemporaryTable = `-- name: CreateV1PayloadCutoverTemporaryTable :exec
+SELECT copy_v1_payload_partition_structure($1::DATE)
+`
+
+func (q *Queries) CreateV1PayloadCutoverTemporaryTable(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, createV1PayloadCutoverTemporaryTable, date)
+	return err
+}
+
 const cutOverPayloadsToExternal = `-- name: CutOverPayloadsToExternal :one
 WITH tenants AS (
     SELECT UNNEST(
@@ -72,6 +81,49 @@ func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg Cu
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many
+SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
+FROM v1_payload
+ORDER BY tenant_id, inserted_at, id, type
+LIMIT $2::INT
+OFFSET $1::INT
+`
+
+type ListPaginatedPayloadsForOffloadParams struct {
+	Offsetparam int32 `json:"offsetparam"`
+	Limitparam  int32 `json:"limitparam"`
+}
+
+func (q *Queries) ListPaginatedPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedPayloadsForOffloadParams) ([]*V1Payload, error) {
+	rows, err := db.Query(ctx, listPaginatedPayloadsForOffload, arg.Offsetparam, arg.Limitparam)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Payload
+	for rows.Next() {
+		var i V1Payload
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.Type,
+			&i.Location,
+			&i.ExternalLocationKey,
+			&i.InlineContent,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const pollPayloadWALForRecordsToReplicate = `-- name: PollPayloadWALForRecordsToReplicate :many

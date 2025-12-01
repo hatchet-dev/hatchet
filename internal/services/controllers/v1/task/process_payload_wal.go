@@ -2,6 +2,9 @@ package task
 
 import (
 	"context"
+	"time"
+
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 func (tc *TasksControllerImpl) runProcessPayloadWAL(ctx context.Context) func() {
@@ -37,5 +40,7 @@ func (tc *TasksControllerImpl) runProcessPayloadExternalCutovers(ctx context.Con
 }
 
 func (tc *TasksControllerImpl) processPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error) {
-	return tc.repov1.Payloads().ProcessPayloadExternalCutovers(ctx, partitionNumber)
+	today := time.Now()
+	rows := make([]v1.BulkCutOverPayload, 0)
+	return tc.repov1.Payloads().CopyOffloadedPayloadsIntoTempTable(ctx, today, rows)
 }

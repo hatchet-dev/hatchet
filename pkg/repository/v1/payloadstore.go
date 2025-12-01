@@ -10,6 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -70,6 +71,7 @@ type PayloadStoreRepository interface {
 	ExternalCutoverProcessInterval() time.Duration
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
+	CopyOffloadedPayloadsIntoTempTable(ctx context.Context, partitionDate time.Time, payloads []BulkCutOverPayload) (bool, error)
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -702,6 +704,72 @@ func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
 
 func (p *payloadStoreRepositoryImpl) WALEnabled() bool {
 	return p.walEnabled
+}
+
+type BulkCutOverPayload struct {
+	TenantID            pgtype.UUID
+	Id                  int64
+	InsertedAt          pgtype.Timestamptz
+	ExternalId          pgtype.UUID
+	Type                sqlcv1.V1PayloadType
+	ExternalLocationKey ExternalPayloadLocationKey
+}
+
+func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context, partitionDate time.Time, payloads []BulkCutOverPayload) (bool, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+
+	if err != nil {
+		return false, err
+	}
+
+	defer rollback()
+
+	partitionDateStr := partitionDate.Format("20060102")
+	err = p.queries.CreateV1PayloadCutoverTemporaryTable(ctx, tx, pgtype.Date{
+		Time:  partitionDate,
+		Valid: true,
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("failed to create payload cutover temporary table: %w", err)
+	}
+
+	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDateStr)
+
+	rows := make([][]any, len(payloads))
+	for i, payload := range payloads {
+		rows[i] = []any{
+			payload.TenantID,
+			payload.Id,
+			payload.InsertedAt,
+			payload.ExternalId,
+			string(payload.Type),
+			string(sqlcv1.V1PayloadLocationEXTERNAL),
+			string(payload.ExternalLocationKey),
+			nil,
+		}
+	}
+
+	copyCount, err := tx.CopyFrom(
+		ctx,
+		pgx.Identifier{tableName},
+		[]string{"tenant_id", "id", "inserted_at", "external_id", "type", "location", "external_location_key", "inline_content"},
+		pgx.CopyFromRows(rows),
+	)
+
+	if err != nil {
+		return false, fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
+	}
+
+	if int(copyCount) != len(payloads) {
+		return false, fmt.Errorf("copied payload count %d does not match expected %d", copyCount, len(payloads))
+	}
+
+	if err := commit(ctx); err != nil {
+		return false, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
+	}
+
+	return copyCount > 0, nil
 }
 
 type NoOpExternalStore struct{}

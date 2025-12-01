@@ -214,3 +214,14 @@ FROM queue_items
 
 -- name: AnalyzeV1Payload :exec
 ANALYZE v1_payload;
+
+-- name: ListPaginatedPayloadsForOffload :many
+SELECT *
+FROM v1_payload
+ORDER BY tenant_id, inserted_at, id, type
+LIMIT @limitParam::INT
+OFFSET @offsetParam::INT
+;
+
+-- name: CreateV1PayloadCutoverTemporaryTable :exec
+SELECT copy_v1_payload_partition_structure(@date::DATE);
