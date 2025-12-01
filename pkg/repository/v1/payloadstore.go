@@ -611,16 +611,12 @@ type BulkCutOverPayload struct {
 }
 
 func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error {
-	fmt.Println("running cutover job")
 	if !p.externalStoreEnabled {
 		return nil
 	}
-	fmt.Println("store enabled")
 
 	partitionDate := time.Now()
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
-
-	fmt.Println("processing payload cutovers for partition date", partitionDate.String())
 
 	if err != nil {
 		return err
@@ -637,7 +633,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 
 	if !lockAcquired {
 		rollback()
-		fmt.Println("lock not acquired, another process is likely running")
 		return nil
 	}
 
@@ -664,7 +659,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 	offset := int32(0)
 
 	for true {
-		fmt.Println("processing batch with offset", offset)
 		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
 		if err != nil {
@@ -674,7 +668,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		defer rollback()
 
 		tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDateStr)
-		// todo: this needs to read out of a single partition, not the whole partitioned table
 		payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
 			Partitiondate: pgtype.Date{
 				Time:  partitionDate,
@@ -683,8 +676,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 			Offsetparam: offset,
 			Limitparam:  limit,
 		})
-
-		fmt.Println("found payloads:", len(payloads))
 
 		if err != nil {
 			return fmt.Errorf("failed to list payloads for offload: %w", err)
@@ -726,8 +717,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 			}
 		}
 
-		fmt.Println("offloading", len(offloadOpts), "payloads to external store")
-
 		retrieveOptsToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
 
 		for r, k := range alreadyExternalPayloads {
@@ -736,11 +725,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 
 		rows := make([][]any, 0, len(payloads))
 		for r, k := range retrieveOptsToKey {
-			// first, offload each payload
-			// next, insert into temp table using new keys
-			// finally, swap the tables
-			// do we need conflict resolution?
-
+			// qq: do we need conflict resolution here? I think the `COPY` is probably fine
 			externalId := retrieveOptsToExternalId[r]
 
 			rows = append(rows, []any{
@@ -755,8 +740,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 				time.Now(),
 			})
 		}
-
-		fmt.Println("copying", len(rows), "payloads into temp table")
 
 		copyCount, err := tx.CopyFrom(
 			ctx,
@@ -804,8 +787,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 	if err := commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit swap payload cutover temp table transaction: %w", err)
 	}
-
-	fmt.Println("successfully swapped payload cutover temp table")
 
 	return nil
 
