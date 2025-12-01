@@ -26,13 +26,7 @@ func (tc *TasksControllerImpl) runProcessPayloadExternalCutovers(ctx context.Con
 	return func() {
 		tc.l.Debug().Msgf("processing payload external cutovers")
 
-		partitions := []int64{0, 1, 2, 3}
-
-		tc.processPayloadExternalCutoversOperations.SetPartitions(partitions)
-
-		for _, partitionId := range partitions {
-			tc.processPayloadExternalCutoversOperations.RunOrContinue(partitionId)
-		}
+		tc.processPayloadExternalCutoversOperations.RunOrContinue(0)
 	}
 }
 

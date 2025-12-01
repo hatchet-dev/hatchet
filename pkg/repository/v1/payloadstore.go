@@ -716,9 +716,11 @@ type BulkCutOverPayload struct {
 }
 
 func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error {
+	fmt.Println("running cutover job")
 	if !p.externalStoreEnabled {
 		return nil
 	}
+	fmt.Println("store enabled")
 
 	partitionDate := time.Now()
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
@@ -751,6 +753,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 	offset := int32(0)
 
 	for true {
+		fmt.Println("processing batch with offset", offset)
 		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
 		if err != nil {
@@ -762,9 +765,15 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDateStr)
 		// todo: this needs to read out of a single partition, not the whole partitioned table
 		payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
+			Partitiondate: pgtype.Date{
+				Time:  partitionDate,
+				Valid: true,
+			},
 			Offsetparam: offset,
 			Limitparam:  limit,
 		})
+
+		fmt.Println("found payloads:", len(payloads))
 
 		if err != nil {
 			return fmt.Errorf("failed to list payloads for offload: %w", err)
@@ -806,6 +815,8 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 			}
 		}
 
+		fmt.Println("offloading", len(offloadOpts), "payloads to external store")
+
 		retrieveOptsToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
 
 		for r, k := range alreadyExternalPayloads {
@@ -833,6 +844,8 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 				time.Now(),
 			})
 		}
+
+		fmt.Println("copying", len(rows), "payloads into temp table")
 
 		copyCount, err := tx.CopyFrom(
 			ctx,

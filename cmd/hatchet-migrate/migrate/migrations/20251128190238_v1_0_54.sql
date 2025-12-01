@@ -69,6 +69,10 @@ DECLARE
     source_partition_name varchar;
     query text;
 BEGIN
+    IF partition_date IS NULL THEN
+        RAISE EXCEPTION 'partition_date parameter cannot be NULL';
+    END IF;
+
     SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
     SELECT format('v1_payload_%s', partition_date_str) INTO source_partition_name;
 
