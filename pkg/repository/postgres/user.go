@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -33,7 +32,7 @@ func (w *userRepository) RegisterCreateCallback(callback repository.UnscopedCall
 }
 
 func (r *userRepository) GetUserByID(ctx context.Context, id string) (*dbsqlc.User, error) {
-	return r.queries.GetUserByID(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+	return r.queries.GetUserByID(ctx, r.pool, uuid.MustParse(id))
 }
 
 func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*dbsqlc.User, error) {
@@ -43,7 +42,7 @@ func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*dbs
 }
 
 func (r *userRepository) GetUserPassword(ctx context.Context, id string) (*dbsqlc.UserPassword, error) {
-	return r.queries.GetUserPassword(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+	return r.queries.GetUserPassword(ctx, r.pool, uuid.MustParse(id))
 }
 
 func (r *userRepository) CreateUser(ctx context.Context, opts *repository.CreateUserOpts) (*dbsqlc.User, error) {
@@ -54,7 +53,7 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *repository.Create
 	userId := uuid.New().String()
 
 	params := dbsqlc.CreateUserParams{
-		ID:    sqlchelpers.UUIDFromStr(userId),
+		ID:    uuid.MustParse(userId),
 		Email: strings.ToLower(opts.Email),
 	}
 
@@ -82,14 +81,14 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *repository.Create
 
 	if opts.Password != nil {
 		_, err = r.queries.CreateUserPassword(ctx, tx, dbsqlc.CreateUserPasswordParams{
-			Userid: sqlchelpers.UUIDFromStr(userId),
+			Userid: uuid.MustParse(userId),
 			Hash:   *opts.Password,
 		})
 	}
 
 	if opts.OAuth != nil {
 		createOAuthParams := dbsqlc.CreateUserOAuthParams{
-			Userid:         sqlchelpers.UUIDFromStr(userId),
+			Userid:         uuid.MustParse(userId),
 			Provider:       opts.OAuth.Provider,
 			Provideruserid: opts.OAuth.ProviderUserId,
 			Accesstoken:    opts.OAuth.AccessToken,
@@ -124,7 +123,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *reposi
 	}
 
 	params := dbsqlc.UpdateUserParams{
-		ID: sqlchelpers.UUIDFromStr(id),
+		ID: uuid.MustParse(id),
 	}
 
 	if opts.EmailVerified != nil {
@@ -151,14 +150,14 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *reposi
 
 	if opts.Password != nil {
 		_, err = r.queries.UpdateUserPassword(ctx, tx, dbsqlc.UpdateUserPasswordParams{
-			Userid: sqlchelpers.UUIDFromStr(id),
+			Userid: uuid.MustParse(id),
 			Hash:   *opts.Password,
 		})
 	}
 
 	if opts.OAuth != nil {
 		createOAuthParams := dbsqlc.UpsertUserOAuthParams{
-			Userid:         sqlchelpers.UUIDFromStr(id),
+			Userid:         uuid.MustParse(id),
 			Provider:       opts.OAuth.Provider,
 			Provideruserid: opts.OAuth.ProviderUserId,
 			Accesstoken:    opts.OAuth.AccessToken,
@@ -184,13 +183,13 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *reposi
 }
 
 func (r *userRepository) ListTenantMemberships(ctx context.Context, userId string) ([]*dbsqlc.PopulateTenantMembersRow, error) {
-	memberships, err := r.queries.ListTenantMemberships(ctx, r.pool, sqlchelpers.UUIDFromStr(userId))
+	memberships, err := r.queries.ListTenantMemberships(ctx, r.pool, uuid.MustParse(userId))
 
 	if err != nil {
 		return nil, err
 	}
 
-	ids := make([]pgtype.UUID, len(memberships))
+	ids := make([]uuid.UUID, len(memberships))
 
 	for i, m := range memberships {
 		ids[i] = m.ID

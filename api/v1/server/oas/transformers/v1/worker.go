@@ -7,7 +7,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -20,9 +19,9 @@ func ToSlotState(slots []*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, remain
 		var stepRunId uuid.UUID
 		var workflowRunId uuid.UUID
 
-		if slot.ExternalID.Valid {
-			stepRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.ExternalID))
-			workflowRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.ExternalID))
+		if slot.ExternalID != uuid.Nil {
+			stepRunId = slot.ExternalID
+			workflowRunId = slot.ExternalID
 		}
 
 		status := gen.StepRunStatusRUNNING
@@ -63,7 +62,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 
 func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string, workflows *[]*dbsqlc.Workflow) *gen.Worker {
 
-	dispatcherId := uuid.MustParse(sqlchelpers.UUIDToStr(worker.DispatcherId))
+	dispatcherId := worker.DispatcherId
 
 	maxRuns := int(worker.MaxRuns)
 
@@ -85,23 +84,23 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 
 	res := &gen.Worker{
 		Metadata: gen.APIResourceMeta{
-			Id:        sqlchelpers.UUIDToStr(worker.ID),
+			Id:        worker.ID.String(),
 			CreatedAt: worker.CreatedAt.Time,
 			UpdatedAt: worker.UpdatedAt.Time,
 		},
 		Name:          worker.Name,
 		Type:          gen.WorkerType(worker.Type),
 		Status:        &status,
-		DispatcherId:  &dispatcherId,
+		DispatcherId:  dispatcherId,
 		MaxRuns:       &maxRuns,
 		AvailableRuns: &availableRuns,
 		WebhookUrl:    webhookUrl,
 		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
 	}
 
-	if worker.WebhookId.Valid {
-		wid := uuid.MustParse(sqlchelpers.UUIDToStr(worker.WebhookId))
-		res.WebhookId = &wid
+	if worker.WebhookId != nil {
+		wid := worker.WebhookId
+		res.WebhookId = wid
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -72,7 +73,7 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId strin
 		return nil, err
 	}
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgTenantId := uuid.MustParse(tenantId)
 
 	queryParams := sqlcv1.ListLogLinesParams{
 		Tenantid:       pgTenantId,
@@ -132,7 +133,7 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId string, opt
 		r.pool,
 		[]sqlcv1.InsertLogLineParams{
 			{
-				TenantID:       sqlchelpers.UUIDFromStr(tenantId),
+				TenantID:       uuid.MustParse(tenantId),
 				TaskID:         opts.TaskId,
 				TaskInsertedAt: opts.TaskInsertedAt,
 				Message:        opts.Message,

@@ -1,11 +1,12 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -22,9 +23,9 @@ func NewJobRunAPIRepository(shared *sharedRepository) repository.JobRunAPIReposi
 	}
 }
 
-func (j *jobRunAPIRepository) RegisterWorkflowRunRunningCallback(callback repository.TenantScopedCallback[pgtype.UUID]) {
+func (j *jobRunAPIRepository) RegisterWorkflowRunRunningCallback(callback repository.TenantScopedCallback[uuid.UUID]) {
 	if j.wrRunningCallbacks == nil {
-		j.wrRunningCallbacks = make([]repository.TenantScopedCallback[pgtype.UUID], 0)
+		j.wrRunningCallbacks = make([]repository.TenantScopedCallback[uuid.UUID], 0)
 	}
 
 	j.wrRunningCallbacks = append(j.wrRunningCallbacks, callback)
@@ -47,8 +48,8 @@ func (j *jobRunAPIRepository) SetJobRunStatusRunning(tenantId, jobRunId string) 
 func (j *jobRunAPIRepository) ListJobRunByWorkflowRunId(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunFullRow, error) {
 	return j.queries.ListJobRunsForWorkflowRunFull(ctx, j.pool,
 		dbsqlc.ListJobRunsForWorkflowRunFullParams{
-			Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
-			Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
+			Tenantid:      uuid.MustParse(tenantId),
+			Workflowrunid: uuid.MustParse(workflowRunId),
 		},
 	)
 }
@@ -64,9 +65,9 @@ func NewJobRunEngineRepository(shared *sharedRepository) repository.JobRunEngine
 	}
 }
 
-func (j *jobRunEngineRepository) RegisterWorkflowRunRunningCallback(callback repository.TenantScopedCallback[pgtype.UUID]) {
+func (j *jobRunEngineRepository) RegisterWorkflowRunRunningCallback(callback repository.TenantScopedCallback[uuid.UUID]) {
 	if j.wrRunningCallbacks == nil {
-		j.wrRunningCallbacks = make([]repository.TenantScopedCallback[pgtype.UUID], 0)
+		j.wrRunningCallbacks = make([]repository.TenantScopedCallback[uuid.UUID], 0)
 	}
 
 	j.wrRunningCallbacks = append(j.wrRunningCallbacks, callback)
@@ -112,33 +113,33 @@ func (s *sharedRepository) setJobRunStatusRunningWithTx(ctx context.Context, tx 
 }
 
 func (j *sharedRepository) ListJobRunsForWorkflowRun(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error) {
-	return j.queries.ListJobRunsForWorkflowRun(ctx, j.pool, sqlchelpers.UUIDFromStr(workflowRunId))
+	return j.queries.ListJobRunsForWorkflowRun(ctx, j.pool, uuid.MustParse(workflowRunId))
 }
 
 func (j *sharedRepository) listJobRunsForWorkflowRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error) {
-	return j.queries.ListJobRunsForWorkflowRun(ctx, tx, sqlchelpers.UUIDFromStr(workflowRunId))
+	return j.queries.ListJobRunsForWorkflowRun(ctx, tx, uuid.MustParse(workflowRunId))
 }
 
 func (j *jobRunEngineRepository) GetJobRunByWorkflowRunIdAndJobId(ctx context.Context, tenantId, workflowRunId, jobId string) (*dbsqlc.GetJobRunByWorkflowRunIdAndJobIdRow, error) {
 	return j.queries.GetJobRunByWorkflowRunIdAndJobId(ctx, j.pool, dbsqlc.GetJobRunByWorkflowRunIdAndJobIdParams{
-		Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
-		Jobid:         sqlchelpers.UUIDFromStr(jobId),
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Workflowrunid: uuid.MustParse(workflowRunId),
+		Jobid:         uuid.MustParse(jobId),
+		Tenantid:      uuid.MustParse(tenantId),
 	})
 }
 
 func (j *jobRunEngineRepository) GetJobRunsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId string) ([]*dbsqlc.GetJobRunsByWorkflowRunIdRow, error) {
 	return j.queries.GetJobRunsByWorkflowRunId(ctx, j.pool, dbsqlc.GetJobRunsByWorkflowRunIdParams{
-		Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Workflowrunid: uuid.MustParse(workflowRunId),
+		Tenantid:      uuid.MustParse(tenantId),
 	})
 }
 
-func (s *sharedRepository) setJobRunStatusRunning(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) (*pgtype.UUID, error) {
+func (s *sharedRepository) setJobRunStatusRunning(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) (*uuid.UUID, error) {
 
 	jobRun, err := s.queries.UpdateJobRunStatus(context.Background(), tx, dbsqlc.UpdateJobRunStatusParams{
-		ID:       sqlchelpers.UUIDFromStr(jobRunId),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		ID:       uuid.MustParse(jobRunId),
+		Tenantid: uuid.MustParse(tenantId),
 		Status:   dbsqlc.JobRunStatusRUNNING,
 	})
 
@@ -168,7 +169,7 @@ func (s *sharedRepository) setJobRunStatusRunning(ctx context.Context, tx dbsqlc
 
 func (r *jobRunEngineRepository) ClearJobRunPayloadData(ctx context.Context, tenantId string) (bool, error) {
 	hasMore, err := r.queries.ClearJobRunLookupData(ctx, r.pool, dbsqlc.ClearJobRunLookupDataParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 		Limit:    1000,
 	})
 

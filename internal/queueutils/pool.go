@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 
 	"github.com/rs/zerolog"
 )
@@ -38,7 +37,7 @@ func (p *OperationPool[T]) SetTenants(tenants []*dbsqlc.Tenant) {
 	tenantMap := make(map[string]bool)
 
 	for _, t := range tenants {
-		tenantMap[sqlchelpers.UUIDToStr(t.ID)] = true
+		tenantMap[t.ID.String()] = true
 	}
 
 	// delete tenants that are not in the list

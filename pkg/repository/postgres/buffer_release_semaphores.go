@@ -1,18 +1,18 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"sort"
-
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
-func NewBulkSemaphoreReleaser(shared *sharedRepository, conf buffer.ConfigFileBuffer) (*buffer.TenantBufferManager[semaphoreReleaseOpts, pgtype.UUID], error) {
-	eventBufOpts := buffer.TenantBufManagerOpts[semaphoreReleaseOpts, pgtype.UUID]{
+func NewBulkSemaphoreReleaser(shared *sharedRepository, conf buffer.ConfigFileBuffer) (*buffer.TenantBufferManager[semaphoreReleaseOpts, uuid.UUID], error) {
+	eventBufOpts := buffer.TenantBufManagerOpts[semaphoreReleaseOpts, uuid.UUID]{
 		Name:       "semaphore_releaser",
 		OutputFunc: shared.bulkReleaseSemaphores,
 		SizeFunc:   sizeOfSemaphoreReleaseData,
@@ -32,34 +32,34 @@ func NewBulkSemaphoreReleaser(shared *sharedRepository, conf buffer.ConfigFileBu
 }
 
 func sizeOfSemaphoreReleaseData(item semaphoreReleaseOpts) int {
-	return len(item.StepRunId.Bytes) + len(item.TenantId.Bytes)
+	return len(item.StepRunId) + len(item.TenantId)
 }
 
 func sortForSemaphoreRelease(opts []semaphoreReleaseOpts) []semaphoreReleaseOpts {
 	sort.SliceStable(opts, func(i, j int) bool {
-		return sqlchelpers.UUIDToStr(opts[i].StepRunId) < sqlchelpers.UUIDToStr(opts[j].StepRunId)
+		return opts[i].StepRunId.String() < opts[j].StepRunId.String()
 	})
 
 	return opts
 }
 
 type semaphoreReleaseOpts struct {
-	StepRunId pgtype.UUID
-	TenantId  pgtype.UUID
+	StepRunId uuid.UUID
+	TenantId  uuid.UUID
 }
 
-func (w *sharedRepository) bulkReleaseSemaphores(ctx context.Context, opts []semaphoreReleaseOpts) ([]*pgtype.UUID, error) {
+func (w *sharedRepository) bulkReleaseSemaphores(ctx context.Context, opts []semaphoreReleaseOpts) ([]*uuid.UUID, error) {
 	orderedOpts := sortForSemaphoreRelease(opts)
 
-	res := make([]*pgtype.UUID, 0, len(orderedOpts))
+	res := make([]*uuid.UUID, 0, len(orderedOpts))
 
 	for _, o := range orderedOpts {
 		srId := o.StepRunId
 		res = append(res, &srId)
 	}
 
-	stepRunIds := make([]pgtype.UUID, 0, len(orderedOpts))
-	tenantIds := make([]pgtype.UUID, 0, len(orderedOpts))
+	stepRunIds := make([]uuid.UUID, 0, len(orderedOpts))
+	tenantIds := make([]uuid.UUID, 0, len(orderedOpts))
 
 	for _, o := range orderedOpts {
 		stepRunIds = append(stepRunIds, o.StepRunId)

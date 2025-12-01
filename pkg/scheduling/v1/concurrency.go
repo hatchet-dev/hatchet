@@ -1,11 +1,12 @@
 package v1
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"golang.org/x/time/rate"
 
@@ -18,7 +19,7 @@ import (
 type ConcurrencyResults struct {
 	*v1.RunConcurrencyResult
 
-	TenantId pgtype.UUID
+	TenantId uuid.UUID
 }
 
 type ConcurrencyManager struct {
@@ -26,7 +27,7 @@ type ConcurrencyManager struct {
 
 	strategy *sqlcv1.V1StepConcurrency
 
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	repo v1.ConcurrencyRepository
 
@@ -46,7 +47,7 @@ type ConcurrencyManager struct {
 	maxPollingInterval time.Duration
 }
 
-func newConcurrencyManager(conf *sharedConfig, tenantId pgtype.UUID, strategy *sqlcv1.V1StepConcurrency, resultsCh chan<- *ConcurrencyResults) *ConcurrencyManager {
+func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency, resultsCh chan<- *ConcurrencyResults) *ConcurrencyManager {
 	repo := conf.repo.Concurrency()
 
 	notifyConcurrencyCh := make(chan map[string]string, 2)

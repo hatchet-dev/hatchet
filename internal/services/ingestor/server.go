@@ -18,7 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
@@ -83,7 +82,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEventRequest) (*contracts.Events, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	if len(req.Events) == 0 {
 
@@ -187,7 +186,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.ReplayEventRequest) (*contracts.Event, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	oldEvent, err := i.eventRepository.GetEventForEngine(ctx, tenantId, req.EventId)
 
@@ -224,7 +223,7 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 }
 
 func (i *IngestorImpl) putStreamEventV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	var createdAt *time.Time
 
@@ -263,7 +262,7 @@ func (i *IngestorImpl) putStreamEventV0(ctx context.Context, tenant *dbsqlc.Tena
 
 	q := msgqueue.TenantEventConsumerQueue(tenantId)
 
-	e := streamEventToTask(streamEvent, sqlchelpers.UUIDToStr(meta.WorkflowRunId), &meta.RetryCount, &meta.Retries)
+	e := streamEventToTask(streamEvent, meta.WorkflowRunId.String(), &meta.RetryCount, &meta.Retries)
 
 	err = i.mq.AddMessage(context.Background(), q, e)
 
@@ -288,7 +287,7 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 }
 
 func (i *IngestorImpl) putLogV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	var createdAt *time.Time
 
@@ -340,8 +339,8 @@ func (i *IngestorImpl) putLogV0(ctx context.Context, tenant *dbsqlc.Tenant, req 
 }
 
 func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
-	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
-	eventId := sqlchelpers.UUIDToStr(e.ID)
+	tenantId := e.TenantId.String()
+	eventId := e.ID.String()
 
 	var additionalMeta *string
 
@@ -361,11 +360,11 @@ func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
 }
 
 func streamEventToTask(e *dbsqlc.StreamEvent, workflowRunId string, retryCount *int32, retries *int32) *msgqueue.Message {
-	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
+	tenantId := e.TenantId.String()
 
 	payloadTyped := tasktypes.StepRunStreamEventTaskPayload{
 		WorkflowRunId: workflowRunId,
-		StepRunId:     sqlchelpers.UUIDToStr(e.StepRunId),
+		StepRunId:     e.StepRunId.String(),
 		CreatedAt:     e.CreatedAt.Time.String(),
 		StreamEventId: strconv.FormatInt(e.ID, 10),
 		RetryCount:    retryCount,

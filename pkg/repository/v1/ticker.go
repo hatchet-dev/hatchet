@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/google/uuid"
 )
 
 type TickerRepository interface {
@@ -22,7 +22,7 @@ func newTickerRepository(shared *sharedRepository) TickerRepository {
 }
 
 func (t *tickerRepository) IsTenantAlertActive(ctx context.Context, tenantId string) (bool, time.Time, error) {
-	res, err := t.queries.IsTenantAlertActive(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
+	res, err := t.queries.IsTenantAlertActive(ctx, t.pool, uuid.MustParse(tenantId))
 
 	if err != nil {
 		return false, time.Now(), err

@@ -1,24 +1,24 @@
 package v0
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"fmt"
 	"sort"
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type Queuer struct {
 	repo      repository.QueueRepository
-	tenantId  pgtype.UUID
+	tenantId  uuid.UUID
 	queueName string
 
 	l *zerolog.Logger
@@ -46,7 +46,7 @@ type Queuer struct {
 	unassignedMu mutex
 }
 
-func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
+func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
 	defaultLimit := 100
 
 	if conf.singleQueueLimit > 0 {
@@ -164,10 +164,10 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		rateLimitTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		stepIds := make([]pgtype.UUID, 0, len(qis))
+		stepIds := make([]uuid.UUID, 0, len(qis))
 
 		for _, qi := range qis {
-			stepIds = append(stepIds, qi.StepId)
+			stepIds = append(stepIds, *qi.StepId)
 		}
 
 		labels, err := q.repo.GetDesiredLabels(ctx, stepIds)
@@ -318,7 +318,7 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
 }
 
 type QueueResults struct {
-	TenantId pgtype.UUID
+	TenantId uuid.UUID
 	Assigned []*repository.AssignedItem
 
 	// A list of step run ids that were not assigned because they reached the scheduling
@@ -392,7 +392,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	stepRunIdsToAcks := make(map[string]int, len(r.assigned))
 
 	for _, assignedItem := range r.assigned {
-		stepRunIdsToAcks[sqlchelpers.UUIDToStr(assignedItem.QueueItem.StepRunId)] = assignedItem.AckId
+		stepRunIdsToAcks[assignedItem.QueueItem.StepRunId.String()] = assignedItem.AckId
 
 		opts.Assigned = append(opts.Assigned, &repository.AssignedItem{
 			WorkerId:  assignedItem.WorkerId,
@@ -405,7 +405,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 			ExceededKey:   rateLimitedItem.exceededKey,
 			ExceededUnits: rateLimitedItem.exceededUnits,
 			ExceededVal:   rateLimitedItem.exceededVal,
-			StepRunId:     rateLimitedItem.qi.StepRunId,
+			StepRunId:     *rateLimitedItem.qi.StepRunId,
 		})
 	}
 
@@ -429,12 +429,12 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	ackIds := make([]int, 0, len(succeeded))
 
 	for _, failedItem := range failed {
-		nackId := stepRunIdsToAcks[sqlchelpers.UUIDToStr(failedItem.QueueItem.StepRunId)]
+		nackId := stepRunIdsToAcks[failedItem.QueueItem.StepRunId.String()]
 		nackIds = append(nackIds, nackId)
 	}
 
 	for _, assignedItem := range succeeded {
-		ackId := stepRunIdsToAcks[sqlchelpers.UUIDToStr(assignedItem.QueueItem.StepRunId)]
+		ackId := stepRunIdsToAcks[assignedItem.QueueItem.StepRunId.String()]
 		ackIds = append(ackIds, ackId)
 	}
 
@@ -444,7 +444,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	schedulingTimedOut := make([]string, 0, len(r.schedulingTimedOut))
 
 	for _, id := range r.schedulingTimedOut {
-		schedulingTimedOut = append(schedulingTimedOut, sqlchelpers.UUIDToStr(id.StepRunId))
+		schedulingTimedOut = append(schedulingTimedOut, id.StepRunId.String())
 	}
 
 	q.resultsCh <- &QueueResults{

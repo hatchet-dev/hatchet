@@ -9,7 +9,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func SeedDatabase(dc *database.Layer) error {
@@ -43,7 +42,7 @@ func SeedDatabase(dc *database.Layer) error {
 			}
 		}
 
-		userID = sqlchelpers.UUIDToStr(user.ID)
+		userID = user.ID.String()
 	}
 
 	_, err := dc.APIRepository.Tenant().GetTenantBySlug(context.Background(), dc.Seed.DefaultTenantSlug)
@@ -62,16 +61,16 @@ func SeedDatabase(dc *database.Layer) error {
 				return err
 			}
 
-			tenant, err := dc.APIRepository.Tenant().GetTenantByID(context.Background(), sqlchelpers.UUIDToStr(sqlcTenant.ID))
+			tenant, err := dc.APIRepository.Tenant().GetTenantByID(context.Background(), sqlcTenant.ID.String())
 
 			if err != nil {
 				return err
 			}
 
-			fmt.Println("created tenant", sqlchelpers.UUIDToStr(tenant.ID))
+			fmt.Println("created tenant", tenant.ID.String())
 
 			// add the user to the tenant
-			_, err = dc.APIRepository.Tenant().CreateTenantMember(context.Background(), sqlchelpers.UUIDToStr(tenant.ID), &repository.CreateTenantMemberOpts{
+			_, err = dc.APIRepository.Tenant().CreateTenantMember(context.Background(), tenant.ID.String(), &repository.CreateTenantMemberOpts{
 				Role:   "OWNER",
 				UserId: userID,
 			})

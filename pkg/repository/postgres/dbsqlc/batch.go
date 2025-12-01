@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -47,7 +48,7 @@ type ListQueueItemsBatchResults struct {
 }
 
 type ListQueueItemsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Queue    string      `json:"queue"`
 	GtId     pgtype.Int8 `json:"gtId"`
 	Limit    pgtype.Int4 `json:"limit"`

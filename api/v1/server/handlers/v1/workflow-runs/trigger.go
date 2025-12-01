@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"google.golang.org/grpc/codes"
@@ -16,13 +17,12 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request gen.V1WorkflowRunCreateRequestObject) (gen.V1WorkflowRunCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// make sure input can be marshalled and unmarshalled to input type
 	inputBytes, err := json.Marshal(request.Body.Input)
@@ -95,7 +95,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	for retries < 10 {
 		rawWorkflowRun, err = t.config.V1.OLAP().ReadWorkflowRun(
 			ctx.Request().Context(),
-			sqlchelpers.UUIDFromStr(resp.ExternalId),
+			uuid.MustParse(resp.ExternalId),
 		)
 
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -115,7 +115,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		return nil, fmt.Errorf("rawWorkflowRun not populated, we are likely seeing high latency in creating tasks")
 	}
 
-	if sqlchelpers.UUIDToStr(rawWorkflowRun.WorkflowRun.TenantID) != tenantId {
+	if rawWorkflowRun.WorkflowRun.TenantID.String() != tenantId {
 		return nil, fmt.Errorf("tenantId mismatch in the triggered workflow run")
 	}
 

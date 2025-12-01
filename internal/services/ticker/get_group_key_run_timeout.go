@@ -7,7 +7,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TickerImpl) runPollGetGroupKeyRuns(ctx context.Context) func() {
@@ -25,8 +24,8 @@ func (t *TickerImpl) runPollGetGroupKeyRuns(ctx context.Context) func() {
 		}
 
 		for _, getGroupKeyRun := range getGroupKeyRuns {
-			tenantId := sqlchelpers.UUIDToStr(getGroupKeyRun.TenantId)
-			getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.ID)
+			tenantId := getGroupKeyRun.TenantId.String()
+			getGroupKeyRunId := getGroupKeyRun.ID.String()
 
 			err := t.mq.AddMessage(
 				ctx,

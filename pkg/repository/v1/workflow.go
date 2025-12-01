@@ -201,7 +201,7 @@ var allowedRateLimitDurations = []string{
 }
 
 type WorkflowRepository interface {
-	ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []pgtype.UUID) (map[pgtype.UUID]string, error)
+	ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []uuid.UUID) (map[uuid.UUID]string, error)
 	PutWorkflowVersion(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 }
 
@@ -215,7 +215,7 @@ func newWorkflowRepository(shared *sharedRepository) WorkflowRepository {
 	}
 }
 
-func (w *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []pgtype.UUID) (map[pgtype.UUID]string, error) {
+func (w *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-workflow-names-by-ids")
 	defer span.End()
 
@@ -225,7 +225,7 @@ func (w *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantI
 		return nil, err
 	}
 
-	workflowIdToNameMap := make(map[pgtype.UUID]string)
+	workflowIdToNameMap := make(map[uuid.UUID]string)
 
 	for _, row := range workflowNames {
 		workflowIdToNameMap[row.ID] = row.Name
@@ -268,20 +268,20 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 
 	defer rollback()
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-	var workflowId pgtype.UUID
+	pgTenantId := uuid.MustParse(tenantId)
+	var workflowId uuid.UUID
 	var oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow
 
 	// check whether the workflow exists
 	existingWorkflow, err := r.queries.GetWorkflowByName(ctx, r.pool, sqlcv1.GetWorkflowByNameParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 		Name:     opts.Name,
 	})
 
 	switch {
 	case err != nil && errors.Is(err, pgx.ErrNoRows):
 		// create the workflow
-		workflowId = sqlchelpers.UUIDFromStr(uuid.New().String())
+		workflowId = uuid.MustParse(uuid.New().String())
 
 		_, err = r.queries.CreateWorkflow(
 			ctx,
@@ -299,7 +299,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 		}
 	case err != nil:
 		return nil, err
-	case !existingWorkflow.ID.Valid:
+	case existingWorkflow.ID == uuid.Nil:
 		return nil, fmt.Errorf("invalid id for workflow %s", opts.Name)
 	default:
 		workflowId = existingWorkflow.ID
@@ -313,7 +313,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 		// fetch the latest workflow version
 		workflowVersionIds, err := r.queries.GetLatestWorkflowVersionForWorkflows(ctx, tx, sqlcv1.GetLatestWorkflowVersionForWorkflowsParams{
 			Tenantid:    pgTenantId,
-			Workflowids: []pgtype.UUID{workflowId},
+			Workflowids: []uuid.UUID{workflowId},
 		})
 
 		if err != nil {
@@ -326,7 +326,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 
 		workflowVersions, err := r.queries.GetWorkflowVersionForEngine(ctx, tx, sqlcv1.GetWorkflowVersionForEngineParams{
 			Tenantid: pgTenantId,
-			Ids:      []pgtype.UUID{workflowVersionIds[0]},
+			Ids:      []uuid.UUID{workflowVersionIds[0]},
 		})
 
 		if err != nil {
@@ -348,7 +348,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 
 	workflowVersion, err := r.queries.GetWorkflowVersionForEngine(ctx, tx, sqlcv1.GetWorkflowVersionForEngineParams{
 		Tenantid: pgTenantId,
-		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(workflowVersionId)},
+		Ids:      []uuid.UUID{uuid.MustParse(workflowVersionId)},
 	})
 
 	if err != nil {
@@ -368,7 +368,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 	return workflowVersion[0], nil
 }
 
-func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId pgtype.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (string, error) {
+func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (string, error) {
 	workflowVersionId := uuid.New().String()
 
 	cs, modifiedOpts, err := checksumV1(opts)
@@ -379,7 +379,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 	// if the checksum matches the old checksum, we don't need to create a new workflow version
 	if oldWorkflowVersion != nil && oldWorkflowVersion.WorkflowVersion.Checksum == cs {
-		return sqlchelpers.UUIDToStr(oldWorkflowVersion.WorkflowVersion.ID), nil
+		return oldWorkflowVersion.WorkflowVersion.ID.String(), nil
 	}
 
 	optsJson, err := json.Marshal(modifiedOpts)
@@ -389,7 +389,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	}
 
 	createParams := sqlcv1.CreateWorkflowVersionParams{
-		ID:                        sqlchelpers.UUIDFromStr(workflowVersionId),
+		ID:                        uuid.MustParse(workflowVersionId),
 		Checksum:                  cs,
 		Workflowid:                workflowId,
 		CreateWorkflowVersionOpts: optsJson,
@@ -434,7 +434,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 		_, err = r.queries.LinkOnFailureJob(ctx, tx, sqlcv1.LinkOnFailureJobParams{
 			Workflowversionid: sqlcWorkflowVersion.ID,
-			Jobid:             sqlchelpers.UUIDFromStr(jobId),
+			Jobid:             uuid.MustParse(jobId),
 		})
 
 		if err != nil {
@@ -503,7 +503,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		ctx,
 		tx,
 		sqlcv1.CreateWorkflowTriggersParams{
-			ID:                sqlchelpers.UUIDFromStr(workflowTriggersId),
+			ID:                uuid.MustParse(workflowTriggersId),
 			Workflowversionid: sqlcWorkflowVersion.ID,
 			Tenantid:          tenantId,
 		},
@@ -536,7 +536,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			priority = sqlchelpers.ToInt(*opts.DefaultPriority)
 		}
 
-		var oldWorkflowVersionId pgtype.UUID
+		var oldWorkflowVersionId uuid.UUID
 		if oldWorkflowVersion != nil {
 			oldWorkflowVersionId = oldWorkflowVersion.WorkflowVersion.ID
 		}
@@ -553,7 +553,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 					Valid:  true,
 				},
 				Priority:             priority,
-				OldWorkflowVersionId: oldWorkflowVersionId,
+				OldWorkflowVersionId: &oldWorkflowVersionId,
 			},
 		)
 
@@ -639,7 +639,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	return workflowVersionId, nil
 }
 
-func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId, workflowVersionId pgtype.UUID, jobKind sqlcv1.JobKind, steps []CreateStepOpts) (string, error) {
+func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId, workflowVersionId uuid.UUID, jobKind sqlcv1.JobKind, steps []CreateStepOpts) (string, error) {
 	if len(steps) == 0 {
 		return "", errors.New("no steps provided")
 	}
@@ -651,7 +651,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 		ctx,
 		tx,
 		sqlcv1.CreateJobParams{
-			ID:                sqlchelpers.UUIDFromStr(jobId),
+			ID:                uuid.MustParse(jobId),
 			Tenantid:          tenantId,
 			Workflowversionid: workflowVersionId,
 			Name:              jobName,
@@ -701,9 +701,9 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 		}
 
 		createStepParams := sqlcv1.CreateStepParams{
-			ID:             sqlchelpers.UUIDFromStr(stepId),
+			ID:             uuid.MustParse(stepId),
 			Tenantid:       tenantId,
-			Jobid:          sqlchelpers.UUIDFromStr(jobId),
+			Jobid:          uuid.MustParse(jobId),
 			Actionid:       stepOpts.Action,
 			Timeout:        timeout,
 			Readableid:     stepOpts.ReadableId,
@@ -749,7 +749,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				}
 
 				opts := sqlcv1.UpsertDesiredWorkerLabelParams{
-					Stepid: sqlchelpers.UUIDFromStr(stepId),
+					Stepid: uuid.MustParse(stepId),
 					Key:    key,
 				}
 
@@ -793,7 +793,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				ctx,
 				tx,
 				sqlcv1.AddStepParentsParams{
-					ID:      sqlchelpers.UUIDFromStr(stepId),
+					ID:      uuid.MustParse(stepId),
 					Parents: stepOpts.Parents,
 					Jobid:   sqlcJob.ID,
 				},
@@ -806,7 +806,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 		if len(stepOpts.RateLimits) > 0 {
 			createStepExprParams := sqlcv1.CreateStepExpressionsParams{
-				Stepid: sqlchelpers.UUIDFromStr(stepId),
+				Stepid: uuid.MustParse(stepId),
 			}
 
 			for _, rateLimit := range stepOpts.RateLimits {
@@ -871,7 +871,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 						ctx,
 						tx,
 						sqlcv1.CreateStepRateLimitParams{
-							Stepid:       sqlchelpers.UUIDFromStr(stepId),
+							Stepid:       uuid.MustParse(stepId),
 							Ratelimitkey: rateLimit.Key,
 							Units:        rlUnits, // nolint: gosec
 							Tenantid:     tenantId,
@@ -918,7 +918,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					sqlcv1.CreateStepConcurrencyParams{
 						Workflowid:        workflowId,
 						Workflowversionid: workflowVersionId,
-						Stepid:            sqlchelpers.UUIDFromStr(stepId),
+						Stepid:            uuid.MustParse(stepId),
 						Tenantid:          tenantId,
 						Expression:        concurrency.Expression,
 						Maxconcurrency:    maxRuns,
@@ -957,10 +957,10 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					tx,
 					sqlcv1.CreateStepMatchConditionParams{
 						Tenantid:         tenantId,
-						Stepid:           sqlchelpers.UUIDFromStr(stepId),
+						Stepid:           uuid.MustParse(stepId),
 						Readabledatakey:  condition.ReadableDataKey,
 						Action:           sqlcv1.V1MatchConditionAction(condition.Action),
-						Orgroupid:        sqlchelpers.UUIDFromStr(condition.OrGroupId),
+						Orgroupid:        uuid.MustParse(condition.OrGroupId),
 						Expression:       sqlchelpers.TextFromStr(condition.Expression),
 						Kind:             sqlcv1.V1StepMatchConditionKind(condition.MatchConditionKind),
 						ParentReadableId: parentReadableId,

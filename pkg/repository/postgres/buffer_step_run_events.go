@@ -1,6 +1,8 @@
 package postgres
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"encoding/json"
 	"fmt"
@@ -84,7 +86,7 @@ func (w *sharedRepository) serialWriteStepRunEvent(ctx context.Context, opts []*
 		}
 		defer rollback()
 		err = w.queries.CreateStepRunEvent(ctx, tx, dbsqlc.CreateStepRunEventParams{
-			Steprunid: sqlchelpers.UUIDFromStr(item.StepRunId),
+			Steprunid: uuid.MustParse(item.StepRunId),
 			Reason:    *item.EventReason,
 			Severity:  *item.EventSeverity,
 			Message:   *item.EventMessage,
@@ -109,7 +111,7 @@ func (w *sharedRepository) bulkWriteStepRunEvents(ctx context.Context, opts []*r
 	res := make([]*int, 0, len(opts))
 	eventTimeSeen := make([]pgtype.Timestamp, 0, len(opts))
 	eventReasons := make([]dbsqlc.StepRunEventReason, 0, len(opts))
-	eventStepRunIds := make([]pgtype.UUID, 0, len(opts))
+	eventStepRunIds := make([]uuid.UUID, 0, len(opts))
 	eventSeverities := make([]dbsqlc.StepRunEventSeverity, 0, len(opts))
 	eventMessages := make([]string, 0, len(opts))
 	eventData := make([]map[string]interface{}, 0, len(opts))
@@ -125,7 +127,7 @@ func (w *sharedRepository) bulkWriteStepRunEvents(ctx context.Context, opts []*r
 			continue
 		}
 
-		stepRunId := sqlchelpers.UUIDFromStr(item.StepRunId)
+		stepRunId := uuid.MustParse(item.StepRunId)
 		dedupeKey := fmt.Sprintf("EVENT-%s-%s", item.StepRunId, *item.EventReason)
 
 		if _, ok := dedupe[dedupeKey]; ok {
@@ -198,7 +200,7 @@ func bulkStepRunEvents(
 	l *zerolog.Logger,
 	dbtx dbsqlc.DBTX,
 	queries *dbsqlc.Queries,
-	stepRunIds []pgtype.UUID,
+	stepRunIds []uuid.UUID,
 	timeSeen []pgtype.Timestamp,
 	reasons []dbsqlc.StepRunEventReason,
 	severities []dbsqlc.StepRunEventSeverity,

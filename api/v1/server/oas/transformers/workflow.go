@@ -1,13 +1,14 @@
 package transformers
 
 import (
+	"github.com/google/uuid"
+
 	"encoding/json"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func ToWorkflow(
@@ -17,12 +18,12 @@ func ToWorkflow(
 
 	res := &gen.Workflow{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(workflow.ID),
+			workflow.ID.String(),
 			workflow.CreatedAt.Time,
 			workflow.UpdatedAt.Time,
 		),
 		Name:     workflow.Name,
-		TenantId: sqlchelpers.UUIDToStr(workflow.TenantId),
+		TenantId: workflow.TenantId.String(),
 	}
 
 	res.IsPaused = &workflow.IsPaused.Bool
@@ -41,11 +42,11 @@ func ToWorkflow(
 func ToWorkflowVersionMeta(version *dbsqlc.WorkflowVersion, workflow *dbsqlc.Workflow) *gen.WorkflowVersionMeta {
 	res := &gen.WorkflowVersionMeta{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(version.ID),
+			version.ID.String(),
 			version.CreatedAt.Time,
 			version.UpdatedAt.Time,
 		),
-		WorkflowId: sqlchelpers.UUIDToStr(version.WorkflowId),
+		WorkflowId: version.WorkflowId.String(),
 		Order:      int32(version.Order), // nolint: gosec
 		Version:    version.Version.String,
 	}
@@ -54,8 +55,8 @@ func ToWorkflowVersionMeta(version *dbsqlc.WorkflowVersion, workflow *dbsqlc.Wor
 }
 
 type WorkflowConcurrency struct {
-	ID                    pgtype.UUID
-	GetConcurrencyGroupId pgtype.UUID
+	ID                    uuid.UUID
+	GetConcurrencyGroupId uuid.UUID
 	MaxRuns               pgtype.Int4
 	LimitStrategy         dbsqlc.NullConcurrencyLimitStrategy
 }
@@ -80,11 +81,11 @@ func ToWorkflowVersion(
 
 	res := &gen.WorkflowVersion{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(version.ID),
+			version.ID.String(),
 			version.CreatedAt.Time,
 			version.UpdatedAt.Time,
 		),
-		// WorkflowId:      sqlchelpers.UUIDToStr(version.WorkflowId),
+		// WorkflowId:      version.WorkflowId.String(),
 		Order:           int32(version.Order), // nolint: gosec
 		Version:         version.Version.String,
 		ScheduleTimeout: &version.ScheduleTimeout,
@@ -105,7 +106,7 @@ func ToWorkflowVersion(
 		res.Sticky = &stickyStrategy
 	}
 
-	if version.WorkflowId.Valid {
+	if version.WorkflowId != uuid.Nil {
 		res.Workflow = ToWorkflowFromSQLC(workflow)
 	}
 
@@ -120,7 +121,7 @@ func ToWorkflowVersion(
 
 		for _, cron := range crons {
 			cronCp := cron
-			parentId := sqlchelpers.UUIDToStr(cronCp.ParentId)
+			parentId := cronCp.ParentId.String()
 			genCrons = append(genCrons, gen.WorkflowTriggerCronRef{
 				Cron:     &cronCp.Cron,
 				ParentId: &parentId,
@@ -135,8 +136,8 @@ func ToWorkflowVersion(
 
 		for _, event := range events {
 			eventCp := event
-			if eventCp.ParentId.Valid {
-				parentId := sqlchelpers.UUIDToStr(eventCp.ParentId)
+			if eventCp.ParentId != uuid.Nil {
+				parentId := eventCp.ParentId.String()
 				genEvents = append(genEvents, gen.WorkflowTriggerEventRef{
 					EventKey: &eventCp.EventKey,
 					ParentId: &parentId,
@@ -160,7 +161,7 @@ func ToWorkflowVersionConcurrency(concurrency *WorkflowConcurrency) *gen.Workflo
 	res := &gen.WorkflowConcurrency{
 		MaxRuns:             concurrency.MaxRuns.Int32,
 		LimitStrategy:       gen.ConcurrencyLimitStrategy(concurrency.LimitStrategy.ConcurrencyLimitStrategy),
-		GetConcurrencyGroup: sqlchelpers.UUIDToStr(concurrency.GetConcurrencyGroupId),
+		GetConcurrencyGroup: concurrency.GetConcurrencyGroupId.String(),
 	}
 
 	return res
@@ -169,13 +170,13 @@ func ToWorkflowVersionConcurrency(concurrency *WorkflowConcurrency) *gen.Workflo
 func ToJob(job *dbsqlc.Job, steps []*dbsqlc.GetStepsForJobsRow) *gen.Job {
 	res := &gen.Job{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(job.ID),
+			job.ID.String(),
 			job.CreatedAt.Time,
 			job.UpdatedAt.Time,
 		),
 		Name:        job.Name,
-		TenantId:    sqlchelpers.UUIDToStr(job.TenantId),
-		VersionId:   sqlchelpers.UUIDToStr(job.WorkflowVersionId),
+		TenantId:    job.TenantId.String(),
+		VersionId:   job.WorkflowVersionId.String(),
 		Description: &job.Description.String,
 		Timeout:     &job.Timeout.String,
 	}
@@ -194,16 +195,16 @@ func ToJob(job *dbsqlc.Job, steps []*dbsqlc.GetStepsForJobsRow) *gen.Job {
 	return res
 }
 
-func ToStep(step *dbsqlc.Step, parents []pgtype.UUID) *gen.Step {
+func ToStep(step *dbsqlc.Step, parents []uuid.UUID) *gen.Step {
 	res := &gen.Step{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(step.ID),
+			step.ID.String(),
 			step.CreatedAt.Time,
 			step.UpdatedAt.Time,
 		),
 		Action:     step.ActionId,
-		JobId:      sqlchelpers.UUIDToStr(step.JobId),
-		TenantId:   sqlchelpers.UUIDToStr(step.TenantId),
+		JobId:      step.JobId.String(),
+		TenantId:   step.TenantId.String(),
 		ReadableId: step.ReadableId.String,
 		Timeout:    &step.Timeout.String,
 	}
@@ -211,7 +212,7 @@ func ToStep(step *dbsqlc.Step, parents []pgtype.UUID) *gen.Step {
 	parentStr := make([]string, 0)
 
 	for i := range parents {
-		parentStr = append(parentStr, sqlchelpers.UUIDToStr(parents[i]))
+		parentStr = append(parentStr, parents[i].String())
 	}
 
 	res.Parents = &parentStr
@@ -225,7 +226,7 @@ func ToStep(step *dbsqlc.Step, parents []pgtype.UUID) *gen.Step {
 
 func ToWorkflowFromSQLC(row *dbsqlc.Workflow) *gen.Workflow {
 	res := &gen.Workflow{
-		Metadata:    *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
+		Metadata:    *toAPIMetadata(row.ID.String(), row.CreatedAt.Time, row.UpdatedAt.Time),
 		Name:        row.Name,
 		Description: &row.Description.String,
 		IsPaused:    &row.IsPaused.Bool,
@@ -236,9 +237,9 @@ func ToWorkflowFromSQLC(row *dbsqlc.Workflow) *gen.Workflow {
 
 func ToWorkflowVersionFromSQLC(row *dbsqlc.WorkflowVersion, workflow *gen.Workflow) *gen.WorkflowVersion {
 	res := &gen.WorkflowVersion{
-		Metadata:   *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
+		Metadata:   *toAPIMetadata(row.ID.String(), row.CreatedAt.Time, row.UpdatedAt.Time),
 		Version:    row.Version.String,
-		WorkflowId: pgUUIDToStr(row.WorkflowId),
+		WorkflowId: row.WorkflowId.String(),
 		Order:      int32(row.Order), // nolint: gosec
 		Workflow:   workflow,
 	}

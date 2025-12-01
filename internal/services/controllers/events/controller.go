@@ -16,7 +16,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -231,7 +230,7 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				return fmt.Errorf("processEvent: could not create workflow run: %w", err)
 			}
 
-			workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
+			workflowRunId := workflowRun.ID.String()
 
 			// send to workflow processing queue
 			err = ec.mq.AddMessage(

@@ -5,12 +5,10 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -90,12 +88,12 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 
 	if request.Params.ParentTaskExternalId != nil {
 		parentTaskExternalId := request.Params.ParentTaskExternalId.String()
-		id := sqlchelpers.UUIDFromStr(parentTaskExternalId)
+		id := uuid.MustParse(parentTaskExternalId)
 		opts.ParentTaskExternalId = &id
 	}
 
 	if request.Params.TriggeringEventExternalId != nil {
-		id := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventExternalId.String())
+		id := uuid.MustParse(request.Params.TriggeringEventExternalId.String())
 		opts.TriggeringEventExternalId = &id
 	}
 
@@ -109,7 +107,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		return nil, err
 	}
 
-	dagExternalIds := make([]pgtype.UUID, 0)
+	dagExternalIds := make([]uuid.UUID, 0)
 
 	for _, dag := range dags {
 		if dag.Kind == sqlcv1.V1RunKindDAG {
@@ -128,7 +126,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		return nil, err
 	}
 
-	pgWorkflowIds := make([]pgtype.UUID, 0)
+	pgWorkflowIds := make([]uuid.UUID, 0)
 
 	for _, wf := range dags {
 		pgWorkflowIds = append(pgWorkflowIds, wf.WorkflowID)
@@ -262,7 +260,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		return nil, err
 	}
 
-	workflowIdsForNames := make([]pgtype.UUID, 0)
+	workflowIdsForNames := make([]uuid.UUID, 0)
 	for _, task := range tasks {
 		workflowIdsForNames = append(workflowIdsForNames, task.WorkflowID)
 	}
@@ -295,7 +293,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 
 func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.V1WorkflowRunListRequestObject) (gen.V1WorkflowRunListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list")
 	defer span.End()
@@ -310,10 +308,10 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 func (t *V1WorkflowRunsService) V1WorkflowRunDisplayNamesList(ctx echo.Context, request gen.V1WorkflowRunDisplayNamesListRequestObject) (gen.V1WorkflowRunDisplayNamesListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
-	externalIds := make([]pgtype.UUID, len(request.Params.ExternalIds))
+	externalIds := make([]uuid.UUID, len(request.Params.ExternalIds))
 
 	for i, id := range request.Params.ExternalIds {
-		externalIds[i] = sqlchelpers.UUIDFromStr(id.String())
+		externalIds[i] = uuid.MustParse(id.String())
 	}
 
 	displayNames, err := t.config.V1.OLAP().ListWorkflowRunDisplayNames(

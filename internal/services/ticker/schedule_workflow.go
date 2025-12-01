@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
@@ -35,8 +35,8 @@ func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
 		})
 
 		for _, scheduledWorkflow := range scheduledWorkflows {
-			workflowVersionId := sqlchelpers.UUIDToStr(scheduledWorkflow.WorkflowVersionId)
-			scheduledWorkflowId := sqlchelpers.UUIDToStr(scheduledWorkflow.ID)
+			workflowVersionId := scheduledWorkflow.WorkflowVersionId.String()
+			scheduledWorkflowId := scheduledWorkflow.ID.String()
 
 			t.l.Debug().Msgf("ticker: handling scheduled workflow %s for version %s", scheduledWorkflowId, workflowVersionId)
 
@@ -69,9 +69,9 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	t.l.Debug().Msg("ticker: scheduling workflow")
 
 	// parse trigger time
-	tenantId := sqlchelpers.UUIDToStr(scheduledWorkflow.TenantId)
-	workflowVersionId := sqlchelpers.UUIDToStr(scheduledWorkflow.WorkflowVersionId)
-	scheduledWorkflowId := sqlchelpers.UUIDToStr(scheduledWorkflow.ID)
+	tenantId := scheduledWorkflow.TenantId.String()
+	workflowVersionId := scheduledWorkflow.WorkflowVersionId.String()
+	scheduledWorkflowId := scheduledWorkflow.ID.String()
 	triggerAt := scheduledWorkflow.TriggerAt.Time
 
 	key := getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId)
@@ -165,14 +165,14 @@ func (t *TickerImpl) runScheduledWorkflowV0(ctx context.Context, tenantId string
 		}
 	}
 
-	if scheduled.ParentWorkflowRunId.Valid {
+	if scheduled.ParentWorkflowRunId != nil {
 		var childKey *string
 
 		if scheduled.ChildKey.Valid {
 			childKey = &scheduled.ChildKey.String
 		}
 
-		parent, err := t.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId))
+		parent, err := t.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, scheduled.ParentWorkflowRunId.String())
 
 		if err != nil {
 			return fmt.Errorf("could not get parent workflow run: %w", err)
@@ -188,8 +188,8 @@ func (t *TickerImpl) runScheduledWorkflowV0(ctx context.Context, tenantId string
 		}
 
 		fs = append(fs, repository.WithParent(
-			sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId),
-			sqlchelpers.UUIDToStr(scheduled.ParentStepRunId),
+			scheduled.ParentWorkflowRunId.String(),
+			scheduled.ParentStepRunId.String(),
 			int(scheduled.ChildIndex.Int32),
 			childKey,
 			additionalMetadata,
@@ -216,7 +216,7 @@ func (t *TickerImpl) runScheduledWorkflowV0(ctx context.Context, tenantId string
 		return fmt.Errorf("could not create workflow run: %w", err)
 	}
 
-	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
+	workflowRunId := workflowRun.ID.String()
 
 	err = t.mq.AddMessage(
 		context.Background(),

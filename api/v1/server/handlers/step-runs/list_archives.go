@@ -8,7 +8,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *StepRunService) StepRunListArchives(ctx echo.Context, request gen.StepRunListArchivesRequestObject) (gen.StepRunListArchivesResponseObject, error) {
@@ -33,8 +32,8 @@ func (t *StepRunService) StepRunListArchives(ctx echo.Context, request gen.StepR
 	}
 
 	listRes, err := t.config.APIRepository.StepRun().ListStepRunArchives(
-		sqlchelpers.UUIDToStr(stepRun.TenantId),
-		sqlchelpers.UUIDToStr(stepRun.ID),
+		stepRun.TenantId.String(),
+		stepRun.ID.String(),
 		listOpts,
 	)
 

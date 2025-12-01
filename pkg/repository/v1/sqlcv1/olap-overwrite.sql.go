@@ -3,6 +3,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -59,15 +60,15 @@ FROM filtered
 `
 
 type CountTasksParams struct {
-	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Tenantid                  uuid.UUID          `json:"tenantid"`
 	Since                     pgtype.Timestamptz `json:"since"`
 	Statuses                  []string           `json:"statuses"`
 	Until                     pgtype.Timestamptz `json:"until"`
-	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
-	WorkerId                  pgtype.UUID        `json:"workerId"`
+	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
+	WorkerId                  uuid.UUID          `json:"workerId"`
 	Keys                      []string           `json:"keys"`
 	Values                    []string           `json:"values"`
-	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
+	TriggeringEventExternalId uuid.UUID          `json:"triggeringEventExternalId"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams) (int64, error) {
@@ -134,14 +135,14 @@ FROM filtered
 `
 
 type CountWorkflowRunsParams struct {
-	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Tenantid                  uuid.UUID          `json:"tenantid"`
 	Statuses                  []string           `json:"statuses"`
-	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
+	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
 	Since                     pgtype.Timestamptz `json:"since"`
 	Until                     pgtype.Timestamptz `json:"until"`
 	Keys                      []string           `json:"keys"`
 	Values                    []string           `json:"values"`
-	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
+	TriggeringEventExternalId uuid.UUID          `json:"triggeringEventExternalId"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -208,24 +209,24 @@ OFFSET $8::integer
 `
 
 type FetchWorkflowRunIdsParams struct {
-	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Tenantid                  uuid.UUID          `json:"tenantid"`
 	Statuses                  []string           `json:"statuses"`
-	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
+	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
 	Since                     pgtype.Timestamptz `json:"since"`
 	Until                     pgtype.Timestamptz `json:"until"`
 	Keys                      []string           `json:"keys"`
 	Values                    []string           `json:"values"`
 	Listworkflowrunsoffset    int32              `json:"listworkflowrunsoffset"`
 	Listworkflowrunslimit     int32              `json:"listworkflowrunslimit"`
-	ParentTaskExternalId      pgtype.UUID        `json:"parentTaskExternalId"`
-	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
+	ParentTaskExternalId      uuid.UUID          `json:"parentTaskExternalId"`
+	TriggeringEventExternalId uuid.UUID          `json:"triggeringEventExternalId"`
 }
 
 type FetchWorkflowRunIdsRow struct {
 	ID         int64              `json:"id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 	Kind       V1RunKind          `json:"kind"`
-	ExternalID pgtype.UUID        `json:"external_id"`
+	ExternalID uuid.UUID          `json:"external_id"`
 }
 
 func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWorkflowRunIdsParams) ([]*FetchWorkflowRunIdsRow, error) {
@@ -316,17 +317,17 @@ OFFSET $9::integer
 `
 
 type ListTasksOlapParams struct {
-	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Tenantid                  uuid.UUID          `json:"tenantid"`
 	Since                     pgtype.Timestamptz `json:"since"`
 	Statuses                  []string           `json:"statuses"`
 	Until                     pgtype.Timestamptz `json:"until"`
-	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
-	WorkerId                  pgtype.UUID        `json:"workerId"`
+	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
+	WorkerId                  uuid.UUID          `json:"workerId"`
 	Keys                      []string           `json:"keys"`
 	Values                    []string           `json:"values"`
 	Taskoffset                int32              `json:"taskoffset"`
 	Tasklimit                 int32              `json:"tasklimit"`
-	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
+	TriggeringEventExternalId uuid.UUID          `json:"triggeringEventExternalId"`
 }
 
 type ListTasksOlapRow struct {
@@ -397,8 +398,8 @@ RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata
 `
 
 type BulkCreateEventsParams struct {
-	Tenantids              []pgtype.UUID        `json:"tenantids"`
-	Externalids            []pgtype.UUID        `json:"externalids"`
+	Tenantids              []uuid.UUID          `json:"tenantids"`
+	Externalids            []uuid.UUID          `json:"externalids"`
 	Seenats                []pgtype.Timestamptz `json:"seenats"`
 	Keys                   []string             `json:"keys"`
 	Payloads               [][]byte             `json:"payloads"`

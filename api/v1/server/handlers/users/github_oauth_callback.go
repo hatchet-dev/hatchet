@@ -16,7 +16,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
@@ -106,7 +105,7 @@ func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *ser
 
 	switch err {
 	case nil:
-		user, err = u.config.APIRepository.User().UpdateUser(ctx, sqlchelpers.UUIDToStr(user.ID), &repository.UpdateUserOpts{
+		user, err = u.config.APIRepository.User().UpdateUser(ctx, user.ID.String(), &repository.UpdateUserOpts{
 			EmailVerified: repository.BoolPtr(gInfo.EmailVerified),
 			Name:          repository.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,

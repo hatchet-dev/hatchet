@@ -13,12 +13,11 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request gen.WorkflowRunUpdateReplayRequestObject) (gen.WorkflowRunUpdateReplayResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	workflowRunIds := make([]string, len(request.Body.WorkflowRunIds))
 
@@ -45,7 +44,7 @@ func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request 
 		err = t.config.MessageQueue.AddMessage(
 			ctx.Request().Context(),
 			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunReplayToTask(tenantId, sqlchelpers.UUIDToStr(filteredWorkflowRuns.Rows[i].WorkflowRun.ID)),
+			tasktypes.WorkflowRunReplayToTask(tenantId, filteredWorkflowRuns.Rows[i].WorkflowRun.ID.String()),
 		)
 
 		if err != nil {

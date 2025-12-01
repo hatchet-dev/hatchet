@@ -8,7 +8,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func ToSlotState(slots []*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, remainingSlots int) *[]gen.SemaphoreSlots {
@@ -19,14 +18,14 @@ func ToSlotState(slots []*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, remain
 
 		var stepRunId uuid.UUID
 
-		if slot.StepRunId.Valid {
-			stepRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.StepRunId))
+		if slot.StepRunId != uuid.Nil {
+			stepRunId = slot.StepRunId
 		}
 
 		var workflowRunId uuid.UUID
 
-		if slot.WorkflowRunId.Valid {
-			workflowRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.WorkflowRunId))
+		if slot.WorkflowRunId != uuid.Nil {
+			workflowRunId = slot.WorkflowRunId
 		}
 
 		status := gen.StepRunStatus(slot.Status)
@@ -97,7 +96,7 @@ func ToWorkerRuntimeInfo(worker *dbsqlc.Worker) *gen.WorkerRuntimeInfo {
 
 func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string, actions []string) *gen.Worker {
 
-	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
+	dispatcherId := worker.DispatcherId
 
 	maxRuns := int(worker.MaxRuns)
 
@@ -118,20 +117,20 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string
 	}
 
 	res := &gen.Worker{
-		Metadata:      *toAPIMetadata(pgUUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),
+		Metadata:      *toAPIMetadata(worker.ID.String(), worker.CreatedAt.Time, worker.UpdatedAt.Time),
 		Name:          worker.Name,
 		Type:          gen.WorkerType(worker.Type),
 		Status:        &status,
-		DispatcherId:  &dispatcherId,
+		DispatcherId:  dispatcherId,
 		MaxRuns:       &maxRuns,
 		AvailableRuns: &availableRuns,
 		WebhookUrl:    webhookUrl,
 		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
 	}
 
-	if worker.WebhookId.Valid {
-		wid := uuid.MustParse(pgUUIDToStr(worker.WebhookId))
-		res.WebhookId = &wid
+	if worker.WebhookId != nil {
+		wid := worker.WebhookId
+		res.WebhookId = wid
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {

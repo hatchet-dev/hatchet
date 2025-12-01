@@ -10,7 +10,6 @@ import (
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 
@@ -19,7 +18,7 @@ import (
 )
 
 func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// get single task
 	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
@@ -34,7 +33,7 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tena
 		true,
 		false,
 		tasktypes.StreamEventPayload{
-			WorkflowRunId: sqlchelpers.UUIDToStr(task.WorkflowRunID),
+			WorkflowRunId: task.WorkflowRunID.String(),
 			StepRunId:     req.StepRunId,
 			CreatedAt:     req.CreatedAt.AsTime(),
 			Payload:       req.Message,
@@ -62,7 +61,7 @@ func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternal
 }
 
 func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	if !i.isLogIngestionEnabled {
 		return &contracts.PutLogResponse{}, nil

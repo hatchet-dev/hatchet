@@ -1,18 +1,18 @@
 package v0
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"math/rand"
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling/v0/randomticker"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -21,7 +21,7 @@ import (
 // This is tenant-scoped, so each tenant will have its own scheduler.
 type Scheduler struct {
 	repo     repository.AssignmentRepository
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	l *zerolog.Logger
 
@@ -43,8 +43,8 @@ type Scheduler struct {
 	exts *Extensions
 }
 
-func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
-	l := cf.l.With().Str("tenant_id", sqlchelpers.UUIDToStr(tenantId)).Logger()
+func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
+	l := cf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
 	return &Scheduler{
 		repo:            cf.repo.Assignment(),
@@ -122,10 +122,10 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	s.l.Debug().Msg("replenishing slots")
 
 	workers := s.getWorkers()
-	workerIds := make([]pgtype.UUID, 0)
+	workerIds := make([]uuid.UUID, 0)
 
 	for workerIdStr := range workers {
-		workerIds = append(workerIds, sqlchelpers.UUIDFromStr(workerIdStr))
+		workerIds = append(workerIds, uuid.MustParse(workerIdStr))
 	}
 
 	start := time.Now()
@@ -149,7 +149,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 
 		actionId := workerActionTuple.ActionId.String
-		workerId := sqlchelpers.UUIDToStr(workerActionTuple.WorkerId)
+		workerId := workerActionTuple.WorkerId.String()
 
 		actionsToWorkerIds[actionId] = append(actionsToWorkerIds[actionId], workerId)
 		workerIdsToActions[workerId] = append(workerIdsToActions[workerId], actionId)
@@ -234,10 +234,10 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 	}
 
-	workerUUIDs := make([]pgtype.UUID, 0, len(uniqueWorkerIds))
+	workerUUIDs := make([]uuid.UUID, 0, len(uniqueWorkerIds))
 
 	for workerId := range uniqueWorkerIds {
-		workerUUIDs = append(workerUUIDs, sqlchelpers.UUIDFromStr(workerId))
+		workerUUIDs = append(workerUUIDs, uuid.MustParse(workerId))
 	}
 
 	// we get a lock on the actions mutexes here because we want to acquire the locks in the same order
@@ -285,7 +285,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	actionsToTotalSlots := make(map[string]int)
 
 	for _, worker := range availableSlots {
-		workerId := sqlchelpers.UUIDToStr(worker.ID)
+		workerId := worker.ID.String()
 		actions := workerIdsToActions[workerId]
 		unackedSlots := workersToUnackedSlots[workerId]
 
@@ -400,7 +400,7 @@ func (s *Scheduler) loopSnapshot(ctx context.Context) {
 				continue
 			}
 
-			s.exts.ReportSnapshot(sqlchelpers.UUIDToStr(s.tenantId), in)
+			s.exts.ReportSnapshot(s.tenantId.String(), in)
 		}
 	}
 }
@@ -419,7 +419,7 @@ type scheduleRateLimitResult struct {
 type assignSingleResult struct {
 	qi *dbsqlc.QueueItem
 
-	workerId pgtype.UUID
+	workerId uuid.UUID
 	ackId    int
 
 	noSlots   bool
@@ -451,7 +451,7 @@ func (s *Scheduler) tryAssignBatch(
 
 	if len(qis) > 0 {
 		uniqueTenantIds := telemetry.CollectUniqueTenantIDs(qis, func(qi *dbsqlc.QueueItem) string {
-			return sqlchelpers.UUIDToStr(qi.TenantId)
+			return qi.TenantId.String()
 		})
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: uniqueTenantIds})
 	}
@@ -480,14 +480,14 @@ func (s *Scheduler) tryAssignBatch(
 		rls := make(map[string]int32)
 
 		if stepRunIdsToRateLimits != nil {
-			if _, ok := stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]; ok {
-				rls = stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]
+			if _, ok := stepRunIdsToRateLimits[qi.StepRunId.String()]; ok {
+				rls = stepRunIdsToRateLimits[qi.StepRunId.String()]
 			}
 		}
 
 		// check rate limits
 		if len(rls) > 0 {
-			rlResult := s.rl.use(ctx, sqlchelpers.UUIDToStr(qi.StepRunId), rls)
+			rlResult := s.rl.use(ctx, qi.StepRunId.String(), rls)
 
 			if !rlResult.succeeded {
 				r.rateLimitResult = &scheduleRateLimitResult{
@@ -555,7 +555,7 @@ func (s *Scheduler) tryAssignBatch(
 			qi,
 			candidateSlots,
 			childRingOffset,
-			stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)],
+			stepIdsToLabels[qi.StepId.String()],
 			rlAcks[i],
 			rlNacks[i],
 		)
@@ -616,7 +616,7 @@ func (s *Scheduler) tryAssignSingleton(
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: sqlchelpers.UUIDToStr(qi.TenantId)})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: qi.TenantId.String()})
 
 	if qi.Sticky.Valid || len(labels) > 0 {
 		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
@@ -642,7 +642,7 @@ func (s *Scheduler) tryAssignSingleton(
 	s.unackedSlots[res.ackId] = assignedSlot
 	s.unackedMu.Unlock()
 
-	res.workerId = sqlchelpers.UUIDFromStr(assignedSlot.getWorkerId())
+	res.workerId = uuid.MustParse(assignedSlot.getWorkerId())
 	res.succeeded = true
 
 	return res, nil
@@ -650,7 +650,7 @@ func (s *Scheduler) tryAssignSingleton(
 
 type assignedQueueItem struct {
 	AckId    int
-	WorkerId pgtype.UUID
+	WorkerId uuid.UUID
 
 	QueueItem *dbsqlc.QueueItem
 }
@@ -672,7 +672,7 @@ func (s *Scheduler) tryAssign(
 
 	if len(qis) > 0 {
 		uniqueTenantIds := telemetry.CollectUniqueTenantIDs(qis, func(qi *dbsqlc.QueueItem) string {
-			return sqlchelpers.UUIDToStr(qi.TenantId)
+			return qi.TenantId.String()
 		})
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: uniqueTenantIds})
 	}
@@ -794,7 +794,7 @@ func (s *Scheduler) tryAssign(
 		span.End()
 		close(resultsCh)
 
-		s.exts.PostAssign(sqlchelpers.UUIDToStr(s.tenantId), s.getExtensionInput(extensionResults))
+		s.exts.PostAssign(s.tenantId.String(), s.getExtensionInput(extensionResults))
 
 		if sinceStart := time.Since(startTotal); sinceStart > 100*time.Millisecond {
 			s.l.Warn().Dur("duration", sinceStart).Msgf("assigning queue items took longer than 100ms")

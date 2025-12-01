@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -29,7 +28,7 @@ func (wc *RetentionControllerImpl) runDeleteExpireStepRunsTenant(ctx context.Con
 	ctx, span := telemetry.NewSpan(ctx, "delete-expired-step-runs")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 

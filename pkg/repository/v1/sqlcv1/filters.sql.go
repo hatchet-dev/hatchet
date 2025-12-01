@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -38,11 +39,11 @@ FROM inputs
 `
 
 type BulkInsertDeclarativeFiltersParams struct {
-	Tenantid    pgtype.UUID `json:"tenantid"`
-	Workflowid  pgtype.UUID `json:"workflowid"`
-	Scopes      []string    `json:"scopes"`
-	Expressions []string    `json:"expressions"`
-	Payloads    [][]byte    `json:"payloads"`
+	Tenantid    uuid.UUID `json:"tenantid"`
+	Workflowid  uuid.UUID `json:"workflowid"`
+	Scopes      []string  `json:"scopes"`
+	Expressions []string  `json:"expressions"`
+	Payloads    [][]byte  `json:"payloads"`
 }
 
 // IMPORTANT: This is intended to be used in conjunction with the `DeleteExistingDeclarativeFiltersForOverwrite` query.
@@ -80,9 +81,9 @@ FROM filters
 `
 
 type CountFiltersParams struct {
-	Tenantid    pgtype.UUID   `json:"tenantid"`
-	WorkflowIds []pgtype.UUID `json:"workflowIds"`
-	Scopes      []string      `json:"scopes"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+	WorkflowIds []uuid.UUID `json:"workflowIds"`
+	Scopes      []string    `json:"scopes"`
 }
 
 func (q *Queries) CountFilters(ctx context.Context, db DBTX, arg CountFiltersParams) (int64, error) {
@@ -112,11 +113,11 @@ RETURNING id, tenant_id, workflow_id, scope, expression, payload, payload_hash, 
 `
 
 type CreateFilterParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Workflowid pgtype.UUID `json:"workflowid"`
-	Scope      string      `json:"scope"`
-	Expression string      `json:"expression"`
-	Payload    []byte      `json:"payload"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Workflowid uuid.UUID `json:"workflowid"`
+	Scope      string    `json:"scope"`
+	Expression string    `json:"expression"`
+	Payload    []byte    `json:"payload"`
 }
 
 func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterParams) (*V1Filter, error) {
@@ -152,8 +153,8 @@ WHERE
 `
 
 type DeleteExistingDeclarativeFiltersForOverwriteParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Workflowid pgtype.UUID `json:"workflowid"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Workflowid uuid.UUID `json:"workflowid"`
 }
 
 // IMPORTANT: This query overwrites all existing declarative filters for a workflow.
@@ -172,8 +173,8 @@ RETURNING id, tenant_id, workflow_id, scope, expression, payload, payload_hash, 
 `
 
 type DeleteFilterParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	ID       pgtype.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
 }
 
 func (q *Queries) DeleteFilter(ctx context.Context, db DBTX, arg DeleteFilterParams) (*V1Filter, error) {
@@ -203,8 +204,8 @@ WHERE
 `
 
 type GetFilterParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	ID       pgtype.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
 }
 
 func (q *Queries) GetFilter(ctx context.Context, db DBTX, arg GetFilterParams) (*V1Filter, error) {
@@ -239,13 +240,13 @@ GROUP BY workflow_id
 `
 
 type ListFilterCountsForWorkflowsParams struct {
-	Tenantid    pgtype.UUID   `json:"tenantid"`
-	Workflowids []pgtype.UUID `json:"workflowids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+	Workflowids []uuid.UUID `json:"workflowids"`
 }
 
 type ListFilterCountsForWorkflowsRow struct {
-	WorkflowID pgtype.UUID `json:"workflow_id"`
-	Count      int64       `json:"count"`
+	WorkflowID uuid.UUID `json:"workflow_id"`
+	Count      int64     `json:"count"`
 }
 
 func (q *Queries) ListFilterCountsForWorkflows(ctx context.Context, db DBTX, arg ListFilterCountsForWorkflowsParams) ([]*ListFilterCountsForWorkflowsRow, error) {
@@ -287,11 +288,11 @@ OFFSET $4::BIGINT
 `
 
 type ListFiltersParams struct {
-	Tenantid     pgtype.UUID   `json:"tenantid"`
-	WorkflowIds  []pgtype.UUID `json:"workflowIds"`
-	Scopes       []string      `json:"scopes"`
-	Filteroffset int64         `json:"filteroffset"`
-	Filterlimit  int64         `json:"filterlimit"`
+	Tenantid     uuid.UUID   `json:"tenantid"`
+	WorkflowIds  []uuid.UUID `json:"workflowIds"`
+	Scopes       []string    `json:"scopes"`
+	Filteroffset int64       `json:"filteroffset"`
+	Filterlimit  int64       `json:"filterlimit"`
 }
 
 func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParams) ([]*V1Filter, error) {
@@ -348,11 +349,11 @@ OFFSET COALESCE($2::BIGINT, 0)
 `
 
 type ListFiltersForEventTriggersParams struct {
-	Tenantid     pgtype.UUID   `json:"tenantid"`
-	FilterOffset pgtype.Int8   `json:"filterOffset"`
-	FilterLimit  pgtype.Int8   `json:"filterLimit"`
-	Workflowids  []pgtype.UUID `json:"workflowids"`
-	Scopes       []string      `json:"scopes"`
+	Tenantid     uuid.UUID   `json:"tenantid"`
+	FilterOffset pgtype.Int8 `json:"filterOffset"`
+	FilterLimit  pgtype.Int8 `json:"filterLimit"`
+	Workflowids  []uuid.UUID `json:"workflowids"`
+	Scopes       []string    `json:"scopes"`
 }
 
 func (q *Queries) ListFiltersForEventTriggers(ctx context.Context, db DBTX, arg ListFiltersForEventTriggersParams) ([]*V1Filter, error) {
@@ -409,8 +410,8 @@ type UpdateFilterParams struct {
 	Scope      pgtype.Text `json:"scope"`
 	Expression pgtype.Text `json:"expression"`
 	Payload    []byte      `json:"payload"`
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	ID         pgtype.UUID `json:"id"`
+	Tenantid   uuid.UUID   `json:"tenantid"`
+	ID         uuid.UUID   `json:"id"`
 }
 
 func (q *Queries) UpdateFilter(ctx context.Context, db DBTX, arg UpdateFilterParams) (*V1Filter, error) {

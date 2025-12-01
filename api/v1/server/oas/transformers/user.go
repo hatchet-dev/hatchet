@@ -6,7 +6,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func ToUser(user *dbsqlc.User, hasPassword bool, hashedEmail *string) *gen.User {
@@ -17,7 +16,7 @@ func ToUser(user *dbsqlc.User, hasPassword bool, hashedEmail *string) *gen.User 
 	}
 
 	return &gen.User{
-		Metadata:      *toAPIMetadata(sqlchelpers.UUIDToStr(user.ID), user.CreatedAt.Time, user.UpdatedAt.Time),
+		Metadata:      *toAPIMetadata(user.ID.String(), user.CreatedAt.Time, user.UpdatedAt.Time),
 		Email:         types.Email(user.Email),
 		EmailHash:     hashedEmail,
 		EmailVerified: user.EmailVerified,
@@ -36,13 +35,13 @@ func ToTenantMember(tenantMember *dbsqlc.PopulateTenantMembersRow) *gen.TenantMe
 	}
 
 	res := &gen.TenantMember{
-		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(tenantMember.ID), tenantMember.CreatedAt.Time, tenantMember.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(tenantMember.ID.String(), tenantMember.CreatedAt.Time, tenantMember.UpdatedAt.Time),
 		User: gen.UserTenantPublic{
 			Email: types.Email(tenantMember.Email),
 			Name:  repository.StringPtr(tenantMember.Name.String),
 		},
 		Tenant: &gen.Tenant{
-			Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(tenantMember.TenantId), tenantMember.TenantCreatedAt.Time, tenantMember.TenantUpdatedAt.Time),
+			Metadata:          *toAPIMetadata(tenantMember.TenantId.String(), tenantMember.TenantCreatedAt.Time, tenantMember.TenantUpdatedAt.Time),
 			Name:              tenantMember.TenantName,
 			Slug:              tenantMember.TenantSlug,
 			AnalyticsOptOut:   &tenantMember.AnalyticsOptOut,

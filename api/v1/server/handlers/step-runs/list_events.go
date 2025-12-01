@@ -8,7 +8,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *StepRunService) StepRunListEvents(ctx echo.Context, request gen.StepRunListEventsRequestObject) (gen.StepRunListEventsResponseObject, error) {
@@ -33,7 +32,7 @@ func (t *StepRunService) StepRunListEvents(ctx echo.Context, request gen.StepRun
 	}
 
 	listRes, err := t.config.APIRepository.StepRun().ListStepRunEvents(
-		sqlchelpers.UUIDToStr(stepRun.ID),
+		stepRun.ID.String(),
 		listOpts,
 	)
 

@@ -1,23 +1,22 @@
 package v0
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 // tenantManager manages the scheduler and queuers for a tenant and multiplexes
 // messages to the relevant queuer.
 type tenantManager struct {
 	cf       *sharedConfig
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	scheduler *Scheduler
 	rl        *rateLimiter
@@ -35,7 +34,7 @@ type tenantManager struct {
 }
 
 func newTenantManager(cf *sharedConfig, tenantId string, resultsCh chan *QueueResults, exts *Extensions) *tenantManager {
-	tenantIdUUID := sqlchelpers.UUIDFromStr(tenantId)
+	tenantIdUUID := uuid.MustParse(tenantId)
 
 	rl := newRateLimiter(cf, tenantIdUUID)
 	s := newScheduler(cf, tenantIdUUID, rl, exts)

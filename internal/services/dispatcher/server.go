@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	telemetry_codes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -29,7 +28,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -64,16 +62,16 @@ func (worker *subscribedWorker) StartStepRun(
 
 	action := &contracts.AssignedAction{
 		TenantId:      tenantId,
-		JobId:         sqlchelpers.UUIDToStr(stepRun.JobId),
+		JobId:         stepRun.JobId.String(),
 		JobName:       stepRun.JobName,
-		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
-		StepId:        sqlchelpers.UUIDToStr(stepRun.StepId),
-		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+		JobRunId:      stepRun.JobRunId.String(),
+		StepId:        stepRun.StepId.String(),
+		StepRunId:     stepRun.SRID.String(),
 		ActionType:    contracts.ActionType_START_STEP_RUN,
 		ActionId:      stepRun.ActionId,
 		ActionPayload: string(inputBytes),
 		StepName:      stepName,
-		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
+		WorkflowRunId: stepRun.WorkflowRunId.String(),
 		RetryCount:    stepRun.SRRetryCount,
 		// NOTE: This is the default because this method is unused
 		Priority: 1,
@@ -92,8 +90,8 @@ func (worker *subscribedWorker) StartStepRun(
 		action.ChildWorkflowKey = &stepRunData.ChildKey.String
 	}
 
-	if stepRunData.ParentId.Valid {
-		parentId := sqlchelpers.UUIDToStr(stepRunData.ParentId)
+	if stepRunData.ParentId != nil {
+		parentId := stepRunData.ParentId.String()
 		action.ParentWorkflowRunId = &parentId
 	}
 
@@ -121,16 +119,16 @@ func (worker *subscribedWorker) StartStepRunFromBulk(
 
 	action := &contracts.AssignedAction{
 		TenantId:      tenantId,
-		JobId:         sqlchelpers.UUIDToStr(stepRun.JobId),
+		JobId:         stepRun.JobId.String(),
 		JobName:       stepRun.JobName,
-		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
-		StepId:        sqlchelpers.UUIDToStr(stepRun.StepId),
-		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+		JobRunId:      stepRun.JobRunId.String(),
+		StepId:        stepRun.StepId.String(),
+		StepRunId:     stepRun.SRID.String(),
 		ActionType:    contracts.ActionType_START_STEP_RUN,
 		ActionId:      stepRun.ActionId,
 		ActionPayload: string(inputBytes),
 		StepName:      stepName,
-		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
+		WorkflowRunId: stepRun.WorkflowRunId.String(),
 		RetryCount:    stepRun.SRRetryCount,
 		Priority:      stepRun.Priority,
 	}
@@ -148,8 +146,8 @@ func (worker *subscribedWorker) StartStepRunFromBulk(
 		action.ChildWorkflowKey = &stepRun.ChildKey.String
 	}
 
-	if stepRun.ParentId.Valid {
-		parentId := sqlchelpers.UUIDToStr(stepRun.ParentId)
+	if stepRun.ParentId != nil {
+		parentId := stepRun.ParentId.String()
 		action.ParentWorkflowRunId = &parentId
 	}
 
@@ -168,8 +166,8 @@ func (worker *subscribedWorker) StartGroupKeyAction(
 	defer span.End()
 
 	inputData := getGroupKeyRun.GetGroupKeyRun.Input
-	workflowRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.WorkflowRunId)
-	getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.GetGroupKeyRun.ID)
+	workflowRunId := getGroupKeyRun.WorkflowRunId.String()
+	getGroupKeyRunId := getGroupKeyRun.GetGroupKeyRun.ID.String()
 
 	worker.sendMu.Lock()
 	defer worker.sendMu.Unlock()
@@ -197,21 +195,21 @@ func (worker *subscribedWorker) CancelStepRun(
 
 	return worker.stream.Send(&contracts.AssignedAction{
 		TenantId:      tenantId,
-		JobId:         sqlchelpers.UUIDToStr(stepRun.JobId),
+		JobId:         stepRun.JobId.String(),
 		JobName:       stepRun.JobName,
-		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
-		StepId:        sqlchelpers.UUIDToStr(stepRun.StepId),
-		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+		JobRunId:      stepRun.JobRunId.String(),
+		StepId:        stepRun.StepId.String(),
+		StepRunId:     stepRun.SRID.String(),
 		ActionType:    contracts.ActionType_CANCEL_STEP_RUN,
 		StepName:      stepRun.StepReadableId.String,
-		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
+		WorkflowRunId: stepRun.WorkflowRunId.String(),
 		RetryCount:    stepRun.SRRetryCount,
 	})
 }
 
 func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.WorkerRegisterRequest) (*contracts.WorkerRegisterResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	s.l.Debug().Msgf("Received register request from ID %s with actions %v", request.WorkerName, request.Actions)
 
@@ -262,7 +260,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		return nil, err
 	}
 
-	workerId := sqlchelpers.UUIDToStr(worker.ID)
+	workerId := worker.ID.String()
 
 	if request.Labels != nil {
 		_, err = s.upsertLabels(ctx, worker.ID, request.Labels)
@@ -283,19 +281,19 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contracts.UpsertWorkerLabelsRequest) (*contracts.UpsertWorkerLabelsResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
-	_, err := s.upsertLabels(ctx, sqlchelpers.UUIDFromStr(request.WorkerId), request.Labels)
+	_, err := s.upsertLabels(ctx, uuid.MustParse(request.WorkerId), request.Labels)
 
 	if err != nil {
 		return nil, err
 	}
 
 	return &contracts.UpsertWorkerLabelsResponse{
-		TenantId: sqlchelpers.UUIDToStr(tenant.ID),
+		TenantId: tenant.ID.String(),
 		WorkerId: request.WorkerId,
 	}, nil
 }
 
-func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId pgtype.UUID, request map[string]*contracts.WorkerLabels) ([]*dbsqlc.WorkerLabel, error) {
+func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, request map[string]*contracts.WorkerLabels) ([]*dbsqlc.WorkerLabel, error) {
 	affinities := make([]repository.UpsertWorkerLabelOpts, 0, len(request))
 
 	for key, config := range request {
@@ -316,7 +314,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId pgtype.UUID,
 	res, err := s.repo.Worker().UpsertWorkerLabels(ctx, workerId, affinities)
 
 	if err != nil {
-		s.l.Error().Err(err).Msgf("could not upsert worker affinities for worker %s", sqlchelpers.UUIDToStr(workerId))
+		s.l.Error().Err(err).Msgf("could not upsert worker affinities for worker %s", workerId.String())
 		return nil, err
 	}
 
@@ -326,7 +324,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId pgtype.UUID,
 // Subscribe handles a subscribe request from a client
 func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenServer) error {
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	sessionId := uuid.New().String()
 
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
@@ -340,7 +338,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		return err
 	}
 
-	shouldUpdateDispatcherId := !worker.DispatcherId.Valid || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || worker.DispatcherId.String() != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
@@ -429,7 +427,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 // against engine version v0.18.1+
 func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenV2Server) error {
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	sessionId := uuid.New().String()
 
 	ctx := stream.Context()
@@ -443,7 +441,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		return err
 	}
 
-	shouldUpdateDispatcherId := !worker.DispatcherId.Valid || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || worker.DispatcherId.String() != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
@@ -534,7 +532,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	defer span.End()
 
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	heartbeatAt := time.Now().UTC()
 
@@ -594,7 +592,7 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 }
 
 func (s *DispatcherImpl) releaseSlotV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	if req.StepRunId == "" {
 		return nil, fmt.Errorf("step run id is required")
@@ -635,7 +633,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsV0(request *contracts.Subscrib
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, value string, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
@@ -725,7 +723,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId string, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	s.l.Debug().Msgf("Received subscribe request for workflow: %s", workflowRunId)
 
@@ -929,7 +927,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) subscribeToWorkflowRunsV0(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
 	tenant := server.Context().Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	s.l.Debug().Msgf("Received subscribe request for tenant: %s", tenantId)
 
@@ -1157,7 +1155,7 @@ func (s *DispatcherImpl) SendGroupKeyActionEvent(ctx context.Context, request *c
 
 func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contracts.OverridesData) (*contracts.OverridesDataResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// ensure step run id
 	if request.StepRunId == "" {
@@ -1184,7 +1182,7 @@ func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contract
 
 func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.WorkerUnsubscribeRequest) (*contracts.WorkerUnsubscribeResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// remove the worker from the connection pool
 	s.workers.Delete(request.WorkerId)
@@ -1209,7 +1207,7 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 }
 
 func (d *DispatcherImpl) refreshTimeoutV0(ctx context.Context, tenant *dbsqlc.Tenant, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	opts := repository.RefreshTimeoutBy{
 		IncrementTimeoutBy: request.IncrementTimeoutBy,
@@ -1239,7 +1237,7 @@ func (d *DispatcherImpl) refreshTimeoutV0(ctx context.Context, tenant *dbsqlc.Te
 
 func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -1255,7 +1253,7 @@ func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request 
 		return nil, err
 	}
 
-	err = s.repo.StepRun().StepRunStarted(ctx, tenantId, sqlchelpers.UUIDToStr(sr.WorkflowRunId), request.StepRunId, startedAt)
+	err = s.repo.StepRun().StepRunStarted(ctx, tenantId, sr.WorkflowRunId.String(), request.StepRunId, startedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not mark step run started: %w", err)
@@ -1264,7 +1262,7 @@ func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request 
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunStartedTaskPayload{
 		StepRunId:     request.StepRunId,
 		StartedAt:     startedAt.Format(time.RFC3339),
-		WorkflowRunId: sqlchelpers.UUIDToStr(sr.WorkflowRunId),
+		WorkflowRunId: sr.WorkflowRunId.String(),
 		StepRetries:   &sr.StepRetries,
 		RetryCount:    &sr.SRRetryCount,
 	})
@@ -1293,7 +1291,7 @@ func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request 
 
 func (s *DispatcherImpl) handleStepRunAcked(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -1312,7 +1310,7 @@ func (s *DispatcherImpl) handleStepRunAcked(inputCtx context.Context, request *c
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunStartedTaskPayload{
 		StepRunId:     request.StepRunId,
 		StartedAt:     startedAt.Format(time.RFC3339),
-		WorkflowRunId: sqlchelpers.UUIDToStr(sr.WorkflowRunId),
+		WorkflowRunId: sr.WorkflowRunId.String(),
 		StepRetries:   &sr.StepRetries,
 		RetryCount:    &sr.SRRetryCount,
 	})
@@ -1341,7 +1339,7 @@ func (s *DispatcherImpl) handleStepRunAcked(inputCtx context.Context, request *c
 
 func (s *DispatcherImpl) handleStepRunCompleted(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -1384,7 +1382,7 @@ func (s *DispatcherImpl) handleStepRunCompleted(inputCtx context.Context, reques
 	}
 
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunFinishedTaskPayload{
-		WorkflowRunId:  sqlchelpers.UUIDToStr(meta.WorkflowRunId),
+		WorkflowRunId:  meta.WorkflowRunId.String(),
 		StepRunId:      request.StepRunId,
 		FinishedAt:     finishedAt.Format(time.RFC3339),
 		StepOutputData: request.EventPayload,
@@ -1416,7 +1414,7 @@ func (s *DispatcherImpl) handleStepRunCompleted(inputCtx context.Context, reques
 
 func (s *DispatcherImpl) handleStepRunFailed(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -1440,7 +1438,7 @@ func (s *DispatcherImpl) handleStepRunFailed(inputCtx context.Context, request *
 	}
 
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunFailedTaskPayload{
-		WorkflowRunId: sqlchelpers.UUIDToStr(meta.WorkflowRunId),
+		WorkflowRunId: meta.WorkflowRunId.String(),
 		StepRunId:     request.StepRunId,
 		FailedAt:      failedAt.Format(time.RFC3339),
 		Error:         request.EventPayload,
@@ -1472,7 +1470,7 @@ func (s *DispatcherImpl) handleStepRunFailed(inputCtx context.Context, request *
 
 func (s *DispatcherImpl) handleGetGroupKeyRunStarted(inputCtx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -1511,7 +1509,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunStarted(inputCtx context.Context, r
 
 func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(inputCtx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -1551,7 +1549,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(inputCtx context.Context,
 
 func (s *DispatcherImpl) handleGetGroupKeyRunFailed(inputCtx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -1888,10 +1886,10 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 	workflowRunToOnFailureJobIds := make(map[string]string)
 
 	for _, workflowRun := range workflowRuns {
-		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID))
+		workflowRunIds = append(workflowRunIds, workflowRun.WorkflowRun.ID.String())
 
-		if workflowRun.WorkflowVersion.OnFailureJobId.Valid {
-			workflowRunToOnFailureJobIds[sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)] = sqlchelpers.UUIDToStr(workflowRun.WorkflowVersion.OnFailureJobId)
+		if workflowRun.WorkflowVersion.OnFailureJobId != nil {
+			workflowRunToOnFailureJobIds[workflowRun.WorkflowRun.ID.String()] = workflowRun.WorkflowVersion.OnFailureJobId.String()
 		}
 	}
 
@@ -1907,14 +1905,14 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 
 	for _, stepRun := range stepRuns {
 
-		data, err := s.repo.StepRun().GetStepRunDataForEngine(context.Background(), tenantId, sqlchelpers.UUIDToStr(stepRun.SRID))
+		data, err := s.repo.StepRun().GetStepRunDataForEngine(context.Background(), tenantId, stepRun.SRID.String())
 
 		if err != nil {
-			return nil, fmt.Errorf("could not get step run data for %s, %e", sqlchelpers.UUIDToStr(stepRun.SRID), err)
+			return nil, fmt.Errorf("could not get step run data for %s, %e", stepRun.SRID.String(), err)
 		}
 
-		workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
-		jobId := sqlchelpers.UUIDToStr(stepRun.JobId)
+		workflowRunId := stepRun.WorkflowRunId.String()
+		jobId := stepRun.JobId.String()
 
 		hasError := data.Error.Valid || stepRun.SRCancelledReason.Valid
 		isOnFailureJob := workflowRunToOnFailureJobIds[workflowRunId] == jobId
@@ -1924,9 +1922,9 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 		}
 
 		resStepRun := &contracts.StepRunResult{
-			StepRunId:      sqlchelpers.UUIDToStr(stepRun.SRID),
+			StepRunId:      stepRun.SRID.String(),
 			StepReadableId: stepRun.StepReadableId.String,
-			JobRunId:       sqlchelpers.UUIDToStr(stepRun.JobRunId),
+			JobRunId:       stepRun.JobRunId.String(),
 		}
 
 		if data.Error.Valid {

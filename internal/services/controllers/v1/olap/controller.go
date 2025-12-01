@@ -477,8 +477,8 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
 	for _, msg := range msgs {
-		if !tc.sample(sqlchelpers.UUIDToStr(msg.WorkflowRunID)) {
-			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.ID, sqlchelpers.UUIDToStr(msg.WorkflowRunID))
+		if !tc.sample(msg.WorkflowRunID.String()) {
+			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.ID, msg.WorkflowRunID.String())
 			continue
 		}
 
@@ -494,8 +494,8 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
 
 	for _, msg := range msgs {
-		if !tc.sample(sqlchelpers.UUIDToStr(msg.ExternalID)) {
-			tc.l.Debug().Msgf("skipping dag %s", sqlchelpers.UUIDToStr(msg.ExternalID))
+		if !tc.sample(msg.ExternalID.String()) {
+			tc.l.Debug().Msgf("skipping dag %s", msg.ExternalID.String())
 			continue
 		}
 
@@ -512,8 +512,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 	bulkCreateTriggersParams := make([]v1.EventTriggersFromExternalId, 0)
 
-	tenantIds := make([]pgtype.UUID, 0)
-	externalIds := make([]pgtype.UUID, 0)
+	tenantIds := make([]uuid.UUID, 0)
+	externalIds := make([]uuid.UUID, 0)
 	seenAts := make([]pgtype.Timestamptz, 0)
 	keys := make([]string, 0)
 	payloadstoInsert := make([][]byte, 0)
@@ -524,16 +524,16 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
 			if payload.MaybeRunId != nil && payload.MaybeRunInsertedAt != nil {
-				var filterId pgtype.UUID
+				var filterId uuid.UUID
 
 				if payload.FilterId != nil {
-					filterId = sqlchelpers.UUIDFromStr(*payload.FilterId)
+					filterId = uuid.MustParse(*payload.FilterId)
 				}
 
 				bulkCreateTriggersParams = append(bulkCreateTriggersParams, v1.EventTriggersFromExternalId{
 					RunID:           *payload.MaybeRunId,
 					RunInsertedAt:   sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
-					EventExternalId: sqlchelpers.UUIDFromStr(payload.EventExternalId),
+					EventExternalId: uuid.MustParse(payload.EventExternalId),
 					EventSeenAt:     sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
 					FilterId:        filterId,
 				})
@@ -546,8 +546,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			}
 
 			seenEventKeysSet[payload.EventExternalId] = true
-			tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(tenantId))
-			externalIds = append(externalIds, sqlchelpers.UUIDFromStr(payload.EventExternalId))
+			tenantIds = append(tenantIds, uuid.MustParse(tenantId))
+			externalIds = append(externalIds, uuid.MustParse(payload.EventExternalId))
 			seenAts = append(seenAts, sqlchelpers.TimestamptzFromTime(payload.EventSeenAt))
 			keys = append(keys, payload.EventKey)
 			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)
@@ -613,13 +613,13 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 	retryCounts := make([]int32, 0)
 	workerIds := make([]string, 0)
-	workflowIds := make([]pgtype.UUID, 0)
+	workflowIds := make([]uuid.UUID, 0)
 	eventTypes := make([]sqlcv1.V1EventTypeOlap, 0)
 	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
 	eventPayloads := make([]string, 0)
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
-	eventExternalIds := make([]pgtype.UUID, 0)
+	eventExternalIds := make([]uuid.UUID, 0)
 
 	for _, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -629,8 +629,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			continue
 		}
 
-		if !tc.sample(sqlchelpers.UUIDToStr(taskMeta.WorkflowRunID)) {
-			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.TaskId, sqlchelpers.UUIDToStr(taskMeta.WorkflowRunID))
+		if !tc.sample(taskMeta.WorkflowRunID.String()) {
+			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.TaskId, taskMeta.WorkflowRunID.String())
 			continue
 		}
 
@@ -642,7 +642,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		eventPayloads = append(eventPayloads, msg.EventPayload)
 		eventMessages = append(eventMessages, msg.EventMessage)
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
-		eventExternalIds = append(eventExternalIds, sqlchelpers.UUIDFromStr(uuid.New().String()))
+		eventExternalIds = append(eventExternalIds, uuid.MustParse(uuid.New().String()))
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -697,14 +697,14 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	opts := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 
 	for i, taskId := range taskIds {
-		var workerId pgtype.UUID
+		var workerId uuid.UUID
 
 		if workerIds[i] != "" {
-			workerId = sqlchelpers.UUIDFromStr(workerIds[i])
+			workerId = uuid.MustParse(workerIds[i])
 		}
 
 		event := sqlcv1.CreateTaskEventsOLAPParams{
-			TenantID:               sqlchelpers.UUIDFromStr(tenantId),
+			TenantID:               uuid.MustParse(tenantId),
 			TaskID:                 taskId,
 			TaskInsertedAt:         taskInsertedAts[i],
 			WorkflowID:             workflowIds[i],
@@ -712,9 +712,9 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			EventTimestamp:         timestamps[i],
 			ReadableStatus:         readableStatuses[i],
 			RetryCount:             retryCounts[i],
-			WorkerID:               workerId,
+			WorkerID:               &workerId,
 			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
-			ExternalID:             eventExternalIds[i],
+			ExternalID:             &eventExternalIds[i],
 		}
 
 		switch eventTypes[i] {
@@ -742,7 +742,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	}
 
 	offloadToExternalOpts := make([]v1.OffloadToExternalStoreOpts, 0)
-	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]pgtype.UUID)
+	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]uuid.UUID)
 
 	for _, opt := range opts {
 		// generating a dummy id + inserted at to use for creating the external keys for the task events
@@ -755,13 +755,13 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		idInsertedAtToExternalId[v1.IdInsertedAt{
 			ID:         dummyId,
 			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-		}] = opt.ExternalID
+		}] = *opt.ExternalID
 
 		offloadToExternalOpts = append(offloadToExternalOpts, v1.OffloadToExternalStoreOpts{
 			StorePayloadOpts: &v1.StorePayloadOpts{
 				Id:         dummyId,
 				InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-				ExternalId: opt.ExternalID,
+				ExternalId: *opt.ExternalID,
 				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 				Payload:    opt.Output,
 				TenantId:   tenantId,

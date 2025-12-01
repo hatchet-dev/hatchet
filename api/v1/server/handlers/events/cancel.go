@@ -13,12 +13,11 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *EventService) EventUpdateCancel(ctx echo.Context, request gen.EventUpdateCancelRequestObject) (gen.EventUpdateCancelResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	eventIds := make([]string, len(request.Body.EventIds))
 
@@ -41,7 +40,7 @@ func (t *EventService) EventUpdateCancel(ctx echo.Context, request gen.EventUpda
 
 		for _, run := range runs.Rows {
 			runCp := run
-			runIds = append(runIds, sqlchelpers.UUIDToStr(runCp.WorkflowRun.ID))
+			runIds = append(runIds, runCp.WorkflowRun.ID.String())
 		}
 	}
 
@@ -67,7 +66,7 @@ func (t *EventService) EventUpdateCancel(ctx echo.Context, request gen.EventUpda
 				// If the step run is not in a final state, send a task to the taskqueue to cancel it
 				var reason = "CANCELLED_BY_USER"
 				// send a task to the taskqueue
-				jobRunId := sqlchelpers.UUIDToStr(jobRun.ID)
+				jobRunId := jobRun.ID.String()
 				err = t.config.MessageQueue.AddMessage(
 					ctx.Request().Context(),
 					msgqueue.JOB_PROCESSING_QUEUE,

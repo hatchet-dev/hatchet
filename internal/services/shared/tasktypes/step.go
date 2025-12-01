@@ -6,7 +6,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type StepRunTaskPayload struct {
@@ -176,10 +175,10 @@ type StepRunReplayTaskMetadata struct {
 }
 
 func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte, err string) *msgqueue.Message {
-	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
-	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
-	workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
+	jobRunId := stepRun.JobRunId.String()
+	stepRunId := stepRun.SRID.String()
+	tenantId := stepRun.SRTenantId.String()
+	workflowRunId := stepRun.WorkflowRunId.String()
 
 	payload, _ := datautils.ToJSONMap(StepRunRetryTaskPayload{
 		WorkflowRunId: workflowRunId,
@@ -204,10 +203,10 @@ func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte
 }
 
 func StepRunReplayToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
-	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
-	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
-	workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
+	jobRunId := stepRun.JobRunId.String()
+	stepRunId := stepRun.SRID.String()
+	tenantId := stepRun.SRTenantId.String()
+	workflowRunId := stepRun.WorkflowRunId.String()
 
 	payload, _ := datautils.ToJSONMap(StepRunReplayTaskPayload{
 		WorkflowRunId: workflowRunId,
@@ -231,9 +230,9 @@ func StepRunReplayToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byt
 }
 
 func StepRunFailedToTask(stepRun *dbsqlc.GetStepRunForEngineRow, errorReason string, failedAt *time.Time) *msgqueue.Message {
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
-	workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
-	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
+	stepRunId := stepRun.SRID.String()
+	workflowRunId := stepRun.WorkflowRunId.String()
+	tenantId := stepRun.SRTenantId.String()
 
 	payload, _ := datautils.ToJSONMap(StepRunFailedTaskPayload{
 		WorkflowRunId: workflowRunId,
@@ -257,8 +256,8 @@ func StepRunFailedToTask(stepRun *dbsqlc.GetStepRunForEngineRow, errorReason str
 }
 
 func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string, propagateToChildren bool) *msgqueue.Message {
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
-	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
+	stepRunId := stepRun.SRID.String()
+	tenantId := stepRun.SRTenantId.String()
 
 	payload, _ := datautils.ToJSONMap(StepRunCancelTaskPayload{
 		StepRunId:           stepRunId,
@@ -282,20 +281,20 @@ func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string, 
 
 func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(StepRunTaskPayload{
-		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
-		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
-		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+		WorkflowRunId: stepRun.WorkflowRunId.String(),
+		JobRunId:      stepRun.JobRunId.String(),
+		StepRunId:     stepRun.SRID.String(),
 		StepRetries:   &stepRun.StepRetries,
 		RetryCount:    &stepRun.SRRetryCount,
 	})
 
 	metadata, _ := datautils.ToJSONMap(StepRunTaskMetadata{
-		StepId:            sqlchelpers.UUIDToStr(stepRun.StepId),
+		StepId:            stepRun.StepId.String(),
 		ActionId:          stepRun.ActionId,
 		JobName:           stepRun.JobName,
-		JobId:             sqlchelpers.UUIDToStr(stepRun.JobId),
-		WorkflowVersionId: sqlchelpers.UUIDToStr(stepRun.WorkflowVersionId),
-		TenantId:          sqlchelpers.UUIDToStr(stepRun.SRTenantId),
+		JobId:             stepRun.JobId.String(),
+		WorkflowVersionId: stepRun.WorkflowVersionId.String(),
+		TenantId:          stepRun.SRTenantId.String(),
 	})
 
 	return &msgqueue.Message{

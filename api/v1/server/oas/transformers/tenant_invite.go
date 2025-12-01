@@ -3,16 +3,15 @@ package transformers
 import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func ToTenantInviteLink(invite *dbsqlc.TenantInviteLink) *gen.TenantInvite {
 	res := &gen.TenantInvite{
-		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(invite.ID), invite.CreatedAt.Time, invite.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(invite.ID.String(), invite.CreatedAt.Time, invite.UpdatedAt.Time),
 		Email:    invite.InviteeEmail,
 		Expires:  invite.Expires.Time,
 		Role:     gen.TenantMemberRole(invite.Role),
-		TenantId: sqlchelpers.UUIDToStr(invite.TenantId),
+		TenantId: invite.TenantId.String(),
 	}
 
 	return res
@@ -20,11 +19,11 @@ func ToTenantInviteLink(invite *dbsqlc.TenantInviteLink) *gen.TenantInvite {
 
 func ToUserTenantInviteLink(invite *dbsqlc.ListTenantInvitesByEmailRow) *gen.TenantInvite {
 	res := &gen.TenantInvite{
-		Metadata:   *toAPIMetadata(sqlchelpers.UUIDToStr(invite.ID), invite.CreatedAt.Time, invite.UpdatedAt.Time),
+		Metadata:   *toAPIMetadata(invite.ID.String(), invite.CreatedAt.Time, invite.UpdatedAt.Time),
 		Email:      invite.InviteeEmail,
 		Expires:    invite.Expires.Time,
 		Role:       gen.TenantMemberRole(invite.Role),
-		TenantId:   sqlchelpers.UUIDToStr(invite.TenantId),
+		TenantId:   invite.TenantId.String(),
 		TenantName: &invite.TenantName,
 	}
 

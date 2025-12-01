@@ -3,7 +3,8 @@ package v1
 import (
 	"encoding/json"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -50,8 +51,8 @@ func NewSkippedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent
 	e.Output = outputMapBytes
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
 
-	if task.DesiredWorkerID.Valid {
-		workerId := sqlchelpers.UUIDToStr(task.DesiredWorkerID)
+	if task.DesiredWorkerID != nil {
+		workerId := task.DesiredWorkerID.String()
 		e.WorkerId = &workerId
 	}
 
@@ -64,8 +65,8 @@ func NewFailedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent 
 	e.ErrorMessage = task.InitialStateReason.String
 	e.EventType = sqlcv1.V1TaskEventTypeFAILED
 
-	if task.DesiredWorkerID.Valid {
-		workerId := sqlchelpers.UUIDToStr(task.DesiredWorkerID)
+	if task.DesiredWorkerID != nil {
+		workerId := task.DesiredWorkerID.String()
 		e.WorkerId = &workerId
 	}
 
@@ -80,7 +81,7 @@ func NewCancelledTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEve
 
 func baseFromTasksRow(task *V1TaskWithPayload) *TaskOutputEvent {
 	return &TaskOutputEvent{
-		TaskExternalId: sqlchelpers.UUIDToStr(task.ExternalID),
+		TaskExternalId: task.ExternalID.String(),
 		TaskId:         task.ID,
 		RetryCount:     task.RetryCount,
 		StepReadableID: task.StepReadableID,
@@ -92,8 +93,8 @@ func NewCompletedTaskOutputEvent(row *sqlcv1.ReleaseTasksRow, output []byte) *Ta
 	e.Output = output
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
 
-	if row.WorkerID.Valid {
-		workerId := sqlchelpers.UUIDToStr(row.WorkerID)
+	if row.WorkerID != uuid.Nil {
+		workerId := row.WorkerID.String()
 		e.WorkerId = &workerId
 	}
 
@@ -116,7 +117,7 @@ func NewCancelledTaskOutputEvent(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 
 func baseFromReleaseTasksRow(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 	return &TaskOutputEvent{
-		TaskExternalId: sqlchelpers.UUIDToStr(row.ExternalID),
+		TaskExternalId: row.ExternalID.String(),
 		TaskId:         row.ID,
 		RetryCount:     row.RetryCount,
 		StepReadableID: row.StepReadableID,

@@ -6,12 +6,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type CreateWorkflowRunOpts struct {
@@ -112,14 +110,14 @@ func GetCreateWorkflowRunOptsFromManual(
 
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
-		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		WorkflowVersionId:  workflowVersion.WorkflowVersion.ID.String(),
 		ManualTriggerInput: StringPtr(string(input)),
 		TriggeredBy:        string(datautils.TriggeredByManual),
 		InputData:          input,
 		AdditionalMetadata: additionalMetadata,
 	}
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId.Valid {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -144,7 +142,7 @@ func GetCreateWorkflowRunOptsFromParent(
 
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
-		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		WorkflowVersionId:  workflowVersion.WorkflowVersion.ID.String(),
 		ManualTriggerInput: StringPtr(string(input)),
 		TriggeredBy:        string(datautils.TriggeredByParent),
 		InputData:          input,
@@ -153,7 +151,7 @@ func GetCreateWorkflowRunOptsFromParent(
 
 	WithParent(parentId, parentStepRunId, childIndex, childKey, additionalMetadata, parentAdditionalMetadata)(opts)
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId.Valid {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -174,14 +172,14 @@ func GetCreateWorkflowRunOptsFromEvent(
 
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
-		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		WorkflowVersionId:  workflowVersion.WorkflowVersion.ID.String(),
 		TriggeringEventId:  &eventId,
 		TriggeredBy:        string(datautils.TriggeredByEvent),
 		InputData:          input,
 		AdditionalMetadata: additionalMetadata,
 	}
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId.Valid {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -204,7 +202,7 @@ func GetCreateWorkflowRunOptsFromCron(
 
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
-		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		WorkflowVersionId:  workflowVersion.WorkflowVersion.ID.String(),
 		Cron:               &cron,
 		CronParentId:       &cronParentId,
 		CronName:           cronName,
@@ -213,7 +211,7 @@ func GetCreateWorkflowRunOptsFromCron(
 		AdditionalMetadata: additionalMetadata,
 	}
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId.Valid {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -235,14 +233,14 @@ func GetCreateWorkflowRunOptsFromSchedule(
 
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:         StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
-		WorkflowVersionId:   sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		WorkflowVersionId:   workflowVersion.WorkflowVersion.ID.String(),
 		ScheduledWorkflowId: &scheduledWorkflowId,
 		TriggeredBy:         string(datautils.TriggeredBySchedule),
 		InputData:           input,
 		AdditionalMetadata:  additionalMetadata,
 	}
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId.Valid {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -515,7 +513,7 @@ type ChildWorkflowRun struct {
 
 type WorkflowRunEngineRepository interface {
 	RegisterCreateCallback(callback TenantScopedCallback[*dbsqlc.WorkflowRun])
-	RegisterQueuedCallback(callback TenantScopedCallback[pgtype.UUID])
+	RegisterQueuedCallback(callback TenantScopedCallback[uuid.UUID])
 
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)

@@ -3,7 +3,6 @@ package transformers
 import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func ToWebhookWorkerRequest(webhookWorker *dbsqlc.WebhookWorkerRequest) *gen.WebhookWorkerRequest {
@@ -17,7 +16,7 @@ func ToWebhookWorkerRequest(webhookWorker *dbsqlc.WebhookWorkerRequest) *gen.Web
 func ToWebhookWorker(webhookWorker *dbsqlc.WebhookWorker) *gen.WebhookWorker {
 	return &gen.WebhookWorker{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(webhookWorker.ID),
+			webhookWorker.ID.String(),
 			webhookWorker.CreatedAt.Time,
 			webhookWorker.UpdatedAt.Time,
 		),
@@ -29,7 +28,7 @@ func ToWebhookWorker(webhookWorker *dbsqlc.WebhookWorker) *gen.WebhookWorker {
 func ToWebhookWorkerCreated(webhookWorker *dbsqlc.WebhookWorker) *gen.WebhookWorkerCreated {
 	return &gen.WebhookWorkerCreated{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(webhookWorker.ID),
+			webhookWorker.ID.String(),
 			webhookWorker.CreatedAt.Time,
 			webhookWorker.UpdatedAt.Time,
 		),

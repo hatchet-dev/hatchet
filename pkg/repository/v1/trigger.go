@@ -218,7 +218,7 @@ type EventExternalIdFilterId struct {
 }
 
 type WorkflowAndScope struct {
-	WorkflowId pgtype.UUID
+	WorkflowId uuid.UUID
 	Scope      string
 }
 
@@ -251,7 +251,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	// we don't run this in a transaction because workflow versions won't change during the course of this operation
 	workflowVersionIdsAndEventKeys, err := r.queries.ListWorkflowsForEvents(ctx, r.pool, sqlcv1.ListWorkflowsForEventsParams{
 		Eventkeys: eventKeys,
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:  uuid.MustParse(tenantId),
 	})
 
 	if err != nil {
@@ -265,7 +265,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	// important: need to include all workflow ids here, regardless of whether or
 	// not the corresponding event was pushed with a scope, so we can correctly
 	// tell if there are any filters for the workflows with these events registered
-	workflowIdsForFilterCounts := make([]pgtype.UUID, 0, len(workflowVersionIdsAndEventKeys))
+	workflowIdsForFilterCounts := make([]uuid.UUID, 0, len(workflowVersionIdsAndEventKeys))
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
@@ -288,7 +288,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 	}
 
-	workflowIds := make([]pgtype.UUID, 0, len(workflowIdScopePairs))
+	workflowIds := make([]uuid.UUID, 0, len(workflowIdScopePairs))
 	scopes := make([]string, 0, len(workflowIdScopePairs))
 
 	for pair := range workflowIdScopePairs {
@@ -297,7 +297,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}
 
 	filters, err := r.queries.ListFiltersForEventTriggers(ctx, r.pool, sqlcv1.ListFiltersForEventTriggersParams{
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:    uuid.MustParse(tenantId),
 		Workflowids: workflowIds,
 		Scopes:      scopes,
 	})
@@ -318,7 +318,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}
 
 	filterCounts, err := r.queries.ListFilterCountsForWorkflows(ctx, r.pool, sqlcv1.ListFilterCountsForWorkflowsParams{
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:    uuid.MustParse(tenantId),
 		Workflowids: workflowIdsForFilterCounts,
 	})
 
@@ -329,7 +329,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	workflowIdToCount := make(map[string]int64)
 
 	for _, count := range filterCounts {
-		workflowIdToCount[sqlchelpers.UUIDToStr(count.WorkflowID)] = count.Count
+		workflowIdToCount[count.WorkflowID.String()] = count.Count
 	}
 
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
@@ -343,7 +343,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 			continue
 		}
 
-		numFilters := workflowIdToCount[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
+		numFilters := workflowIdToCount[workflow.WorkflowId.String()]
 
 		hasAnyFilters := numFilters > 0
 
@@ -378,8 +378,8 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 				externalId := uuid.NewString()
 
 				triggerOpts = append(triggerOpts, triggerTuple{
-					workflowVersionId:  sqlchelpers.UUIDToStr(workflow.WorkflowVersionId),
-					workflowId:         sqlchelpers.UUIDToStr(workflow.WorkflowId),
+					workflowVersionId:  workflow.WorkflowVersionId.String(),
+					workflowId:         workflow.WorkflowId.String(),
 					workflowName:       workflow.WorkflowName,
 					externalId:         externalId,
 					input:              opt.Data,
@@ -448,11 +448,11 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 	workflowNames := make([]string, 0, len(opts))
 	uniqueNames := make(map[string]struct{})
 	namesToOpts := make(map[string][]*WorkflowNameTriggerOpts)
-	idempotencyKeyToExternalIds := make(map[IdempotencyKey]pgtype.UUID)
+	idempotencyKeyToExternalIds := make(map[IdempotencyKey]uuid.UUID)
 
 	for _, opt := range opts {
 		if opt.IdempotencyKey != nil {
-			idempotencyKeyToExternalIds[*opt.IdempotencyKey] = sqlchelpers.UUIDFromStr(opt.ExternalId)
+			idempotencyKeyToExternalIds[*opt.IdempotencyKey], _ = uuid.Parse(opt.ExternalId)
 		}
 
 		namesToOpts[opt.WorkflowName] = append(namesToOpts[opt.WorkflowName], opt)
@@ -482,7 +482,7 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 	// we don't run this in a transaction because workflow versions won't change during the course of this operation
 	workflowVersionsByNames, err := r.queries.ListWorkflowsByNames(ctx, r.pool, sqlcv1.ListWorkflowsByNamesParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:      uuid.MustParse(tenantId),
 		Workflownames: workflowNames,
 	})
 
@@ -502,9 +502,10 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 		for _, opt := range opts {
 			if opt.IdempotencyKey != nil {
+				claimedById, _ := uuid.Parse(opt.ExternalId)
 				keyClaimantPair := KeyClaimantPair{
 					IdempotencyKey:      *opt.IdempotencyKey,
-					ClaimedByExternalId: sqlchelpers.UUIDFromStr(opt.ExternalId),
+					ClaimedByExternalId: claimedById,
 				}
 
 				wasSuccessfullyClaimed := keyClaimantPairToWasClaimed[keyClaimantPair]
@@ -516,8 +517,8 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 			}
 
 			triggerOpts = append(triggerOpts, triggerTuple{
-				workflowVersionId:    sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersionId),
-				workflowId:           sqlchelpers.UUIDToStr(workflowVersion.WorkflowId),
+				workflowVersionId:    workflowVersion.WorkflowVersionId.String(),
+				workflowId:           workflowVersion.WorkflowId.String(),
 				workflowName:         workflowVersion.WorkflowName,
 				externalId:           opt.ExternalId,
 				input:                opt.Data,
@@ -573,7 +574,7 @@ func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Cont
 
 	// look up the workflow versions for the workflow names
 	workflowVersions, err := r.queries.ListWorkflowsByNames(ctx, r.pool, sqlcv1.ListWorkflowsByNamesParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:      uuid.MustParse(tenantId),
 		Workflownames: workflowNamesToLookup,
 	})
 
@@ -689,16 +690,17 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	}
 
 	// get all data for triggering tasks in this workflow
-	workflowVersionIds := make([]pgtype.UUID, 0, len(uniqueWorkflowVersionIds))
+	workflowVersionIds := make([]uuid.UUID, 0, len(uniqueWorkflowVersionIds))
 
 	for id := range uniqueWorkflowVersionIds {
-		workflowVersionIds = append(workflowVersionIds, sqlchelpers.UUIDFromStr(id))
+		parsed, _ := uuid.Parse(id)
+		workflowVersionIds = append(workflowVersionIds, parsed)
 	}
 
 	// get steps for the workflow versions
 	steps, err := r.queries.ListStepsByWorkflowVersionIds(ctx, r.pool, sqlcv1.ListStepsByWorkflowVersionIdsParams{
 		Ids:      workflowVersionIds,
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 	})
 
 	if err != nil {
@@ -710,11 +712,11 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	stepIdsToReadableIds := make(map[string]string)
 
 	for _, step := range steps {
-		workflowVersionId := sqlchelpers.UUIDToStr(step.WorkflowVersionId)
+		workflowVersionId := step.WorkflowVersionId.String()
 
 		workflowVersionToSteps[workflowVersionId] = append(workflowVersionToSteps[workflowVersionId], step)
 
-		stepIdsToReadableIds[sqlchelpers.UUIDToStr(step.ID)] = step.ReadableId.String
+		stepIdsToReadableIds[step.ID.String()] = step.ReadableId.String
 	}
 
 	countWorkflowRuns := 0
@@ -745,7 +747,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	}
 
 	// if any steps have additional match conditions, query for the additional matches
-	stepsWithAdditionalMatchConditions := make([]pgtype.UUID, 0)
+	stepsWithAdditionalMatchConditions := make([]uuid.UUID, 0)
 
 	for _, step := range steps {
 		if step.MatchConditionCount > 0 {
@@ -758,7 +760,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	if len(stepsWithAdditionalMatchConditions) > 0 {
 		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
 			Stepids:  stepsWithAdditionalMatchConditions,
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid: uuid.MustParse(tenantId),
 		})
 
 		if err != nil {
@@ -766,7 +768,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		}
 
 		for _, match := range additionalMatches {
-			stepId := sqlchelpers.UUIDToStr(match.StepID)
+			stepId := match.StepID.String()
 
 			stepsToAdditionalMatches[stepId] = append(stepsToAdditionalMatches[stepId], match)
 		}
@@ -824,10 +826,10 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 		for _, step := range steps {
 			if !isDag {
-				stepsToExternalIds[i][sqlchelpers.UUIDToStr(step.ID)] = tuple.externalId
+				stepsToExternalIds[i][step.ID.String()] = tuple.externalId
 			} else {
 				externalId := uuid.NewString()
-				stepsToExternalIds[i][sqlchelpers.UUIDToStr(step.ID)] = externalId
+				stepsToExternalIds[i][step.ID.String()] = externalId
 				dagToTaskIds[tuple.externalId] = append(dagToTaskIds[tuple.externalId], externalId)
 			}
 		}
@@ -877,7 +879,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		}
 
 		for stepIndex, step := range orderSteps(steps) {
-			stepId := sqlchelpers.UUIDToStr(step.ID)
+			stepId := step.ID.String()
 			taskExternalId := stepsToExternalIds[i][stepId]
 
 			// if this is an on failure step, create match conditions for every other step in the DAG
@@ -887,18 +889,18 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				groupId := uuid.NewString()
 
 				for _, otherStep := range steps {
-					if sqlchelpers.UUIDToStr(otherStep.ID) == stepId {
+					if otherStep.ID.String() == stepId {
 						continue
 					}
 
-					otherExternalId := stepsToExternalIds[i][sqlchelpers.UUIDToStr(otherStep.ID)]
+					otherExternalId := stepsToExternalIds[i][otherStep.ID.String()]
 					readableId := otherStep.ReadableId.String
 
 					conditions = append(conditions, getParentOnFailureGroupMatches(groupId, otherExternalId, readableId)...)
 				}
 
 				var (
-					parentTaskExternalId pgtype.UUID
+					parentTaskExternalId uuid.UUID
 					parentTaskId         pgtype.Int8
 					parentTaskInsertedAt pgtype.Timestamptz
 					childIndex           pgtype.Int8
@@ -907,7 +909,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				)
 
 				if tuple.parentExternalId != nil {
-					parentTaskExternalId = sqlchelpers.UUIDFromStr(*tuple.parentExternalId)
+					parentTaskExternalId, _ = uuid.Parse(*tuple.parentExternalId)
 				}
 
 				if tuple.parentTaskId != nil {
@@ -974,7 +976,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 								ctx,
 								tx,
 								tenantId,
-								sqlchelpers.UUIDToStr(condition.OrGroupID),
+								condition.OrGroupID.String(),
 								condition.ReadableDataKey,
 								condition.SleepDuration.String,
 								condition.Action,
@@ -987,7 +989,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 							groupConditions = append(groupConditions, *c)
 						case sqlcv1.V1StepMatchConditionKindUSEREVENT:
 							groupConditions = append(groupConditions, r.userEventCondition(
-								sqlchelpers.UUIDToStr(condition.OrGroupID),
+								condition.OrGroupID.String(),
 								condition.ReadableDataKey,
 								condition.EventKey.String,
 								condition.Expression.String,
@@ -1000,7 +1002,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					}
 
 					var (
-						parentTaskExternalId pgtype.UUID
+						parentTaskExternalId uuid.UUID
 						parentTaskId         pgtype.Int8
 						parentTaskInsertedAt pgtype.Timestamptz
 						childIndex           pgtype.Int8
@@ -1009,7 +1011,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					)
 
 					if tuple.parentExternalId != nil {
-						parentTaskExternalId = sqlchelpers.UUIDFromStr(*tuple.parentExternalId)
+						parentTaskExternalId, _ = uuid.Parse(*tuple.parentExternalId)
 					}
 
 					if tuple.parentTaskId != nil {
@@ -1065,7 +1067,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					opt := CreateTaskOpts{
 						ExternalId:           taskExternalId,
 						WorkflowRunId:        tuple.externalId,
-						StepId:               sqlchelpers.UUIDToStr(step.ID),
+						StepId:               step.ID.String(),
 						Input:                r.newTaskInput(tuple.input, nil, tuple.filterPayload),
 						AdditionalMetadata:   tuple.additionalMetadata,
 						InitialState:         sqlcv1.V1TaskInitialStateQUEUED,
@@ -1097,8 +1099,8 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				}
 
 				for _, parent := range step.Parents {
-					parentExternalId := stepsToExternalIds[i][sqlchelpers.UUIDToStr(parent)]
-					readableId := stepIdsToReadableIds[sqlchelpers.UUIDToStr(parent)]
+					parentExternalId := stepsToExternalIds[i][parent.String()]
+					readableId := stepIdsToReadableIds[parent.String()]
 
 					hasUserEventOrSleepMatches := false
 					hasAnySkippingParentOverrides := false
@@ -1123,7 +1125,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				}
 
 				var (
-					parentTaskExternalId pgtype.UUID
+					parentTaskExternalId uuid.UUID
 					parentTaskId         pgtype.Int8
 					parentTaskInsertedAt pgtype.Timestamptz
 					childIndex           pgtype.Int8
@@ -1132,7 +1134,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				)
 
 				if tuple.parentExternalId != nil {
-					parentTaskExternalId = sqlchelpers.UUIDFromStr(*tuple.parentExternalId)
+					parentTaskExternalId, _ = uuid.Parse(*tuple.parentExternalId)
 				}
 
 				if tuple.parentTaskId != nil {
@@ -1213,10 +1215,10 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	createTaskOpts := nonDagTaskOpts
 
 	for _, dag := range dags {
-		opts, ok := dagTaskOpts[sqlchelpers.UUIDToStr(dag.ExternalID)]
+		opts, ok := dagTaskOpts[dag.ExternalID.String()]
 
 		if !ok {
-			r.l.Error().Msgf("could not find task opts for DAG with external id: %s", sqlchelpers.UUIDToStr(dag.ExternalID))
+			r.l.Error().Msgf("could not find task opts for DAG with external id: %s", dag.ExternalID.String())
 			continue
 		}
 
@@ -1235,7 +1237,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	}
 
 	for _, dag := range dags {
-		opts := eventMatches[sqlchelpers.UUIDToStr(dag.ExternalID)]
+		opts := eventMatches[dag.ExternalID.String()]
 
 		for _, opt := range opts {
 			opt.TriggerDAGId = &dag.ID
@@ -1299,7 +1301,7 @@ type DAGWithData struct {
 
 	AdditionalMetadata []byte
 
-	ParentTaskExternalID *pgtype.UUID
+	ParentTaskExternalID *uuid.UUID
 
 	TotalTasks int
 }
@@ -1319,27 +1321,27 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 		return nil, nil
 	}
 
-	tenantIds := make([]pgtype.UUID, 0, len(opts))
-	externalIds := make([]pgtype.UUID, 0, len(opts))
+	tenantIds := make([]uuid.UUID, 0, len(opts))
+	externalIds := make([]uuid.UUID, 0, len(opts))
 	displayNames := make([]string, 0, len(opts))
-	workflowIds := make([]pgtype.UUID, 0, len(opts))
-	workflowVersionIds := make([]pgtype.UUID, 0, len(opts))
-	parentTaskExternalIds := make([]pgtype.UUID, 0, len(opts))
+	workflowIds := make([]uuid.UUID, 0, len(opts))
+	workflowVersionIds := make([]uuid.UUID, 0, len(opts))
+	parentTaskExternalIds := make([]uuid.UUID, 0, len(opts))
 	dagIdToOpt := make(map[string]createDAGOpts, 0)
 
 	unix := time.Now().UnixMilli()
 
 	for _, opt := range opts {
-		tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(tenantId))
-		externalIds = append(externalIds, sqlchelpers.UUIDFromStr(opt.ExternalId))
+		tenantIds = append(tenantIds, uuid.MustParse(tenantId))
+		externalIds = append(externalIds, uuid.MustParse(opt.ExternalId))
 		displayNames = append(displayNames, fmt.Sprintf("%s-%d", opt.WorkflowName, unix))
-		workflowIds = append(workflowIds, sqlchelpers.UUIDFromStr(opt.WorkflowId))
-		workflowVersionIds = append(workflowVersionIds, sqlchelpers.UUIDFromStr(opt.WorkflowVersionId))
+		workflowIds = append(workflowIds, uuid.MustParse(opt.WorkflowId))
+		workflowVersionIds = append(workflowVersionIds, uuid.MustParse(opt.WorkflowVersionId))
 
 		if opt.ParentTaskExternalID == nil {
-			parentTaskExternalIds = append(parentTaskExternalIds, pgtype.UUID{})
+			parentTaskExternalIds = append(parentTaskExternalIds, uuid.Nil)
 		} else {
-			parentTaskExternalIds = append(parentTaskExternalIds, sqlchelpers.UUIDFromStr(*opt.ParentTaskExternalID))
+			parentTaskExternalIds = append(parentTaskExternalIds, uuid.MustParse(*opt.ParentTaskExternalID))
 		}
 
 		dagIdToOpt[opt.ExternalId] = opt
@@ -1362,7 +1364,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 	res := make([]*DAGWithData, 0, len(createdDAGs))
 
 	for _, dag := range createdDAGs {
-		externalId := sqlchelpers.UUIDToStr(dag.ExternalID)
+		externalId := dag.ExternalID.String()
 		opt, ok := dagIdToOpt[externalId]
 
 		if !ok {
@@ -1397,17 +1399,18 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 			AdditionalMetadata: additionalMeta,
 		})
 
-		parentTaskExternalID := pgtype.UUID{}
+		var parentTaskExternalID *uuid.UUID
 
 		if opt.ParentTaskExternalID != nil {
-			parentTaskExternalID = sqlchelpers.UUIDFromStr(*opt.ParentTaskExternalID)
+			parsed := uuid.MustParse(*opt.ParentTaskExternalID)
+			parentTaskExternalID = &parsed
 		}
 
 		res = append(res, &DAGWithData{
 			V1Dag:                dag,
 			Input:                input,
 			AdditionalMetadata:   additionalMeta,
-			ParentTaskExternalID: &parentTaskExternalID,
+			ParentTaskExternalID: parentTaskExternalID,
 			TotalTasks:           len(opt.TaskIds),
 		})
 	}
@@ -1469,7 +1472,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		}
 
 		for stepIndex, step := range orderSteps(steps) {
-			stepId := sqlchelpers.UUIDToStr(step.ID)
+			stepId := step.ID.String()
 			stepExternalId := stepsToExternalIds[i][stepId]
 
 			k := getChildSignalEventKey(*tuple.parentExternalId, int64(stepIndex), *tuple.childIndex, tuple.childKey)
@@ -1490,7 +1493,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		ctx,
 		tx,
 		sqlcv1.LockSignalCreatedEventsParams{
-			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid:        uuid.MustParse(tenantId),
 			Taskids:         potentialMatchTaskIds,
 			Taskinsertedats: potentialMatchTaskInsertedAts,
 			Eventkeys:       potentialMatchKeys,
@@ -1508,7 +1511,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+			TenantId:   uuid.MustParse(tenantId),
 		}
 	}
 
@@ -1520,14 +1523,14 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 
 	// parse the event match data, and determine whether the child external ID has already been written
 	// we're safe to do this read since we've acquired a lock on the relevant rows
-	rootExternalIdsToLookup := make([]pgtype.UUID, 0, len(matchingEvents))
+	rootExternalIdsToLookup := make([]uuid.UUID, 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
 		payload, ok := payloads[RetrievePayloadOpts{
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+			TenantId:   uuid.MustParse(tenantId),
 		}]
 
 		if !ok {
@@ -1543,13 +1546,14 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		}
 
 		if c.ChildExternalId != "" {
-			rootExternalIdsToLookup = append(rootExternalIdsToLookup, sqlchelpers.UUIDFromStr(c.ChildExternalId))
+			parsed, _ := uuid.Parse(c.ChildExternalId)
+			rootExternalIdsToLookup = append(rootExternalIdsToLookup, parsed)
 		}
 	}
 
 	// get the child external IDs that have already been written
 	existingExternalIds, err := r.queries.LookupExternalIds(ctx, tx, sqlcv1.LookupExternalIdsParams{
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:    uuid.MustParse(tenantId),
 		Externalids: rootExternalIdsToLookup,
 	})
 
@@ -1560,7 +1564,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 	tuplesToSkip = make(map[string]struct{})
 
 	for _, dbExternalId := range existingExternalIds {
-		tuplesToSkip[sqlchelpers.UUIDToStr(dbExternalId.ExternalID)] = struct{}{}
+		tuplesToSkip[dbExternalId.ExternalID.String()] = struct{}{}
 	}
 
 	createMatchOpts := make([]CreateMatchOpts, 0)
@@ -1589,7 +1593,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 			}
 
 			for _, step := range orderSteps(steps) {
-				stepId := sqlchelpers.UUIDToStr(step.ID)
+				stepId := step.ID.String()
 				stepReadableId := step.ReadableId.String
 				stepExternalId := stepsToExternalIds[i][stepId]
 
@@ -1647,7 +1651,7 @@ func getParentInDAGGroupMatch(
 	if len(actionsToOverrides[sqlcv1.V1MatchConditionActionQUEUE]) > 0 {
 		for _, override := range actionsToOverrides[sqlcv1.V1MatchConditionActionQUEUE] {
 			res = append(res, GroupMatchCondition{
-				GroupId:           sqlchelpers.UUIDToStr(override.OrGroupID),
+				GroupId:           override.OrGroupID.String(),
 				EventType:         sqlcv1.V1EventTypeINTERNAL,
 				EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
 				ReadableDataKey:   parentReadableId,
@@ -1673,7 +1677,7 @@ func getParentInDAGGroupMatch(
 	if len(actionsToOverrides[sqlcv1.V1MatchConditionActionSKIP]) > 0 {
 		for _, override := range actionsToOverrides[sqlcv1.V1MatchConditionActionSKIP] {
 			res = append(res, GroupMatchCondition{
-				GroupId:           sqlchelpers.UUIDToStr(override.OrGroupID),
+				GroupId:           override.OrGroupID.String(),
 				EventType:         sqlcv1.V1EventTypeINTERNAL,
 				EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
 				ReadableDataKey:   parentReadableId,
@@ -1698,7 +1702,7 @@ func getParentInDAGGroupMatch(
 		for _, override := range actionsToOverrides[sqlcv1.V1MatchConditionActionCANCEL] {
 			res = append(res,
 				GroupMatchCondition{
-					GroupId:   sqlchelpers.UUIDToStr(override.OrGroupID),
+					GroupId:   override.OrGroupID.String(),
 					EventType: sqlcv1.V1EventTypeINTERNAL,
 					// The custom cancel condition matches on the completed event
 					EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
@@ -1710,7 +1714,7 @@ func getParentInDAGGroupMatch(
 				// always add the original cancel group match conditions. these can't be modified otherwise DAGs risk
 				// getting stuck in a concurrency queue.
 				GroupMatchCondition{
-					GroupId:           sqlchelpers.UUIDToStr(override.OrGroupID),
+					GroupId:           override.OrGroupID.String(),
 					EventType:         sqlcv1.V1EventTypeINTERNAL,
 					EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
 					ReadableDataKey:   parentReadableId,
@@ -1718,7 +1722,7 @@ func getParentInDAGGroupMatch(
 					Expression:        "true",
 					Action:            sqlcv1.V1MatchConditionActionCANCEL,
 				}, GroupMatchCondition{
-					GroupId:           sqlchelpers.UUIDToStr(override.OrGroupID),
+					GroupId:           override.OrGroupID.String(),
 					EventType:         sqlcv1.V1EventTypeINTERNAL,
 					EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
 					ReadableDataKey:   parentReadableId,
@@ -1820,8 +1824,8 @@ func getParentOnFailureGroupMatches(createGroupId, parentExternalId, parentReada
 
 func orderSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {
 	slices.SortStableFunc(steps, func(i, j *sqlcv1.ListStepsByWorkflowVersionIdsRow) int {
-		idA := sqlchelpers.UUIDToStr(i.ID)
-		idB := sqlchelpers.UUIDToStr(j.ID)
+		idA := i.ID.String()
+		idB := j.ID.String()
 		return strings.Compare(idA, idB)
 	})
 

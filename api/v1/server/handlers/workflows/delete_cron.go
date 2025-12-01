@@ -8,7 +8,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowCronDelete(ctx echo.Context, request gen.WorkflowCronDeleteRequestObject) (gen.WorkflowCronDeleteResponseObject, error) {
@@ -19,8 +18,8 @@ func (t *WorkflowService) WorkflowCronDelete(ctx echo.Context, request gen.Workf
 	defer cancel()
 
 	err := t.config.APIRepository.Workflow().DeleteCronWorkflow(dbCtx,
-		sqlchelpers.UUIDToStr(cron.TenantId),
-		sqlchelpers.UUIDToStr(cron.CronId),
+		cron.TenantId.String(),
+		cron.CronId.String(),
 	)
 
 	if err != nil {

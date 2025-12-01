@@ -10,12 +10,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInviteRejectRequestObject) (gen.TenantInviteRejectResponseObject, error) {
 	user := ctx.Get("user").(*dbsqlc.User)
-	userId := sqlchelpers.UUIDToStr(user.ID)
+	userId := user.ID.String()
 
 	// validate the request
 	if apiErrors, err := u.config.Validator.ValidateAPI(request.Body); err != nil {
@@ -58,13 +57,13 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 	}
 
 	// update the invite
-	invite, err = u.config.APIRepository.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.ID), updateOpts)
+	invite, err = u.config.APIRepository.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.ID.String(), updateOpts)
 
 	if err != nil {
 		return nil, err
 	}
 
-	tenantId := sqlchelpers.UUIDToStr(invite.TenantId)
+	tenantId := invite.TenantId.String()
 
 	u.config.Analytics.Enqueue(
 		"user-invite:reject",

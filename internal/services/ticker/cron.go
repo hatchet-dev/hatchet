@@ -14,7 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 // runPollCronSchedules acquires a list of cron schedules from the database and schedules any which are not
@@ -72,9 +71,9 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCronSchedulesRow) error {
 	t.l.Debug().Msg("ticker: scheduling cron")
 
-	tenantId := sqlchelpers.UUIDToStr(cron.TenantId)
-	workflowVersionId := sqlchelpers.UUIDToStr(cron.WorkflowVersionId)
-	cronParentId := sqlchelpers.UUIDToStr(cron.ParentId)
+	tenantId := cron.TenantId.String()
+	workflowVersionId := cron.WorkflowVersionId.String()
+	cronParentId := cron.ParentId.String()
 
 	var additionalMetadata map[string]interface{}
 
@@ -166,7 +165,7 @@ func (t *TickerImpl) runCronWorkflowV0(ctx context.Context, tenantId string, wor
 		return fmt.Errorf("could not create workflow run: %w", err)
 	}
 
-	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
+	workflowRunId := workflowRun.ID.String()
 
 	err = t.mq.AddMessage(
 		context.Background(),
@@ -210,7 +209,7 @@ func (t *TickerImpl) handleCancelCron(ctx context.Context, key string) error {
 }
 
 func getCronKey(cron *dbsqlc.PollCronSchedulesRow) string {
-	workflowVersionId := sqlchelpers.UUIDToStr(cron.WorkflowVersionId)
+	workflowVersionId := cron.WorkflowVersionId.String()
 
 	switch cron.Method {
 	case dbsqlc.WorkflowTriggerCronRefMethodsAPI:

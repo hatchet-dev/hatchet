@@ -29,7 +29,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -688,7 +687,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		if shouldTasksNotify[task.ID] {
 			tasksToSendToDispatcher = append(tasksToSendToDispatcher, tasktypes.SignalTaskCancelledPayload{
 				TaskId:     task.ID,
-				WorkerId:   sqlchelpers.UUIDToStr(task.WorkerID),
+				WorkerId:   task.WorkerID.String(),
 				RetryCount: task.RetryCount,
 			})
 		}
@@ -834,7 +833,7 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 
 	workflowRunIdToTasks := make(map[string][]v1.TaskIdInsertedAtRetryCount)
 	for _, task := range taskIdRetryCounts {
-		if !task.WorkflowRunExternalId.Valid {
+		if task.WorkflowRunExternalId == uuid.Nil {
 			// Use a random uuid to effectively send tasks one at a time
 			randomUuid := uuid.NewString()
 			workflowRunIdToTasks[randomUuid] = append(workflowRunIdToTasks[randomUuid], task.TaskIdInsertedAtRetryCount)
@@ -985,7 +984,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 
 	for _, releasedTask := range releasedTasks {
 		payloads = append(payloads, tasktypes.CandidateFinalizedPayload{
-			WorkflowRunId: sqlchelpers.UUIDToStr(releasedTask.WorkflowRunID),
+			WorkflowRunId: releasedTask.WorkflowRunID.String(),
 		})
 	}
 
@@ -1646,7 +1645,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		taskExternalId := task.ExternalID.String()
 
 		dataBytes := v1.NewCancelledTaskOutputEventFromTask(task).Bytes()
 
@@ -1711,7 +1710,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		taskExternalId := task.ExternalID.String()
 
 		dataBytes := v1.NewFailedTaskOutputEventFromTask(task).Bytes()
 
@@ -1777,7 +1776,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		taskExternalId := task.ExternalID.String()
 
 		dataBytes := v1.NewSkippedTaskOutputEventFromTask(task).Bytes()
 

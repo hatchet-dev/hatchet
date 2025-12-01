@@ -1,12 +1,13 @@
 package v1
 
 import (
+	"github.com/google/uuid"
+
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type OLAPPayloadToOffload struct {
-	ExternalId          pgtype.UUID
+	ExternalId          uuid.UUID
 	ExternalLocationKey string
 }
 

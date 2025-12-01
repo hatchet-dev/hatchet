@@ -8,7 +8,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantMemberUpdateRequestObject) (gen.TenantMemberUpdateResponseObject, error) {
@@ -45,7 +44,7 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 	}
 
 	// Users cannot change their own role
-	if sqlchelpers.UUIDToStr(tenantMember.UserId) == sqlchelpers.UUIDToStr(memberToUpdate.UserId) {
+	if tenantMember.UserId.String() == memberToUpdate.UserId.String() {
 		return gen.TenantMemberUpdate400JSONResponse(
 			apierrors.NewAPIErrors("you cannot change your own role"),
 		), nil
@@ -55,7 +54,7 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 		Role: repository.StringPtr(string(request.Body.Role)),
 	}
 
-	updatedMember, err := t.config.APIRepository.Tenant().UpdateTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(memberToUpdate.ID), updateOpts)
+	updatedMember, err := t.config.APIRepository.Tenant().UpdateTenantMember(ctx.Request().Context(), memberToUpdate.ID.String(), updateOpts)
 
 	if err != nil {
 		return nil, err

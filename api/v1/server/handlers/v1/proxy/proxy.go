@@ -7,7 +7,6 @@ import (
 	client "github.com/hatchet-dev/hatchet/pkg/client/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type Proxy[in, out any] struct {
@@ -23,7 +22,7 @@ func NewProxy[in, out any](config *server.ServerConfig, method func(ctx context.
 }
 
 func (p *Proxy[in, out]) Do(ctx context.Context, tenant *dbsqlc.Tenant, input *in) (*out, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	expiresAt := time.Now().Add(5 * time.Minute).UTC()
 

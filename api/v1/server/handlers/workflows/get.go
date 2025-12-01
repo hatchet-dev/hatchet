@@ -1,24 +1,24 @@
 package workflows
 
 import (
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowGet(ctx echo.Context, request gen.WorkflowGetRequestObject) (gen.WorkflowGetResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
-	if workflow == nil || !workflow.WorkflowVersionId.Valid {
+	if workflow == nil || workflow.WorkflowVersionId == nil || *workflow.WorkflowVersionId == uuid.Nil {
 		return gen.WorkflowGet404JSONResponse(gen.APIErrors{}), nil
 	}
 
-	version, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenantId, sqlchelpers.UUIDToStr(workflow.WorkflowVersionId))
+	version, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenantId, workflow.WorkflowVersionId.String())
 
 	if err != nil {
 		return nil, err

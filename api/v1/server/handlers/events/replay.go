@@ -9,12 +9,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpdateReplayRequestObject) (gen.EventUpdateReplayResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	eventIds := make([]string, len(request.Body.EventIds))
 
@@ -47,7 +46,7 @@ func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpda
 			allErrs = multierror.Append(allErrs, err)
 		}
 
-		newEventIds[i] = sqlchelpers.UUIDToStr(newEvent.ID)
+		newEventIds[i] = newEvent.ID.String()
 	}
 
 	if allErrs != nil {

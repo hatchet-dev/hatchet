@@ -10,7 +10,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func ToWorkflowRunShape(
@@ -22,12 +21,12 @@ func ToWorkflowRunShape(
 ) *gen.WorkflowRunShape {
 	res := &gen.WorkflowRunShape{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(run.ID),
+			run.ID.String(),
 			run.CreatedAt.Time,
 			run.UpdatedAt.Time,
 		),
-		TenantId:          sqlchelpers.UUIDToStr(run.TenantId),
-		WorkflowVersionId: sqlchelpers.UUIDToStr(run.WorkflowVersionId),
+		TenantId:          run.TenantId.String(),
+		WorkflowVersionId: run.WorkflowVersionId.String(),
 		DisplayName:       &run.DisplayName.String,
 		Error:             &run.Error.String,
 		Status:            gen.WorkflowRunStatus(run.Status),
@@ -48,7 +47,7 @@ func ToWorkflowRunShape(
 
 	if version != nil {
 		// TODO concurrency
-		workflowId := sqlchelpers.UUIDToStr(version.Workflow.ID)
+		workflowId := version.Workflow.ID.String()
 		res.WorkflowId = &workflowId
 		res.WorkflowVersion = ToWorkflowVersion(&version.WorkflowVersion, &version.Workflow, nil, nil, nil, nil)
 	}
@@ -88,13 +87,13 @@ func ToWorkflowRun(
 ) (*gen.WorkflowRun, error) {
 	res := &gen.WorkflowRun{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(run.ID),
+			run.ID.String(),
 			run.CreatedAt.Time,
 			run.UpdatedAt.Time,
 		),
-		TenantId:          sqlchelpers.UUIDToStr(run.TenantId),
+		TenantId:          run.TenantId.String(),
 		Status:            gen.WorkflowRunStatus(run.Status),
-		WorkflowVersionId: sqlchelpers.UUIDToStr(run.WorkflowVersionId),
+		WorkflowVersionId: run.WorkflowVersionId.String(),
 		DisplayName:       &run.DisplayName.String,
 		StartedAt:         &run.StartedAt.Time,
 		FinishedAt:        &run.FinishedAt.Time,
@@ -103,7 +102,7 @@ func ToWorkflowRun(
 
 	res.TriggeredBy = *ToWorkflowRunTriggeredBy(run.ParentId, &run.WorkflowRunTriggeredBy)
 
-	if run.WorkflowVersionId.Valid {
+	if run.WorkflowVersionId != uuid.Nil {
 		res.WorkflowVersion = ToWorkflowVersion(&run.WorkflowVersion, &run.Workflow, nil, nil, nil, nil)
 	}
 
@@ -141,14 +140,14 @@ func ToJobRun(
 
 	res := &gen.JobRun{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(jobRun.ID),
+			jobRun.ID.String(),
 			jobRun.CreatedAt.Time,
 			jobRun.UpdatedAt.Time,
 		),
 		Status:          gen.JobRunStatus(jobRun.Status),
-		JobId:           sqlchelpers.UUIDToStr(jobRun.JobId),
-		TenantId:        sqlchelpers.UUIDToStr(jobRun.TenantId),
-		WorkflowRunId:   sqlchelpers.UUIDToStr(jobRun.WorkflowRunId),
+		JobId:           jobRun.JobId.String(),
+		TenantId:        jobRun.TenantId.String(),
+		WorkflowRunId:   jobRun.WorkflowRunId.String(),
 		StartedAt:       &jobRun.StartedAt.Time,
 		FinishedAt:      &jobRun.FinishedAt.Time,
 		CancelledAt:     &jobRun.CancelledAt.Time,
@@ -180,14 +179,14 @@ func ToJobRun(
 func ToStepRunFull(stepRun *repository.GetStepRunFull) *gen.StepRun {
 	res := &gen.StepRun{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(stepRun.ID),
+			stepRun.ID.String(),
 			stepRun.CreatedAt.Time,
 			stepRun.UpdatedAt.Time,
 		),
 		Status:   gen.StepRunStatus(stepRun.Status),
-		StepId:   sqlchelpers.UUIDToStr(stepRun.StepId),
-		TenantId: sqlchelpers.UUIDToStr(stepRun.TenantId),
-		JobRunId: sqlchelpers.UUIDToStr(stepRun.JobRunId),
+		StepId:   stepRun.StepId.String(),
+		TenantId: stepRun.TenantId.String(),
+		JobRunId: stepRun.JobRunId.String(),
 	}
 
 	if stepRun.CancelledError.Valid {
@@ -229,8 +228,8 @@ func ToStepRunFull(stepRun *repository.GetStepRunFull) *gen.StepRun {
 		res.ChildWorkflowRuns = &stepRun.ChildWorkflowRuns
 	}
 
-	if stepRun.WorkerId.Valid {
-		workerId := sqlchelpers.UUIDToStr(stepRun.WorkerId)
+	if stepRun.WorkerId != nil {
+		workerId := stepRun.WorkerId.String()
 		res.WorkerId = &workerId
 	}
 
@@ -250,14 +249,14 @@ func ToStepRunFull(stepRun *repository.GetStepRunFull) *gen.StepRun {
 func ToStepRun(stepRun *repository.StepRunForJobRun) *gen.StepRun {
 	res := &gen.StepRun{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(stepRun.ID),
+			stepRun.ID.String(),
 			stepRun.CreatedAt.Time,
 			stepRun.UpdatedAt.Time,
 		),
 		Status:              gen.StepRunStatus(stepRun.Status),
-		StepId:              sqlchelpers.UUIDToStr(stepRun.StepId),
-		TenantId:            sqlchelpers.UUIDToStr(stepRun.TenantId),
-		JobRunId:            sqlchelpers.UUIDToStr(stepRun.JobRunId),
+		StepId:              stepRun.StepId.String(),
+		TenantId:            stepRun.TenantId.String(),
+		JobRunId:            stepRun.JobRunId.String(),
 		ChildWorkflowsCount: &stepRun.ChildWorkflowsCount,
 		Output:              byteSliceToStringPointer(stepRun.Output),
 	}
@@ -297,8 +296,8 @@ func ToStepRun(stepRun *repository.StepRunForJobRun) *gen.StepRun {
 		res.TimeoutAtEpoch = getEpochFromPgTime(stepRun.TimeoutAt)
 	}
 
-	if stepRun.WorkerId.Valid {
-		workerId := sqlchelpers.UUIDToStr(stepRun.WorkerId)
+	if stepRun.WorkerId != nil {
+		workerId := stepRun.WorkerId.String()
 		res.WorkerId = &workerId
 	}
 
@@ -306,10 +305,10 @@ func ToStepRun(stepRun *repository.StepRunForJobRun) *gen.StepRun {
 }
 
 func ToRecentStepRun(stepRun *dbsqlc.GetStepRunForEngineRow) (*gen.RecentStepRuns, error) {
-	workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(stepRun.WorkflowRunId))
+	workflowRunId := stepRun.WorkflowRunId
 
 	res := &gen.RecentStepRuns{
-		Metadata:      *toAPIMetadata(sqlchelpers.UUIDToStr(stepRun.SRID), stepRun.SRCreatedAt.Time, stepRun.SRUpdatedAt.Time),
+		Metadata:      *toAPIMetadata(stepRun.SRID.String(), stepRun.SRCreatedAt.Time, stepRun.SRUpdatedAt.Time),
 		Status:        gen.StepRunStatus(stepRun.SRStatus),
 		StartedAt:     &stepRun.SRStartedAt.Time,
 		FinishedAt:    &stepRun.SRFinishedAt.Time,
@@ -332,13 +331,13 @@ func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
 		Count:         int(stepRunEvent.Count),
 	}
 
-	if stepRunEvent.StepRunId.Valid {
-		srId := sqlchelpers.UUIDToStr(stepRunEvent.StepRunId)
+	if stepRunEvent.StepRunId != nil {
+		srId := stepRunEvent.StepRunId.String()
 		res.StepRunId = &srId
 	}
 
-	if stepRunEvent.WorkflowRunId.Valid {
-		wrId := sqlchelpers.UUIDToStr(stepRunEvent.WorkflowRunId)
+	if stepRunEvent.WorkflowRunId != nil {
+		wrId := stepRunEvent.WorkflowRunId.String()
 		res.WorkflowRunId = &wrId
 	}
 
@@ -356,7 +355,7 @@ func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
 func ToStepRunArchive(stepRunArchive *dbsqlc.StepRunResultArchive) *gen.StepRunArchive {
 	res := &gen.StepRunArchive{
 		CreatedAt:  stepRunArchive.CreatedAt.Time,
-		StepRunId:  sqlchelpers.UUIDToStr(stepRunArchive.StepRunId),
+		StepRunId:  stepRunArchive.StepRunId.String(),
 		RetryCount: int(stepRunArchive.RetryCount),
 		Order:      int(stepRunArchive.Order),
 		Input:      byteSliceToStringPointer(stepRunArchive.Input),
@@ -415,23 +414,23 @@ func getEpochFromTime(t time.Time) *int {
 	return &epoch
 }
 
-func ToWorkflowRunTriggeredBy(parentWorkflowRunId pgtype.UUID, triggeredBy *dbsqlc.WorkflowRunTriggeredBy) *gen.WorkflowRunTriggeredBy {
+func ToWorkflowRunTriggeredBy(parentWorkflowRunId *uuid.UUID, triggeredBy *dbsqlc.WorkflowRunTriggeredBy) *gen.WorkflowRunTriggeredBy {
 	res := &gen.WorkflowRunTriggeredBy{
-		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(triggeredBy.ID), triggeredBy.CreatedAt.Time, triggeredBy.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(triggeredBy.ID.String(), triggeredBy.CreatedAt.Time, triggeredBy.UpdatedAt.Time),
 	}
 
-	if parentWorkflowRunId.Valid {
-		parent := sqlchelpers.UUIDToStr(parentWorkflowRunId)
+	if parentWorkflowRunId != nil && *parentWorkflowRunId != uuid.Nil {
+		parent := parentWorkflowRunId.String()
 		res.ParentWorkflowRunId = &parent
 	}
 
-	if triggeredBy.EventId.Valid {
-		eventId := sqlchelpers.UUIDToStr(triggeredBy.EventId)
+	if triggeredBy.EventId != nil {
+		eventId := triggeredBy.EventId.String()
 		res.EventId = &eventId
 	}
 
-	if triggeredBy.CronParentId.Valid {
-		cronParentId := sqlchelpers.UUIDToStr(triggeredBy.CronParentId)
+	if triggeredBy.CronParentId != nil {
+		cronParentId := triggeredBy.CronParentId.String()
 		res.CronParentId = &cronParentId
 	}
 
@@ -461,15 +460,15 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 	}
 
 	triggeredBy := &gen.WorkflowRunTriggeredBy{
-		Metadata: *toAPIMetadata(pgUUIDToStr(runTriggeredBy.ID), runTriggeredBy.CreatedAt.Time, runTriggeredBy.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(runTriggeredBy.ID.String(), runTriggeredBy.CreatedAt.Time, runTriggeredBy.UpdatedAt.Time),
 	}
 
-	if run.ParentId.Valid {
-		parentId := sqlchelpers.UUIDToStr(run.ParentId)
+	if run.ParentId != nil {
+		parentId := run.ParentId.String()
 		triggeredBy.ParentWorkflowRunId = &parentId
 	}
 
-	workflowRunId := sqlchelpers.UUIDToStr(run.ID)
+	workflowRunId := run.ID.String()
 
 	var additionalMetadata map[string]interface{}
 
@@ -491,12 +490,12 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 	res := &gen.WorkflowRun{
 		Metadata:           *toAPIMetadata(workflowRunId, run.CreatedAt.Time, run.UpdatedAt.Time),
 		DisplayName:        &run.DisplayName.String,
-		TenantId:           pgUUIDToStr(run.TenantId),
+		TenantId:           run.TenantId.String(),
 		StartedAt:          startedAt,
 		FinishedAt:         finishedAt,
 		Duration:           &duration,
 		Status:             gen.WorkflowRunStatus(run.Status),
-		WorkflowVersionId:  pgUUIDToStr(run.WorkflowVersionId),
+		WorkflowVersionId:  run.WorkflowVersionId.String(),
 		WorkflowVersion:    workflowVersion,
 		TriggeredBy:        *triggeredBy,
 		AdditionalMetadata: &additionalMetadata,
@@ -525,9 +524,9 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 
 	var workflowRunIdPtr *uuid.UUID
 
-	if scheduled.WorkflowRunId.Valid {
-		workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(scheduled.WorkflowRunId))
-		workflowRunIdPtr = &workflowRunId
+	if scheduled.WorkflowRunId != nil {
+		workflowRunId := scheduled.WorkflowRunId
+		workflowRunIdPtr = workflowRunId
 	}
 
 	input := make(map[string]interface{})
@@ -536,11 +535,11 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 	}
 
 	res := &gen.ScheduledWorkflows{
-		Metadata:             *toAPIMetadata(sqlchelpers.UUIDToStr(scheduled.ID), scheduled.CreatedAt.Time, scheduled.UpdatedAt.Time),
-		WorkflowVersionId:    sqlchelpers.UUIDToStr(scheduled.WorkflowVersionId),
-		WorkflowId:           sqlchelpers.UUIDToStr(scheduled.WorkflowId),
+		Metadata:             *toAPIMetadata(scheduled.ID.String(), scheduled.CreatedAt.Time, scheduled.UpdatedAt.Time),
+		WorkflowVersionId:    scheduled.WorkflowVersionId.String(),
+		WorkflowId:           scheduled.WorkflowId.String(),
 		WorkflowName:         scheduled.Name,
-		TenantId:             sqlchelpers.UUIDToStr(scheduled.TenantId),
+		TenantId:             scheduled.TenantId.String(),
 		TriggerAt:            scheduled.TriggerAt.Time,
 		AdditionalMetadata:   &additionalMetadata,
 		WorkflowRunCreatedAt: &scheduled.WorkflowRunCreatedAt.Time,
@@ -566,11 +565,11 @@ func ToCronWorkflowsFromSQLC(cron *dbsqlc.ListCronWorkflowsRow) *gen.CronWorkflo
 	}
 
 	res := &gen.CronWorkflows{
-		Metadata:           *toAPIMetadata(sqlchelpers.UUIDToStr(cron.ID_2), cron.CreatedAt_2.Time, cron.UpdatedAt_2.Time),
-		WorkflowVersionId:  sqlchelpers.UUIDToStr(cron.WorkflowVersionId),
-		WorkflowId:         sqlchelpers.UUIDToStr(cron.WorkflowId),
+		Metadata:           *toAPIMetadata(cron.ID_2.String(), cron.CreatedAt_2.Time, cron.UpdatedAt_2.Time),
+		WorkflowVersionId:  cron.WorkflowVersionId.String(),
+		WorkflowId:         cron.WorkflowId.String(),
 		WorkflowName:       cron.WorkflowName,
-		TenantId:           sqlchelpers.UUIDToStr(cron.TenantId),
+		TenantId:           cron.TenantId.String(),
 		Cron:               cron.Cron,
 		AdditionalMetadata: &additionalMetadata,
 		Name:               &cron.Name.String,

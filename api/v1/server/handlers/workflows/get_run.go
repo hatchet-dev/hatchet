@@ -6,7 +6,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowRunGet(ctx echo.Context, request gen.WorkflowRunGetRequestObject) (gen.WorkflowRunGetResponseObject, error) {
@@ -14,8 +13,8 @@ func (t *WorkflowService) WorkflowRunGet(ctx echo.Context, request gen.WorkflowR
 
 	jobs, err := t.config.APIRepository.JobRun().ListJobRunByWorkflowRunId(
 		ctx.Request().Context(),
-		sqlchelpers.UUIDToStr(run.TenantId),
-		sqlchelpers.UUIDToStr(run.ID),
+		run.TenantId.String(),
+		run.ID.String(),
 	)
 
 	if err != nil {
@@ -24,12 +23,12 @@ func (t *WorkflowService) WorkflowRunGet(ctx echo.Context, request gen.WorkflowR
 	jobIds := make([]string, len(jobs))
 
 	for i, job := range jobs {
-		jobIds[i] = sqlchelpers.UUIDToStr(job.ID)
+		jobIds[i] = job.ID.String()
 	}
 
 	steps, err := t.config.APIRepository.WorkflowRun().GetStepsForJobs(
 		ctx.Request().Context(),
-		sqlchelpers.UUIDToStr(run.TenantId),
+		run.TenantId.String(),
 		jobIds)
 	if err != nil {
 		return nil, err
@@ -37,7 +36,7 @@ func (t *WorkflowService) WorkflowRunGet(ctx echo.Context, request gen.WorkflowR
 
 	stepRuns, err := t.config.APIRepository.WorkflowRun().GetStepRunsForJobRuns(
 		ctx.Request().Context(),
-		sqlchelpers.UUIDToStr(run.TenantId),
+		run.TenantId.String(),
 		jobIds)
 
 	if err != nil {

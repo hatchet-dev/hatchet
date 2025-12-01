@@ -9,7 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	transformersv1 "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
@@ -29,8 +28,8 @@ func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, req
 	worker := ctx.Get("worker").(*dbsqlc.GetWorkerByIdRow)
 
 	slotState, recent, err := t.config.APIRepository.Worker().ListWorkerState(
-		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		sqlchelpers.UUIDToStr(worker.Worker.ID),
+		worker.Worker.TenantId.String(),
+		worker.Worker.ID.String(),
 		int(worker.Worker.MaxRuns),
 	)
 
@@ -39,18 +38,18 @@ func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, req
 	}
 
 	workerIdToActionIds, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
-		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		[]string{sqlchelpers.UUIDToStr(worker.Worker.ID)},
+		worker.Worker.TenantId.String(),
+		[]string{worker.Worker.ID.String()},
 	)
 
 	if err != nil {
 		return nil, err
 	}
 
-	actions, ok := workerIdToActionIds[sqlchelpers.UUIDToStr(worker.Worker.ID)]
+	actions, ok := workerIdToActionIds[worker.Worker.ID.String()]
 
 	if !ok {
-		return nil, fmt.Errorf("worker %s has no actions", sqlchelpers.UUIDToStr(worker.Worker.ID))
+		return nil, fmt.Errorf("worker %s has no actions", worker.Worker.ID.String())
 	}
 
 	respStepRuns := make([]gen.RecentStepRuns, len(recent))
@@ -73,8 +72,8 @@ func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, req
 	workerResp.Slots = transformers.ToSlotState(slotState, slots)
 
 	affinity, err := t.config.APIRepository.Worker().ListWorkerLabels(
-		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		sqlchelpers.UUIDToStr(worker.Worker.ID),
+		worker.Worker.TenantId.String(),
+		worker.Worker.ID.String(),
 	)
 
 	if err != nil {
@@ -89,15 +88,15 @@ func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, req
 func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
 	workerV0 := ctx.Get("worker").(*dbsqlc.GetWorkerByIdRow)
 
-	worker, err := t.config.V1.Workers().GetWorkerById(sqlchelpers.UUIDToStr(workerV0.Worker.ID))
+	worker, err := t.config.V1.Workers().GetWorkerById(workerV0.Worker.ID.String())
 
 	if err != nil {
 		return nil, err
 	}
 
 	slotState, recent, err := t.config.V1.Workers().ListWorkerState(
-		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		sqlchelpers.UUIDToStr(worker.Worker.ID),
+		worker.Worker.TenantId.String(),
+		worker.Worker.ID.String(),
 		int(worker.Worker.MaxRuns),
 	)
 
@@ -106,8 +105,8 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 	}
 
 	workerIdToActions, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
-		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		[]string{sqlchelpers.UUIDToStr(worker.Worker.ID)},
+		worker.Worker.TenantId.String(),
+		[]string{worker.Worker.ID.String()},
 	)
 
 	if err != nil {
@@ -120,9 +119,9 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		return nil, err
 	}
 
-	actions, ok := workerIdToActions[sqlchelpers.UUIDToStr(worker.Worker.ID)]
+	actions, ok := workerIdToActions[worker.Worker.ID.String()]
 	if !ok {
-		return nil, fmt.Errorf("worker %s has no actions", sqlchelpers.UUIDToStr(worker.Worker.ID))
+		return nil, fmt.Errorf("worker %s has no actions", worker.Worker.ID.String())
 	}
 
 	respStepRuns := make([]gen.RecentStepRuns, len(recent))
@@ -145,8 +144,8 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 	workerResp.Slots = transformersv1.ToSlotState(slotState, slots)
 
 	affinity, err := t.config.APIRepository.Worker().ListWorkerLabels(
-		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		sqlchelpers.UUIDToStr(worker.Worker.ID),
+		worker.Worker.TenantId.String(),
+		worker.Worker.ID.String(),
 	)
 
 	if err != nil {

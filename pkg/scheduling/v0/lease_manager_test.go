@@ -3,11 +3,12 @@
 package v0
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -20,34 +21,34 @@ type mockLeaseRepo struct {
 	mock.Mock
 }
 
-func (m *mockLeaseRepo) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*dbsqlc.Queue, error) {
+func (m *mockLeaseRepo) ListQueues(ctx context.Context, tenantId uuid.UUID) ([]*dbsqlc.Queue, error) {
 	args := m.Called(ctx, tenantId)
 	return args.Get(0).([]*dbsqlc.Queue), args.Error(1)
 }
 
-func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*repository.ListActiveWorkersResult, error) {
+func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId uuid.UUID) ([]*repository.ListActiveWorkersResult, error) {
 	args := m.Called(ctx, tenantId)
 	return args.Get(0).([]*repository.ListActiveWorkersResult), args.Error(1)
 }
 
-func (m *mockLeaseRepo) AcquireOrExtendLeases(ctx context.Context, tenantId pgtype.UUID, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
+func (m *mockLeaseRepo) AcquireOrExtendLeases(ctx context.Context, tenantId uuid.UUID, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
 	args := m.Called(ctx, kind, resourceIds, existingLeases)
 	return args.Get(0).([]*dbsqlc.Lease), args.Error(1)
 }
 
-func (m *mockLeaseRepo) RenewLeases(ctx context.Context, tenantId pgtype.UUID, leases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
+func (m *mockLeaseRepo) RenewLeases(ctx context.Context, tenantId uuid.UUID, leases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
 	args := m.Called(ctx, leases)
 	return args.Get(0).([]*dbsqlc.Lease), args.Error(1)
 }
 
-func (m *mockLeaseRepo) ReleaseLeases(ctx context.Context, tenantId pgtype.UUID, leases []*dbsqlc.Lease) error {
+func (m *mockLeaseRepo) ReleaseLeases(ctx context.Context, tenantId uuid.UUID, leases []*dbsqlc.Lease) error {
 	args := m.Called(ctx, leases)
 	return args.Error(0)
 }
 
 func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 	l := zerolog.Nop()
-	tenantId := pgtype.UUID{}
+	tenantId := uuid.UUID{}
 	mockLeaseRepo := &mockLeaseRepo{}
 	leaseManager := &LeaseManager{
 		lr:       mockLeaseRepo,
@@ -74,7 +75,7 @@ func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 
 func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
 	l := zerolog.Nop()
-	tenantId := pgtype.UUID{}
+	tenantId := uuid.UUID{}
 	mockLeaseRepo := &mockLeaseRepo{}
 	leaseManager := &LeaseManager{
 		lr:       mockLeaseRepo,
@@ -100,7 +101,7 @@ func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
 }
 
 func TestLeaseManager_SendWorkerIds(t *testing.T) {
-	tenantId := pgtype.UUID{}
+	tenantId := uuid.UUID{}
 	workersCh := make(chan []*repository.ListActiveWorkersResult)
 	leaseManager := &LeaseManager{
 		tenantId:  tenantId,
@@ -118,7 +119,7 @@ func TestLeaseManager_SendWorkerIds(t *testing.T) {
 }
 
 func TestLeaseManager_SendQueues(t *testing.T) {
-	tenantId := pgtype.UUID{}
+	tenantId := uuid.UUID{}
 	queuesCh := make(chan []string)
 	leaseManager := &LeaseManager{
 		tenantId: tenantId,
@@ -134,7 +135,7 @@ func TestLeaseManager_SendQueues(t *testing.T) {
 }
 
 func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {
-	tenantId := pgtype.UUID{}
+	tenantId := uuid.UUID{}
 	workersCh := make(chan []*repository.ListActiveWorkersResult)
 	leaseManager := &LeaseManager{
 		tenantId:  tenantId,
