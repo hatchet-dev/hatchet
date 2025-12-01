@@ -615,6 +615,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return nil
 	}
 
+	// todo: run this for a configurable date interval (e.g. 2 days ago or something)
 	partitionDate := time.Now()
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
