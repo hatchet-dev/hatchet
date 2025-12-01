@@ -239,3 +239,6 @@ FROM function_result;
 
 -- name: CreateV1PayloadCutoverTemporaryTable :exec
 SELECT copy_v1_payload_partition_structure(@date::DATE);
+
+-- name: SwapV1PayloadPartitionWithTemp :exec
+SELECT swap_v1_payload_partition_with_temp(@date::DATE);

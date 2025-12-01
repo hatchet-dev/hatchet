@@ -400,6 +400,15 @@ func (q *Queries) SetPayloadExternalKeys(ctx context.Context, db DBTX, arg SetPa
 	return items, nil
 }
 
+const swapV1PayloadPartitionWithTemp = `-- name: SwapV1PayloadPartitionWithTemp :exec
+SELECT swap_v1_payload_partition_with_temp($1::DATE)
+`
+
+func (q *Queries) SwapV1PayloadPartitionWithTemp(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, swapV1PayloadPartitionWithTemp, date)
+	return err
+}
+
 const writePayloadWAL = `-- name: WritePayloadWAL :exec
 WITH inputs AS (
     SELECT

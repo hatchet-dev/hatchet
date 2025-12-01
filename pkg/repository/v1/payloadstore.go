@@ -784,6 +784,29 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		offset += int32(len(payloads))
 	}
 
+	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+
+	if err != nil {
+		return fmt.Errorf("failed to prepare transaction for swapping payload cutover temp table: %w", err)
+	}
+
+	defer rollback()
+
+	err = p.queries.SwapV1PayloadPartitionWithTemp(ctx, tx, pgtype.Date{
+		Time:  partitionDate,
+		Valid: true,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to swap payload cutover temp table: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit swap payload cutover temp table transaction: %w", err)
+	}
+
+	fmt.Println("successfully swapped payload cutover temp table")
+
 	return nil
 
 }
