@@ -216,12 +216,26 @@ FROM queue_items
 ANALYZE v1_payload;
 
 -- name: ListPaginatedPayloadsForOffload :many
-SELECT *
-FROM v1_payload
-ORDER BY tenant_id, inserted_at, id, type
-LIMIT @limitParam::INT
-OFFSET @offsetParam::INT
-;
+WITH function_result AS (
+    SELECT
+        (list_paginated_payloads_for_offload).*
+    FROM list_paginated_payloads_for_offload(
+        @partitionDate::DATE,
+        @limitParam::INT,
+        @offsetParam::INT
+    )
+)
+SELECT
+    tenant_id::UUID,
+    id::BIGINT,
+    inserted_at::TIMESTAMPTZ,
+    external_id::UUID,
+    type::v1_payload_type,
+    location::v1_payload_location,
+    external_location_key::TEXT,
+    inline_content::JSONB,
+    updated_at::TIMESTAMPTZ
+FROM function_result;
 
 -- name: CreateV1PayloadCutoverTemporaryTable :exec
 SELECT copy_v1_payload_partition_structure(@date::DATE);

@@ -783,7 +783,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 					TenantId:   payload.TenantID,
 				}
 
-				alreadyExternalPayloads[retrieveOpt] = ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
+				alreadyExternalPayloads[retrieveOpt] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
 				retrieveOptsToExternalId[retrieveOpt] = payload.ExternalID.String()
 			} else {
 				offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{

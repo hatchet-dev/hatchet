@@ -84,27 +84,55 @@ func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg Cu
 }
 
 const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many
-SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
-FROM v1_payload
-ORDER BY tenant_id, inserted_at, id, type
-LIMIT $2::INT
-OFFSET $1::INT
+WITH function_result AS (
+    SELECT
+        (list_paginated_payloads_for_offload).*
+    FROM list_paginated_payloads_for_offload(
+        $1::DATE,
+        $2::INT,
+        $3::INT
+    )
+)
+SELECT
+    tenant_id::UUID,
+    id::BIGINT,
+    inserted_at::TIMESTAMPTZ,
+    external_id::UUID,
+    type::v1_payload_type,
+    location::v1_payload_location,
+    external_location_key::TEXT,
+    inline_content::JSONB,
+    updated_at::TIMESTAMPTZ
+FROM function_result
 `
 
 type ListPaginatedPayloadsForOffloadParams struct {
-	Offsetparam int32 `json:"offsetparam"`
-	Limitparam  int32 `json:"limitparam"`
+	Partitiondate pgtype.Date `json:"partitiondate"`
+	Limitparam    int32       `json:"limitparam"`
+	Offsetparam   int32       `json:"offsetparam"`
 }
 
-func (q *Queries) ListPaginatedPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedPayloadsForOffloadParams) ([]*V1Payload, error) {
-	rows, err := db.Query(ctx, listPaginatedPayloadsForOffload, arg.Offsetparam, arg.Limitparam)
+type ListPaginatedPayloadsForOffloadRow struct {
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	ID                  int64              `json:"id"`
+	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID          pgtype.UUID        `json:"external_id"`
+	Type                V1PayloadType      `json:"type"`
+	Location            V1PayloadLocation  `json:"location"`
+	ExternalLocationKey string             `json:"external_location_key"`
+	InlineContent       []byte             `json:"inline_content"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListPaginatedPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedPayloadsForOffloadParams) ([]*ListPaginatedPayloadsForOffloadRow, error) {
+	rows, err := db.Query(ctx, listPaginatedPayloadsForOffload, arg.Partitiondate, arg.Limitparam, arg.Offsetparam)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1Payload
+	var items []*ListPaginatedPayloadsForOffloadRow
 	for rows.Next() {
-		var i V1Payload
+		var i ListPaginatedPayloadsForOffloadRow
 		if err := rows.Scan(
 			&i.TenantID,
 			&i.ID,
