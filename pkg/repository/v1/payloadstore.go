@@ -716,6 +716,10 @@ type BulkCutOverPayload struct {
 }
 
 func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context) (bool, error) {
+	if !p.externalStoreEnabled {
+		return false, nil
+	}
+
 	partitionDate := time.Now()
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
