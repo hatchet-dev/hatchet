@@ -135,9 +135,10 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 		stepRunIds = append(stepRunIds, uuid.MustParse(stepRunId))
 	}
 
+	t := uuid.MustParse(tenantId)
 	recent, err := w.queries.GetStepRunForEngine(context.Background(), w.pool, dbsqlc.GetStepRunForEngineParams{
 		Ids:      stepRunIds,
-		TenantId: uuid.MustParse(tenantId),
+		TenantId: &t,
 	})
 
 	if err != nil {
@@ -288,7 +289,8 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 	}
 
 	if opts.WebhookId != nil {
-		createParams.WebhookId = uuid.MustParse(*opts.WebhookId)
+		w := uuid.MustParse(*opts.WebhookId)
+		createParams.WebhookId = &w
 		createParams.Type = dbsqlc.NullWorkerType{
 			WorkerType: dbsqlc.WorkerTypeWEBHOOK,
 			Valid:      true,
@@ -312,7 +314,7 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 	// HACK upsert webhook worker
 	if opts.WebhookId != nil {
 		worker, err = w.queries.GetWorkerByWebhookId(ctx, tx, dbsqlc.GetWorkerByWebhookIdParams{
-			Webhookid: createParams.WebhookId,
+			Webhookid: *createParams.WebhookId,
 			Tenantid:  pgTenantId,
 		})
 
@@ -455,7 +457,8 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 	}
 
 	if opts.DispatcherId != nil {
-		updateParams.DispatcherId = uuid.MustParse(*opts.DispatcherId)
+		d := uuid.MustParse(*opts.DispatcherId)
+		updateParams.DispatcherId = &d
 	}
 
 	if opts.IsActive != nil {

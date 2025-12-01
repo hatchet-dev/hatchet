@@ -170,7 +170,7 @@ type CreateEventParams struct {
 	Deletedat          pgtype.Timestamp `json:"deletedat"`
 	Key                string           `json:"key"`
 	Tenantid           uuid.UUID        `json:"tenantid"`
-	ReplayedFromId     uuid.UUID        `json:"replayedFromId"`
+	ReplayedFromId     *uuid.UUID       `json:"replayedFromId"`
 	Data               []byte           `json:"data"`
 	Additionalmetadata []byte           `json:"additionalmetadata"`
 }
@@ -228,7 +228,7 @@ type CreateEventsParams struct {
 	ID                 uuid.UUID   `json:"id"`
 	Key                string      `json:"key"`
 	TenantId           uuid.UUID   `json:"tenantId"`
-	ReplayedFromId     uuid.UUID   `json:"replayedFromId"`
+	ReplayedFromId     *uuid.UUID  `json:"replayedFromId"`
 	Data               []byte      `json:"data"`
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
 	InsertOrder        pgtype.Int4 `json:"insertOrder"`

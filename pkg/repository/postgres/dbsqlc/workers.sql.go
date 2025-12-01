@@ -51,7 +51,7 @@ type CreateWorkerParams struct {
 	Name            string         `json:"name"`
 	Dispatcherid    uuid.UUID      `json:"dispatcherid"`
 	MaxRuns         pgtype.Int4    `json:"maxRuns"`
-	WebhookId       uuid.UUID      `json:"webhookId"`
+	WebhookId       *uuid.UUID     `json:"webhookId"`
 	Type            NullWorkerType `json:"type"`
 	SdkVersion      pgtype.Text    `json:"sdkVersion"`
 	Language        NullWorkerSDKS `json:"language"`
@@ -384,7 +384,7 @@ type GetWorkerForEngineParams struct {
 type GetWorkerForEngineRow struct {
 	ID                        uuid.UUID        `json:"id"`
 	TenantId                  uuid.UUID        `json:"tenantId"`
-	DispatcherId              uuid.UUID        `json:"dispatcherId"`
+	DispatcherId              *uuid.UUID       `json:"dispatcherId"`
 	DispatcherLastHeartbeatAt pgtype.Timestamp `json:"dispatcherLastHeartbeatAt"`
 	IsActive                  bool             `json:"isActive"`
 	LastListenerEstablished   pgtype.Timestamp `json:"lastListenerEstablished"`
@@ -511,8 +511,8 @@ type ListDispatcherIdsForWorkersParams struct {
 }
 
 type ListDispatcherIdsForWorkersRow struct {
-	WorkerId     uuid.UUID `json:"workerId"`
-	DispatcherId uuid.UUID `json:"dispatcherId"`
+	WorkerId     uuid.UUID  `json:"workerId"`
+	DispatcherId *uuid.UUID `json:"dispatcherId"`
 }
 
 func (q *Queries) ListDispatcherIdsForWorkers(ctx context.Context, db DBTX, arg ListDispatcherIdsForWorkersParams) ([]*ListDispatcherIdsForWorkersRow, error) {
@@ -605,8 +605,8 @@ type ListRecentAssignedEventsForWorkerParams struct {
 }
 
 type ListRecentAssignedEventsForWorkerRow struct {
-	WorkerId         uuid.UUID `json:"workerId"`
-	AssignedStepRuns []byte    `json:"assignedStepRuns"`
+	WorkerId         *uuid.UUID `json:"workerId"`
+	AssignedStepRuns []byte     `json:"assignedStepRuns"`
 }
 
 func (q *Queries) ListRecentAssignedEventsForWorker(ctx context.Context, db DBTX, arg ListRecentAssignedEventsForWorkerParams) ([]*ListRecentAssignedEventsForWorkerRow, error) {
@@ -798,7 +798,7 @@ type ListWorkersWithSlotCountParams struct {
 type ListWorkersWithSlotCountRow struct {
 	Worker         Worker      `json:"worker"`
 	WebhookUrl     pgtype.Text `json:"webhookUrl"`
-	WebhookId      uuid.UUID   `json:"webhookId"`
+	WebhookId      *uuid.UUID  `json:"webhookId"`
 	RemainingSlots int32       `json:"remainingSlots"`
 }
 
@@ -866,7 +866,7 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatA
 `
 
 type UpdateWorkerParams struct {
-	DispatcherId    uuid.UUID        `json:"dispatcherId"`
+	DispatcherId    *uuid.UUID       `json:"dispatcherId"`
 	MaxRuns         pgtype.Int4      `json:"maxRuns"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
 	IsActive        pgtype.Bool      `json:"isActive"`

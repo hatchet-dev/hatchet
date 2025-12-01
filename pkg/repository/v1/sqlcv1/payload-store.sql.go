@@ -276,7 +276,7 @@ type SetPayloadExternalKeysRow struct {
 	TenantID            uuid.UUID          `json:"tenant_id"`
 	ID                  int64              `json:"id"`
 	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID          uuid.UUID          `json:"external_id"`
+	ExternalID          *uuid.UUID         `json:"external_id"`
 	Type                V1PayloadType      `json:"type"`
 	Location            V1PayloadLocation  `json:"location"`
 	ExternalLocationKey pgtype.Text        `json:"external_location_key"`

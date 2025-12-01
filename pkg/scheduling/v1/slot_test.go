@@ -28,7 +28,7 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "HARD sticky strategy with desired worker available",
 			qi: &sqlcv1.V1QueueItem{
 				Sticky:          sqlcv1.V1StickyStrategyHARD,
-				DesiredWorkerID: uuid.MustParse(stableWorkerId1),
+				DesiredWorkerID: func() *uuid.UUID { u := uuid.MustParse(stableWorkerId1); return &u }(),
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: stableWorkerId1}}, []string{}),
@@ -40,7 +40,7 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "HARD sticky strategy without desired worker",
 			qi: &sqlcv1.V1QueueItem{
 				Sticky:          sqlcv1.V1StickyStrategyHARD,
-				DesiredWorkerID: uuid.MustParse(uuid.New().String()),
+				DesiredWorkerID: func() *uuid.UUID { u := uuid.MustParse(uuid.New().String()); return &u }(),
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: uuid.NewString()}}, []string{}),
@@ -52,7 +52,7 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "SOFT sticky strategy with desired worker available",
 			qi: &sqlcv1.V1QueueItem{
 				Sticky:          sqlcv1.V1StickyStrategySOFT,
-				DesiredWorkerID: uuid.MustParse(stableWorkerId1),
+				DesiredWorkerID: func() *uuid.UUID { u := uuid.MustParse(stableWorkerId1); return &u }(),
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: (stableWorkerId2)}}, []string{}),

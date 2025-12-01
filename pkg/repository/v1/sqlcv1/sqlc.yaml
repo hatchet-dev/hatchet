@@ -52,4 +52,5 @@ sql:
             nullable: true
             go_type:
               import: "github.com/google/uuid"
+              pointer: true
               type: "UUID"

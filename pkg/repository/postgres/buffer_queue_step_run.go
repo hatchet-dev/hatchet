@@ -129,8 +129,8 @@ func (w *sharedRepository) bulkQueueStepRuns(ctx context.Context, opts []bulkQue
 			tenantId := o.GetStepRunForEngineRow.SRTenantId
 
 			params = append(params, dbsqlc.CreateQueueItemsBulkParams{
-				StepRunId:         innerStepRun.SRID,
-				StepId:            innerStepRun.StepId,
+				StepRunId:         &innerStepRun.SRID,
+				StepId:            &innerStepRun.StepId,
 				ActionId:          sqlchelpers.TextFromStr(innerStepRun.ActionId),
 				StepTimeout:       innerStepRun.StepTimeout,
 				TenantId:          tenantId,

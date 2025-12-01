@@ -330,7 +330,8 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 			}
 
 			if event.ReplayedEvent != nil {
-				params[i].ReplayedFromId = uuid.MustParse(*event.ReplayedEvent)
+				replayedId := uuid.MustParse(*event.ReplayedEvent)
+				params[i].ReplayedFromId = &replayedId
 			}
 
 			uniqueEventKeys[fmt.Sprintf("%s-%s", event.TenantId, event.Key)] = struct {
@@ -439,7 +440,8 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 		}
 
 		if event.ReplayedEvent != nil {
-			params[i].ReplayedFromId = uuid.MustParse(*event.ReplayedEvent)
+			replayedId := uuid.MustParse(*event.ReplayedEvent)
+			params[i].ReplayedFromId = &replayedId
 		}
 
 		ids[i] = uuid.MustParse(eventId)

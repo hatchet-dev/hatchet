@@ -31,7 +31,8 @@ func (r *userSessionRepository) Create(ctx context.Context, opts *repository.Cre
 	}
 
 	if opts.UserId != nil {
-		params.UserId = uuid.MustParse(*opts.UserId)
+		userId := uuid.MustParse(*opts.UserId)
+		params.UserId = &userId
 	}
 
 	if opts.Data != nil {
@@ -55,7 +56,8 @@ func (r *userSessionRepository) Update(ctx context.Context, sessionId string, op
 	}
 
 	if opts.UserId != nil {
-		params.UserId = uuid.MustParse(*opts.UserId)
+		userId := uuid.MustParse(*opts.UserId)
+		params.UserId = &userId
 	}
 
 	if opts.Data != nil {

@@ -51,7 +51,7 @@ func NewSkippedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent
 	e.Output = outputMapBytes
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
 
-	if task.DesiredWorkerID != uuid.Nil {
+	if task.DesiredWorkerID != nil {
 		workerId := task.DesiredWorkerID.String()
 		e.WorkerId = &workerId
 	}
@@ -65,7 +65,7 @@ func NewFailedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent 
 	e.ErrorMessage = task.InitialStateReason.String
 	e.EventType = sqlcv1.V1TaskEventTypeFAILED
 
-	if task.DesiredWorkerID != uuid.Nil {
+	if task.DesiredWorkerID != nil {
 		workerId := task.DesiredWorkerID.String()
 		e.WorkerId = &workerId
 	}

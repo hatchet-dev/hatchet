@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/goccy/go-json"
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -1157,7 +1156,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 		attemptCancel = true
 	}
 
-	if oldStepRun.SRWorkerId == uuid.Nil {
+	if oldStepRun.SRWorkerId == nil {
 		// this is not a fatal error
 		ec.l.Warn().Msgf("[failStepRun] step run %s has no worker id, skipping cancellation", stepRunId)
 		attemptCancel = false
@@ -1173,7 +1172,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 
 		if err != nil {
 			return fmt.Errorf("could not get worker: %w", err)
-		} else if worker.DispatcherId == uuid.Nil {
+		} else if worker.DispatcherId == nil {
 			return fmt.Errorf("worker has no dispatcher id")
 		}
 
@@ -1272,7 +1271,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 		return fmt.Errorf("could not cancel step run: %w", err)
 	}
 
-	if oldStepRun.SRWorkerId == uuid.Nil {
+	if oldStepRun.SRWorkerId == nil {
 		// this is not a fatal error
 		ec.l.Debug().Msgf("[cancelStepRun] step run %s has no worker id, skipping send of cancellation", stepRunId)
 
@@ -1287,7 +1286,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 
 	if err != nil {
 		return fmt.Errorf("could not get worker: %w", err)
-	} else if worker.DispatcherId == uuid.Nil {
+	} else if worker.DispatcherId == nil {
 		return fmt.Errorf("worker has no dispatcher id")
 	}
 

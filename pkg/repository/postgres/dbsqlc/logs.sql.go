@@ -24,7 +24,7 @@ WHERE
 
 type CountLogLinesParams struct {
 	Tenantid  uuid.UUID      `json:"tenantid"`
-	StepRunId uuid.UUID      `json:"stepRunId"`
+	StepRunId *uuid.UUID     `json:"stepRunId"`
 	Search    pgtype.Text    `json:"search"`
 	Levels    []LogLineLevel `json:"levels"`
 }
@@ -113,7 +113,7 @@ OFFSET COALESCE($6, 0)
 
 type ListLogLinesParams struct {
 	Tenantid  uuid.UUID      `json:"tenantid"`
-	StepRunId uuid.UUID      `json:"stepRunId"`
+	StepRunId *uuid.UUID     `json:"stepRunId"`
 	Search    pgtype.Text    `json:"search"`
 	Levels    []LogLineLevel `json:"levels"`
 	OrderBy   pgtype.Text    `json:"orderBy"`

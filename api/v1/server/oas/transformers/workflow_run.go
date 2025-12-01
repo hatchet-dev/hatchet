@@ -228,7 +228,7 @@ func ToStepRunFull(stepRun *repository.GetStepRunFull) *gen.StepRun {
 		res.ChildWorkflowRuns = &stepRun.ChildWorkflowRuns
 	}
 
-	if stepRun.WorkerId != uuid.Nil {
+	if stepRun.WorkerId != nil {
 		workerId := stepRun.WorkerId.String()
 		res.WorkerId = &workerId
 	}
@@ -296,7 +296,7 @@ func ToStepRun(stepRun *repository.StepRunForJobRun) *gen.StepRun {
 		res.TimeoutAtEpoch = getEpochFromPgTime(stepRun.TimeoutAt)
 	}
 
-	if stepRun.WorkerId != uuid.Nil {
+	if stepRun.WorkerId != nil {
 		workerId := stepRun.WorkerId.String()
 		res.WorkerId = &workerId
 	}
@@ -331,12 +331,12 @@ func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
 		Count:         int(stepRunEvent.Count),
 	}
 
-	if stepRunEvent.StepRunId != uuid.Nil {
+	if stepRunEvent.StepRunId != nil {
 		srId := stepRunEvent.StepRunId.String()
 		res.StepRunId = &srId
 	}
 
-	if stepRunEvent.WorkflowRunId != uuid.Nil {
+	if stepRunEvent.WorkflowRunId != nil {
 		wrId := stepRunEvent.WorkflowRunId.String()
 		res.WorkflowRunId = &wrId
 	}
@@ -414,22 +414,22 @@ func getEpochFromTime(t time.Time) *int {
 	return &epoch
 }
 
-func ToWorkflowRunTriggeredBy(parentWorkflowRunId uuid.UUID, triggeredBy *dbsqlc.WorkflowRunTriggeredBy) *gen.WorkflowRunTriggeredBy {
+func ToWorkflowRunTriggeredBy(parentWorkflowRunId *uuid.UUID, triggeredBy *dbsqlc.WorkflowRunTriggeredBy) *gen.WorkflowRunTriggeredBy {
 	res := &gen.WorkflowRunTriggeredBy{
 		Metadata: *toAPIMetadata(triggeredBy.ID.String(), triggeredBy.CreatedAt.Time, triggeredBy.UpdatedAt.Time),
 	}
 
-	if parentWorkflowRunId != uuid.Nil {
+	if parentWorkflowRunId != nil && *parentWorkflowRunId != uuid.Nil {
 		parent := parentWorkflowRunId.String()
 		res.ParentWorkflowRunId = &parent
 	}
 
-	if triggeredBy.EventId != uuid.Nil {
+	if triggeredBy.EventId != nil {
 		eventId := triggeredBy.EventId.String()
 		res.EventId = &eventId
 	}
 
-	if triggeredBy.CronParentId != uuid.Nil {
+	if triggeredBy.CronParentId != nil {
 		cronParentId := triggeredBy.CronParentId.String()
 		res.CronParentId = &cronParentId
 	}
@@ -463,7 +463,7 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 		Metadata: *toAPIMetadata(runTriggeredBy.ID.String(), runTriggeredBy.CreatedAt.Time, runTriggeredBy.UpdatedAt.Time),
 	}
 
-	if run.ParentId != uuid.Nil {
+	if run.ParentId != nil {
 		parentId := run.ParentId.String()
 		triggeredBy.ParentWorkflowRunId = &parentId
 	}
@@ -524,9 +524,9 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 
 	var workflowRunIdPtr *uuid.UUID
 
-	if scheduled.WorkflowRunId != uuid.Nil {
+	if scheduled.WorkflowRunId != nil {
 		workflowRunId := scheduled.WorkflowRunId
-		workflowRunIdPtr = &workflowRunId
+		workflowRunIdPtr = workflowRunId
 	}
 
 	input := make(map[string]interface{})

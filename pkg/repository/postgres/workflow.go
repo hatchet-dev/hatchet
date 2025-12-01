@@ -1076,7 +1076,7 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 				return "", fmt.Errorf("could not upsert action: %w", err)
 			}
 
-			params.GetConcurrencyGroupId = action.ID
+			params.GetConcurrencyGroupId = &action.ID
 		}
 
 		if opts.Concurrency.Expression != nil {

@@ -77,7 +77,7 @@ type ClaimIdempotencyKeysRow struct {
 	Key                    string             `json:"key"`
 	ExpiresAt              pgtype.Timestamptz `json:"expires_at"`
 	WasSuccessfullyClaimed bool               `json:"was_successfully_claimed"`
-	ClaimedByExternalID    uuid.UUID          `json:"claimed_by_external_id"`
+	ClaimedByExternalID    *uuid.UUID         `json:"claimed_by_external_id"`
 }
 
 func (q *Queries) ClaimIdempotencyKeys(ctx context.Context, db DBTX, arg ClaimIdempotencyKeysParams) ([]*ClaimIdempotencyKeysRow, error) {

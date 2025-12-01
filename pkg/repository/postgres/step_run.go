@@ -301,12 +301,13 @@ func (s *stepRunEngineRepository) ListRunningStepRunsForTicker(ctx context.Conte
 
 	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
+	tickerUUID := uuid.MustParse(tickerId)
 	srs, err := s.queries.ListStepRuns(ctx, tx, dbsqlc.ListStepRunsParams{
 		Status: dbsqlc.NullStepRunStatus{
 			StepRunStatus: dbsqlc.StepRunStatusRUNNING,
 			Valid:         true,
 		},
-		TickerId: uuid.MustParse(tickerId),
+		TickerId: &tickerUUID,
 	})
 
 	if err != nil {
@@ -344,8 +345,9 @@ func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId str
 
 	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
+	t := uuid.MustParse(tenantId)
 	listOpts := dbsqlc.ListStepRunsParams{
-		TenantId: uuid.MustParse(tenantId),
+		TenantId: &t,
 	}
 
 	if opts.Status != nil {
@@ -364,7 +366,8 @@ func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId str
 	}
 
 	if opts.JobRunId != nil {
-		listOpts.JobRunId = uuid.MustParse(*opts.JobRunId)
+		j := uuid.MustParse(*opts.JobRunId)
+		listOpts.JobRunId = &j
 	}
 
 	srs, err := s.queries.ListStepRuns(ctx, tx, listOpts)
@@ -446,7 +449,7 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 		if sr.Operation == "REASSIGNED" {
 			stepRunIds = append(stepRunIds, sr.ID)
 			stepRunIdsStr = append(stepRunIdsStr, sr.ID.String())
-			workerIds = append(workerIds, sr.WorkerId)
+			workerIds = append(workerIds, *sr.WorkerId)
 		} else if sr.Operation == "FAILED" {
 			failedStepRunIds = append(failedStepRunIds, sr.ID)
 		}
@@ -454,7 +457,7 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 
 	failedStepRunResults, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      failedStepRunIds,
-		TenantId: pgTenantId,
+		TenantId: &pgTenantId,
 	})
 
 	if err != nil {
@@ -530,7 +533,7 @@ func (s *stepRunEngineRepository) InternalRetryStepRuns(ctx context.Context, ten
 
 	failedStepRunResults, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      failedStepRunIds,
-		TenantId: pgTenantId,
+		TenantId: &pgTenantId,
 	})
 
 	if err != nil {
@@ -587,7 +590,7 @@ func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, ten
 
 	stepRuns, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      stepRunIds,
-		TenantId: pgTenantId,
+		TenantId: &pgTenantId,
 	})
 
 	if err != nil {
@@ -943,7 +946,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 
 	succeededStepRuns, err = s.queries.GetStepRunForEngine(ctx, outerTx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      completedStepRunIds,
-		TenantId: pgTenantId,
+		TenantId: &pgTenantId,
 	})
 
 	if err != nil {
@@ -1961,9 +1964,10 @@ func (s *stepRunEngineRepository) GetStepRunForEngine(ctx context.Context, tenan
 }
 
 func (s *stepRunEngineRepository) getStepRunForEngineTx(ctx context.Context, dbtx dbsqlc.DBTX, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error) {
+	t := uuid.MustParse(tenantId)
 	res, err := s.queries.GetStepRunForEngine(ctx, dbtx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      []uuid.UUID{uuid.MustParse(stepRunId)},
-		TenantId: uuid.MustParse(tenantId),
+		TenantId: &t,
 	})
 
 	if err != nil {
@@ -2025,9 +2029,10 @@ func (s *sharedRepository) listInitialStepRunsForJobRunWithTx(ctx context.Contex
 		return nil, fmt.Errorf("could not list initial step runs: %w", err)
 	}
 
+	t := uuid.MustParse(tenantId)
 	res, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      srs,
-		TenantId: uuid.MustParse(tenantId),
+		TenantId: &t,
 	})
 
 	return res, err
@@ -2058,9 +2063,10 @@ func (s *stepRunEngineRepository) ListStartableStepRuns(ctx context.Context, ten
 		}
 	}
 
+	t := uuid.MustParse(tenantId)
 	res, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      srs,
-		TenantId: uuid.MustParse(tenantId),
+		TenantId: &t,
 	})
 
 	if err != nil {

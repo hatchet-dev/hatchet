@@ -241,14 +241,14 @@ FROM
 
 type CountWorkflowRunsParams struct {
 	TenantId           uuid.UUID        `json:"tenantId"`
-	EventId            uuid.UUID        `json:"eventId"`
-	WorkflowVersionId  uuid.UUID        `json:"workflowVersionId"`
+	EventId            *uuid.UUID       `json:"eventId"`
+	WorkflowVersionId  *uuid.UUID       `json:"workflowVersionId"`
 	Kinds              []string         `json:"kinds"`
-	WorkflowId         uuid.UUID        `json:"workflowId"`
+	WorkflowId         *uuid.UUID       `json:"workflowId"`
 	Ids                []uuid.UUID      `json:"ids"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
-	ParentId           uuid.UUID        `json:"parentId"`
-	ParentStepRunId    uuid.UUID        `json:"parentStepRunId"`
+	ParentId           *uuid.UUID       `json:"parentId"`
+	ParentStepRunId    *uuid.UUID       `json:"parentStepRunId"`
 	GroupKey           pgtype.Text      `json:"groupKey"`
 	Statuses           []string         `json:"statuses"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
@@ -329,7 +329,7 @@ INSERT INTO "GetGroupKeyRun" (
 `
 
 type CreateGetGroupKeyRunParams struct {
-	ID                uuid.UUID        `json:"id"`
+	ID                *uuid.UUID       `json:"id"`
 	Tenantid          uuid.UUID        `json:"tenantid"`
 	Workflowrunid     uuid.UUID        `json:"workflowrunid"`
 	Input             []byte           `json:"input"`
@@ -407,11 +407,11 @@ INSERT INTO "JobRunLookupData" (
 `
 
 type CreateJobRunLookupDataParams struct {
-	ID          uuid.UUID `json:"id"`
-	Jobrunid    uuid.UUID `json:"jobrunid"`
-	Tenantid    uuid.UUID `json:"tenantid"`
-	Input       []byte    `json:"input"`
-	Triggeredby string    `json:"triggeredby"`
+	ID          *uuid.UUID `json:"id"`
+	Jobrunid    uuid.UUID  `json:"jobrunid"`
+	Tenantid    uuid.UUID  `json:"tenantid"`
+	Input       []byte     `json:"input"`
+	Triggeredby string     `json:"triggeredby"`
 }
 
 func (q *Queries) CreateJobRunLookupData(ctx context.Context, db DBTX, arg CreateJobRunLookupDataParams) (*JobRunLookupData, error) {
@@ -848,14 +848,14 @@ INSERT INTO "WorkflowRun" (
 `
 
 type CreateWorkflowRunParams struct {
-	ID                 uuid.UUID   `json:"id"`
+	ID                 *uuid.UUID  `json:"id"`
 	DisplayName        pgtype.Text `json:"displayName"`
 	Tenantid           uuid.UUID   `json:"tenantid"`
 	Workflowversionid  uuid.UUID   `json:"workflowversionid"`
 	ChildIndex         pgtype.Int4 `json:"childIndex"`
 	ChildKey           pgtype.Text `json:"childKey"`
-	ParentId           uuid.UUID   `json:"parentId"`
-	ParentStepRunId    uuid.UUID   `json:"parentStepRunId"`
+	ParentId           *uuid.UUID  `json:"parentId"`
+	ParentStepRunId    *uuid.UUID  `json:"parentStepRunId"`
 	Additionalmetadata []byte      `json:"additionalmetadata"`
 	Priority           pgtype.Int4 `json:"priority"`
 }
@@ -976,10 +976,10 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "workflowRunId", "desiredWor
 `
 
 type CreateWorkflowRunStickyStateParams struct {
-	Tenantid          uuid.UUID `json:"tenantid"`
-	Workflowrunid     uuid.UUID `json:"workflowrunid"`
-	DesiredWorkerId   uuid.UUID `json:"desiredWorkerId"`
-	Workflowversionid uuid.UUID `json:"workflowversionid"`
+	Tenantid          uuid.UUID  `json:"tenantid"`
+	Workflowrunid     uuid.UUID  `json:"workflowrunid"`
+	DesiredWorkerId   *uuid.UUID `json:"desiredWorkerId"`
+	Workflowversionid uuid.UUID  `json:"workflowversionid"`
 }
 
 func (q *Queries) CreateWorkflowRunStickyState(ctx context.Context, db DBTX, arg CreateWorkflowRunStickyStateParams) (*WorkflowRunStickyState, error) {
@@ -1033,11 +1033,11 @@ INSERT INTO "WorkflowRunTriggeredBy" (
 type CreateWorkflowRunTriggeredByParams struct {
 	Tenantid      uuid.UUID   `json:"tenantid"`
 	Workflowrunid uuid.UUID   `json:"workflowrunid"`
-	EventId       uuid.UUID   `json:"eventId"`
-	CronParentId  uuid.UUID   `json:"cronParentId"`
+	EventId       *uuid.UUID  `json:"eventId"`
+	CronParentId  *uuid.UUID  `json:"cronParentId"`
 	CronSchedule  pgtype.Text `json:"cronSchedule"`
 	CronName      pgtype.Text `json:"cronName"`
-	ScheduledId   uuid.UUID   `json:"scheduledId"`
+	ScheduledId   *uuid.UUID  `json:"scheduledId"`
 }
 
 func (q *Queries) CreateWorkflowRunTriggeredBy(ctx context.Context, db DBTX, arg CreateWorkflowRunTriggeredByParams) (*WorkflowRunTriggeredBy, error) {
@@ -1072,11 +1072,11 @@ type CreateWorkflowRunTriggeredBysParams struct {
 	ID           uuid.UUID   `json:"id"`
 	TenantId     uuid.UUID   `json:"tenantId"`
 	ParentId     uuid.UUID   `json:"parentId"`
-	EventId      uuid.UUID   `json:"eventId"`
-	CronParentId uuid.UUID   `json:"cronParentId"`
+	EventId      *uuid.UUID  `json:"eventId"`
+	CronParentId *uuid.UUID  `json:"cronParentId"`
 	CronSchedule pgtype.Text `json:"cronSchedule"`
 	CronName     pgtype.Text `json:"cronName"`
-	ScheduledId  uuid.UUID   `json:"scheduledId"`
+	ScheduledId  *uuid.UUID  `json:"scheduledId"`
 }
 
 type CreateWorkflowRunsParams struct {
@@ -1087,8 +1087,8 @@ type CreateWorkflowRunsParams struct {
 	Status             WorkflowRunStatus `json:"status"`
 	ChildIndex         pgtype.Int4       `json:"childIndex"`
 	ChildKey           pgtype.Text       `json:"childKey"`
-	ParentId           uuid.UUID         `json:"parentId"`
-	ParentStepRunId    uuid.UUID         `json:"parentStepRunId"`
+	ParentId           *uuid.UUID        `json:"parentId"`
+	ParentStepRunId    *uuid.UUID        `json:"parentStepRunId"`
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
 	Priority           pgtype.Int4       `json:"priority"`
 	InsertOrder        pgtype.Int4       `json:"insertOrder"`
@@ -1447,7 +1447,7 @@ type GetStepRunsForJobRunsWithOutputRow struct {
 	CancelledReason pgtype.Text      `json:"cancelledReason"`
 	TimeoutAt       pgtype.Timestamp `json:"timeoutAt"`
 	Error           pgtype.Text      `json:"error"`
-	WorkerId        uuid.UUID        `json:"workerId"`
+	WorkerId        *uuid.UUID       `json:"workerId"`
 	Output          []byte           `json:"output"`
 }
 
@@ -1689,7 +1689,7 @@ type GetWorkflowRunRow struct {
 	ConcurrencyMaxRuns         pgtype.Int4                  `json:"concurrencyMaxRuns"`
 	IsPaused                   pgtype.Bool                  `json:"isPaused"`
 	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
-	GetGroupKeyRunId           uuid.UUID                    `json:"getGroupKeyRunId"`
+	GetGroupKeyRunId           *uuid.UUID                   `json:"getGroupKeyRunId"`
 }
 
 func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRunParams) ([]*GetWorkflowRunRow, error) {
@@ -1833,8 +1833,8 @@ type GetWorkflowRunByIdRow struct {
 	ID                     uuid.UUID              `json:"id"`
 	ChildIndex             pgtype.Int4            `json:"childIndex"`
 	ChildKey               pgtype.Text            `json:"childKey"`
-	ParentId               uuid.UUID              `json:"parentId"`
-	ParentStepRunId        uuid.UUID              `json:"parentStepRunId"`
+	ParentId               *uuid.UUID             `json:"parentId"`
+	ParentStepRunId        *uuid.UUID             `json:"parentStepRunId"`
 	AdditionalMetadata     []byte                 `json:"additionalMetadata"`
 	Duration               pgtype.Int8            `json:"duration"`
 	Priority               pgtype.Int4            `json:"priority"`
@@ -1946,8 +1946,8 @@ type GetWorkflowRunByIdsRow struct {
 	ID                     uuid.UUID              `json:"id"`
 	ChildIndex             pgtype.Int4            `json:"childIndex"`
 	ChildKey               pgtype.Text            `json:"childKey"`
-	ParentId               uuid.UUID              `json:"parentId"`
-	ParentStepRunId        uuid.UUID              `json:"parentStepRunId"`
+	ParentId               *uuid.UUID             `json:"parentId"`
+	ParentStepRunId        *uuid.UUID             `json:"parentStepRunId"`
 	AdditionalMetadata     []byte                 `json:"additionalMetadata"`
 	Duration               pgtype.Int8            `json:"duration"`
 	Priority               pgtype.Int4            `json:"priority"`
@@ -2304,8 +2304,8 @@ GROUP BY
 `
 
 type ListChildWorkflowRunCountsRow struct {
-	ParentStepRunId uuid.UUID `json:"parentStepRunId"`
-	Count           int64     `json:"count"`
+	ParentStepRunId *uuid.UUID `json:"parentStepRunId"`
+	Count           int64      `json:"count"`
 }
 
 func (q *Queries) ListChildWorkflowRunCounts(ctx context.Context, db DBTX, steprunids []uuid.UUID) ([]*ListChildWorkflowRunCountsRow, error) {
@@ -2394,12 +2394,12 @@ type ListScheduledWorkflowsRow struct {
 	ID                   uuid.UUID                          `json:"id"`
 	ParentId             uuid.UUID                          `json:"parentId"`
 	TriggerAt            pgtype.Timestamp                   `json:"triggerAt"`
-	TickerId             uuid.UUID                          `json:"tickerId"`
+	TickerId             *uuid.UUID                         `json:"tickerId"`
 	Input                []byte                             `json:"input"`
 	ChildIndex           pgtype.Int4                        `json:"childIndex"`
 	ChildKey             pgtype.Text                        `json:"childKey"`
-	ParentStepRunId      uuid.UUID                          `json:"parentStepRunId"`
-	ParentWorkflowRunId  uuid.UUID                          `json:"parentWorkflowRunId"`
+	ParentStepRunId      *uuid.UUID                         `json:"parentStepRunId"`
+	ParentWorkflowRunId  *uuid.UUID                         `json:"parentWorkflowRunId"`
 	AdditionalMetadata   []byte                             `json:"additionalMetadata"`
 	CreatedAt            pgtype.Timestamp                   `json:"createdAt"`
 	DeletedAt            pgtype.Timestamp                   `json:"deletedAt"`
@@ -2408,7 +2408,7 @@ type ListScheduledWorkflowsRow struct {
 	Priority             int32                              `json:"priority"`
 	WorkflowRunCreatedAt pgtype.Timestamp                   `json:"workflowRunCreatedAt"`
 	WorkflowRunStatus    NullWorkflowRunStatus              `json:"workflowRunStatus"`
-	WorkflowRunId        uuid.UUID                          `json:"workflowRunId"`
+	WorkflowRunId        *uuid.UUID                         `json:"workflowRunId"`
 	WorkflowRunName      pgtype.Text                        `json:"workflowRunName"`
 }
 
@@ -2655,14 +2655,14 @@ LIMIT
 
 type ListWorkflowRunsParams struct {
 	TenantId           uuid.UUID        `json:"tenantId"`
-	EventId            uuid.UUID        `json:"eventId"`
-	WorkflowVersionId  uuid.UUID        `json:"workflowVersionId"`
+	EventId            *uuid.UUID       `json:"eventId"`
+	WorkflowVersionId  *uuid.UUID       `json:"workflowVersionId"`
 	Kinds              []string         `json:"kinds"`
-	WorkflowId         uuid.UUID        `json:"workflowId"`
+	WorkflowId         *uuid.UUID       `json:"workflowId"`
 	Ids                []uuid.UUID      `json:"ids"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
-	ParentId           uuid.UUID        `json:"parentId"`
-	ParentStepRunId    uuid.UUID        `json:"parentStepRunId"`
+	ParentId           *uuid.UUID       `json:"parentId"`
+	ParentStepRunId    *uuid.UUID       `json:"parentStepRunId"`
 	GroupKey           pgtype.Text      `json:"groupKey"`
 	Statuses           []string         `json:"statuses"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
@@ -2679,7 +2679,7 @@ type ListWorkflowRunsRow struct {
 	Workflow               Workflow               `json:"workflow"`
 	WorkflowRunTriggeredBy WorkflowRunTriggeredBy `json:"workflow_run_triggered_by"`
 	WorkflowVersion        WorkflowVersion        `json:"workflow_version"`
-	ID                     uuid.UUID              `json:"id"`
+	ID                     *uuid.UUID             `json:"id"`
 	Key                    pgtype.Text            `json:"key"`
 	CreatedAt              pgtype.Timestamp       `json:"createdAt"`
 	UpdatedAt              pgtype.Timestamp       `json:"updatedAt"`
@@ -3505,9 +3505,9 @@ WHERE
 `
 
 type UpdateWorkflowRunStickyStateParams struct {
-	DesiredWorkerId uuid.UUID `json:"desiredWorkerId"`
-	Workflowrunid   uuid.UUID `json:"workflowrunid"`
-	Tenantid        uuid.UUID `json:"tenantid"`
+	DesiredWorkerId *uuid.UUID `json:"desiredWorkerId"`
+	Workflowrunid   uuid.UUID  `json:"workflowrunid"`
+	Tenantid        uuid.UUID  `json:"tenantid"`
 }
 
 func (q *Queries) UpdateWorkflowRunStickyState(ctx context.Context, db DBTX, arg UpdateWorkflowRunStickyStateParams) error {
@@ -3572,11 +3572,11 @@ type WorkflowRunsMetricsCountParams struct {
 	Tenantid           uuid.UUID        `json:"tenantid"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
 	CreatedBefore      pgtype.Timestamp `json:"createdBefore"`
-	WorkflowId         uuid.UUID        `json:"workflowId"`
-	ParentId           uuid.UUID        `json:"parentId"`
-	ParentStepRunId    uuid.UUID        `json:"parentStepRunId"`
+	WorkflowId         *uuid.UUID       `json:"workflowId"`
+	ParentId           *uuid.UUID       `json:"parentId"`
+	ParentStepRunId    *uuid.UUID       `json:"parentStepRunId"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
-	EventId            uuid.UUID        `json:"eventId"`
+	EventId            *uuid.UUID       `json:"eventId"`
 }
 
 type WorkflowRunsMetricsCountRow struct {

@@ -586,7 +586,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		}
 
 		tenantIdToPayloads[updatedPayload.TenantID.String()] = append(tenantIdToPayloads[updatedPayload.TenantID.String()], OLAPPayloadToOffload{
-			ExternalId:          updatedPayload.ExternalID,
+			ExternalId:          *updatedPayload.ExternalID,
 			ExternalLocationKey: updatedPayload.ExternalLocationKey.String,
 		})
 	}

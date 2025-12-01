@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -702,7 +701,7 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, te
 	for i := range jobRuns {
 		// don't cancel job runs that are onFailure
 
-		if workflowRun.WorkflowVersion.OnFailureJobId != uuid.Nil && jobRuns[i].JobId == workflowRun.WorkflowVersion.OnFailureJobId {
+		if workflowRun.WorkflowVersion.OnFailureJobId != nil && *workflowRun.WorkflowVersion.OnFailureJobId == jobRuns[i].JobId {
 			continue
 		}
 

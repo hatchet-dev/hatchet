@@ -553,7 +553,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 					Valid:  true,
 				},
 				Priority:             priority,
-				OldWorkflowVersionId: oldWorkflowVersionId,
+				OldWorkflowVersionId: &oldWorkflowVersionId,
 			},
 		)
 

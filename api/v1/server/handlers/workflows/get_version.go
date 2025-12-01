@@ -58,8 +58,8 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		&row.WorkflowVersion,
 		&workflow.Workflow,
 		&transformers.WorkflowConcurrency{
-			ID:                    row.ConcurrencyId,
-			GetConcurrencyGroupId: row.ConcurrencyGroupId,
+			ID:                    *row.ConcurrencyId,
+			GetConcurrencyGroupId: *row.ConcurrencyGroupId,
 			MaxRuns:               row.ConcurrencyMaxRuns,
 			LimitStrategy:         row.ConcurrencyLimitStrategy,
 		},

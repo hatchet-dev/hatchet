@@ -9,7 +9,6 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -78,7 +77,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 
 	// determine if we should start this workflow run or we need to limit its concurrency
 	// if the workflow has concurrency settings, then we need to check if we can start it
-	if workflowRun.ConcurrencyLimitStrategy.Valid && workflowRun.GetGroupKeyRunId != uuid.Nil { // nolint: gocritic
+	if workflowRun.ConcurrencyLimitStrategy.Valid && workflowRun.GetGroupKeyRunId != nil { // nolint: gocritic
 		wc.l.Info().Msgf("workflow %s has concurrency settings", workflowRunId)
 
 		groupKeyRunId := workflowRun.GetGroupKeyRunId.String()
@@ -311,7 +310,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 	shouldAlertFailure := workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusFAILED
 
 	// if there's an onFailure job, start that job
-	if workflowRun.WorkflowVersion.OnFailureJobId != uuid.Nil {
+	if workflowRun.WorkflowVersion.OnFailureJobId != nil {
 		jobRun, err := wc.repo.JobRun().GetJobRunByWorkflowRunIdAndJobId(
 			ctx,
 			metadata.TenantId,

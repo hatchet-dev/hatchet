@@ -712,9 +712,9 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			EventTimestamp:         timestamps[i],
 			ReadableStatus:         readableStatuses[i],
 			RetryCount:             retryCounts[i],
-			WorkerID:               workerId,
+			WorkerID:               &workerId,
 			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
-			ExternalID:             eventExternalIds[i],
+			ExternalID:             &eventExternalIds[i],
 		}
 
 		switch eventTypes[i] {
@@ -755,13 +755,13 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		idInsertedAtToExternalId[v1.IdInsertedAt{
 			ID:         dummyId,
 			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-		}] = opt.ExternalID
+		}] = *opt.ExternalID
 
 		offloadToExternalOpts = append(offloadToExternalOpts, v1.OffloadToExternalStoreOpts{
 			StorePayloadOpts: &v1.StorePayloadOpts{
 				Id:         dummyId,
 				InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-				ExternalId: opt.ExternalID,
+				ExternalId: *opt.ExternalID,
 				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 				Payload:    opt.Output,
 				TenantId:   tenantId,

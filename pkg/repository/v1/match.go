@@ -530,7 +530,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		dependentMatches := make([]*sqlcv1.SaveSatisfiedMatchConditionsRow, 0)
 
 		for _, match := range satisfiedMatches {
-			if match.TriggerStepID != uuid.Nil && match.TriggerExternalID != uuid.Nil {
+			if match.TriggerStepID != nil && match.TriggerExternalID != nil {
 				if match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
 					dependentMatches = append(dependentMatches, match)
 					continue
@@ -596,7 +596,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						opt.DagInsertedAt = match.TriggerDagInsertedAt
 					}
 
-					if match.TriggerParentTaskExternalID != uuid.Nil {
+					if match.TriggerParentTaskExternalID != nil {
 						externalId := match.TriggerParentTaskExternalID.String()
 						opt.ParentTaskExternalId = &externalId
 					}
@@ -1106,7 +1106,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 
 	for _, match := range satisfiedMatches {
 		if match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
-			additionalMatchStepIds = append(additionalMatchStepIds, match.TriggerStepID)
+			additionalMatchStepIds = append(additionalMatchStepIds, *match.TriggerStepID)
 		}
 	}
 
@@ -1138,7 +1138,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 	additionalMatches := make([]CreateMatchOpts, 0, len(satisfiedMatches))
 
 	for _, match := range satisfiedMatches {
-		if match.TriggerStepID != uuid.Nil && match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
+		if match.TriggerStepID != nil && match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
 			conditions, ok := stepIdsToConditions[match.TriggerStepID.String()]
 
 			if !ok {
@@ -1167,7 +1167,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 				TriggerStepIndex:              match.TriggerStepIndex,
 				TriggerExistingTaskId:         triggerExistingTaskId,
 				TriggerExistingTaskInsertedAt: match.TriggerExistingTaskInsertedAt,
-				TriggerParentTaskExternalId:   match.TriggerParentTaskExternalID,
+				TriggerParentTaskExternalId:   *match.TriggerParentTaskExternalID,
 				TriggerParentTaskId:           match.TriggerParentTaskID,
 				TriggerParentTaskInsertedAt:   match.TriggerParentTaskInsertedAt,
 				TriggerChildIndex:             match.TriggerChildIndex,

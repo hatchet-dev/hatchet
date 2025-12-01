@@ -117,7 +117,7 @@ func GetCreateWorkflowRunOptsFromManual(
 		AdditionalMetadata: additionalMetadata,
 	}
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != uuid.Nil {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -151,7 +151,7 @@ func GetCreateWorkflowRunOptsFromParent(
 
 	WithParent(parentId, parentStepRunId, childIndex, childKey, additionalMetadata, parentAdditionalMetadata)(opts)
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != uuid.Nil {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -179,7 +179,7 @@ func GetCreateWorkflowRunOptsFromEvent(
 		AdditionalMetadata: additionalMetadata,
 	}
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != uuid.Nil {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -211,7 +211,7 @@ func GetCreateWorkflowRunOptsFromCron(
 		AdditionalMetadata: additionalMetadata,
 	}
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != uuid.Nil {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}
@@ -240,7 +240,7 @@ func GetCreateWorkflowRunOptsFromSchedule(
 		AdditionalMetadata:  additionalMetadata,
 	}
 
-	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != uuid.Nil {
+	if workflowVersion.ConcurrencyLimitStrategy.Valid && workflowVersion.ConcurrencyGroupId != nil {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 			Input: input,
 		}

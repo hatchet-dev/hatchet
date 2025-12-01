@@ -141,7 +141,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	TaskID                       int64              `json:"task_id"`
 	TaskInsertedAt               pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount                   int32              `json:"retry_count"`
-	WorkerID                     uuid.UUID          `json:"worker_id"`
+	WorkerID                     *uuid.UUID         `json:"worker_id"`
 	TenantID                     uuid.UUID          `json:"tenant_id"`
 	TimeoutAt                    pgtype.Timestamp   `json:"timeout_at"`
 	ID                           int64              `json:"id"`
@@ -158,7 +158,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	StepTimeout                  pgtype.Text        `json:"step_timeout"`
 	Priority                     pgtype.Int4        `json:"priority"`
 	Sticky                       V1StickyStrategy   `json:"sticky"`
-	DesiredWorkerID              uuid.UUID          `json:"desired_worker_id"`
+	DesiredWorkerID              *uuid.UUID         `json:"desired_worker_id"`
 	ExternalID                   uuid.UUID          `json:"external_id"`
 	DisplayName                  string             `json:"display_name"`
 	Input                        []byte             `json:"input"`
@@ -169,7 +169,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	AdditionalMetadata           []byte             `json:"additional_metadata"`
 	DagID                        pgtype.Int8        `json:"dag_id"`
 	DagInsertedAt                pgtype.Timestamptz `json:"dag_inserted_at"`
-	ParentTaskExternalID         uuid.UUID          `json:"parent_task_external_id"`
+	ParentTaskExternalID         *uuid.UUID         `json:"parent_task_external_id"`
 	ParentTaskID                 pgtype.Int8        `json:"parent_task_id"`
 	ParentTaskInsertedAt         pgtype.Timestamptz `json:"parent_task_inserted_at"`
 	ChildIndex                   pgtype.Int8        `json:"child_index"`
@@ -301,7 +301,7 @@ type ListWorkersWithSlotCountParams struct {
 type ListWorkersWithSlotCountRow struct {
 	Worker         Worker      `json:"worker"`
 	WebhookUrl     pgtype.Text `json:"webhookUrl"`
-	WebhookId      uuid.UUID   `json:"webhookId"`
+	WebhookId      *uuid.UUID  `json:"webhookId"`
 	RemainingSlots int32       `json:"remainingSlots"`
 }
 

@@ -28,7 +28,7 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "HARD sticky strategy with desired worker available",
 			qi: &dbsqlc.QueueItem{
 				Sticky:          dbsqlc.NullStickyStrategy{Valid: true, StickyStrategy: dbsqlc.StickyStrategyHARD},
-				DesiredWorkerId: uuid.MustParse(stableWorkerId1),
+				DesiredWorkerId: func() *uuid.UUID { u := uuid.MustParse(stableWorkerId1); return &u }(),
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: (stableWorkerId1)}}, []string{}),
@@ -40,7 +40,7 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "HARD sticky strategy without desired worker",
 			qi: &dbsqlc.QueueItem{
 				Sticky:          dbsqlc.NullStickyStrategy{Valid: true, StickyStrategy: dbsqlc.StickyStrategyHARD},
-				DesiredWorkerId: uuid.MustParse(uuid.New().String()),
+				DesiredWorkerId: func() *uuid.UUID { u := uuid.MustParse(uuid.New().String()); return &u }(),
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: (uuid.New().String())}}, []string{}),
@@ -52,7 +52,7 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "SOFT sticky strategy with desired worker available",
 			qi: &dbsqlc.QueueItem{
 				Sticky:          dbsqlc.NullStickyStrategy{Valid: true, StickyStrategy: dbsqlc.StickyStrategySOFT},
-				DesiredWorkerId: uuid.MustParse(stableWorkerId1),
+				DesiredWorkerId: func() *uuid.UUID { u := uuid.MustParse(stableWorkerId1); return &u }(),
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: (stableWorkerId2)}}, []string{}),

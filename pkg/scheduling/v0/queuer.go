@@ -167,7 +167,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		stepIds := make([]uuid.UUID, 0, len(qis))
 
 		for _, qi := range qis {
-			stepIds = append(stepIds, qi.StepId)
+			stepIds = append(stepIds, *qi.StepId)
 		}
 
 		labels, err := q.repo.GetDesiredLabels(ctx, stepIds)
@@ -405,7 +405,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 			ExceededKey:   rateLimitedItem.exceededKey,
 			ExceededUnits: rateLimitedItem.exceededUnits,
 			ExceededVal:   rateLimitedItem.exceededVal,
-			StepRunId:     rateLimitedItem.qi.StepRunId,
+			StepRunId:     *rateLimitedItem.qi.StepRunId,
 		})
 	}
 

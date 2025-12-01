@@ -1164,7 +1164,7 @@ func (w *workflowRunEngineRepository) queueWorkflowRunJobs(ctx context.Context, 
 
 	for i := range jobRuns {
 		// don't start job runs that are onFailure
-		if workflowRun.WorkflowVersion.OnFailureJobId != uuid.Nil && jobRuns[i].JobId == workflowRun.WorkflowVersion.OnFailureJobId {
+		if workflowRun.WorkflowVersion.OnFailureJobId != nil && *workflowRun.WorkflowVersion.OnFailureJobId == jobRuns[i].JobId {
 			continue
 		}
 
@@ -1420,8 +1420,9 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 		}
 
 		// get all step runs for the workflow
+		t := uuid.MustParse(tenantId)
 		stepRuns, err := s.queries.ListStepRuns(ctx, tx, dbsqlc.ListStepRunsParams{
-			TenantId: uuid.MustParse(tenantId),
+			TenantId: &t,
 			WorkflowRunIds: []uuid.UUID{
 				uuid.MustParse(workflowRunId),
 			},
@@ -1593,15 +1594,15 @@ func (s *sharedRepository) listWorkflowRuns(ctx context.Context, tx dbsqlc.DBTX,
 	if opts.WorkflowId != nil {
 		pgWorkflowId := uuid.MustParse(*opts.WorkflowId)
 
-		queryParams.WorkflowId = pgWorkflowId
-		countParams.WorkflowId = pgWorkflowId
+		queryParams.WorkflowId = &pgWorkflowId
+		countParams.WorkflowId = &pgWorkflowId
 	}
 
 	if opts.WorkflowVersionId != nil {
 		pgWorkflowVersionId := uuid.MustParse(*opts.WorkflowVersionId)
 
-		queryParams.WorkflowVersionId = pgWorkflowVersionId
-		countParams.WorkflowVersionId = pgWorkflowVersionId
+		queryParams.WorkflowVersionId = &pgWorkflowVersionId
+		countParams.WorkflowVersionId = &pgWorkflowVersionId
 	}
 
 	if opts.AdditionalMetadata != nil {
@@ -1628,22 +1629,22 @@ func (s *sharedRepository) listWorkflowRuns(ctx context.Context, tx dbsqlc.DBTX,
 	if opts.ParentId != nil {
 		pgParentId := uuid.MustParse(*opts.ParentId)
 
-		queryParams.ParentId = pgParentId
-		countParams.ParentId = pgParentId
+		queryParams.ParentId = &pgParentId
+		countParams.ParentId = &pgParentId
 	}
 
 	if opts.ParentStepRunId != nil {
 		pgParentStepRunId := uuid.MustParse(*opts.ParentStepRunId)
 
-		queryParams.ParentStepRunId = pgParentStepRunId
-		countParams.ParentStepRunId = pgParentStepRunId
+		queryParams.ParentStepRunId = &pgParentStepRunId
+		countParams.ParentStepRunId = &pgParentStepRunId
 	}
 
 	if opts.EventId != nil {
 		pgEventId := uuid.MustParse(*opts.EventId)
 
-		queryParams.EventId = pgEventId
-		countParams.EventId = pgEventId
+		queryParams.EventId = &pgEventId
+		countParams.EventId = &pgEventId
 	}
 
 	if opts.GroupKey != nil {
@@ -1741,25 +1742,25 @@ func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *d
 	if opts.WorkflowId != nil {
 		pgWorkflowId := uuid.MustParse(*opts.WorkflowId)
 
-		queryParams.WorkflowId = pgWorkflowId
+		queryParams.WorkflowId = &pgWorkflowId
 	}
 
 	if opts.ParentId != nil {
 		pgParentId := uuid.MustParse(*opts.ParentId)
 
-		queryParams.ParentId = pgParentId
+		queryParams.ParentId = &pgParentId
 	}
 
 	if opts.ParentStepRunId != nil {
 		pgParentStepRunId := uuid.MustParse(*opts.ParentStepRunId)
 
-		queryParams.ParentStepRunId = pgParentStepRunId
+		queryParams.ParentStepRunId = &pgParentStepRunId
 	}
 
 	if opts.EventId != nil {
 		pgEventId := uuid.MustParse(*opts.EventId)
 
-		queryParams.EventId = pgEventId
+		queryParams.EventId = &pgEventId
 	}
 
 	if opts.CreatedAfter != nil {
@@ -1828,10 +1829,14 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 			defer rollback()
 
+			id := uuid.MustParse(workflowRunId)
+			tenantId := uuid.MustParse(opt.TenantId)
+			workflowVersionId := uuid.MustParse(opt.WorkflowVersionId)
+
 			createParams := dbsqlc.CreateWorkflowRunParams{
-				ID:                uuid.MustParse(workflowRunId),
-				Tenantid:          uuid.MustParse(opt.TenantId),
-				Workflowversionid: uuid.MustParse(opt.WorkflowVersionId),
+				ID:                &id,
+				Tenantid:          tenantId,
+				Workflowversionid: workflowVersionId,
 			}
 
 			if opt.DisplayName != nil {
@@ -1859,11 +1864,13 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			}
 
 			if opt.ParentId != nil {
-				createParams.ParentId = uuid.MustParse(*opt.ParentId)
+				parentId := uuid.MustParse(*opt.ParentId)
+				createParams.ParentId = &parentId
 			}
 
 			if opt.ParentStepRunId != nil {
-				createParams.ParentStepRunId = uuid.MustParse(*opt.ParentStepRunId)
+				parentStepRunId := uuid.MustParse(*opt.ParentStepRunId)
+				createParams.ParentStepRunId = &parentStepRunId
 			}
 
 			if opt.AdditionalMetadata != nil {
@@ -1886,7 +1893,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			}
 
 			crp := dbsqlc.CreateWorkflowRunsParams{
-				ID:                 createParams.ID,
+				ID:                 *createParams.ID,
 				TenantId:           createParams.Tenantid,
 				WorkflowVersionId:  createParams.Workflowversionid,
 				DisplayName:        createParams.DisplayName,
@@ -1945,9 +1952,9 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				ID:           uuid.MustParse(uuid.New().String()),
 				TenantId:     uuid.MustParse(opt.TenantId),
 				ParentId:     uuid.MustParse(workflowRunId),
-				EventId:      eventId,
-				CronParentId: cronParentId,
-				ScheduledId:  scheduledWorkflowId,
+				EventId:      &eventId,
+				CronParentId: &cronParentId,
+				ScheduledId:  &scheduledWorkflowId,
 				CronSchedule: cronSchedule,
 				CronName:     cronName,
 			}

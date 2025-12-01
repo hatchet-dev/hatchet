@@ -45,8 +45,8 @@ type AssignGetGroupKeyRunToTickerParams struct {
 }
 
 type AssignGetGroupKeyRunToTickerRow struct {
-	ID       uuid.UUID `json:"id"`
-	TickerId uuid.UUID `json:"tickerId"`
+	ID       uuid.UUID  `json:"id"`
+	TickerId *uuid.UUID `json:"tickerId"`
 }
 
 func (q *Queries) AssignGetGroupKeyRunToTicker(ctx context.Context, db DBTX, arg AssignGetGroupKeyRunToTickerParams) (*AssignGetGroupKeyRunToTickerRow, error) {
@@ -122,9 +122,9 @@ type AssignGetGroupKeyRunToWorkerParams struct {
 }
 
 type AssignGetGroupKeyRunToWorkerRow struct {
-	ID           uuid.UUID `json:"id"`
-	WorkerId     uuid.UUID `json:"workerId"`
-	DispatcherId uuid.UUID `json:"dispatcherId"`
+	ID           uuid.UUID  `json:"id"`
+	WorkerId     *uuid.UUID `json:"workerId"`
+	DispatcherId *uuid.UUID `json:"dispatcherId"`
 }
 
 func (q *Queries) AssignGetGroupKeyRunToWorker(ctx context.Context, db DBTX, arg AssignGetGroupKeyRunToWorkerParams) (*AssignGetGroupKeyRunToWorkerRow, error) {

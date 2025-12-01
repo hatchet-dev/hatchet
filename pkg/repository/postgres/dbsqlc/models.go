@@ -1300,7 +1300,7 @@ type APIToken struct {
 	ExpiresAt   pgtype.Timestamp `json:"expiresAt"`
 	Revoked     bool             `json:"revoked"`
 	Name        pgtype.Text      `json:"name"`
-	TenantId    uuid.UUID        `json:"tenantId"`
+	TenantId    *uuid.UUID       `json:"tenantId"`
 	NextAlertAt pgtype.Timestamp `json:"nextAlertAt"`
 	Internal    bool             `json:"internal"`
 }
@@ -1341,7 +1341,7 @@ type Event struct {
 	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
 	Key                string           `json:"key"`
 	TenantId           uuid.UUID        `json:"tenantId"`
-	ReplayedFromId     uuid.UUID        `json:"replayedFromId"`
+	ReplayedFromId     *uuid.UUID       `json:"replayedFromId"`
 	Data               []byte           `json:"data"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
 	InsertOrder        pgtype.Int4      `json:"insertOrder"`
@@ -1359,8 +1359,8 @@ type GetGroupKeyRun struct {
 	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
 	DeletedAt         pgtype.Timestamp `json:"deletedAt"`
 	TenantId          uuid.UUID        `json:"tenantId"`
-	WorkerId          uuid.UUID        `json:"workerId"`
-	TickerId          uuid.UUID        `json:"tickerId"`
+	WorkerId          *uuid.UUID       `json:"workerId"`
+	TickerId          *uuid.UUID       `json:"tickerId"`
 	Status            StepRunStatus    `json:"status"`
 	Input             []byte           `json:"input"`
 	Output            pgtype.Text      `json:"output"`
@@ -1406,7 +1406,7 @@ type JobRun struct {
 	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
 	TenantId        uuid.UUID        `json:"tenantId"`
 	JobId           uuid.UUID        `json:"jobId"`
-	TickerId        uuid.UUID        `json:"tickerId"`
+	TickerId        *uuid.UUID       `json:"tickerId"`
 	Status          JobRunStatus     `json:"status"`
 	Result          []byte           `json:"result"`
 	StartedAt       pgtype.Timestamp `json:"startedAt"`
@@ -1440,7 +1440,7 @@ type LogLine struct {
 	ID        int64            `json:"id"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
 	TenantId  uuid.UUID        `json:"tenantId"`
-	StepRunId uuid.UUID        `json:"stepRunId"`
+	StepRunId *uuid.UUID       `json:"stepRunId"`
 	Message   string           `json:"message"`
 	Level     LogLineLevel     `json:"level"`
 	Metadata  []byte           `json:"metadata"`
@@ -1452,7 +1452,7 @@ type MessageQueue struct {
 	Durable             bool             `json:"durable"`
 	AutoDeleted         bool             `json:"autoDeleted"`
 	Exclusive           bool             `json:"exclusive"`
-	ExclusiveConsumerId uuid.UUID        `json:"exclusiveConsumerId"`
+	ExclusiveConsumerId *uuid.UUID       `json:"exclusiveConsumerId"`
 }
 
 type MessageQueueItem struct {
@@ -1473,8 +1473,8 @@ type Queue struct {
 
 type QueueItem struct {
 	ID                int64              `json:"id"`
-	StepRunId         uuid.UUID          `json:"stepRunId"`
-	StepId            uuid.UUID          `json:"stepId"`
+	StepRunId         *uuid.UUID         `json:"stepRunId"`
+	StepId            *uuid.UUID         `json:"stepId"`
 	ActionId          pgtype.Text        `json:"actionId"`
 	ScheduleTimeoutAt pgtype.Timestamp   `json:"scheduleTimeoutAt"`
 	StepTimeout       pgtype.Text        `json:"stepTimeout"`
@@ -1483,7 +1483,7 @@ type QueueItem struct {
 	TenantId          uuid.UUID          `json:"tenantId"`
 	Queue             string             `json:"queue"`
 	Sticky            NullStickyStrategy `json:"sticky"`
-	DesiredWorkerId   uuid.UUID          `json:"desiredWorkerId"`
+	DesiredWorkerId   *uuid.UUID         `json:"desiredWorkerId"`
 }
 
 type RateLimit struct {
@@ -1616,8 +1616,8 @@ type StepRun struct {
 	JobRunId           uuid.UUID        `json:"jobRunId"`
 	StepId             uuid.UUID        `json:"stepId"`
 	Order              int64            `json:"order"`
-	WorkerId           uuid.UUID        `json:"workerId"`
-	TickerId           uuid.UUID        `json:"tickerId"`
+	WorkerId           *uuid.UUID       `json:"workerId"`
+	TickerId           *uuid.UUID       `json:"tickerId"`
 	Status             StepRunStatus    `json:"status"`
 	Input              []byte           `json:"input"`
 	Output             []byte           `json:"output"`
@@ -1644,13 +1644,13 @@ type StepRunEvent struct {
 	ID            int64                `json:"id"`
 	TimeFirstSeen pgtype.Timestamp     `json:"timeFirstSeen"`
 	TimeLastSeen  pgtype.Timestamp     `json:"timeLastSeen"`
-	StepRunId     uuid.UUID            `json:"stepRunId"`
+	StepRunId     *uuid.UUID           `json:"stepRunId"`
 	Reason        StepRunEventReason   `json:"reason"`
 	Severity      StepRunEventSeverity `json:"severity"`
 	Message       string               `json:"message"`
 	Count         int32                `json:"count"`
 	Data          []byte               `json:"data"`
-	WorkflowRunId uuid.UUID            `json:"workflowRunId"`
+	WorkflowRunId *uuid.UUID           `json:"workflowRunId"`
 }
 
 type StepRunExpressionEval struct {
@@ -1689,7 +1689,7 @@ type StreamEvent struct {
 	ID        int64            `json:"id"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
 	TenantId  uuid.UUID        `json:"tenantId"`
-	StepRunId uuid.UUID        `json:"stepRunId"`
+	StepRunId *uuid.UUID       `json:"stepRunId"`
 	Message   []byte           `json:"message"`
 	Metadata  []byte           `json:"metadata"`
 }
@@ -1731,7 +1731,7 @@ type TenantAlertingSettings struct {
 	TenantId                        uuid.UUID        `json:"tenantId"`
 	MaxFrequency                    string           `json:"maxFrequency"`
 	LastAlertedAt                   pgtype.Timestamp `json:"lastAlertedAt"`
-	TickerId                        uuid.UUID        `json:"tickerId"`
+	TickerId                        *uuid.UUID       `json:"tickerId"`
 	EnableExpiringTokenAlerts       bool             `json:"enableExpiringTokenAlerts"`
 	EnableWorkflowRunFailureAlerts  bool             `json:"enableWorkflowRunFailureAlerts"`
 	EnableTenantResourceLimitAlerts bool             `json:"enableTenantResourceLimitAlerts"`
@@ -1850,7 +1850,7 @@ type UserSession struct {
 	ID        uuid.UUID        `json:"id"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
-	UserId    uuid.UUID        `json:"userId"`
+	UserId    *uuid.UUID       `json:"userId"`
 	Data      []byte           `json:"data"`
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
 }
@@ -1864,7 +1864,7 @@ type WebhookWorker struct {
 	Url        string           `json:"url"`
 	TokenValue pgtype.Text      `json:"tokenValue"`
 	Deleted    bool             `json:"deleted"`
-	TokenId    uuid.UUID        `json:"tokenId"`
+	TokenId    *uuid.UUID       `json:"tokenId"`
 	TenantId   uuid.UUID        `json:"tenantId"`
 }
 
@@ -1890,13 +1890,13 @@ type Worker struct {
 	TenantId                uuid.UUID        `json:"tenantId"`
 	LastHeartbeatAt         pgtype.Timestamp `json:"lastHeartbeatAt"`
 	Name                    string           `json:"name"`
-	DispatcherId            uuid.UUID        `json:"dispatcherId"`
+	DispatcherId            *uuid.UUID       `json:"dispatcherId"`
 	MaxRuns                 int32            `json:"maxRuns"`
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 	IsPaused                bool             `json:"isPaused"`
 	Type                    WorkerType       `json:"type"`
-	WebhookId               uuid.UUID        `json:"webhookId"`
+	WebhookId               *uuid.UUID       `json:"webhookId"`
 	Language                NullWorkerSDKS   `json:"language"`
 	LanguageVersion         pgtype.Text      `json:"languageVersion"`
 	Os                      pgtype.Text      `json:"os"`
@@ -1905,9 +1905,9 @@ type Worker struct {
 }
 
 type WorkerAssignEvent struct {
-	ID               int64     `json:"id"`
-	WorkerId         uuid.UUID `json:"workerId"`
-	AssignedStepRuns []byte    `json:"assignedStepRuns"`
+	ID               int64      `json:"id"`
+	WorkerId         *uuid.UUID `json:"workerId"`
+	AssignedStepRuns []byte     `json:"assignedStepRuns"`
 }
 
 type WorkerLabel struct {
@@ -1936,7 +1936,7 @@ type WorkflowConcurrency struct {
 	CreatedAt                  pgtype.Timestamp         `json:"createdAt"`
 	UpdatedAt                  pgtype.Timestamp         `json:"updatedAt"`
 	WorkflowVersionId          uuid.UUID                `json:"workflowVersionId"`
-	GetConcurrencyGroupId      uuid.UUID                `json:"getConcurrencyGroupId"`
+	GetConcurrencyGroupId      *uuid.UUID               `json:"getConcurrencyGroupId"`
 	MaxRuns                    int32                    `json:"maxRuns"`
 	LimitStrategy              ConcurrencyLimitStrategy `json:"limitStrategy"`
 	ConcurrencyGroupExpression pgtype.Text              `json:"concurrencyGroupExpression"`
@@ -1957,8 +1957,8 @@ type WorkflowRun struct {
 	ID                 uuid.UUID         `json:"id"`
 	ChildIndex         pgtype.Int4       `json:"childIndex"`
 	ChildKey           pgtype.Text       `json:"childKey"`
-	ParentId           uuid.UUID         `json:"parentId"`
-	ParentStepRunId    uuid.UUID         `json:"parentStepRunId"`
+	ParentId           *uuid.UUID        `json:"parentId"`
+	ParentStepRunId    *uuid.UUID        `json:"parentStepRunId"`
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
 	Duration           pgtype.Int8       `json:"duration"`
 	Priority           pgtype.Int4       `json:"priority"`
@@ -1981,7 +1981,7 @@ type WorkflowRunStickyState struct {
 	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
 	TenantId        uuid.UUID        `json:"tenantId"`
 	WorkflowRunId   uuid.UUID        `json:"workflowRunId"`
-	DesiredWorkerId uuid.UUID        `json:"desiredWorkerId"`
+	DesiredWorkerId *uuid.UUID       `json:"desiredWorkerId"`
 	Strategy        StickyStrategy   `json:"strategy"`
 }
 
@@ -1991,10 +1991,10 @@ type WorkflowRunTriggeredBy struct {
 	UpdatedAt    pgtype.Timestamp `json:"updatedAt"`
 	DeletedAt    pgtype.Timestamp `json:"deletedAt"`
 	TenantId     uuid.UUID        `json:"tenantId"`
-	EventId      uuid.UUID        `json:"eventId"`
-	CronParentId uuid.UUID        `json:"cronParentId"`
+	EventId      *uuid.UUID       `json:"eventId"`
+	CronParentId *uuid.UUID       `json:"cronParentId"`
 	CronSchedule pgtype.Text      `json:"cronSchedule"`
-	ScheduledId  uuid.UUID        `json:"scheduledId"`
+	ScheduledId  *uuid.UUID       `json:"scheduledId"`
 	Input        []byte           `json:"input"`
 	ParentId     uuid.UUID        `json:"parentId"`
 	CronName     pgtype.Text      `json:"cronName"`
@@ -2017,7 +2017,7 @@ type WorkflowToWorkflowTag struct {
 type WorkflowTriggerCronRef struct {
 	ParentId           uuid.UUID                     `json:"parentId"`
 	Cron               string                        `json:"cron"`
-	TickerId           uuid.UUID                     `json:"tickerId"`
+	TickerId           *uuid.UUID                    `json:"tickerId"`
 	Input              []byte                        `json:"input"`
 	Enabled            bool                          `json:"enabled"`
 	AdditionalMetadata []byte                        `json:"additionalMetadata"`
@@ -2039,12 +2039,12 @@ type WorkflowTriggerScheduledRef struct {
 	ID                  uuid.UUID                          `json:"id"`
 	ParentId            uuid.UUID                          `json:"parentId"`
 	TriggerAt           pgtype.Timestamp                   `json:"triggerAt"`
-	TickerId            uuid.UUID                          `json:"tickerId"`
+	TickerId            *uuid.UUID                         `json:"tickerId"`
 	Input               []byte                             `json:"input"`
 	ChildIndex          pgtype.Int4                        `json:"childIndex"`
 	ChildKey            pgtype.Text                        `json:"childKey"`
-	ParentStepRunId     uuid.UUID                          `json:"parentStepRunId"`
-	ParentWorkflowRunId uuid.UUID                          `json:"parentWorkflowRunId"`
+	ParentStepRunId     *uuid.UUID                         `json:"parentStepRunId"`
+	ParentWorkflowRunId *uuid.UUID                         `json:"parentWorkflowRunId"`
 	AdditionalMetadata  []byte                             `json:"additionalMetadata"`
 	CreatedAt           pgtype.Timestamp                   `json:"createdAt"`
 	DeletedAt           pgtype.Timestamp                   `json:"deletedAt"`
@@ -2072,7 +2072,7 @@ type WorkflowVersion struct {
 	WorkflowId                uuid.UUID          `json:"workflowId"`
 	Checksum                  string             `json:"checksum"`
 	ScheduleTimeout           string             `json:"scheduleTimeout"`
-	OnFailureJobId            uuid.UUID          `json:"onFailureJobId"`
+	OnFailureJobId            *uuid.UUID         `json:"onFailureJobId"`
 	Sticky                    NullStickyStrategy `json:"sticky"`
 	Kind                      WorkflowKind       `json:"kind"`
 	DefaultPriority           pgtype.Int4        `json:"defaultPriority"`

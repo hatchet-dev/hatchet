@@ -405,15 +405,15 @@ type SaveSatisfiedMatchConditionsRow struct {
 	ExistingData                  []byte                 `json:"existing_data"`
 	SignalTaskID                  pgtype.Int8            `json:"signal_task_id"`
 	SignalTaskInsertedAt          pgtype.Timestamptz     `json:"signal_task_inserted_at"`
-	SignalExternalID              uuid.UUID              `json:"signal_external_id"`
+	SignalExternalID              *uuid.UUID             `json:"signal_external_id"`
 	SignalKey                     pgtype.Text            `json:"signal_key"`
 	TriggerDagID                  pgtype.Int8            `json:"trigger_dag_id"`
 	TriggerDagInsertedAt          pgtype.Timestamptz     `json:"trigger_dag_inserted_at"`
-	TriggerStepID                 uuid.UUID              `json:"trigger_step_id"`
+	TriggerStepID                 *uuid.UUID             `json:"trigger_step_id"`
 	TriggerStepIndex              pgtype.Int8            `json:"trigger_step_index"`
-	TriggerExternalID             uuid.UUID              `json:"trigger_external_id"`
-	TriggerWorkflowRunID          uuid.UUID              `json:"trigger_workflow_run_id"`
-	TriggerParentTaskExternalID   uuid.UUID              `json:"trigger_parent_task_external_id"`
+	TriggerExternalID             *uuid.UUID             `json:"trigger_external_id"`
+	TriggerWorkflowRunID          *uuid.UUID             `json:"trigger_workflow_run_id"`
+	TriggerParentTaskExternalID   *uuid.UUID             `json:"trigger_parent_task_external_id"`
 	TriggerParentTaskID           pgtype.Int8            `json:"trigger_parent_task_id"`
 	TriggerParentTaskInsertedAt   pgtype.Timestamptz     `json:"trigger_parent_task_inserted_at"`
 	TriggerChildIndex             pgtype.Int8            `json:"trigger_child_index"`

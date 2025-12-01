@@ -205,7 +205,7 @@ type ListJobRunsForWorkflowRunFullRow struct {
 	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
 	TenantId        uuid.UUID        `json:"tenantId"`
 	JobId           uuid.UUID        `json:"jobId"`
-	TickerId        uuid.UUID        `json:"tickerId"`
+	TickerId        *uuid.UUID       `json:"tickerId"`
 	Status          JobRunStatus     `json:"status"`
 	Result          []byte           `json:"result"`
 	StartedAt       pgtype.Timestamp `json:"startedAt"`

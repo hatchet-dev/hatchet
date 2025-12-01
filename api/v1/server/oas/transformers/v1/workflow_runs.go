@@ -182,8 +182,8 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 	attempt := retryCount + 1
 
 	var parentTaskExternalId *uuid.UUID
-	if task.ParentTaskExternalID != uuid.Nil {
-		parentTaskExternalId = &task.ParentTaskExternalID
+	if task.ParentTaskExternalID != nil {
+		parentTaskExternalId = task.ParentTaskExternalID
 	}
 
 	return gen.V1TaskSummary{

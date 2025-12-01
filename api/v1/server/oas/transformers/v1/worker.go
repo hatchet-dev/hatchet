@@ -91,16 +91,16 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 		Name:          worker.Name,
 		Type:          gen.WorkerType(worker.Type),
 		Status:        &status,
-		DispatcherId:  &dispatcherId,
+		DispatcherId:  dispatcherId,
 		MaxRuns:       &maxRuns,
 		AvailableRuns: &availableRuns,
 		WebhookUrl:    webhookUrl,
 		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
 	}
 
-	if worker.WebhookId != uuid.Nil {
+	if worker.WebhookId != nil {
 		wid := worker.WebhookId
-		res.WebhookId = &wid
+		res.WebhookId = wid
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {

@@ -45,7 +45,7 @@ type CreateWebhookWorkerParams struct {
 	Secret     string      `json:"secret"`
 	Url        string      `json:"url"`
 	Tenantid   uuid.UUID   `json:"tenantid"`
-	TokenId    uuid.UUID   `json:"tokenId"`
+	TokenId    *uuid.UUID  `json:"tokenId"`
 	TokenValue pgtype.Text `json:"tokenValue"`
 	Deleted    pgtype.Bool `json:"deleted"`
 }
@@ -308,7 +308,7 @@ RETURNING id, "createdAt", "updatedAt", name, secret, url, "tokenValue", deleted
 
 type UpdateWebhookWorkerTokenParams struct {
 	TokenValue pgtype.Text `json:"tokenValue"`
-	TokenId    uuid.UUID   `json:"tokenId"`
+	TokenId    *uuid.UUID  `json:"tokenId"`
 	ID         uuid.UUID   `json:"id"`
 	Tenantid   uuid.UUID   `json:"tenantid"`
 }

@@ -79,7 +79,8 @@ func (r *webhookWorkerEngineRepository) CreateWebhookWorker(ctx context.Context,
 	}
 
 	if opts.TokenID != nil {
-		params.TokenId = uuid.MustParse(*opts.TokenID)
+		t := uuid.MustParse(*opts.TokenID)
+		params.TokenId = &t
 	}
 
 	if opts.TokenValue != nil {
@@ -109,7 +110,8 @@ func (r *webhookWorkerEngineRepository) UpdateWebhookWorkerToken(ctx context.Con
 	}
 
 	if opts.TokenID != nil {
-		params.TokenId = uuid.MustParse(*opts.TokenID)
+		t := uuid.MustParse(*opts.TokenID)
+		params.TokenId = &t
 	}
 
 	if opts.TokenValue != nil {

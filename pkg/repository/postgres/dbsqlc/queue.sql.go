@@ -173,8 +173,8 @@ VALUES
 `
 
 type CreateQueueItemParams struct {
-	StepRunId         uuid.UUID          `json:"stepRunId"`
-	StepId            uuid.UUID          `json:"stepId"`
+	StepRunId         *uuid.UUID         `json:"stepRunId"`
+	StepId            *uuid.UUID         `json:"stepId"`
 	ActionId          pgtype.Text        `json:"actionId"`
 	ScheduleTimeoutAt pgtype.Timestamp   `json:"scheduleTimeoutAt"`
 	StepTimeout       pgtype.Text        `json:"stepTimeout"`
@@ -182,7 +182,7 @@ type CreateQueueItemParams struct {
 	Tenantid          uuid.UUID          `json:"tenantid"`
 	Queue             string             `json:"queue"`
 	Sticky            NullStickyStrategy `json:"sticky"`
-	DesiredWorkerId   uuid.UUID          `json:"desiredWorkerId"`
+	DesiredWorkerId   *uuid.UUID         `json:"desiredWorkerId"`
 }
 
 func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueItemParams) error {
@@ -202,8 +202,8 @@ func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueI
 }
 
 type CreateQueueItemsBulkParams struct {
-	StepRunId         uuid.UUID          `json:"stepRunId"`
-	StepId            uuid.UUID          `json:"stepId"`
+	StepRunId         *uuid.UUID         `json:"stepRunId"`
+	StepId            *uuid.UUID         `json:"stepId"`
 	ActionId          pgtype.Text        `json:"actionId"`
 	ScheduleTimeoutAt pgtype.Timestamp   `json:"scheduleTimeoutAt"`
 	StepTimeout       pgtype.Text        `json:"stepTimeout"`
@@ -212,7 +212,7 @@ type CreateQueueItemsBulkParams struct {
 	TenantId          uuid.UUID          `json:"tenantId"`
 	Queue             string             `json:"queue"`
 	Sticky            NullStickyStrategy `json:"sticky"`
-	DesiredWorkerId   uuid.UUID          `json:"desiredWorkerId"`
+	DesiredWorkerId   *uuid.UUID         `json:"desiredWorkerId"`
 }
 
 const createRetryQueueItem = `-- name: CreateRetryQueueItem :exec

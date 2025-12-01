@@ -516,7 +516,7 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 			ErrorMessage:         row.ErrorMessage.String,
 			WorkflowVersionId:    row.WorkflowVersionID,
 			Input:                inputPayload,
-			ParentTaskExternalId: &row.ParentTaskExternalID,
+			ParentTaskExternalId: row.ParentTaskExternalID,
 		},
 		TaskMetadata: taskMetadata,
 	}, nil
@@ -1067,7 +1067,9 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 		dagsToPopulated[externalId] = dag
 		externalIdsForPayloads = append(externalIdsForPayloads, dag.ExternalID)
-		externalIdsForPayloads = append(externalIdsForPayloads, dag.OutputEventExternalID)
+		if dag.OutputEventExternalID != nil {
+			externalIdsForPayloads = append(externalIdsForPayloads, *dag.OutputEventExternalID)
+		}
 	}
 
 	count, err := r.queries.CountWorkflowRuns(ctx, tx, countParams)
@@ -1120,10 +1122,14 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				continue
 			}
 
-			outputPayload, exists := externalIdToPayload[dag.OutputEventExternalID]
+			var outputPayload []byte
+			var exists bool
+			if dag.OutputEventExternalID != nil {
+				outputPayload, exists = externalIdToPayload[*dag.OutputEventExternalID]
+			}
 
 			if !exists {
-				if opts.IncludePayloads && dag.OutputEventExternalID != uuid.Nil && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
+				if opts.IncludePayloads && dag.OutputEventExternalID != nil && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
 					r.l.Error().Msgf("ListWorkflowRuns-1: dag with external_id %s and inserted_at %s has empty payload, falling back to output", dag.ExternalID, dag.InsertedAt.Time)
 				}
 				outputPayload = dag.Output
@@ -1159,7 +1165,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				TaskInsertedAt:       nil,
 				Output:               outputPayload,
 				Input:                inputPayload,
-				ParentTaskExternalId: &dag.ParentTaskExternalID,
+				ParentTaskExternalId: dag.ParentTaskExternalID,
 				RetryCount:           &retryCount,
 			})
 		} else {
@@ -1311,10 +1317,12 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 		return nil, err
 	}
 
-	externalIds := make([]uuid.UUID, len(rows))
+	externalIds := make([]uuid.UUID, 0, len(rows))
 
-	for i, row := range rows {
-		externalIds[i] = row.EventExternalID
+	for _, row := range rows {
+		if row.EventExternalID != nil {
+			externalIds = append(externalIds, *row.EventExternalID)
+		}
 	}
 
 	payloads, err := r.ReadPayloads(ctx, tenantId, externalIds...)
@@ -1326,9 +1334,15 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 	taskEventWithPayloads := make([]*TaskEventWithPayloads, 0, len(rows))
 
 	for _, row := range rows {
-		payload, exists := payloads[row.EventExternalID]
-		if !exists {
-			r.l.Error().Msgf("ListTaskRunEventsByWorkflowRunId: event with external_id %s and task_inserted_at %s has empty payload, falling back to payload", row.EventExternalID, row.TaskInsertedAt.Time)
+		var payload []byte
+		if row.EventExternalID != nil {
+			var exists bool
+			payload, exists = payloads[*row.EventExternalID]
+			if !exists {
+				r.l.Error().Msgf("ListTaskRunEventsByWorkflowRunId: event with external_id %s and task_inserted_at %s has empty payload, falling back to payload", row.EventExternalID.String(), row.TaskInsertedAt.Time)
+				payload = row.Output
+			}
+		} else {
 			payload = row.Output
 		}
 
@@ -1352,14 +1366,14 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId st
 		}
 	}
 
-	var parentTaskExternalId uuid.UUID
+	var parentTaskExternalId *uuid.UUID
 	if opts.ParentTaskExternalID != nil {
-		parentTaskExternalId = *opts.ParentTaskExternalID
+		parentTaskExternalId = opts.ParentTaskExternalID
 	}
 
-	var triggeringEventExternalId uuid.UUID
+	var triggeringEventExternalId *uuid.UUID
 	if opts.TriggeringEventExternalId != nil {
-		triggeringEventExternalId = *opts.TriggeringEventExternalId
+		triggeringEventExternalId = opts.TriggeringEventExternalId
 	}
 
 	var additionalMetaKeys []string
@@ -1463,7 +1477,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 			})
 		}
 
-		if event.ExternalID != uuid.Nil {
+		if event.ExternalID != nil {
 			// generating a dummy id + inserted at to use for creating the external keys for the task events
 			// we do this since we don't have the id + inserted at of the events themselves on the opts, and we don't
 			// actually need those for anything once the keys are created.
@@ -1473,7 +1487,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 
 			payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
 				Id:         dummyId,
-				ExternalId: event.ExternalID,
+				ExternalId: *event.ExternalID,
 				InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
 				Payload:    output,
 			})
@@ -1599,7 +1613,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 					TaskInsertedAt: row.InsertedAt,
 					ReadableStatus: row.ReadableStatus,
 					ExternalId:     row.ExternalID,
-					LatestWorkerId: row.LatestWorkerID,
+					LatestWorkerId: *row.LatestWorkerID,
 					WorkflowId:     row.WorkflowID,
 					IsDAGTask:      row.IsDagTask,
 				})
@@ -1837,7 +1851,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 			ExternalID:           dag.ExternalID,
 			DisplayName:          dag.DisplayName,
 			AdditionalMetadata:   dag.AdditionalMetadata,
-			ParentTaskExternalID: parentTaskExternalID,
+			ParentTaskExternalID: &parentTaskExternalID,
 			TotalTasks:           int32(dag.TotalTasks), // nolint: gosec
 			Input:                input,
 		})
@@ -2080,7 +2094,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 			RunInsertedAt: trigger.RunInsertedAt,
 			EventID:       eventId,
 			EventSeenAt:   trigger.EventSeenAt,
-			FilterID:      trigger.FilterId,
+			FilterID:      &trigger.FilterId,
 		})
 	}
 

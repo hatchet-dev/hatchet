@@ -45,9 +45,9 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 
 	var parentTaskExternalId *uuid.UUID
 
-	if task.ParentTaskExternalID != uuid.Nil {
+	if task.ParentTaskExternalID != nil {
 		parentTaskExternalIdValue := task.ParentTaskExternalID
-		parentTaskExternalId = &parentTaskExternalIdValue
+		parentTaskExternalId = parentTaskExternalIdValue
 	}
 
 	taskExternalId := task.ExternalID
@@ -154,9 +154,9 @@ func ToTaskRunEventMany(
 	for i, event := range events {
 		var workerId *types.UUID
 
-		if event.WorkerID != uuid.Nil {
+		if event.WorkerID != nil {
 			workerUUid := event.WorkerID
-			workerId = &workerUUid
+			workerId = workerUUid
 		}
 
 		retryCount := int(event.RetryCount)
@@ -189,9 +189,9 @@ func ToWorkflowRunTaskRunEventsMany(
 	for i, event := range events {
 		var workerId *uuid.UUID
 
-		if event.WorkerID != uuid.Nil {
+		if event.WorkerID != nil {
 			workerUUID := event.WorkerID
-			workerId = &workerUUID
+			workerId = workerUUID
 		}
 
 		output := string(event.OutputPayload)
@@ -295,8 +295,8 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 
 	var parentTaskExternalId *uuid.UUID
 
-	if taskWithData.ParentTaskExternalID != uuid.Nil {
-		parentTaskExternalId = &taskWithData.ParentTaskExternalID
+	if taskWithData.ParentTaskExternalID != nil {
+		parentTaskExternalId = taskWithData.ParentTaskExternalID
 	}
 
 	return gen.V1TaskSummary{
@@ -353,7 +353,7 @@ func ToWorkflowRunDetails(
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
 
 	parentTaskExternalId := uuid.UUID{}
-	if workflowRun.ParentTaskExternalId != nil && *workflowRun.ParentTaskExternalId != uuid.Nil {
+	if workflowRun.ParentTaskExternalId != nil {
 		parentTaskExternalId = *workflowRun.ParentTaskExternalId
 	}
 
@@ -404,8 +404,8 @@ func ToWorkflowRunDetails(
 	for i, event := range taskRunEvents {
 		var workerId *uuid.UUID
 
-		if event.WorkerID != uuid.Nil {
-			workerId = &event.WorkerID
+		if event.WorkerID != nil {
+			workerId = event.WorkerID
 		}
 
 		output := string(event.OutputPayload)
@@ -488,8 +488,8 @@ func ToTaskTimings(
 			toReturn[i].FinishedAt = &timing.FinishedAt.Time
 		}
 
-		if timing.ParentTaskExternalID != uuid.Nil {
-			toReturn[i].ParentTaskExternalId = &timing.ParentTaskExternalID
+		if timing.ParentTaskExternalID != nil {
+			toReturn[i].ParentTaskExternalId = timing.ParentTaskExternalID
 		}
 	}
 

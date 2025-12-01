@@ -369,7 +369,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *reposi
 
 	for i, assignedItem := range r.Assigned {
 		idsToUnqueue[i] = assignedItem.QueueItem.ID
-		stepRunIds[i] = assignedItem.QueueItem.StepRunId
+		stepRunIds[i] = *assignedItem.QueueItem.StepRunId
 		workerIds[i] = assignedItem.WorkerId
 		stepTimeouts[i] = assignedItem.QueueItem.StepTimeout.String
 	}
@@ -377,14 +377,14 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *reposi
 	unassignedStepRunIds := make([]uuid.UUID, 0, len(r.Unassigned))
 
 	for _, id := range r.Unassigned {
-		unassignedStepRunIds = append(unassignedStepRunIds, id.StepRunId)
+		unassignedStepRunIds = append(unassignedStepRunIds, *id.StepRunId)
 	}
 
 	timedOutStepRuns := make([]uuid.UUID, 0, len(r.SchedulingTimedOut))
 
 	for _, id := range r.SchedulingTimedOut {
 		idsToUnqueue = append(idsToUnqueue, id.ID)
-		timedOutStepRuns = append(timedOutStepRuns, id.StepRunId)
+		timedOutStepRuns = append(timedOutStepRuns, *id.StepRunId)
 	}
 
 	_, err = d.queries.BulkMarkStepRunsAsCancelling(ctx, tx, timedOutStepRuns)
@@ -490,8 +490,8 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 	stepsWithRateLimits := make(map[string]bool)
 
 	for _, item := range queueItems {
-		stepRunIds = append(stepRunIds, item.StepRunId)
-		stepIds = append(stepIds, item.StepId)
+		stepRunIds = append(stepRunIds, *item.StepRunId)
+		stepIds = append(stepIds, *item.StepId)
 	}
 
 	stepIdToStepRuns := make(map[string][]string)

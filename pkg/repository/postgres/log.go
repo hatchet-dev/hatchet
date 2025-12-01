@@ -65,8 +65,9 @@ func (r *logAPIRepository) ListLogLines(tenantId string, opts *repository.ListLo
 	}
 
 	if opts.StepRunId != nil {
-		queryParams.StepRunId = uuid.MustParse(*opts.StepRunId)
-		countParams.StepRunId = uuid.MustParse(*opts.StepRunId)
+		stepRunIdParsed := uuid.MustParse(*opts.StepRunId)
+		queryParams.StepRunId = &stepRunIdParsed
+		countParams.StepRunId = &stepRunIdParsed
 	}
 
 	if opts.Levels != nil {

@@ -90,7 +90,7 @@ func (worker *subscribedWorker) StartStepRun(
 		action.ChildWorkflowKey = &stepRunData.ChildKey.String
 	}
 
-	if stepRunData.ParentId != uuid.Nil {
+	if stepRunData.ParentId != nil {
 		parentId := stepRunData.ParentId.String()
 		action.ParentWorkflowRunId = &parentId
 	}
@@ -146,7 +146,7 @@ func (worker *subscribedWorker) StartStepRunFromBulk(
 		action.ChildWorkflowKey = &stepRun.ChildKey.String
 	}
 
-	if stepRun.ParentId != uuid.Nil {
+	if stepRun.ParentId != nil {
 		parentId := stepRun.ParentId.String()
 		action.ParentWorkflowRunId = &parentId
 	}
@@ -338,7 +338,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		return err
 	}
 
-	shouldUpdateDispatcherId := worker.DispatcherId == uuid.Nil || worker.DispatcherId.String() != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || worker.DispatcherId.String() != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
@@ -441,7 +441,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		return err
 	}
 
-	shouldUpdateDispatcherId := worker.DispatcherId == uuid.Nil || worker.DispatcherId.String() != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || worker.DispatcherId.String() != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
@@ -1888,7 +1888,7 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 	for _, workflowRun := range workflowRuns {
 		workflowRunIds = append(workflowRunIds, workflowRun.WorkflowRun.ID.String())
 
-		if workflowRun.WorkflowVersion.OnFailureJobId != uuid.Nil {
+		if workflowRun.WorkflowVersion.OnFailureJobId != nil {
 			workflowRunToOnFailureJobIds[workflowRun.WorkflowRun.ID.String()] = workflowRun.WorkflowVersion.OnFailureJobId.String()
 		}
 	}

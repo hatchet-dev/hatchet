@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
@@ -190,9 +188,9 @@ func getRankedSlots(
 		// if this is a HARD sticky strategy, and there's a desired worker id, it can only be assigned to that
 		// worker. if there's no desired worker id, we assign to any worker.
 		if qi.Sticky.Valid && qi.Sticky.StickyStrategy == dbsqlc.StickyStrategyHARD {
-			if qi.DesiredWorkerId != uuid.Nil && workerId == qi.DesiredWorkerId.String() {
+			if qi.DesiredWorkerId != nil && workerId == qi.DesiredWorkerId.String() {
 				validSlots.addSlot(slot, 0)
-			} else if qi.DesiredWorkerId == uuid.Nil {
+			} else if qi.DesiredWorkerId == nil {
 				validSlots.addSlot(slot, 0)
 			}
 
@@ -202,7 +200,7 @@ func getRankedSlots(
 		// if this is a SOFT sticky strategy, we should prefer the desired worker, but if it is not
 		// available, we can assign to any worker.
 		if qi.Sticky.Valid && qi.Sticky.StickyStrategy == dbsqlc.StickyStrategySOFT {
-			if qi.DesiredWorkerId != uuid.Nil && workerId == qi.DesiredWorkerId.String() {
+			if qi.DesiredWorkerId != nil && workerId == qi.DesiredWorkerId.String() {
 				validSlots.addSlot(slot, 1)
 			} else {
 				validSlots.addSlot(slot, 0)

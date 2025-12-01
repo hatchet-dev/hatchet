@@ -472,7 +472,7 @@ type CreateWorkflowConcurrencyParams struct {
 	CreatedAt                  pgtype.Timestamp             `json:"createdAt"`
 	UpdatedAt                  pgtype.Timestamp             `json:"updatedAt"`
 	Workflowversionid          uuid.UUID                    `json:"workflowversionid"`
-	GetConcurrencyGroupId      uuid.UUID                    `json:"getConcurrencyGroupId"`
+	GetConcurrencyGroupId      *uuid.UUID                   `json:"getConcurrencyGroupId"`
 	MaxRuns                    pgtype.Int4                  `json:"maxRuns"`
 	LimitStrategy              NullConcurrencyLimitStrategy `json:"limitStrategy"`
 	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
@@ -640,7 +640,7 @@ type CreateWorkflowTriggerCronRefParams struct {
 	AdditionalMetadata   []byte                            `json:"additionalMetadata"`
 	Method               NullWorkflowTriggerCronRefMethods `json:"method"`
 	Priority             pgtype.Int4                       `json:"priority"`
-	OldWorkflowVersionId uuid.UUID                         `json:"oldWorkflowVersionId"`
+	OldWorkflowVersionId *uuid.UUID                        `json:"oldWorkflowVersionId"`
 }
 
 func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefParams) (*WorkflowTriggerCronRef, error) {
@@ -930,7 +930,7 @@ type GetWorkflowVersionForEngineRow struct {
 	WorkflowName               string                       `json:"workflowName"`
 	ConcurrencyLimitStrategy   NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
 	ConcurrencyMaxRuns         pgtype.Int4                  `json:"concurrencyMaxRuns"`
-	ConcurrencyGroupId         uuid.UUID                    `json:"concurrencyGroupId"`
+	ConcurrencyGroupId         *uuid.UUID                   `json:"concurrencyGroupId"`
 	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
 }
 

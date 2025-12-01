@@ -1054,7 +1054,7 @@ type GetStepRunBulkDataForEngineRow struct {
 	AdditionalMetadata  []byte        `json:"additionalMetadata"`
 	ChildIndex          pgtype.Int4   `json:"childIndex"`
 	ChildKey            pgtype.Text   `json:"childKey"`
-	ParentId            uuid.UUID     `json:"parentId"`
+	ParentId            *uuid.UUID    `json:"parentId"`
 	JobRunId_2          uuid.UUID     `json:"jobRunId_2"`
 	StepId              uuid.UUID     `json:"stepId"`
 	StepRetries         int32         `json:"stepRetries"`
@@ -1173,7 +1173,7 @@ type GetStepRunDataForEngineRow struct {
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
 	ChildIndex         pgtype.Int4 `json:"childIndex"`
 	ChildKey           pgtype.Text `json:"childKey"`
-	ParentId           uuid.UUID   `json:"parentId"`
+	ParentId           *uuid.UUID  `json:"parentId"`
 	ExprCount          int64       `json:"exprCount"`
 }
 
@@ -1282,7 +1282,7 @@ WHERE
 
 type GetStepRunForEngineParams struct {
 	Ids      []uuid.UUID `json:"ids"`
-	TenantId uuid.UUID   `json:"tenantId"`
+	TenantId *uuid.UUID  `json:"tenantId"`
 }
 
 type GetStepRunForEngineRow struct {
@@ -1293,8 +1293,8 @@ type GetStepRunForEngineRow struct {
 	SRTenantId             uuid.UUID          `json:"SR_tenantId"`
 	SRQueue                string             `json:"SR_queue"`
 	SROrder                int64              `json:"SR_order"`
-	SRWorkerId             uuid.UUID          `json:"SR_workerId"`
-	SRTickerId             uuid.UUID          `json:"SR_tickerId"`
+	SRWorkerId             *uuid.UUID         `json:"SR_workerId"`
+	SRTickerId             *uuid.UUID         `json:"SR_tickerId"`
 	SRStatus               StepRunStatus      `json:"SR_status"`
 	SRRequeueAfter         pgtype.Timestamp   `json:"SR_requeueAfter"`
 	SRScheduleTimeoutAt    pgtype.Timestamp   `json:"SR_scheduleTimeoutAt"`
@@ -1327,7 +1327,7 @@ type GetStepRunForEngineRow struct {
 	WorkflowRunId          uuid.UUID          `json:"workflowRunId"`
 	ActionId               string             `json:"actionId"`
 	StickyStrategy         NullStickyStrategy `json:"stickyStrategy"`
-	DesiredWorkerId        uuid.UUID          `json:"desiredWorkerId"`
+	DesiredWorkerId        *uuid.UUID         `json:"desiredWorkerId"`
 }
 
 func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepRunForEngineParams) ([]*GetStepRunForEngineRow, error) {
@@ -1458,9 +1458,9 @@ type GetWorkerDispatcherActionsParams struct {
 }
 
 type GetWorkerDispatcherActionsRow struct {
-	ID           uuid.UUID `json:"id"`
-	ActionId     string    `json:"actionId"`
-	DispatcherId uuid.UUID `json:"dispatcherId"`
+	ID           uuid.UUID  `json:"id"`
+	ActionId     string     `json:"actionId"`
+	DispatcherId *uuid.UUID `json:"dispatcherId"`
 }
 
 func (q *Queries) GetWorkerDispatcherActions(ctx context.Context, db DBTX, arg GetWorkerDispatcherActionsParams) ([]*GetWorkerDispatcherActionsRow, error) {
@@ -2192,11 +2192,11 @@ ORDER BY "StepRun"."order" ASC
 `
 
 type ListStepRunsParams struct {
-	TenantId       uuid.UUID         `json:"tenantId"`
+	TenantId       *uuid.UUID        `json:"tenantId"`
 	Status         NullStepRunStatus `json:"status"`
 	WorkflowRunIds []uuid.UUID       `json:"workflowRunIds"`
-	JobRunId       uuid.UUID         `json:"jobRunId"`
-	TickerId       uuid.UUID         `json:"tickerId"`
+	JobRunId       *uuid.UUID        `json:"jobRunId"`
+	TickerId       *uuid.UUID        `json:"tickerId"`
 }
 
 func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsParams) ([]uuid.UUID, error) {
@@ -2386,10 +2386,10 @@ type ListStepRunsToReassignParams struct {
 }
 
 type ListStepRunsToReassignRow struct {
-	ID         uuid.UUID `json:"id"`
-	WorkerId   uuid.UUID `json:"workerId"`
-	RetryCount int32     `json:"retryCount"`
-	Operation  string    `json:"operation"`
+	ID         uuid.UUID  `json:"id"`
+	WorkerId   *uuid.UUID `json:"workerId"`
+	RetryCount int32      `json:"retryCount"`
+	Operation  string     `json:"operation"`
 }
 
 func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, arg ListStepRunsToReassignParams) ([]*ListStepRunsToReassignRow, error) {
