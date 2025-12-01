@@ -84,14 +84,14 @@ func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg Cu
 }
 
 const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many
-WITH function_result AS (
+WITH payloads AS (
     SELECT
-        (list_paginated_payloads_for_offload).*
+        p.p
     FROM list_paginated_payloads_for_offload(
         $1::DATE,
         $2::INT,
         $3::INT
-    )
+    ) p
 )
 SELECT
     tenant_id::UUID,
@@ -103,7 +103,7 @@ SELECT
     COALESCE(external_location_key, '')::TEXT AS external_location_key,
     inline_content::JSONB AS inline_content,
     updated_at::TIMESTAMPTZ
-FROM function_result
+FROM payloads
 `
 
 type ListPaginatedPayloadsForOffloadParams struct {
