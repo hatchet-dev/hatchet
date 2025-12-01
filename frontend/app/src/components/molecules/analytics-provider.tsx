@@ -51,13 +51,22 @@ const AnalyticsProvider: React.FC<
 
     let bootstrapConfig = '';
 
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    let distinctId = hashParams.get('distinct_id');
+    let sessionId = hashParams.get('session_id');
+
     if (sessionStorage) {
-      const distinctId = sessionStorage.getItem(
-        POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY,
-      );
-      const sessionId = sessionStorage.getItem(
-        POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY,
-      );
+      if (!distinctId) {
+        distinctId = sessionStorage.getItem(
+          POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY,
+        );
+      }
+
+      if (!sessionId) {
+        sessionId = sessionStorage.getItem(
+          POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY,
+        );
+      }
 
       if (distinctId && sessionId) {
         bootstrapConfig = `bootstrap: ${JSON.stringify({

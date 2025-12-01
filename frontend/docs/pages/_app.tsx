@@ -4,16 +4,19 @@ import { LanguageProvider } from "../context/LanguageContext";
 import { ConsentProvider } from "../context/ConsentContext";
 import CookieConsent from "@/components/ui/cookie-banner";
 import { PostHogProvider } from "@/providers/posthog";
+import { CrossDomainLinkHandler } from "@/components/CrossDomainLinkHandler";
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <LanguageProvider>
       <ConsentProvider>
         <PostHogProvider>
-          <main>
-            <CookieConsent />
-            <Component {...pageProps} />
-          </main>
+          <CrossDomainLinkHandler>
+            <main>
+              <CookieConsent />
+              <Component {...pageProps} />
+            </main>
+          </CrossDomainLinkHandler>
         </PostHogProvider>
       </ConsentProvider>
     </LanguageProvider>
