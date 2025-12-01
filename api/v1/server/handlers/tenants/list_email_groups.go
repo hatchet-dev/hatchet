@@ -6,12 +6,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) AlertEmailGroupList(ctx echo.Context, request gen.AlertEmailGroupListRequestObject) (gen.AlertEmailGroupListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	emailGroups, err := t.config.APIRepository.TenantAlertingSettings().ListTenantAlertGroups(ctx.Request().Context(), tenantId)
 

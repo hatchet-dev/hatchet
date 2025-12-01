@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -64,7 +64,7 @@ func (m *messageQueueRepository) BindQueue(ctx context.Context, queue string, du
 	}
 
 	if exclusiveConsumer != nil {
-		params.ExclusiveConsumerId = sqlchelpers.UUIDFromStr(*exclusiveConsumer)
+		params.ExclusiveConsumerId = uuid.MustParse(*exclusiveConsumer)
 	}
 
 	_, err := m.queries.UpsertMessageQueue(ctx, m.pool, params)

@@ -3,9 +3,10 @@ package postgres
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type webhookWorkerRepository struct {
@@ -19,5 +20,5 @@ func NewWebhookWorkerRepository(shared *sharedRepository) repository.WebhookWork
 }
 
 func (r *webhookWorkerRepository) GetWebhookWorkerByID(ctx context.Context, id string) (*dbsqlc.WebhookWorker, error) {
-	return r.queries.GetWebhookWorkerByID(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+	return r.queries.GetWebhookWorkerByID(ctx, r.pool, uuid.MustParse(id))
 }

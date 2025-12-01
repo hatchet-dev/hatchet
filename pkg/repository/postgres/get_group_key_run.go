@@ -36,11 +36,11 @@ func NewGetGroupKeyRunRepository(pool *pgxpool.Pool, v validator.Validator, l *z
 }
 
 func (s *getGroupKeyRunRepository) ListGetGroupKeyRunsToRequeue(ctx context.Context, tenantId string) ([]*dbsqlc.GetGroupKeyRun, error) {
-	return s.queries.ListGetGroupKeyRunsToRequeue(ctx, s.pool, sqlchelpers.UUIDFromStr(tenantId))
+	return s.queries.ListGetGroupKeyRunsToRequeue(ctx, s.pool, uuid.MustParse(tenantId))
 }
 
 func (s *getGroupKeyRunRepository) ListGetGroupKeyRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetGroupKeyRun, error) {
-	return s.queries.ListGetGroupKeyRunsToReassign(ctx, s.pool, sqlchelpers.UUIDFromStr(tenantId))
+	return s.queries.ListGetGroupKeyRunsToReassign(ctx, s.pool, uuid.MustParse(tenantId))
 }
 
 func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToWorker(ctx context.Context, tenantId, getGroupKeyRunId string) (workerId string, dispatcherId string, err error) {
@@ -49,8 +49,8 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToWorker(ctx context.Cont
 
 	err = sqlchelpers.DeadlockRetry(s.l, func() (err error) {
 		assigned, err = s.queries.AssignGetGroupKeyRunToWorker(ctx, s.pool, dbsqlc.AssignGetGroupKeyRunToWorkerParams{
-			Getgroupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
-			Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
+			Getgroupkeyrunid: uuid.MustParse(getGroupKeyRunId),
+			Tenantid:         uuid.MustParse(tenantId),
 		})
 
 		if err != nil {
@@ -68,7 +68,7 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToWorker(ctx context.Cont
 		return "", "", err
 	}
 
-	return sqlchelpers.UUIDToStr(assigned.WorkerId), sqlchelpers.UUIDToStr(assigned.DispatcherId), nil
+	return assigned.WorkerId.String(), assigned.DispatcherId.String(), nil
 }
 
 func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToTicker(ctx context.Context, tenantId, getGroupKeyRunId string) (tickerId string, err error) {
@@ -77,8 +77,8 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToTicker(ctx context.Cont
 
 	err = sqlchelpers.DeadlockRetry(s.l, func() (err error) {
 		assigned, err = s.queries.AssignGetGroupKeyRunToTicker(ctx, s.pool, dbsqlc.AssignGetGroupKeyRunToTickerParams{
-			Getgroupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
-			Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
+			Getgroupkeyrunid: uuid.MustParse(getGroupKeyRunId),
+			Tenantid:         uuid.MustParse(tenantId),
 		})
 
 		if err != nil {
@@ -96,7 +96,7 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToTicker(ctx context.Cont
 		return "", err
 	}
 
-	return sqlchelpers.UUIDToStr(assigned.TickerId), nil
+	return assigned.TickerId.String(), nil
 }
 
 func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, tenantId, getGroupKeyRunId string, opts *repository.UpdateGetGroupKeyRunOpts) (*dbsqlc.GetGroupKeyRunForEngineRow, error) {
@@ -104,8 +104,8 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 		return nil, err
 	}
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-	pgGetGroupKeyRunId := sqlchelpers.UUIDFromStr(getGroupKeyRunId)
+	pgTenantId := uuid.MustParse(tenantId)
+	pgGetGroupKeyRunId := uuid.MustParse(getGroupKeyRunId)
 
 	updateParams := dbsqlc.UpdateGetGroupKeyRunParams{
 		ID:       pgGetGroupKeyRunId,
@@ -114,7 +114,7 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 
 	updateWorkflowRunParams := dbsqlc.UpdateWorkflowRunGroupKeyFromRunParams{
 		Tenantid:      pgTenantId,
-		Groupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
+		Groupkeyrunid: uuid.MustParse(getGroupKeyRunId),
 	}
 
 	if opts.RequeueAfter != nil {
@@ -208,8 +208,8 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 
 func (s *getGroupKeyRunRepository) GetGroupKeyRunForEngine(ctx context.Context, tenantId, getGroupKeyRunId string) (*dbsqlc.GetGroupKeyRunForEngineRow, error) {
 	res, err := s.queries.GetGroupKeyRunForEngine(ctx, s.pool, dbsqlc.GetGroupKeyRunForEngineParams{
-		Ids:      []uuid.UUID{sqlchelpers.UUIDFromStr(getGroupKeyRunId)},
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      []uuid.UUID{uuid.MustParse(getGroupKeyRunId)},
+		Tenantid: uuid.MustParse(tenantId),
 	})
 
 	if err != nil {

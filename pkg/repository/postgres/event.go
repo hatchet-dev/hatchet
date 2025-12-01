@@ -55,8 +55,8 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 		countParams.EventIds = make([]uuid.UUID, len(opts.Ids))
 
 		for i := range opts.Ids {
-			queryParams.EventIds[i] = sqlchelpers.UUIDFromStr(opts.Ids[i])
-			countParams.EventIds[i] = sqlchelpers.UUIDFromStr(opts.Ids[i])
+			queryParams.EventIds[i] = uuid.MustParse(opts.Ids[i])
+			countParams.EventIds[i] = uuid.MustParse(opts.Ids[i])
 		}
 	}
 
@@ -157,7 +157,7 @@ func (r *eventAPIRepository) ListEventKeys(tenantId string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	keys, err := r.queries.ListEventKeys(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
+	keys, err := r.queries.ListEventKeys(ctx, r.pool, uuid.MustParse(tenantId))
 
 	if err != nil {
 		return nil, err
@@ -167,21 +167,21 @@ func (r *eventAPIRepository) ListEventKeys(tenantId string) ([]string, error) {
 }
 
 func (r *eventAPIRepository) GetEventById(ctx context.Context, id string) (*dbsqlc.Event, error) {
-	return r.queries.GetEventForEngine(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+	return r.queries.GetEventForEngine(ctx, r.pool, uuid.MustParse(id))
 }
 
 func (r *eventAPIRepository) ListEventsById(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.Event, error) {
 	pgIds := make([]uuid.UUID, len(ids))
 
 	for i, id := range ids {
-		pgIds[i] = sqlchelpers.UUIDFromStr(id)
+		pgIds[i] = uuid.MustParse(id)
 	}
 
 	return r.queries.ListEventsByIDs(
 		ctx,
 		r.pool,
 		dbsqlc.ListEventsByIDsParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid: uuid.MustParse(tenantId),
 			Ids:      pgIds,
 		},
 	)
@@ -214,7 +214,7 @@ func (r *eventEngineRepository) RegisterCreateCallback(callback repository.Tenan
 }
 
 func (r *eventEngineRepository) GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error) {
-	return r.queries.GetEventForEngine(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+	return r.queries.GetEventForEngine(ctx, r.pool, uuid.MustParse(id))
 }
 
 func (r *eventEngineRepository) createEventKeys(ctx context.Context, tx pgx.Tx, keys map[string]struct {
@@ -235,7 +235,7 @@ func (r *eventEngineRepository) createEventKeys(ctx context.Context, tx pgx.Tx, 
 
 		r.l.Debug().Msgf("creating event key %s for tenant %s", eventKey.key, eventKey.tenantId)
 		eventKeys = append(eventKeys, eventKey.key)
-		eventKeysTenantIds = append(eventKeysTenantIds, sqlchelpers.UUIDFromStr(eventKey.tenantId))
+		eventKeysTenantIds = append(eventKeysTenantIds, uuid.MustParse(eventKey.tenantId))
 	}
 
 	err := r.queries.CreateEventKeys(ctx, tx, dbsqlc.CreateEventKeysParams{
@@ -249,7 +249,7 @@ func (r *eventEngineRepository) createEventKeys(ctx context.Context, tx pgx.Tx, 
 
 	// add to cache
 	for i := range eventKeys {
-		r.createEventKeyCache.Add(fmt.Sprintf("%s-%s", sqlchelpers.UUIDToStr(eventKeysTenantIds[i]), eventKeys[i]), true)
+		r.createEventKeyCache.Add(fmt.Sprintf("%s-%s", eventKeysTenantIds[i].String(), eventKeys[i]), true)
 	}
 
 	return nil
@@ -285,9 +285,9 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 			cb.Do(r.l, opts.TenantId, event)
 		}
 
-		id := sqlchelpers.UUIDToStr(event.ID)
+		id := event.ID.String()
 
-		if event.TenantId != sqlchelpers.UUIDFromStr(opts.TenantId) {
+		if event.TenantId != uuid.MustParse(opts.TenantId) {
 			panic("tenant id mismatch")
 		}
 
@@ -322,15 +322,15 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 			eventId := uuid.New().String()
 
 			params[i] = dbsqlc.CreateEventsParams{
-				ID:                 sqlchelpers.UUIDFromStr(eventId),
+				ID:                 uuid.MustParse(eventId),
 				Key:                event.Key,
-				TenantId:           sqlchelpers.UUIDFromStr(event.TenantId),
+				TenantId:           uuid.MustParse(event.TenantId),
 				Data:               event.Data,
 				AdditionalMetadata: event.AdditionalMetadata,
 			}
 
 			if event.ReplayedEvent != nil {
-				params[i].ReplayedFromId = sqlchelpers.UUIDFromStr(*event.ReplayedEvent)
+				params[i].ReplayedFromId = uuid.MustParse(*event.ReplayedEvent)
 			}
 
 			uniqueEventKeys[fmt.Sprintf("%s-%s", event.TenantId, event.Key)] = struct {
@@ -341,7 +341,7 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 				tenantId: event.TenantId,
 			}
 
-			ids[i] = sqlchelpers.UUIDFromStr(eventId)
+			ids[i] = uuid.MustParse(eventId)
 		}
 
 		// start a transaction
@@ -394,7 +394,7 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 
 		if len(events) > 0 {
 
-			returnString = sqlchelpers.UUIDToStr(events[0].ID)
+			returnString = events[0].ID.String()
 		}
 
 		// TODO is this return string important?
@@ -430,19 +430,19 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 		eventId := uuid.New().String()
 
 		params[i] = dbsqlc.CreateEventsParams{
-			ID:                 sqlchelpers.UUIDFromStr(eventId),
+			ID:                 uuid.MustParse(eventId),
 			Key:                event.Key,
-			TenantId:           sqlchelpers.UUIDFromStr(event.TenantId),
+			TenantId:           uuid.MustParse(event.TenantId),
 			Data:               event.Data,
 			AdditionalMetadata: event.AdditionalMetadata,
 			InsertOrder:        sqlchelpers.ToInt(int32(i)),
 		}
 
 		if event.ReplayedEvent != nil {
-			params[i].ReplayedFromId = sqlchelpers.UUIDFromStr(*event.ReplayedEvent)
+			params[i].ReplayedFromId = uuid.MustParse(*event.ReplayedEvent)
 		}
 
-		ids[i] = sqlchelpers.UUIDFromStr(eventId)
+		ids[i] = uuid.MustParse(eventId)
 	}
 
 	// start a transaction
@@ -479,7 +479,7 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 
 	for _, e := range events {
 
-		tenantId := sqlchelpers.UUIDToStr(e.TenantId)
+		tenantId := e.TenantId.String()
 
 		for _, cb := range r.callbacks {
 			cb.Do(r.l, tenantId, e)
@@ -501,7 +501,7 @@ func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId st
 		}
 	}
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgTenantId := uuid.MustParse(tenantId)
 
 	return r.queries.ListEventsByIDs(ctx, r.pool, dbsqlc.ListEventsByIDsParams{
 		Tenantid: pgTenantId,
@@ -511,7 +511,7 @@ func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId st
 
 func (r *eventEngineRepository) SoftDeleteExpiredEvents(ctx context.Context, tenantId string, before time.Time) (bool, error) {
 	hasMore, err := r.queries.SoftDeleteExpiredEvents(ctx, r.pool, dbsqlc.SoftDeleteExpiredEventsParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:      uuid.MustParse(tenantId),
 		Createdbefore: sqlchelpers.TimestampFromTime(before),
 		Limit:         1000,
 	})
@@ -529,7 +529,7 @@ func (r *eventEngineRepository) SoftDeleteExpiredEvents(ctx context.Context, ten
 
 func (r *eventEngineRepository) ClearEventPayloadData(ctx context.Context, tenantId string) (bool, error) {
 	hasMore, err := r.queries.ClearEventPayloadData(ctx, r.pool, dbsqlc.ClearEventPayloadDataParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 		Limit:    1000,
 	})
 

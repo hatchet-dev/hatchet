@@ -5,15 +5,14 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowDelete(ctx echo.Context, request gen.WorkflowDeleteRequestObject) (gen.WorkflowDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
-	_, err := t.config.APIRepository.Workflow().DeleteWorkflow(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(workflow.Workflow.ID))
+	_, err := t.config.APIRepository.Workflow().DeleteWorkflow(ctx.Request().Context(), tenantId, workflow.Workflow.ID.String())
 
 	if err != nil {
 		return nil, err

@@ -7,19 +7,18 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowUpdate(ctx echo.Context, request gen.WorkflowUpdateRequestObject) (gen.WorkflowUpdateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
 	opts := repository.UpdateWorkflowOpts{
 		IsPaused: request.Body.IsPaused,
 	}
 
-	updated, err := t.config.APIRepository.Workflow().UpdateWorkflow(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(workflow.Workflow.ID), &opts)
+	updated, err := t.config.APIRepository.Workflow().UpdateWorkflow(ctx.Request().Context(), tenantId, workflow.Workflow.ID.String(), &opts)
 
 	if err != nil {
 		return nil, err

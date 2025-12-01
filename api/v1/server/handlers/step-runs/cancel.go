@@ -13,12 +13,11 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepRunUpdateCancelRequestObject) (gen.StepRunUpdateCancelResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
 
 	// check to see if the step run is in a running or pending state
@@ -37,7 +36,7 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 	engineStepRun, err := t.config.EngineRepository.StepRun().GetStepRunForEngine(
 		ctx.Request().Context(),
 		tenantId,
-		sqlchelpers.UUIDToStr(stepRun.ID),
+		stepRun.ID.String(),
 	)
 
 	if err != nil {
@@ -59,7 +58,7 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 
 	// wait for a short period of time
 	for i := 0; i < 5; i++ {
-		newStepRun, err := t.config.APIRepository.StepRun().GetStepRunById(sqlchelpers.UUIDToStr(stepRun.ID))
+		newStepRun, err := t.config.APIRepository.StepRun().GetStepRunById(stepRun.ID.String())
 
 		if err != nil {
 			return nil, fmt.Errorf("could not get step run: %w", err)

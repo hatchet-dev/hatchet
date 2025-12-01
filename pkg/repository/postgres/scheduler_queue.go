@@ -142,7 +142,7 @@ func (s *queueRepository) removeInvalidStepRuns(ctx context.Context, qis []*dbsq
 	cancelled := make([]int64, 0, len(qis))
 
 	for _, v := range qis {
-		stepRunId := sqlchelpers.UUIDToStr(v.QueueItem.StepRunId)
+		stepRunId := v.QueueItem.StepRunId.String()
 
 		if encountered[stepRunId] {
 			cancelled = append(cancelled, v.QueueItem.ID)
@@ -157,7 +157,7 @@ func (s *queueRepository) removeInvalidStepRuns(ctx context.Context, qis []*dbsq
 
 	for _, v := range qis {
 		if v.Status == dbsqlc.StepRunStatusCANCELLED || v.Status == dbsqlc.StepRunStatusSUCCEEDED || v.Status == dbsqlc.StepRunStatusFAILED || v.Status == dbsqlc.StepRunStatusCANCELLING {
-			stepRunId := sqlchelpers.UUIDToStr(v.QueueItem.StepRunId)
+			stepRunId := v.QueueItem.StepRunId.String()
 			s.l.Warn().Msgf("step run %s is in state %s, skipping queueing", stepRunId, string(v.Status))
 			finalizedStepRunsMap[stepRunId] = true
 		}
@@ -167,7 +167,7 @@ func (s *queueRepository) removeInvalidStepRuns(ctx context.Context, qis []*dbsq
 	remaining2 := make([]*dbsqlc.QueueItem, 0, len(remaining1))
 
 	for _, qi := range remaining1 {
-		if _, ok := finalizedStepRunsMap[sqlchelpers.UUIDToStr(qi.StepRunId)]; ok {
+		if _, ok := finalizedStepRunsMap[qi.StepRunId.String()]; ok {
 			cancelled = append(cancelled, qi.ID)
 			continue
 		}
@@ -214,13 +214,13 @@ func (s *queueRepository) bulkStepRunsAssigned(
 	workerIdToStepRunIds := make(map[string][]string)
 
 	for i := range stepRunIds {
-		workerId := sqlchelpers.UUIDToStr(workerIds[i])
+		workerId := workerIds[i].String()
 
 		if _, ok := workerIdToStepRunIds[workerId]; !ok {
 			workerIdToStepRunIds[workerId] = make([]string, 0)
 		}
 
-		workerIdToStepRunIds[workerId] = append(workerIdToStepRunIds[workerId], sqlchelpers.UUIDToStr(stepRunIds[i]))
+		workerIdToStepRunIds[workerId] = append(workerIdToStepRunIds[workerId], stepRunIds[i].String())
 		message := fmt.Sprintf("Assigned to worker %s", workerId)
 		timeSeen := assignedAt
 		reasons := dbsqlc.StepRunEventReasonASSIGNED
@@ -228,7 +228,7 @@ func (s *queueRepository) bulkStepRunsAssigned(
 		data := map[string]interface{}{"worker_id": workerId}
 
 		err := s.bulkEventBuffer.FireForget(tenantId, &repository.CreateStepRunEventOpts{
-			StepRunId:     sqlchelpers.UUIDToStr(stepRunIds[i]),
+			StepRunId:     stepRunIds[i].String(),
 			EventMessage:  &message,
 			EventReason:   &reasons,
 			EventSeverity: &severity,
@@ -245,7 +245,7 @@ func (s *queueRepository) bulkStepRunsAssigned(
 	assignedStepRuns := make([][]byte, 0)
 
 	for workerId, stepRunIds := range workerIdToStepRunIds {
-		orderedWorkerIds = append(orderedWorkerIds, sqlchelpers.UUIDFromStr(workerId))
+		orderedWorkerIds = append(orderedWorkerIds, uuid.MustParse(workerId))
 		assignedStepRunsBytes, _ := json.Marshal(stepRunIds) // nolint: errcheck
 		assignedStepRuns = append(assignedStepRuns, assignedStepRunsBytes)
 	}
@@ -272,7 +272,7 @@ func (s *queueRepository) bulkStepRunsUnassigned(
 		data := map[string]interface{}{}
 
 		err := s.bulkEventBuffer.FireForget(tenantId, &repository.CreateStepRunEventOpts{
-			StepRunId:     sqlchelpers.UUIDToStr(stepRunId),
+			StepRunId:     stepRunId.String(),
 			EventMessage:  &message,
 			EventReason:   &reason,
 			EventSeverity: &severity,
@@ -306,7 +306,7 @@ func (s *queueRepository) bulkStepRunsRateLimited(
 		}
 
 		err := s.bulkEventBuffer.FireForget(tenantId, &repository.CreateStepRunEventOpts{
-			StepRunId:     sqlchelpers.UUIDToStr(rlResult.StepRunId),
+			StepRunId:     rlResult.StepRunId.String(),
 			EventMessage:  &message,
 			EventReason:   &reason,
 			EventSeverity: &severity,
@@ -431,24 +431,24 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *reposi
 			assignedWorkerIds[i] = row.WorkerId
 		}
 
-		d.bulkStepRunsAssigned(sqlchelpers.UUIDToStr(d.tenantId), time.Now().UTC(), assignedStepRuns, assignedWorkerIds)
-		d.bulkStepRunsUnassigned(sqlchelpers.UUIDToStr(d.tenantId), unassignedStepRunIds)
-		d.bulkStepRunsRateLimited(sqlchelpers.UUIDToStr(d.tenantId), r.RateLimited)
+		d.bulkStepRunsAssigned(d.tenantId.String(), time.Now().UTC(), assignedStepRuns, assignedWorkerIds)
+		d.bulkStepRunsUnassigned(d.tenantId.String(), unassignedStepRunIds)
+		d.bulkStepRunsRateLimited(d.tenantId.String(), r.RateLimited)
 	}()
 
 	stepRunIdToAssignedItem := make(map[string]*repository.AssignedItem, len(updatedStepRuns))
 
 	for _, assignedItem := range r.Assigned {
-		stepRunIdToAssignedItem[sqlchelpers.UUIDToStr(assignedItem.QueueItem.StepRunId)] = assignedItem
+		stepRunIdToAssignedItem[assignedItem.QueueItem.StepRunId.String()] = assignedItem
 	}
 
 	succeeded = make([]*repository.AssignedItem, 0, len(r.Assigned))
 	failed = make([]*repository.AssignedItem, 0, len(r.Assigned))
 
 	for _, row := range updatedStepRuns {
-		if assignedItem, ok := stepRunIdToAssignedItem[sqlchelpers.UUIDToStr(row.StepRunId)]; ok {
+		if assignedItem, ok := stepRunIdToAssignedItem[row.StepRunId.String()]; ok {
 			succeeded = append(succeeded, assignedItem)
-			delete(stepRunIdToAssignedItem, sqlchelpers.UUIDToStr(row.StepRunId))
+			delete(stepRunIdToAssignedItem, row.StepRunId.String())
 		}
 	}
 
@@ -498,8 +498,8 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 	stepRunIdToStepId := make(map[string]string)
 
 	for i, stepRunId := range stepRunIds {
-		stepId := sqlchelpers.UUIDToStr(stepIds[i])
-		stepRunIdStr := sqlchelpers.UUIDToStr(stepRunId)
+		stepId := stepIds[i].String()
+		stepRunIdStr := stepRunId.String()
 
 		if _, ok := stepIdToStepRuns[stepId]; !ok {
 			stepIdToStepRuns[stepId] = make([]string, 0)
@@ -534,7 +534,7 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 	stepRunToKeys := make(map[string][]string)
 
 	for _, eval := range expressionEvals {
-		stepRunId := sqlchelpers.UUIDToStr(eval.StepRunId)
+		stepRunId := eval.StepRunId.String()
 		globalKey := eval.Key
 
 		// Only append if this is a key expression. Note that we have a uniqueness constraint on
@@ -559,7 +559,7 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 	rateLimitKeyToEvals := make(map[string][]*dbsqlc.StepRunExpressionEval)
 
 	for _, eval := range expressionEvals {
-		k := stepRunAndGlobalKeyToKey[fmt.Sprintf("%s-%s", sqlchelpers.UUIDToStr(eval.StepRunId), eval.Key)]
+		k := stepRunAndGlobalKeyToKey[fmt.Sprintf("%s-%s", eval.StepRunId.String(), eval.Key)]
 
 		if _, ok := rateLimitKeyToEvals[k]; !ok {
 			rateLimitKeyToEvals[k] = make([]*dbsqlc.StepRunExpressionEval, 0)
@@ -581,7 +581,7 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 
 		for _, eval := range evals {
 			// add to stepRunToKeyToUnits
-			stepRunId := sqlchelpers.UUIDToStr(eval.StepRunId)
+			stepRunId := eval.StepRunId.String()
 
 			// throw an error if there are multiple rate limits with the same keys, but different limit values or durations
 			if eval.Kind == dbsqlc.StepExpressionKindDYNAMICRATELIMITWINDOW {
@@ -601,8 +601,8 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 					severity := dbsqlc.StepRunEventSeverityWARNING
 					data := map[string]interface{}{}
 
-					buffErr := d.bulkEventBuffer.FireForget(sqlchelpers.UUIDToStr(d.tenantId), &repository.CreateStepRunEventOpts{
-						StepRunId:     sqlchelpers.UUIDToStr(eval.StepRunId),
+					buffErr := d.bulkEventBuffer.FireForget(d.tenantId.String(), &repository.CreateStepRunEventOpts{
+						StepRunId:     eval.StepRunId.String(),
 						EventMessage:  &message,
 						EventReason:   &reason,
 						EventSeverity: &severity,
@@ -628,8 +628,8 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 					severity := dbsqlc.StepRunEventSeverityWARNING
 					data := map[string]interface{}{}
 
-					buffErr := d.bulkEventBuffer.FireForget(sqlchelpers.UUIDToStr(d.tenantId), &repository.CreateStepRunEventOpts{
-						StepRunId:     sqlchelpers.UUIDToStr(eval.StepRunId),
+					buffErr := d.bulkEventBuffer.FireForget(d.tenantId.String(), &repository.CreateStepRunEventOpts{
+						StepRunId:     eval.StepRunId.String(),
 						EventMessage:  &message,
 						EventReason:   &reason,
 						EventSeverity: &severity,
@@ -678,7 +678,7 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 	uniqueStepIds := make([]uuid.UUID, 0, len(stepIdToStepRuns))
 
 	for stepId := range stepIdToStepRuns {
-		uniqueStepIds = append(uniqueStepIds, sqlchelpers.UUIDFromStr(stepId))
+		uniqueStepIds = append(uniqueStepIds, uuid.MustParse(stepId))
 	}
 
 	stepRateLimits, err = d.queries.ListRateLimitsForSteps(ctx, d.pool, dbsqlc.ListRateLimitsForStepsParams{
@@ -691,8 +691,8 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 	}
 
 	for _, row := range stepRateLimits {
-		stepsWithRateLimits[sqlchelpers.UUIDToStr(row.StepId)] = true
-		stepId := sqlchelpers.UUIDToStr(row.StepId)
+		stepsWithRateLimits[row.StepId.String()] = true
+		stepId := row.StepId.String()
 		stepRuns := stepIdToStepRuns[stepId]
 
 		for _, stepRunId := range stepRuns {
@@ -728,7 +728,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []uuid.U
 	stepIdToLabels := make(map[string][]*dbsqlc.GetDesiredLabelsRow)
 
 	for _, label := range labels {
-		stepId := sqlchelpers.UUIDToStr(label.StepId)
+		stepId := label.StepId.String()
 
 		if _, ok := stepIdToLabels[stepId]; !ok {
 			stepIdToLabels[stepId] = make([]*dbsqlc.GetDesiredLabelsRow, 0)

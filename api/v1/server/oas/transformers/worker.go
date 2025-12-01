@@ -8,7 +8,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func ToSlotState(slots []*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, remainingSlots int) *[]gen.SemaphoreSlots {
@@ -118,7 +117,7 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string
 	}
 
 	res := &gen.Worker{
-		Metadata:      *toAPIMetadata(sqlchelpers.UUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),
+		Metadata:      *toAPIMetadata(worker.ID.String(), worker.CreatedAt.Time, worker.UpdatedAt.Time),
 		Name:          worker.Name,
 		Type:          gen.WorkerType(worker.Type),
 		Status:        &status,

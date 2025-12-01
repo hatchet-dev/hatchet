@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -203,7 +202,7 @@ func getRankedSlots(
 		// if this is a HARD sticky strategy, and there's a desired worker id, it can only be assigned to that
 		// worker. if there's no desired worker id, we assign to any worker.
 		if qi.Sticky == sqlcv1.V1StickyStrategyHARD {
-			if qi.DesiredWorkerID != uuid.Nil && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerID) {
+			if qi.DesiredWorkerID != uuid.Nil && workerId == qi.DesiredWorkerID.String() {
 				validSlots.addSlot(slot, 0)
 			} else if qi.DesiredWorkerID == uuid.Nil {
 				validSlots.addSlot(slot, 0)
@@ -215,7 +214,7 @@ func getRankedSlots(
 		// if this is a SOFT sticky strategy, we should prefer the desired worker, but if it is not
 		// available, we can assign to any worker.
 		if qi.Sticky == sqlcv1.V1StickyStrategySOFT {
-			if qi.DesiredWorkerID != uuid.Nil && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerID) {
+			if qi.DesiredWorkerID != uuid.Nil && workerId == qi.DesiredWorkerID.String() {
 				validSlots.addSlot(slot, 1)
 			} else {
 				validSlots.addSlot(slot, 0)

@@ -4,7 +4,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type GroupKeyActionAssignedTaskPayload struct {
@@ -27,11 +26,11 @@ type GroupKeyActionRequeueTaskMetadata struct {
 
 func TenantToGroupKeyActionRequeueTask(tenant dbsqlc.Tenant) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(GroupKeyActionRequeueTaskPayload{
-		TenantId: sqlchelpers.UUIDToStr(tenant.ID),
+		TenantId: tenant.ID.String(),
 	})
 
 	metadata, _ := datautils.ToJSONMap(GroupKeyActionRequeueTaskMetadata{
-		TenantId: sqlchelpers.UUIDToStr(tenant.ID),
+		TenantId: tenant.ID.String(),
 	})
 
 	return &msgqueue.Message{

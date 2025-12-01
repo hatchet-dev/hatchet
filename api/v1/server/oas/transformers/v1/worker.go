@@ -7,7 +7,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -85,7 +84,7 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 
 	res := &gen.Worker{
 		Metadata: gen.APIResourceMeta{
-			Id:        sqlchelpers.UUIDToStr(worker.ID),
+			Id:        worker.ID.String(),
 			CreatedAt: worker.CreatedAt.Time,
 			UpdatedAt: worker.UpdatedAt.Time,
 		},

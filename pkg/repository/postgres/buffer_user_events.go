@@ -66,19 +66,19 @@ func (r *sharedRepository) bulkWriteUserEvents(ctx context.Context, opts []*repo
 		eventId := uuid.New().String()
 
 		params[i] = dbsqlc.CreateEventsParams{
-			ID:                 sqlchelpers.UUIDFromStr(eventId),
+			ID:                 uuid.MustParse(eventId),
 			Key:                event.Key,
-			TenantId:           sqlchelpers.UUIDFromStr(event.TenantId),
+			TenantId:           uuid.MustParse(event.TenantId),
 			Data:               event.Data,
 			AdditionalMetadata: event.AdditionalMetadata,
 			InsertOrder:        sqlchelpers.ToInt(int32(i)),
 		}
 
 		if event.ReplayedEvent != nil {
-			params[i].ReplayedFromId = sqlchelpers.UUIDFromStr(*event.ReplayedEvent)
+			params[i].ReplayedFromId = uuid.MustParse(*event.ReplayedEvent)
 		}
 
-		ids[i] = sqlchelpers.UUIDFromStr(eventId)
+		ids[i] = uuid.MustParse(eventId)
 	}
 
 	// start a transaction

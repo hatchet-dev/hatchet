@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -43,7 +42,7 @@ func (wc *RetentionControllerImpl) runDeleteExpiredEventsTenant(ctx context.Cont
 	ctx, span := telemetry.NewSpan(ctx, "delete-expired-events")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
@@ -78,7 +77,7 @@ func (wc *RetentionControllerImpl) runClearDeletedEventsPayloadTenant(ctx contex
 	ctx, span := telemetry.NewSpan(ctx, "delete-expired-events")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 

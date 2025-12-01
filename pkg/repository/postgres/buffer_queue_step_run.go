@@ -42,7 +42,7 @@ func sizeOfQueueData(item bulkQueueStepRunOpts) int {
 
 func sortForQueueStepRuns(opts []bulkQueueStepRunOpts) []bulkQueueStepRunOpts {
 	sort.SliceStable(opts, func(i, j int) bool {
-		return sqlchelpers.UUIDToStr(opts[i].GetStepRunForEngineRow.SRID) < sqlchelpers.UUIDToStr(opts[j].GetStepRunForEngineRow.SRID)
+		return opts[i].SRID.String() < opts[j].SRID.String()
 	})
 
 	return opts

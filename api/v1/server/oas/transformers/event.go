@@ -5,7 +5,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
@@ -21,9 +20,9 @@ func ToEventList(events []*dbsqlc.Event) []gen.Event {
 
 func ToEvent(event *dbsqlc.Event) gen.Event {
 	return gen.Event{
-		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(event.ID), event.CreatedAt.Time, event.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(event.ID.String(), event.CreatedAt.Time, event.UpdatedAt.Time),
 		Key:      event.Key,
-		TenantId: sqlchelpers.UUIDToStr(event.TenantId),
+		TenantId: event.TenantId.String(),
 	}
 }
 
@@ -40,9 +39,9 @@ func ToEventFromSQLC(eventRow *dbsqlc.ListEventsRow) (*gen.Event, error) {
 	}
 
 	res := &gen.Event{
-		Metadata:           *toAPIMetadata(sqlchelpers.UUIDToStr(event.ID), event.CreatedAt.Time, event.UpdatedAt.Time),
+		Metadata:           *toAPIMetadata(event.ID.String(), event.CreatedAt.Time, event.UpdatedAt.Time),
 		Key:                event.Key,
-		TenantId:           sqlchelpers.UUIDToStr(event.TenantId),
+		TenantId:           event.TenantId.String(),
 		AdditionalMetadata: &metadata,
 	}
 
@@ -69,9 +68,9 @@ func ToEventFromSQLCV1(event *v1.EventWithPayload) (*gen.Event, error) {
 	}
 
 	res := &gen.Event{
-		Metadata:           *toAPIMetadata(sqlchelpers.UUIDToStr(event.EventExternalID), event.EventSeenAt.Time, event.EventSeenAt.Time),
+		Metadata:           *toAPIMetadata(event.EventExternalID.String(), event.EventSeenAt.Time, event.EventSeenAt.Time),
 		Key:                event.EventKey,
-		TenantId:           sqlchelpers.UUIDToStr(event.TenantID),
+		TenantId:           event.TenantID.String(),
 		AdditionalMetadata: &metadata,
 	}
 

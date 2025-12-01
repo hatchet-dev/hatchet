@@ -11,12 +11,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.WorkflowVersionGetRequestObject) (gen.WorkflowVersionGetResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
 	var workflowVersionId string
@@ -26,7 +25,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 	} else {
 		row, err := t.config.APIRepository.Workflow().GetWorkflowById(
 			ctx.Request().Context(),
-			sqlchelpers.UUIDToStr(workflow.Workflow.ID),
+			workflow.Workflow.ID.String(),
 		)
 
 		if err != nil {
@@ -40,7 +39,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 
 		}
 
-		workflowVersionId = sqlchelpers.UUIDToStr(row.WorkflowVersionId)
+		workflowVersionId = row.WorkflowVersionId.String()
 	}
 
 	row, crons, events, scheduleT, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenantId, workflowVersionId)

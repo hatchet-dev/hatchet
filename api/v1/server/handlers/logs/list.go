@@ -10,18 +10,17 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *LogService) LogLineList(ctx echo.Context, request gen.LogLineListRequestObject) (gen.LogLineListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
 
 	limit := 1000
 	offset := 0
 
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.ID)
+	stepRunId := stepRun.ID.String()
 
 	listOpts := &repository.ListLogsOpts{
 		Limit:     &limit,

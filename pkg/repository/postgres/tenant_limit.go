@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -12,7 +13,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -167,7 +167,7 @@ func (t *tenantLimitRepository) patchTenantResourceLimit(ctx context.Context, te
 
 	if upsert {
 		_, err := t.queries.UpsertTenantResourceLimit(ctx, t.pool, dbsqlc.UpsertTenantResourceLimitParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid: uuid.MustParse(tenantId),
 			Resource: dbsqlc.NullLimitResource{
 				LimitResource: limits.Resource,
 				Valid:         true,
@@ -182,7 +182,7 @@ func (t *tenantLimitRepository) patchTenantResourceLimit(ctx context.Context, te
 	}
 
 	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 		Resource: dbsqlc.NullLimitResource{
 			LimitResource: limits.Resource,
 			Valid:         true,
@@ -201,7 +201,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 		return []*dbsqlc.TenantResourceLimit{}, nil
 	}
 
-	limits, err := t.queries.ListTenantResourceLimits(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
+	limits, err := t.queries.ListTenantResourceLimits(ctx, t.pool, uuid.MustParse(tenantId))
 
 	if err != nil {
 		return nil, err
@@ -211,7 +211,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 	for _, limit := range limits {
 
 		if limit.Resource == dbsqlc.LimitResourceWORKER {
-			workerCount, err := t.queries.CountTenantWorkers(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
+			workerCount, err := t.queries.CountTenantWorkers(ctx, t.pool, uuid.MustParse(tenantId))
 			if err != nil {
 				return nil, err
 			}
@@ -219,7 +219,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 		}
 
 		if limit.Resource == dbsqlc.LimitResourceWORKERSLOT {
-			workerSlotCount, err := t.queries.CountTenantWorkerSlots(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
+			workerSlotCount, err := t.queries.CountTenantWorkerSlots(ctx, t.pool, uuid.MustParse(tenantId))
 			if err != nil {
 				return nil, err
 			}
@@ -238,7 +238,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 	}
 
 	limit, err := t.queries.GetTenantResourceLimit(ctx, t.pool, dbsqlc.GetTenantResourceLimitParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 		Resource: dbsqlc.NullLimitResource{
 			LimitResource: resource,
 			Valid:         true,
@@ -263,7 +263,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 
 	// patch custom worker limits aggregate methods
 	if resource == dbsqlc.LimitResourceWORKER {
-		count, err := t.queries.CountTenantWorkers(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
+		count, err := t.queries.CountTenantWorkers(ctx, t.pool, uuid.MustParse(tenantId))
 		value = int32(count) // nolint: gosec
 
 		if err != nil {
@@ -291,7 +291,7 @@ func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.Limit
 	}
 
 	r, err := t.queries.MeterTenantResource(ctx, t.pool, dbsqlc.MeterTenantResourceParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 		Resource: dbsqlc.NullLimitResource{
 			LimitResource: resource,
 			Valid:         true,

@@ -12,7 +12,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 
 	"github.com/hatchet-dev/timediff"
@@ -150,7 +149,7 @@ func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAle
 
 	limit := 5
 
-	tenantId := sqlchelpers.UUIDToStr(tenantAlerting.Settings.TenantId)
+	tenantId := tenantAlerting.Settings.TenantId.String()
 
 	failedWorkflowRuns, err := t.repo.WorkflowRun().ListWorkflowRuns(
 		ctx,
@@ -198,8 +197,8 @@ func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListW
 	res := make([]alerttypes.WorkflowRunFailedItem, 0)
 
 	for _, workflowRun := range failedWorkflowRuns.Rows {
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
-		tenantId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId)
+		workflowRunId := workflowRun.WorkflowRun.ID.String()
+		tenantId := workflowRun.WorkflowRun.TenantId.String()
 
 		readableId := workflowRun.WorkflowRun.DisplayName.String
 
@@ -233,8 +232,8 @@ func (t *TenantAlertManager) getFailedItemsV1(failedRuns []*v1.WorkflowRunData) 
 			break
 		}
 
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ExternalID)
-		tenantId := sqlchelpers.UUIDToStr(workflowRun.TenantID)
+		workflowRunId := workflowRun.ExternalID.String()
+		tenantId := workflowRun.TenantID.String()
 
 		readableId := workflowRun.DisplayName
 

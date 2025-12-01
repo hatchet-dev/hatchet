@@ -12,7 +12,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateRequestObject) (gen.TenantCreateResponseObject, error) {
@@ -88,7 +87,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		return nil, err
 	}
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	err = t.config.EntitlementRepository.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenantId, nil)
 
@@ -98,7 +97,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 
 	// add the user as an owner of the tenant
 	_, err = t.config.APIRepository.Tenant().CreateTenantMember(ctx.Request().Context(), tenantId, &repository.CreateTenantMemberOpts{
-		UserId: sqlchelpers.UUIDToStr(user.ID),
+		UserId: user.ID.String(),
 		Role:   "OWNER",
 	})
 
@@ -113,7 +112,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 
 	t.config.Analytics.Enqueue(
 		"tenant:create",
-		sqlchelpers.UUIDToStr(user.ID),
+		user.ID.String(),
 		&tenantId,
 		map[string]interface{}{
 			"tenant_created": true,

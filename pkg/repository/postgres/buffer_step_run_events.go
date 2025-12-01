@@ -86,7 +86,7 @@ func (w *sharedRepository) serialWriteStepRunEvent(ctx context.Context, opts []*
 		}
 		defer rollback()
 		err = w.queries.CreateStepRunEvent(ctx, tx, dbsqlc.CreateStepRunEventParams{
-			Steprunid: sqlchelpers.UUIDFromStr(item.StepRunId),
+			Steprunid: uuid.MustParse(item.StepRunId),
 			Reason:    *item.EventReason,
 			Severity:  *item.EventSeverity,
 			Message:   *item.EventMessage,
@@ -127,7 +127,7 @@ func (w *sharedRepository) bulkWriteStepRunEvents(ctx context.Context, opts []*r
 			continue
 		}
 
-		stepRunId := sqlchelpers.UUIDFromStr(item.StepRunId)
+		stepRunId := uuid.MustParse(item.StepRunId)
 		dedupeKey := fmt.Sprintf("EVENT-%s-%s", item.StepRunId, *item.EventReason)
 
 		if _, ok := dedupe[dedupeKey]; ok {

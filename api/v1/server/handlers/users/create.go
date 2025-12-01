@@ -10,7 +10,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 )
@@ -101,7 +100,7 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 
 	u.config.Analytics.Enqueue(
 		"user:create",
-		sqlchelpers.UUIDToStr(user.ID),
+		user.ID.String(),
 		nil,
 		map[string]interface{}{
 			"email": request.Body.Email,

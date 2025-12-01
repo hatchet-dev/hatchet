@@ -18,7 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -135,19 +134,19 @@ func (worker *subscribedWorker) CancelTask(
 }
 
 func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
-	workflowId := sqlchelpers.UUIDToStr(task.WorkflowID)
-	workflowVersionId := sqlchelpers.UUIDToStr(task.WorkflowVersionID)
+	workflowId := task.WorkflowID.String()
+	workflowVersionId := task.WorkflowVersionID.String()
 
 	action := &contracts.AssignedAction{
 		TenantId:          tenantID,
-		JobId:             sqlchelpers.UUIDToStr(task.StepID), // FIXME
+		JobId:             task.StepID.String(), // FIXME
 		JobName:           task.StepReadableID,
-		JobRunId:          sqlchelpers.UUIDToStr(task.ExternalID), // FIXME
-		StepId:            sqlchelpers.UUIDToStr(task.StepID),
-		StepRunId:         sqlchelpers.UUIDToStr(task.ExternalID),
+		JobRunId:          task.ExternalID.String(), // FIXME
+		StepId:            task.StepID.String(),
+		StepRunId:         task.ExternalID.String(),
 		ActionId:          task.ActionID,
 		StepName:          task.StepReadableID,
-		WorkflowRunId:     sqlchelpers.UUIDToStr(task.WorkflowRunID),
+		WorkflowRunId:     task.WorkflowRunID.String(),
 		RetryCount:        retryCount,
 		Priority:          task.Priority.Int32,
 		WorkflowId:        &workflowId,
@@ -160,7 +159,7 @@ func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int
 	}
 
 	if task.ParentTaskExternalID != uuid.Nil {
-		parentId := sqlchelpers.UUIDToStr(task.ParentTaskExternalID)
+		parentId := task.ParentTaskExternalID.String()
 		action.ParentWorkflowRunId = &parentId
 	}
 
@@ -366,7 +365,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 							if err != nil {
 								multiErr = multierror.Append(
 									multiErr,
-									fmt.Errorf("could not send action for task %s to worker %s (%d / %d): %w", sqlchelpers.UUIDToStr(task.ExternalID), workerId, i+1, len(workers), err),
+									fmt.Errorf("could not send action for task %s to worker %s (%d / %d): %w", task.ExternalID.String(), workerId, i+1, len(workers), err),
 								)
 							} else {
 								success = true
@@ -411,8 +410,8 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 						tenantId,
 						task.ID,
 						task.InsertedAt,
-						sqlchelpers.UUIDToStr(task.ExternalID),
-						sqlchelpers.UUIDToStr(task.WorkflowRunID),
+						task.ExternalID.String(),
+						task.WorkflowRunID.String(),
 						task.RetryCount,
 						false,
 						"Could not send task to worker",

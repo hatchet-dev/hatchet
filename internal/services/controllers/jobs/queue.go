@@ -18,7 +18,6 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -224,7 +223,7 @@ func (q *queue) runTenantUpdateStepRunsV2(ctx context.Context) func() {
 		q.updateStepRunV2Operations.SetTenants(tenants)
 
 		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+			tenantId := tenants[i].ID.String()
 
 			q.updateStepRunV2Operations.RunOrContinue(tenantId)
 		}
@@ -254,8 +253,8 @@ func (q *queue) processStepRunUpdatesV2(ctx context.Context, tenantId string) (b
 			}
 
 			// queue the next step runs
-			tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
-			stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+			tenantId := stepRun.SRTenantId.String()
+			stepRunId := stepRun.SRID.String()
 
 			nextStepRuns, err := q.repo.StepRun().ListStartableStepRuns(ctx, tenantId, stepRunId, false)
 
@@ -286,7 +285,7 @@ func (q *queue) processStepRunUpdatesV2(ctx context.Context, tenantId string) (b
 
 	// for all finished workflow runs, send a message
 	for _, finished := range res.CompletedWorkflowRuns {
-		workflowRunId := sqlchelpers.UUIDToStr(finished.ID)
+		workflowRunId := finished.ID.String()
 		status := string(finished.Status)
 
 		err := q.mq.AddMessage(
@@ -322,7 +321,7 @@ func (q *queue) runTenantTimeoutStepRuns(ctx context.Context) func() {
 		q.timeoutStepRunOperations.SetTenants(tenants)
 
 		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+			tenantId := tenants[i].ID.String()
 
 			q.timeoutStepRunOperations.RunOrContinue(tenantId)
 		}
@@ -344,7 +343,7 @@ func (q *queue) runTenantRetryStepRuns(ctx context.Context) func() {
 		q.retryStepRunOperations.SetTenants(tenants)
 
 		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+			tenantId := tenants[i].ID.String()
 
 			q.retryStepRunOperations.RunOrContinue(tenantId)
 		}

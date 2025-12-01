@@ -25,7 +25,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -529,7 +528,7 @@ func (wc *WorkflowsControllerImpl) runPollActiveQueues(ctx context.Context) func
 		}
 
 		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+			tenantId := tenants[i].ID.String()
 			wc.bumpQueueOps.RunOrContinue(tenantId)
 		}
 	}
@@ -550,8 +549,8 @@ func (wc *WorkflowsControllerImpl) runPollActiveQueuesTenant(ctx context.Context
 	for i := range toQueueList {
 		toQueue := toQueueList[i]
 		errGroup.Go(func() error {
-			workflowVersionId := sqlchelpers.UUIDToStr(toQueue.WorkflowVersionId)
-			tenantId := sqlchelpers.UUIDToStr(toQueue.TenantId)
+			workflowVersionId := toQueue.WorkflowVersionId.String()
+			tenantId := toQueue.TenantId.String()
 			err := wc.bumpQueue(ctx, tenantId, workflowVersionId)
 			return err
 		})
@@ -683,7 +682,7 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 	if err != nil {
 		return fmt.Errorf("could not update get group key run: %w", err)
 	}
-	return wc.cancelWorkflowRunJobs(ctx, tenantId, sqlchelpers.UUIDToStr(groupKeyRun.WorkflowRunId), reason)
+	return wc.cancelWorkflowRunJobs(ctx, tenantId, groupKeyRun.WorkflowRunId.String(), reason)
 }
 
 func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, tenantId string, workflowRunId string, reason string) error {
@@ -707,7 +706,7 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, te
 			continue
 		}
 
-		jobRunId := sqlchelpers.UUIDToStr(jobRuns[i].ID)
+		jobRunId := jobRuns[i].ID.String()
 
 		err := wc.mq.AddMessage(
 			context.Background(),
@@ -736,7 +735,7 @@ func (wc *WorkflowsControllerImpl) runTenantProcessWorkflowRunEvents(ctx context
 		}
 
 		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+			tenantId := tenants[i].ID.String()
 
 			wc.processWorkflowEventsOps.RunOrContinue(tenantId)
 		}
@@ -756,7 +755,7 @@ func (wc *WorkflowsControllerImpl) runTenantUnpauseWorkflowRuns(ctx context.Cont
 		}
 
 		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+			tenantId := tenants[i].ID.String()
 
 			wc.unpausedWorkflowRunsOps.RunOrContinue(tenantId)
 		}
@@ -802,7 +801,7 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 			row := toQueue[i]
 
 			errGroup.Go(func() error {
-				workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
+				workflowRunId := row.WorkflowRun.ID.String()
 
 				wc.l.Info().Msgf("popped workflow run %s", workflowRunId)
 

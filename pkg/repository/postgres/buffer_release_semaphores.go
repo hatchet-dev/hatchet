@@ -37,7 +37,7 @@ func sizeOfSemaphoreReleaseData(item semaphoreReleaseOpts) int {
 
 func sortForSemaphoreRelease(opts []semaphoreReleaseOpts) []semaphoreReleaseOpts {
 	sort.SliceStable(opts, func(i, j int) bool {
-		return sqlchelpers.UUIDToStr(opts[i].StepRunId) < sqlchelpers.UUIDToStr(opts[j].StepRunId)
+		return opts[i].StepRunId.String() < opts[j].StepRunId.String()
 	})
 
 	return opts

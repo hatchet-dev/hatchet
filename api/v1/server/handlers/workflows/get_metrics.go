@@ -10,12 +10,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowGetMetrics(ctx echo.Context, request gen.WorkflowGetMetricsRequestObject) (gen.WorkflowGetMetricsResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
 	opts := &repository.GetWorkflowMetricsOpts{}
@@ -28,7 +27,7 @@ func (t *WorkflowService) WorkflowGetMetrics(ctx echo.Context, request gen.Workf
 		opts.GroupKey = request.Params.GroupKey
 	}
 
-	metrics, err := t.config.APIRepository.Workflow().GetWorkflowMetrics(tenantId, sqlchelpers.UUIDToStr(workflow.Workflow.ID), opts)
+	metrics, err := t.config.APIRepository.Workflow().GetWorkflowMetrics(tenantId, workflow.Workflow.ID.String(), opts)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

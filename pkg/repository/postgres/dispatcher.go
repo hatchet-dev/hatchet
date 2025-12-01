@@ -37,7 +37,7 @@ func (d *dispatcherRepository) CreateNewDispatcher(ctx context.Context, opts *re
 		return nil, err
 	}
 
-	return d.queries.CreateDispatcher(ctx, d.pool, sqlchelpers.UUIDFromStr(opts.ID))
+	return d.queries.CreateDispatcher(ctx, d.pool, uuid.MustParse(opts.ID))
 }
 
 func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherId string, opts *repository.UpdateDispatcherOpts) (*dbsqlc.Dispatcher, error) {
@@ -46,13 +46,13 @@ func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherI
 	}
 
 	return d.queries.UpdateDispatcher(ctx, d.pool, dbsqlc.UpdateDispatcherParams{
-		ID:              sqlchelpers.UUIDFromStr(dispatcherId),
+		ID:              uuid.MustParse(dispatcherId),
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
 	})
 }
 
 func (d *dispatcherRepository) Delete(ctx context.Context, dispatcherId string) error {
-	_, err := d.queries.DeleteDispatcher(ctx, d.pool, sqlchelpers.UUIDFromStr(dispatcherId))
+	_, err := d.queries.DeleteDispatcher(ctx, d.pool, uuid.MustParse(dispatcherId))
 
 	return err
 }
@@ -81,9 +81,9 @@ func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onSta
 	dispatchersToDelete := make([]uuid.UUID, 0)
 
 	for i, dispatcher := range staleDispatchers {
-		err := onStale(sqlchelpers.UUIDToStr(dispatcher.Dispatcher.ID), func() string {
+		err := onStale(dispatcher.Dispatcher.ID.String(), func() string {
 			// assign tickers in round-robin fashion
-			return sqlchelpers.UUIDToStr(activeDispatchers[i%len(activeDispatchers)].Dispatcher.ID)
+			return activeDispatchers[i%len(activeDispatchers)].Dispatcher.ID.String()
 		})
 
 		if err != nil {

@@ -11,16 +11,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/whrequest"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/webhook"
-
-	"github.com/rs/zerolog"
 )
 
 type WebhooksController struct {
@@ -102,7 +102,7 @@ func (c *WebhooksController) check(ctx context.Context, id string) (bool, error)
 
 			// Protect map write with mutex
 			currentWorkersMu.Lock()
-			currentRegisteredWorkerIds[sqlchelpers.UUIDToStr(ww.ID)] = true
+			currentRegisteredWorkerIds[ww.ID.String()] = true
 			currentWorkersMu.Unlock()
 		}()
 	}
@@ -125,8 +125,8 @@ func (c *WebhooksController) check(ctx context.Context, id string) (bool, error)
 }
 
 func (c *WebhooksController) processWebhookWorker(ww *dbsqlc.WebhookWorker) {
-	tenantId := sqlchelpers.UUIDToStr(ww.TenantId)
-	id := sqlchelpers.UUIDToStr(ww.ID)
+	tenantId := ww.TenantId.String()
+	id := ww.ID.String()
 
 	c.mu.Lock()
 	_, registered := c.registeredWorkerIds[id]
@@ -203,8 +203,8 @@ func (c *WebhooksController) cleanupDeletedWorker(id, tenantId string) {
 	c.sc.Logger.Debug().Msgf("webhook worker %s of tenant %s has been deleted", id, tenantId)
 	err := c.sc.EngineRepository.Worker().UpdateWorkersByWebhookId(context.Background(), dbsqlc.UpdateWorkersByWebhookIdParams{
 		Isactive:  false,
-		Webhookid: sqlchelpers.UUIDFromStr(id),
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Webhookid: uuid.MustParse(id),
+		Tenantid:  uuid.MustParse(tenantId),
 	})
 	if err != nil {
 		c.sc.Logger.Err(err).Msgf("could not delete webhook worker worker")
@@ -251,7 +251,7 @@ func (c *WebhooksController) getOrCreateToken(ww *dbsqlc.WebhookWorker, tenantId
 
 	_, err = c.sc.EngineRepository.WebhookWorker().UpdateWebhookWorkerToken(
 		context.Background(),
-		sqlchelpers.UUIDToStr(ww.ID),
+		ww.ID.String(),
 		tenantId,
 		&repository.UpdateWebhookWorkerTokenOpts{
 			TokenID:    &tok.TokenId,
@@ -270,7 +270,7 @@ type HealthCheckResponse struct {
 }
 
 func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheckResponse, error) {
-	secret, err := c.sc.Encryption.DecryptString(ww.Secret, sqlchelpers.UUIDToStr(ww.TenantId))
+	secret, err := c.sc.Encryption.DecryptString(ww.Secret, ww.TenantId.String())
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +284,7 @@ func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheck
 	})
 
 	if statusCode != nil {
-		err = c.sc.EngineRepository.WebhookWorker().InsertWebhookWorkerRequest(context.Background(), sqlchelpers.UUIDToStr(ww.ID), "PUT", int32(*statusCode))
+		err = c.sc.EngineRepository.WebhookWorker().InsertWebhookWorkerRequest(context.Background(), ww.ID.String(), "PUT", int32(*statusCode))
 		c.sc.Logger.Err(err).Msgf("could not insert webhook worker request")
 	}
 
@@ -302,9 +302,9 @@ func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheck
 }
 
 func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookWorker, token string, h *HealthCheckResponse) (func() error, error) {
-	id := sqlchelpers.UUIDToStr(webhookWorker.ID)
+	id := webhookWorker.ID.String()
 
-	secret, err := c.sc.Encryption.DecryptString(webhookWorker.Secret, sqlchelpers.UUIDToStr(webhookWorker.TenantId))
+	secret, err := c.sc.Encryption.DecryptString(webhookWorker.Secret, webhookWorker.TenantId.String())
 	if err != nil {
 		return nil, fmt.Errorf("could not decrypt webhook secret: %w", err)
 	}
@@ -317,7 +317,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 		Name:      webhookWorker.Name,
 		TenantID:  tenantId,
 		Actions:   h.Actions,
-		WebhookId: sqlchelpers.UUIDToStr(webhookWorker.ID),
+		WebhookId: webhookWorker.ID.String(),
 		Logger:    c.l,
 	})
 
@@ -357,7 +357,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 
 						err := c.sc.EngineRepository.Worker().UpdateWorkersByWebhookId(context.Background(), dbsqlc.UpdateWorkersByWebhookIdParams{
 							Isactive:  false,
-							Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+							Tenantid:  uuid.MustParse(tenantId),
 							Webhookid: webhookWorker.ID,
 						})
 						if err != nil {
@@ -404,7 +404,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 
 				err = c.sc.EngineRepository.Worker().UpdateWorkersByWebhookId(context.Background(), dbsqlc.UpdateWorkersByWebhookIdParams{
 					Isactive:  true,
-					Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+					Tenantid:  uuid.MustParse(tenantId),
 					Webhookid: webhookWorker.ID,
 				})
 				if err != nil {

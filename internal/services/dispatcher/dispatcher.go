@@ -24,7 +24,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry/servertel"
@@ -333,7 +332,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	// subscribe to a task queue with the dispatcher id
-	dispatcherId := sqlchelpers.UUIDToStr(dispatcher.ID)
+	dispatcherId := dispatcher.ID.String()
 	cleanupQueue, err := d.mq.Subscribe(msgqueue.QueueTypeFromDispatcherID(dispatcherId), f, msgqueue.NoOpHook)
 
 	if err != nil {
@@ -501,7 +500,7 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 
 	servertel.WithWorkflowRunModel(span, workflowRun)
 
-	groupKeyRunId := sqlchelpers.UUIDToStr(workflowRun.GetGroupKeyRunId)
+	groupKeyRunId := workflowRun.GetGroupKeyRunId.String()
 
 	if groupKeyRunId == "" {
 		return fmt.Errorf("could not get group key run")
@@ -574,7 +573,7 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 
 	for _, sr := range bulkDatas {
 
-		stepRunIdToData[sqlchelpers.UUIDToStr(sr.SRID)] = sr
+		stepRunIdToData[sr.SRID.String()] = sr
 	}
 
 	outerEg := errgroup.Group{}
@@ -617,7 +616,7 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 
 					// if the step run has a job run in a non-running state, we should not send it to the worker
 					if repository.IsFinalJobRunStatus(stepRun.JobRunStatus) {
-						d.l.Debug().Msgf("job run %s is in a final state %s, ignoring", sqlchelpers.UUIDToStr(stepRun.JobRunId), string(stepRun.JobRunStatus))
+						d.l.Debug().Msgf("job run %s is in a final state %s, ignoring", stepRun.JobRunId.String(), string(stepRun.JobRunStatus))
 
 						// release the semaphore
 						return d.repo.StepRun().ReleaseStepRunSemaphore(ctx, metadata.TenantId, stepRunId, false)
@@ -651,7 +650,7 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 						defer d.repo.StepRun().DeferredStepRunEvent(
 							metadata.TenantId,
 							repository.CreateStepRunEventOpts{
-								StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+								StepRunId:     stepRun.SRID.String(),
 								EventMessage:  repository.StringPtr("Sent step run to the assigned worker"),
 								EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSENTTOWORKER),
 								EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityINFO),
@@ -666,7 +665,7 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 					defer d.repo.StepRun().DeferredStepRunEvent(
 						metadata.TenantId,
 						repository.CreateStepRunEventOpts{
-							StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+							StepRunId:     stepRun.SRID.String(),
 							EventMessage:  repository.StringPtr("Could not send step run to assigned worker"),
 							EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
 							EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),

@@ -13,7 +13,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -393,7 +392,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	stepRunIdsToAcks := make(map[string]int, len(r.assigned))
 
 	for _, assignedItem := range r.assigned {
-		stepRunIdsToAcks[sqlchelpers.UUIDToStr(assignedItem.QueueItem.StepRunId)] = assignedItem.AckId
+		stepRunIdsToAcks[assignedItem.QueueItem.StepRunId.String()] = assignedItem.AckId
 
 		opts.Assigned = append(opts.Assigned, &repository.AssignedItem{
 			WorkerId:  assignedItem.WorkerId,
@@ -430,12 +429,12 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	ackIds := make([]int, 0, len(succeeded))
 
 	for _, failedItem := range failed {
-		nackId := stepRunIdsToAcks[sqlchelpers.UUIDToStr(failedItem.QueueItem.StepRunId)]
+		nackId := stepRunIdsToAcks[failedItem.QueueItem.StepRunId.String()]
 		nackIds = append(nackIds, nackId)
 	}
 
 	for _, assignedItem := range succeeded {
-		ackId := stepRunIdsToAcks[sqlchelpers.UUIDToStr(assignedItem.QueueItem.StepRunId)]
+		ackId := stepRunIdsToAcks[assignedItem.QueueItem.StepRunId.String()]
 		ackIds = append(ackIds, ackId)
 	}
 
@@ -445,7 +444,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	schedulingTimedOut := make([]string, 0, len(r.schedulingTimedOut))
 
 	for _, id := range r.schedulingTimedOut {
-		schedulingTimedOut = append(schedulingTimedOut, sqlchelpers.UUIDToStr(id.StepRunId))
+		schedulingTimedOut = append(schedulingTimedOut, id.StepRunId.String())
 	}
 
 	q.resultsCh <- &QueueResults{

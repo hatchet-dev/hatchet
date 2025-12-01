@@ -7,7 +7,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) AlertEmailGroupUpdate(ctx echo.Context, request gen.AlertEmailGroupUpdateRequestObject) (gen.AlertEmailGroupUpdateResponseObject, error) {
@@ -25,7 +24,7 @@ func (t *TenantService) AlertEmailGroupUpdate(ctx echo.Context, request gen.Aler
 		Emails: request.Body.Emails,
 	}
 
-	emailGroup, err := t.config.APIRepository.TenantAlertingSettings().UpdateTenantAlertGroup(ctx.Request().Context(), sqlchelpers.UUIDToStr(emailGroup.ID), updateOpts)
+	emailGroup, err := t.config.APIRepository.TenantAlertingSettings().UpdateTenantAlertGroup(ctx.Request().Context(), emailGroup.ID.String(), updateOpts)
 
 	if err != nil {
 		return nil, err

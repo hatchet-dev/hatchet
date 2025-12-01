@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -35,7 +36,7 @@ func (r *workerRepository) ListWorkers(tenantId string, opts *repository.ListWor
 		return nil, err
 	}
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgTenantId := uuid.MustParse(tenantId)
 
 	queryParams := sqlcv1.ListWorkersWithSlotCountParams{
 		Tenantid: pgTenantId,
@@ -70,13 +71,13 @@ func (r *workerRepository) ListWorkers(tenantId string, opts *repository.ListWor
 }
 
 func (w *workerRepository) GetWorkerById(workerId string) (*sqlcv1.GetWorkerByIdRow, error) {
-	return w.queries.GetWorkerById(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
+	return w.queries.GetWorkerById(context.Background(), w.pool, uuid.MustParse(workerId))
 }
 
 func (w *workerRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error) {
 	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, sqlcv1.ListSemaphoreSlotsWithStateForWorkerParams{
-		Workerid: sqlchelpers.UUIDFromStr(workerId),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Workerid: uuid.MustParse(workerId),
+		Tenantid: uuid.MustParse(tenantId),
 		Limit: pgtype.Int4{
 			Int32: int32(maxRuns), // nolint: gosec
 			Valid: true,

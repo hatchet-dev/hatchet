@@ -8,7 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -110,7 +109,7 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, 
 	}
 
 	params := sqlcv1.CreateWebhookParams{
-		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:           uuid.MustParse(tenantId),
 		Sourcename:         sqlcv1.V1IncomingWebhookSourceName(opts.Sourcename),
 		Name:               opts.Name,
 		Eventkeyexpression: opts.Eventkeyexpression,
@@ -182,7 +181,7 @@ func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId string, o
 	}
 
 	return r.queries.ListWebhooks(ctx, r.pool, sqlcv1.ListWebhooksParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:      uuid.MustParse(tenantId),
 		Webhooknames:  opts.WebhookNames,
 		Sourcenames:   opts.WebhookSourceNames,
 		WebhookLimit:  limit,
@@ -193,28 +192,28 @@ func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId string, o
 
 func (r *webhookRepository) DeleteWebhook(ctx context.Context, tenantId, name string) (*sqlcv1.V1IncomingWebhook, error) {
 	return r.queries.DeleteWebhook(ctx, r.pool, sqlcv1.DeleteWebhookParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 		Name:     name,
 	})
 }
 
 func (r *webhookRepository) GetWebhook(ctx context.Context, tenantId, name string) (*sqlcv1.V1IncomingWebhook, error) {
 	return r.queries.GetWebhook(ctx, r.pool, sqlcv1.GetWebhookParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 		Name:     name,
 	})
 }
 
 func (r *webhookRepository) CanCreate(ctx context.Context, tenantId string, webhookLimit int32) (bool, error) {
 	return r.queries.CanCreateWebhook(ctx, r.pool, sqlcv1.CanCreateWebhookParams{
-		Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:     uuid.MustParse(tenantId),
 		Webhooklimit: webhookLimit,
 	})
 }
 
 func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId string, webhookName, newExpression string) (*sqlcv1.V1IncomingWebhook, error) {
 	return r.queries.UpdateWebhookExpression(ctx, r.pool, sqlcv1.UpdateWebhookExpressionParams{
-		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:           uuid.MustParse(tenantId),
 		Webhookname:        webhookName,
 		Eventkeyexpression: newExpression,
 	})

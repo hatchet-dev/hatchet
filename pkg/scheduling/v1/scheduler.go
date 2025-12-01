@@ -11,7 +11,6 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling/v0/randomticker"
@@ -48,7 +47,7 @@ type Scheduler struct {
 }
 
 func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
-	l := cf.l.With().Str("tenant_id", sqlchelpers.UUIDToStr(tenantId)).Logger()
+	l := cf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
 	return &Scheduler{
 		repo:            cf.repo.Assignment(),
@@ -141,7 +140,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	workerIds := make([]uuid.UUID, 0)
 
 	for workerIdStr := range workers {
-		workerIds = append(workerIds, sqlchelpers.UUIDFromStr(workerIdStr))
+		workerIds = append(workerIds, uuid.MustParse(workerIdStr))
 	}
 
 	start := time.Now()
@@ -170,7 +169,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 
 		actionId := workerActionTuple.ActionId.String
-		workerId := sqlchelpers.UUIDToStr(workerActionTuple.WorkerId)
+		workerId := workerActionTuple.WorkerId.String()
 
 		actionsToWorkerIds[actionId] = append(actionsToWorkerIds[actionId], workerId)
 		workerIdsToActions[workerId] = append(workerIdsToActions[workerId], actionId)
@@ -255,7 +254,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	workerUUIDs := make([]uuid.UUID, 0, len(uniqueWorkerIds))
 
 	for workerId := range uniqueWorkerIds {
-		workerUUIDs = append(workerUUIDs, sqlchelpers.UUIDFromStr(workerId))
+		workerUUIDs = append(workerUUIDs, uuid.MustParse(workerId))
 	}
 
 	orderedLock(actionsToReplenish)
@@ -295,7 +294,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	actionsToTotalSlots := make(map[string]int)
 
 	for _, worker := range availableSlots {
-		workerId := sqlchelpers.UUIDToStr(worker.ID)
+		workerId := worker.ID.String()
 		actions := workerIdsToActions[workerId]
 		unackedSlots := workersToUnackedSlots[workerId]
 
@@ -412,7 +411,7 @@ func (s *Scheduler) loopSnapshot(ctx context.Context) {
 				continue
 			}
 
-			s.exts.ReportSnapshot(sqlchelpers.UUIDToStr(s.tenantId), in)
+			s.exts.ReportSnapshot(s.tenantId.String(), in)
 
 			count++
 		}
@@ -583,7 +582,7 @@ func (s *Scheduler) tryAssignBatch(
 			qi,
 			candidateSlots,
 			childRingOffset,
-			stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepID)],
+			stepIdsToLabels[qi.StepID.String()],
 			rlAcks[i],
 			rlNacks[i],
 		)
@@ -672,7 +671,7 @@ func (s *Scheduler) tryAssignSingleton(
 	s.unackedSlots[res.ackId] = assignedSlot
 	s.unackedMu.Unlock()
 
-	res.workerId = sqlchelpers.UUIDFromStr(assignedSlot.getWorkerId())
+	res.workerId = uuid.MustParse(assignedSlot.getWorkerId())
 	res.succeeded = true
 
 	return res, nil
@@ -832,7 +831,7 @@ func (s *Scheduler) tryAssign(
 		span.End()
 		close(resultsCh)
 
-		s.exts.PostAssign(sqlchelpers.UUIDToStr(s.tenantId), s.getExtensionInput(extensionResults))
+		s.exts.PostAssign(s.tenantId.String(), s.getExtensionInput(extensionResults))
 
 		if sinceStart := time.Since(startTotal); sinceStart > 100*time.Millisecond {
 			s.l.Warn().Dur("duration", sinceStart).Msgf("assigning queue items took longer than 100ms")

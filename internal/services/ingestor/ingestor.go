@@ -14,7 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -198,7 +197,7 @@ func (i *IngestorImpl) ingestEventV0(ctx context.Context, tenant *dbsqlc.Tenant,
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
 		TenantId:           tenantId,
@@ -245,7 +244,7 @@ func (i *IngestorImpl) bulkIngestEventV0(ctx context.Context, tenant *dbsqlc.Ten
 	ctx, span := telemetry.NewSpan(ctx, "bulk-ingest-event")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	events, err := i.eventRepository.BulkCreateEvent(ctx, &repository.BulkCreateEventOpts{
 		Events:   eventOpts,
@@ -293,9 +292,9 @@ func (i *IngestorImpl) ingestReplayedEventV0(ctx context.Context, tenant *dbsqlc
 	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
-	replayedId := sqlchelpers.UUIDToStr(replayedEvent.ID)
+	replayedId := replayedEvent.ID.String()
 
 	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
 		TenantId:           tenantId,
@@ -323,8 +322,8 @@ func (i *IngestorImpl) ingestReplayedEventV0(ctx context.Context, tenant *dbsqlc
 }
 
 func eventToTask(e *dbsqlc.Event) *msgqueue.Message {
-	eventId := sqlchelpers.UUIDToStr(e.ID)
-	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
+	eventId := e.ID.String()
+	tenantId := e.TenantId.String()
 
 	payloadTyped := tasktypes.EventTaskPayload{
 		EventId:                 eventId,

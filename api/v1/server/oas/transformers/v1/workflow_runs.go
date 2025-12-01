@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -75,7 +74,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
-			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
+			Id:        task.ExternalID.String(),
 			CreatedAt: task.InsertedAt.Time,
 			UpdatedAt: task.InsertedAt.Time,
 		},
@@ -189,7 +188,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
-			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
+			Id:        task.ExternalID.String(),
 			CreatedAt: task.InsertedAt.Time,
 			UpdatedAt: task.InsertedAt.Time,
 		},
@@ -256,7 +255,7 @@ func ToWorkflowRunDisplayNamesList(
 		result[i] = gen.V1WorkflowRunDisplayName{
 			DisplayName: record.DisplayName,
 			Metadata: gen.APIResourceMeta{
-				Id:        sqlchelpers.UUIDToStr(record.ExternalID),
+				Id:        record.ExternalID.String(),
 				CreatedAt: record.InsertedAt.Time,
 				UpdatedAt: record.InsertedAt.Time,
 			},

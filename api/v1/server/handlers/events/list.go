@@ -18,13 +18,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestObject) (gen.EventListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	total := int64(0)
 	limit := int64(50)
@@ -145,7 +144,7 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 		}
 
 		opts := sqlcv1.ListEventsParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid: uuid.MustParse(tenantId),
 			Limit: pgtype.Int8{
 				Int64: limit,
 				Valid: true,
@@ -168,7 +167,7 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 			workflowIds := make([]uuid.UUID, len(*request.Params.Workflows))
 
 			for i, workflowId := range *request.Params.Workflows {
-				workflowIds[i] = sqlchelpers.UUIDFromStr(workflowId)
+				workflowIds[i] = uuid.MustParse(workflowId)
 			}
 
 			opts.WorkflowIds = workflowIds
@@ -185,7 +184,7 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 		if request.Params.EventIds != nil {
 			eventIds := make([]uuid.UUID, len(*request.Params.EventIds))
 			for i, eventId := range *request.Params.EventIds {
-				eventIds[i] = sqlchelpers.UUIDFromStr(eventId.String())
+				eventIds[i] = uuid.MustParse(eventId.String())
 			}
 			opts.EventIds = eventIds
 		}

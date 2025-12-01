@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type securityCheckRepository struct {
@@ -24,5 +23,5 @@ func (a *securityCheckRepository) GetIdent() (string, error) {
 		return "", err
 	}
 
-	return sqlchelpers.UUIDToStr(id), nil
+	return id.String(), nil
 }

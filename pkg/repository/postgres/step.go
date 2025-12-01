@@ -3,13 +3,13 @@ package postgres
 import (
 	"context"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/validator"
-
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type stepRepository struct {
@@ -31,5 +31,5 @@ func NewStepRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Log
 }
 
 func (j *stepRepository) ListStepExpressions(ctx context.Context, stepId string) ([]*dbsqlc.StepExpression, error) {
-	return j.queries.GetStepExpressions(ctx, j.pool, sqlchelpers.UUIDFromStr(stepId))
+	return j.queries.GetStepExpressions(ctx, j.pool, uuid.MustParse(stepId))
 }

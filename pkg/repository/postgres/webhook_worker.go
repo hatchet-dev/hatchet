@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -42,11 +43,11 @@ func (r *webhookWorkerEngineRepository) ListWebhookWorkersByPartitionId(ctx cont
 }
 
 func (r *webhookWorkerEngineRepository) ListActiveWebhookWorkers(ctx context.Context, tenantId string) ([]*dbsqlc.WebhookWorker, error) {
-	return r.queries.ListActiveWebhookWorkers(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
+	return r.queries.ListActiveWebhookWorkers(ctx, r.pool, uuid.MustParse(tenantId))
 }
 
 func (r *webhookWorkerEngineRepository) ListWebhookWorkerRequests(ctx context.Context, webhookWorkerId string) ([]*dbsqlc.WebhookWorkerRequest, error) {
-	return r.queries.ListWebhookWorkerRequests(ctx, r.pool, sqlchelpers.UUIDFromStr(webhookWorkerId))
+	return r.queries.ListWebhookWorkerRequests(ctx, r.pool, uuid.MustParse(webhookWorkerId))
 }
 
 func (r *webhookWorkerEngineRepository) InsertWebhookWorkerRequest(ctx context.Context, webhookWorkerId string, method string, statusCode int32) error {
@@ -54,7 +55,7 @@ func (r *webhookWorkerEngineRepository) InsertWebhookWorkerRequest(ctx context.C
 	defer cancel()
 
 	return r.queries.InsertWebhookWorkerRequest(ctx, r.pool, dbsqlc.InsertWebhookWorkerRequestParams{
-		Webhookworkerid: sqlchelpers.UUIDFromStr(webhookWorkerId),
+		Webhookworkerid: uuid.MustParse(webhookWorkerId),
 		Method:          dbsqlc.WebhookWorkerRequestMethod(method),
 		Statuscode:      statusCode,
 	})
@@ -67,7 +68,7 @@ func (r *webhookWorkerEngineRepository) CreateWebhookWorker(ctx context.Context,
 	}
 
 	params := dbsqlc.CreateWebhookWorkerParams{
-		Tenantid: sqlchelpers.UUIDFromStr(opts.TenantId),
+		Tenantid: uuid.MustParse(opts.TenantId),
 		Name:     opts.Name,
 		Secret:   opts.Secret,
 		Url:      opts.URL,
@@ -78,7 +79,7 @@ func (r *webhookWorkerEngineRepository) CreateWebhookWorker(ctx context.Context,
 	}
 
 	if opts.TokenID != nil {
-		params.TokenId = sqlchelpers.UUIDFromStr(*opts.TokenID)
+		params.TokenId = uuid.MustParse(*opts.TokenID)
 	}
 
 	if opts.TokenValue != nil {
@@ -103,12 +104,12 @@ func (r *webhookWorkerEngineRepository) UpdateWebhookWorkerToken(ctx context.Con
 	}
 
 	params := dbsqlc.UpdateWebhookWorkerTokenParams{
-		ID:       sqlchelpers.UUIDFromStr(id),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		ID:       uuid.MustParse(id),
+		Tenantid: uuid.MustParse(tenantId),
 	}
 
 	if opts.TokenID != nil {
-		params.TokenId = sqlchelpers.UUIDFromStr(*opts.TokenID)
+		params.TokenId = uuid.MustParse(*opts.TokenID)
 	}
 
 	if opts.TokenValue != nil {
@@ -126,14 +127,14 @@ func (r *webhookWorkerEngineRepository) UpdateWebhookWorkerToken(ctx context.Con
 
 func (r *webhookWorkerEngineRepository) SoftDeleteWebhookWorker(ctx context.Context, id string, tenantId string) error {
 	return r.queries.SoftDeleteWebhookWorker(ctx, r.pool, dbsqlc.SoftDeleteWebhookWorkerParams{
-		ID:       sqlchelpers.UUIDFromStr(id),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		ID:       uuid.MustParse(id),
+		Tenantid: uuid.MustParse(tenantId),
 	})
 }
 
 func (r *webhookWorkerEngineRepository) HardDeleteWebhookWorker(ctx context.Context, id string, tenantId string) error {
 	return r.queries.HardDeleteWebhookWorker(ctx, r.pool, dbsqlc.HardDeleteWebhookWorkerParams{
-		ID:       sqlchelpers.UUIDFromStr(id),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		ID:       uuid.MustParse(id),
+		Tenantid: uuid.MustParse(tenantId),
 	})
 }

@@ -21,7 +21,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
@@ -251,7 +250,7 @@ func (s *Scheduler) Start() (func() error, error) {
 				}
 
 				go func(results *v1.QueueResults) {
-					err := s.scheduleStepRuns(ctx, sqlchelpers.UUIDToStr(results.TenantId), results)
+					err := s.scheduleStepRuns(ctx, results.TenantId.String(), results)
 
 					if err != nil {
 						s.l.Error().Err(err).Msg("could not schedule step runs")
@@ -275,7 +274,7 @@ func (s *Scheduler) Start() (func() error, error) {
 					continue
 				}
 
-				go s.notifyAfterConcurrency(ctx, sqlchelpers.UUIDToStr(res.TenantId), res)
+				go s.notifyAfterConcurrency(ctx, res.TenantId.String(), res)
 			}
 		}
 	}()
@@ -371,7 +370,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		workerIds := make([]string, 0)
 
 		for _, assigned := range res.Assigned {
-			workerIds = append(workerIds, sqlchelpers.UUIDToStr(assigned.WorkerId))
+			workerIds = append(workerIds, assigned.WorkerId.String())
 		}
 
 		var dispatcherIdWorkerIds map[string][]string
@@ -395,7 +394,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		assignedMsgs := make([]*msgqueue.Message, 0)
 
 		for _, bulkAssigned := range res.Assigned {
-			dispatcherId, ok := workerIdToDispatcherId[sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)]
+			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId.String()]
 
 			if !ok {
 				s.l.Error().Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
@@ -409,7 +408,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[string][]int64)
 			}
 
-			workerId := sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)
+			workerId := bulkAssigned.WorkerId.String()
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
@@ -515,8 +514,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				tenantId,
 				schedulingTimedOut.TaskID,
 				schedulingTimedOut.TaskInsertedAt,
-				sqlchelpers.UUIDToStr(schedulingTimedOut.ExternalID),
-				sqlchelpers.UUIDToStr(schedulingTimedOut.WorkflowRunID),
+				schedulingTimedOut.ExternalID.String(),
+				schedulingTimedOut.WorkflowRunID.String(),
 				schedulingTimedOut.RetryCount,
 				sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
 				"",
@@ -542,7 +541,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 	if len(res.Unassigned) > 0 {
 		for _, unassigned := range res.Unassigned {
-			taskExternalId := sqlchelpers.UUIDToStr(unassigned.ExternalID)
+			taskExternalId := unassigned.ExternalID.String()
 
 			// if we have seen this task recently, don't send it again
 			if _, ok := s.tasksWithNoWorkerCache.Get(taskExternalId); ok {
@@ -591,8 +590,8 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 			tenantId,
 			a.QueueItem.TaskID,
 			a.QueueItem.TaskInsertedAt,
-			sqlchelpers.UUIDToStr(a.QueueItem.ExternalID),
-			sqlchelpers.UUIDToStr(a.QueueItem.WorkflowRunID),
+			a.QueueItem.ExternalID.String(),
+			a.QueueItem.WorkflowRunID.String(),
 			a.QueueItem.RetryCount,
 			false,
 			"could not assign step run to worker",

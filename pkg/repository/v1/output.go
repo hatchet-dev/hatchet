@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -53,7 +52,7 @@ func NewSkippedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
 
 	if task.DesiredWorkerID != uuid.Nil {
-		workerId := sqlchelpers.UUIDToStr(task.DesiredWorkerID)
+		workerId := task.DesiredWorkerID.String()
 		e.WorkerId = &workerId
 	}
 
@@ -67,7 +66,7 @@ func NewFailedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent 
 	e.EventType = sqlcv1.V1TaskEventTypeFAILED
 
 	if task.DesiredWorkerID != uuid.Nil {
-		workerId := sqlchelpers.UUIDToStr(task.DesiredWorkerID)
+		workerId := task.DesiredWorkerID.String()
 		e.WorkerId = &workerId
 	}
 
@@ -82,7 +81,7 @@ func NewCancelledTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEve
 
 func baseFromTasksRow(task *V1TaskWithPayload) *TaskOutputEvent {
 	return &TaskOutputEvent{
-		TaskExternalId: sqlchelpers.UUIDToStr(task.ExternalID),
+		TaskExternalId: task.ExternalID.String(),
 		TaskId:         task.ID,
 		RetryCount:     task.RetryCount,
 		StepReadableID: task.StepReadableID,
@@ -95,7 +94,7 @@ func NewCompletedTaskOutputEvent(row *sqlcv1.ReleaseTasksRow, output []byte) *Ta
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
 
 	if row.WorkerID != uuid.Nil {
-		workerId := sqlchelpers.UUIDToStr(row.WorkerID)
+		workerId := row.WorkerID.String()
 		e.WorkerId = &workerId
 	}
 
@@ -118,7 +117,7 @@ func NewCancelledTaskOutputEvent(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 
 func baseFromReleaseTasksRow(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 	return &TaskOutputEvent{
-		TaskExternalId: sqlchelpers.UUIDToStr(row.ExternalID),
+		TaskExternalId: row.ExternalID.String(),
 		TaskId:         row.ID,
 		RetryCount:     row.RetryCount,
 		StepReadableID: row.StepReadableID,

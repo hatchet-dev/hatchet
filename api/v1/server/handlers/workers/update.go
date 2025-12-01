@@ -7,7 +7,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkerService) WorkerUpdate(ctx echo.Context, request gen.WorkerUpdateRequestObject) (gen.WorkerUpdateResponseObject, error) {
@@ -27,8 +26,8 @@ func (t *WorkerService) WorkerUpdate(ctx echo.Context, request gen.WorkerUpdateR
 	}
 
 	updatedWorker, err := t.config.APIRepository.Worker().UpdateWorker(
-		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		sqlchelpers.UUIDToStr(worker.Worker.ID),
+		worker.Worker.TenantId.String(),
+		worker.Worker.ID.String(),
 		update)
 
 	if err != nil {

@@ -13,12 +13,11 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.WorkflowRunCancelRequestObject) (gen.WorkflowRunCancelResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	runIds := request.Body.WorkflowRunIds
 
 	var wg sync.WaitGroup
@@ -43,7 +42,7 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 				// If the step run is not in a final state, send a task to the taskqueue to cancel it
 				var reason = "CANCELLED_BY_USER"
 				// send a task to the taskqueue
-				jobRunId := sqlchelpers.UUIDToStr(jobRun.ID)
+				jobRunId := jobRun.ID.String()
 				err = t.config.MessageQueue.AddMessage(
 					ctx.Request().Context(),
 					msgqueue.JOB_PROCESSING_QUEUE,

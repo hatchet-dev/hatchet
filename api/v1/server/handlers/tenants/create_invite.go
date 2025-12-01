@@ -12,13 +12,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantInviteCreateRequestObject) (gen.TenantInviteCreateResponseObject, error) {
 	user := ctx.Get("user").(*dbsqlc.User)
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
 	if !t.config.Runtime.AllowInvites {
 		t.config.Logger.Warn().Msg("tenant invites are disabled")
@@ -92,7 +91,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}()
 
 	t.config.Analytics.Enqueue("user-invite:create",
-		sqlchelpers.UUIDToStr(user.ID),
+		user.ID.String(),
 		&tenantId,
 		nil,
 		map[string]interface{}{

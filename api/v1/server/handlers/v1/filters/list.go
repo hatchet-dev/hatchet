@@ -9,7 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
@@ -24,7 +23,7 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 
 	if workflowIds != nil {
 		for _, id := range *workflowIds {
-			workflowIdParams = append(workflowIdParams, sqlchelpers.UUIDFromStr(id.String()))
+			workflowIdParams = append(workflowIdParams, uuid.MustParse(id.String()))
 		}
 	}
 

@@ -17,7 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry/servertel"
 )
@@ -71,7 +70,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 		return nil
 	}
 
-	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+	workflowRunId := workflowRun.WorkflowRun.ID.String()
 
 	servertel.WithWorkflowRunModel(span, workflowRun)
 
@@ -82,7 +81,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 	if workflowRun.ConcurrencyLimitStrategy.Valid && workflowRun.GetGroupKeyRunId != uuid.Nil { // nolint: gocritic
 		wc.l.Info().Msgf("workflow %s has concurrency settings", workflowRunId)
 
-		groupKeyRunId := sqlchelpers.UUIDToStr(workflowRun.GetGroupKeyRunId)
+		groupKeyRunId := workflowRun.GetGroupKeyRunId.String()
 
 		if groupKeyRunId == "" {
 			return fmt.Errorf("could not get group key run")
@@ -129,7 +128,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 		return fmt.Errorf("workflow run %s has concurrency settings but no group key run", workflowRunId)
 	}
 
-	queueJobRuns, err := wc.repo.WorkflowRun().QueueWorkflowRunJobs(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID))
+	queueJobRuns, err := wc.repo.WorkflowRun().QueueWorkflowRunJobs(ctx, metadata.TenantId, workflowRun.WorkflowRun.ID.String())
 
 	if err != nil {
 		return fmt.Errorf("could not queue workflow run jobs: %w", err)
@@ -167,7 +166,7 @@ func (wc *WorkflowsControllerImpl) failWorkflowRunsJobRuns(ctx context.Context, 
 
 	for _, jobRun := range jobRuns {
 
-		jobRunId := sqlchelpers.UUIDToStr(jobRun.ID)
+		jobRunId := jobRun.ID.String()
 
 		payload, _ := datautils.ToJSONMap(tasktypes.JobRunCancelledTaskPayload{
 			JobRunId: jobRunId,
@@ -220,7 +219,7 @@ func (wc *WorkflowsControllerImpl) checkDedupe(ctx context.Context, workflowRun 
 			return nil
 		}
 
-		err = wc.repo.WorkflowRun().CreateDeDupeKey(ctx, sqlchelpers.UUIDToStr(workflowRun.TenantId), sqlchelpers.UUIDToStr(workflowRun.ID), sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId), *dedupeValue)
+		err = wc.repo.WorkflowRun().CreateDeDupeKey(ctx, workflowRun.TenantId.String(), workflowRun.ID.String(), workflowRun.WorkflowVersionId.String(), *dedupeValue)
 
 	}
 
@@ -303,7 +302,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 		return fmt.Errorf("handleWorkflowRunFinished - could not get job run: %w", err)
 	}
 
-	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+	workflowRunId := workflowRun.WorkflowRun.ID.String()
 
 	servertel.WithWorkflowRunModel(span, workflowRun)
 
@@ -317,7 +316,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 			ctx,
 			metadata.TenantId,
 			workflowRunId,
-			sqlchelpers.UUIDToStr(workflowRun.WorkflowVersion.OnFailureJobId),
+			workflowRun.WorkflowVersion.OnFailureJobId.String(),
 		)
 
 		if err != nil {
@@ -327,7 +326,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 		if !repository.IsFinalJobRunStatus(jobRun.Status) {
 			if workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusFAILED {
 
-				startableJobRuns, err := wc.repo.JobRun().StartJobRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID))
+				startableJobRuns, err := wc.repo.JobRun().StartJobRun(ctx, metadata.TenantId, jobRun.ID.String())
 
 				if err != nil {
 					return fmt.Errorf("could not start job run: %w", err)
@@ -358,7 +357,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 				err = wc.mq.AddMessage(
 					ctx,
 					msgqueue.JOB_PROCESSING_QUEUE,
-					tasktypes.JobRunCancelledToTask(metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID), nil),
+					tasktypes.JobRunCancelledToTask(metadata.TenantId, jobRun.ID.String(), nil),
 				)
 
 				if err != nil {
@@ -372,7 +371,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 
 	if shouldAlertFailure {
 		err := wc.tenantAlerter.HandleAlert(
-			sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId),
+			workflowRun.WorkflowRun.TenantId.String(),
 		)
 
 		if err != nil {
@@ -392,11 +391,11 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	ctx, span := telemetry.NewSpan(ctx, "trigger-get-group-action")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(getGroupKeyRun.GetGroupKeyRun.TenantId)
+	tenantId := getGroupKeyRun.GetGroupKeyRun.TenantId.String()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
-	getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.GetGroupKeyRun.ID)
-	workflowRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.WorkflowRunId)
+	getGroupKeyRunId := getGroupKeyRun.GetGroupKeyRun.ID.String()
+	workflowRunId := getGroupKeyRun.WorkflowRunId.String()
 
 	_, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		Status: repository.StepRunStatusPtr(dbsqlc.StepRunStatusPENDINGASSIGNMENT),
@@ -455,7 +454,7 @@ func (wc *WorkflowsControllerImpl) runGetGroupKeyRunRequeue(ctx context.Context)
 		g := new(errgroup.Group)
 
 		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+			tenantId := tenants[i].ID.String()
 
 			g.Go(func() error {
 				return wc.runGetGroupKeyRunRequeueTenant(ctx, tenantId)
@@ -498,7 +497,7 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunRequeueTenant(ctx context.Co
 
 			telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-			getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRunCp.ID)
+			getGroupKeyRunId := getGroupKeyRunCp.ID.String()
 
 			ec.l.Debug().Msgf("requeuing group key run %s", getGroupKeyRunId)
 
@@ -547,7 +546,7 @@ func (wc *WorkflowsControllerImpl) runGetGroupKeyRunReassign(ctx context.Context
 		g := new(errgroup.Group)
 
 		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+			tenantId := tenants[i].ID.String()
 
 			g.Go(func() error {
 				return wc.runGetGroupKeyRunReassignTenant(ctx, tenantId)
@@ -589,7 +588,7 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunReassignTenant(ctx context.C
 
 			telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-			getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRunCp.ID)
+			getGroupKeyRunId := getGroupKeyRunCp.ID.String()
 
 			ec.l.Debug().Msgf("reassigning group key run %s", getGroupKeyRunId)
 
@@ -617,7 +616,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
+	workflowVersionId := workflowVersion.WorkflowVersion.ID.String()
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
 	toCancel, toStart, err := wc.repo.WorkflowRun().PopWorkflowRunsCancelInProgress(ctx, tenantId, workflowVersionId, maxRuns)
@@ -629,7 +628,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 	// Cancel the oldest running workflows
 	for i := range toCancel {
 		row := toCancel[i]
-		workflowRunId := sqlchelpers.UUIDToStr(row.ID)
+		workflowRunId := row.ID.String()
 
 		err = wc.cancelWorkflowRun(ctx, tenantId, workflowRunId)
 
@@ -640,7 +639,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 
 	for i := range toStart {
 		row := toStart[i]
-		workflowRunId := sqlchelpers.UUIDToStr(row.ID)
+		workflowRunId := row.ID.String()
 		queuedStepRuns, err := wc.repo.WorkflowRun().QueueWorkflowRunJobs(ctx, tenantId, workflowRunId)
 
 		if err != nil {
@@ -676,7 +675,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelNewest(ctx context.Context, tena
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
+	workflowVersionId := workflowVersion.WorkflowVersion.ID.String()
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
 	toCancel, toStart, err := wc.repo.WorkflowRun().PopWorkflowRunsCancelNewest(ctx, tenantId, workflowVersionId, maxRuns)
@@ -688,7 +687,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelNewest(ctx context.Context, tena
 	// Cancel the oldest running workflows
 	for i := range toCancel {
 		row := toCancel[i]
-		workflowRunId := sqlchelpers.UUIDToStr(row.ID)
+		workflowRunId := row.ID.String()
 
 		err = wc.cancelWorkflowRun(ctx, tenantId, workflowRunId)
 
@@ -699,7 +698,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelNewest(ctx context.Context, tena
 
 	for i := range toStart {
 		row := toStart[i]
-		workflowRunId := sqlchelpers.UUIDToStr(row.ID)
+		workflowRunId := row.ID.String()
 		queuedStepRuns, err := wc.repo.WorkflowRun().QueueWorkflowRunJobs(ctx, tenantId, workflowRunId)
 
 		if err != nil {
@@ -735,7 +734,7 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
+	workflowVersionId := workflowVersion.WorkflowVersion.ID.String()
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
 	wc.l.Info().Msgf("handling queue with strategy GROUP_ROUND_ROBIN for workflow version %s", workflowVersionId)
@@ -785,7 +784,7 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRun(ctx context.Context, tenant
 
 	for i := range stepRuns {
 		stepRunCp := stepRuns[i]
-		stepRunId := sqlchelpers.UUIDToStr(stepRunCp.SRID)
+		stepRunId := stepRunCp.SRID.String()
 
 		errGroup.Go(func() error {
 			return wc.mq.AddMessage(

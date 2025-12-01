@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -40,7 +41,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 		invites, err := r.queries.CountActiveInvites(
 			ctx,
 			tx,
-			sqlchelpers.UUIDFromStr(tenantId),
+			uuid.MustParse(tenantId),
 		)
 
 		if err != nil {
@@ -58,7 +59,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 		ctx,
 		tx,
 		dbsqlc.GetExistingInviteParams{
-			Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid:     uuid.MustParse(tenantId),
 			Inviteeemail: opts.InviteeEmail,
 		},
 	)
@@ -71,7 +72,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 		ctx,
 		tx,
 		dbsqlc.CreateTenantInviteParams{
-			Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid:     uuid.MustParse(tenantId),
 			Inviteremail: opts.InviterEmail,
 			Inviteeemail: opts.InviteeEmail,
 			Expires:      sqlchelpers.TimestampFromTime(opts.ExpiresAt),
@@ -94,7 +95,7 @@ func (r *tenantInviteRepository) GetTenantInvite(ctx context.Context, id string)
 	return r.queries.GetInviteById(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(id),
+		uuid.MustParse(id),
 	)
 }
 
@@ -112,7 +113,7 @@ func (r *tenantInviteRepository) ListTenantInvitesByTenantId(ctx context.Context
 	}
 
 	params := dbsqlc.ListInvitesByTenantIdParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 	}
 
 	if opts.Status != nil {
@@ -142,7 +143,7 @@ func (r *tenantInviteRepository) UpdateTenantInvite(ctx context.Context, id stri
 	}
 
 	params := dbsqlc.UpdateTenantInviteParams{
-		ID: sqlchelpers.UUIDFromStr(id),
+		ID: uuid.MustParse(id),
 	}
 
 	if opts.Role != nil {
@@ -170,6 +171,6 @@ func (r *tenantInviteRepository) DeleteTenantInvite(ctx context.Context, id stri
 	return r.queries.DeleteTenantInvite(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(id),
+		uuid.MustParse(id),
 	)
 }

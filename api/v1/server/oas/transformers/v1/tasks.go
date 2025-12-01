@@ -10,7 +10,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -58,7 +57,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 	attempt := retryCount + 1
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
-			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
+			Id:        task.ExternalID.String(),
 			CreatedAt: task.InsertedAt.Time,
 			UpdatedAt: task.InsertedAt.Time,
 		},
@@ -302,7 +301,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
-			Id:        sqlchelpers.UUIDToStr(taskWithData.ExternalID),
+			Id:        taskWithData.ExternalID.String(),
 			CreatedAt: taskWithData.InsertedAt.Time,
 			UpdatedAt: taskWithData.InsertedAt.Time,
 		},
@@ -367,7 +366,7 @@ func ToWorkflowRunDetails(
 		FinishedAt:           &workflowRun.FinishedAt.Time,
 		ParentTaskExternalId: &parentTaskExternalId,
 		Metadata: gen.APIResourceMeta{
-			Id:        sqlchelpers.UUIDToStr(workflowRun.ExternalID),
+			Id:        workflowRun.ExternalID.String(),
 			CreatedAt: workflowRun.InsertedAt.Time,
 			UpdatedAt: workflowRun.InsertedAt.Time,
 		},
@@ -453,7 +452,7 @@ func ToTaskTimings(
 	toReturn := make([]gen.V1TaskTiming, len(timings))
 
 	for i, timing := range timings {
-		depth := idsToDepth[sqlchelpers.UUIDToStr(timing.ExternalID)]
+		depth := idsToDepth[timing.ExternalID.String()]
 
 		workflowRunId := timing.WorkflowRunID
 		retryCount := int(timing.RetryCount)
@@ -461,7 +460,7 @@ func ToTaskTimings(
 
 		toReturn[i] = gen.V1TaskTiming{
 			Metadata: gen.APIResourceMeta{
-				Id:        sqlchelpers.UUIDToStr(timing.ExternalID),
+				Id:        timing.ExternalID.String(),
 				CreatedAt: timing.InsertedAt.Time,
 				UpdatedAt: timing.InsertedAt.Time,
 			},

@@ -36,18 +36,18 @@ func NewWorkerAPIRepository(shared *sharedRepository, m *metered.Metered) reposi
 }
 
 func (w *workerAPIRepository) GetWorkerById(workerId string) (*dbsqlc.GetWorkerByIdRow, error) {
-	return w.queries.GetWorkerById(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
+	return w.queries.GetWorkerById(context.Background(), w.pool, uuid.MustParse(workerId))
 }
 
 func (w *workerAPIRepository) GetWorkerActionsByWorkerId(tenantid string, workerIds []string) (map[string][]string, error) {
 	uuidWorkerIds := make([]uuid.UUID, len(workerIds))
 	for i, workerId := range workerIds {
-		uuidWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)
+		uuidWorkerIds[i] = uuid.MustParse(workerId)
 	}
 
 	records, err := w.queries.GetWorkerActionsByWorkerId(context.Background(), w.pool, dbsqlc.GetWorkerActionsByWorkerIdParams{
 		Workerids: uuidWorkerIds,
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantid),
+		Tenantid:  uuid.MustParse(tenantid),
 	})
 
 	if err != nil {
@@ -72,15 +72,15 @@ func (w *workerAPIRepository) GetWorkerActionsByWorkerId(tenantid string, worker
 
 func (w *workerAPIRepository) GetWorkerWorkflowsByWorkerId(tenantid string, workerId string) ([]*dbsqlc.Workflow, error) {
 	return w.queries.GetWorkerWorkflowsByWorkerId(context.Background(), w.pool, dbsqlc.GetWorkerWorkflowsByWorkerIdParams{
-		Workerid: sqlchelpers.UUIDFromStr(workerId),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantid),
+		Workerid: uuid.MustParse(workerId),
+		Tenantid: uuid.MustParse(tenantid),
 	})
 }
 
 func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error) {
 	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, dbsqlc.ListSemaphoreSlotsWithStateForWorkerParams{
-		Workerid: sqlchelpers.UUIDFromStr(workerId),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Workerid: uuid.MustParse(workerId),
+		Tenantid: uuid.MustParse(tenantId),
 		Limit: pgtype.Int4{
 			Int32: int32(maxRuns), // nolint: gosec
 			Valid: true,
@@ -93,7 +93,7 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 
 	// get recent assignment events
 	assignedEvents, err := w.queries.ListRecentAssignedEventsForWorker(context.Background(), w.pool, dbsqlc.ListRecentAssignedEventsForWorkerParams{
-		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Workerid: uuid.MustParse(workerId),
 		Limit: pgtype.Int4{
 			Int32: int32(maxRuns), // nolint: gosec
 			Valid: true,
@@ -132,12 +132,12 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 	stepRunIds := make([]uuid.UUID, 0, len(uniqueStepRunIds))
 
 	for stepRunId := range uniqueStepRunIds {
-		stepRunIds = append(stepRunIds, sqlchelpers.UUIDFromStr(stepRunId))
+		stepRunIds = append(stepRunIds, uuid.MustParse(stepRunId))
 	}
 
 	recent, err := w.queries.GetStepRunForEngine(context.Background(), w.pool, dbsqlc.GetStepRunForEngineParams{
 		Ids:      stepRunIds,
-		TenantId: sqlchelpers.UUIDFromStr(tenantId),
+		TenantId: uuid.MustParse(tenantId),
 	})
 
 	if err != nil {
@@ -152,7 +152,7 @@ func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.List
 		return nil, err
 	}
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgTenantId := uuid.MustParse(tenantId)
 
 	queryParams := dbsqlc.ListWorkersWithSlotCountParams{
 		Tenantid: pgTenantId,
@@ -187,7 +187,7 @@ func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.List
 }
 
 func (w *workerAPIRepository) ListWorkerLabels(tenantId, workerId string) ([]*dbsqlc.ListWorkerLabelsRow, error) {
-	return w.queries.ListWorkerLabels(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
+	return w.queries.ListWorkerLabels(context.Background(), w.pool, uuid.MustParse(workerId))
 }
 
 func (w *workerAPIRepository) UpdateWorker(tenantId, workerId string, opts repository.ApiUpdateWorkerOpts) (*dbsqlc.Worker, error) {
@@ -196,7 +196,7 @@ func (w *workerAPIRepository) UpdateWorker(tenantId, workerId string, opts repos
 	}
 
 	updateParams := dbsqlc.UpdateWorkerParams{
-		ID: sqlchelpers.UUIDFromStr(workerId),
+		ID: uuid.MustParse(workerId),
 	}
 
 	if opts.IsPaused != nil {
@@ -237,8 +237,8 @@ func NewWorkerEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zer
 
 func (w *workerEngineRepository) GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error) {
 	return w.queries.GetWorkerForEngine(ctx, w.pool, dbsqlc.GetWorkerForEngineParams{
-		ID:       sqlchelpers.UUIDFromStr(workerId),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		ID:       uuid.MustParse(workerId),
+		Tenantid: uuid.MustParse(tenantId),
 	})
 }
 
@@ -273,11 +273,11 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 
 	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgTenantId := uuid.MustParse(tenantId)
 
 	createParams := dbsqlc.CreateWorkerParams{
 		Tenantid:     pgTenantId,
-		Dispatcherid: sqlchelpers.UUIDFromStr(opts.DispatcherId),
+		Dispatcherid: uuid.MustParse(opts.DispatcherId),
 		Name:         opts.Name,
 	}
 
@@ -288,7 +288,7 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 	}
 
 	if opts.WebhookId != nil {
-		createParams.WebhookId = sqlchelpers.UUIDFromStr(*opts.WebhookId)
+		createParams.WebhookId = uuid.MustParse(*opts.WebhookId)
 		createParams.Type = dbsqlc.NullWorkerType{
 			WorkerType: dbsqlc.WorkerTypeWEBHOOK,
 			Valid:      true,
@@ -444,10 +444,10 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 
 	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgTenantId := uuid.MustParse(tenantId)
 
 	updateParams := dbsqlc.UpdateWorkerParams{
-		ID: sqlchelpers.UUIDFromStr(workerId),
+		ID: uuid.MustParse(workerId),
 	}
 
 	if opts.LastHeartbeatAt != nil {
@@ -455,7 +455,7 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 	}
 
 	if opts.DispatcherId != nil {
-		updateParams.DispatcherId = sqlchelpers.UUIDFromStr(*opts.DispatcherId)
+		updateParams.DispatcherId = uuid.MustParse(*opts.DispatcherId)
 	}
 
 	if opts.IsActive != nil {
@@ -489,7 +489,7 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 
 		err = w.queries.LinkActionsToWorker(ctx, tx, dbsqlc.LinkActionsToWorkerParams{
 			Actionids: actionUUIDs,
-			Workerid:  sqlchelpers.UUIDFromStr(workerId),
+			Workerid:  uuid.MustParse(workerId),
 		})
 
 		if err != nil {
@@ -508,7 +508,7 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 
 func (w *workerEngineRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeat time.Time) error {
 	_, err := w.queries.UpdateWorkerHeartbeat(ctx, w.pool, dbsqlc.UpdateWorkerHeartbeatParams{
-		ID:              sqlchelpers.UUIDFromStr(workerId),
+		ID:              uuid.MustParse(workerId),
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
 	})
 
@@ -520,7 +520,7 @@ func (w *workerEngineRepository) UpdateWorkerHeartbeat(ctx context.Context, tena
 }
 
 func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, workerId string) error {
-	_, err := w.queries.DeleteWorker(ctx, w.pool, sqlchelpers.UUIDFromStr(workerId))
+	_, err := w.queries.DeleteWorker(ctx, w.pool, uuid.MustParse(workerId))
 
 	return err
 }
@@ -532,7 +532,7 @@ func (w *workerEngineRepository) UpdateWorkersByWebhookId(ctx context.Context, p
 
 func (w *workerEngineRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error) {
 	worker, err := w.queries.UpdateWorkerActiveStatus(ctx, w.pool, dbsqlc.UpdateWorkerActiveStatusParams{
-		ID:                      sqlchelpers.UUIDFromStr(workerId),
+		ID:                      uuid.MustParse(workerId),
 		Isactive:                isActive,
 		LastListenerEstablished: sqlchelpers.TimestampFromTime(timestamp),
 	})
@@ -589,7 +589,7 @@ func (w *workerEngineRepository) UpsertWorkerLabels(ctx context.Context, workerI
 
 func (r *workerEngineRepository) DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error) {
 	hasMore, err := r.queries.DeleteOldWorkers(ctx, r.pool, dbsqlc.DeleteOldWorkersParams{
-		Tenantid:            sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:            uuid.MustParse(tenantId),
 		Lastheartbeatbefore: sqlchelpers.TimestampFromTime(lastHeartbeatBefore),
 		Limit:               20,
 	})
@@ -608,7 +608,7 @@ func (r *workerEngineRepository) DeleteOldWorkers(ctx context.Context, tenantId 
 func (r *workerEngineRepository) DeleteOldWorkerEvents(ctx context.Context, tenantId string, lastHeartbeatAfter time.Time) error {
 	// list workers
 	workers, err := r.queries.ListWorkersWithSlotCount(ctx, r.pool, dbsqlc.ListWorkersWithSlotCountParams{
-		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:           uuid.MustParse(tenantId),
 		LastHeartbeatAfter: sqlchelpers.TimestampFromTime(lastHeartbeatAfter),
 	})
 
@@ -652,11 +652,11 @@ func (r *workerEngineRepository) GetDispatcherIdsForWorkers(ctx context.Context,
 	pgWorkerIds := make([]uuid.UUID, len(workerIds))
 
 	for i, workerId := range workerIds {
-		pgWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)
+		pgWorkerIds[i] = uuid.MustParse(workerId)
 	}
 
 	rows, err := r.queries.ListDispatcherIdsForWorkers(ctx, r.pool, dbsqlc.ListDispatcherIdsForWorkersParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:  uuid.MustParse(tenantId),
 		Workerids: sqlchelpers.UniqueSet(pgWorkerIds),
 	})
 
@@ -667,8 +667,8 @@ func (r *workerEngineRepository) GetDispatcherIdsForWorkers(ctx context.Context,
 	dispatcherIdsToWorkers := make(map[string][]string)
 
 	for _, row := range rows {
-		dispatcherId := sqlchelpers.UUIDToStr(row.DispatcherId)
-		workerId := sqlchelpers.UUIDToStr(row.WorkerId)
+		dispatcherId := row.DispatcherId.String()
+		workerId := row.WorkerId.String()
 
 		if _, ok := dispatcherIdsToWorkers[dispatcherId]; !ok {
 			dispatcherIdsToWorkers[dispatcherId] = make([]string, 0)

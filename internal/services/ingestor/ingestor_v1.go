@@ -31,7 +31,7 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant,
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	canCreateEvents, eLimit, err := i.entitlementsRepository.TenantLimit().CanCreate(
 		ctx,
@@ -81,11 +81,11 @@ func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string
 	now := time.Now().UTC()
 
 	return &dbsqlc.Event{
-		ID:                 sqlchelpers.UUIDFromStr(eventId),
+		ID:                 uuid.MustParse(eventId),
 		CreatedAt:          sqlchelpers.TimestampFromTime(now),
 		UpdatedAt:          sqlchelpers.TimestampFromTime(now),
 		Key:                key,
-		TenantId:           sqlchelpers.UUIDFromStr(tenantId),
+		TenantId:           uuid.MustParse(tenantId),
 		Data:               data,
 		AdditionalMetadata: metadata,
 	}, nil
@@ -95,7 +95,7 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 	ctx, span := telemetry.NewSpan(ctx, "bulk-ingest-event")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	count := len(eventOpts)
 
@@ -136,7 +136,7 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *dbsqlc
 	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	return i.ingestSingleton(ctx, tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata, nil, nil, nil)
 }

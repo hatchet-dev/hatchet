@@ -17,7 +17,6 @@ import (
 	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -28,7 +27,7 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 	}
 
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	if !slices.Contains[[]string](m.permittedTenants, tenantId) {
 
@@ -274,7 +273,7 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 
 				if wrfRow.Status != dbsqlc.WorkflowRunStatusRUNNING {
 
-					workflowId := sqlchelpers.UUIDToStr(wrfRow.Workflow.ID)
+					workflowId := wrfRow.Workflow.ID.String()
 
 					_, err = m.config.APIRepository.Workflow().DeleteWorkflow(ctx, cf.TenantId, workflowId)
 

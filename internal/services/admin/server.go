@@ -24,7 +24,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
@@ -42,7 +41,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 
 func (a *AdminServiceImpl) triggerWorkflowV0(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -85,7 +84,7 @@ func (a *AdminServiceImpl) triggerWorkflowV0(ctx context.Context, req *contracts
 		return nil, fmt.Errorf("Trigger Workflow - could not create workflow run: %w", err)
 	}
 
-	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
+	workflowRunId := workflowRun.ID.String()
 
 	// send to workflow processing queue
 	err = a.mq.AddMessage(
@@ -134,7 +133,7 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 
 func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -173,7 +172,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 
 	var workflowRunIds []string
 	for _, workflowRun := range workflowRuns {
-		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.ID))
+		workflowRunIds = append(workflowRunIds, workflowRun.ID.String())
 	}
 
 	for i, workflowRunId := range workflowRunIds {
@@ -217,7 +216,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	createOpts, err := getCreateWorkflowOpts(req)
 
@@ -273,7 +272,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		oldWorkflowVersion, err = a.repo.Workflow().GetLatestWorkflowVersion(
 			ctx,
 			tenantId,
-			sqlchelpers.UUIDToStr(currWorkflow.ID),
+			currWorkflow.ID.String(),
 		)
 
 		if err != nil {
@@ -318,7 +317,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 
 func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.ScheduleWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	workflow, err := a.repo.Workflow().GetWorkflowByName(
 		ctx,
@@ -337,7 +336,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		return nil, fmt.Errorf("could not get workflow by name: %w", err)
 	}
 
-	workflowId := sqlchelpers.UUIDToStr(workflow.ID)
+	workflowId := workflow.ID.String()
 
 	currWorkflow, err := a.repo.Workflow().GetLatestWorkflowVersion(
 		ctx,
@@ -395,7 +394,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		dbSchedules[i] = scheduledTrigger.AsTime()
 	}
 
-	workflowVersionId := sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID)
+	workflowVersionId := currWorkflow.WorkflowVersion.ID.String()
 
 	var additionalMetadata []byte
 
@@ -440,7 +439,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 
 func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	if req.Key == "" {
 		return nil, status.Error(
@@ -682,17 +681,17 @@ func toWorkflowVersion(workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, s
 
 	for i, ref := range scheduledRefs {
 		scheduledWorkflows[i] = &contracts.ScheduledWorkflow{
-			Id:        sqlchelpers.UUIDToStr(ref.ID),
+			Id:        ref.ID.String(),
 			TriggerAt: timestamppb.New(ref.TriggerAt.Time),
 		}
 	}
 
 	version := &contracts.WorkflowVersion{
-		Id:                 sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		Id:                 workflowVersion.WorkflowVersion.ID.String(),
 		CreatedAt:          timestamppb.New(workflowVersion.WorkflowVersion.CreatedAt.Time),
 		UpdatedAt:          timestamppb.New(workflowVersion.WorkflowVersion.UpdatedAt.Time),
 		Order:              workflowVersion.WorkflowVersion.Order,
-		WorkflowId:         sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId),
+		WorkflowId:         workflowVersion.WorkflowVersion.WorkflowId.String(),
 		ScheduledWorkflows: scheduledWorkflows,
 	}
 
@@ -705,7 +704,7 @@ func toWorkflowVersion(workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, s
 
 func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, a *AdminServiceImpl) ([]*repository.CreateWorkflowRunOpts, []string, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	results := make([]*repository.CreateWorkflowRunOpts, 0)
 	existingWorkflowRuns := make([]string, 0)
@@ -762,7 +761,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 				childKey = &wfr.ChildKey.String
 			}
 
-			key := getChildKey(sqlchelpers.UUIDToStr(wfr.ParentStepRunId), int(wfr.ChildIndex.Int32), childKey)
+			key := getChildKey(wfr.ParentStepRunId.String(), int(wfr.ChildIndex.Int32), childKey)
 
 			childWorkflowMap[key] = wfr
 		}
@@ -777,7 +776,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 			workflowRun := childWorkflowMap[key]
 
 			if workflowRun != nil {
-				existingWorkflowRuns = append(existingWorkflowRuns, sqlchelpers.UUIDToStr(workflowRun.ID))
+				existingWorkflowRuns = append(existingWorkflowRuns, workflowRun.ID.String())
 			} else {
 				// can't find the child workflow run, so we need to trigger it
 				nonParentWorkflows = append(nonParentWorkflows, req)
@@ -796,7 +795,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 	var workflowIds []string
 
 	for _, w := range workflowMap {
-		workflowIds = append(workflowIds, sqlchelpers.UUIDToStr(w.ID))
+		workflowIds = append(workflowIds, w.ID.String())
 	}
 
 	workflowVersions, err := a.repo.Workflow().GetLatestWorkflowVersions(createContext, tenantId, workflowIds)
@@ -808,7 +807,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 	workflowVersionMap := make(map[string]*dbsqlc.GetWorkflowVersionForEngineRow)
 
 	for _, w := range workflowVersions {
-		workflowVersionMap[sqlchelpers.UUIDToStr(w.WorkflowVersion.WorkflowId)] = w
+		workflowVersionMap[w.WorkflowVersion.WorkflowId.String()] = w
 	}
 
 	parentTriggeredWorkflowRuns := make(map[string]*dbsqlc.GetWorkflowRunRow)
@@ -818,7 +817,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 		isParentTriggered := req.ParentId != nil
 
 		if isParentTriggered {
-			parentIds = append(parentIds, sqlchelpers.UUIDToStr(sqlchelpers.UUIDFromStr(*req.ParentId)))
+			parentIds = append(parentIds, *req.ParentId)
 		}
 	}
 
@@ -829,7 +828,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 	}
 
 	for _, wfr := range parentWorkflowRuns {
-		parentTriggeredWorkflowRuns[sqlchelpers.UUIDToStr(wfr.WorkflowRun.ID)] = wfr
+		parentTriggeredWorkflowRuns[wfr.WorkflowRun.ID.String()] = wfr
 	}
 
 	for _, req := range nonParentWorkflows {
@@ -840,7 +839,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 			return nil, nil, status.Errorf(codes.NotFound, "workflow %s not found", req.Name)
 		}
 
-		latestVersion := workflowVersionMap[sqlchelpers.UUIDToStr(workflow.ID)]
+		latestVersion := workflowVersionMap[workflow.ID.String()]
 
 		var createOpts *repository.CreateWorkflowRunOpts
 
@@ -856,7 +855,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 
 		if isParentTriggered {
 
-			parent := parentTriggeredWorkflowRuns[sqlchelpers.UUIDToStr(sqlchelpers.UUIDFromStr(*req.ParentId))]
+			parent := parentTriggeredWorkflowRuns[*req.ParentId]
 
 			if parent == nil {
 				return nil, nil, status.Errorf(codes.NotFound, "parent workflow run %s not found", *req.ParentId)

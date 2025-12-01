@@ -9,7 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowCronUpdate(ctx echo.Context, request gen.WorkflowCronUpdateRequestObject) (gen.WorkflowCronUpdateResponseObject, error) {
@@ -21,8 +20,8 @@ func (t *WorkflowService) WorkflowCronUpdate(ctx echo.Context, request gen.Workf
 
 	err := t.config.APIRepository.Workflow().UpdateCronWorkflow(
 		dbCtx,
-		sqlchelpers.UUIDToStr(cron.TenantId),
-		sqlchelpers.UUIDToStr(cron.CronId),
+		cron.TenantId.String(),
+		cron.CronId.String(),
 		&repository.UpdateCronOpts{
 			Enabled: request.Body.Enabled,
 		},

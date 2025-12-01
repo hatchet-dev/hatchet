@@ -7,7 +7,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 
 	"github.com/labstack/echo/v4"
@@ -17,7 +16,7 @@ import (
 
 func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1TaskListStatusMetricsRequestObject) (gen.V1TaskListStatusMetricsResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	var workflowIds []uuid.UUID
 
@@ -29,13 +28,13 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 
 	if request.Params.ParentTaskExternalId != nil {
 		uuidPtr := *request.Params.ParentTaskExternalId
-		uuidVal := sqlchelpers.UUIDFromStr(uuidPtr.String())
+		uuidVal := uuid.MustParse(uuidPtr.String())
 		parentTaskExternalId = &uuidVal
 	}
 
 	var triggeringEventExternalId *uuid.UUID
 	if request.Params.TriggeringEventExternalId != nil {
-		uuidVal := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventExternalId.String())
+		uuidVal := uuid.MustParse(request.Params.TriggeringEventExternalId.String())
 		triggeringEventExternalId = &uuidVal
 	}
 

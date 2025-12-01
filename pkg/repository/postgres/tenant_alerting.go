@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -32,7 +33,7 @@ func (r *tenantAlertingRepository) UpsertTenantAlertingSettings(ctx context.Cont
 	}
 
 	params := dbsqlc.UpsertTenantAlertingSettingsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 	}
 
 	if opts.MaxFrequency != nil {
@@ -69,7 +70,7 @@ func (r *tenantAlertingRepository) CreateTenantAlertGroup(ctx context.Context, t
 		ctx,
 		r.pool,
 		dbsqlc.CreateTenantAlertGroupParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid: uuid.MustParse(tenantId),
 			Emails:   emails,
 		},
 	)
@@ -86,7 +87,7 @@ func (r *tenantAlertingRepository) UpdateTenantAlertGroup(ctx context.Context, i
 		ctx,
 		r.pool,
 		dbsqlc.UpdateTenantAlertGroupParams{
-			ID:     sqlchelpers.UUIDFromStr(id),
+			ID:     uuid.MustParse(id),
 			Emails: emails,
 		},
 	)
@@ -96,7 +97,7 @@ func (r *tenantAlertingRepository) ListTenantAlertGroups(ctx context.Context, te
 	return r.queries.ListTenantAlertGroups(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(tenantId),
+		uuid.MustParse(tenantId),
 	)
 }
 
@@ -104,7 +105,7 @@ func (r *tenantAlertingRepository) GetTenantAlertGroupById(ctx context.Context, 
 	return r.queries.GetTenantAlertGroupById(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(id),
+		uuid.MustParse(id),
 	)
 }
 
@@ -113,8 +114,8 @@ func (r *tenantAlertingRepository) DeleteTenantAlertGroup(ctx context.Context, t
 		ctx,
 		r.pool,
 		dbsqlc.DeleteTenantAlertGroupParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-			ID:       sqlchelpers.UUIDFromStr(id),
+			Tenantid: uuid.MustParse(tenantId),
+			ID:       uuid.MustParse(id),
 		},
 	)
 }
@@ -128,7 +129,7 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgTenantId := uuid.MustParse(tenantId)
 
 	settings, err := r.queries.GetTenantAlertingSettings(ctx, tx, pgTenantId)
 
@@ -202,7 +203,7 @@ func (r *tenantAlertingRepository) UpdateTenantAlertingSettings(ctx context.Cont
 	}
 
 	updateParams := dbsqlc.UpdateTenantAlertingSettingsParams{
-		TenantId: sqlchelpers.UUIDFromStr(tenantId),
+		TenantId: uuid.MustParse(tenantId),
 	}
 
 	if opts.LastAlertedAt != nil {
@@ -220,7 +221,7 @@ func (r *tenantAlertingRepository) UpdateTenantAlertingSettings(ctx context.Cont
 
 func (r *tenantAlertingRepository) GetTenantResourceLimitState(ctx context.Context, tenantId string, resource string) (*dbsqlc.GetTenantResourceLimitRow, error) {
 	return r.queries.GetTenantResourceLimit(ctx, r.pool, dbsqlc.GetTenantResourceLimitParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 		Resource: dbsqlc.NullLimitResource{
 			LimitResource: dbsqlc.LimitResource(resource),
 			Valid:         true,

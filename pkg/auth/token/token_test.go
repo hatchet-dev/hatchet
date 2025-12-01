@@ -105,7 +105,7 @@ func TestRevokeTenantToken(t *testing.T) {
 		}
 
 		assert.Len(t, apiTokens, 1)
-		err = conf.APIRepository.APIToken().RevokeAPIToken(context.Background(), sqlchelpers.UUIDToStr(apiTokens[0].ID))
+		err = conf.APIRepository.APIToken().RevokeAPIToken(context.Background(), apiTokens[0].ID.String())
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -165,7 +165,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 		}
 
 		assert.Len(t, apiTokens, 1)
-		err = conf.APIRepository.APIToken().RevokeAPIToken(context.Background(), sqlchelpers.UUIDToStr(apiTokens[0].ID))
+		err = conf.APIRepository.APIToken().RevokeAPIToken(context.Background(), apiTokens[0].ID.String())
 
 		if err != nil {
 			t.Fatal(err.Error())

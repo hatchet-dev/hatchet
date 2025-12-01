@@ -5,7 +5,6 @@ import (
 
 	"context"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -31,7 +30,7 @@ func newIdempotencyRepository(shared *sharedRepository) IdempotencyRepository {
 
 func (r *idempotencyRepository) CreateIdempotencyKey(context context.Context, tenantId, key string, expiresAt pgtype.Timestamptz) error {
 	return r.queries.CreateIdempotencyKey(context, r.pool, sqlcv1.CreateIdempotencyKeyParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:  uuid.MustParse(tenantId),
 		Key:       key,
 		Expiresat: expiresAt,
 	})
@@ -56,7 +55,7 @@ func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool
 	}
 
 	claimResults, err := queries.ClaimIdempotencyKeys(context, pool, sqlcv1.ClaimIdempotencyKeysParams{
-		Tenantid:             sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:             uuid.MustParse(tenantId),
 		Keys:                 keys,
 		Claimedbyexternalids: claimedByExternalIds,
 	})

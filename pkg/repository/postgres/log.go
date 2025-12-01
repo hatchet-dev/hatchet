@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -40,7 +41,7 @@ func (r *logAPIRepository) ListLogLines(tenantId string, opts *repository.ListLo
 
 	res := &repository.ListLogsResult{}
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgTenantId := uuid.MustParse(tenantId)
 
 	queryParams := dbsqlc.ListLogLinesParams{
 		Tenantid: pgTenantId,
@@ -64,8 +65,8 @@ func (r *logAPIRepository) ListLogLines(tenantId string, opts *repository.ListLo
 	}
 
 	if opts.StepRunId != nil {
-		queryParams.StepRunId = sqlchelpers.UUIDFromStr(*opts.StepRunId)
-		countParams.StepRunId = sqlchelpers.UUIDFromStr(*opts.StepRunId)
+		queryParams.StepRunId = uuid.MustParse(*opts.StepRunId)
+		countParams.StepRunId = uuid.MustParse(*opts.StepRunId)
 	}
 
 	if opts.Levels != nil {
@@ -167,9 +168,9 @@ func (r *logEngineRepository) PutLog(ctx context.Context, tenantId string, opts 
 	}
 
 	createParams := dbsqlc.CreateLogLineParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:  uuid.MustParse(tenantId),
 		Message:   opts.Message,
-		Steprunid: sqlchelpers.UUIDFromStr(opts.StepRunId),
+		Steprunid: uuid.MustParse(opts.StepRunId),
 	}
 
 	if opts.CreatedAt != nil {

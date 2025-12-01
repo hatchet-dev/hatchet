@@ -7,12 +7,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantMemberDeleteRequestObject) (gen.TenantMemberDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
 	memberToDelete := ctx.Get("member").(*dbsqlc.PopulateTenantMembersRow)
 
@@ -22,19 +21,19 @@ func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantM
 		), nil
 	}
 
-	if sqlchelpers.UUIDToStr(tenantMember.UserId) == sqlchelpers.UUIDToStr(memberToDelete.UserId) {
+	if tenantMember.UserId.String() == memberToDelete.UserId.String() {
 		return gen.TenantMemberDelete403JSONResponse(
 			apierrors.NewAPIErrors("You cannot delete yourself"),
 		), nil
 	}
 
-	if sqlchelpers.UUIDToStr(memberToDelete.TenantId) != tenantId {
+	if memberToDelete.TenantId.String() != tenantId {
 		return gen.TenantMemberDelete404JSONResponse(
 			apierrors.NewAPIErrors("Member not found"),
 		), nil
 	}
 
-	err := t.config.APIRepository.Tenant().DeleteTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(memberToDelete.ID))
+	err := t.config.APIRepository.Tenant().DeleteTenantMember(ctx.Request().Context(), memberToDelete.ID.String())
 
 	if err != nil {
 		return nil, err

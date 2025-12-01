@@ -18,12 +18,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.WorkflowRunCreateRequestObject) (gen.WorkflowRunCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
 	var workflowVersionId string
@@ -38,7 +37,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 			), nil
 		}
 
-		workflowVersionId = sqlchelpers.UUIDToStr(workflow.WorkflowVersionId)
+		workflowVersionId = workflow.WorkflowVersionId.String()
 	}
 
 	workflowVersion, err := t.config.EngineRepository.Workflow().GetWorkflowVersionById(ctx.Request().Context(), tenantId, workflowVersionId)
@@ -103,8 +102,8 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		ctx.Request().Context(),
 		msgqueue.WORKFLOW_PROCESSING_QUEUE,
 		tasktypes.WorkflowRunQueuedToTask(
-			sqlchelpers.UUIDToStr(createdWorkflowRun.TenantId),
-			sqlchelpers.UUIDToStr(createdWorkflowRun.ID),
+			createdWorkflowRun.TenantId.String(),
+			createdWorkflowRun.ID.String(),
 		),
 	)
 
@@ -112,7 +111,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
 	}
 
-	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(createdWorkflowRun.ID))
+	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenantId, createdWorkflowRun.ID.String())
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get workflow run: %w", err)

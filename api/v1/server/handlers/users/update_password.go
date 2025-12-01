@@ -8,7 +8,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdatePasswordRequestObject) (gen.UserUpdatePasswordResponseObject, error) {
@@ -35,7 +34,7 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 		return gen.UserUpdatePassword400JSONResponse(*apiErrors), nil
 	}
 
-	userId := sqlchelpers.UUIDToStr(existingUser.ID)
+	userId := existingUser.ID.String()
 
 	userPass, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), userId)
 

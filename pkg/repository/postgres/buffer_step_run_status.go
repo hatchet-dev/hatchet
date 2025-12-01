@@ -12,7 +12,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func newBulkStepRunStatusBuffer(shared *sharedRepository) (*buffer.TenantBufferManager[*updateStepRunQueueData, uuid.UUID], error) {
@@ -47,7 +46,7 @@ func (s *sharedRepository) bulkUpdateStepRunStatuses(ctx context.Context, opts [
 	eventData := make([]map[string]interface{}, 0, len(opts))
 
 	for _, item := range opts {
-		stepRunId := sqlchelpers.UUIDFromStr(item.StepRunId)
+		stepRunId := uuid.MustParse(item.StepRunId)
 		stepRunIds = append(stepRunIds, &stepRunId)
 
 		if item.Status == nil {
@@ -116,7 +115,7 @@ func (s *sharedRepository) bulkUpdateStepRunStatuses(ctx context.Context, opts [
 
 				itemCp := item
 
-				insertInternalQITenantIds = append(insertInternalQITenantIds, sqlchelpers.UUIDFromStr(itemCp.TenantId))
+				insertInternalQITenantIds = append(insertInternalQITenantIds, uuid.MustParse(itemCp.TenantId))
 				insertInternalQIQueues = append(insertInternalQIQueues, dbsqlc.InternalQueueSTEPRUNUPDATEV2)
 				insertInternalQIData = append(insertInternalQIData, itemCp)
 			}
@@ -141,7 +140,7 @@ func (s *sharedRepository) bulkUpdateStepRunStatuses(ctx context.Context, opts [
 	if len(eventStepRunIds) > 0 {
 		for i, stepRunId := range eventStepRunIds {
 			err := s.bulkEventBuffer.FireForget(eventTenantIds[i], &repository.CreateStepRunEventOpts{
-				StepRunId:     sqlchelpers.UUIDToStr(stepRunId),
+				StepRunId:     stepRunId.String(),
 				EventMessage:  &eventMessages[i],
 				EventReason:   &eventReasons[i],
 				EventSeverity: &eventSeverities[i],

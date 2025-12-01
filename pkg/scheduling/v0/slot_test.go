@@ -11,7 +11,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 var stableWorkerId1 = uuid.New().String()
@@ -29,7 +28,7 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "HARD sticky strategy with desired worker available",
 			qi: &dbsqlc.QueueItem{
 				Sticky:          dbsqlc.NullStickyStrategy{Valid: true, StickyStrategy: dbsqlc.StickyStrategyHARD},
-				DesiredWorkerId: sqlchelpers.UUIDFromStr(stableWorkerId1),
+				DesiredWorkerId: uuid.MustParse(stableWorkerId1),
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: (stableWorkerId1)}}, []string{}),
@@ -41,7 +40,7 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "HARD sticky strategy without desired worker",
 			qi: &dbsqlc.QueueItem{
 				Sticky:          dbsqlc.NullStickyStrategy{Valid: true, StickyStrategy: dbsqlc.StickyStrategyHARD},
-				DesiredWorkerId: sqlchelpers.UUIDFromStr(uuid.New().String()),
+				DesiredWorkerId: uuid.MustParse(uuid.New().String()),
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: (uuid.New().String())}}, []string{}),
@@ -53,7 +52,7 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "SOFT sticky strategy with desired worker available",
 			qi: &dbsqlc.QueueItem{
 				Sticky:          dbsqlc.NullStickyStrategy{Valid: true, StickyStrategy: dbsqlc.StickyStrategySOFT},
-				DesiredWorkerId: sqlchelpers.UUIDFromStr(stableWorkerId1),
+				DesiredWorkerId: uuid.MustParse(stableWorkerId1),
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: (stableWorkerId2)}}, []string{}),

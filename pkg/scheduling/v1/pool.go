@@ -8,7 +8,6 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
@@ -101,7 +100,7 @@ func (p *SchedulingPool) SetTenants(tenants []*dbsqlc.Tenant) {
 	tenantMap := make(map[string]bool)
 
 	for _, t := range tenants {
-		tenantId := sqlchelpers.UUIDToStr(t.ID)
+		tenantId := t.ID.String()
 		tenantMap[tenantId] = true
 		p.getTenantManager(tenantId, true) // nolint: ineffassign
 	}
@@ -121,7 +120,7 @@ func (p *SchedulingPool) SetTenants(tenants []*dbsqlc.Tenant) {
 
 	// delete each tenant from the map
 	for _, tm := range toCleanup {
-		tenantId := sqlchelpers.UUIDToStr(tm.tenantId)
+		tenantId := tm.tenantId.String()
 		p.tenants.Delete(tenantId)
 	}
 
@@ -146,7 +145,7 @@ func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
 			err := tm.Cleanup()
 
 			if err != nil {
-				p.cf.l.Error().Err(err).Msgf("failed to cleanup tenant manager for tenant %s", sqlchelpers.UUIDToStr(tm.tenantId))
+				p.cf.l.Error().Err(err).Msgf("failed to cleanup tenant manager for tenant %s", tm.tenantId.String())
 			}
 		}(tm)
 	}

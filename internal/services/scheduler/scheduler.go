@@ -20,7 +20,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -223,7 +222,7 @@ func (s *Scheduler) Start() (func() error, error) {
 					continue
 				}
 
-				err = s.scheduleStepRuns(ctx, sqlchelpers.UUIDToStr(res.TenantId), res)
+				err = s.scheduleStepRuns(ctx, res.TenantId.String(), res)
 
 				if err != nil {
 					s.l.Error().Err(err).Msg("could not schedule step runs")
@@ -332,7 +331,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		workerIds := make([]string, 0)
 
 		for _, assigned := range res.Assigned {
-			workerIds = append(workerIds, sqlchelpers.UUIDToStr(assigned.WorkerId))
+			workerIds = append(workerIds, assigned.WorkerId.String())
 		}
 
 		var dispatcherIdWorkerIds map[string][]string
@@ -354,7 +353,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		}
 
 		for _, bulkAssigned := range res.Assigned {
-			dispatcherId, ok := workerIdToDispatcherId[sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)]
+			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId.String()]
 
 			if !ok {
 				s.l.Error().Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
@@ -368,13 +367,13 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[string][]string)
 			}
 
-			workerId := sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)
+			workerId := bulkAssigned.WorkerId.String()
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]string, 0)
 			}
 
-			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], sqlchelpers.UUIDToStr(bulkAssigned.QueueItem.StepRunId))
+			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.StepRunId.String())
 		}
 
 		// for each dispatcher, send a bulk assigned task
@@ -412,7 +411,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*repository.AssignedItem) {
 	for _, a := range assigned {
-		stepRunId := sqlchelpers.UUIDToStr(a.QueueItem.StepRunId)
+		stepRunId := a.QueueItem.StepRunId.String()
 
 		_, err := s.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, &repository.QueueStepRunOpts{
 			IsInternalRetry: true,

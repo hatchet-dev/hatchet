@@ -4,7 +4,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	"go.opentelemetry.io/otel/trace"
@@ -41,62 +40,62 @@ func WithWorkflowRunModel(span trace.Span, workflowRun *dbsqlc.GetWorkflowRunRow
 func TenantId(tenantId uuid.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "tenant.id",
-		Value: sqlchelpers.UUIDToStr(tenantId),
+		Value: tenantId.String(),
 	}
 }
 
 func StepRunId(stepRunId uuid.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "step_run.id",
-		Value: sqlchelpers.UUIDToStr(stepRunId),
+		Value: stepRunId.String(),
 	}
 }
 
 func Step(step uuid.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "step.id",
-		Value: sqlchelpers.UUIDToStr(step),
+		Value: step.String(),
 	}
 }
 
 func JobRunId(jobRunId uuid.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "job_run.id",
-		Value: sqlchelpers.UUIDToStr(jobRunId),
+		Value: jobRunId.String(),
 	}
 }
 
 func Job(job uuid.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "job.id",
-		Value: sqlchelpers.UUIDToStr(job),
+		Value: job.String(),
 	}
 }
 
 func WorkflowRunId(workflowRunId uuid.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "workflow_run.id",
-		Value: sqlchelpers.UUIDToStr(workflowRunId),
+		Value: workflowRunId.String(),
 	}
 }
 
 func WorkflowVersion(workflowVersion uuid.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "workflow_version.id",
-		Value: sqlchelpers.UUIDToStr(workflowVersion),
+		Value: workflowVersion.String(),
 	}
 }
 
 func WorkerId(workerId uuid.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "worker.id",
-		Value: sqlchelpers.UUIDToStr(workerId),
+		Value: workerId.String(),
 	}
 }
 
 func EventId(eventId uuid.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "event.id",
-		Value: sqlchelpers.UUIDToStr(eventId),
+		Value: eventId.String(),
 	}
 }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
@@ -19,7 +18,7 @@ func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
 	}
 
 	return &gen.Tenant{
-		Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(tenant.ID), tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
+		Metadata:          *toAPIMetadata(tenant.ID.String(), tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
 		Name:              tenant.Name,
 		Slug:              tenant.Slug,
 		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
@@ -32,7 +31,7 @@ func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
 
 func ToTenantAlertingSettings(alerting *dbsqlc.TenantAlertingSettings) *gen.TenantAlertingSettings {
 	res := &gen.TenantAlertingSettings{
-		Metadata:                        *toAPIMetadata(sqlchelpers.UUIDToStr(alerting.ID), alerting.CreatedAt.Time, alerting.UpdatedAt.Time),
+		Metadata:                        *toAPIMetadata(alerting.ID.String(), alerting.CreatedAt.Time, alerting.UpdatedAt.Time),
 		MaxAlertingFrequency:            alerting.MaxFrequency,
 		EnableExpiringTokenAlerts:       &alerting.EnableExpiringTokenAlerts,
 		EnableWorkflowRunFailureAlerts:  &alerting.EnableWorkflowRunFailureAlerts,
@@ -50,7 +49,7 @@ func ToTenantAlertEmailGroup(group *dbsqlc.TenantAlertEmailGroup) *gen.TenantAle
 	emails := strings.Split(group.Emails, ",")
 
 	return &gen.TenantAlertEmailGroup{
-		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(group.ID), group.CreatedAt.Time, group.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(group.ID.String(), group.CreatedAt.Time, group.UpdatedAt.Time),
 		Emails:   emails,
 	}
 }
@@ -72,7 +71,7 @@ func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit) *gen.TenantRe
 		}
 
 		limits[i] = gen.TenantResourceLimit{
-			Metadata:   *toAPIMetadata(sqlchelpers.UUIDToStr(limit.ID), limit.CreatedAt.Time, limit.UpdatedAt.Time),
+			Metadata:   *toAPIMetadata(limit.ID.String(), limit.CreatedAt.Time, limit.UpdatedAt.Time),
 			Resource:   gen.TenantResource(limit.Resource),
 			LimitValue: int(limit.LimitValue),
 			AlarmValue: &alarmValue,
