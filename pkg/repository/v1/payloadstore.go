@@ -71,7 +71,7 @@ type PayloadStoreRepository interface {
 	ExternalCutoverProcessInterval() time.Duration
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
-	CopyOffloadedPayloadsIntoTempTable(ctx context.Context, partitionDate time.Time, payloads []BulkCutOverPayload) (bool, error)
+	CopyOffloadedPayloadsIntoTempTable(ctx context.Context) (bool, error)
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -715,8 +715,11 @@ type BulkCutOverPayload struct {
 	ExternalLocationKey ExternalPayloadLocationKey
 }
 
-func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context, partitionDate time.Time, payloads []BulkCutOverPayload) (bool, error) {
+func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context) (bool, error) {
+	partitionDate := time.Now()
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+
+	fmt.Println("processing payload cutovers for partition date", partitionDate.String())
 
 	if err != nil {
 		return false, err
@@ -735,17 +738,25 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 	}
 
 	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDateStr)
+	payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
+		Offsetparam: 0,
+		Limitparam:  1000,
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("failed to list payloads for offload: %w", err)
+	}
 
 	rows := make([][]any, len(payloads))
 	for i, payload := range payloads {
 		rows[i] = []any{
 			payload.TenantID,
-			payload.Id,
+			payload.ID,
 			payload.InsertedAt,
-			payload.ExternalId,
+			payload.ExternalID,
 			string(payload.Type),
 			string(sqlcv1.V1PayloadLocationEXTERNAL),
-			string(payload.ExternalLocationKey),
+			payload.ExternalLocationKey.String,
 			nil,
 		}
 	}
