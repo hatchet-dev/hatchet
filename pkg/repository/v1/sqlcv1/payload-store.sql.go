@@ -86,7 +86,7 @@ func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg Cu
 const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many
 WITH payloads AS (
     SELECT
-        p.p
+        (p).*
     FROM list_paginated_payloads_for_offload(
         $1::DATE,
         $2::INT,

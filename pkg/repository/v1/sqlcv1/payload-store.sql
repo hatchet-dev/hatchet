@@ -218,7 +218,7 @@ ANALYZE v1_payload;
 -- name: ListPaginatedPayloadsForOffload :many
 WITH payloads AS (
     SELECT
-        p.*
+        (p).*
     FROM list_paginated_payloads_for_offload(
         @partitionDate::DATE,
         @limitParam::INT,
