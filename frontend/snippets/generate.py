@@ -6,7 +6,6 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any, cast
 
-
 ROOT = "../../"
 BASE_SNIPPETS_DIR = os.path.join(ROOT, "frontend", "docs", "lib")
 OUTPUT_DIR = os.path.join(BASE_SNIPPETS_DIR, "generated", "snippets")
@@ -356,13 +355,14 @@ if __name__ == "__main__":
         json.dump(tree, f, indent=2)
         f.write(" as const;\n")
 
+    language_union = ' | '.join([f"'{v.name.lower()}'" for v in SDKParsingContext])
     snippet_type = (
         "export type Snippet = {\n"
         "    title: string;\n"
         "    content: string;\n"
         "    githubUrl: string;\n"
         "    codePath: string;\n"
-        f"    language: {' | '.join([f"'{v.name.lower()}'" for v in SDKParsingContext])}\n"
+        f"    language: {language_union}\n"
         "};\n"
     )
 
