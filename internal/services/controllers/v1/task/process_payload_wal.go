@@ -37,5 +37,5 @@ func (tc *TasksControllerImpl) runProcessPayloadExternalCutovers(ctx context.Con
 }
 
 func (tc *TasksControllerImpl) processPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error) {
-	return tc.repov1.Payloads().CopyOffloadedPayloadsIntoTempTable(ctx)
+	return false, tc.repov1.Payloads().CopyOffloadedPayloadsIntoTempTable(ctx)
 }

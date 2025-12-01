@@ -71,7 +71,7 @@ type PayloadStoreRepository interface {
 	ExternalCutoverProcessInterval() time.Duration
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
-	CopyOffloadedPayloadsIntoTempTable(ctx context.Context) (bool, error)
+	CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -715,9 +715,9 @@ type BulkCutOverPayload struct {
 	ExternalLocationKey ExternalPayloadLocationKey
 }
 
-func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context) (bool, error) {
+func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error {
 	if !p.externalStoreEnabled {
-		return false, nil
+		return nil
 	}
 
 	partitionDate := time.Now()
@@ -726,115 +726,142 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 	fmt.Println("processing payload cutovers for partition date", partitionDate.String())
 
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	defer rollback()
-
 	partitionDateStr := partitionDate.Format("20060102")
+	// todo: this should also set up a trigger on insert into the new temp table
+	// on insert, we just write the record from the payload partition
 	err = p.queries.CreateV1PayloadCutoverTemporaryTable(ctx, tx, pgtype.Date{
 		Time:  partitionDate,
 		Valid: true,
 	})
 
 	if err != nil {
-		return false, fmt.Errorf("failed to create payload cutover temporary table: %w", err)
-	}
-
-	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDateStr)
-	payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
-		Offsetparam: 0,
-		Limitparam:  1000,
-	})
-
-	if err != nil {
-		return false, fmt.Errorf("failed to list payloads for offload: %w", err)
-	}
-
-	alreadyExternalPayloads := make(map[RetrievePayloadOpts]ExternalPayloadLocationKey)
-	offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
-	retrieveOptsToExternalId := make(map[RetrievePayloadOpts]string)
-
-	for _, payload := range payloads {
-		if payload.Location != sqlcv1.V1PayloadLocationINLINE {
-			retrieveOpt := RetrievePayloadOpts{
-				Id:         payload.ID,
-				InsertedAt: payload.InsertedAt,
-				Type:       payload.Type,
-				TenantId:   payload.TenantID,
-			}
-
-			alreadyExternalPayloads[retrieveOpt] = ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			retrieveOptsToExternalId[retrieveOpt] = payload.ExternalID.String()
-		} else {
-			offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
-				StorePayloadOpts: &StorePayloadOpts{
-					Id:         payload.ID,
-					InsertedAt: payload.InsertedAt,
-					Type:       payload.Type,
-					Payload:    payload.InlineContent,
-					TenantId:   payload.TenantID.String(),
-					ExternalId: payload.ExternalID,
-				},
-				OffloadAt: time.Now(),
-			})
-			retrieveOptsToExternalId[RetrievePayloadOpts{
-				Id:         payload.ID,
-				InsertedAt: payload.InsertedAt,
-				Type:       payload.Type,
-				TenantId:   payload.TenantID,
-			}] = payload.ExternalID.String()
-		}
-	}
-
-	retrieveOptsToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
-
-	for r, k := range alreadyExternalPayloads {
-		retrieveOptsToKey[r] = k
-	}
-
-	rows := make([][]any, 0, len(payloads))
-	for r, k := range retrieveOptsToKey {
-		// first, offload each payload
-		// next, insert into temp table using new keys
-		// finally, swap the tables
-		// do we need conflict resolution?
-
-		externalId := retrieveOptsToExternalId[r]
-
-		rows = append(rows, []any{
-			r.TenantId,
-			r.Id,
-			r.InsertedAt,
-			externalId,
-			string(r.Type),
-			string(sqlcv1.V1PayloadLocationEXTERNAL),
-			k,
-			nil,
-			time.Now(),
-		})
-	}
-
-	copyCount, err := tx.CopyFrom(
-		ctx,
-		pgx.Identifier{tableName},
-		[]string{"tenant_id", "id", "inserted_at", "external_id", "type", "location", "external_location_key", "inline_content", "updated_at"},
-		pgx.CopyFromRows(rows),
-	)
-
-	if err != nil {
-		return false, fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
-	}
-
-	if int(copyCount) != len(payloads) {
-		return false, fmt.Errorf("copied payload count %d does not match expected %d", copyCount, len(payloads))
+		rollback()
+		return fmt.Errorf("failed to create payload cutover temporary table: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
-		return false, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
+		rollback()
+		return fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
-	return copyCount > 0, nil
+	const limit = 1000
+	offset := int32(0)
+
+	for true {
+		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+
+		if err != nil {
+			return fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+		}
+
+		defer rollback()
+
+		tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDateStr)
+		// todo: this needs to read out of a single partition, not the whole partitioned table
+		payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
+			Offsetparam: offset,
+			Limitparam:  limit,
+		})
+
+		if err != nil {
+			return fmt.Errorf("failed to list payloads for offload: %w", err)
+		}
+
+		alreadyExternalPayloads := make(map[RetrievePayloadOpts]ExternalPayloadLocationKey)
+		offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
+		retrieveOptsToExternalId := make(map[RetrievePayloadOpts]string)
+
+		for _, payload := range payloads {
+			if payload.Location != sqlcv1.V1PayloadLocationINLINE {
+				retrieveOpt := RetrievePayloadOpts{
+					Id:         payload.ID,
+					InsertedAt: payload.InsertedAt,
+					Type:       payload.Type,
+					TenantId:   payload.TenantID,
+				}
+
+				alreadyExternalPayloads[retrieveOpt] = ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
+				retrieveOptsToExternalId[retrieveOpt] = payload.ExternalID.String()
+			} else {
+				offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
+					StorePayloadOpts: &StorePayloadOpts{
+						Id:         payload.ID,
+						InsertedAt: payload.InsertedAt,
+						Type:       payload.Type,
+						Payload:    payload.InlineContent,
+						TenantId:   payload.TenantID.String(),
+						ExternalId: payload.ExternalID,
+					},
+					OffloadAt: time.Now(),
+				})
+				retrieveOptsToExternalId[RetrievePayloadOpts{
+					Id:         payload.ID,
+					InsertedAt: payload.InsertedAt,
+					Type:       payload.Type,
+					TenantId:   payload.TenantID,
+				}] = payload.ExternalID.String()
+			}
+		}
+
+		retrieveOptsToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
+
+		for r, k := range alreadyExternalPayloads {
+			retrieveOptsToKey[r] = k
+		}
+
+		rows := make([][]any, 0, len(payloads))
+		for r, k := range retrieveOptsToKey {
+			// first, offload each payload
+			// next, insert into temp table using new keys
+			// finally, swap the tables
+			// do we need conflict resolution?
+
+			externalId := retrieveOptsToExternalId[r]
+
+			rows = append(rows, []any{
+				r.TenantId,
+				r.Id,
+				r.InsertedAt,
+				externalId,
+				string(r.Type),
+				string(sqlcv1.V1PayloadLocationEXTERNAL),
+				k,
+				nil,
+				time.Now(),
+			})
+		}
+
+		copyCount, err := tx.CopyFrom(
+			ctx,
+			pgx.Identifier{tableName},
+			[]string{"tenant_id", "id", "inserted_at", "external_id", "type", "location", "external_location_key", "inline_content", "updated_at"},
+			pgx.CopyFromRows(rows),
+		)
+
+		if err != nil {
+			return fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
+		}
+
+		if int(copyCount) != len(payloads) {
+			return fmt.Errorf("copied payload count %d does not match expected %d", copyCount, len(payloads))
+		}
+
+		if err := commit(ctx); err != nil {
+			return fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
+		}
+
+		if len(payloads) < limit {
+			break
+		}
+
+		offset += int32(len(payloads))
+	}
+
+	return nil
+
 }
 
 type NoOpExternalStore struct{}
