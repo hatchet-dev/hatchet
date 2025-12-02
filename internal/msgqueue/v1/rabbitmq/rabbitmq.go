@@ -46,6 +46,7 @@ type MessageQueueImpl struct {
 
 	deadLetterBackoff time.Duration
 
+	maxPayloadSize         int
 	compressionEnabled     bool
 	compressionThreshold   int
 	enableMessageRejection bool
@@ -204,6 +205,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		compressionThreshold:      opts.compressionThreshold,
 		enableMessageRejection:    opts.enableMessageRejection,
 		maxDeathCount:             opts.maxDeathCount,
+		maxPayloadSize:            16 * 1024 * 1024, // 16 MB
 	}
 
 	// create a new lru cache for tenant ids
@@ -213,7 +215,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	poolCh, err := subChannelPool.Acquire(ctx)
 
 	if err != nil {
-		t.l.Error().Msgf("cannot acquire channel: %v", err)
+		t.l.Error().Msgf("[New] cannot acquire channel: %v", err)
 		cancel()
 		return nil, nil
 	}
@@ -257,9 +259,13 @@ func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, ms
 	ctx, span := telemetry.NewSpan(ctx, "MessageQueueImpl.SendMessage")
 	defer span.End()
 
-	totalSize := 0
-	for _, payload := range msg.Payloads {
-		totalSize += len(payload)
+	totalSize := getPayloadSize(msg.Payloads)
+
+	if totalSize > t.maxPayloadSize {
+		err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", totalSize, t.maxPayloadSize)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "message size exceeds maximum allowed size")
+		return err
 	}
 
 	if totalSize > maxSizeErrorLogThreshold {
@@ -291,6 +297,8 @@ func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, ms
 	return nil
 }
 
+const PUB_ACQUIRE_CHANNEL_RETRIES = 3
+
 func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
 	otelCarrier := telemetry.GetCarrier(ctx)
 
@@ -320,28 +328,40 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		}
 	}
 
-	acquireCtx, acquireSpan := telemetry.NewSpan(ctx, "acquire_publish_channel")
+	var pub *amqp.Channel
+	var acquireErr error
 
-	poolCh, err := t.pubChannels.Acquire(acquireCtx)
+	for range PUB_ACQUIRE_CHANNEL_RETRIES {
+		acquireCtx, acquireSpan := telemetry.NewSpan(ctx, "acquire_publish_channel")
 
-	if err != nil {
-		acquireSpan.RecordError(err)
-		acquireSpan.SetStatus(codes.Error, "error acquiring publish channel")
+		poolCh, err := t.pubChannels.Acquire(acquireCtx)
+
+		if err != nil {
+			acquireSpan.RecordError(err)
+			acquireSpan.SetStatus(codes.Error, "error acquiring publish channel")
+			acquireSpan.End()
+			t.l.Error().Msgf("[pubMessage] cannot acquire channel: %v", err)
+			return err
+		}
+
 		acquireSpan.End()
-		t.l.Error().Msgf("cannot acquire channel: %v", err)
-		return err
+
+		pub = poolCh.Value()
+
+		if pub.IsClosed() {
+			poolCh.Destroy()
+			acquireErr = fmt.Errorf("channel is closed")
+			pub = nil
+			continue
+		}
+
+		defer poolCh.Release()
+		break
 	}
 
-	acquireSpan.End()
-
-	pub := poolCh.Value()
-
-	if pub.IsClosed() {
-		poolCh.Destroy()
-		return fmt.Errorf("channel is closed")
+	if pub == nil {
+		return acquireErr
 	}
-
-	defer poolCh.Release()
 
 	body, err := json.Marshal(msg)
 
@@ -487,7 +507,7 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 	poolCh, err := t.pubChannels.Acquire(ctx)
 
 	if err != nil {
-		t.l.Error().Msgf("cannot acquire channel: %v", err)
+		t.l.Error().Msgf("[RegisterTenant] cannot acquire channel: %v", err)
 		return err
 	}
 
@@ -597,7 +617,7 @@ func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
 	poolCh, err := t.subChannels.Acquire(context.Background())
 
 	if err != nil {
-		t.l.Error().Msgf("cannot acquire channel for deleting queue: %v", err)
+		t.l.Error().Msgf("[deleteQueue] cannot acquire channel for deleting queue: %v", err)
 		return err
 	}
 
