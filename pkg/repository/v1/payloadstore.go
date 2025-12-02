@@ -8,7 +8,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -422,30 +421,64 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 			retrieveOptsToKey[r] = k
 		}
 
-		rows := make([][]any, 0, len(payloads))
+		tenantIds := make([]pgtype.UUID, 0, len(payloads))
+		ids := make([]int64, 0, len(payloads))
+		insertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
+		externalIds := make([]pgtype.UUID, 0, len(payloads))
+		types := make([]string, 0, len(payloads))
+		locations := make([]string, 0, len(payloads))
+		externalLocationKeys := make([]string, 0, len(payloads))
+
 		for r, k := range retrieveOptsToKey {
 			// qq: do we need conflict resolution here? I think the `COPY` is probably fine
 			externalId := retrieveOptsToExternalId[r]
 
-			rows = append(rows, []any{
-				r.TenantId,
-				r.Id,
-				r.InsertedAt,
-				externalId,
-				string(r.Type),
-				string(sqlcv1.V1PayloadLocationEXTERNAL),
-				k,
-				nil,
-				time.Now(),
-			})
+			tenantIds = append(tenantIds, r.TenantId)
+			ids = append(ids, r.Id)
+			insertedAts = append(insertedAts, r.InsertedAt)
+			types = append(types, string(r.Type))
+			locations = append(locations, string(sqlcv1.V1PayloadLocationEXTERNAL))
+			externalLocationKeys = append(externalLocationKeys, string(k))
+			externalIds = append(externalIds, sqlchelpers.UUIDFromStr(externalId))
 		}
 
-		copyCount, err := tx.CopyFrom(
+		row := tx.QueryRow(
 			ctx,
-			pgx.Identifier{tableName},
-			[]string{"tenant_id", "id", "inserted_at", "external_id", "type", "location", "external_location_key", "inline_content", "updated_at"},
-			pgx.CopyFromRows(rows),
+			fmt.Sprintf(
+				`
+				WITH inputs AS (
+					SELECT
+						UNNEST($1::UUID[]) AS tenant_id,
+						UNNEST($2::BIGINT[]) AS id,
+						UNNEST($3::TIMESTAMPTZ[]) AS inserted_at,
+						UNNEST($4::UUID[]) AS external_id,
+						UNNEST($5::TEXT[]) AS type,
+						UNNEST($6::TEXT[]) AS location,
+						UNNEST($7::TEXT[]) AS external_location_key
+				), inserts AS (
+					INSERT INTO %s (tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at)
+					SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, NULL, NOW()
+					FROM inputs
+					ON CONFLICT(tenant_id, id, inserted_at, type) DO NOTHING
+					RETURNING *
+				)
+
+				SELECT COUNT(*)
+				FROM inserts
+				`,
+				tableName,
+			),
+			tenantIds,
+			ids,
+			insertedAts,
+			externalIds,
+			types,
+			locations,
+			externalLocationKeys,
 		)
+
+		var copyCount int64
+		err = row.Scan(&copyCount)
 
 		if err != nil {
 			return fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
