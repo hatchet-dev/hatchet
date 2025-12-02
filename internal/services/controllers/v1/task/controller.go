@@ -61,7 +61,6 @@ type TasksControllerImpl struct {
 	retryTaskOperations                      *operation.OperationPool
 	emitSleepOperations                      *operation.OperationPool
 	evictExpiredIdempotencyKeysOperations    *operation.OperationPool
-	processPayloadWALOperations              *queueutils.OperationPool[int64]
 	processPayloadExternalCutoversOperations *queueutils.OperationPool[int64]
 	replayEnabled                            bool
 	analyzeCronInterval                      time.Duration
@@ -284,7 +283,6 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.processPayloadWALOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload WAL", t.processPayloadWAL).WithJitter(jitter)
 	t.processPayloadExternalCutoversOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload external cutovers", t.processPayloadExternalCutovers).WithJitter(jitter)
 
 	return t, nil
@@ -327,24 +325,6 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		cancel()
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not schedule task partition method")
-		span.End()
-
-		return nil, wrappedErr
-	}
-
-	_, err = tc.s.NewJob(
-		gocron.DurationJob(tc.repov1.Payloads().WALProcessInterval()),
-		gocron.NewTask(
-			tc.runProcessPayloadWAL(spanContext),
-		),
-	)
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("could not schedule process payload WAL: %w", err)
-
-		cancel()
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not run process payload WAL")
 		span.End()
 
 		return nil, wrappedErr
