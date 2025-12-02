@@ -28,6 +28,10 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	tenantId string,
 	task *v1.V1TaskWithPayload,
 ) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("context done before starting task: %w", ctx.Err())
+	}
+
 	ctx, span := telemetry.NewSpan(ctx, "start-step-run-from-bulk") // nolint:ineffassign
 	defer span.End()
 
@@ -146,6 +150,10 @@ func (worker *subscribedWorker) CancelTask(
 	task *sqlcv1.V1Task,
 	retryCount int32,
 ) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("context done before cancelling task: %w", ctx.Err())
+	}
+
 	ctx, span := telemetry.NewSpan(ctx, "cancel-task") // nolint:ineffassign
 	defer span.End()
 
