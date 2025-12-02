@@ -3,10 +3,28 @@
 import { usePostHog } from "posthog-js/react";
 import { useEffect } from "react";
 
-const CROSS_DOMAIN_TARGETS = ["cloud.onhatchet.run"];
+// Supports exact hostnames or wildcards like "*.onhatchet.run"
+// Wildcards match both the base domain and all subdomains
+const CROSS_DOMAIN_TARGETS = ["*.onhatchet.run"];
+
+function matchesHostnamePattern(hostname: string, pattern: string): boolean {
+  if (pattern.startsWith("*.")) {
+    const baseDomain = pattern.slice(2);
+    return hostname === baseDomain || hostname.endsWith(`.${baseDomain}`);
+  }
+  return hostname === pattern;
+}
 
 function shouldHandleLink(href: string): boolean {
-  return CROSS_DOMAIN_TARGETS.some((target) => href.includes(target));
+  try {
+    const url = new URL(href);
+    return CROSS_DOMAIN_TARGETS.some((pattern) =>
+      matchesHostnamePattern(url.hostname, pattern),
+    );
+  } catch (error) {
+    console.error("Invalid URL in link href:", href, error);
+    return false;
+  }
 }
 
 function appendTrackingParams(
