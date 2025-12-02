@@ -341,6 +341,8 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 			acquireSpan.SetStatus(codes.Error, "error acquiring publish channel")
 			acquireSpan.End()
 			t.l.Error().Msgf("[pubMessage] cannot acquire channel: %v", err)
+			// we don't retry this error, because it's always a timeout on acquiring the channel/connection, and is
+			// unlikely to succeed on retry
 			return err
 		}
 
@@ -348,6 +350,8 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 		pub = poolCh.Value()
 
+		// we need to case on the channel being closed here, because the channel exception may be async (after a previous pub has been
+		// sent), so we might have acquired a closed channel from the pool
 		if pub.IsClosed() {
 			poolCh.Destroy()
 			acquireErr = fmt.Errorf("channel is closed")
