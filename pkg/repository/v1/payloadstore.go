@@ -157,7 +157,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		inlineContents = append(inlineContents, payload.Payload)
 		externalIds = append(externalIds, payload.ExternalId)
 		externalLocationKeys = append(externalLocationKeys, "")
-		offloadAts = append(offloadAts, pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true})
+		offloadAts = append(offloadAts, pgtype.Timestamptz{Time: time.Now(), Valid: true})
 	}
 
 	err := p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
