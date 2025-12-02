@@ -306,25 +306,6 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 			t.l.Debug().Msgf("compressed payloads for message %s: original=%d bytes, compressed=%d bytes, ratio=%.2f%%",
 				msg.ID, compressionResult.OriginalSize, compressionResult.CompressedSize, compressionResult.CompressionRatio*100)
 		}
-
-		totalSize := getMessageSize(msg)
-
-		if totalSize > t.maxPayloadSize {
-			err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", totalSize, t.maxPayloadSize)
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "message size exceeds maximum allowed size")
-			return err
-		}
-
-		if totalSize > maxSizeErrorLogThreshold {
-			t.l.Error().
-				Int("message_size_bytes", totalSize).
-				Int("num_messages", len(msg.Payloads)).
-				Str("tenant_id", msg.TenantID).
-				Str("queue_name", q.Name()).
-				Str("message_id", msg.ID).
-				Msg("sending a very large message, this may impact performance")
-		}
 	}
 
 	var pub *amqp.Channel
@@ -371,6 +352,25 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	if err != nil {
 		t.l.Error().Msgf("error marshaling msg queue: %v", err)
 		return err
+	}
+
+	bodySize := len(body)
+
+	if bodySize > t.maxPayloadSize {
+		err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", bodySize, t.maxPayloadSize)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "message size exceeds maximum allowed size")
+		return err
+	}
+
+	if bodySize > maxSizeErrorLogThreshold {
+		t.l.Error().
+			Int("message_size_bytes", bodySize).
+			Int("num_messages", len(msg.Payloads)).
+			Str("tenant_id", msg.TenantID).
+			Str("queue_name", q.Name()).
+			Str("message_id", msg.ID).
+			Msg("sending a very large message, this may impact performance")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
