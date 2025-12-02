@@ -77,6 +77,7 @@ type payloadStoreRepositoryImpl struct {
 	enableDagDataPayloadDualWrites   bool
 	enableOLAPPayloadDualWrites      bool
 	externalCutoverProcessInterval   time.Duration
+	externalCutoverBatchSize         int32
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -85,6 +86,7 @@ type PayloadStoreRepositoryOpts struct {
 	EnableDagDataPayloadDualWrites   bool
 	EnableOLAPPayloadDualWrites      bool
 	ExternalCutoverProcessInterval   time.Duration
+	ExternalCutoverBatchSize         int32
 }
 
 func NewPayloadStoreRepository(
@@ -106,6 +108,7 @@ func NewPayloadStoreRepository(
 		enableDagDataPayloadDualWrites:   opts.EnableDagDataPayloadDualWrites,
 		enableOLAPPayloadDualWrites:      opts.EnableOLAPPayloadDualWrites,
 		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
+		externalCutoverBatchSize:         opts.ExternalCutoverBatchSize,
 	}
 }
 
@@ -354,7 +357,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
-	const limit = 1000
 	offset := int32(0)
 
 	for true {
@@ -373,7 +375,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 				Valid: true,
 			},
 			Offsetparam: offset,
-			Limitparam:  limit,
+			Limitparam:  p.externalCutoverBatchSize,
 		})
 
 		if err != nil {
@@ -500,7 +502,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 			return fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 		}
 
-		if len(payloads) < limit {
+		if len(payloads) < int(p.externalCutoverBatchSize) {
 			break
 		}
 
