@@ -259,31 +259,11 @@ func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, ms
 	ctx, span := telemetry.NewSpan(ctx, "MessageQueueImpl.SendMessage")
 	defer span.End()
 
-	totalSize := getPayloadSize(msg.Payloads)
-
-	if totalSize > t.maxPayloadSize {
-		err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", totalSize, t.maxPayloadSize)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "message size exceeds maximum allowed size")
-		return err
-	}
-
-	if totalSize > maxSizeErrorLogThreshold {
-		t.l.Error().
-			Int("message_size_bytes", totalSize).
-			Int("num_messages", len(msg.Payloads)).
-			Str("tenant_id", msg.TenantID).
-			Str("queue_name", q.Name()).
-			Str("message_id", msg.ID).
-			Msg("sending a very large message, this may impact performance")
-	}
-
 	span.SetAttributes(
 		attribute.String("MessageQueueImpl.SendMessage.queue_name", q.Name()),
 		attribute.String("MessageQueueImpl.SendMessage.tenant_id", msg.TenantID),
 		attribute.String("MessageQueueImpl.SendMessage.message_id", msg.ID),
 		attribute.Int("MessageQueueImpl.SendMessage.num_payloads", len(msg.Payloads)),
-		attribute.Int("MessageQueueImpl.SendMessage.total_size_bytes", totalSize),
 	)
 
 	err := t.pubMessage(ctx, q, msg)
@@ -325,6 +305,25 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 			t.l.Debug().Msgf("compressed payloads for message %s: original=%d bytes, compressed=%d bytes, ratio=%.2f%%",
 				msg.ID, compressionResult.OriginalSize, compressionResult.CompressedSize, compressionResult.CompressionRatio*100)
+		}
+
+		totalSize := getMessageSize(msg)
+
+		if totalSize > t.maxPayloadSize {
+			err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", totalSize, t.maxPayloadSize)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "message size exceeds maximum allowed size")
+			return err
+		}
+
+		if totalSize > maxSizeErrorLogThreshold {
+			t.l.Error().
+				Int("message_size_bytes", totalSize).
+				Int("num_messages", len(msg.Payloads)).
+				Str("tenant_id", msg.TenantID).
+				Str("queue_name", q.Name()).
+				Str("message_id", msg.ID).
+				Msg("sending a very large message, this may impact performance")
 		}
 	}
 
@@ -451,6 +450,18 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	t.l.Debug().Msgf("published msg to queue %s", q.Name())
 
 	return nil
+}
+
+func getMessageSize(m *msgqueue.Message) int {
+	payloadSize := getPayloadSize(m.Payloads)
+
+	size := payloadSize + len(m.TenantID) + len(m.ID) + 4 // 4 bytes for other fields
+
+	for k, v := range m.OtelCarrier {
+		size += len(k) + len(v)
+	}
+
+	return size
 }
 
 // Subscribe subscribes to the msg queue.

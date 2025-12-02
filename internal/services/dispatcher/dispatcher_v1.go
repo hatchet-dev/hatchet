@@ -113,7 +113,7 @@ func (worker *subscribedWorker) sendToWorker(
 
 	sendMsgBegin := time.Now()
 
-	sentCh := make(chan error)
+	sentCh := make(chan error, 1)
 
 	go func() {
 		defer close(sentCh)
@@ -153,7 +153,7 @@ func (worker *subscribedWorker) CancelTask(
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
-	sentCh := make(chan error)
+	sentCh := make(chan error, 1)
 
 	go func() {
 		defer close(sentCh)
