@@ -42,7 +42,18 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
 
-	return worker.sendToWorker(ctx, action)
+	err := worker.sendToWorker(ctx, action)
+
+	if err != nil {
+		// if the context is done, we return nil, because the worker took too long to receive the message
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil
+		}
+
+		return fmt.Errorf("could not send start action to worker: %w", err)
+	}
+
+	return nil
 }
 
 func (worker *subscribedWorker) sendToWorker(
@@ -100,18 +111,31 @@ func (worker *subscribedWorker) sendToWorker(
 
 	sendMsgBegin := time.Now()
 
-	err = worker.stream.SendMsg(msg)
+	sentCh := make(chan error)
 
-	if err != nil {
-		span.RecordError(err)
+	go func() {
+		defer close(sentCh)
+
+		err = worker.stream.SendMsg(msg)
+
+		if err != nil {
+			span.RecordError(err)
+		}
+
+		if time.Since(sendMsgBegin) > 50*time.Millisecond {
+			span.SetStatus(codes.Error, "flow control detected")
+			span.RecordError(fmt.Errorf("send took too long, we may be in flow control: %s", time.Since(sendMsgBegin)))
+		}
+
+		sentCh <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("context done before send could complete: %w", ctx.Err())
+	case err = <-sentCh:
+		return err
 	}
-
-	if time.Since(sendMsgBegin) > 50*time.Millisecond {
-		span.SetStatus(codes.Error, "flow control detected")
-		span.RecordError(fmt.Errorf("send took too long, we may be in flow control: %s", time.Since(sendMsgBegin)))
-	}
-
-	return err
 }
 
 func (worker *subscribedWorker) CancelTask(
@@ -127,10 +151,28 @@ func (worker *subscribedWorker) CancelTask(
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
-	worker.sendMu.Lock()
-	defer worker.sendMu.Unlock()
+	sentCh := make(chan error)
 
-	return worker.stream.Send(action)
+	go func() {
+		defer close(sentCh)
+
+		worker.sendMu.Lock()
+		defer worker.sendMu.Unlock()
+
+		sentCh <- worker.stream.Send(action)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("context done before send could complete: %w", ctx.Err())
+	case err := <-sentCh:
+		if err != nil {
+			span.RecordError(err)
+			return fmt.Errorf("could not send cancel action to worker: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
