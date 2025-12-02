@@ -1784,7 +1784,7 @@ BEGIN
     END IF;
 
     EXECUTE format(
-        'CREATE TABLE %I (LIKE %I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)',
+        'CREATE UNLOGGED TABLE %I (LIKE %I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)',
         target_table_name,
         source_partition_name
     );
@@ -1949,6 +1949,9 @@ BEGIN
         source_partition_name
     );
     RAISE NOTICE 'Set autovacuum settings on partition %', source_partition_name;
+
+    EXECUTE format('ALTER TABLE %I SET LOGGED', source_partition_name);
+    RAISE NOTICE 'Set partition % to LOGGED', source_partition_name;
 
     RAISE NOTICE 'Attaching new partition % to v1_payload', source_partition_name;
     EXECUTE format(
