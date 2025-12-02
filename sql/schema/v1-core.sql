@@ -1930,6 +1930,7 @@ BEGIN
         EXECUTE format('ALTER TABLE v1_payload DETACH PARTITION %I', source_partition_name);
 
         RAISE NOTICE 'Dropping old partition %', source_partition_name;
+        EXECUTE format('ALTER TABLE v1_payload DETACH PARTITION %I', source_partition_name);
         EXECUTE format('DROP TABLE %I CASCADE', source_partition_name);
     END IF;
 
@@ -1967,7 +1968,6 @@ BEGIN
     RETURN source_partition_name;
 END;
 $$;
-
 
 CREATE TABLE v1_idempotency_key (
     tenant_id UUID NOT NULL,
