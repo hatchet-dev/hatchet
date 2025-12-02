@@ -8,7 +8,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -56,15 +55,11 @@ type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
-	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
 	TaskEventDualWritesEnabled() bool
 	DagDataDualWritesEnabled() bool
 	OLAPDualWritesEnabled() bool
-	WALPollLimit() int
-	WALProcessInterval() time.Duration
-	WALEnabled() bool
 	ExternalCutoverProcessInterval() time.Duration
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
@@ -82,13 +77,7 @@ type payloadStoreRepositoryImpl struct {
 	enableTaskEventPayloadDualWrites bool
 	enableDagDataPayloadDualWrites   bool
 	enableOLAPPayloadDualWrites      bool
-	walPollLimit                     int
-	walProcessInterval               time.Duration
 	externalCutoverProcessInterval   time.Duration
-	// walEnabled controls the payload storage strategy:
-	// - true: Use WAL system (inline + async external offload)
-	// - false: Direct external storage (skip inline, save DB space)
-	walEnabled bool
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -96,15 +85,7 @@ type PayloadStoreRepositoryOpts struct {
 	EnableTaskEventPayloadDualWrites bool
 	EnableDagDataPayloadDualWrites   bool
 	EnableOLAPPayloadDualWrites      bool
-	WALPollLimit                     int
-	WALProcessInterval               time.Duration
 	ExternalCutoverProcessInterval   time.Duration
-	// WALEnabled controls the payload storage strategy:
-	// - true: Use WAL (Write-Ahead Log) system - store payloads inline in PostgreSQL first,
-	//   then asynchronously offload to external storage via WAL processing
-	// - false: Skip WAL system - store payloads directly to external storage immediately,
-	//   saving database space by not storing inline content in PostgreSQL
-	WALEnabled bool
 }
 
 func NewPayloadStoreRepository(
@@ -125,10 +106,7 @@ func NewPayloadStoreRepository(
 		enableTaskEventPayloadDualWrites: opts.EnableTaskEventPayloadDualWrites,
 		enableDagDataPayloadDualWrites:   opts.EnableDagDataPayloadDualWrites,
 		enableOLAPPayloadDualWrites:      opts.EnableOLAPPayloadDualWrites,
-		walPollLimit:                     opts.WALPollLimit,
-		walProcessInterval:               opts.WALProcessInterval,
 		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
-		walEnabled:                       opts.WALEnabled,
 	}
 }
 
@@ -287,55 +265,6 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	return optsToPayload, nil
 }
 
-func (p *payloadStoreRepositoryImpl) ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error) {
-	// no need to cut over if external store is not enabled
-	if !p.externalStoreEnabled {
-		return false, nil
-	}
-
-	ctx, span := telemetry.NewSpan(ctx, "payloadstore.process_payload_external_cutovers")
-	defer span.End()
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 30000)
-
-	if err != nil {
-		return false, fmt.Errorf("failed to prepare transaction: %w", err)
-	}
-
-	defer rollback()
-
-	advisoryLockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash(fmt.Sprintf("process-payload-cut-overs-lease-%d", partitionNumber)))
-
-	if err != nil {
-		return false, fmt.Errorf("failed to acquire advisory lock: %w", err)
-	}
-
-	if !advisoryLockAcquired {
-		return false, nil
-	}
-
-	queueItemsCutOver, err := p.queries.CutOverPayloadsToExternal(ctx, tx, sqlcv1.CutOverPayloadsToExternalParams{
-		Polllimit:       int32(p.walPollLimit),  // nolint: gosec
-		Partitionnumber: int32(partitionNumber), // nolint: gosec
-	})
-
-	if err != nil {
-		return false, err
-	}
-
-	if queueItemsCutOver == 0 {
-		return false, nil
-	}
-
-	hasMoreQueueItems := int(queueItemsCutOver) == p.walPollLimit
-
-	if err := commit(ctx); err != nil {
-		return false, err
-	}
-
-	return hasMoreQueueItems, nil
-}
-
 func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration) {
 	p.externalStoreEnabled = true
 	p.inlineStoreTTL = &inlineStoreTTL
@@ -358,14 +287,6 @@ func (p *payloadStoreRepositoryImpl) OLAPDualWritesEnabled() bool {
 	return p.enableOLAPPayloadDualWrites
 }
 
-func (p *payloadStoreRepositoryImpl) WALPollLimit() int {
-	return p.walPollLimit
-}
-
-func (p *payloadStoreRepositoryImpl) WALProcessInterval() time.Duration {
-	return p.walProcessInterval
-}
-
 func (p *payloadStoreRepositoryImpl) ExternalCutoverProcessInterval() time.Duration {
 	return p.externalCutoverProcessInterval
 }
@@ -376,10 +297,6 @@ func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
 
 func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
 	return p.externalStore
-}
-
-func (p *payloadStoreRepositoryImpl) WALEnabled() bool {
-	return p.walEnabled
 }
 
 type BulkCutOverPayload struct {

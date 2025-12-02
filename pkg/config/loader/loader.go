@@ -298,10 +298,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		EnableTaskEventPayloadDualWrites: scf.PayloadStore.EnableTaskEventPayloadDualWrites,
 		EnableOLAPPayloadDualWrites:      scf.PayloadStore.EnableOLAPPayloadDualWrites,
 		EnableDagDataPayloadDualWrites:   scf.PayloadStore.EnableDagDataPayloadDualWrites,
-		WALPollLimit:                     scf.PayloadStore.WALPollLimit,
-		WALProcessInterval:               scf.PayloadStore.WALProcessInterval,
 		ExternalCutoverProcessInterval:   scf.PayloadStore.ExternalCutoverProcessInterval,
-		WALEnabled:                       scf.PayloadStore.WALEnabled,
 	}
 
 	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{
