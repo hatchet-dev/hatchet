@@ -314,13 +314,15 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 
 	// todo: run this for a configurable date interval (e.g. 2 days ago or something)
 	partitionDate := time.Now()
+	partitionDateStr := partitionDate.Format("20060102")
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
 	if err != nil {
 		return err
 	}
 
-	hashKey := fmt.Sprintf("payload-cutover-temp-table-lease-%s", partitionDate.Format("20060102"))
+	hashKey := fmt.Sprintf("payload-cutover-temp-table-lease-%s", partitionDateStr)
 
 	lockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash(hashKey))
 
@@ -334,7 +336,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return nil
 	}
 
-	partitionDateStr := partitionDate.Format("20060102")
 	// todo: this should also set up a trigger on insert into the new temp table
 	// on insert, we just write the record from the payload partition
 	// todo: acquire an advisory lock or a lease here so this doesn't run concurrently
@@ -445,6 +446,8 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		row := tx.QueryRow(
 			ctx,
 			fmt.Sprintf(
+				// we unfortunately need to use `INSERT INTO` instead of `COPY` here
+				// because we can't have conflict resolution with `COPY`.
 				`
 				WITH inputs AS (
 					SELECT
@@ -491,10 +494,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 
 		if err != nil {
 			return fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
-		}
-
-		if int(copyCount) != len(payloads) {
-			return fmt.Errorf("copied payload count %d does not match expected %d", copyCount, len(payloads))
 		}
 
 		if err := commit(ctx); err != nil {
