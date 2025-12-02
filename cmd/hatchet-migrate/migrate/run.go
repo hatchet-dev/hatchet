@@ -397,20 +397,17 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string) error {
 		}
 	}()
 
-	// decouple from existing structure
 	fsys, err := fs.Sub(embedMigrations, "migrations")
 	if err != nil {
 		return fmt.Errorf("failed to create sub filesystem: %w", err)
 	}
 	goose.SetBaseFS(fsys)
 
-	// Parse the target version
 	targetVersionInt, err := strconv.ParseInt(targetVersion, 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid target version %s: %w", targetVersion, err)
 	}
 
-	// Get current version
 	currentVersion, err := goose.GetDBVersion(db)
 	if err != nil {
 		return fmt.Errorf("failed to get current database version: %w", err)
@@ -427,7 +424,6 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string) error {
 
 	fmt.Printf("Migrating down from version %d to version %d\n", currentVersion, targetVersionInt)
 
-	// Run down migration to target version
 	err = goose.DownTo(db, ".", targetVersionInt)
 	if err != nil {
 		return fmt.Errorf("failed to migrate down to version %d: %w", targetVersionInt, err)
