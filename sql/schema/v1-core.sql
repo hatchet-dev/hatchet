@@ -1789,18 +1789,6 @@ BEGIN
         source_partition_name
     );
 
-    EXECUTE format(
-        'ALTER TABLE %I SET (
-            autovacuum_vacuum_scale_factor = ''0.1'',
-            autovacuum_analyze_scale_factor = ''0.05'',
-            autovacuum_vacuum_threshold = ''25'',
-            autovacuum_analyze_threshold = ''25'',
-            autovacuum_vacuum_cost_delay = ''10'',
-            autovacuum_vacuum_cost_limit = ''1000''
-        )',
-        target_table_name
-    );
-
     EXECUTE format('
         CREATE OR REPLACE FUNCTION %I() RETURNS trigger
             LANGUAGE plpgsql AS $func$
@@ -1948,6 +1936,19 @@ BEGIN
 
     RAISE NOTICE 'Renaming temp table % to %', temp_table_name, source_partition_name;
     EXECUTE format('ALTER TABLE %I RENAME TO %I', temp_table_name, source_partition_name);
+
+    EXECUTE format(
+        'ALTER TABLE %I SET (
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor = ''0.05'',
+            autovacuum_vacuum_threshold = ''25'',
+            autovacuum_analyze_threshold = ''25'',
+            autovacuum_vacuum_cost_delay = ''10'',
+            autovacuum_vacuum_cost_limit = ''1000''
+        )',
+        source_partition_name
+    );
+    RAISE NOTICE 'Set autovacuum settings on partition %', source_partition_name;
 
     RAISE NOTICE 'Attaching new partition % to v1_payload', source_partition_name;
     EXECUTE format(
