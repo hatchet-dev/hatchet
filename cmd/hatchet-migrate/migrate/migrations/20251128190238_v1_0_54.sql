@@ -151,6 +151,8 @@ DECLARE
     new_pk_name varchar;
     partition_start date;
     partition_end date;
+    trigger_function_name varchar;
+    trigger_name varchar;
 BEGIN
     IF partition_date IS NULL THEN
         RAISE EXCEPTION 'partition_date parameter cannot be NULL';
@@ -161,6 +163,8 @@ BEGIN
     SELECT format('v1_payload_offload_tmp_%s', partition_date_str) INTO temp_table_name;
     SELECT format('v1_payload_offload_tmp_%s_pkey', partition_date_str) INTO old_pk_name;
     SELECT format('v1_payload_%s_pkey', partition_date_str) INTO new_pk_name;
+    SELECT format('sync_to_%s', temp_table_name) INTO trigger_function_name;
+    SELECT format('trigger_sync_to_%s', temp_table_name) INTO trigger_name;
 
     IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = temp_table_name) THEN
         RAISE EXCEPTION 'Temp table % does not exist', temp_table_name;
@@ -170,6 +174,12 @@ BEGIN
     partition_end := partition_date + INTERVAL '1 day';
 
     IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
+        RAISE NOTICE 'Dropping trigger % from partition %', trigger_name, source_partition_name;
+        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name, source_partition_name);
+
+        RAISE NOTICE 'Dropping trigger function %', trigger_function_name;
+        EXECUTE format('DROP FUNCTION IF EXISTS %I()', trigger_function_name);
+
         RAISE NOTICE 'Detaching existing partition %', source_partition_name;
         EXECUTE format('ALTER TABLE v1_payload DETACH PARTITION %I', source_partition_name);
 
