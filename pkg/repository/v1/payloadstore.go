@@ -457,7 +457,16 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 						UNNEST($7::TEXT[]) AS external_location_key
 				), inserts AS (
 					INSERT INTO %s (tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at)
-					SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, NULL, NOW()
+					SELECT
+						tenant_id,
+						id,
+						inserted_at,
+						external_id,
+						type::v1_payload_type,
+						location::v1_payload_location,
+						external_location_key,
+						NULL,
+						NOW()
 					FROM inputs
 					ON CONFLICT(tenant_id, id, inserted_at, type) DO NOTHING
 					RETURNING *
