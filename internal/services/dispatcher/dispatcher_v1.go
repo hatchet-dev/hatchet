@@ -45,7 +45,9 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	err := worker.sendToWorker(ctx, action)
 
 	if err != nil {
-		// if the context is done, we return nil, because the worker took too long to receive the message
+		// if the context is done, we return nil, because the worker took too long to receive the message, and we're not
+		// sure if the worker received it or not. this is equivalent to a network drop, and would be resolved by worker-side
+		// acks, which we don't currently have.
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil
 		}
@@ -111,7 +113,7 @@ func (worker *subscribedWorker) sendToWorker(
 
 	sendMsgBegin := time.Now()
 
-	sentCh := make(chan error)
+	sentCh := make(chan error, 1)
 
 	go func() {
 		defer close(sentCh)
@@ -151,7 +153,7 @@ func (worker *subscribedWorker) CancelTask(
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
-	sentCh := make(chan error)
+	sentCh := make(chan error, 1)
 
 	go func() {
 		defer close(sentCh)
