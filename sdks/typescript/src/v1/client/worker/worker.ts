@@ -90,7 +90,9 @@ export class Worker {
    * @returns Array of registered workflow promises
    */
   async registerWorkflows(workflows?: Array<BaseWorkflowDeclaration<any, any> | V0Workflow>) {
-    for (const wf of workflows || []) {
+
+    const shuffled = [...(workflows || [])].sort(() => Math.random() - 0.5);
+    for (const wf of shuffled) {
       if (wf instanceof BaseWorkflowDeclaration) {
         // TODO check if tenant is V1
         await this.nonDurable.registerWorkflowV1(wf);
