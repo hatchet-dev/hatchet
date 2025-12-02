@@ -16,11 +16,7 @@
   "ignorePatterns": ["dist"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "project": [
-      "./frontend/app/tsconfig.json",
-      "./frontend/app/tsconfig.node.json"
-    ],
-    "tsconfigRootDir": ".",
+    "project": ["./tsconfig.json", "./tsconfig.node.json"],
     "warnOnUnsupportedTypeScriptVersion": false
   },
   "plugins": ["react-refresh", "import", "unused-imports", "prettier"],
