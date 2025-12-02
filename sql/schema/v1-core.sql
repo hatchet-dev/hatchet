@@ -1823,6 +1823,8 @@ BEGIN
         $func$;
     ', trigger_function_name, target_table_name, target_table_name, target_table_name);
 
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name, source_partition_name);
+
     EXECUTE format('
         CREATE TRIGGER %I
         AFTER INSERT OR UPDATE OR DELETE ON %I
