@@ -181,9 +181,6 @@ BEGIN
         RAISE NOTICE 'Dropping trigger function %', trigger_function_name;
         EXECUTE format('DROP FUNCTION IF EXISTS %I()', trigger_function_name);
 
-        RAISE NOTICE 'Detaching existing partition %', source_partition_name;
-        EXECUTE format('ALTER TABLE v1_payload DETACH PARTITION %I', source_partition_name);
-
         RAISE NOTICE 'Dropping old partition %', source_partition_name;
         EXECUTE format('ALTER TABLE v1_payload DETACH PARTITION %I', source_partition_name);
         EXECUTE format('DROP TABLE %I CASCADE', source_partition_name);
