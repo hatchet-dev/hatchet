@@ -229,6 +229,6 @@ $$;
 -- +goose StatementBegin
 DROP TABLE v1_payload_cutover_job_id_offset;
 DROP FUNCTION copy_v1_payload_partition_structure(date);
-DROP FUNCTION list_paginated_payloads_for_offload(date, int, int);
+DROP FUNCTION list_paginated_payloads_for_offload(date, int, bigint);
 DROP FUNCTION swap_v1_payload_partition_with_temp(date);
 -- +goose StatementEnd
