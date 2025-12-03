@@ -191,8 +191,23 @@ BEGIN
     partition_start := partition_date;
     partition_end := partition_date + INTERVAL '1 day';
 
-    EXECUTE format('LOCK TABLE %I IN ACCESS EXCLUSIVE MODE', source_partition_name);
-    EXECUTE format('LOCK TABLE %I IN ACCESS EXCLUSIVE MODE', temp_table_name);
+    EXECUTE format(
+        'ALTER TABLE %I SET (
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor = ''0.05'',
+            autovacuum_vacuum_threshold = ''25'',
+            autovacuum_analyze_threshold = ''25'',
+            autovacuum_vacuum_cost_delay = ''10'',
+            autovacuum_vacuum_cost_limit = ''1000''
+        )',
+        temp_table_name
+    );
+    RAISE NOTICE 'Set autovacuum settings on partition %', temp_table_name;
+
+    EXECUTE format('ALTER TABLE %I SET LOGGED', temp_table_name);
+    RAISE NOTICE 'Set partition % to LOGGED', temp_table_name;
+
+    LOCK TABLE v1_payload IN ACCESS EXCLUSIVE MODE;
 
     IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
         RAISE NOTICE 'Dropping triggers from partition %', source_partition_name;
@@ -213,22 +228,6 @@ BEGIN
 
     RAISE NOTICE 'Renaming temp table % to %', temp_table_name, source_partition_name;
     EXECUTE format('ALTER TABLE %I RENAME TO %I', temp_table_name, source_partition_name);
-
-    EXECUTE format(
-        'ALTER TABLE %I SET (
-            autovacuum_vacuum_scale_factor = ''0.1'',
-            autovacuum_analyze_scale_factor = ''0.05'',
-            autovacuum_vacuum_threshold = ''25'',
-            autovacuum_analyze_threshold = ''25'',
-            autovacuum_vacuum_cost_delay = ''10'',
-            autovacuum_vacuum_cost_limit = ''1000''
-        )',
-        source_partition_name
-    );
-    RAISE NOTICE 'Set autovacuum settings on partition %', source_partition_name;
-
-    EXECUTE format('ALTER TABLE %I SET LOGGED', source_partition_name);
-    RAISE NOTICE 'Set partition % to LOGGED', source_partition_name;
 
     RAISE NOTICE 'Attaching new partition % to v1_payload', source_partition_name;
     EXECUTE format(
