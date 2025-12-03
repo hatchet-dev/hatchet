@@ -34,7 +34,7 @@ BEGIN
     END IF;
 
     EXECUTE format(
-        'CREATE UNLOGGED TABLE %I (LIKE %I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)',
+        'CREATE TABLE %I (LIKE %I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)',
         target_table_name,
         source_partition_name
     );
@@ -204,9 +204,6 @@ BEGIN
         temp_table_name
     );
     RAISE NOTICE 'Set autovacuum settings on partition %', temp_table_name;
-
-    EXECUTE format('ALTER TABLE %I SET LOGGED', temp_table_name);
-    RAISE NOTICE 'Set partition % to LOGGED', temp_table_name;
 
     LOCK TABLE v1_payload IN ACCESS EXCLUSIVE MODE;
 
