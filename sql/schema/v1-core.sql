@@ -1789,6 +1789,9 @@ BEGIN
         source_partition_name
     );
 
+    EXECUTE format('LOCK TABLE %I IN ACCESS EXCLUSIVE MODE', source_partition_name);
+    EXECUTE format('LOCK TABLE %I IN ACCESS EXCLUSIVE MODE', target_table_name);
+
     EXECUTE format('
         CREATE OR REPLACE FUNCTION %I() RETURNS trigger
             LANGUAGE plpgsql AS $func$
