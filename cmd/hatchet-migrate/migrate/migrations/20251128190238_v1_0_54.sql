@@ -53,7 +53,7 @@ BEGIN
         )
         ',
         target_table_name,
-        target_table_name || '_inserted_at_check_partition_bounds',
+        target_table_name || '_iat_chk_bounds',
         partition_start,
         partition_end
     );
@@ -226,15 +226,15 @@ BEGIN
 
     LOCK TABLE v1_payload IN ACCESS EXCLUSIVE MODE;
 
+    RAISE NOTICE 'Dropping triggers from partition %', source_partition_name;
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_insert', source_partition_name);
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_update', source_partition_name);
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_delete', source_partition_name);
+
+    RAISE NOTICE 'Dropping trigger function %', trigger_function_name;
+    EXECUTE format('DROP FUNCTION IF EXISTS %I()', trigger_function_name);
+
     IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
-        RAISE NOTICE 'Dropping triggers from partition %', source_partition_name;
-        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_insert', source_partition_name);
-        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_update', source_partition_name);
-        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_delete', source_partition_name);
-
-        RAISE NOTICE 'Dropping trigger function %', trigger_function_name;
-        EXECUTE format('DROP FUNCTION IF EXISTS %I()', trigger_function_name);
-
         RAISE NOTICE 'Dropping old partition %', source_partition_name;
         EXECUTE format('ALTER TABLE v1_payload DETACH PARTITION %I', source_partition_name);
         EXECUTE format('DROP TABLE %I CASCADE', source_partition_name);
@@ -258,7 +258,7 @@ BEGIN
     EXECUTE format(
         'ALTER TABLE %I DROP CONSTRAINT %I',
         source_partition_name,
-        source_partition_name || '_inserted_at_check_partition_bounds'
+        temp_table_name || '_iat_chk_bounds'
     );
 
     RAISE NOTICE 'Successfully swapped partition %', source_partition_name;
