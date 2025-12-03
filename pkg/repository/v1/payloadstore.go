@@ -483,6 +483,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 						NULL,
 						NOW()
 					FROM inputs
+					ORDER BY tenant_id, inserted_at, id, type
 					ON CONFLICT(tenant_id, id, inserted_at, type) DO NOTHING
 					RETURNING *
 				)
