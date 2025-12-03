@@ -331,7 +331,10 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = tc.s.NewJob(
-		gocron.DurationJob(tc.repov1.Payloads().ExternalCutoverProcessInterval()),
+		// for local dev, set a short process interval and switch
+		// the two lines below so that the duration job is used
+		// gocron.DurationJob(tc.repov1.Payloads().ExternalCutoverProcessInterval()),
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(3, 0, 0))),
 		gocron.NewTask(
 			tc.runProcessPayloadExternalCutovers(spanContext),
 		),
