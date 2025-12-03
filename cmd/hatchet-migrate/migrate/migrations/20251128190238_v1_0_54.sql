@@ -17,12 +17,16 @@ DECLARE
     target_table_name varchar;
     trigger_function_name varchar;
     trigger_name varchar;
+    partition_start date;
+    partition_end date;
 BEGIN
     SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
     SELECT format('v1_payload_%s', partition_date_str) INTO source_partition_name;
     SELECT format('v1_payload_offload_tmp_%s', partition_date_str) INTO target_table_name;
     SELECT format('sync_to_%s', target_table_name) INTO trigger_function_name;
     SELECT format('trigger_sync_to_%s', target_table_name) INTO trigger_name;
+    partition_start := partition_date;
+    partition_end := partition_date + INTERVAL '1 day';
 
     IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
         RAISE EXCEPTION 'Source partition % does not exist', source_partition_name;
@@ -38,6 +42,21 @@ BEGIN
         target_table_name,
         source_partition_name
     );
+
+    EXECUTE format('
+        ALTER TABLE %I
+        ADD CONSTRAINT %I
+        CHECK
+            inserted_at IS NOT NULL
+            AND inserted_at >= '%L'::TIMESTAMPTZ
+            AND (inserted_at < '%L'::TIMESTAMPTZ
+        ;
+        ',
+        target_table_name,
+        target_table_name || '_inserted_at_check_partition_bounds',
+        partition_start,
+        partition_end
+    )
 
     EXECUTE format('
         CREATE OR REPLACE FUNCTION %I() RETURNS trigger

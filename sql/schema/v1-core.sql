@@ -1767,12 +1767,16 @@ DECLARE
     target_table_name varchar;
     trigger_function_name varchar;
     trigger_name varchar;
+    partition_start date;
+    partition_end date;
 BEGIN
     SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
     SELECT format('v1_payload_%s', partition_date_str) INTO source_partition_name;
     SELECT format('v1_payload_offload_tmp_%s', partition_date_str) INTO target_table_name;
     SELECT format('sync_to_%s', target_table_name) INTO trigger_function_name;
     SELECT format('trigger_sync_to_%s', target_table_name) INTO trigger_name;
+    partition_start := partition_date;
+    partition_end := partition_date + INTERVAL '1 day';
 
     IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
         RAISE EXCEPTION 'Source partition % does not exist', source_partition_name;
@@ -1789,57 +1793,93 @@ BEGIN
         source_partition_name
     );
 
-    EXECUTE format('LOCK TABLE %I IN ACCESS EXCLUSIVE MODE', source_partition_name);
-    EXECUTE format('LOCK TABLE %I IN ACCESS EXCLUSIVE MODE', target_table_name);
+    EXECUTE format('
+        ALTER TABLE %I
+        ADD CONSTRAINT %I
+        CHECK
+            inserted_at IS NOT NULL
+            AND inserted_at >= '%L'::TIMESTAMPTZ
+            AND (inserted_at < '%L'::TIMESTAMPTZ
+        ;
+        ',
+        target_table_name,
+        target_table_name || '_inserted_at_check_partition_bounds',
+        partition_start,
+        partition_end
+    )
 
     EXECUTE format('
         CREATE OR REPLACE FUNCTION %I() RETURNS trigger
             LANGUAGE plpgsql AS $func$
         BEGIN
             IF TG_OP = ''INSERT'' THEN
-                INSERT INTO %I VALUES (NEW.*);
-                RETURN NEW;
+                INSERT INTO %I
+                SELECT * FROM new_table
+                ORDER BY tenant_id, inserted_at, id, type;
+                RETURN NULL;
             ELSIF TG_OP = ''UPDATE'' THEN
-                UPDATE %I
+                UPDATE %I t
                 SET
-                    location = NEW.location,
-                    external_location_key = NEW.external_location_key,
-                    inline_content = NEW.inline_content,
-                    updated_at = NEW.updated_at
+                    location = n.location,
+                    external_location_key = n.external_location_key,
+                    inline_content = n.inline_content,
+                    updated_at = n.updated_at
+                FROM new_table n
                 WHERE
-                    tenant_id = OLD.tenant_id
-                    AND id = OLD.id
-                    AND inserted_at = OLD.inserted_at
-                    AND type = OLD.type;
-                RETURN NEW;
+                    t.tenant_id = n.tenant_id
+                    AND t.id = n.id
+                    AND t.inserted_at = n.inserted_at
+                    AND t.type = n.type;
+                RETURN NULL;
             ELSIF TG_OP = ''DELETE'' THEN
-                DELETE FROM %I
+                DELETE FROM %I t
+                USING old_table o
                 WHERE
-                    tenant_id = OLD.tenant_id
-                    AND id = OLD.id
-                    AND inserted_at = OLD.inserted_at
-                    AND type = OLD.type;
-                RETURN OLD;
+                    t.tenant_id = o.tenant_id
+                    AND t.id = o.id
+                    AND t.inserted_at = o.inserted_at
+                    AND t.type = o.type;
+                RETURN NULL;
             END IF;
             RETURN NULL;
         END;
         $func$;
     ', trigger_function_name, target_table_name, target_table_name, target_table_name);
 
-    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name, source_partition_name);
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_insert', source_partition_name);
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_update', source_partition_name);
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_delete', source_partition_name);
 
     EXECUTE format('
         CREATE TRIGGER %I
-        AFTER INSERT OR UPDATE OR DELETE ON %I
-        FOR EACH ROW
+        AFTER INSERT ON %I
+        REFERENCING NEW TABLE AS new_table
+        FOR EACH STATEMENT
         EXECUTE FUNCTION %I();
-    ', trigger_name, source_partition_name, trigger_function_name);
+    ', trigger_name || '_insert', source_partition_name, trigger_function_name);
+
+    EXECUTE format('
+        CREATE TRIGGER %I
+        AFTER UPDATE ON %I
+        REFERENCING OLD TABLE AS old_table NEW TABLE AS new_table
+        FOR EACH STATEMENT
+        EXECUTE FUNCTION %I();
+    ', trigger_name || '_update', source_partition_name, trigger_function_name);
+
+    EXECUTE format('
+        CREATE TRIGGER %I
+        AFTER DELETE ON %I
+        REFERENCING OLD TABLE AS old_table
+        FOR EACH STATEMENT
+        EXECUTE FUNCTION %I();
+    ', trigger_name || '_delete', source_partition_name, trigger_function_name);
 
     RAISE NOTICE 'Created table % as a copy of partition % with sync trigger', target_table_name, source_partition_name;
 
     RETURN target_table_name;
 END;
 $$;
+
 
 CREATE OR REPLACE FUNCTION list_paginated_payloads_for_offload(
     partition_date date,
