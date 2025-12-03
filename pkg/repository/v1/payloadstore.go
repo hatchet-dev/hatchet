@@ -508,6 +508,17 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 			return fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
 		}
 
+		offset += int64(len(payloads))
+
+		err = p.queries.UpsertLastOffsetForCutoverJob(ctx, tx, sqlcv1.UpsertLastOffsetForCutoverJobParams{
+			Key:        partitionDateStr,
+			Lastoffset: offset,
+		})
+
+		if err != nil {
+			return fmt.Errorf("failed to upsert last offset for cutover job: %w", err)
+		}
+
 		if err := commit(ctx); err != nil {
 			return fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 		}
@@ -515,8 +526,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		if len(payloads) < int(p.externalCutoverBatchSize) {
 			break
 		}
-
-		offset += int64(len(payloads))
 	}
 
 	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
