@@ -49,6 +49,7 @@ SELECT
     i.inline_content
 FROM
     inputs i
+ORDER BY i.tenant_id, i.inserted_at, i.id, i.type
 ON CONFLICT (tenant_id, id, inserted_at, type)
 DO UPDATE SET
     location = EXCLUDED.location,

@@ -46,46 +46,66 @@ BEGIN
             LANGUAGE plpgsql AS $func$
         BEGIN
             IF TG_OP = ''INSERT'' THEN
-                INSERT INTO %I VALUES (NEW.*);
-                RETURN NEW;
+                INSERT INTO %I
+                SELECT * FROM new_table
+                ORDER BY tenant_id, inserted_at, id, type;
+                RETURN NULL;
             ELSIF TG_OP = ''UPDATE'' THEN
-                UPDATE %I
+                UPDATE %I t
                 SET
-                    location = NEW.location,
-                    external_location_key = NEW.external_location_key,
-                    inline_content = NEW.inline_content,
-                    updated_at = NEW.updated_at
+                    location = n.location,
+                    external_location_key = n.external_location_key,
+                    inline_content = n.inline_content,
+                    updated_at = n.updated_at
+                FROM new_table n
                 WHERE
-                    tenant_id = OLD.tenant_id
-                    AND id = OLD.id
-                    AND inserted_at = OLD.inserted_at
-                    AND type = OLD.type;
-                RETURN NEW;
+                    t.tenant_id = n.tenant_id
+                    AND t.id = n.id
+                    AND t.inserted_at = n.inserted_at
+                    AND t.type = n.type;
+                RETURN NULL;
             ELSIF TG_OP = ''DELETE'' THEN
-                DELETE FROM %I
+                DELETE FROM %I t
+                USING old_table o
                 WHERE
-                    tenant_id = OLD.tenant_id
-                    AND id = OLD.id
-                    AND inserted_at = OLD.inserted_at
-                    AND type = OLD.type;
-                RETURN OLD;
+                    t.tenant_id = o.tenant_id
+                    AND t.id = o.id
+                    AND t.inserted_at = o.inserted_at
+                    AND t.type = o.type;
+                RETURN NULL;
             END IF;
             RETURN NULL;
         END;
         $func$;
     ', trigger_function_name, target_table_name, target_table_name, target_table_name);
 
-    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name, source_partition_name);
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_insert', source_partition_name);
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_update', source_partition_name);
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_delete', source_partition_name);
 
     EXECUTE format('
         CREATE TRIGGER %I
-        AFTER INSERT OR UPDATE OR DELETE ON %I
-        -- try for each statement instead here where
-        -- we explicitly order by the order of the insert in the cutover job
-        -- also try explicitly locking (access exclusive) first the source partition and then the target partition
-        FOR EACH ROW
+        AFTER INSERT ON %I
+        REFERENCING NEW TABLE AS new_table
+        FOR EACH STATEMENT
         EXECUTE FUNCTION %I();
-    ', trigger_name, source_partition_name, trigger_function_name);
+    ', trigger_name || '_insert', source_partition_name, trigger_function_name);
+
+    EXECUTE format('
+        CREATE TRIGGER %I
+        AFTER UPDATE ON %I
+        REFERENCING OLD TABLE AS old_table NEW TABLE AS new_table
+        FOR EACH STATEMENT
+        EXECUTE FUNCTION %I();
+    ', trigger_name || '_update', source_partition_name, trigger_function_name);
+
+    EXECUTE format('
+        CREATE TRIGGER %I
+        AFTER DELETE ON %I
+        REFERENCING OLD TABLE AS old_table
+        FOR EACH STATEMENT
+        EXECUTE FUNCTION %I();
+    ', trigger_name || '_delete', source_partition_name, trigger_function_name);
 
     RAISE NOTICE 'Created table % as a copy of partition % with sync trigger', target_table_name, source_partition_name;
 
@@ -175,8 +195,10 @@ BEGIN
     partition_end := partition_date + INTERVAL '1 day';
 
     IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
-        RAISE NOTICE 'Dropping trigger % from partition %', trigger_name, source_partition_name;
-        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name, source_partition_name);
+        RAISE NOTICE 'Dropping triggers from partition %', source_partition_name;
+        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_insert', source_partition_name);
+        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_update', source_partition_name);
+        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_delete', source_partition_name);
 
         RAISE NOTICE 'Dropping trigger function %', trigger_function_name;
         EXECUTE format('DROP FUNCTION IF EXISTS %I()', trigger_function_name);
