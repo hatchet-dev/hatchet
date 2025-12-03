@@ -46,11 +46,11 @@ BEGIN
     EXECUTE format('
         ALTER TABLE %I
         ADD CONSTRAINT %I
-        CHECK
+        CHECK (
             inserted_at IS NOT NULL
-            AND inserted_at >= '%L'::TIMESTAMPTZ
-            AND (inserted_at < '%L'::TIMESTAMPTZ
-        ;
+            AND inserted_at >= %L::TIMESTAMPTZ
+            AND inserted_at < %L::TIMESTAMPTZ
+        )
         ',
         target_table_name,
         target_table_name || '_inserted_at_check_partition_bounds',
