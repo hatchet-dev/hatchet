@@ -245,7 +245,7 @@ SELECT copy_v1_payload_partition_structure(@date::DATE);
 SELECT swap_v1_payload_partition_with_temp(@date::DATE);
 
 -- name: FindLastOffsetForCutoverJob :one
-SELECT last_offset
+SELECT *
 FROM v1_payload_cutover_job_id_offset
 WHERE key = @key::VARCHAR(8);
 
@@ -254,4 +254,10 @@ INSERT INTO v1_payload_cutover_job_id_offset (key, last_offset)
 VALUES (@key::VARCHAR(8), @lastOffset::BIGINT)
 ON CONFLICT (key)
 DO UPDATE SET last_offset = EXCLUDED.last_offset
+;
+
+-- name: MarkCutoverJobAsCompleted :exec
+UPDATE v1_payload_cutover_job_id_offset
+SET is_completed = TRUE
+WHERE key = @key::VARCHAR(8)
 ;

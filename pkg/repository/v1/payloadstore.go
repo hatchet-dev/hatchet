@@ -340,15 +340,27 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return nil
 	}
 
-	offset, err := p.queries.FindLastOffsetForCutoverJob(ctx, p.pool, partitionDateStr)
+	jobStatus, err := p.queries.FindLastOffsetForCutoverJob(ctx, p.pool, partitionDateStr)
+
+	var offset int64
+	var isCompleted bool
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			offset = 0
+			isCompleted = false
 		} else {
 			rollback()
 			return fmt.Errorf("failed to find last offset for cutover job: %w", err)
 		}
+	} else {
+		offset = jobStatus.LastOffset
+		isCompleted = jobStatus.IsCompleted
+	}
+
+	if isCompleted {
+		rollback()
+		return nil
 	}
 
 	// todo: this should also set up a trigger on insert into the new temp table
@@ -544,6 +556,12 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 
 	if err != nil {
 		return fmt.Errorf("failed to swap payload cutover temp table: %w", err)
+	}
+
+	err = p.queries.MarkCutoverJobAsCompleted(ctx, tx, partitionDateStr)
+
+	if err != nil {
+		return fmt.Errorf("failed to mark cutover job as completed: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {

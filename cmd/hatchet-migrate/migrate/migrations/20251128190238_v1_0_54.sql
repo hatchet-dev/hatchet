@@ -2,7 +2,8 @@
 -- +goose StatementBegin
 CREATE TABLE v1_payload_cutover_job_id_offset (
     key VARCHAR(8) PRIMARY KEY,
-    last_offset BIGINT NOT NULL
+    last_offset BIGINT NOT NULL,
+    is_completed BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(

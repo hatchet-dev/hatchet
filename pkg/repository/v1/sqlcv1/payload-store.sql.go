@@ -84,16 +84,16 @@ func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg Cu
 }
 
 const findLastOffsetForCutoverJob = `-- name: FindLastOffsetForCutoverJob :one
-SELECT last_offset
+SELECT key, last_offset, is_completed
 FROM v1_payload_cutover_job_id_offset
 WHERE key = $1::VARCHAR(8)
 `
 
-func (q *Queries) FindLastOffsetForCutoverJob(ctx context.Context, db DBTX, key string) (int64, error) {
+func (q *Queries) FindLastOffsetForCutoverJob(ctx context.Context, db DBTX, key string) (*V1PayloadCutoverJobIDOffset, error) {
 	row := db.QueryRow(ctx, findLastOffsetForCutoverJob, key)
-	var last_offset int64
-	err := row.Scan(&last_offset)
-	return last_offset, err
+	var i V1PayloadCutoverJobIDOffset
+	err := row.Scan(&i.Key, &i.LastOffset, &i.IsCompleted)
+	return &i, err
 }
 
 const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many
@@ -165,6 +165,17 @@ func (q *Queries) ListPaginatedPayloadsForOffload(ctx context.Context, db DBTX, 
 		return nil, err
 	}
 	return items, nil
+}
+
+const markCutoverJobAsCompleted = `-- name: MarkCutoverJobAsCompleted :exec
+UPDATE v1_payload_cutover_job_id_offset
+SET is_completed = TRUE
+WHERE key = $1::VARCHAR(8)
+`
+
+func (q *Queries) MarkCutoverJobAsCompleted(ctx context.Context, db DBTX, key string) error {
+	_, err := db.Exec(ctx, markCutoverJobAsCompleted, key)
+	return err
 }
 
 const pollPayloadWALForRecordsToReplicate = `-- name: PollPayloadWALForRecordsToReplicate :many
