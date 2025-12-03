@@ -159,7 +159,8 @@ function PostHogPageView() {
     }
 
     posthogClient.capture('$pageview', { $current_url: url });
-  }, [location.pathname, location.search, posthogClient]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally exclude location.search to avoid firing pageviews on query param changes
+  }, [location.pathname, posthogClient]);
 
   return null;
 }
