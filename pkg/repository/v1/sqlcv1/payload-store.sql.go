@@ -85,13 +85,13 @@ func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg Cu
 
 const findLastOffsetForCutoverJob = `-- name: FindLastOffsetForCutoverJob :one
 SELECT key, last_offset, is_completed
-FROM v1_payload_cutover_job_id_offset
+FROM v1_payload_cutover_job_offset
 WHERE key = $1::VARCHAR(8)
 `
 
-func (q *Queries) FindLastOffsetForCutoverJob(ctx context.Context, db DBTX, key string) (*V1PayloadCutoverJobIDOffset, error) {
+func (q *Queries) FindLastOffsetForCutoverJob(ctx context.Context, db DBTX, key string) (*V1PayloadCutoverJobOffset, error) {
 	row := db.QueryRow(ctx, findLastOffsetForCutoverJob, key)
-	var i V1PayloadCutoverJobIDOffset
+	var i V1PayloadCutoverJobOffset
 	err := row.Scan(&i.Key, &i.LastOffset, &i.IsCompleted)
 	return &i, err
 }
@@ -168,7 +168,7 @@ func (q *Queries) ListPaginatedPayloadsForOffload(ctx context.Context, db DBTX, 
 }
 
 const markCutoverJobAsCompleted = `-- name: MarkCutoverJobAsCompleted :exec
-UPDATE v1_payload_cutover_job_id_offset
+UPDATE v1_payload_cutover_job_offset
 SET is_completed = TRUE
 WHERE key = $1::VARCHAR(8)
 `
@@ -434,7 +434,7 @@ func (q *Queries) SwapV1PayloadPartitionWithTemp(ctx context.Context, db DBTX, d
 }
 
 const upsertLastOffsetForCutoverJob = `-- name: UpsertLastOffsetForCutoverJob :exec
-INSERT INTO v1_payload_cutover_job_id_offset (key, last_offset)
+INSERT INTO v1_payload_cutover_job_offset (key, last_offset)
 VALUES ($1::VARCHAR(8), $2::BIGINT)
 ON CONFLICT (key)
 DO UPDATE SET last_offset = EXCLUDED.last_offset

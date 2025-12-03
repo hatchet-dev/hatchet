@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TABLE v1_payload_cutover_job_id_offset (
+CREATE TABLE v1_payload_cutover_job_offset (
     key VARCHAR(8) PRIMARY KEY,
     last_offset BIGINT NOT NULL,
     is_completed BOOLEAN NOT NULL DEFAULT FALSE
@@ -246,7 +246,7 @@ $$;
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE v1_payload_cutover_job_id_offset;
+DROP TABLE v1_payload_cutover_job_offset;
 DROP FUNCTION copy_v1_payload_partition_structure(date);
 DROP FUNCTION list_paginated_payloads_for_offload(date, int, bigint);
 DROP FUNCTION swap_v1_payload_partition_with_temp(date);

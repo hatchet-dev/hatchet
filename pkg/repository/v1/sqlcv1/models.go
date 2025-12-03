@@ -3129,7 +3129,7 @@ type V1Payload struct {
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
-type V1PayloadCutoverJobIDOffset struct {
+type V1PayloadCutoverJobOffset struct {
 	Key         string `json:"key"`
 	LastOffset  int64  `json:"last_offset"`
 	IsCompleted bool   `json:"is_completed"`
