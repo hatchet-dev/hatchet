@@ -1806,7 +1806,7 @@ BEGIN
         target_table_name || '_inserted_at_check_partition_bounds',
         partition_start,
         partition_end
-    )
+    );
 
     EXECUTE format('
         CREATE OR REPLACE FUNCTION %I() RETURNS trigger
