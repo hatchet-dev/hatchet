@@ -1779,8 +1779,8 @@ BEGIN
     END IF;
 
     IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = target_table_name) THEN
-        RAISE NOTICE 'Target table % already exists, dropping and recreating', target_table_name;
-        EXECUTE format('DROP TABLE IF EXISTS %I CASCADE', target_table_name);
+        RAISE NOTICE 'Target table % already exists, skipping creation', target_table_name;
+        RETURN target_table_name;
     END IF;
 
     EXECUTE format(
