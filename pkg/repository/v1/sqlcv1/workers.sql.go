@@ -65,6 +65,95 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*
 	return &i, err
 }
 
+const listActiveSDKsPerTenant = `-- name: ListActiveSDKsPerTenant :many
+SELECT
+    "tenantId",
+    COALESCE("language"::TEXT, 'unknown')::TEXT AS "language",
+    COALESCE("languageVersion", 'unknown') AS "languageVersion",
+    COALESCE("sdkVersion", 'unknown') AS "sdkVersion",
+    COALESCE("os", 'unknown') AS "os",
+    COUNT(*) AS "count"
+FROM "Worker"
+WHERE
+    "dispatcherId" IS NOT NULL
+    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND "isActive" = true
+    AND "isPaused" = false
+GROUP BY "tenantId", "language", "languageVersion", "sdkVersion", "os"
+`
+
+type ListActiveSDKsPerTenantRow struct {
+	TenantId        pgtype.UUID `json:"tenantId"`
+	Language        string      `json:"language"`
+	LanguageVersion string      `json:"languageVersion"`
+	SdkVersion      string      `json:"sdkVersion"`
+	Os              string      `json:"os"`
+	Count           int64       `json:"count"`
+}
+
+func (q *Queries) ListActiveSDKsPerTenant(ctx context.Context, db DBTX) ([]*ListActiveSDKsPerTenantRow, error) {
+	rows, err := db.Query(ctx, listActiveSDKsPerTenant)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListActiveSDKsPerTenantRow
+	for rows.Next() {
+		var i ListActiveSDKsPerTenantRow
+		if err := rows.Scan(
+			&i.TenantId,
+			&i.Language,
+			&i.LanguageVersion,
+			&i.SdkVersion,
+			&i.Os,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveWorkersPerTenant = `-- name: ListActiveWorkersPerTenant :many
+SELECT "tenantId", COUNT(*)
+FROM "Worker"
+WHERE
+    "dispatcherId" IS NOT NULL
+    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND "isActive" = true
+    AND "isPaused" = false
+GROUP BY "tenantId"
+`
+
+type ListActiveWorkersPerTenantRow struct {
+	TenantId pgtype.UUID `json:"tenantId"`
+	Count    int64       `json:"count"`
+}
+
+func (q *Queries) ListActiveWorkersPerTenant(ctx context.Context, db DBTX) ([]*ListActiveWorkersPerTenantRow, error) {
+	rows, err := db.Query(ctx, listActiveWorkersPerTenant)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListActiveWorkersPerTenantRow
+	for rows.Next() {
+		var i ListActiveWorkersPerTenantRow
+		if err := rows.Scan(&i.TenantId, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listManyWorkerLabels = `-- name: ListManyWorkerLabels :many
 SELECT
     "id",
@@ -236,6 +325,42 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.RetryBackoffFactor,
 			&i.RetryMaxBackoff,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTotalActiveSlotsPerTenant = `-- name: ListTotalActiveSlotsPerTenant :many
+SELECT "tenantId", SUM("maxRuns") AS "totalActiveSlots"
+FROM "Worker"
+WHERE
+    "dispatcherId" IS NOT NULL
+    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND "isActive" = true
+    AND "isPaused" = false
+GROUP BY "tenantId"
+`
+
+type ListTotalActiveSlotsPerTenantRow struct {
+	TenantId         pgtype.UUID `json:"tenantId"`
+	TotalActiveSlots int64       `json:"totalActiveSlots"`
+}
+
+func (q *Queries) ListTotalActiveSlotsPerTenant(ctx context.Context, db DBTX) ([]*ListTotalActiveSlotsPerTenantRow, error) {
+	rows, err := db.Query(ctx, listTotalActiveSlotsPerTenant)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTotalActiveSlotsPerTenantRow
+	for rows.Next() {
+		var i ListTotalActiveSlotsPerTenantRow
+		if err := rows.Scan(&i.TenantId, &i.TotalActiveSlots); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
