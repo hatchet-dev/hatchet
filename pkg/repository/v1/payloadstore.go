@@ -8,6 +8,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -339,6 +340,17 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return nil
 	}
 
+	offset, err := p.queries.FindLastOffsetForCutoverJob(ctx, p.pool, partitionDateStr)
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			offset = 0
+		} else {
+			rollback()
+			return fmt.Errorf("failed to find last offset for cutover job: %w", err)
+		}
+	}
+
 	// todo: this should also set up a trigger on insert into the new temp table
 	// on insert, we just write the record from the payload partition
 	// todo: acquire an advisory lock or a lease here so this doesn't run concurrently
@@ -356,8 +368,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		rollback()
 		return fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
-
-	offset := int32(0)
 
 	for true {
 		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
@@ -506,7 +516,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 			break
 		}
 
-		offset += int32(len(payloads))
+		offset += int64(len(payloads))
 	}
 
 	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)

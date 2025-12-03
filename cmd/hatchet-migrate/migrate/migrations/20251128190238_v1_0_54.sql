@@ -1,5 +1,10 @@
 -- +goose Up
 -- +goose StatementBegin
+CREATE TABLE v1_payload_cutover_job_id_offset (
+    key VARCHAR(8) PRIMARY KEY,
+    last_offset BIGINT NOT NULL
+);
+
 CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(
     partition_date date
 ) RETURNS text
@@ -72,6 +77,9 @@ BEGIN
     EXECUTE format('
         CREATE TRIGGER %I
         AFTER INSERT OR UPDATE OR DELETE ON %I
+        -- try for each statement instead here where
+        -- we explicitly order by the order of the insert in the cutover job
+        -- also try explicitly locking (access exclusive) first the source partition and then the target partition
         FOR EACH ROW
         EXECUTE FUNCTION %I();
     ', trigger_name, source_partition_name, trigger_function_name);
@@ -85,7 +93,7 @@ $$;
 CREATE OR REPLACE FUNCTION list_paginated_payloads_for_offload(
     partition_date date,
     limit_param int,
-    offset_param int
+    offset_param bigint
 ) RETURNS TABLE (
     tenant_id UUID,
     id BIGINT,
@@ -216,6 +224,7 @@ $$;
 
 -- +goose Down
 -- +goose StatementBegin
+DROP TABLE v1_payload_cutover_job_id_offset;
 DROP FUNCTION copy_v1_payload_partition_structure(date);
 DROP FUNCTION list_paginated_payloads_for_offload(date, int, int);
 DROP FUNCTION swap_v1_payload_partition_with_temp(date);

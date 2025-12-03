@@ -1969,6 +1969,11 @@ BEGIN
 END;
 $$;
 
+CREATE TABLE v1_payload_cutover_job_id_offset (
+    key VARCHAR(8) PRIMARY KEY,
+    last_offset BIGINT NOT NULL
+);
+
 CREATE TABLE v1_idempotency_key (
     tenant_id UUID NOT NULL,
 

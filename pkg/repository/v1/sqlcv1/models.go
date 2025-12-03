@@ -3129,6 +3129,11 @@ type V1Payload struct {
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
+type V1PayloadCutoverJobIDOffset struct {
+	Key        string `json:"key"`
+	LastOffset int64  `json:"last_offset"`
+}
+
 type V1PayloadCutoverQueueItem struct {
 	TenantID          pgtype.UUID        `json:"tenant_id"`
 	CutOverAt         pgtype.Timestamptz `json:"cut_over_at"`

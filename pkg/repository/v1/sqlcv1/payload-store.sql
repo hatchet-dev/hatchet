@@ -222,7 +222,7 @@ WITH payloads AS (
     FROM list_paginated_payloads_for_offload(
         @partitionDate::DATE,
         @limitParam::INT,
-        @offsetParam::INT
+        @offsetParam::BIGINT
     ) p
 )
 SELECT
@@ -242,3 +242,15 @@ SELECT copy_v1_payload_partition_structure(@date::DATE);
 
 -- name: SwapV1PayloadPartitionWithTemp :exec
 SELECT swap_v1_payload_partition_with_temp(@date::DATE);
+
+-- name: FindLastOffsetForCutoverJob :one
+SELECT last_offset
+FROM v1_payload_cutover_job_id_offset
+WHERE key = @key::VARCHAR(8);
+
+-- name: UpsertLastOffsetForCutoverJob :exec
+INSERT INTO v1_payload_cutover_job_id_offset (key, last_offset)
+VALUES (@key::VARCHAR(8), @lastOffset::BIGINT)
+ON CONFLICT (key)
+DO UPDATE SET last_offset = EXCLUDED.last_offset
+;

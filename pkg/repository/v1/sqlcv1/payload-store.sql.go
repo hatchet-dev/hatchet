@@ -83,6 +83,19 @@ func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg Cu
 	return count, err
 }
 
+const findLastOffsetForCutoverJob = `-- name: FindLastOffsetForCutoverJob :one
+SELECT last_offset
+FROM v1_payload_cutover_job_id_offset
+WHERE key = $1::VARCHAR(8)
+`
+
+func (q *Queries) FindLastOffsetForCutoverJob(ctx context.Context, db DBTX, key string) (int64, error) {
+	row := db.QueryRow(ctx, findLastOffsetForCutoverJob, key)
+	var last_offset int64
+	err := row.Scan(&last_offset)
+	return last_offset, err
+}
+
 const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many
 WITH payloads AS (
     SELECT
@@ -90,7 +103,7 @@ WITH payloads AS (
     FROM list_paginated_payloads_for_offload(
         $1::DATE,
         $2::INT,
-        $3::INT
+        $3::BIGINT
     ) p
 )
 SELECT
@@ -109,7 +122,7 @@ FROM payloads
 type ListPaginatedPayloadsForOffloadParams struct {
 	Partitiondate pgtype.Date `json:"partitiondate"`
 	Limitparam    int32       `json:"limitparam"`
-	Offsetparam   int32       `json:"offsetparam"`
+	Offsetparam   int64       `json:"offsetparam"`
 }
 
 type ListPaginatedPayloadsForOffloadRow struct {
@@ -406,6 +419,23 @@ SELECT swap_v1_payload_partition_with_temp($1::DATE)
 
 func (q *Queries) SwapV1PayloadPartitionWithTemp(ctx context.Context, db DBTX, date pgtype.Date) error {
 	_, err := db.Exec(ctx, swapV1PayloadPartitionWithTemp, date)
+	return err
+}
+
+const upsertLastOffsetForCutoverJob = `-- name: UpsertLastOffsetForCutoverJob :exec
+INSERT INTO v1_payload_cutover_job_id_offset (key, last_offset)
+VALUES ($1::VARCHAR(8), $2::BIGINT)
+ON CONFLICT (key)
+DO UPDATE SET last_offset = EXCLUDED.last_offset
+`
+
+type UpsertLastOffsetForCutoverJobParams struct {
+	Key        string `json:"key"`
+	Lastoffset int64  `json:"lastoffset"`
+}
+
+func (q *Queries) UpsertLastOffsetForCutoverJob(ctx context.Context, db DBTX, arg UpsertLastOffsetForCutoverJobParams) error {
+	_, err := db.Exec(ctx, upsertLastOffsetForCutoverJob, arg.Key, arg.Lastoffset)
 	return err
 }
 
