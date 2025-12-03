@@ -79,6 +79,7 @@ type payloadStoreRepositoryImpl struct {
 	enableOLAPPayloadDualWrites      bool
 	externalCutoverProcessInterval   time.Duration
 	externalCutoverBatchSize         int32
+	externalCutoverDelayDays         int32
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -88,6 +89,7 @@ type PayloadStoreRepositoryOpts struct {
 	EnableOLAPPayloadDualWrites      bool
 	ExternalCutoverProcessInterval   time.Duration
 	ExternalCutoverBatchSize         int32
+	ExternalCutoverDelayDays         int32
 }
 
 func NewPayloadStoreRepository(
@@ -110,6 +112,7 @@ func NewPayloadStoreRepository(
 		enableOLAPPayloadDualWrites:      opts.EnableOLAPPayloadDualWrites,
 		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
 		externalCutoverBatchSize:         opts.ExternalCutoverBatchSize,
+		externalCutoverDelayDays:         opts.ExternalCutoverDelayDays,
 	}
 }
 
@@ -316,8 +319,8 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return nil
 	}
 
-	// todo: run this for a configurable date interval (e.g. 2 days ago or something)
-	partitionDate := time.Now()
+	delayHours := time.Duration(p.externalCutoverDelayDays * 24 * -1)
+	partitionDate := time.Now().Add(delayHours * time.Hour)
 	partitionDateStr := partitionDate.Format("20060102")
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
