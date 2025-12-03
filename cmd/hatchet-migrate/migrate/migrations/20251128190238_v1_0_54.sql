@@ -254,6 +254,13 @@ BEGIN
         partition_end
     );
 
+    RAISE NOTICE 'Dropping hack check constraint';
+    EXECUTE format(
+        'ALTER TABLE %I DROP CONSTRAINT %I',
+        source_partition_name,
+        source_partition_name || '_inserted_at_check_partition_bounds',
+    );
+
     RAISE NOTICE 'Successfully swapped partition %', source_partition_name;
     RETURN source_partition_name;
 END;

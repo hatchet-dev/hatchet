@@ -1796,11 +1796,11 @@ BEGIN
     EXECUTE format('
         ALTER TABLE %I
         ADD CONSTRAINT %I
-        CHECK
+        CHECK (
             inserted_at IS NOT NULL
-            AND inserted_at >= '%L'::TIMESTAMPTZ
-            AND (inserted_at < '%L'::TIMESTAMPTZ
-        ;
+            AND inserted_at >= %L::TIMESTAMPTZ
+            AND inserted_at < %L::TIMESTAMPTZ
+        )
         ',
         target_table_name,
         target_table_name || '_inserted_at_check_partition_bounds',
@@ -1880,11 +1880,10 @@ BEGIN
 END;
 $$;
 
-
 CREATE OR REPLACE FUNCTION list_paginated_payloads_for_offload(
     partition_date date,
     limit_param int,
-    offset_param int
+    offset_param bigint
 ) RETURNS TABLE (
     tenant_id UUID,
     id BIGINT,
@@ -1962,9 +1961,26 @@ BEGIN
     partition_start := partition_date;
     partition_end := partition_date + INTERVAL '1 day';
 
+    EXECUTE format(
+        'ALTER TABLE %I SET (
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor = ''0.05'',
+            autovacuum_vacuum_threshold = ''25'',
+            autovacuum_analyze_threshold = ''25'',
+            autovacuum_vacuum_cost_delay = ''10'',
+            autovacuum_vacuum_cost_limit = ''1000''
+        )',
+        temp_table_name
+    );
+    RAISE NOTICE 'Set autovacuum settings on partition %', temp_table_name;
+
+    LOCK TABLE v1_payload IN ACCESS EXCLUSIVE MODE;
+
     IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
-        RAISE NOTICE 'Dropping trigger % from partition %', trigger_name, source_partition_name;
-        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name, source_partition_name);
+        RAISE NOTICE 'Dropping triggers from partition %', source_partition_name;
+        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_insert', source_partition_name);
+        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_update', source_partition_name);
+        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name || '_delete', source_partition_name);
 
         RAISE NOTICE 'Dropping trigger function %', trigger_function_name;
         EXECUTE format('DROP FUNCTION IF EXISTS %I()', trigger_function_name);
@@ -1980,25 +1996,19 @@ BEGIN
     RAISE NOTICE 'Renaming temp table % to %', temp_table_name, source_partition_name;
     EXECUTE format('ALTER TABLE %I RENAME TO %I', temp_table_name, source_partition_name);
 
-    EXECUTE format(
-        'ALTER TABLE %I SET (
-            autovacuum_vacuum_scale_factor = ''0.1'',
-            autovacuum_analyze_scale_factor = ''0.05'',
-            autovacuum_vacuum_threshold = ''25'',
-            autovacuum_analyze_threshold = ''25'',
-            autovacuum_vacuum_cost_delay = ''10'',
-            autovacuum_vacuum_cost_limit = ''1000''
-        )',
-        source_partition_name
-    );
-    RAISE NOTICE 'Set autovacuum settings on partition %', source_partition_name;
-
     RAISE NOTICE 'Attaching new partition % to v1_payload', source_partition_name;
     EXECUTE format(
         'ALTER TABLE v1_payload ATTACH PARTITION %I FOR VALUES FROM (%L) TO (%L)',
         source_partition_name,
         partition_start,
         partition_end
+    );
+
+    RAISE NOTICE 'Dropping hack check constraint';
+    EXECUTE format(
+        'ALTER TABLE %I DROP CONSTRAINT %I',
+        source_partition_name,
+        source_partition_name || '_inserted_at_check_partition_bounds',
     );
 
     RAISE NOTICE 'Successfully swapped partition %', source_partition_name;
