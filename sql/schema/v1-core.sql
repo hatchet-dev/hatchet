@@ -1967,7 +1967,7 @@ END;
 $$;
 
 CREATE TABLE v1_payload_cutover_job_offset (
-    key VARCHAR(8) PRIMARY KEY,
+    key DATE PRIMARY KEY,
     last_offset BIGINT NOT NULL,
     is_completed BOOLEAN NOT NULL DEFAULT FALSE
 );

@@ -320,8 +320,12 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 	}
 
 	delayHours := time.Duration(p.externalCutoverDelayDays * 24 * -1)
-	partitionDate := time.Now().Add(delayHours * time.Hour)
-	partitionDateStr := partitionDate.Format("20060102")
+	partitionTime := time.Now().Add(delayHours * time.Hour)
+	partitionDate := pgtype.Date{
+		Time:  partitionTime,
+		Valid: true,
+	}
+	partitionDateStr := partitionTime.Format("20060102")
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
@@ -343,7 +347,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return nil
 	}
 
-	jobStatus, err := p.queries.FindLastOffsetForCutoverJob(ctx, p.pool, partitionDateStr)
+	jobStatus, err := p.queries.FindLastOffsetForCutoverJob(ctx, p.pool, partitionDate)
 
 	var offset int64
 	var isCompleted bool
@@ -366,10 +370,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return nil
 	}
 
-	err = p.queries.CreateV1PayloadCutoverTemporaryTable(ctx, tx, pgtype.Date{
-		Time:  partitionDate,
-		Valid: true,
-	})
+	err = p.queries.CreateV1PayloadCutoverTemporaryTable(ctx, tx, partitionDate)
 
 	if err != nil {
 		rollback()
@@ -392,12 +393,9 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 
 		tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDateStr)
 		payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
-			Partitiondate: pgtype.Date{
-				Time:  partitionDate,
-				Valid: true,
-			},
-			Offsetparam: offset,
-			Limitparam:  p.externalCutoverBatchSize,
+			Partitiondate: partitionDate,
+			Offsetparam:   offset,
+			Limitparam:    p.externalCutoverBatchSize,
 		})
 
 		if err != nil {
@@ -524,7 +522,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		offset += int64(len(payloads))
 
 		err = p.queries.UpsertLastOffsetForCutoverJob(ctx, tx, sqlcv1.UpsertLastOffsetForCutoverJobParams{
-			Key:        partitionDateStr,
+			Key:        partitionDate,
 			Lastoffset: offset,
 		})
 
@@ -549,16 +547,13 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 
 	defer rollback()
 
-	err = p.queries.SwapV1PayloadPartitionWithTemp(ctx, tx, pgtype.Date{
-		Time:  partitionDate,
-		Valid: true,
-	})
+	err = p.queries.SwapV1PayloadPartitionWithTemp(ctx, tx, partitionDate)
 
 	if err != nil {
 		return fmt.Errorf("failed to swap payload cutover temp table: %w", err)
 	}
 
-	err = p.queries.MarkCutoverJobAsCompleted(ctx, tx, partitionDateStr)
+	err = p.queries.MarkCutoverJobAsCompleted(ctx, tx, partitionDate)
 
 	if err != nil {
 		return fmt.Errorf("failed to mark cutover job as completed: %w", err)

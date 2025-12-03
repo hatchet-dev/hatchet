@@ -3130,9 +3130,9 @@ type V1Payload struct {
 }
 
 type V1PayloadCutoverJobOffset struct {
-	Key         string `json:"key"`
-	LastOffset  int64  `json:"last_offset"`
-	IsCompleted bool   `json:"is_completed"`
+	Key         pgtype.Date `json:"key"`
+	LastOffset  int64       `json:"last_offset"`
+	IsCompleted bool        `json:"is_completed"`
 }
 
 type V1PayloadCutoverQueueItem struct {
