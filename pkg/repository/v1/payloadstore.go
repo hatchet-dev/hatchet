@@ -363,9 +363,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return nil
 	}
 
-	// todo: this should also set up a trigger on insert into the new temp table
-	// on insert, we just write the record from the payload partition
-	// todo: acquire an advisory lock or a lease here so this doesn't run concurrently
 	err = p.queries.CreateV1PayloadCutoverTemporaryTable(ctx, tx, pgtype.Date{
 		Time:  partitionDate,
 		Valid: true,
