@@ -16,8 +16,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-const MAX_WORKER_BACKLOG_SIZE = 20
-
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
 	tenantId string,
@@ -61,7 +59,7 @@ func (worker *subscribedWorker) incBacklogSize(delta int64) bool {
 	worker.backlogSizeMu.Lock()
 	defer worker.backlogSizeMu.Unlock()
 
-	if worker.backlogSize+delta > MAX_WORKER_BACKLOG_SIZE {
+	if worker.backlogSize+delta > worker.maxBacklogSize {
 		return false
 	}
 
@@ -122,7 +120,7 @@ func (worker *subscribedWorker) sendToWorker(
 	incSuccess := worker.incBacklogSize(1)
 
 	if !incSuccess {
-		err := fmt.Errorf("worker backlog size exceeded max of %d", MAX_WORKER_BACKLOG_SIZE)
+		err := fmt.Errorf("worker backlog size exceeded max of %d", worker.maxBacklogSize)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "worker backlog size exceeded max")
 		return err
@@ -196,7 +194,7 @@ func (worker *subscribedWorker) CancelTask(
 	incSuccess := worker.incBacklogSize(1)
 
 	if !incSuccess {
-		err := fmt.Errorf("worker backlog size exceeded max of %d", MAX_WORKER_BACKLOG_SIZE)
+		err := fmt.Errorf("worker backlog size exceeded max of %d", worker.maxBacklogSize)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "worker backlog size exceeded max")
 		return err

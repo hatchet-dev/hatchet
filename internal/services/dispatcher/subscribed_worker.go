@@ -23,6 +23,26 @@ type subscribedWorker struct {
 
 	backlogSize   int64
 	backlogSizeMu sync.Mutex
+
+	maxBacklogSize int64
+}
+
+func newSubscribedWorker(
+	stream contracts.Dispatcher_ListenServer,
+	fin chan<- bool,
+	workerId string,
+	maxBacklogSize int64,
+) *subscribedWorker {
+	if maxBacklogSize <= 0 {
+		maxBacklogSize = 20
+	}
+
+	return &subscribedWorker{
+		stream:         stream,
+		finished:       fin,
+		workerId:       workerId,
+		maxBacklogSize: maxBacklogSize,
+	}
 }
 
 func (worker *subscribedWorker) StartStepRun(
