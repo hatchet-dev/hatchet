@@ -38,9 +38,6 @@ BEGIN
         source_partition_name
     );
 
-    EXECUTE format('LOCK TABLE %I IN ACCESS EXCLUSIVE MODE', source_partition_name);
-    EXECUTE format('LOCK TABLE %I IN ACCESS EXCLUSIVE MODE', target_table_name);
-
     EXECUTE format('
         CREATE OR REPLACE FUNCTION %I() RETURNS trigger
             LANGUAGE plpgsql AS $func$
@@ -193,6 +190,9 @@ BEGIN
 
     partition_start := partition_date;
     partition_end := partition_date + INTERVAL '1 day';
+
+    EXECUTE format('LOCK TABLE %I IN ACCESS EXCLUSIVE MODE', source_partition_name);
+    EXECUTE format('LOCK TABLE %I IN ACCESS EXCLUSIVE MODE', temp_table_name);
 
     IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
         RAISE NOTICE 'Dropping triggers from partition %', source_partition_name;
