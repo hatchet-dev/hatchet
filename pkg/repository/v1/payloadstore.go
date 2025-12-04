@@ -314,6 +314,123 @@ type BulkCutOverPayload struct {
 	ExternalLocationKey ExternalPayloadLocationKey
 }
 
+type CutoverBatchOutcome struct {
+	ShouldContinue bool
+	NextOffset     int64
+}
+
+func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, partitionDate pgtype.Date, partitionDateStr string, offset int64) (*CutoverBatchOutcome, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+	}
+
+	defer rollback()
+
+	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDateStr)
+	payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
+		Partitiondate: partitionDate,
+		Offsetparam:   offset,
+		Limitparam:    p.externalCutoverBatchSize,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list payloads for offload: %w", err)
+	}
+
+	alreadyExternalPayloads := make(map[RetrievePayloadOpts]ExternalPayloadLocationKey)
+	offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
+	retrieveOptsToExternalId := make(map[RetrievePayloadOpts]string)
+
+	for _, payload := range payloads {
+		if payload.Location != sqlcv1.V1PayloadLocationINLINE {
+			retrieveOpt := RetrievePayloadOpts{
+				Id:         payload.ID,
+				InsertedAt: payload.InsertedAt,
+				Type:       payload.Type,
+				TenantId:   payload.TenantID,
+			}
+
+			alreadyExternalPayloads[retrieveOpt] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
+			retrieveOptsToExternalId[retrieveOpt] = payload.ExternalID.String()
+		} else {
+			offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
+				StorePayloadOpts: &StorePayloadOpts{
+					Id:         payload.ID,
+					InsertedAt: payload.InsertedAt,
+					Type:       payload.Type,
+					Payload:    payload.InlineContent,
+					TenantId:   payload.TenantID.String(),
+					ExternalId: payload.ExternalID,
+				},
+				OffloadAt: time.Now(),
+			})
+			retrieveOptsToExternalId[RetrievePayloadOpts{
+				Id:         payload.ID,
+				InsertedAt: payload.InsertedAt,
+				Type:       payload.Type,
+				TenantId:   payload.TenantID,
+			}] = payload.ExternalID.String()
+		}
+	}
+
+	retrieveOptsToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
+
+	for r, k := range alreadyExternalPayloads {
+		retrieveOptsToKey[r] = k
+	}
+
+	payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, len(payloads))
+
+	for r, k := range retrieveOptsToKey {
+		externalId := retrieveOptsToExternalId[r]
+
+		// todo: make sure location works for already-inserted payloads
+		payloadsToInsert = append(payloadsToInsert, sqlcv1.CutoverPayloadToInsert{
+			TenantID:            r.TenantId,
+			ID:                  r.Id,
+			InsertedAt:          r.InsertedAt,
+			ExternalID:          sqlchelpers.UUIDFromStr(externalId),
+			Type:                r.Type,
+			ExternalLocationKey: string(k),
+		})
+	}
+
+	_, err = sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
+	}
+
+	offset += int64(len(payloads))
+
+	err = p.queries.UpsertLastOffsetForCutoverJob(ctx, tx, sqlcv1.UpsertLastOffsetForCutoverJobParams{
+		Key:        partitionDate,
+		Lastoffset: offset,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to upsert last offset for cutover job: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
+	}
+
+	if len(payloads) < int(p.externalCutoverBatchSize) {
+		return &CutoverBatchOutcome{
+			ShouldContinue: false,
+			NextOffset:     offset,
+		}, nil
+	}
+
+	return &CutoverBatchOutcome{
+		ShouldContinue: true,
+		NextOffset:     offset,
+	}, nil
+}
+
 func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error {
 	if !p.externalStoreEnabled {
 		return nil
@@ -383,107 +500,17 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 	}
 
 	for true {
-		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+		outcome, err := p.ProcessPayloadCutoverBatch(ctx, partitionDate, partitionDateStr, offset)
 
 		if err != nil {
-			return fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+			return fmt.Errorf("failed to process payload cutover batch: %w", err)
 		}
 
-		defer rollback()
-
-		tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDateStr)
-		payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
-			Partitiondate: partitionDate,
-			Offsetparam:   offset,
-			Limitparam:    p.externalCutoverBatchSize,
-		})
-
-		if err != nil {
-			return fmt.Errorf("failed to list payloads for offload: %w", err)
-		}
-
-		alreadyExternalPayloads := make(map[RetrievePayloadOpts]ExternalPayloadLocationKey)
-		offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
-		retrieveOptsToExternalId := make(map[RetrievePayloadOpts]string)
-
-		for _, payload := range payloads {
-			if payload.Location != sqlcv1.V1PayloadLocationINLINE {
-				retrieveOpt := RetrievePayloadOpts{
-					Id:         payload.ID,
-					InsertedAt: payload.InsertedAt,
-					Type:       payload.Type,
-					TenantId:   payload.TenantID,
-				}
-
-				alreadyExternalPayloads[retrieveOpt] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
-				retrieveOptsToExternalId[retrieveOpt] = payload.ExternalID.String()
-			} else {
-				offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
-					StorePayloadOpts: &StorePayloadOpts{
-						Id:         payload.ID,
-						InsertedAt: payload.InsertedAt,
-						Type:       payload.Type,
-						Payload:    payload.InlineContent,
-						TenantId:   payload.TenantID.String(),
-						ExternalId: payload.ExternalID,
-					},
-					OffloadAt: time.Now(),
-				})
-				retrieveOptsToExternalId[RetrievePayloadOpts{
-					Id:         payload.ID,
-					InsertedAt: payload.InsertedAt,
-					Type:       payload.Type,
-					TenantId:   payload.TenantID,
-				}] = payload.ExternalID.String()
-			}
-		}
-
-		retrieveOptsToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
-
-		for r, k := range alreadyExternalPayloads {
-			retrieveOptsToKey[r] = k
-		}
-
-		payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, len(payloads))
-
-		for r, k := range retrieveOptsToKey {
-			externalId := retrieveOptsToExternalId[r]
-
-			// todo: make sure location works for already-inserted payloads
-			payloadsToInsert = append(payloadsToInsert, sqlcv1.CutoverPayloadToInsert{
-				TenantID:            r.TenantId,
-				ID:                  r.Id,
-				InsertedAt:          r.InsertedAt,
-				ExternalID:          sqlchelpers.UUIDFromStr(externalId),
-				Type:                r.Type,
-				ExternalLocationKey: string(k),
-			})
-		}
-
-		_, err = sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
-
-		if err != nil {
-			return fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
-		}
-
-		offset += int64(len(payloads))
-
-		err = p.queries.UpsertLastOffsetForCutoverJob(ctx, tx, sqlcv1.UpsertLastOffsetForCutoverJobParams{
-			Key:        partitionDate,
-			Lastoffset: offset,
-		})
-
-		if err != nil {
-			return fmt.Errorf("failed to upsert last offset for cutover job: %w", err)
-		}
-
-		if err := commit(ctx); err != nil {
-			return fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
-		}
-
-		if len(payloads) < int(p.externalCutoverBatchSize) {
+		if !outcome.ShouldContinue {
 			break
 		}
+
+		offset = outcome.NextOffset
 	}
 
 	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
