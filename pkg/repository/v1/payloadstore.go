@@ -518,8 +518,11 @@ type CutoverJobRunMetadata struct {
 }
 
 func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context) (*CutoverJobRunMetadata, error) {
-	delayHours := time.Duration(*p.inlineStoreTTL * 24 * -1)
-	partitionTime := time.Now().Add(delayHours * time.Hour)
+	if p.inlineStoreTTL == nil {
+		return nil, fmt.Errorf("inline store TTL is not set")
+	}
+
+	partitionTime := time.Now().Add(-1 * *p.inlineStoreTTL)
 	partitionDate := pgtype.Date{
 		Time:  partitionTime,
 		Valid: true,
