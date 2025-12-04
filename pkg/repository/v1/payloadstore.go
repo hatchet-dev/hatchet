@@ -545,7 +545,12 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context)
 	}
 
 	if !lockAcquired {
-		return nil, nil
+		return &CutoverJobRunMetadata{
+			ShouldRun:        false,
+			LastOffset:       0,
+			PartitionDate:    partitionDate,
+			PartitionDateStr: partitionDateStr,
+		}, nil
 	}
 
 	jobStatus, err := p.queries.FindLastOffsetForCutoverJob(ctx, p.pool, partitionDate)
