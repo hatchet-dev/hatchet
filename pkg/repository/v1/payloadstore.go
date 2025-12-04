@@ -55,7 +55,7 @@ type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
-	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
+	OverwriteExternalStore(store ExternalStore)
 	DualWritesEnabled() bool
 	TaskEventDualWritesEnabled() bool
 	DagDataDualWritesEnabled() bool
@@ -269,9 +269,8 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	return optsToPayload, nil
 }
 
-func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration) {
+func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore) {
 	p.externalStoreEnabled = true
-	p.inlineStoreTTL = &inlineStoreTTL
 	p.externalStore = store
 }
 
