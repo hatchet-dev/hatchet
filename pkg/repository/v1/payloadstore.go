@@ -465,7 +465,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	for r, k := range retrieveOptsToKey {
 		externalId := retrieveOptsToExternalId[r]
 
-		// todo: make sure location works for already-inserted payloads
 		payloadsToInsert = append(payloadsToInsert, sqlcv1.CutoverPayloadToInsert{
 			TenantID:            r.TenantId,
 			ID:                  r.Id,
