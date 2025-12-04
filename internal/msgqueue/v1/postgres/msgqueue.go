@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -61,7 +62,7 @@ func WithQos(qos int) MessageQueueImplOpt {
 	}
 }
 
-func NewPostgresMQ(repo repository.MessageQueueRepository, fs ...MessageQueueImplOpt) (func() error, *PostgresMessageQueue) {
+func NewPostgresMQ(repo repository.MessageQueueRepository, fs ...MessageQueueImplOpt) (func() error, *PostgresMessageQueue, error) {
 	opts := defaultMessageQueueImplOpts()
 
 	for _, f := range fs {
@@ -84,22 +85,28 @@ func NewPostgresMQ(repo repository.MessageQueueRepository, fs ...MessageQueueImp
 	err := p.upsertQueue(context.Background(), msgqueue.TASK_PROCESSING_QUEUE)
 
 	if err != nil {
-		p.l.Fatal().Msgf("error upserting queue %s", msgqueue.TASK_PROCESSING_QUEUE.Name())
+		return nil, nil, fmt.Errorf("error upserting queue %s: %w", msgqueue.TASK_PROCESSING_QUEUE.Name(), err)
 	}
 
 	err = p.upsertQueue(context.Background(), msgqueue.OLAP_QUEUE)
 
 	if err != nil {
-		p.l.Fatal().Msgf("error upserting queue %s", msgqueue.OLAP_QUEUE.Name())
+		return nil, nil, fmt.Errorf("error upserting queue %s: %w", msgqueue.OLAP_QUEUE.Name(), err)
+	}
+
+	err = p.upsertQueue(context.Background(), msgqueue.DISPATCHER_DEAD_LETTER_QUEUE)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("error upserting queue %s: %w", msgqueue.DISPATCHER_DEAD_LETTER_QUEUE.Name(), err)
 	}
 
 	return func() error {
 		c.Stop()
 		return nil
-	}, p
+	}, p, nil
 }
 
-func (p *PostgresMessageQueue) Clone() (func() error, msgqueue.MessageQueue) {
+func (p *PostgresMessageQueue) Clone() (func() error, msgqueue.MessageQueue, error) {
 	return NewPostgresMQ(p.repo, p.configFs...)
 }
 
@@ -361,8 +368,17 @@ func (p *PostgresMessageQueue) upsertQueue(ctx context.Context, queue msgqueue.Q
 		consumer = &str
 	}
 
+	autoDeleted := queue.AutoDeleted()
+
+	// FIXME: note that this differs from the RabbitMQ implementation, since we auto-delete Postgres MQs after
+	// 1 hour of inactivity instead of immediately. So if the queue is expirable, we set it to autoDeleted and
+	// will get effectively the same behavior.
+	if queue.IsExpirable() {
+		autoDeleted = true
+	}
+
 	// bind the queue
-	err := p.repo.BindQueue(ctx, queue.Name(), queue.Durable(), queue.AutoDeleted(), exclusive, consumer)
+	err := p.repo.BindQueue(ctx, queue.Name(), queue.Durable(), autoDeleted, exclusive, consumer)
 
 	if err != nil {
 		p.l.Error().Err(err).Msg("error binding queue")
