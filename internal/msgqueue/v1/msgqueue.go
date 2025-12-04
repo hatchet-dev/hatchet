@@ -160,7 +160,7 @@ func (d dispatcherQueue) IsExpirable() bool {
 }
 
 func QueueTypeFromDispatcherID(d string) dispatcherQueue {
-	return dispatcherQueue(d + "_v1")
+	return dispatcherQueue(d + "_dispatcher_v1")
 }
 
 type consumerQueue string
