@@ -749,13 +749,13 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 		}
 	}
 
-	toRequeue, err := s.repov1.Tasks().ListTasks(ctx, msg.TenantID, taskIds)
+	toFail, err := s.repov1.Tasks().ListTasks(ctx, msg.TenantID, taskIds)
 
 	if err != nil {
 		return fmt.Errorf("could not list tasks for dead lettered bulk assigned message: %w", err)
 	}
 
-	for _, _task := range toRequeue {
+	for _, _task := range toFail {
 		tenantId := msg.TenantID
 		task := _task
 
