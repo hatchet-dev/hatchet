@@ -42,28 +42,27 @@ type TasksController interface {
 }
 
 type TasksControllerImpl struct {
-	mq                                       msgqueue.MessageQueue
-	pubBuffer                                *msgqueue.MQPubBuffer
-	l                                        *zerolog.Logger
-	queueLogger                              *zerolog.Logger
-	pgxStatsLogger                           *zerolog.Logger
-	repo                                     repository.EngineRepository
-	repov1                                   v1.Repository
-	dv                                       datautils.DataDecoderValidator
-	s                                        gocron.Scheduler
-	a                                        *hatcheterrors.Wrapped
-	p                                        *partition.Partition
-	celParser                                *cel.CELParser
-	opsPoolPollInterval                      time.Duration
-	opsPoolJitter                            time.Duration
-	timeoutTaskOperations                    *operation.OperationPool
-	reassignTaskOperations                   *operation.OperationPool
-	retryTaskOperations                      *operation.OperationPool
-	emitSleepOperations                      *operation.OperationPool
-	evictExpiredIdempotencyKeysOperations    *operation.OperationPool
-	processPayloadExternalCutoversOperations *queueutils.OperationPool[int64]
-	replayEnabled                            bool
-	analyzeCronInterval                      time.Duration
+	mq                                    msgqueue.MessageQueue
+	pubBuffer                             *msgqueue.MQPubBuffer
+	l                                     *zerolog.Logger
+	queueLogger                           *zerolog.Logger
+	pgxStatsLogger                        *zerolog.Logger
+	repo                                  repository.EngineRepository
+	repov1                                v1.Repository
+	dv                                    datautils.DataDecoderValidator
+	s                                     gocron.Scheduler
+	a                                     *hatcheterrors.Wrapped
+	p                                     *partition.Partition
+	celParser                             *cel.CELParser
+	opsPoolPollInterval                   time.Duration
+	opsPoolJitter                         time.Duration
+	timeoutTaskOperations                 *operation.OperationPool
+	reassignTaskOperations                *operation.OperationPool
+	retryTaskOperations                   *operation.OperationPool
+	emitSleepOperations                   *operation.OperationPool
+	evictExpiredIdempotencyKeysOperations *operation.OperationPool
+	replayEnabled                         bool
+	analyzeCronInterval                   time.Duration
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -282,8 +281,6 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		3,
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
-
-	t.processPayloadExternalCutoversOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload external cutovers", t.processPayloadExternalCutovers).WithJitter(jitter)
 
 	return t, nil
 }
