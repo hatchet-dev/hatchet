@@ -79,7 +79,6 @@ type payloadStoreRepositoryImpl struct {
 	enableOLAPPayloadDualWrites      bool
 	externalCutoverProcessInterval   time.Duration
 	externalCutoverBatchSize         int32
-	externalCutoverDelayDays         int32
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -89,7 +88,7 @@ type PayloadStoreRepositoryOpts struct {
 	EnableOLAPPayloadDualWrites      bool
 	ExternalCutoverProcessInterval   time.Duration
 	ExternalCutoverBatchSize         int32
-	ExternalCutoverDelayDays         int32
+	InlineStoreTTL                   *time.Duration
 }
 
 func NewPayloadStoreRepository(
@@ -104,7 +103,7 @@ func NewPayloadStoreRepository(
 		queries: queries,
 
 		externalStoreEnabled:             false,
-		inlineStoreTTL:                   nil,
+		inlineStoreTTL:                   opts.InlineStoreTTL,
 		externalStore:                    &NoOpExternalStore{},
 		enablePayloadDualWrites:          opts.EnablePayloadDualWrites,
 		enableTaskEventPayloadDualWrites: opts.EnableTaskEventPayloadDualWrites,
@@ -112,7 +111,6 @@ func NewPayloadStoreRepository(
 		enableOLAPPayloadDualWrites:      opts.EnableOLAPPayloadDualWrites,
 		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
 		externalCutoverBatchSize:         opts.ExternalCutoverBatchSize,
-		externalCutoverDelayDays:         opts.ExternalCutoverDelayDays,
 	}
 }
 
@@ -439,7 +437,7 @@ type CutoverJobRunMetadata struct {
 }
 
 func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context) (*CutoverJobRunMetadata, error) {
-	delayHours := time.Duration(p.externalCutoverDelayDays * 24 * -1)
+	delayHours := time.Duration(*p.inlineStoreTTL * 24 * -1)
 	partitionTime := time.Now().Add(delayHours * time.Hour)
 	partitionDate := pgtype.Date{
 		Time:  partitionTime,

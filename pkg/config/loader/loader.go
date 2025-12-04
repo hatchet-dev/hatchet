@@ -293,6 +293,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DurableSleepLimit: scf.Runtime.TaskOperationLimits.DurableSleepLimit,
 	}
 
+	inlineStoreTTL := time.Duration(scf.PayloadStore.InlineStoreTTLDays) * 24 * time.Hour
+
 	payloadStoreOpts := repov1.PayloadStoreRepositoryOpts{
 		EnablePayloadDualWrites:          scf.PayloadStore.EnablePayloadDualWrites,
 		EnableTaskEventPayloadDualWrites: scf.PayloadStore.EnableTaskEventPayloadDualWrites,
@@ -300,7 +302,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		EnableDagDataPayloadDualWrites:   scf.PayloadStore.EnableDagDataPayloadDualWrites,
 		ExternalCutoverProcessInterval:   scf.PayloadStore.ExternalCutoverProcessInterval,
 		ExternalCutoverBatchSize:         scf.PayloadStore.ExternalCutoverBatchSize,
-		ExternalCutoverDelayDays:         scf.PayloadStore.ExternalCutoverDelayDays,
+		InlineStoreTTL:                   &inlineStoreTTL,
 	}
 
 	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{
