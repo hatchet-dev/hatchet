@@ -87,3 +87,29 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 
 	return copyCount, err
 }
+
+func ComparePartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionName, sourcePartitionName string) (bool, error) {
+	row := tx.QueryRow(
+		ctx,
+		fmt.Sprintf(
+			`
+				SELECT
+					(SELECT COUNT(*) FROM %s) AS temp_partition_count,
+					(SELECT COUNT(*) FROM %s) AS source_partition_count
+			`,
+			tempPartitionName,
+			sourcePartitionName,
+		),
+	)
+
+	var tempPartitionCount int64
+	var sourcePartitionCount int64
+
+	err := row.Scan(&tempPartitionCount, &sourcePartitionCount)
+
+	if err != nil {
+		return false, err
+	}
+
+	return tempPartitionCount == sourcePartitionCount, nil
+}

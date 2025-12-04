@@ -623,6 +623,19 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		offset = outcome.NextOffset
 	}
 
+	tempPartitionName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDateStr)
+	sourcePartitionName := fmt.Sprintf("v1_payload_%s", partitionDateStr)
+
+	countsEqual, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+
+	if err != nil {
+		return fmt.Errorf("failed to compare partition row counts: %w", err)
+	}
+
+	if !countsEqual {
+		return fmt.Errorf("row counts do not match between temp and source partitions for date %s", partitionDateStr)
+	}
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
 	if err != nil {
