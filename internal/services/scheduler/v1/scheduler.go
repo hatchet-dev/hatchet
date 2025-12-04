@@ -744,6 +744,7 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 
 	for _, innerMsg := range msgs {
 		for _, tasks := range innerMsg.WorkerIdToTaskIds {
+			s.l.Error().Msgf("handling dead-lettered task assignments for tenant %s, tasks: %v. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, tasks)
 			taskIds = append(taskIds, tasks...)
 		}
 	}
@@ -794,6 +795,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	workerIds := make([]string, 0)
 
 	for _, p := range payloads {
+		s.l.Error().Msgf("handling dead-lettered task cancellations for tenant %s, task %d. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, p.TaskId)
 		workerIds = append(workerIds, p.WorkerId)
 	}
 
