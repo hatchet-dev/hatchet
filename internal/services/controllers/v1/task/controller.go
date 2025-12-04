@@ -330,8 +330,9 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.repov1.Payloads().ExternalCutoverProcessInterval()),
 		gocron.NewTask(
-			gocron.WithSingletonMode(gocron.LimitModeReschedule),
+			tc.processPayloadExternalCutovers(spanContext),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
