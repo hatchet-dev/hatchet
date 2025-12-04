@@ -1,8 +1,9 @@
 import { useCallback } from 'react';
+import { usePostHog } from 'posthog-js/react';
 import { useTenantDetails } from './use-tenant';
 
 interface AnalyticsEvent {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface UseAnalyticsReturn {
@@ -15,21 +16,20 @@ interface UseAnalyticsReturn {
   isAvailable: boolean;
 }
 
+export const POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY = 'ph__distinct_id';
+export const POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY = 'ph__session_id';
+
 /**
  * Hook for PostHog analytics integration
  * Provides a clean interface for tracking events and identifying users
  */
 export function useAnalytics(): UseAnalyticsReturn {
+  const posthog = usePostHog();
   const { tenant } = useTenantDetails();
 
   const isAvailable = useCallback(() => {
-    // Check if PostHog is loaded and user hasn't opted out
-    return (
-      typeof window !== 'undefined' &&
-      (window as any).posthog &&
-      (!tenant || !tenant.analyticsOptOut)
-    );
-  }, [tenant]);
+    return !!posthog && (!tenant || !tenant.analyticsOptOut);
+  }, [posthog, tenant]);
 
   const capture = useCallback(
     (eventName: string, properties?: AnalyticsEvent) => {
@@ -38,12 +38,12 @@ export function useAnalytics(): UseAnalyticsReturn {
       }
 
       try {
-        (window as any).posthog.capture(eventName, properties);
+        posthog.capture(eventName, properties);
       } catch (error) {
         console.warn('Analytics capture failed:', error);
       }
     },
-    [isAvailable],
+    [posthog, isAvailable],
   );
 
   const identify = useCallback(
@@ -57,12 +57,12 @@ export function useAnalytics(): UseAnalyticsReturn {
       }
 
       try {
-        (window as any).posthog.identify(userId, properties, setOnceProperties);
+        posthog.identify(userId, properties, setOnceProperties);
       } catch (error) {
         console.warn('Analytics identify failed:', error);
       }
     },
-    [isAvailable],
+    [posthog, isAvailable],
   );
 
   return {

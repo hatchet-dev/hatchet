@@ -23,7 +23,7 @@ const languageToHighlightAbbreviation = (language: Language) => {
 export const Snippet = ({ src }: { src: SnippetType }) => {
   if (src === undefined) {
     throw new Error(
-      "Snippet was undefined. You probably provided a path to a snippet that doesn't exist."
+      "Snippet was undefined. You probably provided a path to a snippet that doesn't exist.",
     );
   }
   return (

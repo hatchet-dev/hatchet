@@ -176,8 +176,8 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		durationPtr = &duration
 	}
 
-	input := jsonToMap(task.Input)
-	output := jsonToMap(task.Output)
+	input := jsonToMap(task.InputPayload)
+	output := jsonToMap(task.OutputPayload)
 
 	stepId := uuid.MustParse(sqlchelpers.UUIDToStr(task.StepID))
 

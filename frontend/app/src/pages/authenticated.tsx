@@ -4,7 +4,7 @@ import api, { queries, TenantVersion, User } from '@/lib/api';
 import { Loading } from '@/components/ui/loading.tsx';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import SupportChat from '@/components/molecules/support-chat';
-import AnalyticsProvider from '@/components/molecules/analytics-provider';
+import { PostHogProvider } from '@/providers/posthog';
 import { useState, useEffect } from 'react';
 import { useContextFromParent } from '@/lib/outlet';
 import { useTenant } from '@/lib/atoms';
@@ -159,7 +159,7 @@ export default function Authenticated() {
   }
 
   return (
-    <AnalyticsProvider user={userQuery.data}>
+    <PostHogProvider user={userQuery.data}>
       <SupportChat user={userQuery.data}>
         <div className="flex flex-row flex-1 w-full h-full">
           <MainNav
@@ -174,6 +174,6 @@ export default function Authenticated() {
           </div>
         </div>
       </SupportChat>
-    </AnalyticsProvider>
+    </PostHogProvider>
   );
 }

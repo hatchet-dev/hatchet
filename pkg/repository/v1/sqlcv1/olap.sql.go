@@ -29,6 +29,15 @@ func (q *Queries) AnalyzeV1DAGsOLAP(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const analyzeV1LookupTableOLAP = `-- name: AnalyzeV1LookupTableOLAP :exec
+ANALYZE v1_lookup_table_olap
+`
+
+func (q *Queries) AnalyzeV1LookupTableOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1LookupTableOLAP)
+	return err
+}
+
 const analyzeV1PayloadsOLAP = `-- name: AnalyzeV1PayloadsOLAP :exec
 ANALYZE v1_payloads_olap
 `
