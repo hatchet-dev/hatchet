@@ -611,7 +611,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 	partitionDateStr := jobMeta.PartitionDateStr
 	offset := jobMeta.LastOffset
 
-	for true {
+	for {
 		outcome, err := p.ProcessPayloadCutoverBatch(ctx, partitionDate, partitionDateStr, offset)
 
 		if err != nil {
