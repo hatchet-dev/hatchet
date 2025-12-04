@@ -1756,6 +1756,12 @@ BEGIN
 END;
 $$;
 
+CREATE TABLE v1_payload_cutover_job_offset (
+    key DATE PRIMARY KEY,
+    last_offset BIGINT NOT NULL,
+    is_completed BOOLEAN NOT NULL DEFAULT FALSE
+);
+
 CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(
     partition_date date
 ) RETURNS text
@@ -2015,12 +2021,6 @@ BEGIN
     RETURN source_partition_name;
 END;
 $$;
-
-CREATE TABLE v1_payload_cutover_job_offset (
-    key DATE PRIMARY KEY,
-    last_offset BIGINT NOT NULL,
-    is_completed BOOLEAN NOT NULL DEFAULT FALSE
-);
 
 CREATE TABLE v1_idempotency_key (
     tenant_id UUID NOT NULL,
