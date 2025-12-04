@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.21.4] - 2025-12-06
 
+### Added
+
+- Adds support for dynamic rate limits using CEL expressions (strings) for the `limit` parameter.
+
 ### Changed
 
 - Fixes a serialization error caused by Pydantic sometimes being unable to encode bytes, reported here: https://github.com/hatchet-dev/hatchet/issues/2601
+- Fixes a bug where string-based CEL expressions for `limit` were rejected due to the validation logic.
 
 ## [1.21.3] - 2025-11-26
 
