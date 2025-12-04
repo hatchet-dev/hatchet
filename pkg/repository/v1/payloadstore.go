@@ -431,11 +431,14 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	}, nil
 }
 
-func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error {
-	if !p.externalStoreEnabled {
-		return nil
-	}
+type CutoverJobRunMetadata struct {
+	ShouldRun        bool
+	LastOffset       int64
+	PartitionDate    pgtype.Date
+	PartitionDateStr string
+}
 
+func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context) (*CutoverJobRunMetadata, error) {
 	delayHours := time.Duration(p.externalCutoverDelayDays * 24 * -1)
 	partitionTime := time.Now().Add(delayHours * time.Hour)
 	partitionDate := pgtype.Date{
@@ -447,21 +450,21 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	defer rollback()
 
 	hashKey := fmt.Sprintf("payload-cutover-temp-table-lease-%s", partitionDateStr)
 
 	lockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash(hashKey))
 
 	if err != nil {
-		rollback()
-		return fmt.Errorf("failed to acquire advisory lock for payload cutover temp table: %w", err)
+		return nil, fmt.Errorf("failed to acquire advisory lock for payload cutover temp table: %w", err)
 	}
 
 	if !lockAcquired {
-		rollback()
-		return nil
+		return nil, nil
 	}
 
 	jobStatus, err := p.queries.FindLastOffsetForCutoverJob(ctx, p.pool, partitionDate)
@@ -474,8 +477,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 			offset = 0
 			isCompleted = false
 		} else {
-			rollback()
-			return fmt.Errorf("failed to find last offset for cutover job: %w", err)
+			return nil, fmt.Errorf("failed to find last offset for cutover job: %w", err)
 		}
 	} else {
 		offset = jobStatus.LastOffset
@@ -483,21 +485,50 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 	}
 
 	if isCompleted {
-		rollback()
-		return nil
+		return &CutoverJobRunMetadata{
+			ShouldRun:        false,
+			LastOffset:       offset,
+			PartitionDate:    partitionDate,
+			PartitionDateStr: partitionDateStr,
+		}, nil
 	}
 
 	err = p.queries.CreateV1PayloadCutoverTemporaryTable(ctx, tx, partitionDate)
 
 	if err != nil {
-		rollback()
-		return fmt.Errorf("failed to create payload cutover temporary table: %w", err)
+		return nil, fmt.Errorf("failed to create payload cutover temporary table: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
-		rollback()
-		return fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
+		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
+
+	return &CutoverJobRunMetadata{
+		ShouldRun:        true,
+		LastOffset:       offset,
+		PartitionDate:    partitionDate,
+		PartitionDateStr: partitionDateStr,
+	}, nil
+}
+
+func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error {
+	if !p.externalStoreEnabled {
+		return nil
+	}
+
+	jobMeta, err := p.prepareCutoverTableJob(ctx)
+
+	if err != nil {
+		return fmt.Errorf("failed to prepare cutover table job: %w", err)
+	}
+
+	if !jobMeta.ShouldRun {
+		return nil
+	}
+
+	partitionDate := jobMeta.PartitionDate
+	partitionDateStr := jobMeta.PartitionDateStr
+	offset := jobMeta.LastOffset
 
 	for true {
 		outcome, err := p.ProcessPayloadCutoverBatch(ctx, partitionDate, partitionDateStr, offset)
@@ -513,7 +544,7 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		offset = outcome.NextOffset
 	}
 
-	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
 	if err != nil {
 		return fmt.Errorf("failed to prepare transaction for swapping payload cutover temp table: %w", err)
