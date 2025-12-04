@@ -619,7 +619,7 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 	}
 
 	if q.IsExpirable() {
-		args["x-message-ttl"] = int32(60000) // 1 minute
+		args["x-message-ttl"] = int32(20000) // 20 seconds
 		args["x-expires"] = int32(600000)    // 10 minutes
 	}
 
