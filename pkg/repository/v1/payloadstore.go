@@ -143,7 +143,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	})
 
 	if p.enableImmediateOffloads && p.externalStoreEnabled {
-		// WAL_ENABLED = false: Skip inline, go directly to external store, we will:
 		externalOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
 		payloadIndexMap := make(map[PayloadUniqueKey]int)
 
