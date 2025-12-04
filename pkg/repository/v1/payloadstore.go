@@ -456,6 +456,10 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 
 	retrieveOptsToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
 
+	if err != nil {
+		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
+	}
+
 	for r, k := range alreadyExternalPayloads {
 		retrieveOptsToKey[r] = k
 	}
