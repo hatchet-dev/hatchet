@@ -142,37 +142,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		return payloads[i].InsertedAt.Time.After(payloads[j].InsertedAt.Time)
 	})
 
-	if !p.enableImmediateOffloads || !p.externalStoreEnabled {
-		if p.enableImmediateOffloads {
-			p.l.Warn().Msg("immediate offloads enabled but external store is not enabled, skipping immediate offloads")
-		}
-
-		for _, payload := range payloads {
-			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
-			uniqueKey := PayloadUniqueKey{
-				ID:         payload.Id,
-				InsertedAt: payload.InsertedAt,
-				TenantId:   tenantId,
-				Type:       payload.Type,
-			}
-
-			if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
-				continue
-			}
-
-			seenPayloadUniqueKeys[uniqueKey] = struct{}{}
-
-			taskIds = append(taskIds, payload.Id)
-			taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
-			payloadTypes = append(payloadTypes, string(payload.Type))
-			tenantIds = append(tenantIds, tenantId)
-			locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
-			inlineContents = append(inlineContents, payload.Payload)
-			externalIds = append(externalIds, payload.ExternalId)
-			externalLocationKeys = append(externalLocationKeys, "")
-			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: time.Now(), Valid: true})
-		}
-	} else if p.enableImmediateOffloads && p.externalStoreEnabled {
+	if p.enableImmediateOffloads && p.externalStoreEnabled {
 		// WAL_ENABLED = false: Skip inline, go directly to external store, we will:
 		externalOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
 		payloadIndexMap := make(map[PayloadUniqueKey]int)
@@ -238,6 +208,42 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 			externalIds = append(externalIds, payload.ExternalId)
 			externalLocationKeys = append(externalLocationKeys, string(externalKey))
 			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: time.Now(), Valid: true})
+		}
+	} else {
+		if p.enableImmediateOffloads {
+			p.l.Warn().Msg("immediate offloads enabled but external store is not enabled, skipping immediate offloads")
+		}
+
+		for _, payload := range payloads {
+			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+			uniqueKey := PayloadUniqueKey{
+				ID:         payload.Id,
+				InsertedAt: payload.InsertedAt,
+				TenantId:   tenantId,
+				Type:       payload.Type,
+			}
+
+			if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
+				continue
+			}
+
+			seenPayloadUniqueKeys[uniqueKey] = struct{}{}
+
+			taskIds = append(taskIds, payload.Id)
+			taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
+			payloadTypes = append(payloadTypes, string(payload.Type))
+			tenantIds = append(tenantIds, tenantId)
+			locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
+			inlineContents = append(inlineContents, payload.Payload)
+			externalIds = append(externalIds, payload.ExternalId)
+			externalLocationKeys = append(externalLocationKeys, "")
+
+			offloadAt := pgtype.Timestamptz{Time: time.Now(), Valid: true}
+			if p.inlineStoreTTL != nil {
+				offloadAt = pgtype.Timestamptz{Time: time.Now().Add(*p.inlineStoreTTL), Valid: true}
+			}
+
+			offloadAts = append(offloadAts, offloadAt)
 		}
 	}
 
