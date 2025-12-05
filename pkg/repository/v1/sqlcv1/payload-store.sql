@@ -252,7 +252,7 @@ DO UPDATE SET
     last_offset = EXCLUDED.last_offset,
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
-WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR lease_process_id = @leaseProcessId::UUID
+WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = @leaseProcessId::UUID
 RETURNING *
 ;
 

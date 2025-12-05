@@ -16,9 +16,9 @@ INSERT INTO v1_payload_cutover_job_offset (key, last_offset, lease_process_id, l
 VALUES ($1::DATE, $2::BIGINT, $3::UUID, $4::TIMESTAMPTZ)
 ON CONFLICT (key)
 DO UPDATE SET
-    v1_payload_cutover_job_offset.last_offset = EXCLUDED.last_offset,
-    v1_payload_cutover_job_offset.lease_process_id = EXCLUDED.lease_process_id,
-    v1_payload_cutover_job_offset.lease_expires_at = EXCLUDED.lease_expires_at
+    last_offset = EXCLUDED.last_offset,
+    lease_process_id = EXCLUDED.lease_process_id,
+    lease_expires_at = EXCLUDED.lease_expires_at
 WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = $3::UUID
 RETURNING key, last_offset, is_completed, lease_process_id, lease_expires_at
 `
