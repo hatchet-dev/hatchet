@@ -460,3 +460,17 @@ pre.shiki > code > span::before {
     display: block;
   }
 }
+
+/* Subtle border pulse animation for unsaved changes */
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    border-color: rgba(239, 68, 68, 0.7);
+  }
+}
+
+.animate-pulse-border {
+  animation: pulse-border 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

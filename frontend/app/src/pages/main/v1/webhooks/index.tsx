@@ -300,7 +300,10 @@ const CreateWebhookModal = () => {
   useEffect(() => {
     if (sourceName === V1WebhookSourceName.SLACK && !eventKeyExpression) {
       setValue('eventKeyExpression', 'input.type');
-    } else if (sourceName === V1WebhookSourceName.GENERIC && !eventKeyExpression) {
+    } else if (
+      sourceName === V1WebhookSourceName.GENERIC &&
+      !eventKeyExpression
+    ) {
       setValue('eventKeyExpression', 'input.id');
     }
   }, [sourceName, eventKeyExpression, setValue]);
