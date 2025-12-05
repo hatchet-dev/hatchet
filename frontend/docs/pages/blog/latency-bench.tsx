@@ -23,7 +23,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/v1/ui/card";
+} from "@/components/ui/card";
 
 const chartData = [
   {
