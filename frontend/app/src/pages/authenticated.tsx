@@ -1,6 +1,6 @@
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
 import { Outlet, useNavigate } from 'react-router-dom';
-import api, { queries, TenantVersion, User } from '@/lib/api';
+import api, { queries, User } from '@/lib/api';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import SupportChat from '@/components/molecules/support-chat';
@@ -157,7 +157,6 @@ export default function Authenticated() {
           <MainNav
             user={userQuery.data}
             tenantMemberships={listMembershipsQuery.data?.rows || []}
-            setHasBanner={setHasBanner}
           />
           <div
             className={`${hasHasBanner ? 'pt-28' : 'pt-16'} flex-grow overflow-y-auto overflow-x-hidden`}

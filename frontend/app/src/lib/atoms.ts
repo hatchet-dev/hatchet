@@ -78,7 +78,7 @@ export function useTenant(): TenantContext {
     (tenant: Tenant) => {
       setLastTenant(tenant);
     },
-    [searchParams, setSearchParams, setLastTenant],
+    [setLastTenant],
   );
 
   const membershipsQuery = useQuery({

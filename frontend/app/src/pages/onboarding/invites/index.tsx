@@ -1,4 +1,4 @@
-import api, { TenantVersion } from '@/lib/api';
+import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';

@@ -14,7 +14,7 @@ import {
   CommandSeparator,
 } from '@/components/v1/ui/command';
 import { Link } from 'react-router-dom';
-import { Tenant, TenantMember, TenantVersion } from '@/lib/api';
+import { Tenant, TenantMember } from '@/lib/api';
 import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import {
   PopoverTrigger,

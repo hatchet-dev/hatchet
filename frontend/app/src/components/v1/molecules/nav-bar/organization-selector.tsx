@@ -15,7 +15,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/v1/ui/command';
-import { Tenant, TenantMember, TenantVersion } from '@/lib/api';
+import { Tenant, TenantMember } from '@/lib/api';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { CaretSortIcon } from '@radix-ui/react-icons';
 import {

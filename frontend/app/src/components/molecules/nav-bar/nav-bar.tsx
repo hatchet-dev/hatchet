@@ -10,8 +10,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 
-import { useLocation, useNavigate } from 'react-router-dom';
-import api, { TenantMember, TenantVersion, User } from '@/lib/api';
+import { useNavigate } from 'react-router-dom';
+import api, { TenantMember, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
@@ -29,12 +29,10 @@ import {
 } from 'react-icons/bi';
 import { Menu } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useTenant } from '@/lib/atoms';
-import { routes } from '@/router';
-import { Banner, BannerProps } from './banner';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -118,7 +116,6 @@ function HelpDropdown() {
 
 function AccountDropdown({ user }: { user: User }) {
   const navigate = useNavigate();
-  const { tenant } = useTenant();
 
   const { handleApiError } = useApiError({});
 
@@ -192,29 +189,12 @@ function AccountDropdown({ user }: { user: User }) {
 interface MainNavProps {
   user: User;
   tenantMemberships: TenantMember[];
-  setHasBanner?: (state: boolean) => void;
 }
 
-export default function MainNav({ user, setHasBanner }: MainNavProps) {
+export default function MainNav({ user }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
   const { theme } = useTheme();
-  const { tenant } = useTenant();
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
   const breadcrumbs = useBreadcrumbs();
-
-  const tenantedRoutes = useMemo(
-    () =>
-      routes
-        .at(0)
-        ?.children?.find((r) => r.path?.startsWith('/tenants/'))
-        ?.children?.find(
-          (r) => r.path?.startsWith('/tenants/') && r.children?.length,
-        )
-        ?.children?.map((c) => c.path)
-        ?.map((p) => p?.replace('/tenants/:tenant', '')) || [],
-    [],
-  );
 
   return (
     <div className="fixed top-0 w-screen z-50">

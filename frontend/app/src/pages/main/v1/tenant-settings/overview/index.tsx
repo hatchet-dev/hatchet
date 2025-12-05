@@ -2,21 +2,15 @@ import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import api, { queries, TenantVersion, UpdateTenantRequest } from '@/lib/api';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import api, { UpdateTenantRequest } from '@/lib/api';
 import { Switch } from '@/components/v1/ui/switch';
 import { Label } from '@radix-ui/react-label';
 import { Spinner } from '@/components/v1/ui/loading';
 import { capitalize } from '@/lib/utils';
 import { UpdateTenantForm } from './components/update-tenant-form';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+
+import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
 

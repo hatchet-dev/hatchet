@@ -3,7 +3,6 @@ import api, {
   queries,
   Tenant,
   TenantEnvironment,
-  TenantVersion,
 } from '@/lib/api';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useApiError } from '@/lib/hooks';
