@@ -565,7 +565,6 @@ func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context
 }
 
 func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId pgtype.UUID) (*CutoverJobRunMetadata, error) {
-	fmt.Println("preparing cutover table job")
 	if p.inlineStoreTTL == nil {
 		return nil, fmt.Errorf("inline store TTL is not set")
 	}
@@ -586,13 +585,9 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 
 	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, 0)
 
-	fmt.Println("err", err)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire or extend cutover job lease: %w", err)
 	}
-
-	fmt.Printf("lease proc id: %s, should run: %t, date: %s, offset: %d\n", lease.LeaseProcessId.String(), lease.ShouldRun, lease.PartitionDate.String(), lease.LastOffset)
 
 	if !lease.ShouldRun {
 		return lease, nil
