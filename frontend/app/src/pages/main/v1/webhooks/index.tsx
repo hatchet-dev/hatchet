@@ -1,10 +1,5 @@
-import { columns, WebhookColumn } from './components/webhook-columns';
+import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import {
-  useWebhooks,
-  WebhookFormData,
-  webhookFormSchema,
-} from './hooks/use-webhooks';
 import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
@@ -16,6 +11,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
+import { Spinner } from '@/components/v1/ui/loading';
 import {
   Select,
   SelectContent,
@@ -23,24 +19,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { useCallback, useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
-  V1WebhookSourceName,
-  V1WebhookAuthType,
   V1CreateWebhookRequest,
+  V1WebhookAuthType,
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
+  V1WebhookSourceName,
 } from '@/lib/api';
-import { Webhook, Copy, Check, AlertTriangle, Lightbulb } from 'lucide-react';
-import { Spinner } from '@/components/v1/ui/loading';
-import { SourceName } from './components/source-name';
+import { docsPages } from '@/lib/generated/docs';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { AlertTriangle, Check, Copy, Lightbulb, Webhook } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import { AuthMethod } from './components/auth-method';
 import { AuthSetup } from './components/auth-setup';
-import { Link } from 'react-router-dom';
-import { DocsButton } from '@/components/v1/docs/docs-button';
-import { docsPages } from '@/lib/generated/docs';
+import { SourceName } from './components/source-name';
+import { columns, WebhookColumn } from './components/webhook-columns';
+import {
+  useWebhooks,
+  WebhookFormData,
+  webhookFormSchema,
+} from './hooks/use-webhooks';
 
 export default function Webhooks() {
   const { data, isLoading, error } = useWebhooks();
