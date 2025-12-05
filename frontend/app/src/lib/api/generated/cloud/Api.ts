@@ -16,6 +16,7 @@ import {
   APIError,
   APIErrors,
   APITokenList,
+  AutumnWebhookEvent,
   Build,
   CreateManagedWorkerFromTemplateRequest,
   CreateManagedWorkerRequest,
@@ -48,10 +49,10 @@ import {
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
   TenantBillingState,
-  TenantSubscription,
   UpdateManagedWorkerRequest,
   UpdateOrganizationRequest,
-  UpdateTenantSubscription,
+  UpdateTenantSubscriptionRequest,
+  UpdateTenantSubscriptionResponse,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
 } from "./data-contracts";
@@ -736,17 +737,21 @@ export class Api<
       ...params,
     });
   /**
-   * @description Receive a webhook message from Lago
+   * @description Receive a webhook message from Autumn
    *
    * @tags Billing
-   * @name LagoMessageCreate
-   * @summary Receive a webhook message from Lago
-   * @request POST:/api/v1/billing/lago/webhook
+   * @name AutumnEventCreate
+   * @summary Receive a webhook message from Autumn
+   * @request POST:/api/v1/billing/autumn/webhook
+   * @secure
    */
-  lagoMessageCreate = (params: RequestParams = {}) =>
+  autumnEventCreate = (data: AutumnWebhookEvent, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
-      path: `/api/v1/billing/lago/webhook`,
+      path: `/api/v1/billing/autumn/webhook`,
       method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
     });
   /**
@@ -777,10 +782,10 @@ export class Api<
    */
   subscriptionUpsert = (
     tenant: string,
-    data: UpdateTenantSubscription,
+    data: UpdateTenantSubscriptionRequest,
     params: RequestParams = {},
   ) =>
-    this.request<TenantSubscription, APIErrors>({
+    this.request<UpdateTenantSubscriptionResponse, APIErrors>({
       path: `/api/v1/billing/tenants/${tenant}/subscription`,
       method: "PATCH",
       body: data,

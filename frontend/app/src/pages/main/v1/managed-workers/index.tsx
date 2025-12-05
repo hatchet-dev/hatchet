@@ -4,7 +4,7 @@ import { ManagedWorkersTable } from './components/managed-workers-table';
 import { Button } from '@/components/ui/button';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
 import { BillingRequired } from './components/billing-required';
@@ -35,12 +35,6 @@ export default function ManagedWorkers() {
     managedCompute.canCreateWorkerPool(workerPoolCount),
   );
 
-  // stop polling billing if there are payment methods
-  useEffect(() => {
-    if (billing?.hasPaymentMethods) {
-      billing?.setPollBilling(false);
-    }
-  }, [billing, billing?.hasPaymentMethods]);
 
   const [, rejectReason] = can(managedCompute.create());
 

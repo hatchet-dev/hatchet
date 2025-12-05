@@ -343,7 +343,6 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
 }
 
 export interface TenantBillingState {
-  paymentMethods?: TenantPaymentMethod[];
   /** The subscription associated with this policy. */
   subscription: TenantSubscription;
   /** A list of plans available for the tenant. */
@@ -365,11 +364,20 @@ export interface SubscriptionPlan {
   period?: string;
 }
 
-export interface UpdateTenantSubscription {
+export interface UpdateTenantSubscriptionRequest {
   /** The code of the plan. */
-  plan?: string;
+  plan: string;
   /** The period of the plan. */
   period?: string;
+}
+
+export type UpdateTenantSubscriptionResponse =
+  | CheckoutURLResponse
+  | TenantSubscription;
+
+export interface CheckoutURLResponse {
+  /** The URL to the checkout page. */
+  checkout_url: string;
 }
 
 export interface TenantSubscription {
@@ -381,17 +389,6 @@ export interface TenantSubscription {
   status?: TenantSubscriptionStatus;
   /** A note associated with the tenant subscription. */
   note?: string;
-}
-
-export interface TenantPaymentMethod {
-  /** The brand of the payment method. */
-  brand: string;
-  /** The last 4 digits of the card. */
-  last4?: string;
-  /** The expiration date of the card. */
-  expiration?: string;
-  /** The description of the payment method. */
-  description?: string;
 }
 
 export interface Coupon {
@@ -790,4 +787,82 @@ export interface RejectOrganizationInviteRequest {
    * @format uuid
    */
   id: string;
+}
+
+export type AutumnWebhookEvent =
+  | AutumnCustomerProductsUpdatedEvent
+  | AutumnThresholdReachedEvent;
+
+export interface AutumnCustomerProductsUpdatedEvent {
+  data: AutumnCustomerProductsUpdatedEventData;
+  type: string;
+}
+
+export interface AutumnCustomerProductsUpdatedEventData {
+  customer: AutumnCustomer;
+  scenario: string;
+  updated_product: AutumnProduct;
+}
+
+export interface AutumnCustomer {
+  created_at: number;
+  email?: string;
+  env: string;
+  features: object;
+  fingerprint?: string;
+  id?: string;
+  metadata?: object;
+  name?: string;
+  products: any[];
+  stripe_id?: string;
+}
+
+export interface AutumnProduct {
+  created_at: number;
+  env: string;
+  free_trial: AutumnFreeTrialResponse;
+  group?: string;
+  id: string;
+  is_add_on: boolean;
+  is_default: boolean;
+  items: any[];
+  name?: string;
+  version: number;
+}
+
+export interface AutumnFreeTrialResponse {
+  days: number;
+}
+
+export interface AutumnThresholdReachedEvent {
+  customer: AutumnCustomer;
+  feature: AutumnFeature;
+  threshold_type: string;
+}
+
+export interface AutumnFeature {
+  archived?: boolean;
+  credit_schema?: any[];
+  display: AutumnFeatureDisplay;
+  id: string;
+  name?: string;
+  type: string;
+}
+
+export interface AutumnFeatureDisplay {
+  plural: string;
+  singular: string;
+}
+
+export interface AutumnCustomerProduct {
+  canceled_at?: number;
+  current_period_end?: number;
+  current_period_start?: number;
+  entity_id?: string;
+  group?: string;
+  id: string;
+  name?: string;
+  started_at: number;
+  status: string;
+  subscription_ids?: any[];
 }

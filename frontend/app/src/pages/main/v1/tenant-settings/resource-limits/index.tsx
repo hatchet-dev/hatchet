@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './components/resource-limit-columns';
-import { PaymentMethods, Subscription } from '@/components/v1/cloud/billing';
+import { Subscription } from '@/components/v1/cloud/billing';
 import { Spinner } from '@/components/v1/ui/loading';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
@@ -26,9 +26,6 @@ export default function ResourceLimits() {
 
   const billingEnabled = cloudMeta?.data.canBill;
 
-  const hasPaymentMethods =
-    (billingState.data?.paymentMethods?.length || 0) > 0;
-
   if (resourcePolicyQuery.isLoading || billingState.isLoading) {
     return (
       <div className="flex-grow h-full w-full px-4 sm:px-6 lg:px-8">
@@ -49,13 +46,7 @@ export default function ResourceLimits() {
             </div>
           </div>
           <Separator className="my-4" />
-          <PaymentMethods
-            hasMethods={hasPaymentMethods}
-            methods={billingState.data?.paymentMethods}
-          />
-          <Separator className="my-4" />
           <Subscription
-            hasPaymentMethods={hasPaymentMethods}
             active={billingState.data?.subscription}
             plans={billingState.data?.plans}
             coupons={billingState.data?.coupons}

@@ -1,5 +1,4 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -21,14 +20,13 @@ import {
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
-import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
+// import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import { useMutation } from '@tanstack/react-query';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface SubscriptionProps {
   active?: TenantSubscription;
   plans?: SubscriptionPlan[];
-  hasPaymentMethods?: boolean;
   coupons?: Coupon[];
 }
 
@@ -36,7 +34,6 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   active,
   plans,
   coupons,
-  hasPaymentMethods,
 }) => {
   // Implement the logic for the Subscription component here
 
@@ -70,9 +67,17 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
       const [plan, period] = plan_code.split(':');
       setLoading(plan_code);
-      await cloudApi.subscriptionUpsert(tenantId, { plan, period });
+      const response = await cloudApi.subscriptionUpsert(tenantId, { plan, period });
+      return response.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
+      // Check if response is a CheckoutURLResponse
+      if (data && 'checkout_url' in data) {
+        window.location.href = data.checkout_url;
+        return;
+      }
+
+      // Otherwise it's a TenantSubscription, so invalidate queries
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: queries.tenantResourcePolicy.get(tenantId).queryKey,
@@ -88,10 +93,12 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   });
 
   const activePlanCode = useMemo(
-    () =>
-      active?.plan
-        ? [active.plan, active.period].filter((x) => !!x).join(':')
-        : 'free',
+    () => {
+      if (!active?.plan || active.plan === 'free') {
+        return 'free';
+      }
+      return [active.plan, active.period].filter((x) => !!x).join(':');
+    },
     [active],
   );
 
@@ -166,20 +173,29 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             ))}
           </h3>
 
-          <div className="flex gap-2">
-            <Switch
-              id="sa"
-              checked={showAnnual}
-              onClick={() => {
-                setShowAnnual((checkedState) => !checkedState);
-              }}
-            />
-            <Label htmlFor="sa" className="text-sm">
-              Annual Billing{' '}
-              <Badge variant="inProgress" className="ml-2">
-                Save up to 20%
-              </Badge>
-            </Label>
+          <div className="flex gap-4 items-center">
+            <Button
+              onClick={manageClicked}
+              variant="outline"
+              disabled={portalLoading}
+            >
+              {portalLoading ? <Spinner /> : 'Visit Billing Portal'}
+            </Button>
+            <div className="flex gap-2">
+              <Switch
+                id="sa"
+                checked={showAnnual}
+                onClick={() => {
+                  setShowAnnual((checkedState) => !checkedState);
+                }}
+              />
+              <Label htmlFor="sa" className="text-sm">
+                Annual Billing{' '}
+                <Badge variant="inProgress" className="ml-2">
+                  Save up to 20%
+                </Badge>
+              </Label>
+            </div>
           </div>
         </div>
         <p className="text-gray-700 dark:text-gray-300 my-4">
@@ -198,23 +214,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
           </a>{' '}
           if you have custom requirements.
         </p>
-        {!hasPaymentMethods && (
-          <Alert variant="warn" className="mb-4">
-            <ExclamationTriangleIcon className="h-4 w-4" />
-            <AlertTitle className="font-semibold">
-              No Payment Method.
-            </AlertTitle>
-            <AlertDescription>
-              A payment method is required to upgrade your subscription, please{' '}
-              <a onClick={manageClicked} className="underline pointer" href="#">
-                add one
-              </a>{' '}
-              first.
-            </AlertDescription>
-          </Alert>
-        )}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
           {sortedPlans?.map((plan, i) => (
             <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
               <CardHeader>
@@ -233,7 +234,6 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 <CardDescription>
                   <Button
                     disabled={
-                      !hasPaymentMethods ||
                       plan.plan_code === activePlanCode ||
                       loading === plan.plan_code
                     }
@@ -256,6 +256,24 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               </CardHeader>
             </Card>
           ))}
+          <Card className="bg-muted/30 gap-4 flex-col flex">
+            <CardHeader>
+              <CardTitle className="tracking-wide text-sm">
+                Enterprise
+              </CardTitle>
+              <CardDescription className="py-4">
+                Custom pricing
+              </CardDescription>
+              <CardDescription>
+                <Button
+                  variant="default"
+                  onClick={() => window.open('https://hatchet.run/office-hours', '_blank')}
+                >
+                  Contact Us
+                </Button>
+              </CardDescription>
+            </CardHeader>
+          </Card>
         </div>
         {active?.note && <p className="mt-4">{active?.note}</p>}
         <p className="text-sm text-gray-500 mt-4">
