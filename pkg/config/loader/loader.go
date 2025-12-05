@@ -293,7 +293,13 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DurableSleepLimit: scf.Runtime.TaskOperationLimits.DurableSleepLimit,
 	}
 
-	inlineStoreTTL := time.Duration(scf.PayloadStore.InlineStoreTTLDays) * 24 * time.Hour
+	inlineStoreTTLDays := scf.PayloadStore.InlineStoreTTLDays
+
+	if inlineStoreTTLDays <= 0 {
+		return nil, fmt.Errorf("inline store TTL days must be greater than 0")
+	}
+
+	inlineStoreTTL := time.Duration(inlineStoreTTLDays) * 24 * time.Hour
 
 	payloadStoreOpts := repov1.PayloadStoreRepositoryOpts{
 		EnablePayloadDualWrites:          scf.PayloadStore.EnablePayloadDualWrites,
