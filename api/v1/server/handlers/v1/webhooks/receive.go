@@ -106,10 +106,12 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			/* Parse form-encoded data */
 			formData, err := url.ParseQuery(string(rawBody))
 			if err != nil {
+				errorMsg := fmt.Sprintf("failed to parse form data: %v", err)
+				w.config.Logger.Warn().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Msg(errorMsg)
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
 						{
-							Description: fmt.Sprintf("failed to parse form data: %v", err),
+							Description: errorMsg,
 						},
 					},
 				}, nil
@@ -122,10 +124,18 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			if webhook.SourceName == sqlcv1.V1IncomingWebhookSourceNameSLACK {
 				payloadValue := formData.Get("payload")
 				if payloadValue == "" {
+					errorMsg := "missing payload parameter in form-encoded request"
+					w.config.Logger.Warn().Str("webhook", webhookName).Str("tenant", tenantId).Str("form_keys", fmt.Sprintf("%v", func() []string {
+						keys := make([]string, 0, len(formData))
+						for k := range formData {
+							keys = append(keys, k)
+						}
+						return keys
+					}())).Msg(errorMsg)
 					return gen.V1WebhookReceive400JSONResponse{
 						Errors: []gen.APIError{
 							{
-								Description: "missing payload parameter in form-encoded request",
+								Description: errorMsg,
 							},
 						},
 					}, nil
@@ -134,15 +144,16 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 				 * Note: url.ParseQuery automatically URL-decodes the payload parameter value */
 				err := json.Unmarshal([]byte(payloadValue), &payloadMap)
 				if err != nil {
+					payloadPreview := payloadValue
+					if len(payloadPreview) > 200 {
+						payloadPreview = payloadPreview[:200] + "..."
+					}
+					errorMsg := fmt.Sprintf("failed to unmarshal payload parameter as JSON: %v", err)
+					w.config.Logger.Warn().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Int("payload_length", len(payloadValue)).Str("payload_preview", payloadPreview).Msg(errorMsg)
 					return gen.V1WebhookReceive400JSONResponse{
 						Errors: []gen.APIError{
 							{
-								Description: fmt.Sprintf("failed to unmarshal payload parameter as JSON: %v (payload length: %d, first 100 chars: %q)", err, len(payloadValue), func() string {
-									if len(payloadValue) > 100 {
-										return payloadValue[:100]
-									}
-									return payloadValue
-								}()),
+								Description: fmt.Sprintf("failed to unmarshal payload parameter as JSON: %v (payload length: %d)", err, len(payloadValue)),
 							},
 						},
 					}, nil
@@ -168,6 +179,12 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			/* If not form-encoded, assume JSON */
 			err := json.Unmarshal(rawBody, &payloadMap)
 			if err != nil {
+				bodyPreview := string(rawBody)
+				if len(bodyPreview) > 200 {
+					bodyPreview = bodyPreview[:200] + "..."
+				}
+				errorMsg := fmt.Sprintf("failed to unmarshal request body as JSON: %v", err)
+				w.config.Logger.Warn().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Str("content_type", contentType).Int("body_length", len(rawBody)).Str("body_preview", bodyPreview).Msg(errorMsg)
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
 						{
