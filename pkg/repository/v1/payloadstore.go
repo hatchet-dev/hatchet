@@ -66,7 +66,7 @@ type PayloadStoreRepository interface {
 	ExternalCutoverProcessInterval() time.Duration
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
-	CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error
+	ProcessPayloadCutovers(ctx context.Context) error
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -680,12 +680,12 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 	return nil
 }
 
-func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error {
+func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context) error {
 	if !p.externalStoreEnabled {
 		return nil
 	}
 
-	ctx, span := telemetry.NewSpan(ctx, "payload_store_repository_impl.CopyOffloadedPayloadsIntoTempTable")
+	ctx, span := telemetry.NewSpan(ctx, "payload_store_repository_impl.ProcessPayloadCutovers")
 	defer span.End()
 
 	if p.inlineStoreTTL == nil {
