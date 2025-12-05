@@ -1759,7 +1759,9 @@ $$;
 CREATE TABLE v1_payload_cutover_job_offset (
     key DATE PRIMARY KEY,
     last_offset BIGINT NOT NULL,
-    is_completed BOOLEAN NOT NULL DEFAULT FALSE
+    is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+    lease_process_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    lease_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(

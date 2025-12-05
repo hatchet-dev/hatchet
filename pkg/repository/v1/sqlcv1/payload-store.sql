@@ -244,16 +244,16 @@ SELECT copy_v1_payload_partition_structure(@date::DATE);
 -- name: SwapV1PayloadPartitionWithTemp :exec
 SELECT swap_v1_payload_partition_with_temp(@date::DATE);
 
--- name: FindLastOffsetForCutoverJob :one
-SELECT *
-FROM v1_payload_cutover_job_offset
-WHERE key = @key::DATE;
-
--- name: UpsertLastOffsetForCutoverJob :exec
-INSERT INTO v1_payload_cutover_job_offset (key, last_offset)
-VALUES (@key::DATE, @lastOffset::BIGINT)
+-- name: AcquireOrExtendCutoverJobLease :one
+INSERT INTO v1_payload_cutover_job_offset (key, last_offset, lease_process_id, lease_expires_at)
+VALUES (@key::DATE, @lastOffset::BIGINT, @leaseProcessId::UUID, @leaseExpiresAt::TIMESTAMPTZ)
 ON CONFLICT (key)
-DO UPDATE SET last_offset = EXCLUDED.last_offset
+DO UPDATE SET
+    last_offset = EXCLUDED.last_offset,
+    lease_process_id = EXCLUDED.lease_process_id,
+    lease_expires_at = EXCLUDED.lease_expires_at
+WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = @leaseProcessId::UUID
+RETURNING *
 ;
 
 -- name: MarkCutoverJobAsCompleted :exec

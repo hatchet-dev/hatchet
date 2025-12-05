@@ -11,6 +11,43 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acquireOrExtendCutoverJobLease = `-- name: AcquireOrExtendCutoverJobLease :one
+INSERT INTO v1_payload_cutover_job_offset (key, last_offset, lease_process_id, lease_expires_at)
+VALUES ($1::DATE, $2::BIGINT, $3::UUID, $4::TIMESTAMPTZ)
+ON CONFLICT (key)
+DO UPDATE SET
+    last_offset = EXCLUDED.last_offset,
+    lease_process_id = EXCLUDED.lease_process_id,
+    lease_expires_at = EXCLUDED.lease_expires_at
+WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = $3::UUID
+RETURNING key, last_offset, is_completed, lease_process_id, lease_expires_at
+`
+
+type AcquireOrExtendCutoverJobLeaseParams struct {
+	Key            pgtype.Date        `json:"key"`
+	Lastoffset     int64              `json:"lastoffset"`
+	Leaseprocessid pgtype.UUID        `json:"leaseprocessid"`
+	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
+}
+
+func (q *Queries) AcquireOrExtendCutoverJobLease(ctx context.Context, db DBTX, arg AcquireOrExtendCutoverJobLeaseParams) (*V1PayloadCutoverJobOffset, error) {
+	row := db.QueryRow(ctx, acquireOrExtendCutoverJobLease,
+		arg.Key,
+		arg.Lastoffset,
+		arg.Leaseprocessid,
+		arg.Leaseexpiresat,
+	)
+	var i V1PayloadCutoverJobOffset
+	err := row.Scan(
+		&i.Key,
+		&i.LastOffset,
+		&i.IsCompleted,
+		&i.LeaseProcessID,
+		&i.LeaseExpiresAt,
+	)
+	return &i, err
+}
+
 const analyzeV1Payload = `-- name: AnalyzeV1Payload :exec
 ANALYZE v1_payload
 `
@@ -81,19 +118,6 @@ func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg Cu
 	var count int64
 	err := row.Scan(&count)
 	return count, err
-}
-
-const findLastOffsetForCutoverJob = `-- name: FindLastOffsetForCutoverJob :one
-SELECT key, last_offset, is_completed
-FROM v1_payload_cutover_job_offset
-WHERE key = $1::DATE
-`
-
-func (q *Queries) FindLastOffsetForCutoverJob(ctx context.Context, db DBTX, key pgtype.Date) (*V1PayloadCutoverJobOffset, error) {
-	row := db.QueryRow(ctx, findLastOffsetForCutoverJob, key)
-	var i V1PayloadCutoverJobOffset
-	err := row.Scan(&i.Key, &i.LastOffset, &i.IsCompleted)
-	return &i, err
 }
 
 const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many
@@ -430,23 +454,6 @@ SELECT swap_v1_payload_partition_with_temp($1::DATE)
 
 func (q *Queries) SwapV1PayloadPartitionWithTemp(ctx context.Context, db DBTX, date pgtype.Date) error {
 	_, err := db.Exec(ctx, swapV1PayloadPartitionWithTemp, date)
-	return err
-}
-
-const upsertLastOffsetForCutoverJob = `-- name: UpsertLastOffsetForCutoverJob :exec
-INSERT INTO v1_payload_cutover_job_offset (key, last_offset)
-VALUES ($1::DATE, $2::BIGINT)
-ON CONFLICT (key)
-DO UPDATE SET last_offset = EXCLUDED.last_offset
-`
-
-type UpsertLastOffsetForCutoverJobParams struct {
-	Key        pgtype.Date `json:"key"`
-	Lastoffset int64       `json:"lastoffset"`
-}
-
-func (q *Queries) UpsertLastOffsetForCutoverJob(ctx context.Context, db DBTX, arg UpsertLastOffsetForCutoverJobParams) error {
-	_, err := db.Exec(ctx, upsertLastOffsetForCutoverJob, arg.Key, arg.Lastoffset)
 	return err
 }
 
