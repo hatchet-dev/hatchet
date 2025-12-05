@@ -30,7 +30,6 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	tenantId := request.Tenant.String()
 	webhookName := request.V1Webhook
 
-	/* Log incoming webhook request for debugging */
 	w.config.Logger.Debug().Str("webhook", webhookName).Str("tenant", tenantId).Str("method", ctx.Request().Method).Str("content_type", ctx.Request().Header.Get("Content-Type")).Msg("received webhook request")
 
 	tenant, err := w.config.APIRepository.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
@@ -106,7 +105,6 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		contentType := ctx.Request().Header.Get("Content-Type")
 
 		if strings.Contains(contentType, "application/x-www-form-urlencoded") {
-			/* Parse form-encoded data */
 			formData, err := url.ParseQuery(string(rawBody))
 			if err != nil {
 				errorMsg := fmt.Sprintf("failed to parse form data: %v", err)
@@ -143,8 +141,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 						},
 					}, nil
 				}
-				/* Parse the payload parameter as JSON
-				 * Note: url.ParseQuery automatically URL-decodes the payload parameter value */
+				/* url.ParseQuery automatically URL-decodes the payload parameter value */
 				err := json.Unmarshal([]byte(payloadValue), &payloadMap)
 				if err != nil {
 					payloadPreview := payloadValue
@@ -179,7 +176,6 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 				}, nil
 			}
 		} else {
-			/* If not form-encoded, assume JSON */
 			err := json.Unmarshal(rawBody, &payloadMap)
 			if err != nil {
 				bodyPreview := string(rawBody)
@@ -218,11 +214,15 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	)
 
 	if err != nil {
-		if eventKey == "" {
-			err = fmt.Errorf("event key evaluted to an empty string")
+		var errorMsg string
+		if strings.Contains(err.Error(), "did not evaluate to a string") {
+			errorMsg = fmt.Sprintf("event key expression must evaluate to a string, but got a different type. Expression: %s. Error: %v. For Slack webhooks, try: 'slack:' + input.type or input.type", webhook.EventKeyExpression, err)
+		} else if eventKey == "" {
+			errorMsg = fmt.Sprintf("event key evaluated to an empty string. Expression: %s. For Slack webhooks, try: 'slack:' + input.type or input.type", webhook.EventKeyExpression)
+		} else {
+			errorMsg = fmt.Sprintf("failed to evaluate event key expression: %v", err)
 		}
 
-		errorMsg := fmt.Sprintf("failed to evaluate event key expression: %v", err)
 		w.config.Logger.Warn().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Str("event_key_expression", webhook.EventKeyExpression).Msg(errorMsg)
 
 		ingestionErr := w.config.Ingestor.IngestCELEvaluationFailure(
