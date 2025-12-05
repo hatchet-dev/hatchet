@@ -130,13 +130,19 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 						},
 					}, nil
 				}
-				/* Parse the payload parameter as JSON */
+				/* Parse the payload parameter as JSON
+				 * Note: url.ParseQuery automatically URL-decodes the payload parameter value */
 				err := json.Unmarshal([]byte(payloadValue), &payloadMap)
 				if err != nil {
 					return gen.V1WebhookReceive400JSONResponse{
 						Errors: []gen.APIError{
 							{
-								Description: fmt.Sprintf("failed to unmarshal payload parameter: %v", err),
+								Description: fmt.Sprintf("failed to unmarshal payload parameter as JSON: %v (payload length: %d, first 100 chars: %q)", err, len(payloadValue), func() string {
+									if len(payloadValue) > 100 {
+										return payloadValue[:100]
+									}
+									return payloadValue
+								}()),
 							},
 						},
 					}, nil
