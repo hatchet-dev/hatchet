@@ -20,6 +20,15 @@ func (q *Queries) AnalyzeV1Payload(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const createV1PayloadCutoverTemporaryTable = `-- name: CreateV1PayloadCutoverTemporaryTable :exec
+SELECT copy_v1_payload_partition_structure($1::DATE)
+`
+
+func (q *Queries) CreateV1PayloadCutoverTemporaryTable(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, createV1PayloadCutoverTemporaryTable, date)
+	return err
+}
+
 const cutOverPayloadsToExternal = `-- name: CutOverPayloadsToExternal :one
 WITH tenants AS (
     SELECT UNNEST(
@@ -72,6 +81,101 @@ func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg Cu
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const findLastOffsetForCutoverJob = `-- name: FindLastOffsetForCutoverJob :one
+SELECT key, last_offset, is_completed
+FROM v1_payload_cutover_job_offset
+WHERE key = $1::DATE
+`
+
+func (q *Queries) FindLastOffsetForCutoverJob(ctx context.Context, db DBTX, key pgtype.Date) (*V1PayloadCutoverJobOffset, error) {
+	row := db.QueryRow(ctx, findLastOffsetForCutoverJob, key)
+	var i V1PayloadCutoverJobOffset
+	err := row.Scan(&i.Key, &i.LastOffset, &i.IsCompleted)
+	return &i, err
+}
+
+const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM list_paginated_payloads_for_offload(
+        $1::DATE,
+        $2::INT,
+        $3::BIGINT
+    ) p
+)
+SELECT
+    tenant_id::UUID,
+    id::BIGINT,
+    inserted_at::TIMESTAMPTZ,
+    external_id::UUID,
+    type::v1_payload_type,
+    location::v1_payload_location,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
+    updated_at::TIMESTAMPTZ
+FROM payloads
+`
+
+type ListPaginatedPayloadsForOffloadParams struct {
+	Partitiondate pgtype.Date `json:"partitiondate"`
+	Limitparam    int32       `json:"limitparam"`
+	Offsetparam   int64       `json:"offsetparam"`
+}
+
+type ListPaginatedPayloadsForOffloadRow struct {
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	ID                  int64              `json:"id"`
+	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID          pgtype.UUID        `json:"external_id"`
+	Type                V1PayloadType      `json:"type"`
+	Location            V1PayloadLocation  `json:"location"`
+	ExternalLocationKey string             `json:"external_location_key"`
+	InlineContent       []byte             `json:"inline_content"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListPaginatedPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedPayloadsForOffloadParams) ([]*ListPaginatedPayloadsForOffloadRow, error) {
+	rows, err := db.Query(ctx, listPaginatedPayloadsForOffload, arg.Partitiondate, arg.Limitparam, arg.Offsetparam)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListPaginatedPayloadsForOffloadRow
+	for rows.Next() {
+		var i ListPaginatedPayloadsForOffloadRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.Type,
+			&i.Location,
+			&i.ExternalLocationKey,
+			&i.InlineContent,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markCutoverJobAsCompleted = `-- name: MarkCutoverJobAsCompleted :exec
+UPDATE v1_payload_cutover_job_offset
+SET is_completed = TRUE
+WHERE key = $1::DATE
+`
+
+func (q *Queries) MarkCutoverJobAsCompleted(ctx context.Context, db DBTX, key pgtype.Date) error {
+	_, err := db.Exec(ctx, markCutoverJobAsCompleted, key)
+	return err
 }
 
 const pollPayloadWALForRecordsToReplicate = `-- name: PollPayloadWALForRecordsToReplicate :many
@@ -320,6 +424,32 @@ func (q *Queries) SetPayloadExternalKeys(ctx context.Context, db DBTX, arg SetPa
 	return items, nil
 }
 
+const swapV1PayloadPartitionWithTemp = `-- name: SwapV1PayloadPartitionWithTemp :exec
+SELECT swap_v1_payload_partition_with_temp($1::DATE)
+`
+
+func (q *Queries) SwapV1PayloadPartitionWithTemp(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, swapV1PayloadPartitionWithTemp, date)
+	return err
+}
+
+const upsertLastOffsetForCutoverJob = `-- name: UpsertLastOffsetForCutoverJob :exec
+INSERT INTO v1_payload_cutover_job_offset (key, last_offset)
+VALUES ($1::DATE, $2::BIGINT)
+ON CONFLICT (key)
+DO UPDATE SET last_offset = EXCLUDED.last_offset
+`
+
+type UpsertLastOffsetForCutoverJobParams struct {
+	Key        pgtype.Date `json:"key"`
+	Lastoffset int64       `json:"lastoffset"`
+}
+
+func (q *Queries) UpsertLastOffsetForCutoverJob(ctx context.Context, db DBTX, arg UpsertLastOffsetForCutoverJobParams) error {
+	_, err := db.Exec(ctx, upsertLastOffsetForCutoverJob, arg.Key, arg.Lastoffset)
+	return err
+}
+
 const writePayloadWAL = `-- name: WritePayloadWAL :exec
 WITH inputs AS (
     SELECT
@@ -401,6 +531,7 @@ SELECT
     i.inline_content
 FROM
     inputs i
+ORDER BY i.tenant_id, i.inserted_at, i.id, i.type
 ON CONFLICT (tenant_id, id, inserted_at, type)
 DO UPDATE SET
     location = EXCLUDED.location,
