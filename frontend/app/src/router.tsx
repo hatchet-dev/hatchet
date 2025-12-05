@@ -469,16 +469,6 @@ export const routes: RouteObject[] = [
           }),
         children: [
           {
-            path: '/',
-            lazy: async () => {
-              return {
-                loader: function () {
-                  return redirect('/workflow-runs');
-                },
-              };
-            },
-          },
-          {
             path: '/onboarding/create-tenant',
             lazy: async () =>
               import('./pages/onboarding/create-tenant').then((res) => {
