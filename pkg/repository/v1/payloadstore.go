@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -536,9 +537,15 @@ func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context
 	})
 
 	if err != nil {
-		if err != nil {
-			return nil, fmt.Errorf("failed to create initial cutover job lease: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &CutoverJobRunMetadata{
+				ShouldRun:      false,
+				LastOffset:     lease.LastOffset,
+				PartitionDate:  partitionDate,
+				LeaseProcessId: lease.LeaseProcessID,
+			}, nil
 		}
+		return nil, fmt.Errorf("failed to create initial cutover job lease: %w", err)
 	}
 
 	if lease.LeaseProcessID != processId || lease.IsCompleted {
