@@ -469,6 +469,15 @@ const routes: RouteObject[] = [
           }),
         children: [
           {
+            index: true,
+            lazy: async () =>
+              import('./pages/root-redirect').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
             path: '/onboarding/create-tenant',
             lazy: async () =>
               import('./pages/onboarding/create-tenant').then((res) => {
