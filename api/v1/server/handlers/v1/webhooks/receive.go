@@ -100,16 +100,10 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	payloadMap := make(map[string]interface{})
 
 	if rawBody != nil {
-		/* Handle different content types:
-		 * - Interactive payloads: application/x-www-form-urlencoded with payload parameter containing JSON
-		 * - Events API: application/json with direct JSON payload
-		 * See: https://docs.slack.dev/interactivity/handling-user-interaction/#payloads
-		 */
 		contentType := ctx.Request().Header.Get("Content-Type")
-		var payloadJSON []byte
 
 		if strings.Contains(contentType, "application/x-www-form-urlencoded") {
-			/* Parse form-encoded data for interactive payloads */
+			/* Parse form-encoded data */
 			formData, err := url.ParseQuery(string(rawBody))
 			if err != nil {
 				return gen.V1WebhookReceive400JSONResponse{
@@ -121,32 +115,61 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 				}, nil
 			}
 
-			/* Extract the payload field which contains JSON */
-			payloadValue := formData.Get("payload")
-			if payloadValue == "" {
+			/* Slack interactive payloads use a 'payload' parameter containing JSON
+			 * See: https://docs.slack.dev/interactivity/handling-user-interaction/#payloads
+			 * For GENERIC webhooks, we convert all form fields directly to the payload map
+			 */
+			if webhook.SourceName == sqlcv1.V1IncomingWebhookSourceNameSLACK {
+				payloadValue := formData.Get("payload")
+				if payloadValue == "" {
+					return gen.V1WebhookReceive400JSONResponse{
+						Errors: []gen.APIError{
+							{
+								Description: "missing payload parameter in form-encoded request",
+							},
+						},
+					}, nil
+				}
+				/* Parse the payload parameter as JSON */
+				err := json.Unmarshal([]byte(payloadValue), &payloadMap)
+				if err != nil {
+					return gen.V1WebhookReceive400JSONResponse{
+						Errors: []gen.APIError{
+							{
+								Description: fmt.Sprintf("failed to unmarshal payload parameter: %v", err),
+							},
+						},
+					}, nil
+				}
+			} else if webhook.SourceName == sqlcv1.V1IncomingWebhookSourceNameGENERIC {
+				/* For GENERIC webhooks, convert all form fields to the payload map */
+				for key, values := range formData {
+					if len(values) > 0 {
+						payloadMap[key] = values[0]
+					}
+				}
+			} else {
+				/* For other webhook sources, form-encoded data is unexpected - return error */
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
 						{
-							Description: "missing payload parameter in form-encoded request",
+							Description: fmt.Sprintf("form-encoded requests are not supported for webhook source: %s", webhook.SourceName),
 						},
 					},
 				}, nil
 			}
-			payloadJSON = []byte(payloadValue)
 		} else {
 			/* If not form-encoded, assume JSON */
-			payloadJSON = rawBody
-		}
-
-		err := json.Unmarshal(payloadJSON, &payloadMap)
-		if err != nil {
-			return gen.V1WebhookReceive400JSONResponse{
-				Errors: []gen.APIError{
-					{
-						Description: fmt.Sprintf("failed to unmarshal request body: %v", err),
+			err := json.Unmarshal(rawBody, &payloadMap)
+			if err != nil {
+				return gen.V1WebhookReceive400JSONResponse{
+					Errors: []gen.APIError{
+						{
+							Description: fmt.Sprintf("failed to unmarshal request body: %v", err),
+						},
 					},
-				},
-			}, nil
+				}, nil
+			}
 		}
 
 		// This could cause unexpected behavior if the payload contains a key named "tenant" or "v1-webhook"
@@ -305,9 +328,9 @@ func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlc
 		 * See: https://docs.slack.dev/interactivity/handling-user-interaction/#payloads
 		 */
 		contentType := request.Header.Get("Content-Type")
-		
+
 		var payloadJSON []byte
-		
+
 		if strings.Contains(contentType, "application/x-www-form-urlencoded") {
 			/* Parse form-encoded data */
 			formData, err := url.ParseQuery(string(webhookPayload))
@@ -315,7 +338,7 @@ func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlc
 				/* If we can't parse form data, it's likely not a challenge - let normal processing handle it */
 				return false, nil, nil
 			}
-			
+
 			/* Extract the payload field which contains JSON */
 			payloadValue := formData.Get("payload")
 			if payloadValue == "" {
@@ -327,7 +350,7 @@ func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlc
 			/* If not form-encoded, assume JSON */
 			payloadJSON = webhookPayload
 		}
-		
+
 		payload := make(map[string]interface{})
 		err := json.Unmarshal(payloadJSON, &payload)
 		if err != nil {
@@ -341,7 +364,7 @@ func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlc
 		 */
 		payloadType, hasType := payload["type"].(string)
 		challenge, hasChallenge := payload["challenge"].(string)
-		
+
 		/* Accept if challenge exists and type is url_verification
 		 * If type is missing but challenge exists, still accept it (defensive: in case Slack sends malformed challenge) */
 		if hasChallenge && challenge != "" {
