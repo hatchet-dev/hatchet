@@ -14,6 +14,7 @@ import (
 	"hash"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -261,11 +262,39 @@ type IsChallenge bool
 func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlcv1.V1IncomingWebhook, request http.Request) (IsChallenge, map[string]interface{}, error) {
 	switch webhook.SourceName {
 	case sqlcv1.V1IncomingWebhookSourceNameSLACK:
+		/* Slack sends requests in different formats:
+		 * - Events API URL verification: application/json with direct JSON payload
+		 * - Interactive components: application/x-www-form-urlencoded with a payload field containing JSON
+		 * See: https://docs.slack.dev/interactivity/handling-user-interaction/#payloads
+		 */
+		contentType := request.Header.Get("Content-Type")
+		
+		var payloadJSON []byte
+		
+		if strings.Contains(contentType, "application/x-www-form-urlencoded") {
+			/* Parse form-encoded data */
+			formData, err := url.ParseQuery(string(webhookPayload))
+			if err != nil {
+				return false, nil, fmt.Errorf("failed to parse form data: %w", err)
+			}
+			
+			/* Extract the payload field which contains JSON */
+			payloadValue := formData.Get("payload")
+			if payloadValue == "" {
+				/* If no payload field, try parsing the raw body as JSON (for non-challenge requests) */
+				payloadJSON = webhookPayload
+			} else {
+				payloadJSON = []byte(payloadValue)
+			}
+		} else {
+			/* If not form-encoded, assume JSON */
+			payloadJSON = webhookPayload
+		}
+		
 		payload := make(map[string]interface{})
-		err := json.Unmarshal(webhookPayload, &payload)
-
+		err := json.Unmarshal(payloadJSON, &payload)
 		if err != nil {
-			return false, nil, fmt.Errorf("failed to parse form data: %s", err)
+			return false, nil, fmt.Errorf("failed to parse JSON payload: %w", err)
 		}
 
 		if challenge, ok := payload["challenge"].(string); ok && challenge != "" {
