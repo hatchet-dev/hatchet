@@ -8,18 +8,18 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { Step, Steps } from '@/components/v1/ui/steps';
-import { useTenant } from '@/lib/atoms';
 import { MembershipsContextType, UserContextType } from '@/lib/outlet';
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-auth';
 import { DefaultOnboardingWorkflow } from './platforms/defaults/default-onboarding-workflow';
 import { WorkerListener } from './platforms/defaults/default-worker-listener';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 export default function GetStarted() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
   const { user, memberships } = ctx;
-  const { tenant: currTenant } = useTenant();
+  const { tenant: currTenant } = useTenantDetails();
 
   const [quickstartClonedOpen, setQuickstartClonedOpen] = useState(true);
   const [quickstartCloned, setQuickstartCloned] = useState(false);

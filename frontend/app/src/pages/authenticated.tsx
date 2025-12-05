@@ -5,17 +5,15 @@ import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import SupportChat from '@/components/molecules/support-chat';
 import { PostHogProvider } from '@/providers/posthog';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useContextFromParent } from '@/lib/outlet';
-import { useTenant } from '@/lib/atoms';
 import { AxiosError } from 'axios';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { cloudApi } from '@/lib/api/api';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 export default function Authenticated() {
-  const [hasHasBanner, setHasBanner] = useState(false);
-
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
 
   const { data: cloudMetadata } = useQuery({
     queryKey: ['metadata'],
@@ -158,9 +156,7 @@ export default function Authenticated() {
             user={userQuery.data}
             tenantMemberships={listMembershipsQuery.data?.rows || []}
           />
-          <div
-            className={`${hasHasBanner ? 'pt-28' : 'pt-16'} flex-grow overflow-y-auto overflow-x-hidden`}
-          >
+          <div className="pt-16 flex-grow overflow-y-auto overflow-x-hidden">
             <Outlet context={ctx} />
           </div>
         </div>

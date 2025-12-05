@@ -401,7 +401,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
   }
 };
 
-export const routes: RouteObject[] = [
+const routes: RouteObject[] = [
   {
     path: '/',
     element: <Root />,
@@ -493,15 +493,6 @@ export const routes: RouteObject[] = [
                 return {
                   Component: res.default,
                   loader: res.loader,
-                };
-              }),
-          },
-          {
-            path: '/',
-            lazy: async () =>
-              import('./pages/main').then((res) => {
-                return {
-                  Component: res.default,
                 };
               }),
           },

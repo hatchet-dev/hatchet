@@ -32,7 +32,6 @@ import { useTheme } from '@/components/theme-provider';
 import { useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
-import { useTenant } from '@/lib/atoms';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -43,11 +42,12 @@ import {
 } from '@/components/v1/ui/breadcrumb';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 function HelpDropdown() {
   const meta = useApiMeta();
   const navigate = useNavigate();
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
 
   const hasPylon = useMemo(() => {
     if (!meta.data?.pylonAppId) {

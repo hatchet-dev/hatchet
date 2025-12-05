@@ -1,10 +1,10 @@
-import { useTenant } from '@/lib/atoms';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import posthog from 'posthog-js';
 import { PostHogProvider as PhProvider, usePostHog } from 'posthog-js/react';
 import { useEffect, useRef, useMemo, createContext } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { User } from '@/lib/api';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 const CROSS_DOMAIN_SESSION_ID_KEY = 'session_id';
 const CROSS_DOMAIN_DISTINCT_ID_KEY = 'distinct_id';
@@ -32,7 +32,7 @@ interface PostHogProviderProps {
  */
 export function PostHogProvider({ children, user }: PostHogProviderProps) {
   const meta = useApiMeta();
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
   const initializedRef = useRef(false);
 
   const config = useMemo(() => {
