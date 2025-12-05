@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -65,7 +66,7 @@ type PayloadStoreRepository interface {
 	ExternalCutoverProcessInterval() time.Duration
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
-	CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error
+	ProcessPayloadCutovers(ctx context.Context) error
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -566,16 +567,10 @@ func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context
 	}, nil
 }
 
-func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId pgtype.UUID) (*CutoverJobRunMetadata, error) {
+func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate) (*CutoverJobRunMetadata, error) {
 	if p.inlineStoreTTL == nil {
 		return nil, fmt.Errorf("inline store TTL is not set")
 	}
-
-	partitionTime := time.Now().Add(-1 * *p.inlineStoreTTL)
-	partitionDate := PartitionDate(pgtype.Date{
-		Time:  partitionTime,
-		Valid: true,
-	})
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
@@ -615,13 +610,11 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 	}, nil
 }
 
-func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error {
-	if !p.externalStoreEnabled {
-		return nil
-	}
+func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate) error {
+	ctx, span := telemetry.NewSpan(ctx, "payload_store_repository_impl.processSinglePartition")
+	defer span.End()
 
-	processId := sqlchelpers.UUIDFromStr(uuid.NewString())
-	jobMeta, err := p.prepareCutoverTableJob(ctx, processId)
+	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate)
 
 	if err != nil {
 		return fmt.Errorf("failed to prepare cutover table job: %w", err)
@@ -631,7 +624,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return nil
 	}
 
-	partitionDate := jobMeta.PartitionDate
 	offset := jobMeta.LastOffset
 
 	for {
@@ -683,6 +675,43 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 
 	if err := commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit swap payload cutover temp table transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context) error {
+	if !p.externalStoreEnabled {
+		return nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "payload_store_repository_impl.ProcessPayloadCutovers")
+	defer span.End()
+
+	if p.inlineStoreTTL == nil {
+		return fmt.Errorf("inline store TTL is not set")
+	}
+
+	mostRecentPartitionToOffload := pgtype.Date{
+		Time:  time.Now().Add(-1 * *p.inlineStoreTTL),
+		Valid: true,
+	}
+
+	partitions, err := p.queries.FindV1PayloadPartitionsBeforeDate(ctx, p.pool, mostRecentPartitionToOffload)
+
+	if err != nil {
+		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
+	}
+
+	processId := sqlchelpers.UUIDFromStr(uuid.NewString())
+
+	for _, partition := range partitions {
+		p.l.Info().Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")
+		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate))
+
+		if err != nil {
+			return fmt.Errorf("failed to process partition %s: %w", partition.PartitionName, err)
+		}
 	}
 
 	return nil

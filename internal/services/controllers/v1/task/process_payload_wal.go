@@ -14,7 +14,7 @@ func (tc *TasksControllerImpl) processPayloadExternalCutovers(ctx context.Contex
 
 		tc.l.Debug().Msgf("payload external cutover: processing external cutover payloads")
 
-		err := tc.repov1.Payloads().CopyOffloadedPayloadsIntoTempTable(ctx)
+		err := tc.repov1.Payloads().ProcessPayloadCutovers(ctx)
 
 		if err != nil {
 			span.RecordError(err)
