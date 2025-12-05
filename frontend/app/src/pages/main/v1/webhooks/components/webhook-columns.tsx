@@ -1,20 +1,20 @@
-import { ColumnDef, Row } from '@tanstack/react-table';
-import { V1Webhook } from '@/lib/api';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { DotsVerticalIcon } from '@radix-ui/react-icons';
-import { Check, Copy, Loader, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/v1/ui/button';
-import { Input } from '@/components/v1/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { useCallback, useState, useEffect } from 'react';
+import { Input } from '@/components/v1/ui/input';
+import { V1Webhook } from '@/lib/api';
+import { DotsVerticalIcon } from '@radix-ui/react-icons';
+import { ColumnDef, Row } from '@tanstack/react-table';
+import { Check, Copy, Loader, Save, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import { useWebhooks } from '../hooks/use-webhooks';
-import { SourceName } from './source-name';
 import { AuthMethod } from './auth-method';
+import { SourceName } from './source-name';
 
 export const WebhookColumn = {
   name: 'Name',
@@ -216,11 +216,10 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
               handleCancel();
             }
           }}
-          className={`bg-muted rounded px-2 py-3 font-mono text-xs w-full h-6 transition-colors ${
-            isEditing || hasChanges
+          className={`bg-muted rounded px-2 py-3 font-mono text-xs w-full h-6 transition-colors ${isEditing || hasChanges
               ? 'border-input focus:border-ring focus:ring-1 focus:ring-ring cursor-text'
               : 'border-transparent cursor-text hover:bg-muted/80'
-          }`}
+            }`}
           readOnly={!isEditing && !hasChanges}
           autoFocus={isEditing}
         />
@@ -231,15 +230,12 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
             variant="ghost"
             size="icon"
             onClick={handleSave}
-            className={`h-7 w-7 ${
-              hasChanges && !mutations.isUpdatePending
+            className={`h-7 w-7 ${hasChanges && !mutations.isUpdatePending
                 ? 'text-red-500/80 animate-pulse'
                 : ''
-            }`}
+              }`}
             disabled={
-              !hasChanges ||
-              !value.trim() ||
-              mutations.isUpdatePending
+              !hasChanges || !value.trim() || mutations.isUpdatePending
             }
           >
             {mutations.isUpdatePending ? (
