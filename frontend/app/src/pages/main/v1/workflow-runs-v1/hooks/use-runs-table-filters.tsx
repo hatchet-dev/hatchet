@@ -17,13 +17,7 @@ import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 
 type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
-interface BaseRunsTableState {
-  parentTaskExternalId?: string;
-}
-
-const getCreatedAfterFromTimeRange = (
-  timeWindow: TimeWindow,
-): string => {
+const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow): string => {
   switch (timeWindow) {
     case '1h':
       return new Date(Date.now() - 60 * 60 * 1000).toISOString();

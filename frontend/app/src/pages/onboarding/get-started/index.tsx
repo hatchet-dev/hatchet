@@ -1,7 +1,12 @@
-import { Button } from '@/components/ui/button';
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import { Loading } from '@/components/ui/loading';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Loading } from '@/components/v1/ui/loading';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
 import { Step, Steps } from '@/components/v1/ui/steps';
 import { useTenant } from '@/lib/atoms';
 import { MembershipsContextType, UserContextType } from '@/lib/outlet';

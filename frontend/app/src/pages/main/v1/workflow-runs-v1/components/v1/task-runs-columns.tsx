@@ -31,8 +31,7 @@ export const TaskRunColumn = {
 export type TaskRunColumnKeys = keyof typeof TaskRunColumn;
 
 export const workflowKey: TaskRunColumnKeys = 'workflow';
-const parentTaskExternalIdKey: TaskRunColumnKeys =
-  'parentTaskExternalId';
+const parentTaskExternalIdKey: TaskRunColumnKeys = 'parentTaskExternalId';
 export const flattenDAGsKey: TaskRunColumnKeys = 'flattenDAGs';
 export const createdAtKey: TaskRunColumnKeys = 'createdAt';
 const startedAtKey: TaskRunColumnKeys = 'startedAt';

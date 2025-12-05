@@ -8,7 +8,7 @@ import {
   AdditionalMetadataClick,
 } from '../../events/components/additional-metadata';
 import RelativeDate from '@/components/molecules/relative-date';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 
 export const columns: (
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,

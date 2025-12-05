@@ -12,10 +12,7 @@ import {
 import { V1TaskStatus } from '@/lib/api';
 import { Duration as DateFnsDuration } from 'date-fns';
 
-function formatDuration(
-  duration: DateFnsDuration,
-  rawTimeMs: number,
-): string {
+function formatDuration(duration: DateFnsDuration, rawTimeMs: number): string {
   const parts = [];
 
   if (duration.days) {

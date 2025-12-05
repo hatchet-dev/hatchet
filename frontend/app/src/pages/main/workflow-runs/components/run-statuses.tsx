@@ -1,12 +1,12 @@
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/v1/ui/badge';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/components/v1/ui/tooltip';
 import { JobRunStatus, StepRunStatus, WorkflowRunStatus } from '@/lib/api';
-import { capitalize, cn } from '@/lib/utils';
+import { capitalize } from '@/lib/utils';
 
 type RunStatusType =
   `${StepRunStatus | WorkflowRunStatus | JobRunStatus | 'SCHEDULED'}`;
@@ -87,9 +87,6 @@ const RUN_STATUS_VARIANTS_REASON_OVERRIDES: Record<
   },
 };
 
-// TIMED_OUT
-// SCHEDULING_TIMED_OUT
-
 export function RunStatus({
   status,
   reason,
@@ -122,28 +119,5 @@ export function RunStatus({
         <TooltipContent>{RUN_STATUS_REASONS[reason] || reason}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  );
-}
-
-const indicatorVariants = {
-  successful: 'border-transparent rounded-full bg-green-500',
-  failed: 'border-transparent rounded-full bg-red-500',
-  inProgress: 'border-transparent rounded-full bg-yellow-500',
-  outline: 'border-transparent rounded-full bg-muted',
-  outlineDestructive: 'border-transparent rounded-full bg-red-500',
-};
-
-function RunIndicator({
-  status,
-}: {
-  status: RunStatusType;
-  reason?: string;
-}) {
-  const variant = RUN_STATUS_VARIANTS[status].variant;
-
-  return (
-    <div
-      className={cn(indicatorVariants[variant], 'rounded-full h-[6px] w-[6px]')}
-    />
   );
 }

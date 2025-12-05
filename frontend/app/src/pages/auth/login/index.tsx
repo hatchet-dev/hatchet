@@ -1,13 +1,13 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { UserLoginForm } from './components/user-login-form';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { useMutation } from '@tanstack/react-query';
 import api, { UserLoginRequest } from '@/lib/api';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks';
 import useApiMeta from '../hooks/use-api-meta';
-import { Loading } from '@/components/ui/loading';
-import { Icons } from '@/components/ui/icons';
+import { Loading } from '@/components/v1/ui/loading';
+import { Icons } from '@/components/v1/ui/icons';
 import useErrorParam from '../hooks/use-error-param';
 import React from 'react';
 

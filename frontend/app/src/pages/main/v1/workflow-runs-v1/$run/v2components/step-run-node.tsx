@@ -1,10 +1,8 @@
-import { Label } from '@/components/v1/ui/label';
-import { StepRun, StepRunStatus, V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { cn, formatDuration } from '@/lib/utils';
 import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
-import { RunStatus, V1RunIndicator } from '../../components/run-statuses';
-import RelativeDate from '@/components/v1/molecules/relative-date';
+import { V1RunIndicator } from '../../components/run-statuses';
 import { TabOption } from './step-run-detail/step-run-detail';
 import {
   Tooltip,
@@ -91,21 +89,3 @@ export default memo(({ data }: { data: NodeData }) => {
     </div>
   );
 });
-
-function getTiming({ stepRun }: { stepRun: StepRun }) {
-  const start = stepRun.startedAtEpoch;
-  const end = stepRun.finishedAtEpoch;
-
-  // otherwise just return started at or created at time
-  return (
-    <Label className="cursor-pointer">
-      <span className="font-bold mr-2 text-xs">
-        <RunStatus status={stepRun?.status || StepRunStatus.PENDING} />
-      </span>
-      <span className="text-gray-500 font-medium text-xs">
-        {stepRun.startedAt && !end && <RelativeDate date={stepRun.startedAt} />}
-        {start && end && formatDuration(end - start)}
-      </span>
-    </Label>
-  );
-}

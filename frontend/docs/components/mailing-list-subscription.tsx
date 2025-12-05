@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/v1/ui/button";
+import { Input } from "@/components/v1/ui/input";
 import { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 

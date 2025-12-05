@@ -1,4 +1,4 @@
-import { V1TaskStatus, WorkflowRunStatus, queries } from '@/lib/api';
+import { V1TaskStatus, queries } from '@/lib/api';
 import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
 import {
   Breadcrumb,
@@ -19,12 +19,6 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Toaster } from '@/components/v1/ui/toaster';
-
-const WORKFLOW_RUN_TERMINAL_STATUSES = [
-  WorkflowRunStatus.CANCELLED,
-  WorkflowRunStatus.FAILED,
-  WorkflowRunStatus.SUCCEEDED,
-];
 
 export const V1RunDetailHeader = () => {
   const { tenantId } = useCurrentTenantId();

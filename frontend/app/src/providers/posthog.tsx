@@ -2,7 +2,7 @@ import { useTenant } from '@/lib/atoms';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import posthog from 'posthog-js';
 import { PostHogProvider as PhProvider, usePostHog } from 'posthog-js/react';
-import { useEffect, useRef, useMemo, createContext, useContext } from 'react';
+import { useEffect, useRef, useMemo, createContext } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { User } from '@/lib/api';
 
@@ -14,10 +14,6 @@ interface PostHogContextValue {
 }
 
 const PostHogContext = createContext<PostHogContextValue>({ isReady: false });
-
-function usePostHogContext() {
-  return useContext(PostHogContext);
-}
 
 interface PostHogProviderProps {
   children: React.ReactNode;
@@ -164,5 +160,3 @@ function PostHogPageView() {
 
   return null;
 }
-
-;

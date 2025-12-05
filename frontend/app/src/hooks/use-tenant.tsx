@@ -15,21 +15,6 @@ import { useAtom } from 'jotai';
 
 type Plan = 'free' | 'starter' | 'growth';
 
-type EvaluateResult = {
-  allowed: boolean;
-  rejectReason?: RejectReason;
-  message?: string;
-};
-
-type PermissionSet<K = any> = Record<string, (resource?: K) => Evaluate>;
-
-enum RejectReason {
-  BILLING_REQUIRED = 'BILLING_REQUIRED',
-  UPGRADE_REQUIRED = 'UPGRADE_REQUIRED',
-  ROLE_REQUIRED = 'ROLE_REQUIRED',
-  CLOUD_ONLY = 'CLOUD_ONLY',
-}
-
 export function useCurrentTenantId() {
   const params = useParams();
   const tenantId = params.tenant;

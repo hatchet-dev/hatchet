@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import {
   AdjustmentsHorizontalIcon,
@@ -13,8 +13,11 @@ import {
 
 import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
 import { useSidebar } from '@/components/sidebar-provider';
-import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
-import { Loading } from '@/components/ui/loading.tsx';
+import {
+  Collapsible,
+  CollapsibleContent,
+} from '@/components/v1/ui/collapsible';
+import { Loading } from '@/components/v1/ui/loading.tsx';
 import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import { Tenant, TenantMember } from '@/lib/api';
 import { useTenant } from '@/lib/atoms';

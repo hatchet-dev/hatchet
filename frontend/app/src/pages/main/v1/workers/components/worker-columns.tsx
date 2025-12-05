@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SdkInfo } from './sdk-info';
 
-import { Badge, BadgeProps } from '@/components/ui/badge';
+import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import { cn } from '@/lib/utils';
 
 export const WorkerColumn = {

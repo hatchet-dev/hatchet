@@ -1,5 +1,4 @@
 import { Button } from '@/components/v1/ui/button';
-import { WorkflowRunShape } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { type ViewOptions } from '@/lib/atoms';
 import { useAtom } from 'jotai';
@@ -43,11 +42,3 @@ export const ViewToggle = () => {
     </div>
   );
 };
-
-function hasChildSteps(shape: WorkflowRunShape) {
-  return shape.jobRuns?.some((jobRun) => {
-    return jobRun.job?.steps.some((step) => {
-      return step?.parents?.length;
-    });
-  });
-}

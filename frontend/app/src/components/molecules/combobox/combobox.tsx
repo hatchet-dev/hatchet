@@ -1,10 +1,9 @@
 import * as React from 'react';
 import { CheckIcon, CircleIcon, PlusCircledIcon } from '@radix-ui/react-icons';
-import { Column } from '@tanstack/react-table';
 
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
 import {
   Command,
   CommandEmpty,
@@ -13,30 +12,19 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from '@/components/ui/command';
+} from '@/components/v1/ui/command';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { Separator } from '@/components/ui/separator';
+} from '@/components/v1/ui/popover';
+import { Separator } from '@/components/v1/ui/separator';
 import { ToolbarType } from '../data-table/data-table-toolbar';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/v1/ui/input';
 import { BiX } from 'react-icons/bi';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-
-interface DataTableFacetedFilterProps<TData, TValue> {
-  column?: Column<TData, TValue>;
-  title?: string;
-  type?: ToolbarType;
-  options?: {
-    label: string;
-    value: string;
-    icon?: React.ComponentType<{ className?: string }>;
-  }[];
-}
 
 const keyValuePairSchema = z.object({
   key: z.string().min(1, 'Key is required'),
@@ -49,23 +37,6 @@ const arrayInputSchema = z.object({
 
 type KeyValuePair = z.infer<typeof keyValuePairSchema>;
 type ArrayInput = z.infer<typeof arrayInputSchema>;
-
-function DataTableFacetedFilter<TData, TValue>({
-  column,
-  title,
-  type = ToolbarType.Checkbox,
-  options,
-}: DataTableFacetedFilterProps<TData, TValue>) {
-  return (
-    <Combobox
-      values={column?.getFilterValue() as string[]}
-      title={title}
-      type={type}
-      options={options}
-      setValues={(values) => column?.setFilterValue(values)}
-    />
-  );
-}
 
 export function Combobox({
   values = [],
