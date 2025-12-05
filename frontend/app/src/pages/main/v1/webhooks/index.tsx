@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -294,6 +294,16 @@ const CreateWebhookModal = () => {
   const sourceName = watch('sourceName');
   const authType = watch('authType');
   const webhookName = watch('name');
+  const eventKeyExpression = watch('eventKeyExpression');
+
+  /* Update default event key expression when source changes */
+  useEffect(() => {
+    if (sourceName === V1WebhookSourceName.SLACK && !eventKeyExpression) {
+      setValue('eventKeyExpression', 'input.type');
+    } else if (sourceName === V1WebhookSourceName.GENERIC && !eventKeyExpression) {
+      setValue('eventKeyExpression', 'input.id');
+    }
+  }, [sourceName, eventKeyExpression, setValue]);
 
   const copyToClipboard = useCallback(async () => {
     if (webhookName) {
@@ -465,6 +475,17 @@ const CreateWebhookModal = () => {
                 <li>`input` refers to the payload</li>
                 <li>`headers` refers to the headers</li>
               </ul>
+              {sourceName === V1WebhookSourceName.SLACK && (
+                <div className="mt-2 p-3 bg-muted border border-border rounded-md">
+                  <p className="text-xs text-muted-foreground">
+                    For Slack webhooks, the event key expression{' '}
+                    <code className="bg-background px-1.5 py-0.5 rounded text-foreground">
+                      input.type
+                    </code>{' '}
+                    works well since Slack interactive payloads don't have a top-level `id` field.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
