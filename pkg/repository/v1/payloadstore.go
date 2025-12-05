@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -540,9 +539,9 @@ func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context
 		if errors.Is(err, pgx.ErrNoRows) {
 			return &CutoverJobRunMetadata{
 				ShouldRun:      false,
-				LastOffset:     lease.LastOffset,
+				LastOffset:     0,
 				PartitionDate:  partitionDate,
-				LeaseProcessId: lease.LeaseProcessID,
+				LeaseProcessId: processId,
 			}, nil
 		}
 		return nil, fmt.Errorf("failed to create initial cutover job lease: %w", err)
@@ -587,12 +586,13 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 
 	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, 0)
 
+	fmt.Println("err", err)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire or extend cutover job lease: %w", err)
 	}
 
-	lj, _ := json.MarshalIndent((lease), "", "  ")
-	fmt.Println("lease", string(lj))
+	fmt.Printf("lease proc id: %s, should run: %t, date: %s, offset: %d\n", lease.LeaseProcessId.String(), lease.ShouldRun, lease.PartitionDate.String(), lease.LastOffset)
 
 	if !lease.ShouldRun {
 		return lease, nil
