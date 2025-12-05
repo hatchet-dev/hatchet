@@ -11,41 +11,39 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const acquireCutoverJobLease = `-- name: AcquireCutoverJobLease :one
-SELECT
-    key, last_offset, is_completed, lease_process_id, lease_expires_at,
-    (
-        lease_process_id = $1::UUID
-        OR lease_expires_at <= NOW()
-    ) AS lease_acquired
-FROM v1_payload_cutover_job_offset
-WHERE key = $2::DATE
+const acquireOrExtendCutoverJobLease = `-- name: AcquireOrExtendCutoverJobLease :one
+INSERT INTO v1_payload_cutover_job_offset (key, last_offset, lease_process_id, lease_expires_at)
+VALUES ($1::DATE, $2::BIGINT, $3::UUID, $4::TIMESTAMPTZ)
+ON CONFLICT (key)
+DO UPDATE SET
+    last_offset = EXCLUDED.last_offset,
+    lease_process_id = EXCLUDED.lease_process_id,
+    lease_expires_at = EXCLUDED.lease_expires_at
+WHERE lease_expires_at < NOW() OR lease_process_id = $3::UUID
+RETURNING key, last_offset, is_completed, lease_process_id, lease_expires_at
 `
 
-type AcquireCutoverJobLeaseParams struct {
-	Currentprocessid pgtype.UUID `json:"currentprocessid"`
-	Key              pgtype.Date `json:"key"`
-}
-
-type AcquireCutoverJobLeaseRow struct {
+type AcquireOrExtendCutoverJobLeaseParams struct {
 	Key            pgtype.Date        `json:"key"`
-	LastOffset     int64              `json:"last_offset"`
-	IsCompleted    bool               `json:"is_completed"`
-	LeaseProcessID pgtype.UUID        `json:"lease_process_id"`
-	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
-	LeaseAcquired  pgtype.Bool        `json:"lease_acquired"`
+	Lastoffset     int64              `json:"lastoffset"`
+	Leaseprocessid pgtype.UUID        `json:"leaseprocessid"`
+	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
 }
 
-func (q *Queries) AcquireCutoverJobLease(ctx context.Context, db DBTX, arg AcquireCutoverJobLeaseParams) (*AcquireCutoverJobLeaseRow, error) {
-	row := db.QueryRow(ctx, acquireCutoverJobLease, arg.Currentprocessid, arg.Key)
-	var i AcquireCutoverJobLeaseRow
+func (q *Queries) AcquireOrExtendCutoverJobLease(ctx context.Context, db DBTX, arg AcquireOrExtendCutoverJobLeaseParams) (*V1PayloadCutoverJobOffset, error) {
+	row := db.QueryRow(ctx, acquireOrExtendCutoverJobLease,
+		arg.Key,
+		arg.Lastoffset,
+		arg.Leaseprocessid,
+		arg.Leaseexpiresat,
+	)
+	var i V1PayloadCutoverJobOffset
 	err := row.Scan(
 		&i.Key,
 		&i.LastOffset,
 		&i.IsCompleted,
 		&i.LeaseProcessID,
 		&i.LeaseExpiresAt,
-		&i.LeaseAcquired,
 	)
 	return &i, err
 }
@@ -120,52 +118,6 @@ func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg Cu
 	var count int64
 	err := row.Scan(&count)
 	return count, err
-}
-
-const extendCutoverJobLease = `-- name: ExtendCutoverJobLease :one
-INSERT INTO v1_payload_cutover_job_offset (key, last_offset, lease_process_id, lease_expires_at)
-VALUES ($1::DATE, $2::BIGINT, $3::UUID, $4::TIMESTAMPTZ)
-ON CONFLICT (key)
-DO UPDATE SET
-    last_offset = EXCLUDED.last_offset,
-    lease_process_id = EXCLUDED.lease_process_id,
-    lease_expires_at = EXCLUDED.lease_expires_at
-RETURNING key, last_offset, is_completed, lease_process_id, lease_expires_at, TRUE AS lease_acquired
-`
-
-type ExtendCutoverJobLeaseParams struct {
-	Key            pgtype.Date        `json:"key"`
-	Lastoffset     int64              `json:"lastoffset"`
-	Leaseprocessid pgtype.UUID        `json:"leaseprocessid"`
-	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
-}
-
-type ExtendCutoverJobLeaseRow struct {
-	Key            pgtype.Date        `json:"key"`
-	LastOffset     int64              `json:"last_offset"`
-	IsCompleted    bool               `json:"is_completed"`
-	LeaseProcessID pgtype.UUID        `json:"lease_process_id"`
-	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
-	LeaseAcquired  bool               `json:"lease_acquired"`
-}
-
-func (q *Queries) ExtendCutoverJobLease(ctx context.Context, db DBTX, arg ExtendCutoverJobLeaseParams) (*ExtendCutoverJobLeaseRow, error) {
-	row := db.QueryRow(ctx, extendCutoverJobLease,
-		arg.Key,
-		arg.Lastoffset,
-		arg.Leaseprocessid,
-		arg.Leaseexpiresat,
-	)
-	var i ExtendCutoverJobLeaseRow
-	err := row.Scan(
-		&i.Key,
-		&i.LastOffset,
-		&i.IsCompleted,
-		&i.LeaseProcessID,
-		&i.LeaseExpiresAt,
-		&i.LeaseAcquired,
-	)
-	return &i, err
 }
 
 const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many

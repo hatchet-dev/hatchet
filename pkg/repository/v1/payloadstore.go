@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -525,52 +526,27 @@ type CutoverJobRunMetadata struct {
 
 func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId pgtype.UUID, partitionDate PartitionDate, offset int64) (*CutoverJobRunMetadata, error) {
 	leaseInterval := 2 * time.Minute
+	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
 
-	lease, err := p.queries.AcquireCutoverJobLease(ctx, tx, sqlcv1.AcquireCutoverJobLeaseParams{
-		Key:              pgtype.Date(partitionDate),
-		Currentprocessid: processId,
+	lease, err := p.queries.AcquireOrExtendCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendCutoverJobLeaseParams{
+		Key:            pgtype.Date(partitionDate),
+		Lastoffset:     offset,
+		Leaseprocessid: processId,
+		Leaseexpiresat: leaseExpiresAt,
 	})
 
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			initialExpiresAt := time.Now().Add(leaseInterval)
-			newLease, err := p.queries.ExtendCutoverJobLease(ctx, tx, sqlcv1.ExtendCutoverJobLeaseParams{
-				Key:            pgtype.Date(partitionDate),
-				Lastoffset:     0,
-				Leaseprocessid: processId,
-				Leaseexpiresat: sqlchelpers.TimestamptzFromTime(initialExpiresAt),
-			})
-
-			if err != nil {
-				return nil, fmt.Errorf("failed to create initial cutover job lease: %w", err)
-			}
-
-			if !newLease.LeaseAcquired {
-				return &CutoverJobRunMetadata{
-					ShouldRun:      false,
-					LastOffset:     0,
-					PartitionDate:  partitionDate,
-					LeaseProcessId: processId,
-				}, nil
-			}
-
-			return &CutoverJobRunMetadata{
-				ShouldRun:      true,
-				LastOffset:     0,
-				PartitionDate:  partitionDate,
-				LeaseProcessId: processId,
-			}, nil
-		} else {
-			return nil, fmt.Errorf("failed to acquire cutover job lease: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create initial cutover job lease: %w", err)
 		}
 	}
 
-	if lease.IsCompleted {
+	if lease.LeaseProcessID != processId || lease.IsCompleted {
 		return &CutoverJobRunMetadata{
 			ShouldRun:      false,
 			LastOffset:     lease.LastOffset,
 			PartitionDate:  partitionDate,
-			LeaseProcessId: processId,
+			LeaseProcessId: lease.LeaseProcessID,
 		}, nil
 	}
 
@@ -583,6 +559,7 @@ func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context
 }
 
 func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId pgtype.UUID) (*CutoverJobRunMetadata, error) {
+	fmt.Println("preparing cutover table job")
 	if p.inlineStoreTTL == nil {
 		return nil, fmt.Errorf("inline store TTL is not set")
 	}
@@ -606,6 +583,9 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire or extend cutover job lease: %w", err)
 	}
+
+	lj, _ := json.MarshalIndent((lease), "", "  ")
+	fmt.Println("lease", string(lj))
 
 	if !lease.ShouldRun {
 		return lease, nil
