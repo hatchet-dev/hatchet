@@ -100,8 +100,45 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	payloadMap := make(map[string]interface{})
 
 	if rawBody != nil {
-		err := json.Unmarshal(rawBody, &payloadMap)
+		/* Handle different content types:
+		 * - Interactive payloads: application/x-www-form-urlencoded with payload parameter containing JSON
+		 * - Events API: application/json with direct JSON payload
+		 * See: https://docs.slack.dev/interactivity/handling-user-interaction/#payloads
+		 */
+		contentType := ctx.Request().Header.Get("Content-Type")
+		var payloadJSON []byte
 
+		if strings.Contains(contentType, "application/x-www-form-urlencoded") {
+			/* Parse form-encoded data for interactive payloads */
+			formData, err := url.ParseQuery(string(rawBody))
+			if err != nil {
+				return gen.V1WebhookReceive400JSONResponse{
+					Errors: []gen.APIError{
+						{
+							Description: fmt.Sprintf("failed to parse form data: %v", err),
+						},
+					},
+				}, nil
+			}
+
+			/* Extract the payload field which contains JSON */
+			payloadValue := formData.Get("payload")
+			if payloadValue == "" {
+				return gen.V1WebhookReceive400JSONResponse{
+					Errors: []gen.APIError{
+						{
+							Description: "missing payload parameter in form-encoded request",
+						},
+					},
+				}, nil
+			}
+			payloadJSON = []byte(payloadValue)
+		} else {
+			/* If not form-encoded, assume JSON */
+			payloadJSON = rawBody
+		}
+
+		err := json.Unmarshal(payloadJSON, &payloadMap)
 		if err != nil {
 			return gen.V1WebhookReceive400JSONResponse{
 				Errors: []gen.APIError{
