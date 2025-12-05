@@ -342,9 +342,9 @@ func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlc
 		payloadType, hasType := payload["type"].(string)
 		challenge, hasChallenge := payload["challenge"].(string)
 		
-		/* Accept if challenge exists and (type is url_verification OR type field is missing for backward compatibility) */
+		/* Accept if challenge exists and type is url_verification
+		 * If type is missing but challenge exists, still accept it (defensive: in case Slack sends malformed challenge) */
 		if hasChallenge && challenge != "" {
-			/* If type is present, verify it's url_verification; if not present, still accept for backward compatibility */
 			if !hasType || payloadType == "url_verification" {
 				return true, map[string]interface{}{
 					"challenge": challenge,
