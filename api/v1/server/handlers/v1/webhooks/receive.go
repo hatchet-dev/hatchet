@@ -275,17 +275,17 @@ func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlc
 			/* Parse form-encoded data */
 			formData, err := url.ParseQuery(string(webhookPayload))
 			if err != nil {
-				return false, nil, fmt.Errorf("failed to parse form data: %w", err)
+				/* If we can't parse form data, it's likely not a challenge - let normal processing handle it */
+				return false, nil, nil
 			}
 			
 			/* Extract the payload field which contains JSON */
 			payloadValue := formData.Get("payload")
 			if payloadValue == "" {
-				/* If no payload field, try parsing the raw body as JSON (for non-challenge requests) */
-				payloadJSON = webhookPayload
-			} else {
-				payloadJSON = []byte(payloadValue)
+				/* If no payload field, this is not a challenge - let normal processing handle it */
+				return false, nil, nil
 			}
+			payloadJSON = []byte(payloadValue)
 		} else {
 			/* If not form-encoded, assume JSON */
 			payloadJSON = webhookPayload
@@ -294,13 +294,25 @@ func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlc
 		payload := make(map[string]interface{})
 		err := json.Unmarshal(payloadJSON, &payload)
 		if err != nil {
-			return false, nil, fmt.Errorf("failed to parse JSON payload: %w", err)
+			/* If we can't parse JSON, it's likely not a challenge - let normal processing handle it */
+			return false, nil, nil
 		}
 
-		if challenge, ok := payload["challenge"].(string); ok && challenge != "" {
-			return true, map[string]interface{}{
-				"challenge": challenge,
-			}, nil
+		/* Check for Events API URL verification challenge
+		 * See: https://docs.slack.dev/apis/events-api/using-http-request-urls/#challenge
+		 * The payload should contain: token, challenge, and type: "url_verification"
+		 */
+		payloadType, hasType := payload["type"].(string)
+		challenge, hasChallenge := payload["challenge"].(string)
+		
+		/* Accept if challenge exists and (type is url_verification OR type field is missing for backward compatibility) */
+		if hasChallenge && challenge != "" {
+			/* If type is present, verify it's url_verification; if not present, still accept for backward compatibility */
+			if !hasType || payloadType == "url_verification" {
+				return true, map[string]interface{}{
+					"challenge": challenge,
+				}, nil
+			}
 		}
 
 		return false, nil, nil
