@@ -133,7 +133,7 @@ const indicatorVariants = {
   outlineDestructive: 'border-transparent rounded-full bg-red-500',
 };
 
-export function RunIndicator({
+function RunIndicator({
   status,
 }: {
   status: RunStatusType;

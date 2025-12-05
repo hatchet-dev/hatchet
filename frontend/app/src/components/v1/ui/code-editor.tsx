@@ -81,7 +81,7 @@ export function CodeEditor({
   );
 }
 
-export function DiffCodeEditor({
+function DiffCodeEditor({
   code = '',
   setCode,
   language,

@@ -12,7 +12,7 @@ import {
 import { V1TaskStatus } from '@/lib/api';
 import { Duration as DateFnsDuration } from 'date-fns';
 
-export function formatDuration(
+function formatDuration(
   duration: DateFnsDuration,
   rawTimeMs: number,
 ): string {
@@ -48,7 +48,7 @@ export function formatDuration(
   return parts.join(' ');
 }
 
-export const isValidTimestamp = (
+const isValidTimestamp = (
   timestamp?: string | Date | null,
 ): timestamp is string | Date => {
   if (!timestamp) {
@@ -78,7 +78,7 @@ const durationVariants = cva('text-sm', {
   },
 });
 
-export interface DurationProps
+interface DurationProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof durationVariants> {
   start?: string | Date | null;

@@ -8,7 +8,7 @@ import {
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
 
-export const tenantedPaths = [
+const tenantedPaths = [
   '/tenants/:tenant/events',
   '/tenants/:tenant/filters',
   '/tenants/:tenant/webhooks',

@@ -23,7 +23,7 @@ type RunStatusVariant = {
   variant: BadgeProps['variant'];
 };
 
-export function createRunStatusVariant(
+function createRunStatusVariant(
   status: RunStatusType,
 ): RunStatusVariant {
   switch (status) {
@@ -52,7 +52,7 @@ export function createRunStatusVariant(
   }
 }
 
-export function createV1RunStatusVariant(
+function createV1RunStatusVariant(
   status: V1TaskStatus,
 ): RunStatusVariant {
   switch (status) {

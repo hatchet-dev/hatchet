@@ -92,7 +92,7 @@ export default memo(({ data }: { data: NodeData }) => {
   );
 });
 
-export function getTiming({ stepRun }: { stepRun: StepRun }) {
+function getTiming({ stepRun }: { stepRun: StepRun }) {
   const start = stepRun.startedAtEpoch;
   const end = stepRun.finishedAtEpoch;
 

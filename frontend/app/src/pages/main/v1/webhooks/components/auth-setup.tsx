@@ -169,7 +169,7 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
   </div>
 );
 
-export const PreconfiguredHMACAuth = ({
+const PreconfiguredHMACAuth = ({
   register,
   secretLabel = 'Signing Secret',
   secretPlaceholder = 'super-secret',

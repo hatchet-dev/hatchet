@@ -18,15 +18,15 @@ export const WorkerColumn = {
   runtime: 'SDK Version',
 } as const;
 
-export type WorkerColumnKeys = keyof typeof WorkerColumn;
+type WorkerColumnKeys = keyof typeof WorkerColumn;
 
 export const statusKey: WorkerColumnKeys = 'status';
-export const nameKey: WorkerColumnKeys = 'name';
-export const typeKey: WorkerColumnKeys = 'type';
-export const startedAtKey: WorkerColumnKeys = 'startedAt';
-export const slotsKey: WorkerColumnKeys = 'slots';
-export const lastHeartbeatAtKey: WorkerColumnKeys = 'lastHeartbeatAt';
-export const runtimeKey: WorkerColumnKeys = 'runtime';
+const nameKey: WorkerColumnKeys = 'name';
+const typeKey: WorkerColumnKeys = 'type';
+const startedAtKey: WorkerColumnKeys = 'startedAt';
+const slotsKey: WorkerColumnKeys = 'slots';
+const lastHeartbeatAtKey: WorkerColumnKeys = 'lastHeartbeatAt';
+const runtimeKey: WorkerColumnKeys = 'runtime';
 
 interface WorkerStatusBadgeProps extends BadgeProps {
   status?: string;
@@ -42,7 +42,7 @@ type StatusConfig = {
   label: string;
 };
 
-export const WorkerStatusConfigs: Record<string, StatusConfig> = {
+const WorkerStatusConfigs: Record<string, StatusConfig> = {
   ACTIVE: {
     colors:
       'text-green-800 dark:text-green-300 bg-green-500/20 ring-green-500/30',
@@ -65,7 +65,7 @@ export const WorkerStatusConfigs: Record<string, StatusConfig> = {
   },
 };
 
-export function WorkerStatusBadge({
+function WorkerStatusBadge({
   status,
   count,
   variant,

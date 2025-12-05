@@ -10,7 +10,7 @@
  * ---------------------------------------------------------------
  */
 
-export enum V1TaskRunStatus {
+enum V1TaskRunStatus {
   PENDING = "PENDING",
   RUNNING = "RUNNING",
   COMPLETED = "COMPLETED",
@@ -18,24 +18,21 @@ export enum V1TaskRunStatus {
   CANCELLED = "CANCELLED",
 }
 
-export enum PullRequestState {
+enum PullRequestState {
   Open = "open",
   Closed = "closed",
 }
 
-export enum WebhookWorkerRequestMethod {
+enum WebhookWorkerRequestMethod {
   GET = "GET",
   POST = "POST",
   PUT = "PUT",
 }
 
 export enum WorkerRuntimeSDKs {
-  GOLANG = "GOLANG",
-  PYTHON = "PYTHON",
-  TYPESCRIPT = "TYPESCRIPT",
-}
+  }
 
-export enum WorkerType {
+enum WorkerType {
   SELFHOSTED = "SELFHOSTED",
   MANAGED = "MANAGED",
   WEBHOOK = "WEBHOOK",
@@ -48,7 +45,7 @@ export enum WorkflowRunOrderByField {
   Duration = "duration",
 }
 
-export enum WorkflowKind {
+enum WorkflowKind {
   FUNCTION = "FUNCTION",
   DURABLE = "DURABLE",
   DAG = "DAG",
@@ -60,7 +57,7 @@ export enum StepRunEventSeverity {
   CRITICAL = "CRITICAL",
 }
 
-export enum StepRunEventReason {
+enum StepRunEventReason {
   REQUEUED_NO_WORKER = "REQUEUED_NO_WORKER",
   REQUEUED_RATE_LIMIT = "REQUEUED_RATE_LIMIT",
   SCHEDULING_TIMED_OUT = "SCHEDULING_TIMED_OUT",
@@ -89,7 +86,7 @@ export enum LogLineOrderByField {
   CreatedAt = "createdAt",
 }
 
-export enum LogLineLevel {
+enum LogLineLevel {
   DEBUG = "DEBUG",
   INFO = "INFO",
   WARN = "WARN",
@@ -97,13 +94,7 @@ export enum LogLineLevel {
 }
 
 export enum JobRunStatus {
-  PENDING = "PENDING",
-  RUNNING = "RUNNING",
-  SUCCEEDED = "SUCCEEDED",
-  FAILED = "FAILED",
-  CANCELLED = "CANCELLED",
-  BACKOFF = "BACKOFF",
-}
+  }
 
 export enum StepRunStatus {
   PENDING = "PENDING",
@@ -117,7 +108,7 @@ export enum StepRunStatus {
   BACKOFF = "BACKOFF",
 }
 
-export enum ConcurrencyLimitStrategy {
+enum ConcurrencyLimitStrategy {
   CANCEL_IN_PROGRESS = "CANCEL_IN_PROGRESS",
   DROP_NEWEST = "DROP_NEWEST",
   QUEUE_NEWEST = "QUEUE_NEWEST",
@@ -129,7 +120,7 @@ export enum CronWorkflowsOrderByField {
   CreatedAt = "createdAt",
 }
 
-export enum CronWorkflowsMethod {
+enum CronWorkflowsMethod {
   DEFAULT = "DEFAULT",
   API = "API",
 }
@@ -154,7 +145,7 @@ export enum ScheduledWorkflowsOrderByField {
   CreatedAt = "createdAt",
 }
 
-export enum ScheduledWorkflowsMethod {
+enum ScheduledWorkflowsMethod {
   DEFAULT = "DEFAULT",
   API = "API",
 }
@@ -207,23 +198,18 @@ export enum TenantResource {
 }
 
 /** The status of the CEL evaluation */
-export enum V1CELDebugResponseStatus {
+enum V1CELDebugResponseStatus {
   SUCCESS = "SUCCESS",
   ERROR = "ERROR",
 }
 
 export enum V1WebhookHMACEncoding {
   HEX = "HEX",
-  BASE64 = "BASE64",
-  BASE64URL = "BASE64URL",
-}
+  }
 
 export enum V1WebhookHMACAlgorithm {
-  SHA1 = "SHA1",
   SHA256 = "SHA256",
-  SHA512 = "SHA512",
-  MD5 = "MD5",
-}
+  }
 
 export enum V1WebhookAuthType {
   BASIC = "BASIC",
@@ -245,7 +231,7 @@ export enum TenantEnvironment {
   Production = "production",
 }
 
-export enum TenantUIVersion {
+enum TenantUIVersion {
   V0 = "V0",
   V1 = "V1",
 }
@@ -255,7 +241,7 @@ export enum TenantVersion {
   V1 = "V1",
 }
 
-export enum V1LogLineLevel {
+enum V1LogLineLevel {
   DEBUG = "DEBUG",
   INFO = "INFO",
   WARN = "WARN",
@@ -285,7 +271,7 @@ export enum V1TaskEventType {
   SKIPPED = "SKIPPED",
 }
 
-export enum V1WorkflowType {
+enum V1WorkflowType {
   DAG = "DAG",
   TASK = "TASK",
 }
@@ -298,7 +284,7 @@ export enum V1TaskStatus {
   FAILED = "FAILED",
 }
 
-export interface APIResourceMeta {
+interface APIResourceMeta {
   /**
    * the id of this resource, in UUID format
    * @minLength 0
@@ -441,7 +427,7 @@ export interface APIErrors {
 }
 
 /** @example {"next_page":3,"num_pages":10,"current_page":2} */
-export interface PaginationResponse {
+interface PaginationResponse {
   /**
    * the current page
    * @format int64
@@ -486,7 +472,7 @@ export interface V1TaskEventList {
   rows?: V1TaskEvent[];
 }
 
-export interface V1LogLine {
+interface V1LogLine {
   /**
    * The creation date of the log line.
    * @format date-time
@@ -509,7 +495,7 @@ export interface V1LogLineList {
   rows?: V1LogLine[];
 }
 
-export interface V1TaskFilter {
+interface V1TaskFilter {
   /** @format date-time */
   since: string;
   /** @format date-time */
@@ -553,7 +539,7 @@ export interface V1TaskSummaryList {
   rows: V1TaskSummary[];
 }
 
-export interface V1WorkflowRunDisplayName {
+interface V1WorkflowRunDisplayName {
   metadata: APIResourceMeta;
   displayName: string;
 }
@@ -576,7 +562,7 @@ export interface V1TriggerWorkflowRunRequest {
   priority?: number;
 }
 
-export interface V1WorkflowRun {
+interface V1WorkflowRun {
   metadata: APIResourceMeta;
   status: V1TaskStatus;
   /**
@@ -726,14 +712,14 @@ export interface V1TaskTimingList {
   rows: V1TaskTiming[];
 }
 
-export interface V1TaskRunMetric {
+interface V1TaskRunMetric {
   status: V1TaskStatus;
   count: number;
 }
 
 export type V1TaskRunMetrics = V1TaskRunMetric[];
 
-export interface V1TaskPointMetric {
+interface V1TaskPointMetric {
   /** @format date-time */
   time: string;
   SUCCEEDED: number;
@@ -765,7 +751,7 @@ export interface Tenant {
   environment?: TenantEnvironment;
 }
 
-export interface V1EventWorkflowRunSummary {
+interface V1EventWorkflowRunSummary {
   /**
    * The number of running runs.
    * @format int64
@@ -793,7 +779,7 @@ export interface V1EventWorkflowRunSummary {
   cancelled: number;
 }
 
-export interface V1EventTriggeredRun {
+interface V1EventTriggeredRun {
   /**
    * The external ID of the triggered run.
    * @format uuid
@@ -915,7 +901,7 @@ export interface V1WebhookList {
   rows?: V1Webhook[];
 }
 
-export interface V1CreateWebhookRequestBase {
+interface V1CreateWebhookRequestBase {
   /** The name of the source for this webhook */
   sourceName: V1WebhookSourceName;
   /** The name of the webhook */
@@ -924,33 +910,33 @@ export interface V1CreateWebhookRequestBase {
   eventKeyExpression: string;
 }
 
-export interface V1WebhookBasicAuth {
+interface V1WebhookBasicAuth {
   /** The username for basic auth */
   username: string;
   /** The password for basic auth */
   password: string;
 }
 
-export type V1CreateWebhookRequestBasicAuth = V1CreateWebhookRequestBase & {
+type V1CreateWebhookRequestBasicAuth = V1CreateWebhookRequestBase & {
   /** The type of authentication to use for the webhook */
   authType: "BASIC";
   auth: V1WebhookBasicAuth;
 };
 
-export interface V1WebhookAPIKeyAuth {
+interface V1WebhookAPIKeyAuth {
   /** The name of the header to use for the API key */
   headerName: string;
   /** The API key to use for authentication */
   apiKey: string;
 }
 
-export type V1CreateWebhookRequestAPIKey = V1CreateWebhookRequestBase & {
+type V1CreateWebhookRequestAPIKey = V1CreateWebhookRequestBase & {
   /** The type of authentication to use for the webhook */
   authType: "API_KEY";
   auth: V1WebhookAPIKeyAuth;
 };
 
-export interface V1WebhookHMACAuth {
+interface V1WebhookHMACAuth {
   /** The HMAC algorithm to use for the webhook */
   algorithm: V1WebhookHMACAlgorithm;
   /** The encoding to use for the HMAC signature */
@@ -961,7 +947,7 @@ export interface V1WebhookHMACAuth {
   signingSecret: string;
 }
 
-export type V1CreateWebhookRequestHMAC = V1CreateWebhookRequestBase & {
+type V1CreateWebhookRequestHMAC = V1CreateWebhookRequestBase & {
   /** The type of authentication to use for the webhook */
   authType: "HMAC";
   auth: V1WebhookHMACAuth;
@@ -997,7 +983,7 @@ export interface V1CELDebugResponse {
   error?: string;
 }
 
-export interface APIMetaAuth {
+interface APIMetaAuth {
   /**
    * the supported types of authentication
    * @example ["basic","google"]
@@ -1005,7 +991,7 @@ export interface APIMetaAuth {
   schemes?: string[];
 }
 
-export interface APIMetaPosthog {
+interface APIMetaPosthog {
   /**
    * the PostHog API key
    * @example "phk_1234567890abcdef"
@@ -1048,7 +1034,7 @@ export interface APIMeta {
   allowChangePassword?: boolean;
 }
 
-export interface APIMetaIntegration {
+interface APIMetaIntegration {
   /**
    * the name of the integration
    * @example "github"
@@ -1196,7 +1182,7 @@ export interface UserRegisterRequest {
   password: string;
 }
 
-export interface UserTenantPublic {
+interface UserTenantPublic {
   /**
    * The email address of the user.
    * @format email
@@ -1365,7 +1351,7 @@ export interface CreateAPITokenResponse {
 /** A workflow ID. */
 export type WorkflowID = string;
 
-export interface QueueMetrics {
+interface QueueMetrics {
   /** The number of items in the queue. */
   numQueued: number;
   /** The number of items running. */
@@ -1389,7 +1375,7 @@ export type WorkflowRunStatusList = WorkflowRunStatus[];
 
 export type EventSearch = string;
 
-export interface EventWorkflowRunSummary {
+interface EventWorkflowRunSummary {
   /**
    * The number of pending runs.
    * @format int64
@@ -1531,7 +1517,7 @@ export interface Workflow {
   tenantId: string;
 }
 
-export interface WorkflowVersionMeta {
+interface WorkflowVersionMeta {
   metadata: APIResourceMeta;
   /** The version of the workflow. */
   version: string;
@@ -1548,7 +1534,7 @@ export interface WorkflowTag {
   color: string;
 }
 
-export interface Step {
+interface Step {
   metadata: APIResourceMeta;
   /** The readable id of the step. */
   readableId: string;
@@ -1561,7 +1547,7 @@ export interface Step {
   parents?: string[];
 }
 
-export interface Job {
+interface Job {
   metadata: APIResourceMeta;
   tenantId: string;
   versionId: string;
@@ -1678,7 +1664,7 @@ export interface WorkflowUpdateRequest {
   isPaused?: boolean;
 }
 
-export interface WorkflowConcurrency {
+interface WorkflowConcurrency {
   /**
    * The maximum number of concurrent workflow runs.
    * @format int32
@@ -1690,17 +1676,17 @@ export interface WorkflowConcurrency {
   getConcurrencyGroup: string;
 }
 
-export interface WorkflowTriggerEventRef {
+interface WorkflowTriggerEventRef {
   parent_id?: string;
   event_key?: string;
 }
 
-export interface WorkflowTriggerCronRef {
+interface WorkflowTriggerCronRef {
   parent_id?: string;
   cron?: string;
 }
 
-export interface WorkflowTriggers {
+interface WorkflowTriggers {
   metadata?: APIResourceMeta;
   workflow_version_id?: string;
   tenant_id?: string;
@@ -1769,7 +1755,7 @@ export interface WorkflowRun {
   additionalMetadata?: Record<string, any>;
 }
 
-export interface JobRun {
+interface JobRun {
   metadata: APIResourceMeta;
   tenantId: string;
   workflowRunId: string;
@@ -1826,7 +1812,7 @@ export interface StepRun {
   cancelledError?: string;
 }
 
-export interface WorkflowRunTriggeredBy {
+interface WorkflowRunTriggeredBy {
   metadata: APIResourceMeta;
   parentWorkflowRunId?: string;
   eventId?: string;
@@ -1845,7 +1831,7 @@ export type LogLineLevelField = LogLineLevel[];
 
 export type LogLineSearch = string;
 
-export interface LogLine {
+interface LogLine {
   /**
    * The creation date of the log line.
    * @format date-time
@@ -1862,7 +1848,7 @@ export interface LogLineList {
   rows?: LogLine[];
 }
 
-export interface StepRunEvent {
+interface StepRunEvent {
   id: number;
   /** @format date-time */
   timeFirstSeen: string;
@@ -1882,7 +1868,7 @@ export interface StepRunEventList {
   rows?: StepRunEvent[];
 }
 
-export interface StepRunArchive {
+interface StepRunArchive {
   stepRunId: string;
   order: number;
   input?: string;
@@ -1934,7 +1920,7 @@ export interface ReplayWorkflowRunsResponse {
   workflowRuns: WorkflowRun[];
 }
 
-export interface WorkflowRunsMetricsCounts {
+interface WorkflowRunsMetricsCounts {
   PENDING?: number;
   RUNNING?: number;
   SUCCEEDED?: number;
@@ -1986,7 +1972,7 @@ export interface RerunStepRunRequest {
   input: object;
 }
 
-export interface RegisteredWorkflow {
+interface RegisteredWorkflow {
   /**
    * The workflow id registered on this worker.
    * @format uuid
@@ -1996,7 +1982,7 @@ export interface RegisteredWorkflow {
   name: string;
 }
 
-export interface SemaphoreSlots {
+interface SemaphoreSlots {
   /**
    * The step run id.
    * @format uuid
@@ -2022,7 +2008,7 @@ export interface SemaphoreSlots {
   status?: StepRunStatus;
 }
 
-export interface RecentStepRuns {
+interface RecentStepRuns {
   metadata: APIResourceMeta;
   /** The action id. */
   actionId: string;
@@ -2037,7 +2023,7 @@ export interface RecentStepRuns {
   workflowRunId: string;
 }
 
-export interface WorkerLabel {
+interface WorkerLabel {
   metadata: APIResourceMeta;
   /** The key of the label. */
   key: string;
@@ -2045,7 +2031,7 @@ export interface WorkerLabel {
   value?: string;
 }
 
-export interface WorkerRuntimeInfo {
+interface WorkerRuntimeInfo {
   sdkVersion?: string;
   language?: WorkerRuntimeSDKs;
   languageVersion?: string;
@@ -2114,7 +2100,7 @@ export interface UpdateWorkerRequest {
   isPaused?: boolean;
 }
 
-export interface WebhookWorker {
+interface WebhookWorker {
   metadata: APIResourceMeta;
   /** The name of the webhook worker. */
   name: string;
@@ -2149,7 +2135,7 @@ export interface WebhookWorkerCreated {
   secret: string;
 }
 
-export interface WebhookWorkerRequest {
+interface WebhookWorkerRequest {
   /**
    * The date and time the request was created.
    * @format date-time
@@ -2166,51 +2152,51 @@ export interface WebhookWorkerRequestListResponse {
   requests?: WebhookWorkerRequest[];
 }
 
-export interface ConcurrencyStat {
+interface ConcurrencyStat {
   expression?: string;
   type?: string;
   keys?: Record<string, number>;
 }
 
-export interface TaskStatusStat {
+interface TaskStatusStat {
   /** @format int64 */
   total?: number;
   queues?: Record<string, number>;
   concurrency?: ConcurrencyStat[];
 }
 
-export interface TaskStat {
+interface TaskStat {
   queued?: TaskStatusStat;
   running?: TaskStatusStat;
 }
 
 export type TaskStats = Record<string, TaskStat>;
 
-export interface TenantList {
+interface TenantList {
   pagination?: PaginationResponse;
   rows?: Tenant[];
 }
 
-export interface WorkflowVersionDefinition {
+interface WorkflowVersionDefinition {
   /** The raw YAML definition of the workflow. */
   rawDefinition: string;
 }
 
-export interface CreatePullRequestFromStepRun {
+interface CreatePullRequestFromStepRun {
   branchName: string;
 }
 
-export interface StepRunDiff {
+interface StepRunDiff {
   key: string;
   original: string;
   modified: string;
 }
 
-export interface GetStepRunDiffResponse {
+interface GetStepRunDiffResponse {
   diffs: StepRunDiff[];
 }
 
-export interface PullRequest {
+interface PullRequest {
   repositoryOwner: string;
   repositoryName: string;
   pullRequestID: number;
@@ -2221,12 +2207,12 @@ export interface PullRequest {
   pullRequestState: PullRequestState;
 }
 
-export interface ListPullRequestsResponse {
+interface ListPullRequestsResponse {
   pullRequests: PullRequest[];
 }
 
-export interface WebhookWorkerCreateResponse {
+interface WebhookWorkerCreateResponse {
   worker?: WebhookWorkerCreated;
 }
 
-export type BulkCreateEventResponse = Events;
+type BulkCreateEventResponse = Events;

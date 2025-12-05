@@ -20,7 +20,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Toaster } from '@/components/v1/ui/toaster';
 
-export const WORKFLOW_RUN_TERMINAL_STATUSES = [
+const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
   WorkflowRunStatus.FAILED,
   WorkflowRunStatus.SUCCEEDED,
@@ -107,7 +107,7 @@ export const V1RunDetailHeader = () => {
   );
 };
 
-export const V1RunSummary = () => {
+const V1RunSummary = () => {
   const { workflowRun } = useWorkflowDetails();
 
   const timings = [];

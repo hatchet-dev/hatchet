@@ -60,7 +60,7 @@ import { DateTimePicker } from '@/components/molecules/time-picker/date-time-pic
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { AdditionalMetadataClick } from '../../events/components/additional-metadata';
 
-export interface WorkflowRunsTableProps {
+interface WorkflowRunsTableProps {
   createdAfter?: string;
   createdBefore?: string;
   workflowId?: string;
@@ -85,7 +85,7 @@ export const getCreatedAfterFromTimeRange = (timeRange?: string) => {
   }
 };
 
-export function WorkflowRunsTable({
+function WorkflowRunsTable({
   createdAfter: createdAfterProp,
   workflowId,
   initColumnVisibility = {},

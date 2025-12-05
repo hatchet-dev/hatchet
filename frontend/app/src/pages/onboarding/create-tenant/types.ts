@@ -37,6 +37,6 @@ export interface OnboardingStepConfig {
 }
 
 // Base component type that all steps should extend
-export type OnboardingStepComponent<T = any> = React.ComponentType<
+type OnboardingStepComponent<T = any> = React.ComponentType<
   OnboardingStepProps<T>
 >;

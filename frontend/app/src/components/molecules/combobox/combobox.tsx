@@ -50,7 +50,7 @@ const arrayInputSchema = z.object({
 type KeyValuePair = z.infer<typeof keyValuePairSchema>;
 type ArrayInput = z.infer<typeof arrayInputSchema>;
 
-export function DataTableFacetedFilter<TData, TValue>({
+function DataTableFacetedFilter<TData, TValue>({
   column,
   title,
   type = ToolbarType.Checkbox,

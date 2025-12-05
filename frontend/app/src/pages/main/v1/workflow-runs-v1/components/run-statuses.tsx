@@ -21,7 +21,7 @@ type RunStatusVariant = {
   variant: 'inProgress' | 'successful' | 'failed' | 'outline';
 };
 
-export function createRunStatusVariant(
+function createRunStatusVariant(
   status: RunStatusType,
 ): RunStatusVariant {
   switch (status) {
@@ -50,7 +50,7 @@ export function createRunStatusVariant(
   }
 }
 
-export function createV1RunStatusVariant(
+function createV1RunStatusVariant(
   status: V1TaskStatus,
 ): RunStatusVariant {
   switch (status) {
@@ -133,7 +133,7 @@ const indicatorVariants = {
   outline: 'border-transparent rounded-full bg-muted',
 };
 
-export function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
+function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
   switch (eventType) {
     case V1TaskStatus.CANCELLED:
       return 'border-transparent rounded-full bg-orange-500';
@@ -150,7 +150,7 @@ export function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
   }
 }
 
-export function RunIndicator({
+function RunIndicator({
   status,
 }: {
   status: RunStatusType;

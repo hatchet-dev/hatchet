@@ -15,7 +15,7 @@ interface PostHogContextValue {
 
 const PostHogContext = createContext<PostHogContextValue>({ isReady: false });
 
-export function usePostHogContext() {
+function usePostHogContext() {
   return useContext(PostHogContext);
 }
 
@@ -165,4 +165,4 @@ function PostHogPageView() {
   return null;
 }
 
-export { usePostHog };
+;

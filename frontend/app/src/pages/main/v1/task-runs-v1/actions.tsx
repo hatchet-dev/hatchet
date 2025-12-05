@@ -27,7 +27,7 @@ import {
 } from '@/components/v1/molecules/data-table/data-table-options';
 import { IDGetter } from '@/components/v1/molecules/data-table/data-table';
 
-export const TASK_RUN_TERMINAL_STATUSES = [
+const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
   V1TaskStatus.FAILED,
   V1TaskStatus.COMPLETED,
@@ -49,7 +49,7 @@ export type BaseTaskRunActionParams =
       externalIds?: never;
     };
 
-export type TaskRunActionsParams =
+type TaskRunActionsParams =
   | {
       actionType: 'cancel';
       filter?: never;
@@ -71,7 +71,7 @@ export type TaskRunActionsParams =
       externalIds?: never;
     };
 
-export const useTaskRunActions = () => {
+const useTaskRunActions = () => {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 

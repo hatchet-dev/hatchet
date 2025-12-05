@@ -7,7 +7,7 @@ import { RunStatus } from '../../workflow-runs/components/run-statuses';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { Link } from 'react-router-dom';
 
-export type RateLimitRow = RateLimit & {
+type RateLimitRow = RateLimit & {
   metadata: {
     id: string;
   };
@@ -24,16 +24,16 @@ export const ScheduledRunColumn = {
   actions: 'Actions',
 };
 
-export type ScheduledRunColumnKeys = keyof typeof ScheduledRunColumn;
+type ScheduledRunColumnKeys = keyof typeof ScheduledRunColumn;
 
-export const idKey: ScheduledRunColumnKeys = 'id';
-export const runIdKey: ScheduledRunColumnKeys = 'runId';
+const idKey: ScheduledRunColumnKeys = 'id';
+const runIdKey: ScheduledRunColumnKeys = 'runId';
 export const statusKey: ScheduledRunColumnKeys = 'status';
-export const triggerAtKey: ScheduledRunColumnKeys = 'triggerAt';
+const triggerAtKey: ScheduledRunColumnKeys = 'triggerAt';
 export const workflowKey: ScheduledRunColumnKeys = 'workflow';
 export const metadataKey: ScheduledRunColumnKeys = 'metadata';
-export const createdAtKey: ScheduledRunColumnKeys = 'createdAt';
-export const actionsKey: ScheduledRunColumnKeys = 'actions';
+const createdAtKey: ScheduledRunColumnKeys = 'createdAt';
+const actionsKey: ScheduledRunColumnKeys = 'actions';
 
 export const columns = ({
   tenantId,

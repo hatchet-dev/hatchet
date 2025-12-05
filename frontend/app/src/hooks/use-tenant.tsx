@@ -13,17 +13,17 @@ import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { Evaluate } from '@/lib/can/shared/permission.base';
 import { useAtom } from 'jotai';
 
-export type Plan = 'free' | 'starter' | 'growth';
+type Plan = 'free' | 'starter' | 'growth';
 
-export type EvaluateResult = {
+type EvaluateResult = {
   allowed: boolean;
   rejectReason?: RejectReason;
   message?: string;
 };
 
-export type PermissionSet<K = any> = Record<string, (resource?: K) => Evaluate>;
+type PermissionSet<K = any> = Record<string, (resource?: K) => Evaluate>;
 
-export enum RejectReason {
+enum RejectReason {
   BILLING_REQUIRED = 'BILLING_REQUIRED',
   UPGRADE_REQUIRED = 'UPGRADE_REQUIRED',
   ROLE_REQUIRED = 'ROLE_REQUIRED',

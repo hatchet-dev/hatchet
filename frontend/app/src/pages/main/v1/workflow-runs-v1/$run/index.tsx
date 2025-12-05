@@ -39,7 +39,7 @@ import { Spinner } from '@/components/v1/ui/loading';
 import { Waterfall } from './v2components/waterfall';
 import { RunsProvider } from '../hooks/runs-provider';
 
-export const WORKFLOW_RUN_TERMINAL_STATUSES = [
+const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
   WorkflowRunStatus.FAILED,
   WorkflowRunStatus.SUCCEEDED,

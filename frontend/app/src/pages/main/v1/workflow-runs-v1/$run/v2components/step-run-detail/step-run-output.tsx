@@ -142,4 +142,3 @@ export const V1StepRunOutput = (props: { taskRunId: string }) => {
   );
 };
 
-export default StepRunOutput;
