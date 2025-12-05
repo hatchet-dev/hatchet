@@ -140,11 +140,7 @@ export default function CreateTenant() {
         }
 
         const tenant = result.data as Tenant;
-        if (tenant.version === TenantVersion.V1) {
-          window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
-        } else {
-          window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
-        }
+        window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
       }, 0);
     },
     onError: handleApiError,

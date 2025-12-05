@@ -112,14 +112,6 @@ export default function Authenticated() {
       window.location.href = '/onboarding/create-tenant';
       return;
     }
-
-    if (
-      tenant?.version === TenantVersion.V0 &&
-      currentUrl.startsWith('/tenants')
-    ) {
-      window.location.href = `/workflow-runs?tenant=${tenant.metadata.id}`;
-      return;
-    }
   }, [
     tenant?.metadata.id,
     userQuery.data,

@@ -101,11 +101,11 @@ function HelpDropdown() {
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
-            if (tenant?.version === TenantVersion.V1) {
-              navigate(`/tenants/${tenant.metadata.id}/onboarding/get-started`);
-            } else {
-              navigate('/onboarding/get-started');
+            if (!tenant) {
+              return;
             }
+
+            navigate(`/tenants/${tenant.metadata.id}/onboarding/get-started`);
           }}
         >
           <BiSolidGraduation className="mr-2" />
@@ -176,14 +176,6 @@ function AccountDropdown({ user }: { user: User }) {
         <DropdownMenuItem>
           <VersionInfo />
         </DropdownMenuItem>
-        {tenant?.version == TenantVersion.V1 &&
-          location.pathname.includes(`/tenants/${tenant.metadata.id}`) && (
-            <DropdownMenuItem
-              onClick={() => navigate('/workflow-runs?previewV0=true')}
-            >
-              View Legacy V0 Data
-            </DropdownMenuItem>
-          )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => toggleTheme()}>
           Toggle Theme
@@ -224,52 +216,8 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     [],
   );
 
-  const tenantVersion = tenant?.version || TenantVersion.V0;
-
-  const banner: BannerProps | undefined = useMemo(() => {
-    const pathnameWithoutTenant = pathname.replace(
-      `/tenants/${tenant?.metadata.id}`,
-      '',
-    );
-
-    const shouldShowVersionUpgradeButton =
-      tenantedRoutes.includes(pathnameWithoutTenant) && // It is a versioned route
-      !pathname.startsWith('/tenants') && // The user is not already on the v1 version
-      tenantVersion === TenantVersion.V1; // The tenant is on the v1 version
-
-    if (shouldShowVersionUpgradeButton) {
-      return {
-        message: (
-          <>
-            You are viewing legacy V0 data for a tenant that was upgraded to V1
-            runtime.
-          </>
-        ),
-        type: 'warning',
-        actionText: 'View V1',
-        onAction: () => {
-          navigate({
-            pathname: `/tenants/${tenant?.metadata.id}${pathname}`,
-            search: '?previewV0=false',
-          });
-        },
-      };
-    }
-
-    return;
-  }, [navigate, pathname, tenantVersion, tenantedRoutes, tenant?.metadata.id]);
-
-  useEffect(() => {
-    if (!setHasBanner) {
-      return;
-    }
-    setHasBanner(!!banner);
-  }, [setHasBanner, banner]);
-
   return (
     <div className="fixed top-0 w-screen z-50">
-      {banner && <Banner {...banner} />}
-
       <div className="h-16 border-b bg-background">
         <div className="flex h-16 items-center pr-4 pl-4">
           <div className="flex flex-row items-center gap-x-8">

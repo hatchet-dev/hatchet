@@ -77,14 +77,6 @@ export function useTenant(): TenantContext {
   const setTenant = useCallback(
     (tenant: Tenant) => {
       setLastTenant(tenant);
-
-      if (tenant.version === TenantVersion.V1) {
-        return;
-      }
-
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.set('tenant', tenant.metadata.id);
-      setSearchParams(newSearchParams, { replace: true });
     },
     [searchParams, setSearchParams, setLastTenant],
   );
@@ -186,17 +178,6 @@ export function useTenant(): TenantContext {
 
     if (pathname.startsWith('/onboarding')) {
       return;
-    }
-
-    if (
-      tenant?.version == TenantVersion.V0 &&
-      pathname.startsWith('/tenants')
-    ) {
-      setLastRedirected(tenant?.slug);
-      return navigate({
-        pathname: pathname.replace(`/tenants/${tenant.metadata.id}`, ''),
-        search: params.toString(),
-      });
     }
 
     if (

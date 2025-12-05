@@ -196,13 +196,6 @@ export function OrganizationSelector({
 
   const handleTenantSelect = (tenant: Tenant) => {
     setCurrTenant(tenant);
-
-    if (tenant.version === TenantVersion.V0) {
-      // Hack to wait for next event loop tick so local storage is updated
-      setTimeout(() => {
-        window.location.href = `/workflow-runs?tenant=${tenant.metadata.id}`;
-      }, 0);
-    }
   };
 
   const toggleOrgExpansion = (orgId: string) => {

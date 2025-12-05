@@ -70,13 +70,6 @@ export function TenantSwitcher({
                   invariant(membership.tenant);
                   setCurrTenant(membership.tenant);
                   setOpen(false);
-
-                  if (membership.tenant.version === TenantVersion.V0) {
-                    // Hack to wait for next event loop tick so local storage is updated
-                    setTimeout(() => {
-                      window.location.href = `/workflow-runs?tenant=${membership.tenant?.metadata.id}`;
-                    }, 0);
-                  }
                 }}
                 value={membership.tenant?.slug}
                 className="text-sm cursor-pointer"

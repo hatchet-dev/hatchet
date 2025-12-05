@@ -59,27 +59,7 @@ export default function Invites() {
       return data.tenantId;
     },
     onSuccess: async (tenantId: string) => {
-      try {
-        const memberships = await api.tenantMembershipsList();
-
-        const foundTenant = memberships.data.rows?.find(
-          (m) => m.tenant?.metadata.id === tenantId,
-        )?.tenant;
-
-        switch (foundTenant?.version) {
-          case TenantVersion.V0:
-            navigate(`/workflow-runs?tenant=${tenantId}`);
-            break;
-          case TenantVersion.V1:
-            navigate(`/tenants/${tenantId}/runs`);
-            break;
-          default:
-            navigate('/');
-            break;
-        }
-      } catch (e) {
-        navigate('/');
-      }
+      navigate(`/tenants/${tenantId}/runs`);
     },
     onError: handleApiError,
   });

@@ -71,12 +71,10 @@ export function TenantSwitcher({
                   setCurrTenant(membership.tenant);
                   setOpen(false);
 
-                  if (membership.tenant.version === TenantVersion.V1) {
-                    // Hack to wait for next event loop tick so local storage is updated
-                    setTimeout(() => {
-                      window.location.href = `/tenants/${membership.tenant?.metadata.id}`;
-                    }, 0);
-                  }
+                  // Hack to wait for next event loop tick so local storage is updated
+                  setTimeout(() => {
+                    window.location.href = `/tenants/${membership.tenant?.metadata.id}`;
+                  }, 0);
                 }}
                 value={membership.tenant?.slug}
                 className="text-sm cursor-pointer"
