@@ -497,7 +497,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	_, err = p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, offset)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to upsert last offset for cutover job: %w", err)
+		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
