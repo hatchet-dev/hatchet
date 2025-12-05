@@ -31,7 +31,7 @@ import { capitalize } from '@/lib/utils';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { flattenDAGsKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
 import { useMemo, useState } from 'react';
-export const isHealthy = (worker?: Worker) => {
+const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
   if (!worker) {
@@ -54,7 +54,7 @@ export const isHealthy = (worker?: Worker) => {
   return reasons;
 };
 
-export const WorkerStatus = ({
+const WorkerStatus = ({
   status = 'INACTIVE',
   health,
 }: {

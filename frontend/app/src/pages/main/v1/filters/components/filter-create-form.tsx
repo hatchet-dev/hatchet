@@ -32,7 +32,7 @@ interface FilterCreateFormProps {
   isCreating: boolean;
 }
 
-export function FilterCreateForm({
+function FilterCreateForm({
   isOpen,
   onClose,
   workflowNameFilters,

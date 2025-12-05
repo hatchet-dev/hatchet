@@ -19,9 +19,9 @@ import type {
 } from "axios";
 import axios from "axios";
 
-export type QueryParamsType = Record<string | number, any>;
+type QueryParamsType = Record<string | number, any>;
 
-export interface FullRequestParams
+interface FullRequestParams
   extends Omit<AxiosRequestConfig, "data" | "params" | "url" | "responseType"> {
   /** set parameter to `true` for call `securityWorker` for this request */
   secure?: boolean;
@@ -42,7 +42,7 @@ export type RequestParams = Omit<
   "body" | "method" | "query" | "path"
 >;
 
-export interface ApiConfig<SecurityDataType = unknown>
+interface ApiConfig<SecurityDataType = unknown>
   extends Omit<AxiosRequestConfig, "data" | "cancelToken"> {
   securityWorker?: (
     securityData: SecurityDataType | null,
@@ -53,9 +53,7 @@ export interface ApiConfig<SecurityDataType = unknown>
 
 export enum ContentType {
   Json = "application/json",
-  JsonApi = "application/vnd.api+json",
   FormData = "multipart/form-data",
-  UrlEncoded = "application/x-www-form-urlencoded",
   Text = "text/plain",
 }
 

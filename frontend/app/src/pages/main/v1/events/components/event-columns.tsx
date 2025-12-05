@@ -19,16 +19,16 @@ export const EventColumn = {
   scope: 'Scope',
 };
 
-export type EventColumnKeys = keyof typeof EventColumn;
+type EventColumnKeys = keyof typeof EventColumn;
 
 export const idKey: EventColumnKeys = 'id';
 export const keyKey: EventColumnKeys = 'key';
-export const seenAtKey: EventColumnKeys = 'seenAt';
+const seenAtKey: EventColumnKeys = 'seenAt';
 export const workflowKey: EventColumnKeys = 'workflowId';
 export const statusKey: EventColumnKeys = 'status';
-export const runsKey: EventColumnKeys = 'runs';
+const runsKey: EventColumnKeys = 'runs';
 export const metadataKey: EventColumnKeys = 'metadata';
-export const payloadKey: EventColumnKeys = 'payload';
+const payloadKey: EventColumnKeys = 'payload';
 export const scopeKey: EventColumnKeys = 'scope';
 
 export const columns = ({

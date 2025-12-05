@@ -23,7 +23,7 @@ import {
 import { workflowRunStatusFilters } from '../workflow-runs-v1/hooks/use-toolbar-filters';
 import { useSidePanel } from '@/hooks/use-side-panel';
 
-export interface ScheduledWorkflowRunsTableProps {
+interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
   createdBefore?: string;
   workflowId?: string;

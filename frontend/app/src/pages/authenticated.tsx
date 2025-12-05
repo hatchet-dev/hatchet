@@ -1,21 +1,19 @@
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
 import { Outlet, useNavigate } from 'react-router-dom';
-import api, { queries, TenantVersion, User } from '@/lib/api';
-import { Loading } from '@/components/ui/loading.tsx';
+import api, { queries, User } from '@/lib/api';
+import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import SupportChat from '@/components/molecules/support-chat';
 import { PostHogProvider } from '@/providers/posthog';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useContextFromParent } from '@/lib/outlet';
-import { useTenant } from '@/lib/atoms';
 import { AxiosError } from 'axios';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { cloudApi } from '@/lib/api/api';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 export default function Authenticated() {
-  const [hasHasBanner, setHasBanner] = useState(false);
-
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
 
   const { data: cloudMetadata } = useQuery({
     queryKey: ['metadata'],
@@ -112,14 +110,6 @@ export default function Authenticated() {
       window.location.href = '/onboarding/create-tenant';
       return;
     }
-
-    if (
-      tenant?.version === TenantVersion.V0 &&
-      currentUrl.startsWith('/tenants')
-    ) {
-      window.location.href = `/workflow-runs?tenant=${tenant.metadata.id}`;
-      return;
-    }
   }, [
     tenant?.metadata.id,
     userQuery.data,
@@ -165,11 +155,8 @@ export default function Authenticated() {
           <MainNav
             user={userQuery.data}
             tenantMemberships={listMembershipsQuery.data?.rows || []}
-            setHasBanner={setHasBanner}
           />
-          <div
-            className={`${hasHasBanner ? 'pt-28' : 'pt-16'} flex-grow overflow-y-auto overflow-x-hidden`}
-          >
+          <div className="pt-16 flex-grow overflow-y-auto overflow-x-hidden">
             <Outlet context={ctx} />
           </div>
         </div>

@@ -56,7 +56,7 @@ export function DeleteCron({
   );
 }
 
-export function DeleteCronForm({ className, ...props }: DeleteCronFormProps) {
+function DeleteCronForm({ className, ...props }: DeleteCronFormProps) {
   return (
     <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
       <DialogHeader>

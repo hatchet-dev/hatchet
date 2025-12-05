@@ -6,10 +6,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Spinner } from '@/components/ui/loading';
+} from '@/components/v1/ui/dialog';
+import { Button } from '@/components/v1/ui/button';
+import { Input } from '@/components/v1/ui/input';
+import { Spinner } from '@/components/v1/ui/loading';
 
 interface DeleteTenantModalProps {
   open: boolean;

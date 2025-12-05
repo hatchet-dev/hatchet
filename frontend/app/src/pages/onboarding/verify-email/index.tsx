@@ -2,7 +2,7 @@ import api from '@/lib/api';
 import { LoaderFunctionArgs, redirect, useLoaderData } from 'react-router-dom';
 import queryClient from '@/query-client';
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
-import { Loading } from '@/components/ui/loading';
+import { Loading } from '@/components/v1/ui/loading';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {

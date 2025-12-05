@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { CheckIcon, PlusCircledIcon } from '@radix-ui/react-icons';
-import { Column } from '@tanstack/react-table';
 
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/v1/ui/badge';
@@ -27,17 +26,6 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 
-interface DataTableFacetedFilterProps<TData, TValue> {
-  column?: Column<TData, TValue>;
-  title?: string;
-  type?: ToolbarType;
-  options?: {
-    label: string;
-    value: string;
-    icon?: React.ComponentType<{ className?: string }>;
-  }[];
-}
-
 const keyValuePairSchema = z.object({
   key: z.string().min(1, 'Key is required'),
   value: z.string().min(1, 'Value is required'),
@@ -49,23 +37,6 @@ const arrayInputSchema = z.object({
 
 type KeyValuePair = z.infer<typeof keyValuePairSchema>;
 type ArrayInput = z.infer<typeof arrayInputSchema>;
-
-export function DataTableFacetedFilter<TData, TValue>({
-  column,
-  title,
-  type = ToolbarType.Checkbox,
-  options,
-}: DataTableFacetedFilterProps<TData, TValue>) {
-  return (
-    <Combobox
-      values={column?.getFilterValue() as string[]}
-      title={title}
-      type={type}
-      options={options}
-      setValues={(values) => column?.setFilterValue(values)}
-    />
-  );
-}
 
 export function Combobox({
   values = [],

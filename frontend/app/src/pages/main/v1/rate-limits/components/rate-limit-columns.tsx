@@ -13,13 +13,13 @@ export const RateLimitColumn = {
   window: 'Window',
 };
 
-export type RateLimitColumnKeys = keyof typeof RateLimitColumn;
+type RateLimitColumnKeys = keyof typeof RateLimitColumn;
 
 export const keyKey: RateLimitColumnKeys = 'key';
-export const valueKey: RateLimitColumnKeys = 'value';
-export const limitKey: RateLimitColumnKeys = 'limit';
-export const lastRefillKey: RateLimitColumnKeys = 'lastRefill';
-export const windowKey: RateLimitColumnKeys = 'window';
+const valueKey: RateLimitColumnKeys = 'value';
+const limitKey: RateLimitColumnKeys = 'limit';
+const lastRefillKey: RateLimitColumnKeys = 'lastRefill';
+const windowKey: RateLimitColumnKeys = 'window';
 
 export const columns: ColumnDef<RateLimitWithMetadata>[] = [
   {

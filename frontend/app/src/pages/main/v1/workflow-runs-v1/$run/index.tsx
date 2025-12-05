@@ -3,7 +3,6 @@ import api, {
   V1TaskSummary,
   V1WorkflowRunDetails,
   WorkflowRunShapeForWorkflowRunDetails,
-  WorkflowRunStatus,
 } from '@/lib/api';
 import { useParams } from 'react-router-dom';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
@@ -38,12 +37,6 @@ import invariant from 'tiny-invariant';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Waterfall } from './v2components/waterfall';
 import { RunsProvider } from '../hooks/runs-provider';
-
-export const WORKFLOW_RUN_TERMINAL_STATUSES = [
-  WorkflowRunStatus.CANCELLED,
-  WorkflowRunStatus.FAILED,
-  WorkflowRunStatus.SUCCEEDED,
-];
 
 function statusToBadgeVariant(status: V1TaskStatus) {
   switch (status) {

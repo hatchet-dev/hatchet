@@ -31,7 +31,7 @@ import { docsPages } from '@/lib/generated/docs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { Loading } from '@/components/v1/ui/loading';
 
-export interface RunsTableProps {
+interface RunsTableProps {
   headerClassName?: string;
 }
 

@@ -141,7 +141,7 @@ type UseTaskRunProps = {
   taskRunId: string;
 };
 
-export const useTaskRun = ({ taskRunId }: UseTaskRunProps) => {
+const useTaskRun = ({ taskRunId }: UseTaskRunProps) => {
   const { refetchInterval } = useRefetchInterval();
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),

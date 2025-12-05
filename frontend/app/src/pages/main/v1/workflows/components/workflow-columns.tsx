@@ -12,11 +12,11 @@ export const WorkflowColumn = {
   createdAt: 'Created at',
 } as const;
 
-export type WorkflowColumnKeys = keyof typeof WorkflowColumn;
+type WorkflowColumnKeys = keyof typeof WorkflowColumn;
 
-export const statusKey: WorkflowColumnKeys = 'status';
+const statusKey: WorkflowColumnKeys = 'status';
 export const nameKey: WorkflowColumnKeys = 'name';
-export const createdAtKey: WorkflowColumnKeys = 'createdAt';
+const createdAtKey: WorkflowColumnKeys = 'createdAt';
 
 export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
   tenantId,
