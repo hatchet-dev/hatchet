@@ -28,7 +28,6 @@ import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-c
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
 import { useCallback, useState } from 'react';
-import { Toaster } from '@/components/v1/ui/toaster';
 import { FullscreenIcon } from 'lucide-react';
 
 export enum TabOption {
@@ -137,7 +136,6 @@ export const TaskRunDetail = ({
 
   return (
     <div className="w-full flex flex-col gap-4">
-      <Toaster />
       <div className="flex flex-row justify-between items-center">
         <div className="flex flex-row justify-between items-center w-full">
           <div className="flex flex-row gap-4 items-center">
