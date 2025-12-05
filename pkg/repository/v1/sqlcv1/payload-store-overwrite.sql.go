@@ -129,7 +129,7 @@ WITH partitions AS (
 
 SELECT *
 FROM partitions
-WHERE lower_bound <= @date::DATE
+WHERE lower_bound <= $1::DATE
 `
 
 type FindV1PayloadPartitionsBeforeDateRow struct {
