@@ -536,6 +536,8 @@ func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context
 	})
 
 	if err != nil {
+		// ErrNoRows here means that something else is holding the lease
+		// since we did not insert a new record, and the `UPDATE` returned an empty set
 		if errors.Is(err, pgx.ErrNoRows) {
 			return &CutoverJobRunMetadata{
 				ShouldRun:      false,
