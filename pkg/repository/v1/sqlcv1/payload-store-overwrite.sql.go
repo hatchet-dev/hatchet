@@ -127,7 +127,7 @@ WITH partitions AS (
     ORDER BY child.relname
 )
 
-SELECT *
+SELECT partition_name, lower_bound AS partition_date
 FROM partitions
 WHERE lower_bound <= $1::DATE
 `
