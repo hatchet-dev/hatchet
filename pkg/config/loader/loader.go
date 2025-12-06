@@ -293,15 +293,23 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DurableSleepLimit: scf.Runtime.TaskOperationLimits.DurableSleepLimit,
 	}
 
+	inlineStoreTTLDays := scf.PayloadStore.InlineStoreTTLDays
+
+	if inlineStoreTTLDays <= 0 {
+		return nil, fmt.Errorf("inline store TTL days must be greater than 0")
+	}
+
+	inlineStoreTTL := time.Duration(inlineStoreTTLDays) * 24 * time.Hour
+
 	payloadStoreOpts := repov1.PayloadStoreRepositoryOpts{
 		EnablePayloadDualWrites:          scf.PayloadStore.EnablePayloadDualWrites,
 		EnableTaskEventPayloadDualWrites: scf.PayloadStore.EnableTaskEventPayloadDualWrites,
 		EnableOLAPPayloadDualWrites:      scf.PayloadStore.EnableOLAPPayloadDualWrites,
 		EnableDagDataPayloadDualWrites:   scf.PayloadStore.EnableDagDataPayloadDualWrites,
-		WALPollLimit:                     scf.PayloadStore.WALPollLimit,
-		WALProcessInterval:               scf.PayloadStore.WALProcessInterval,
 		ExternalCutoverProcessInterval:   scf.PayloadStore.ExternalCutoverProcessInterval,
-		WALEnabled:                       scf.PayloadStore.WALEnabled,
+		ExternalCutoverBatchSize:         scf.PayloadStore.ExternalCutoverBatchSize,
+		InlineStoreTTL:                   &inlineStoreTTL,
+		EnableImmediateOffloads:          scf.PayloadStore.EnableImmediateOffloads,
 	}
 
 	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{
@@ -418,11 +426,15 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				postgres.WithQos(cf.MessageQueue.Postgres.Qos),
 			)
 
-			cleanupv1, mqv1 = pgmqv1.NewPostgresMQ(
+			cleanupv1, mqv1, err = pgmqv1.NewPostgresMQ(
 				dc.EngineRepository.MessageQueue(),
 				pgmqv1.WithLogger(&l),
 				pgmqv1.WithQos(cf.MessageQueue.Postgres.Qos),
 			)
+
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not init postgres queue: %w", err)
+			}
 
 			cleanup1 = func() error {
 				if err := cleanupv0(); err != nil {
@@ -447,7 +459,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				rabbitmq.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
 			)
 
-			cleanupv1, mqv1 = rabbitmqv1.New(
+			cleanupv1, mqv1, err = rabbitmqv1.New(
 				rabbitmqv1.WithURL(cf.MessageQueue.RabbitMQ.URL),
 				rabbitmqv1.WithLogger(&l),
 				rabbitmqv1.WithQos(cf.MessageQueue.RabbitMQ.Qos),
@@ -460,6 +472,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				),
 				rabbitmqv1.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
 			)
+
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not init rabbitmq: %w", err)
+			}
 
 			cleanup1 = func() error {
 				if err := cleanupv0(); err != nil {

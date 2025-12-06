@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  client-go:
+    image: go-${COMPRESSION_STATE:-enabled}-compression
+    container_name: hatchet-client-go
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - HATCHET_CLIENT_HOST_PORT=${HATCHET_CLIENT_HOST_PORT:-192.168.65.254:7070}
+      - HATCHET_CLIENT_SERVER_URL=${HATCHET_CLIENT_SERVER_URL:-http://192.168.65.254:8080}
+      - HATCHET_CLIENT_TOKEN=${HATCHET_CLIENT_TOKEN}
+      - HATCHET_CLIENT_NAMESPACE=${HATCHET_CLIENT_NAMESPACE:-compression-test}
+      - HATCHET_CLIENT_LOG_LEVEL=${HATCHET_CLIENT_LOG_LEVEL:-debug}
+      - HATCHET_CLIENT_TLS_STRATEGY=none
+      - COMPRESSION_STATE=${COMPRESSION_STATE:-enabled}
+    command:
+      - ./hatchet-loadtest
+      - loadtest
+      - --events
+      - "${TEST_EVENTS_RATE:-10}"
+      - --duration
+      - "${TEST_DURATION:-60s}"
+      - --payloadSize
+      - "100kb"
+      - --dagSteps
+      - "1"
+      - --eventFanout
+      - "1"
+      - --slots
+      - "100"
+      - --wait
+      - "${TEST_WAIT:-60s}"
+
+  client-typescript:
+    image: typescript-${COMPRESSION_STATE:-enabled}-compression
+    container_name: hatchet-client-typescript
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - HATCHET_CLIENT_HOST_PORT=${HATCHET_CLIENT_HOST_PORT:-192.168.65.254:7070}
+      - HATCHET_CLIENT_API_URL=${HATCHET_CLIENT_API_URL:-http://192.168.65.254:8080}
+      - HATCHET_CLIENT_TOKEN=${HATCHET_CLIENT_TOKEN}
+      - HATCHET_CLIENT_NAMESPACE=${HATCHET_CLIENT_NAMESPACE:-compression-test}
+      - HATCHET_CLIENT_TLS_STRATEGY=none
+      - TEST_EVENTS_COUNT=${TEST_EVENTS_COUNT:-10}
+      - COMPRESSION_STATE=${COMPRESSION_STATE:-enabled}
+    command: ["ts-node", "-r", "tsconfig-paths/register", "typescript_test.ts"]
+
+  client-python:
+    image: python-${COMPRESSION_STATE:-enabled}-compression
+    container_name: hatchet-client-python
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - HATCHET_CLIENT_HOST_PORT=${HATCHET_CLIENT_HOST_PORT:-192.168.65.254:7070}
+      - HATCHET_CLIENT_TOKEN=${HATCHET_CLIENT_TOKEN}
+      - HATCHET_CLIENT_NAMESPACE=${HATCHET_CLIENT_NAMESPACE:-compression-test}
+      - HATCHET_CLIENT_TLS_STRATEGY=none
+      - TEST_EVENTS_COUNT=${TEST_EVENTS_COUNT:-10}
+      - COMPRESSION_STATE=${COMPRESSION_STATE:-enabled}
+    command: ["python", "python_test.py"]

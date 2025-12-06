@@ -8,7 +8,7 @@ const isCommentLine = (line: string) => {
 const startsWithPrefixAndChar = (line: string, specialChar: string) => {
   const trimmed = line.trim();
   return commentPrefixes.some((prefix) =>
-    trimmed.startsWith(`${prefix} ${specialChar}`)
+    trimmed.startsWith(`${prefix} ${specialChar}`),
   );
 };
 
@@ -20,7 +20,7 @@ const isTargetLine = (line: string, target: string) => {
 export const parseDocComments = (
   source: string,
   target?: string,
-  collapsed: boolean = false
+  collapsed: boolean = false,
 ): string => {
   if (!target) {
     return source;

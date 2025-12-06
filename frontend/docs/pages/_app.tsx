@@ -1,19 +1,24 @@
 import type { AppProps } from "next/app";
-import posthog from "posthog-js";
-import { PostHogProvider } from "posthog-js/react";
 import "../styles/global.css";
 import { LanguageProvider } from "../context/LanguageContext";
+import { ConsentProvider } from "../context/ConsentContext";
 import CookieConsent from "@/components/ui/cookie-banner";
+import { PostHogProvider } from "@/providers/posthog";
+import { CrossDomainLinkHandler } from "@/components/CrossDomainLinkHandler";
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <LanguageProvider>
-      <PostHogProvider client={posthog}>
-        <main>
-          <CookieConsent />
-          <Component {...pageProps} />
-        </main>
-      </PostHogProvider>
+      <ConsentProvider>
+        <PostHogProvider>
+          <CrossDomainLinkHandler>
+            <main>
+              <CookieConsent />
+              <Component {...pageProps} />
+            </main>
+          </CrossDomainLinkHandler>
+        </PostHogProvider>
+      </ConsentProvider>
     </LanguageProvider>
   );
 }
