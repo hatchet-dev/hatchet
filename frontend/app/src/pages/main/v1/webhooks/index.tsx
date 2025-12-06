@@ -485,7 +485,8 @@ const CreateWebhookModal = () => {
                     <code className="bg-background px-1.5 py-0.5 rounded text-foreground">
                       input.type
                     </code>{' '}
-                    works well since Slack interactive payloads don't have a top-level `id` field.
+                    works well since Slack interactive payloads don't have a
+                    top-level `id` field.
                   </p>
                 </div>
               )}
