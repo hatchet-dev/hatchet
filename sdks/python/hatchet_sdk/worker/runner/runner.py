@@ -501,9 +501,11 @@ class Runner:
 
         try:
             serialized_output = json.dumps(output, default=str)
-        except Exception:
+        except Exception as e:
             logger.exception("could not serialize output")
-            serialized_output = str(output)
+            raise IllegalTaskOutputError(
+                "Task output could not be serialized to JSON. Please ensure that all task outputs are JSON serializable."
+            ) from e
 
         if "\\u0000" in serialized_output:
             raise IllegalTaskOutputError(
