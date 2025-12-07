@@ -178,10 +178,8 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
         webhookName: row.original.name,
         webhookData: { eventKeyExpression: value.trim() },
       });
-      setIsEditing(false);
-    } else {
-      setIsEditing(false);
     }
+    setIsEditing(false);
   }, [value, row.original.eventKeyExpression, row.original.name, mutations]);
 
   const handleCancel = useCallback(() => {
