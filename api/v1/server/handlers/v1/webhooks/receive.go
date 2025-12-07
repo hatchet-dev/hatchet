@@ -216,9 +216,9 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	if err != nil {
 		var errorMsg string
 		if strings.Contains(err.Error(), "did not evaluate to a string") {
-			errorMsg = fmt.Sprintf("event key expression must evaluate to a string, but got a different type. Expression: %s. Error: %v. For Slack webhooks, try: 'slack:' + input.type or input.type", webhook.EventKeyExpression, err)
+			errorMsg = fmt.Sprintf("event key expression must evaluate to a string, but got a different type. Expression: %s. Error: %v", webhook.EventKeyExpression, err)
 		} else if eventKey == "" {
-			errorMsg = fmt.Sprintf("event key evaluated to an empty string. Expression: %s. For Slack webhooks, try: 'slack:' + input.type or input.type", webhook.EventKeyExpression)
+			errorMsg = fmt.Sprintf("event key evaluated to an empty string. Expression: %s", webhook.EventKeyExpression)
 		} else {
 			errorMsg = fmt.Sprintf("failed to evaluate event key expression: %v", err)
 		}
@@ -362,20 +362,10 @@ func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlc
 			return false, nil, nil
 		}
 
-		/* Check for Events API URL verification challenge
-		 * The payload should contain: token, challenge, and type: "url_verification"
-		 */
-		payloadType, hasType := payload["type"].(string)
-		challenge, hasChallenge := payload["challenge"].(string)
-
-		/* Accept if challenge exists and type is url_verification
-		 * If type is missing but challenge exists, still accept it (defensive: in case Slack sends malformed challenge) */
-		if hasChallenge && challenge != "" {
-			if !hasType || payloadType == "url_verification" {
-				return true, map[string]interface{}{
-					"challenge": challenge,
-				}, nil
-			}
+		if challenge, ok := payload["challenge"].(string); ok && challenge != "" {
+			return true, map[string]interface{}{
+				"challenge": challenge,
+			}, nil
 		}
 
 		return false, nil, nil
