@@ -487,7 +487,7 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 					SELECT
 						tenant_id,
 						external_id,
-						location::v1_payload_location,
+						location::v1_payload_location_olap,
 						external_location_key,
 						NULL,
 						inserted_at,
