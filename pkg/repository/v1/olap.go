@@ -255,7 +255,7 @@ type OLAPRepository interface {
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
 	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
-	PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId string, payloads []StoreOLAPPayloadOpts) error
+	PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId TenantID, putPayloadOpts ...StoreOLAPPayloadOpts) (map[PayloadExternalId]ExternalPayloadLocationKey, error)
 	ReadPayload(ctx context.Context, tenantId string, externalId pgtype.UUID) ([]byte, error)
 	ReadPayloads(ctx context.Context, tenantId string, externalIds ...pgtype.UUID) (map[pgtype.UUID][]byte, error)
 
