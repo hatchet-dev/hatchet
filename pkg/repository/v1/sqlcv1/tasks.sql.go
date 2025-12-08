@@ -2381,10 +2381,7 @@ SET
     batch_size = $2::integer,
     batch_index = input.batch_index,
     worker_id = $3::uuid,
-    batch_key = CASE
-        WHEN $4::text IS NULL OR $4::text = '' THEN tr.batch_key
-        ELSE $4::text
-    END
+    batch_key = COALESCE(NULLIF($4::text, ''), tr.batch_key)
 FROM
     input
 WHERE
