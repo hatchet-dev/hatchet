@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/internal/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
@@ -46,12 +47,17 @@ func TestDecideBatchDefersWhenMaxRunsReached(t *testing.T) {
 		repov1: &fakeRepository{
 			tasks: taskRepo,
 		},
+		batchConfigs: cache.NewTTL[string, *batchConfig](),
 	}
 
-	sched.batchConfigs.Store(stepID, &batchConfig{
+	t.Cleanup(func() {
+		sched.batchConfigs.Stop()
+	})
+
+	sched.batchConfigs.Set(stepID, &batchConfig{
 		batchSize: 1,
 		maxRuns:   1,
-	})
+	}, batchConfigCacheTTL)
 
 	coord := newSchedulingBatchCoordinator(sched)
 

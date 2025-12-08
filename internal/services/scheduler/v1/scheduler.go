@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/internal/cache"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
@@ -36,6 +37,8 @@ var (
 	eventTypeWaitingForBatch = sqlcv1.V1EventTypeOlapWAITINGFORBATCH
 	eventTypeBatchFlushed    = sqlcv1.V1EventTypeOlapBATCHFLUSHED
 )
+
+const batchConfigCacheTTL = time.Minute
 
 func describeFlushReason(reason batchFlushReason, batchSize int, interval time.Duration) string {
 	switch reason {
@@ -164,7 +167,7 @@ type Scheduler struct {
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
 
 	batchManager *batchBufferManager
-	batchConfigs sync.Map // stepID -> *batchConfig (nil indicates no batch configuration)
+	batchConfigs *cache.TTLCache[string, *batchConfig] // stepID -> *batchConfig (nil indicates no batch configuration)
 
 	batchCoordinator *schedulingBatchCoordinator
 }
@@ -236,6 +239,7 @@ func New(
 		ql:                     opts.queueLogger,
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
+		batchConfigs:           cache.NewTTL[string, *batchConfig](),
 	}
 
 	q.batchManager = newBatchBufferManager(q.l, q.batchFlush, q.shouldFlushBatch)
@@ -494,6 +498,10 @@ func (s *Scheduler) Start() (func() error, error) {
 		}
 
 		s.pubBuffer.Stop()
+
+		if s.batchConfigs != nil {
+			s.batchConfigs.Stop()
+		}
 
 		return nil
 	}
@@ -1199,14 +1207,15 @@ func buildBatchEventPayload(fields map[string]interface{}) string {
 }
 
 func (s *Scheduler) getBatchConfig(ctx context.Context, tenantId string, stepId string) (*batchConfig, error) {
-	if cached, ok := s.batchConfigs.Load(stepId); ok {
-		if cached == nil {
-			return nil, nil
-		}
+	if s.batchConfigs != nil {
+		if cached, ok := s.batchConfigs.Get(stepId); ok {
+			if cached == nil {
+				return nil, nil
+			}
 
-		cfg := cached.(*batchConfig)
-		copied := *cfg
-		return &copied, nil
+			copied := *cached
+			return &copied, nil
+		}
 	}
 
 	configs, err := s.repov1.Workflows().ListStepBatchConfigs(ctx, tenantId, []string{stepId})
@@ -1218,7 +1227,9 @@ func (s *Scheduler) getBatchConfig(ctx context.Context, tenantId string, stepId 
 	cfg, ok := configs[stepId]
 
 	if !ok || cfg == nil {
-		s.batchConfigs.Store(stepId, nil)
+		if s.batchConfigs != nil {
+			s.batchConfigs.Set(stepId, nil, batchConfigCacheTTL)
+		}
 		return nil, nil
 	}
 
@@ -1234,7 +1245,9 @@ func (s *Scheduler) getBatchConfig(ctx context.Context, tenantId string, stepId 
 		converted.maxRuns = int(*cfg.MaxRuns)
 	}
 
-	s.batchConfigs.Store(stepId, converted)
+	if s.batchConfigs != nil {
+		s.batchConfigs.Set(stepId, converted, batchConfigCacheTTL)
+	}
 
 	copied := *converted
 
