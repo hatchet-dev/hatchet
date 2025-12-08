@@ -1,0 +1,95 @@
+import { Callout } from "nextra/components";
+
+# Batch Assignment (Beta)
+
+<Callout type="info">
+  Batch assignment is currently in beta. Expect rapid iteration on the data
+  model, APIs, and UI while we gather feedback.
+</Callout>
+
+Batch assignment lets Hatchet buffer individual task invocations and flush them
+as configurable batches for a worker to process together. This is ideal when
+workloads benefit from shared setup (e.g. vectorized work with shared memory, batched external API calls, or upstream rate limits
+that prefer grouped delivery). The scheduler tracks batches per task, worker, and
+batch key so that tasks are still isolated when necessary.
+
+## Configuring a batched task
+
+A step becomes batchable when you set one or more of the following properties in
+its definition (for example via workflow manifests or SDK helpers):
+
+// TODO should probably default to 2?
+- `batch_size`: the maximum number of items to flush at once. Defaults to `1`
+  and is clamped to at least one.
+- `batch_flush_interval_ms` (optional): the longest time (in milliseconds) that the buffer
+  will wait before flushing even if the batch size has not been reached.
+- `batch_key_expression` (optional): a CEL expression that groups tasks into logical
+  batches. Tasks with different keys are always processed separately.
+- `batch_max_runs` (optional): the maximum number of active batches per key. Additional
+  tasks wait for a previous batch to complete before another begins.
+
+If you set only `batch_size`, the scheduler flushes as soon as the buffer fills
+up. Adding `batch_flush_interval_ms` guarantees bounded latency for sporadic
+traffic. The other options are optional but give you finer control over
+grouping and concurrency.
+
+## Supplying a batch key
+
+The batch key expression runs with the same context that powers other CEL-based
+features in Hatchet. It can reference `input`, `additionalMetadata`,
+`workflowRunId`, and parent trigger data. The expression must return a string
+after trimming whitespace. An empty result will group as a single batch.
+
+```cel
+// group by tenant and logical bucket
+input.customerId + ":" + string(additionalMetadata.bucket)
+```
+
+If the expression fails to evaluate or produces an unsupported type, Hatchet
+rejects the task creation to keep buffering logic predictable. Use CEL tooling
+locally to validate expressions before deploying.
+
+## Worker execution model
+
+Workers that opt into batchable tasks receive an array of inputs instead of a
+single payload. SDKs expose this through dedicated helpers (for example,
+`hatchet.batchTask` in the TypeScript SDK) that pass the aggregated inputs to
+your handler. Each element in the array carries the original task metadata, and
+individual items continue to respect per-task retry policies.
+
+{/* TODO add snippet */}
+```ts
+const batch = hatchet.batchTask({
+  name: "simple",
+  batchSize: 2,
+  flushInterval: 1_000,
+  batchKey: "input.batchId",
+  maxRuns: 2,
+  fn: async (inputs) => {
+    return inputs.map((input, index) => ({
+      message: `${input.Message.toLowerCase()}#${index}`,
+    }));
+  },
+});
+```
+
+When a batch flushes, Hatchet records the `batchId`, `batchSize`, and index for
+each task in its runtime metadata. This data becomes available via the API and
+analytics endpoints so you can trace which invocations ran together.
+
+## Observability and lifecycle
+
+Hatchet emits dedicated events while tasks wait for a batch (`WAITING_FOR_BATCH`
+and `BATCH_BUFFERED`) and once a flush is triggered (`BATCH_FLUSHED`). These
+events surface in the run timeline on the dashboard.
+
+Batch runs are reference counted inside the repository. When all tasks in a
+batch complete (successfully or by cancellation), Hatchet automatically releases
+the batch reservation, allowing queued tasks with the same key to start building
+the next batch.
+
+## Notes on evaluation order
+
+Concurrency, rate limiting, sticky assignment, manual slot releases, and other advanced features continue
+to work alongside batching; Hatchet will evaluate task configuration first and then when able to queue, simply batches
+the tasks per unique combination of worker, task, and batch key.

@@ -91,6 +91,7 @@ export default {
     title: "Advanced Assignment",
     type: "separator",
   },
+  "batch-assignment": "Batch Assignment",
   "sticky-assignment": "Sticky Assignment",
   "worker-affinity": "Worker Affinity",
   "manual-slot-release": "Manual Slot Release",
