@@ -45,7 +45,8 @@ type Scheduler struct {
 	rl   *rateLimiter
 	exts *Extensions
 
-	batchCoordinator BatchCoordinator
+	batchCoordinatorMu rwMutex
+	batchCoordinator   BatchCoordinator
 }
 
 type BatchCoordinator interface {
@@ -69,23 +70,34 @@ func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter, exts 
 	l := cf.l.With().Str("tenant_id", sqlchelpers.UUIDToStr(tenantId)).Logger()
 
 	return &Scheduler{
-		repo:            cf.repo.Assignment(),
-		tenantId:        tenantId,
-		l:               &l,
-		actions:         make(map[string]*action),
-		unackedSlots:    make(map[int]*slot),
-		rl:              rl,
-		actionsMu:       newRWMu(cf.l),
-		replenishMu:     newMu(cf.l),
-		workersMu:       newMu(cf.l),
-		assignedCountMu: newMu(cf.l),
-		unackedMu:       newMu(cf.l),
-		exts:            exts,
+		repo:               cf.repo.Assignment(),
+		tenantId:           tenantId,
+		l:                  &l,
+		actions:            make(map[string]*action),
+		unackedSlots:       make(map[int]*slot),
+		rl:                 rl,
+		actionsMu:          newRWMu(cf.l),
+		replenishMu:        newMu(cf.l),
+		workersMu:          newMu(cf.l),
+		assignedCountMu:    newMu(cf.l),
+		unackedMu:          newMu(cf.l),
+		exts:               exts,
+		batchCoordinatorMu: newRWMu(cf.l),
 	}
 }
 
 func (s *Scheduler) SetBatchCoordinator(coord BatchCoordinator) {
+	s.batchCoordinatorMu.Lock()
+	defer s.batchCoordinatorMu.Unlock()
+
 	s.batchCoordinator = coord
+}
+
+func (s *Scheduler) getBatchCoordinator() BatchCoordinator {
+	s.batchCoordinatorMu.RLock()
+	defer s.batchCoordinatorMu.RUnlock()
+
+	return s.batchCoordinator
 }
 
 func (s *Scheduler) ack(ids []int) {
@@ -789,6 +801,8 @@ func (s *Scheduler) tryAssign(
 				err := queueutils.BatchLinear(50, batched, func(batchQis []*sqlcv1.V1QueueItem) error {
 					batchAssigned := make([]*assignedQueueItem, 0, len(batchQis))
 					batchBuffered := make([]*assignedQueueItem, 0, len(batchQis))
+					coord := s.getBatchCoordinator()
+
 					batchRateLimited := make([]*scheduleRateLimitResult, 0, len(batchQis))
 					batchRateLimitedToMove := make([]*scheduleRateLimitResult, 0, len(batchQis))
 					batchUnassigned := make([]*sqlcv1.V1QueueItem, 0, len(batchQis))
@@ -831,8 +845,8 @@ func (s *Scheduler) tryAssign(
 
 						batchAssigned = append(batchAssigned, assignedItem)
 
-						if s.batchCoordinator != nil {
-							decision := s.batchCoordinator.DecideBatch(ctx, singleRes.qi, singleRes.workerId)
+						if coord != nil {
+							decision := coord.DecideBatch(ctx, singleRes.qi, singleRes.workerId)
 
 							switch decision.Action {
 							case BatchActionDefer:
