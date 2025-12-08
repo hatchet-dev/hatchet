@@ -694,7 +694,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 	}
 
 	return nil
-
 }
 
 type NoOpExternalStore struct{}
