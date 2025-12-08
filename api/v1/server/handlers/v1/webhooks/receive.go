@@ -183,11 +183,11 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 					bodyPreview = bodyPreview[:200] + "..."
 				}
 				errorMsg := fmt.Sprintf("failed to unmarshal request body as JSON: %v", err)
-				w.config.Logger.Warn().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Str("content_type", contentType).Int("body_length", len(rawBody)).Str("body_preview", bodyPreview).Msg(errorMsg)
+				w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Str("content_type", contentType).Int("body_length", len(rawBody)).Str("body_preview", bodyPreview).Msg(errorMsg)
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
 						{
-							Description: fmt.Sprintf("failed to unmarshal request body: %v", err),
+							Description: "failed to unmarshal request body",
 						},
 					},
 				}, nil
