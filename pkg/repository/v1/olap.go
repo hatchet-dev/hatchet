@@ -2938,7 +2938,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 		return nil
 	}
 
-	ctx, span := telemetry.NewSpan(ctx, "olap_repository.ProcessPayloadCutovers")
+	ctx, span := telemetry.NewSpan(ctx, "olap_repository.ProcessOLAPPayloadCutovers")
 	defer span.End()
 
 	if inlineStoreTTL == nil {

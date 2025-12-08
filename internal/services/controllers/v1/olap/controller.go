@@ -859,7 +859,7 @@ func hashToBucket(workflowRunID string, buckets int) int {
 
 func (oc *OLAPControllerImpl) processPayloadExternalCutovers(ctx context.Context) func() {
 	return func() {
-		ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.processPayloadExternalCutovers")
+		ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.processPayloadExternalCutovers")
 		defer span.End()
 
 		oc.l.Debug().Msgf("payload external cutover: processing external cutover payloads")
