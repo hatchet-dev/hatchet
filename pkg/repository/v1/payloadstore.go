@@ -66,6 +66,8 @@ type PayloadStoreRepository interface {
 	DagDataDualWritesEnabled() bool
 	OLAPDualWritesEnabled() bool
 	ExternalCutoverProcessInterval() time.Duration
+	InlineStoreTTL() *time.Duration
+	ExternalCutoverBatchSize() int32
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
 	ProcessPayloadCutovers(ctx context.Context) error
@@ -373,6 +375,14 @@ func (p *payloadStoreRepositoryImpl) OLAPDualWritesEnabled() bool {
 
 func (p *payloadStoreRepositoryImpl) ExternalCutoverProcessInterval() time.Duration {
 	return p.externalCutoverProcessInterval
+}
+
+func (p *payloadStoreRepositoryImpl) InlineStoreTTL() *time.Duration {
+	return p.inlineStoreTTL
+}
+
+func (p *payloadStoreRepositoryImpl) ExternalCutoverBatchSize() int32 {
+	return p.externalCutoverBatchSize
 }
 
 func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
