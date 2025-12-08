@@ -246,7 +246,11 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 }
 
 func (o *OLAPControllerImpl) Start() (func() error, error) {
-	cleanupHeavyReadMQ, heavyReadMQ := o.mq.Clone()
+	cleanupHeavyReadMQ, heavyReadMQ, err := o.mq.Clone()
+
+	if err != nil {
+		return nil, err
+	}
 	heavyReadMQ.SetQOS(2000)
 
 	o.s.Start()
@@ -282,7 +286,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		}()
 	}
 
-	_, err := o.s.NewJob(
+	_, err = o.s.NewJob(
 		gocron.DurationJob(time.Minute*15),
 		gocron.NewTask(
 			o.runOLAPTablePartition(ctx),

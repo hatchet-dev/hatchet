@@ -2,18 +2,19 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
 
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type StorePayloadOpts struct {
@@ -57,19 +58,15 @@ type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
-	ProcessPayloadWAL(ctx context.Context, partitionNumber int64, pubBuffer *msgqueue.MQPubBuffer) (bool, error)
-	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
-	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
+	OverwriteExternalStore(store ExternalStore)
 	DualWritesEnabled() bool
 	TaskEventDualWritesEnabled() bool
 	DagDataDualWritesEnabled() bool
 	OLAPDualWritesEnabled() bool
-	WALPollLimit() int
-	WALProcessInterval() time.Duration
-	WALEnabled() bool
 	ExternalCutoverProcessInterval() time.Duration
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
+	ProcessPayloadCutovers(ctx context.Context) error
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -83,13 +80,9 @@ type payloadStoreRepositoryImpl struct {
 	enableTaskEventPayloadDualWrites bool
 	enableDagDataPayloadDualWrites   bool
 	enableOLAPPayloadDualWrites      bool
-	walPollLimit                     int
-	walProcessInterval               time.Duration
 	externalCutoverProcessInterval   time.Duration
-	// walEnabled controls the payload storage strategy:
-	// - true: Use WAL system (inline + async external offload)
-	// - false: Direct external storage (skip inline, save DB space)
-	walEnabled bool
+	externalCutoverBatchSize         int32
+	enableImmediateOffloads          bool
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -97,15 +90,10 @@ type PayloadStoreRepositoryOpts struct {
 	EnableTaskEventPayloadDualWrites bool
 	EnableDagDataPayloadDualWrites   bool
 	EnableOLAPPayloadDualWrites      bool
-	WALPollLimit                     int
-	WALProcessInterval               time.Duration
 	ExternalCutoverProcessInterval   time.Duration
-	// WALEnabled controls the payload storage strategy:
-	// - true: Use WAL (Write-Ahead Log) system - store payloads inline in PostgreSQL first,
-	//   then asynchronously offload to external storage via WAL processing
-	// - false: Skip WAL system - store payloads directly to external storage immediately,
-	//   saving database space by not storing inline content in PostgreSQL
-	WALEnabled bool
+	ExternalCutoverBatchSize         int32
+	InlineStoreTTL                   *time.Duration
+	EnableImmediateOffloads          bool
 }
 
 func NewPayloadStoreRepository(
@@ -120,16 +108,15 @@ func NewPayloadStoreRepository(
 		queries: queries,
 
 		externalStoreEnabled:             false,
-		inlineStoreTTL:                   nil,
+		inlineStoreTTL:                   opts.InlineStoreTTL,
 		externalStore:                    &NoOpExternalStore{},
 		enablePayloadDualWrites:          opts.EnablePayloadDualWrites,
 		enableTaskEventPayloadDualWrites: opts.EnableTaskEventPayloadDualWrites,
 		enableDagDataPayloadDualWrites:   opts.EnableDagDataPayloadDualWrites,
 		enableOLAPPayloadDualWrites:      opts.EnableOLAPPayloadDualWrites,
-		walPollLimit:                     opts.WALPollLimit,
-		walProcessInterval:               opts.WALProcessInterval,
 		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
-		walEnabled:                       opts.WALEnabled,
+		externalCutoverBatchSize:         opts.ExternalCutoverBatchSize,
+		enableImmediateOffloads:          opts.EnableImmediateOffloads,
 	}
 }
 
@@ -141,7 +128,6 @@ type PayloadUniqueKey struct {
 }
 
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
-	// We store payloads as array in order to use PostgreSQL's UNNEST to batch insert them
 	taskIds := make([]int64, 0, len(payloads))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
 	payloadTypes := make([]string, 0, len(payloads))
@@ -150,7 +136,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	tenantIds := make([]pgtype.UUID, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
 	externalIds := make([]pgtype.UUID, 0, len(payloads))
-	// If the WAL is disabled, we'll store the external location key in the payloads table right away
 	externalLocationKeys := make([]string, 0, len(payloads))
 
 	seenPayloadUniqueKeys := make(map[PayloadUniqueKey]struct{})
@@ -160,9 +145,77 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		return payloads[i].InsertedAt.Time.After(payloads[j].InsertedAt.Time)
 	})
 
-	// Handle WAL_ENABLED logic
-	if p.walEnabled {
-		// WAL_ENABLED = true: insert into payloads table and WAL table
+	if p.enableImmediateOffloads && p.externalStoreEnabled {
+		externalOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
+		payloadIndexMap := make(map[PayloadUniqueKey]int)
+
+		for i, payload := range payloads {
+			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+			uniqueKey := PayloadUniqueKey{
+				ID:         payload.Id,
+				InsertedAt: payload.InsertedAt,
+				TenantId:   tenantId,
+				Type:       payload.Type,
+			}
+
+			if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
+				continue
+			}
+
+			seenPayloadUniqueKeys[uniqueKey] = struct{}{}
+			payloadIndexMap[uniqueKey] = i
+
+			externalOpts = append(externalOpts, OffloadToExternalStoreOpts{
+				StorePayloadOpts: &payload,
+				OffloadAt:        time.Now(), // Immediate offload
+			})
+		}
+
+		retrieveOptsToExternalKey, err := p.externalStore.Store(ctx, externalOpts...)
+		if err != nil {
+			return fmt.Errorf("failed to store in external store: %w", err)
+		}
+
+		for _, payload := range payloads {
+			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+			uniqueKey := PayloadUniqueKey{
+				ID:         payload.Id,
+				InsertedAt: payload.InsertedAt,
+				TenantId:   tenantId,
+				Type:       payload.Type,
+			}
+
+			if _, exists := seenPayloadUniqueKeys[uniqueKey]; !exists {
+				continue // Skip if already processed
+			}
+
+			retrieveOpts := RetrievePayloadOpts{
+				Id:         payload.Id,
+				InsertedAt: payload.InsertedAt,
+				Type:       payload.Type,
+				TenantId:   tenantId,
+			}
+
+			externalKey, exists := retrieveOptsToExternalKey[retrieveOpts]
+			if !exists {
+				return fmt.Errorf("external key not found for payload %d", payload.Id)
+			}
+
+			taskIds = append(taskIds, payload.Id)
+			taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
+			payloadTypes = append(payloadTypes, string(payload.Type))
+			tenantIds = append(tenantIds, tenantId)
+			locations = append(locations, string(sqlcv1.V1PayloadLocationEXTERNAL))
+			inlineContents = append(inlineContents, nil)
+			externalIds = append(externalIds, payload.ExternalId)
+			externalLocationKeys = append(externalLocationKeys, string(externalKey))
+			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: time.Now(), Valid: true})
+		}
+	} else {
+		if p.enableImmediateOffloads {
+			p.l.Warn().Msg("immediate offloads enabled but external store is not enabled, skipping immediate offloads")
+		}
+
 		for _, payload := range payloads {
 			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
 			uniqueKey := PayloadUniqueKey{
@@ -187,89 +240,12 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 			externalIds = append(externalIds, payload.ExternalId)
 			externalLocationKeys = append(externalLocationKeys, "")
 
-			if p.externalStoreEnabled {
-				offloadAts = append(offloadAts, pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true})
-			} else {
-				offloadAts = append(offloadAts, pgtype.Timestamptz{Time: time.Now(), Valid: true})
-			}
-		}
-	} else {
-		// WAL_ENABLED = false: Skip inline, go directly to external store, we will:
-		// 1. Prepare external store options for immediate offload
-		// 2. Call external store first to get storage keys (S3/GCS URLs)
-		// 3. Process results and prepare for PostgreSQL with external keys only
-		if !p.externalStoreEnabled {
-			return fmt.Errorf("external store must be enabled when WAL is disabled")
-		}
-
-		// 1. Prepare external store options for immediate offload
-		externalOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
-		payloadIndexMap := make(map[PayloadUniqueKey]int) // Map to track original payload indices
-
-		for i, payload := range payloads {
-			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
-			uniqueKey := PayloadUniqueKey{
-				ID:         payload.Id,
-				InsertedAt: payload.InsertedAt,
-				TenantId:   tenantId,
-				Type:       payload.Type,
+			offloadAt := pgtype.Timestamptz{Time: time.Now(), Valid: true}
+			if p.inlineStoreTTL != nil {
+				offloadAt = pgtype.Timestamptz{Time: time.Now().Add(*p.inlineStoreTTL), Valid: true}
 			}
 
-			if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
-				continue
-			}
-
-			seenPayloadUniqueKeys[uniqueKey] = struct{}{}
-			payloadIndexMap[uniqueKey] = i
-
-			externalOpts = append(externalOpts, OffloadToExternalStoreOpts{
-				StorePayloadOpts: &payload,
-				OffloadAt:        time.Now(), // Immediate offload
-			})
-		}
-
-		// 2. Call external store first to get storage keys (S3/GCS URLs)
-		externalKeys, err := p.externalStore.Store(ctx, externalOpts...)
-		if err != nil {
-			return fmt.Errorf("failed to store in external store: %w", err)
-		}
-
-		// 3. Process results and prepare for PostgreSQL with external keys only
-		for _, payload := range payloads {
-			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
-			uniqueKey := PayloadUniqueKey{
-				ID:         payload.Id,
-				InsertedAt: payload.InsertedAt,
-				TenantId:   tenantId,
-				Type:       payload.Type,
-			}
-
-			if _, exists := seenPayloadUniqueKeys[uniqueKey]; !exists {
-				continue // Skip if already processed
-			}
-
-			// Find the external key for this payload
-			retrieveOpts := RetrievePayloadOpts{
-				Id:         payload.Id,
-				InsertedAt: payload.InsertedAt,
-				Type:       payload.Type,
-				TenantId:   tenantId,
-			}
-
-			externalKey, exists := externalKeys[retrieveOpts]
-			if !exists {
-				return fmt.Errorf("external key not found for payload %d", payload.Id)
-			}
-
-			taskIds = append(taskIds, payload.Id)
-			taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
-			payloadTypes = append(payloadTypes, string(payload.Type))
-			tenantIds = append(tenantIds, tenantId)
-			locations = append(locations, string(sqlcv1.V1PayloadLocationEXTERNAL))
-			inlineContents = append(inlineContents, nil) // No inline content
-			externalIds = append(externalIds, payload.ExternalId)
-			externalLocationKeys = append(externalLocationKeys, string(externalKey))
-			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: time.Now(), Valid: true})
+			offloadAts = append(offloadAts, offloadAt)
 		}
 	}
 
@@ -286,22 +262,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 
 	if err != nil {
 		return fmt.Errorf("failed to write payloads: %w", err)
-	}
-
-	// Only write to WAL if external store is configured AND WAL is enabled
-	// When WAL is disabled, payloads are already in external storage, so no WAL needed
-	if p.externalStoreEnabled && p.walEnabled {
-		err = p.queries.WritePayloadWAL(ctx, tx, sqlcv1.WritePayloadWALParams{
-			Tenantids:          tenantIds,
-			Payloadids:         taskIds,
-			Payloadinsertedats: taskInsertedAts,
-			Payloadtypes:       payloadTypes,
-			Offloadats:         offloadAts,
-		})
-
-		if err != nil {
-			return fmt.Errorf("failed to write payload WAL: %w", err)
-		}
 	}
 
 	return err
@@ -393,274 +353,8 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	return optsToPayload, nil
 }
 
-func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
-	ctx, span := telemetry.NewSpan(ctx, "payloadstore.offload_to_external_store")
-	defer span.End()
-
-	span.SetAttributes(attribute.Int("payloadstore.offload_to_external_store.num_payloads_to_offload", len(payloads)))
-
-	// this is only intended to be called from ProcessPayloadWAL, which short-circuits if external store is not enabled
-	if !p.externalStoreEnabled {
-		return nil, fmt.Errorf("external store not enabled")
-	}
-
-	return p.externalStore.Store(ctx, payloads...)
-}
-
-func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int64, pubBuffer *msgqueue.MQPubBuffer) (bool, error) {
-	// no need to process the WAL if external store is not enabled
-	if !p.externalStoreEnabled {
-		return false, nil
-	}
-
-	ctx, span := telemetry.NewSpan(ctx, "payloadstore.process_payload_wal")
-	defer span.End()
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 30000)
-
-	if err != nil {
-		return false, fmt.Errorf("failed to prepare transaction: %w", err)
-	}
-
-	defer rollback()
-
-	advisoryLockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash(fmt.Sprintf("process-payload-wal-lease-%d", partitionNumber)))
-
-	if err != nil {
-		return false, fmt.Errorf("failed to acquire advisory lock: %w", err)
-	}
-
-	if !advisoryLockAcquired {
-		return false, nil
-	}
-
-	walRecords, err := p.queries.PollPayloadWALForRecordsToReplicate(ctx, tx, sqlcv1.PollPayloadWALForRecordsToReplicateParams{
-		Polllimit:       int32(p.walPollLimit),
-		Partitionnumber: int32(partitionNumber),
-	})
-
-	if err != nil {
-		return false, err
-	}
-
-	hasMoreWALRecords := len(walRecords) == p.walPollLimit
-
-	if len(walRecords) == 0 {
-		return false, nil
-	}
-
-	retrieveOpts := make([]RetrievePayloadOpts, len(walRecords))
-	retrieveOptsToOffloadAt := make(map[RetrievePayloadOpts]pgtype.Timestamptz)
-	retrieveOptsToPayload := make(map[RetrievePayloadOpts][]byte)
-
-	for i, record := range walRecords {
-		opts := RetrievePayloadOpts{
-			Id:         record.PayloadID,
-			InsertedAt: record.PayloadInsertedAt,
-			Type:       record.PayloadType,
-			TenantId:   record.TenantID,
-		}
-
-		retrieveOpts[i] = opts
-		retrieveOptsToOffloadAt[opts] = record.OffloadAt
-
-		if record.Location == sqlcv1.V1PayloadLocationINLINE {
-			retrieveOptsToPayload[opts] = record.InlineContent
-		}
-	}
-
-	externalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
-	minOffloadAt := time.Now().Add(100 * time.Hour)
-	offloadLag := time.Since(minOffloadAt).Seconds()
-
-	attrs := []attribute.KeyValue{
-		{
-			Key:   "payloadstore.process_payload_wal.payload_wal_offload_partition_number",
-			Value: attribute.Int64Value(partitionNumber),
-		},
-		{
-			Key:   "payloadstore.process_payload_wal.payload_wal_offload_count",
-			Value: attribute.IntValue(len(retrieveOpts)),
-		},
-		{
-			Key:   "payloadstore.process_payload_wal.payload_wal_offload_lag_seconds",
-			Value: attribute.Float64Value(offloadLag),
-		},
-	}
-
-	span.SetAttributes(attrs...)
-
-	for _, opts := range retrieveOpts {
-		offloadAt, ok := retrieveOptsToOffloadAt[opts]
-
-		if !ok {
-			return false, fmt.Errorf("offload at not found for opts: %+v", opts)
-		}
-
-		externalStoreOpts = append(externalStoreOpts, OffloadToExternalStoreOpts{
-			StorePayloadOpts: &StorePayloadOpts{
-				Id:         opts.Id,
-				InsertedAt: opts.InsertedAt,
-				Type:       opts.Type,
-				Payload:    retrieveOptsToPayload[opts],
-				TenantId:   opts.TenantId.String(),
-			},
-			OffloadAt: offloadAt.Time,
-		})
-
-		if offloadAt.Time.Before(minOffloadAt) {
-			minOffloadAt = offloadAt.Time
-		}
-	}
-
-	if err := commit(ctx); err != nil {
-		return false, err
-	}
-
-	retrieveOptsToStoredKey, err := p.offloadToExternal(ctx, externalStoreOpts...)
-
-	if err != nil {
-		return false, err
-	}
-
-	offloadAts := make([]pgtype.Timestamptz, 0, len(retrieveOptsToStoredKey))
-	ids := make([]int64, 0, len(retrieveOptsToStoredKey))
-	insertedAts := make([]pgtype.Timestamptz, 0, len(retrieveOptsToStoredKey))
-	types := make([]string, 0, len(retrieveOptsToStoredKey))
-	tenantIds := make([]pgtype.UUID, 0, len(retrieveOptsToStoredKey))
-	externalLocationKeys := make([]string, 0, len(retrieveOptsToStoredKey))
-
-	for _, opt := range retrieveOpts {
-		offloadAt, exists := retrieveOptsToOffloadAt[opt]
-
-		if !exists {
-			return false, fmt.Errorf("offload at not found for opts: %+v", opt)
-		}
-
-		offloadAts = append(offloadAts, offloadAt)
-		ids = append(ids, opt.Id)
-		insertedAts = append(insertedAts, opt.InsertedAt)
-		types = append(types, string(opt.Type))
-
-		key, ok := retrieveOptsToStoredKey[opt]
-		if !ok {
-			// important: if there's no key here, it's likely because the payloads table did not contain the payload
-			// this is okay - it can happen if e.g. a payload partition is dropped before the WAL is processed (not a great situation, but not catastrophic)
-			// if this happens, we log an error and set the key to `""` which will allow it to be evicted from the WAL. it'll never cause
-			// an update in the payloads table because there won't be a matching row
-			p.l.Error().Int64("id", opt.Id).Time("insertedAt", opt.InsertedAt.Time).Msg("external location key not found for opts")
-			key = ""
-		}
-
-		externalLocationKeys = append(externalLocationKeys, string(key))
-		tenantIds = append(tenantIds, opt.TenantId)
-	}
-
-	// Second transaction, persist the offload to the db once we've successfully offloaded to the external store
-	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
-	defer rollback()
-
-	if err != nil {
-		return false, fmt.Errorf("failed to prepare transaction for offloading: %w", err)
-	}
-
-	updatedPayloads, err := p.queries.SetPayloadExternalKeys(ctx, tx, sqlcv1.SetPayloadExternalKeysParams{
-		Ids:                  ids,
-		Insertedats:          insertedAts,
-		Payloadtypes:         types,
-		Offloadats:           offloadAts,
-		Tenantids:            tenantIds,
-		Externallocationkeys: externalLocationKeys,
-	})
-
-	if err != nil {
-		return false, err
-	}
-
-	tenantIdToPayloads := make(map[string][]OLAPPayloadToOffload)
-
-	for _, updatedPayload := range updatedPayloads {
-		if updatedPayload == nil || updatedPayload.Type == sqlcv1.V1PayloadTypeTASKEVENTDATA {
-			continue
-		}
-
-		tenantIdToPayloads[updatedPayload.TenantID.String()] = append(tenantIdToPayloads[updatedPayload.TenantID.String()], OLAPPayloadToOffload{
-			ExternalId:          updatedPayload.ExternalID,
-			ExternalLocationKey: updatedPayload.ExternalLocationKey.String,
-		})
-	}
-
-	if err := commit(ctx); err != nil {
-		return false, err
-	}
-
-	// todo: make this transactionally safe
-	// there's no application-level risk here because the worst case if
-	// we miss an event is we don't mark the payload as external and there's a bit
-	// of disk bloat, but it'd be good to not need to worry about that
-	for tenantId, payloads := range tenantIdToPayloads {
-		msg, err := OLAPPayloadOffloadMessage(tenantId, payloads)
-		if err != nil {
-			return false, fmt.Errorf("failed to create OLAP payload offload message: %w", err)
-		}
-		pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
-	}
-
-	return hasMoreWALRecords, nil
-}
-
-func (p *payloadStoreRepositoryImpl) ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error) {
-	// no need to cut over if external store is not enabled
-	if !p.externalStoreEnabled {
-		return false, nil
-	}
-
-	ctx, span := telemetry.NewSpan(ctx, "payloadstore.process_payload_external_cutovers")
-	defer span.End()
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 30000)
-
-	if err != nil {
-		return false, fmt.Errorf("failed to prepare transaction: %w", err)
-	}
-
-	defer rollback()
-
-	advisoryLockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash(fmt.Sprintf("process-payload-cut-overs-lease-%d", partitionNumber)))
-
-	if err != nil {
-		return false, fmt.Errorf("failed to acquire advisory lock: %w", err)
-	}
-
-	if !advisoryLockAcquired {
-		return false, nil
-	}
-
-	queueItemsCutOver, err := p.queries.CutOverPayloadsToExternal(ctx, tx, sqlcv1.CutOverPayloadsToExternalParams{
-		Polllimit:       int32(p.walPollLimit),  // nolint: gosec
-		Partitionnumber: int32(partitionNumber), // nolint: gosec
-	})
-
-	if err != nil {
-		return false, err
-	}
-
-	if queueItemsCutOver == 0 {
-		return false, nil
-	}
-
-	hasMoreQueueItems := int(queueItemsCutOver) == p.walPollLimit
-
-	if err := commit(ctx); err != nil {
-		return false, err
-	}
-
-	return hasMoreQueueItems, nil
-}
-
-func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration) {
+func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore) {
 	p.externalStoreEnabled = true
-	p.inlineStoreTTL = &inlineStoreTTL
 	p.externalStore = store
 }
 
@@ -680,14 +374,6 @@ func (p *payloadStoreRepositoryImpl) OLAPDualWritesEnabled() bool {
 	return p.enableOLAPPayloadDualWrites
 }
 
-func (p *payloadStoreRepositoryImpl) WALPollLimit() int {
-	return p.walPollLimit
-}
-
-func (p *payloadStoreRepositoryImpl) WALProcessInterval() time.Duration {
-	return p.walProcessInterval
-}
-
 func (p *payloadStoreRepositoryImpl) ExternalCutoverProcessInterval() time.Duration {
 	return p.externalCutoverProcessInterval
 }
@@ -700,8 +386,336 @@ func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
 	return p.externalStore
 }
 
-func (p *payloadStoreRepositoryImpl) WALEnabled() bool {
-	return p.walEnabled
+type BulkCutOverPayload struct {
+	TenantID            pgtype.UUID
+	Id                  int64
+	InsertedAt          pgtype.Timestamptz
+	ExternalId          pgtype.UUID
+	Type                sqlcv1.V1PayloadType
+	ExternalLocationKey ExternalPayloadLocationKey
+}
+
+type CutoverBatchOutcome struct {
+	ShouldContinue bool
+	NextOffset     int64
+}
+
+type PartitionDate pgtype.Date
+
+func (d PartitionDate) String() string {
+	return d.Time.Format("20060102")
+}
+
+func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, offset int64) (*CutoverBatchOutcome, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+	}
+
+	defer rollback()
+
+	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
+	payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
+		Partitiondate: pgtype.Date(partitionDate),
+		Offsetparam:   offset,
+		Limitparam:    p.externalCutoverBatchSize,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list payloads for offload: %w", err)
+	}
+
+	alreadyExternalPayloads := make(map[RetrievePayloadOpts]ExternalPayloadLocationKey)
+	offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
+	retrieveOptsToExternalId := make(map[RetrievePayloadOpts]string)
+
+	for _, payload := range payloads {
+		if payload.Location != sqlcv1.V1PayloadLocationINLINE {
+			retrieveOpt := RetrievePayloadOpts{
+				Id:         payload.ID,
+				InsertedAt: payload.InsertedAt,
+				Type:       payload.Type,
+				TenantId:   payload.TenantID,
+			}
+
+			alreadyExternalPayloads[retrieveOpt] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
+			retrieveOptsToExternalId[retrieveOpt] = payload.ExternalID.String()
+		} else {
+			offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
+				StorePayloadOpts: &StorePayloadOpts{
+					Id:         payload.ID,
+					InsertedAt: payload.InsertedAt,
+					Type:       payload.Type,
+					Payload:    payload.InlineContent,
+					TenantId:   payload.TenantID.String(),
+					ExternalId: payload.ExternalID,
+				},
+				OffloadAt: time.Now(),
+			})
+			retrieveOptsToExternalId[RetrievePayloadOpts{
+				Id:         payload.ID,
+				InsertedAt: payload.InsertedAt,
+				Type:       payload.Type,
+				TenantId:   payload.TenantID,
+			}] = payload.ExternalID.String()
+		}
+	}
+
+	retrieveOptsToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
+	}
+
+	for r, k := range alreadyExternalPayloads {
+		retrieveOptsToKey[r] = k
+	}
+
+	payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, len(payloads))
+
+	for r, k := range retrieveOptsToKey {
+		externalId := retrieveOptsToExternalId[r]
+
+		payloadsToInsert = append(payloadsToInsert, sqlcv1.CutoverPayloadToInsert{
+			TenantID:            r.TenantId,
+			ID:                  r.Id,
+			InsertedAt:          r.InsertedAt,
+			ExternalID:          sqlchelpers.UUIDFromStr(externalId),
+			Type:                r.Type,
+			ExternalLocationKey: string(k),
+		})
+	}
+
+	_, err = sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
+	}
+
+	offset += int64(len(payloads))
+
+	_, err = p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, offset)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
+	}
+
+	if len(payloads) < int(p.externalCutoverBatchSize) {
+		return &CutoverBatchOutcome{
+			ShouldContinue: false,
+			NextOffset:     offset,
+		}, nil
+	}
+
+	return &CutoverBatchOutcome{
+		ShouldContinue: true,
+		NextOffset:     offset,
+	}, nil
+}
+
+type CutoverJobRunMetadata struct {
+	ShouldRun      bool
+	LastOffset     int64
+	PartitionDate  PartitionDate
+	LeaseProcessId pgtype.UUID
+}
+
+func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId pgtype.UUID, partitionDate PartitionDate, offset int64) (*CutoverJobRunMetadata, error) {
+	leaseInterval := 2 * time.Minute
+	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
+
+	lease, err := p.queries.AcquireOrExtendCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendCutoverJobLeaseParams{
+		Key:            pgtype.Date(partitionDate),
+		Lastoffset:     offset,
+		Leaseprocessid: processId,
+		Leaseexpiresat: leaseExpiresAt,
+	})
+
+	if err != nil {
+		// ErrNoRows here means that something else is holding the lease
+		// since we did not insert a new record, and the `UPDATE` returned an empty set
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &CutoverJobRunMetadata{
+				ShouldRun:      false,
+				LastOffset:     0,
+				PartitionDate:  partitionDate,
+				LeaseProcessId: processId,
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to create initial cutover job lease: %w", err)
+	}
+
+	if lease.LeaseProcessID != processId || lease.IsCompleted {
+		return &CutoverJobRunMetadata{
+			ShouldRun:      false,
+			LastOffset:     lease.LastOffset,
+			PartitionDate:  partitionDate,
+			LeaseProcessId: lease.LeaseProcessID,
+		}, nil
+	}
+
+	return &CutoverJobRunMetadata{
+		ShouldRun:      true,
+		LastOffset:     lease.LastOffset,
+		PartitionDate:  partitionDate,
+		LeaseProcessId: processId,
+	}, nil
+}
+
+func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate) (*CutoverJobRunMetadata, error) {
+	if p.inlineStoreTTL == nil {
+		return nil, fmt.Errorf("inline store TTL is not set")
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, 0)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to acquire or extend cutover job lease: %w", err)
+	}
+
+	if !lease.ShouldRun {
+		return lease, nil
+	}
+
+	offset := lease.LastOffset
+
+	err = p.queries.CreateV1PayloadCutoverTemporaryTable(ctx, tx, pgtype.Date(partitionDate))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create payload cutover temporary table: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
+	}
+
+	return &CutoverJobRunMetadata{
+		ShouldRun:      true,
+		LastOffset:     offset,
+		PartitionDate:  partitionDate,
+		LeaseProcessId: processId,
+	}, nil
+}
+
+func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate) error {
+	ctx, span := telemetry.NewSpan(ctx, "payload_store_repository_impl.processSinglePartition")
+	defer span.End()
+
+	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate)
+
+	if err != nil {
+		return fmt.Errorf("failed to prepare cutover table job: %w", err)
+	}
+
+	if !jobMeta.ShouldRun {
+		return nil
+	}
+
+	offset := jobMeta.LastOffset
+
+	for {
+		outcome, err := p.ProcessPayloadCutoverBatch(ctx, processId, partitionDate, offset)
+
+		if err != nil {
+			return fmt.Errorf("failed to process payload cutover batch: %w", err)
+		}
+
+		if !outcome.ShouldContinue {
+			break
+		}
+
+		offset = outcome.NextOffset
+	}
+
+	tempPartitionName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
+	sourcePartitionName := fmt.Sprintf("v1_payload_%s", partitionDate.String())
+
+	countsEqual, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+
+	if err != nil {
+		return fmt.Errorf("failed to compare partition row counts: %w", err)
+	}
+
+	if !countsEqual {
+		return fmt.Errorf("row counts do not match between temp and source partitions for date %s", partitionDate.String())
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+
+	if err != nil {
+		return fmt.Errorf("failed to prepare transaction for swapping payload cutover temp table: %w", err)
+	}
+
+	defer rollback()
+
+	err = p.queries.SwapV1PayloadPartitionWithTemp(ctx, tx, pgtype.Date(partitionDate))
+
+	if err != nil {
+		return fmt.Errorf("failed to swap payload cutover temp table: %w", err)
+	}
+
+	err = p.queries.MarkCutoverJobAsCompleted(ctx, tx, pgtype.Date(partitionDate))
+
+	if err != nil {
+		return fmt.Errorf("failed to mark cutover job as completed: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit swap payload cutover temp table transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context) error {
+	if !p.externalStoreEnabled {
+		return nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "payload_store_repository_impl.ProcessPayloadCutovers")
+	defer span.End()
+
+	if p.inlineStoreTTL == nil {
+		return fmt.Errorf("inline store TTL is not set")
+	}
+
+	mostRecentPartitionToOffload := pgtype.Date{
+		Time:  time.Now().Add(-1 * *p.inlineStoreTTL),
+		Valid: true,
+	}
+
+	partitions, err := p.queries.FindV1PayloadPartitionsBeforeDate(ctx, p.pool, mostRecentPartitionToOffload)
+
+	if err != nil {
+		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
+	}
+
+	processId := sqlchelpers.UUIDFromStr(uuid.NewString())
+
+	for _, partition := range partitions {
+		p.l.Info().Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")
+		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate))
+
+		if err != nil {
+			return fmt.Errorf("failed to process partition %s: %w", partition.PartitionName, err)
+		}
+	}
+
+	return nil
+
 }
 
 type NoOpExternalStore struct{}

@@ -832,33 +832,18 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 }
 
 const getLatestWorkflowVersionForWorkflows = `-- name: GetLatestWorkflowVersionForWorkflows :many
-WITH latest_versions AS (
-    SELECT DISTINCT ON (workflowVersions."workflowId")
-        workflowVersions."id" AS workflowVersionId,
-        workflowVersions."workflowId",
-        workflowVersions."order"
-    FROM
-        "WorkflowVersion" as workflowVersions
-    WHERE
-        workflowVersions."workflowId" = ANY($2::uuid[]) AND
-        workflowVersions."deletedAt" IS NULL
-    ORDER BY
-        workflowVersions."workflowId", workflowVersions."order" DESC
-)
-SELECT
-    workflowVersions."id"
-FROM
-    latest_versions
-JOIN
-    "WorkflowVersion" as workflowVersions ON workflowVersions."id" = latest_versions.workflowVersionId
-JOIN
-    "Workflow" as w ON w."id" = workflowVersions."workflowId"
-LEFT JOIN
-    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
+SELECT DISTINCT ON (wv."workflowId")
+    wv."id"
+FROM "WorkflowVersion" wv
+INNER JOIN "Workflow" w ON w."id" = wv."workflowId"
 WHERE
     w."tenantId" = $1::uuid AND
+    wv."workflowId" = ANY($2::uuid[]) AND
     w."deletedAt" IS NULL AND
-    workflowVersions."deletedAt" IS NULL
+    wv."deletedAt" IS NULL
+ORDER BY
+    wv."workflowId",
+    wv."order" DESC
 `
 
 type GetLatestWorkflowVersionForWorkflowsParams struct {

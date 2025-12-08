@@ -377,12 +377,17 @@ func (c *schedulingBatchCoordinator) setBufferState(tenantID, stepID, batchKey, 
 }
 
 func (s *Scheduler) Start() (func() error, error) {
+	cleanupDLQ, err := s.mq.Subscribe(msgqueue.DISPATCHER_DEAD_LETTER_QUEUE, s.handleDeadLetteredMessages, msgqueue.NoOpHook)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not start subscribe to dispatcher dead letter queue: %w", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	wg := sync.WaitGroup{}
 
-	_, err := s.s.NewJob(
+	_, err = s.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			s.runSetTenants(ctx),
@@ -470,6 +475,10 @@ func (s *Scheduler) Start() (func() error, error) {
 
 		if err := cleanupQueue(); err != nil {
 			return fmt.Errorf("could not cleanup job processing queue: %w", err)
+		}
+
+		if err := cleanupDLQ(); err != nil {
+			return fmt.Errorf("could not cleanup message queue buffer: %w", err)
 		}
 
 		if err := s.s.Shutdown(); err != nil {
@@ -865,6 +874,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create bulk assigned task: %w", err))
+				continue
 			}
 
 			err = s.mq.SendMessage(
@@ -1108,6 +1118,32 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 			continue
 		}
 	}
+}
+
+func (s *Scheduler) handleDeadLetteredMessages(msg *msgqueue.Message) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoverErr := recoveryutils.RecoverWithAlert(s.l, s.a, r)
+
+			if recoverErr != nil {
+				err = recoverErr
+			}
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+
+	switch msg.ID {
+	case "task-assigned-bulk":
+		err = s.handleDeadLetteredTaskBulkAssigned(ctx, msg)
+	case "task-cancelled":
+		err = s.handleDeadLetteredTaskCancelled(ctx, msg)
+	default:
+		err = fmt.Errorf("unknown task: %s", msg.ID)
+	}
+
+	return err
 }
 
 func taskAssignedBatchMessage(tenantId string, workerBatches map[string][]tasktypes.TaskAssignedBatch) (*msgqueue.Message, error) {
@@ -1435,6 +1471,130 @@ func (s *Scheduler) batchFlush(ctx context.Context, req *batchFlushRequest) (err
 
 		if stepID != "" {
 			s.batchCoordinator.setBufferState(req.TenantID, stepID, req.BatchKey, req.WorkerID, false)
+		}
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg *msgqueue.Message) error {
+	msgs := msgqueue.JSONConvert[tasktypes.TaskAssignedBulkTaskPayload](msg.Payloads)
+
+	taskIds := make([]int64, 0)
+
+	for _, innerMsg := range msgs {
+		for _, workerBatches := range innerMsg.WorkerBatches {
+			for _, taskBatch := range workerBatches {
+				if len(taskBatch.TaskIds) == 0 {
+					continue
+				}
+
+				s.l.Error().Msgf("handling dead-lettered task assignments for tenant %s, tasks: %v. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, taskBatch.TaskIds)
+				taskIds = append(taskIds, taskBatch.TaskIds...)
+			}
+		}
+	}
+
+	toFail, err := s.repov1.Tasks().ListTasks(ctx, msg.TenantID, taskIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list tasks for dead lettered bulk assigned message: %w", err)
+	}
+
+	for _, _task := range toFail {
+		tenantId := msg.TenantID
+		task := _task.Task
+
+		msg, err := tasktypes.FailedTaskMessage(
+			tenantId,
+			task.ID,
+			task.InsertedAt,
+			sqlchelpers.UUIDToStr(task.ExternalID),
+			sqlchelpers.UUIDToStr(task.WorkflowRunID),
+			task.RetryCount,
+			false,
+			"Could not send task to worker",
+			false,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create failed task message: %w", err)
+		}
+
+		err = s.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+
+		if err != nil {
+			// NOTE: failure to send on the MQ is likely not transient; ideally we could only retry individual
+			// tasks but since this message has the tasks in a batch, we retry all of them instead. we're banking
+			// on the downstream `task-failed` processing to be idempotent.
+			return fmt.Errorf("could not send failed task message: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *msgqueue.Message) error {
+	payloads := msgqueue.JSONConvert[tasktypes.SignalTaskCancelledPayload](msg.Payloads)
+
+	// try to resend the cancellation signal to the impacted worker.
+	workerIds := make([]string, 0)
+
+	for _, p := range payloads {
+		s.l.Error().Msgf("handling dead-lettered task cancellations for tenant %s, task %d. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, p.TaskId)
+		workerIds = append(workerIds, p.WorkerId)
+	}
+
+	// since the dispatcher IDs may have changed since the previous send, we need to query them again
+	dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, msg.TenantID, workerIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
+	}
+
+	workerIdToDispatcherId := make(map[string]string)
+
+	for dispatcherId, workerIds := range dispatcherIdWorkerIds {
+		for _, workerId := range workerIds {
+			workerIdToDispatcherId[workerId] = dispatcherId
+		}
+	}
+
+	dispatcherIdsToPayloads := make(map[string][]tasktypes.SignalTaskCancelledPayload)
+
+	for _, p := range payloads {
+		// if we no longer have the worker attached to a dispatcher, discard the message
+		if _, ok := workerIdToDispatcherId[p.WorkerId]; !ok {
+			continue
+		}
+
+		pcp := *p
+		dispatcherId := workerIdToDispatcherId[pcp.WorkerId]
+
+		dispatcherIdsToPayloads[dispatcherId] = append(dispatcherIdsToPayloads[dispatcherId], pcp)
+	}
+
+	for dispatcherId, payloads := range dispatcherIdsToPayloads {
+		msg, err := msgqueue.NewTenantMessage(
+			msg.TenantID,
+			"task-cancelled",
+			false,
+			true,
+			payloads...,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create message for task cancellation: %w", err)
+		}
+
+		err = s.mq.SendMessage(
+			ctx,
+			msgqueue.QueueTypeFromDispatcherID(dispatcherId),
+			msg,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not send message for task cancellation: %w", err)
 		}
 	}
 

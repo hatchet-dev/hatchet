@@ -34,6 +34,7 @@ export default {
     type: "separator",
   },
   docker: "Running with Docker",
+  "troubleshooting-workers": "Troubleshooting",
   compute: {
     title: "Managed Compute",
     type: "page",

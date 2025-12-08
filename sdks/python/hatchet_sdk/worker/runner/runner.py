@@ -480,7 +480,14 @@ class Runner:
             return ""
 
         if isinstance(output, BaseModel):
-            output = output.model_dump(mode="json")
+            try:
+                output = output.model_dump(mode="json")
+            except Exception as e:
+                logger.exception("could not serialize pydantic model output")
+
+                raise IllegalTaskOutputError(
+                    f"could not serialize Pydantic BaseModel output: {e}"
+                ) from e
         elif is_dataclass(output):
             output = asdict(cast(DataclassInstance, output))
 
@@ -494,9 +501,11 @@ class Runner:
 
         try:
             serialized_output = json.dumps(output, default=str)
-        except Exception:
+        except Exception as e:
             logger.exception("could not serialize output")
-            serialized_output = str(output)
+            raise IllegalTaskOutputError(
+                "Task output could not be serialized to JSON. Please ensure that all task outputs are JSON serializable."
+            ) from e
 
         if "\\u0000" in serialized_output:
             raise IllegalTaskOutputError(

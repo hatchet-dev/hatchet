@@ -2,40 +2,24 @@ package task
 
 import (
 	"context"
+
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
+	"go.opentelemetry.io/otel/codes"
 )
 
-func (tc *TasksControllerImpl) runProcessPayloadWAL(ctx context.Context) func() {
+func (tc *TasksControllerImpl) processPayloadExternalCutovers(ctx context.Context) func() {
 	return func() {
-		tc.l.Debug().Msgf("processing payload WAL")
+		ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.processPayloadExternalCutovers")
+		defer span.End()
 
-		partitions := []int64{0, 1, 2, 3}
+		tc.l.Debug().Msgf("payload external cutover: processing external cutover payloads")
 
-		tc.processPayloadWALOperations.SetPartitions(partitions)
+		err := tc.repov1.Payloads().ProcessPayloadCutovers(ctx)
 
-		for _, partitionId := range partitions {
-			tc.processPayloadWALOperations.RunOrContinue(partitionId)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not process external cutover payloads")
+			tc.l.Error().Err(err).Msg("could not process external cutover payloads")
 		}
 	}
-}
-
-func (tc *TasksControllerImpl) processPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error) {
-	return tc.repov1.Payloads().ProcessPayloadWAL(ctx, partitionNumber, tc.pubBuffer)
-}
-
-func (tc *TasksControllerImpl) runProcessPayloadExternalCutovers(ctx context.Context) func() {
-	return func() {
-		tc.l.Debug().Msgf("processing payload external cutovers")
-
-		partitions := []int64{0, 1, 2, 3}
-
-		tc.processPayloadExternalCutoversOperations.SetPartitions(partitions)
-
-		for _, partitionId := range partitions {
-			tc.processPayloadExternalCutoversOperations.RunOrContinue(partitionId)
-		}
-	}
-}
-
-func (tc *TasksControllerImpl) processPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error) {
-	return tc.repov1.Payloads().ProcessPayloadExternalCutovers(ctx, partitionNumber)
 }

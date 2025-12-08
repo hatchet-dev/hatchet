@@ -14,6 +14,7 @@ import (
 	"hash"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +29,8 @@ import (
 func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1WebhookReceiveRequestObject) (gen.V1WebhookReceiveResponseObject, error) {
 	tenantId := request.Tenant.String()
 	webhookName := request.V1Webhook
+
+	w.config.Logger.Debug().Str("webhook", webhookName).Str("tenant", tenantId).Str("method", ctx.Request().Method).Str("content_type", ctx.Request().Header.Get("Content-Type")).Msg("received webhook request")
 
 	tenant, err := w.config.APIRepository.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
 
@@ -99,16 +102,96 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	payloadMap := make(map[string]interface{})
 
 	if rawBody != nil {
-		err := json.Unmarshal(rawBody, &payloadMap)
+		contentType := ctx.Request().Header.Get("Content-Type")
 
-		if err != nil {
-			return gen.V1WebhookReceive400JSONResponse{
-				Errors: []gen.APIError{
-					{
-						Description: fmt.Sprintf("failed to unmarshal request body: %v", err),
+		if strings.Contains(contentType, "application/x-www-form-urlencoded") {
+			formData, err := url.ParseQuery(string(rawBody))
+			if err != nil {
+				errorMsg := "Failed to parse form data"
+				w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Msg(errorMsg)
+				return gen.V1WebhookReceive400JSONResponse{
+					Errors: []gen.APIError{
+						{
+							Description: errorMsg,
+						},
 					},
-				},
-			}, nil
+				}, nil
+			}
+
+			/* Slack interactive payloads use a 'payload' parameter containing JSON
+			 * See: https://docs.slack.dev/interactivity/handling-user-interaction/#payloads
+			 * For GENERIC webhooks, we convert all form fields directly to the payload map
+			 */
+			if webhook.SourceName == sqlcv1.V1IncomingWebhookSourceNameSLACK {
+				payloadValue := formData.Get("payload")
+				if payloadValue == "" {
+					errorMsg := "missing payload parameter in form-encoded request"
+					w.config.Logger.Info().Str("webhook", webhookName).Str("tenant", tenantId).Str("form_keys", fmt.Sprintf("%v", func() []string {
+						keys := make([]string, 0, len(formData))
+						for k := range formData {
+							keys = append(keys, k)
+						}
+						return keys
+					}())).Msg(errorMsg)
+					return gen.V1WebhookReceive400JSONResponse{
+						Errors: []gen.APIError{
+							{
+								Description: errorMsg,
+							},
+						},
+					}, nil
+				}
+				/* url.ParseQuery automatically URL-decodes the payload parameter value */
+				err := json.Unmarshal([]byte(payloadValue), &payloadMap)
+				if err != nil {
+					payloadPreview := payloadValue
+					if len(payloadPreview) > 200 {
+						payloadPreview = payloadPreview[:200] + "..."
+					}
+					errorMsg := "Failed to unmarshal payload parameter as JSON"
+					w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Int("payload_length", len(payloadValue)).Str("payload_preview", payloadPreview).Msg(errorMsg)
+					return gen.V1WebhookReceive400JSONResponse{
+						Errors: []gen.APIError{
+							{
+								Description: errorMsg,
+							},
+						},
+					}, nil
+				}
+			} else if webhook.SourceName == sqlcv1.V1IncomingWebhookSourceNameGENERIC {
+				/* For GENERIC webhooks, convert all form fields to the payload map */
+				for key, values := range formData {
+					if len(values) > 0 {
+						payloadMap[key] = values[0]
+					}
+				}
+			} else {
+				/* For other webhook sources, form-encoded data is unexpected - return error */
+				return gen.V1WebhookReceive400JSONResponse{
+					Errors: []gen.APIError{
+						{
+							Description: fmt.Sprintf("form-encoded requests are not supported for webhook source: %s", webhook.SourceName),
+						},
+					},
+				}, nil
+			}
+		} else {
+			err := json.Unmarshal(rawBody, &payloadMap)
+			if err != nil {
+				bodyPreview := string(rawBody)
+				if len(bodyPreview) > 200 {
+					bodyPreview = bodyPreview[:200] + "..."
+				}
+				errorMsg := "Failed to unmarshal request body as JSON"
+				w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Str("content_type", contentType).Int("body_length", len(rawBody)).Str("body_preview", bodyPreview).Msg(errorMsg)
+				return gen.V1WebhookReceive400JSONResponse{
+					Errors: []gen.APIError{
+						{
+							Description: "failed to unmarshal request body",
+						},
+					},
+				}, nil
+			}
 		}
 
 		// This could cause unexpected behavior if the payload contains a key named "tenant" or "v1-webhook"
@@ -131,9 +214,16 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	)
 
 	if err != nil {
-		if eventKey == "" {
-			err = fmt.Errorf("event key evaluted to an empty string")
+		var errorMsg string
+		if strings.Contains(err.Error(), "did not evaluate to a string") {
+			errorMsg = "Event key expression must evaluate to a string"
+		} else if eventKey == "" {
+			errorMsg = "Event key evaluated to an empty string"
+		} else {
+			errorMsg = "Failed to evaluate event key expression"
 		}
+
+		w.config.Logger.Warn().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Str("event_key_expression", webhook.EventKeyExpression).Msg(errorMsg)
 
 		ingestionErr := w.config.Ingestor.IngestCELEvaluationFailure(
 			ctx.Request().Context(),
@@ -149,7 +239,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return gen.V1WebhookReceive400JSONResponse{
 			Errors: []gen.APIError{
 				{
-					Description: fmt.Sprintf("failed to evaluate event key expression: %v", err),
+					Description: errorMsg,
 				},
 			},
 		}, nil
@@ -160,7 +250,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return gen.V1WebhookReceive400JSONResponse{
 			Errors: []gen.APIError{
 				{
-					Description: fmt.Sprintf("failed to marshal request body: %v", err),
+					Description: "Failed to marshal request body",
 				},
 			},
 		}, nil
@@ -261,11 +351,15 @@ type IsChallenge bool
 func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlcv1.V1IncomingWebhook, request http.Request) (IsChallenge, map[string]interface{}, error) {
 	switch webhook.SourceName {
 	case sqlcv1.V1IncomingWebhookSourceNameSLACK:
+		/* Slack Events API URL verification challenges come as application/json with direct JSON payload
+		 * Interactive components are form-encoded but are NOT challenges - they're regular events
+		 * See: https://docs.slack.dev/apis/events-api/using-http-request-urls/#challenge
+		 */
 		payload := make(map[string]interface{})
 		err := json.Unmarshal(webhookPayload, &payload)
-
 		if err != nil {
-			return false, nil, fmt.Errorf("failed to parse form data: %s", err)
+			/* If we can't parse JSON, it's likely not a challenge - let normal processing handle it */
+			return false, nil, nil
 		}
 
 		if challenge, ok := payload["challenge"].(string); ok && challenge != "" {
@@ -300,7 +394,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		if err != nil {
 			return false, &ValidationError{
 				Code:      Http403,
-				ErrorText: fmt.Sprintf("invalid timestamp in header: %s", err),
+				ErrorText: "Invalid timestamp in header",
 			}
 		}
 
@@ -402,7 +496,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		if err != nil {
 			return false, &ValidationError{
 				Code:      Http400,
-				ErrorText: fmt.Sprintf("invalid timestamp in signature header: %s", err),
+				ErrorText: "Invalid timestamp in signature header",
 			}
 		}
 

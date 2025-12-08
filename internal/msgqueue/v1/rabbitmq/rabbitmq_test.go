@@ -30,12 +30,14 @@ func TestMessageQueueIntegration(t *testing.T) {
 	url := "amqp://user:password@localhost:5672/"
 
 	// Initialize the task queue implementation
-	cleanup, tq := New(
+	cleanup, tq, err := New(
 		WithURL(url),
 		WithQos(100),
 		WithDeadLetterBackoff(5*time.Second),
 		WithMessageRejection(false, 10), // Disable message rejection for this test
 	)
+
+	require.Nil(t, err, "error should be nil")
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
@@ -122,11 +124,13 @@ func TestBufferedSubMessageQueueIntegration(t *testing.T) {
 	url := "amqp://user:password@localhost:5672/"
 
 	// Initialize the task queue implementation
-	cleanup, tq := New(
+	cleanup, tq, err := New(
 		WithURL(url),
 		WithQos(100),
 		WithDeadLetterBackoff(5*time.Second),
 	)
+
+	require.Nil(t, err, "error should be nil")
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
@@ -196,11 +200,13 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 	url := "amqp://user:password@localhost:5672/"
 
 	// Initialize the task queue implementation
-	cleanup, tq := New(
+	cleanup, tq, err := New(
 		WithURL(url),
 		WithQos(100),
 		WithDeadLetterBackoff(5*time.Second),
 	)
+
+	require.Nil(t, err, "error should be nil")
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
@@ -268,12 +274,14 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	url := "amqp://user:password@localhost:5672/"
 
 	// Initialize the task queue implementation
-	cleanup, tq := New(
+	cleanup, tq, err := New(
 		WithURL(url),
 		WithQos(100),
 		WithDeadLetterBackoff(5*time.Second),
 		WithMessageRejection(false, 10), // Disable message rejection for this test
 	)
+
+	require.Nil(t, err, "error should be nil")
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
