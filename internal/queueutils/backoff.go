@@ -1,6 +1,7 @@
 package queueutils
 
 import (
+	"math"
 	"math/rand"
 	"time"
 )
@@ -13,9 +14,17 @@ func SleepWithExponentialBackoff(base, max time.Duration, retryCount int) { // n
 		retryCount = 0
 	}
 
+	// prevent overflow
+	pow := time.Duration(math.MaxInt64)
+	if retryCount < 63 {
+		pow = 1 << retryCount
+	}
+
 	// Calculate exponential backoff
-	backoff := base * (1 << retryCount)
-	if backoff > max {
+	backoff := base * pow
+
+	// if backoff / pow does not recover base, we've overflowed
+	if backoff > max || backoff/pow != base {
 		backoff = max
 	}
 

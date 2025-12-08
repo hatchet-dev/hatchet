@@ -16,6 +16,11 @@ function matchesHostnamePattern(hostname: string, pattern: string): boolean {
 }
 
 function shouldHandleLink(href: string): boolean {
+  // Relative URLs are always same-domain, skip them
+  if (!href.startsWith("http://") && !href.startsWith("https://")) {
+    return false;
+  }
+
   try {
     const url = new URL(href);
     return CROSS_DOMAIN_TARGETS.some((pattern) =>

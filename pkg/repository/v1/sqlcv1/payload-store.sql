@@ -49,6 +49,7 @@ SELECT
     i.inline_content
 FROM
     inputs i
+ORDER BY i.tenant_id, i.inserted_at, i.id, i.type
 ON CONFLICT (tenant_id, id, inserted_at, type)
 DO UPDATE SET
     location = EXCLUDED.location,
@@ -214,3 +215,49 @@ FROM queue_items
 
 -- name: AnalyzeV1Payload :exec
 ANALYZE v1_payload;
+
+-- name: ListPaginatedPayloadsForOffload :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM list_paginated_payloads_for_offload(
+        @partitionDate::DATE,
+        @limitParam::INT,
+        @offsetParam::BIGINT
+    ) p
+)
+SELECT
+    tenant_id::UUID,
+    id::BIGINT,
+    inserted_at::TIMESTAMPTZ,
+    external_id::UUID,
+    type::v1_payload_type,
+    location::v1_payload_location,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
+    updated_at::TIMESTAMPTZ
+FROM payloads;
+
+-- name: CreateV1PayloadCutoverTemporaryTable :exec
+SELECT copy_v1_payload_partition_structure(@date::DATE);
+
+-- name: SwapV1PayloadPartitionWithTemp :exec
+SELECT swap_v1_payload_partition_with_temp(@date::DATE);
+
+-- name: AcquireOrExtendCutoverJobLease :one
+INSERT INTO v1_payload_cutover_job_offset (key, last_offset, lease_process_id, lease_expires_at)
+VALUES (@key::DATE, @lastOffset::BIGINT, @leaseProcessId::UUID, @leaseExpiresAt::TIMESTAMPTZ)
+ON CONFLICT (key)
+DO UPDATE SET
+    last_offset = EXCLUDED.last_offset,
+    lease_process_id = EXCLUDED.lease_process_id,
+    lease_expires_at = EXCLUDED.lease_expires_at
+WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = @leaseProcessId::UUID
+RETURNING *
+;
+
+-- name: MarkCutoverJobAsCompleted :exec
+UPDATE v1_payload_cutover_job_offset
+SET is_completed = TRUE
+WHERE key = @key::DATE
+;

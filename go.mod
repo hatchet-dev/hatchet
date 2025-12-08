@@ -29,7 +29,7 @@ require (
 	github.com/posthog/posthog-go v1.6.13
 	github.com/pressly/goose/v3 v3.26.0
 	github.com/sethvargo/go-retry v0.3.0
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0

@@ -152,7 +152,7 @@ func WithMessageRejection(enabled bool, maxDeathCount int) MessageQueueImplOpt {
 }
 
 // New creates a new MessageQueueImpl.
-func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
+func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	opts := defaultMessageQueueImplOpts()
@@ -174,7 +174,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 
 	if err != nil {
 		cancel()
-		return nil, nil
+		return nil, nil, err
 	}
 
 	subMaxChans := opts.maxSubChannels
@@ -188,7 +188,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	if err != nil {
 		pubChannelPool.Close()
 		cancel()
-		return nil, nil
+		return nil, nil, err
 	}
 
 	t := &MessageQueueImpl{
@@ -217,7 +217,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	if err != nil {
 		t.l.Error().Msgf("[New] cannot acquire channel: %v", err)
 		cancel()
-		return nil, nil
+		return nil, nil, err
 	}
 
 	ch := poolCh.Value()
@@ -225,24 +225,27 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	defer poolCh.Release()
 
 	if _, err := t.initQueue(ch, msgqueue.TASK_PROCESSING_QUEUE); err != nil {
-		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
-		return nil, nil
+		return nil, nil, fmt.Errorf("failed to initialize queue: %w", err)
 	}
 
 	if _, err := t.initQueue(ch, msgqueue.OLAP_QUEUE); err != nil {
-		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
-		return nil, nil
+		return nil, nil, fmt.Errorf("failed to initialize queue: %w", err)
+	}
+
+	if _, err := t.initQueue(ch, msgqueue.DISPATCHER_DEAD_LETTER_QUEUE); err != nil {
+		cancel()
+		return nil, nil, fmt.Errorf("failed to initialize queue: %w", err)
 	}
 
 	return func() error {
 		cancel()
 		return nil
-	}, t
+	}, t, nil
 }
 
-func (t *MessageQueueImpl) Clone() (func() error, msgqueue.MessageQueue) {
+func (t *MessageQueueImpl) Clone() (func() error, msgqueue.MessageQueue, error) {
 	return New(t.configFs...)
 }
 
@@ -481,7 +484,8 @@ func (t *MessageQueueImpl) Subscribe(
 		return nil, err
 	}
 
-	if q.DLQ() != nil {
+	// only automatic DLQs get subscribed to, static DLQs require a separate subscription
+	if q.DLQ() != nil && q.DLQ().IsAutoDLQ() {
 		cleanupSubDLQ, err := t.subscribe(ctx, t.identity, q.DLQ(), preAck, postAck)
 
 		if err != nil {
@@ -579,7 +583,7 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 		name = fmt.Sprintf("%s-%s", q.Name(), suffix)
 	}
 
-	if !q.IsDLQ() && q.DLQ() != nil {
+	if !q.IsDLQ() && q.DLQ() != nil && q.DLQ().IsAutoDLQ() {
 		dlx1 := getTmpDLQName(q.DLQ().Name())
 		dlx2 := getProcDLQName(q.DLQ().Name())
 
@@ -607,6 +611,16 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 			t.l.Error().Msgf("cannot declare dead letter exchange/queue: %s, %s", dlx2, err.Error())
 			return "", err
 		}
+	}
+
+	if !q.IsDLQ() && q.DLQ() != nil && !q.DLQ().IsAutoDLQ() {
+		args["x-dead-letter-exchange"] = ""
+		args["x-dead-letter-routing-key"] = q.DLQ().Name()
+	}
+
+	if q.IsExpirable() {
+		args["x-message-ttl"] = int32(20000) // 20 seconds
+		args["x-expires"] = int32(600000)    // 10 minutes
 	}
 
 	if _, err := ch.QueueDeclare(name, q.Durable(), q.AutoDeleted(), q.Exclusive(), false, args); err != nil {
@@ -712,7 +726,7 @@ func (t *MessageQueueImpl) subscribe(
 		poolCh.Release()
 	}
 
-	if q.IsDLQ() {
+	if q.IsDLQ() && q.IsAutoDLQ() {
 		queueName = getProcDLQName(q.Name())
 	}
 
