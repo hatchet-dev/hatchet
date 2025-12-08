@@ -23,7 +23,15 @@ func NewAPITokenRepository(shared *sharedRepository, cache cache.Cacheable) repo
 }
 
 func (a *apiTokenRepository) RevokeAPIToken(ctx context.Context, id string) error {
-	return a.queries.RevokeAPIToken(ctx, a.pool, sqlchelpers.UUIDFromStr(id))
+	if err := a.queries.RevokeAPIToken(ctx, a.pool, sqlchelpers.UUIDFromStr(id)); err != nil {
+		return err
+	}
+
+	if a.cache != nil {
+		a.cache.Delete(id)
+	}
+
+	return nil
 }
 
 func (a *apiTokenRepository) ListAPITokensByTenant(ctx context.Context, tenantId string) ([]*dbsqlc.APIToken, error) {
@@ -74,6 +82,10 @@ func (a *apiTokenRepository) DeleteAPIToken(ctx context.Context, tenantId, id st
 
 	if err != nil {
 		return err
+	}
+
+	if a.cache != nil {
+		a.cache.Delete(id)
 	}
 
 	return commit(ctx)
