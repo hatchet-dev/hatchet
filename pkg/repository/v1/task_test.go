@@ -24,10 +24,8 @@ func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	logger := zerolog.Nop()
 	queries := sqlcv1.New()
 	payloadStore := NewPayloadStoreRepository(pool, &logger, queries, PayloadStoreRepositoryOpts{
-		WALEnabled:                     true,
-		WALPollLimit:                   1,
-		WALProcessInterval:             time.Second,
 		ExternalCutoverProcessInterval: time.Second,
+		ExternalCutoverBatchSize:       1,
 	})
 
 	queueCache := cache.New(5 * time.Minute)

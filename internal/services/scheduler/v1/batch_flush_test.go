@@ -280,8 +280,8 @@ func newFakeMessageQueue() *fakeMessageQueue {
 	}
 }
 
-func (f *fakeMessageQueue) Clone() (func() error, msgqueue.MessageQueue) {
-	return func() error { return nil }, f
+func (f *fakeMessageQueue) Clone() (func() error, msgqueue.MessageQueue, error) {
+	return func() error { return nil }, f, nil
 }
 
 func (f *fakeMessageQueue) SetQOS(_ int) {}
@@ -363,7 +363,7 @@ func (f *fakeRepository) Payloads() repov1.PayloadStoreRepository {
 	return nil
 }
 
-func (f *fakeRepository) OverwriteExternalPayloadStore(repov1.ExternalStore, time.Duration) {}
+func (f *fakeRepository) OverwriteExternalPayloadStore(repov1.ExternalStore) {}
 
 func (f *fakeRepository) Workers() repov1.WorkerRepository {
 	return nil
