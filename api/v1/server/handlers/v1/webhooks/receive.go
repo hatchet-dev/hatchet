@@ -107,8 +107,8 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		if strings.Contains(contentType, "application/x-www-form-urlencoded") {
 			formData, err := url.ParseQuery(string(rawBody))
 			if err != nil {
-				errorMsg := fmt.Sprintf("failed to parse form data: %v", err)
-				w.config.Logger.Warn().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Msg(errorMsg)
+				errorMsg := "Failed to parse form data"
+				w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Msg(errorMsg)
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
 						{
@@ -126,7 +126,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 				payloadValue := formData.Get("payload")
 				if payloadValue == "" {
 					errorMsg := "missing payload parameter in form-encoded request"
-					w.config.Logger.Warn().Str("webhook", webhookName).Str("tenant", tenantId).Str("form_keys", fmt.Sprintf("%v", func() []string {
+					w.config.Logger.Info().Str("webhook", webhookName).Str("tenant", tenantId).Str("form_keys", fmt.Sprintf("%v", func() []string {
 						keys := make([]string, 0, len(formData))
 						for k := range formData {
 							keys = append(keys, k)
@@ -148,12 +148,12 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 					if len(payloadPreview) > 200 {
 						payloadPreview = payloadPreview[:200] + "..."
 					}
-					errorMsg := fmt.Sprintf("failed to unmarshal payload parameter as JSON: %v", err)
-					w.config.Logger.Warn().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Int("payload_length", len(payloadValue)).Str("payload_preview", payloadPreview).Msg(errorMsg)
+					errorMsg := "Failed to unmarshal payload parameter as JSON"
+					w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Int("payload_length", len(payloadValue)).Str("payload_preview", payloadPreview).Msg(errorMsg)
 					return gen.V1WebhookReceive400JSONResponse{
 						Errors: []gen.APIError{
 							{
-								Description: fmt.Sprintf("failed to unmarshal payload parameter as JSON: %v (payload length: %d)", err, len(payloadValue)),
+								Description: errorMsg,
 							},
 						},
 					}, nil
@@ -182,7 +182,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 				if len(bodyPreview) > 200 {
 					bodyPreview = bodyPreview[:200] + "..."
 				}
-				errorMsg := fmt.Sprintf("failed to unmarshal request body as JSON: %v", err)
+				errorMsg := "Failed to unmarshal request body as JSON"
 				w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Str("content_type", contentType).Int("body_length", len(rawBody)).Str("body_preview", bodyPreview).Msg(errorMsg)
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
@@ -216,11 +216,11 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	if err != nil {
 		var errorMsg string
 		if strings.Contains(err.Error(), "did not evaluate to a string") {
-			errorMsg = fmt.Sprintf("event key expression must evaluate to a string, but got a different type. Expression: %s. Error: %v", webhook.EventKeyExpression, err)
+			errorMsg = "Event key expression must evaluate to a string"
 		} else if eventKey == "" {
-			errorMsg = fmt.Sprintf("event key evaluated to an empty string. Expression: %s", webhook.EventKeyExpression)
+			errorMsg = "Event key evaluated to an empty string"
 		} else {
-			errorMsg = fmt.Sprintf("failed to evaluate event key expression: %v", err)
+			errorMsg = "Failed to evaluate event key expression"
 		}
 
 		w.config.Logger.Warn().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Str("event_key_expression", webhook.EventKeyExpression).Msg(errorMsg)
@@ -250,7 +250,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return gen.V1WebhookReceive400JSONResponse{
 			Errors: []gen.APIError{
 				{
-					Description: fmt.Sprintf("failed to marshal request body: %v", err),
+					Description: "Failed to marshal request body",
 				},
 			},
 		}, nil
@@ -394,7 +394,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		if err != nil {
 			return false, &ValidationError{
 				Code:      Http403,
-				ErrorText: fmt.Sprintf("invalid timestamp in header: %s", err),
+				ErrorText: "Invalid timestamp in header",
 			}
 		}
 
@@ -496,7 +496,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		if err != nil {
 			return false, &ValidationError{
 				Code:      Http400,
-				ErrorText: fmt.Sprintf("invalid timestamp in signature header: %s", err),
+				ErrorText: "Invalid timestamp in signature header",
 			}
 		}
 
