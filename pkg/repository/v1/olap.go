@@ -2734,10 +2734,6 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 		}
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
-	}
-
 	payloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, 0, len(payloads))
 
 	for externalId, key := range externalIdToKey {
