@@ -104,23 +104,36 @@ func TestBatchFlushEmitsStartMessages(t *testing.T) {
 
 	time.Sleep(20 * time.Millisecond)
 	monitoringMessages := mq.MessagesForQueue(msgqueue.OLAP_QUEUE)
-	require.Len(t, monitoringMessages, 2, "expected monitoring event per task")
+	require.Len(t, monitoringMessages, 1, "expected monitoring events to be buffered per message ID")
+	require.Len(t, monitoringMessages[0].Payloads, 2, "expected monitoring payload per task")
 
-	var monitoringPayload tasktypes.CreateMonitoringEventPayload
-	err = json.Unmarshal(monitoringMessages[0].Payloads[0], &monitoringPayload)
-	require.NoError(t, err)
-	assert.Equal(t, sqlcv1.V1EventTypeOlapBATCHFLUSHED, monitoringPayload.EventType)
-	var payloadBody map[string]any
-	require.NoError(t, json.Unmarshal([]byte(monitoringPayload.EventPayload), &payloadBody))
-	assert.Equal(t, "flushed", payloadBody["status"])
-	assert.Equal(t, "batch-123", payloadBody["batchId"])
-	assert.Equal(t, batchKey, payloadBody["batchKey"])
-	assert.EqualValues(t, 2, payloadBody["batchSize"])
-	assert.EqualValues(t, 2, payloadBody["expectedSize"])
-	assert.EqualValues(t, maxRuns, payloadBody["maxRuns"])
-	assert.Contains(t, monitoringPayload.EventMessage, "Batch batch-123 flushed")
-	assert.Contains(t, monitoringPayload.EventMessage, batchKey)
-	assert.Contains(t, monitoringPayload.EventMessage, "Max concurrent batches per key")
+	expectedTaskIDs := map[int64]struct{}{
+		10: {},
+		11: {},
+	}
+
+	for _, payloadBytes := range monitoringMessages[0].Payloads {
+		var monitoringPayload tasktypes.CreateMonitoringEventPayload
+		err = json.Unmarshal(payloadBytes, &monitoringPayload)
+		require.NoError(t, err)
+		assert.Equal(t, sqlcv1.V1EventTypeOlapBATCHFLUSHED, monitoringPayload.EventType)
+
+		var payloadBody map[string]any
+		require.NoError(t, json.Unmarshal([]byte(monitoringPayload.EventPayload), &payloadBody))
+		assert.Equal(t, "flushed", payloadBody["status"])
+		assert.Equal(t, "batch-123", payloadBody["batchId"])
+		assert.Equal(t, batchKey, payloadBody["batchKey"])
+		assert.EqualValues(t, 2, payloadBody["batchSize"])
+		assert.EqualValues(t, 2, payloadBody["expectedSize"])
+		assert.EqualValues(t, maxRuns, payloadBody["maxRuns"])
+		assert.Contains(t, monitoringPayload.EventMessage, "Batch batch-123 flushed")
+		assert.Contains(t, monitoringPayload.EventMessage, batchKey)
+		assert.Contains(t, monitoringPayload.EventMessage, "Max concurrent batches per key")
+
+		delete(expectedTaskIDs, monitoringPayload.TaskId)
+	}
+
+	require.Empty(t, expectedTaskIDs, "all tasks should emit monitoring events")
 }
 
 func TestBatchBufferPerWorkerNoPrematureFlush(t *testing.T) {
