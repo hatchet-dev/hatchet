@@ -241,7 +241,11 @@ INSERT INTO "Step" (
     "retries",
     "scheduleTimeout",
     "retryBackoffFactor",
-    "retryMaxBackoff"
+    "retryMaxBackoff",
+    "batch_size",
+    "batch_flush_interval_ms",
+    "batch_key_expression",
+    "batch_max_runs"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -256,7 +260,11 @@ INSERT INTO "Step" (
     coalesce(sqlc.narg('retries')::integer, 0),
     coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
     sqlc.narg('retryBackoffFactor'),
-    sqlc.narg('retryMaxBackoff')
+    sqlc.narg('retryMaxBackoff'),
+    sqlc.narg('batchSize')::integer,
+    sqlc.narg('batchFlushIntervalMs')::integer,
+    sqlc.narg('batchKeyExpression')::text,
+    sqlc.narg('batchMaxRuns')::integer
 ) RETURNING *;
 
 -- name: AddStepParents :exec

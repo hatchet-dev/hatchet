@@ -1306,7 +1306,8 @@ type DAGWithData struct {
 
 type V1TaskWithPayload struct {
 	*sqlcv1.V1Task
-	Payload []byte `json:"payload"`
+	Runtime *sqlcv1.V1TaskRuntime `json:"runtime,omitempty"`
+	Payload []byte                `json:"payload"`
 }
 
 type V1TaskEventWithPayload struct {

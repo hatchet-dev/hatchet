@@ -332,6 +332,59 @@ func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid pgtype.
 	return items, nil
 }
 
+const insertBufferedTaskRuntimes = `-- name: InsertBufferedTaskRuntimes :exec
+WITH input AS (
+    SELECT
+        UNNEST($2::bigint[]) AS task_id,
+        UNNEST($3::timestamptz[]) AS task_inserted_at,
+        UNNEST($4::integer[]) AS task_retry_count
+)
+INSERT INTO v1_task_runtime (
+    task_id,
+    task_inserted_at,
+    retry_count,
+    worker_id,
+    tenant_id,
+    timeout_at,
+    batch_key
+)
+SELECT
+    input.task_id,
+    input.task_inserted_at,
+    input.task_retry_count,
+    NULL,
+    $1::uuid,
+    CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout),
+    t.batch_key
+FROM
+    input
+JOIN
+    v1_task t ON t.id = input.task_id AND t.inserted_at = input.task_inserted_at
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
+SET
+    timeout_at = EXCLUDED.timeout_at,
+    batch_key = EXCLUDED.batch_key
+WHERE
+    v1_task_runtime.worker_id IS NULL
+`
+
+type InsertBufferedTaskRuntimesParams struct {
+	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
+}
+
+func (q *Queries) InsertBufferedTaskRuntimes(ctx context.Context, db DBTX, arg InsertBufferedTaskRuntimesParams) error {
+	_, err := db.Exec(ctx, insertBufferedTaskRuntimes,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Taskretrycounts,
+	)
+	return err
+}
+
 const listActionsForWorkers = `-- name: ListActionsForWorkers :many
 SELECT
     w."id" as "workerId",
@@ -394,7 +447,10 @@ WITH worker_max_runs AS (
 ), worker_filled_slots AS (
     SELECT
         worker_id,
-        COUNT(task_id) AS "filledSlots"
+        (
+            COALESCE(SUM(CASE WHEN batch_id IS NULL THEN 1 ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT batch_id)::integer
+        ) AS "filledSlots"
     FROM
         v1_task_runtime
     WHERE
@@ -445,7 +501,7 @@ func (q *Queries) ListAvailableSlotsForWorkers(ctx context.Context, db DBTX, arg
 
 const listQueueItemsForQueue = `-- name: ListQueueItemsForQueue :many
 SELECT
-    id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count
+    id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, batch_key
 FROM
     v1_queue_item qi
 WHERE
@@ -502,6 +558,7 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 			&i.Sticky,
 			&i.DesiredWorkerID,
 			&i.RetryCount,
+			&i.BatchKey,
 		); err != nil {
 			return nil, err
 		}
@@ -567,7 +624,8 @@ WITH input AS (
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        batch_key
 )
 INSERT INTO v1_rate_limited_queue_items (
     requeue_after,
@@ -585,7 +643,8 @@ INSERT INTO v1_rate_limited_queue_items (
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    batch_key
 )
 SELECT
     i.requeue_after,
@@ -603,7 +662,8 @@ SELECT
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    batch_key
 FROM moved_items
 JOIN input i ON moved_items.id = i.id
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
@@ -664,7 +724,8 @@ WITH ready_items AS (
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        batch_key
     FROM
         v1_rate_limited_queue_items
     WHERE
@@ -693,7 +754,8 @@ WITH ready_items AS (
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        batch_key
 )
 INSERT INTO v1_queue_item (
     tenant_id,
@@ -710,7 +772,8 @@ INSERT INTO v1_queue_item (
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    batch_key
 )
 SELECT
     tenant_id,
@@ -727,7 +790,8 @@ SELECT
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    batch_key
 FROM ready_items
 RETURNING id, tenant_id, task_id, task_inserted_at, retry_count
 `
@@ -792,6 +856,7 @@ WITH input AS (
         t.retry_count,
         i.worker_id,
         t.tenant_id,
+        t.batch_key,
         CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
     FROM
         v1_task t
@@ -807,6 +872,7 @@ WITH input AS (
         retry_count,
         worker_id,
         tenant_id,
+        batch_key,
         timeout_at
     )
     SELECT
@@ -815,10 +881,16 @@ WITH input AS (
         t.retry_count,
         t.worker_id,
         $5::uuid,
+        t.batch_key,
         t.timeout_at
     FROM
         updated_tasks t
-    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
+    SET
+        worker_id = EXCLUDED.worker_id,
+        tenant_id = EXCLUDED.tenant_id,
+        batch_key = EXCLUDED.batch_key,
+        timeout_at = EXCLUDED.timeout_at
     -- only return the task ids that were successfully assigned
     RETURNING task_id, worker_id
 )

@@ -283,6 +283,8 @@ export enum V1TaskEventType {
   CREATED = "CREATED",
   QUEUED = "QUEUED",
   SKIPPED = "SKIPPED",
+  WAITING_FOR_BATCH = "WAITING_FOR_BATCH",
+  BATCH_FLUSHED = "BATCH_FLUSHED",
 }
 
 export enum V1WorkflowType {
@@ -470,6 +472,8 @@ export interface V1TaskEvent {
   timestamp: string;
   eventType: V1TaskEventType;
   message: string;
+  /** Optional structured metadata for the event encoded as JSON. */
+  eventPayload?: string;
   errorMessage?: string;
   output?: string;
   /** @format uuid */

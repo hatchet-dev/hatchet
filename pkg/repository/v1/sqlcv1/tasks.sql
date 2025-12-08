@@ -160,12 +160,84 @@ WHERE
     AND tenant_id = @tenantId::uuid;
 
 -- name: ListTasks :many
-SELECT *
+SELECT
+    t.id,
+    t.inserted_at,
+    t.tenant_id,
+    t.queue,
+    t.action_id,
+    t.step_id,
+    t.step_readable_id,
+    t.workflow_id,
+    t.workflow_version_id,
+    t.workflow_run_id,
+    t.schedule_timeout,
+    t.step_timeout,
+    t.priority,
+    t.sticky,
+    t.desired_worker_id,
+    t.external_id,
+    t.display_name,
+    t.input,
+    t.retry_count,
+    t.internal_retry_count,
+    t.app_retry_count,
+    t.step_index,
+    t.additional_metadata,
+    t.dag_id,
+    t.dag_inserted_at,
+    t.parent_task_external_id,
+    t.parent_task_id,
+    t.parent_task_inserted_at,
+    t.child_index,
+    t.child_key,
+    t.initial_state,
+    t.initial_state_reason,
+    t.concurrency_parent_strategy_ids,
+    t.concurrency_strategy_ids,
+    t.concurrency_keys,
+    t.retry_backoff_factor,
+    t.retry_max_backoff,
+    tr.batch_id AS runtime_batch_id,
+    tr.batch_size AS runtime_batch_size,
+    tr.batch_index AS runtime_batch_index,
+    tr.worker_id AS runtime_worker_id,
+    tr.timeout_at AS runtime_timeout_at
 FROM
-    v1_task
+    v1_task t
+LEFT JOIN
+    v1_task_runtime tr ON tr.task_id = t.id
+    AND tr.task_inserted_at = t.inserted_at
+    AND tr.retry_count = t.retry_count
+    AND tr.tenant_id = t.tenant_id
 WHERE
-    tenant_id = $1
-    AND id = ANY(@ids::bigint[]);
+    t.tenant_id = @tenantId::uuid
+    AND t.id = ANY(@ids::bigint[]);
+
+-- name: UpdateTaskBatchMetadata :exec
+WITH input AS (
+    SELECT
+        unnest(@taskIds::bigint[]) AS task_id,
+        unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        unnest(@batchIndexes::integer[]) AS batch_index
+)
+UPDATE
+    v1_task_runtime AS tr
+SET
+    batch_id = @batchId::uuid,
+    batch_size = @batchSize::integer,
+    batch_index = input.batch_index,
+    worker_id = @workerId::uuid,
+    batch_key = CASE
+        WHEN @batchKey::text IS NULL OR @batchKey::text = '' THEN tr.batch_key
+        ELSE @batchKey::text
+    END
+FROM
+    input
+WHERE
+    tr.tenant_id = @tenantId::uuid
+    AND tr.task_id = input.task_id
+    AND tr.task_inserted_at = input.task_inserted_at;
 
 -- name: ListTaskMetas :many
 SELECT
@@ -910,8 +982,66 @@ FROM
     input rec;
 
 -- name: RegisterBatch :batchexec
+-- TODO why?
 -- DO NOT USE: dummy query to satisfy sqlc and register Batch calls on DBTX
 SELECT * FROM v1_task WHERE id = $1;
+
+-- name: CountActiveTaskBatchRuns :one
+SELECT
+    COUNT(*)::integer AS active_count
+FROM
+    v1_task_batch_run
+WHERE
+    tenant_id = @tenantId::uuid
+    AND step_id = @stepId::uuid
+    AND batch_key = @batchKey::text
+    AND completed_at IS NULL;
+
+-- name: ReserveTaskBatchRun :one
+WITH locked AS (
+    SELECT
+        *
+    FROM
+        v1_task_batch_run
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND step_id = @stepId::uuid
+        AND batch_key = @batchKey::text
+        AND completed_at IS NULL
+    FOR UPDATE
+), existing AS (
+    SELECT COUNT(*) AS cnt FROM locked
+), inserted AS (
+    INSERT INTO v1_task_batch_run (
+        tenant_id,
+        step_id,
+        action_id,
+        batch_key,
+        batch_id
+    )
+    SELECT
+        @tenantId::uuid,
+        @stepId::uuid,
+        @actionId::text,
+        @batchKey::text,
+        @batchId::uuid
+    WHERE
+        @maxRuns::integer <= 0 OR (SELECT cnt FROM existing) < @maxRuns::integer
+    RETURNING
+        1
+)
+SELECT
+    EXISTS(SELECT 1 FROM inserted) AS reserved;
+
+-- name: CompleteTaskBatchRun :exec
+UPDATE
+    v1_task_batch_run
+SET
+    completed_at = CURRENT_TIMESTAMP
+WHERE
+    tenant_id = @tenantId::uuid
+    AND batch_id = @batchId::uuid
+    AND completed_at IS NULL;
 
 -- name: AnalyzeV1Task :exec
 ANALYZE v1_task;

@@ -10,7 +10,7 @@ import (
 const createTasks = `-- name: CreateTasks :many
 WITH input AS (
     SELECT
-        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
+        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, batch_key
     FROM
         (
             SELECT
@@ -46,8 +46,9 @@ WITH input AS (
 				unnest($29::bigint[]) AS step_index,
 				unnest($30::double precision[]) AS retry_backoff_factor,
 				unnest($31::integer[]) AS retry_max_backoff,
-				unnest($32::uuid[]) AS workflow_version_id,
-				unnest($33::uuid[]) AS workflow_run_id
+                unnest($32::uuid[]) AS workflow_version_id,
+				unnest($33::uuid[]) AS workflow_run_id,
+				unnest($34::text[]) AS batch_key
         ) AS subquery
 )
 INSERT INTO v1_task (
@@ -83,7 +84,8 @@ INSERT INTO v1_task (
 	retry_backoff_factor,
 	retry_max_backoff,
 	workflow_version_id,
-	workflow_run_id
+	workflow_run_id,
+	batch_key
 )
 SELECT
     i.tenant_id,
@@ -118,11 +120,12 @@ SELECT
 	i.retry_backoff_factor,
 	i.retry_max_backoff,
 	i.workflow_version_id,
-	i.workflow_run_id
+	i.workflow_run_id,
+	NULLIF(i.batch_key, '')
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, batch_key
 `
 
 type CreateTasksParams struct {
@@ -162,6 +165,7 @@ type CreateTasksParams struct {
 	RetryMaxBackoff              []pgtype.Int4        `json:"retryMaxBackoff"`
 	WorkflowVersionIds           []pgtype.UUID        `json:"workflowVersionIds"`
 	WorkflowRunIds               []pgtype.UUID        `json:"workflowRunIds"`
+	BatchKeys                    []string             `json:"batchKeys"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -212,6 +216,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.RetryMaxBackoff,
 		arg.WorkflowVersionIds,
 		arg.WorkflowRunIds,
+		arg.BatchKeys,
 	)
 	if err != nil {
 		return nil, err
@@ -258,6 +263,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.RetryMaxBackoff,
 			&i.WorkflowVersionID,
 			&i.WorkflowRunID,
+			&i.BatchKey,
 		); err != nil {
 			return nil, err
 		}
@@ -393,7 +399,7 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 const replayTasks = `-- name: ReplayTasks :many
 WITH input AS (
     SELECT
-        task_id, task_inserted_at, input, initial_state, concurrency_keys, initial_state_reason
+        task_id, task_inserted_at, input, initial_state, concurrency_keys, initial_state_reason, batch_key
     FROM
         (
             SELECT
@@ -402,7 +408,8 @@ WITH input AS (
                 unnest($3::jsonb[]) AS input,
                 unnest(cast($4::text[] as v1_task_initial_state[])) AS initial_state,
 				unnest_nd_1d($5::text[][]) AS concurrency_keys,
-				unnest($6::text[]) AS initial_state_reason
+				unnest($6::text[]) AS initial_state_reason,
+				unnest($7::text[]) AS batch_key
         ) AS subquery
 )
 UPDATE
@@ -414,13 +421,14 @@ SET
     input = CASE WHEN i.input IS NOT NULL THEN i.input ELSE v1_task.input END,
     initial_state = i.initial_state,
     concurrency_keys = i.concurrency_keys,
-    initial_state_reason = i.initial_state_reason
+    initial_state_reason = i.initial_state_reason,
+    batch_key = NULLIF(i.batch_key, '')
 FROM
     input i
 WHERE
 	(v1_task.id, v1_task.inserted_at) = (i.task_id, i.task_inserted_at)
 RETURNING
-    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff
+    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.batch_key
 `
 
 type ReplayTasksParams struct {
@@ -433,6 +441,7 @@ type ReplayTasksParams struct {
 	// multi-dimensional arrays are the same length.
 	Concurrencykeys     [][]string    `json:"concurrencykeys"`
 	InitialStateReasons []pgtype.Text `json:"initialStateReasons"`
+	BatchKeys           []string      `json:"batchKeys"`
 }
 
 // NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
@@ -444,6 +453,7 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 		arg.InitialStates,
 		arg.Concurrencykeys,
 		arg.InitialStateReasons,
+		arg.BatchKeys,
 	)
 	if err != nil {
 		return nil, err
@@ -485,6 +495,7 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 			&i.ConcurrencyKeys,
 			&i.RetryBackoffFactor,
 			&i.RetryMaxBackoff,
+			&i.BatchKey,
 		); err != nil {
 			return nil, err
 		}
@@ -720,7 +731,9 @@ WITH input AS (
         task_id,
         task_inserted_at,
         retry_count,
-        worker_id
+        worker_id,
+        batch_id,
+        batch_key
     FROM
         v1_task_runtime
     WHERE
@@ -744,6 +757,8 @@ SELECT
     t.step_readable_id,
     t.workflow_run_id,
     r.worker_id,
+    r.batch_id,
+    r.batch_key,
     i.retry_count::int AS retry_count,
     t.retry_count = i.retry_count AS is_current_retry,
     t.concurrency_strategy_ids
@@ -769,6 +784,8 @@ type ReleaseTasksRow struct {
 	StepReadableID         string             `json:"step_readable_id"`
 	WorkflowRunID          pgtype.UUID        `json:"workflow_run_id"`
 	WorkerID               pgtype.UUID        `json:"worker_id"`
+	BatchID                pgtype.UUID        `json:"batch_id"`
+	BatchKey               pgtype.Text        `json:"batch_key"`
 	RetryCount             int32              `json:"retry_count"`
 	IsCurrentRetry         bool               `json:"is_current_retry"`
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
@@ -798,6 +815,8 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 				&i.StepReadableID,
 				&i.WorkflowRunID,
 				&i.WorkerID,
+				&i.BatchID,
+				&i.BatchKey,
 				&i.RetryCount,
 				&i.IsCurrentRetry,
 				&i.ConcurrencyStrategyIds,

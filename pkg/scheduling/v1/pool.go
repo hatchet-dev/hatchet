@@ -33,6 +33,8 @@ type SchedulingPool struct {
 	tenants sync.Map
 	setMu   mutex
 
+	batchCoordinators sync.Map
+
 	cf *sharedConfig
 
 	resultsCh chan *QueueResults
@@ -179,10 +181,26 @@ func (p *SchedulingPool) getTenantManager(tenantId string, storeIfNotFound bool)
 		if storeIfNotFound {
 			tm = newTenantManager(p.cf, tenantId, p.resultsCh, p.concurrencyResultsCh, p.Extensions)
 			p.tenants.Store(tenantId, tm)
+
+			if coord, has := p.batchCoordinators.Load(tenantId); has {
+				tm.(*tenantManager).scheduler.SetBatchCoordinator(coord.(BatchCoordinator))
+			}
 		} else {
 			return nil
 		}
 	}
 
 	return tm.(*tenantManager)
+}
+
+func (p *SchedulingPool) SetBatchCoordinator(tenantId string, coord BatchCoordinator) {
+	if coord != nil {
+		p.batchCoordinators.Store(tenantId, coord)
+	} else {
+		p.batchCoordinators.Delete(tenantId)
+	}
+
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.scheduler.SetBatchCoordinator(coord)
+	}
 }

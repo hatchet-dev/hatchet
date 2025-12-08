@@ -874,6 +874,24 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 				})
 			}
 		}
+
+		if stepCp.Batch != nil {
+			steps[j].BatchConfig = &v1.StepBatchConfig{
+				BatchSize: stepCp.Batch.BatchSize,
+			}
+
+			if stepCp.Batch.FlushIntervalMs != nil {
+				steps[j].BatchConfig.FlushIntervalMs = stepCp.Batch.FlushIntervalMs
+			}
+
+			if stepCp.Batch.BatchKey != nil && *stepCp.Batch.BatchKey != "" {
+				steps[j].BatchConfig.BatchKeyExpression = stepCp.Batch.BatchKey
+			}
+
+			if stepCp.Batch.MaxRuns != nil {
+				steps[j].BatchConfig.MaxRuns = stepCp.Batch.MaxRuns
+			}
+		}
 	}
 
 	// Check if parents are in the map

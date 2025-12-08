@@ -1051,6 +1051,9 @@ const (
 	V1EventTypeOlapTIMEDOUT           V1EventTypeOlap = "TIMED_OUT"
 	V1EventTypeOlapRATELIMITERROR     V1EventTypeOlap = "RATE_LIMIT_ERROR"
 	V1EventTypeOlapSKIPPED            V1EventTypeOlap = "SKIPPED"
+	V1EventTypeOlapBATCHBUFFERED      V1EventTypeOlap = "BATCH_BUFFERED"
+	V1EventTypeOlapWAITINGFORBATCH    V1EventTypeOlap = "WAITING_FOR_BATCH"
+	V1EventTypeOlapBATCHFLUSHED       V1EventTypeOlap = "BATCH_FLUSHED"
 )
 
 func (e *V1EventTypeOlap) Scan(src interface{}) error {
@@ -2569,20 +2572,24 @@ type SlackAppWebhook struct {
 }
 
 type Step struct {
-	ID                 pgtype.UUID      `json:"id"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
-	ReadableId         pgtype.Text      `json:"readableId"`
-	TenantId           pgtype.UUID      `json:"tenantId"`
-	JobId              pgtype.UUID      `json:"jobId"`
-	ActionId           string           `json:"actionId"`
-	Timeout            pgtype.Text      `json:"timeout"`
-	CustomUserData     []byte           `json:"customUserData"`
-	Retries            int32            `json:"retries"`
-	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
-	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
-	ScheduleTimeout    string           `json:"scheduleTimeout"`
+	ID                   pgtype.UUID      `json:"id"`
+	CreatedAt            pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt            pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt            pgtype.Timestamp `json:"deletedAt"`
+	ReadableId           pgtype.Text      `json:"readableId"`
+	TenantId             pgtype.UUID      `json:"tenantId"`
+	JobId                pgtype.UUID      `json:"jobId"`
+	ActionId             string           `json:"actionId"`
+	Timeout              pgtype.Text      `json:"timeout"`
+	CustomUserData       []byte           `json:"customUserData"`
+	Retries              int32            `json:"retries"`
+	RetryBackoffFactor   pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff      pgtype.Int4      `json:"retryMaxBackoff"`
+	ScheduleTimeout      string           `json:"scheduleTimeout"`
+	BatchSize            pgtype.Int4      `json:"batch_size"`
+	BatchFlushIntervalMs pgtype.Int4      `json:"batch_flush_interval_ms"`
+	BatchKeyExpression   pgtype.Text      `json:"batch_key_expression"`
+	BatchMaxRuns         pgtype.Int4      `json:"batch_max_runs"`
 }
 
 type StepDesiredWorkerLabel struct {
@@ -3179,6 +3186,7 @@ type V1QueueItem struct {
 	Sticky            V1StickyStrategy   `json:"sticky"`
 	DesiredWorkerID   pgtype.UUID        `json:"desired_worker_id"`
 	RetryCount        int32              `json:"retry_count"`
+	BatchKey          pgtype.Text        `json:"batch_key"`
 }
 
 type V1RateLimitedQueueItems struct {
@@ -3198,6 +3206,7 @@ type V1RateLimitedQueueItems struct {
 	Sticky            V1StickyStrategy   `json:"sticky"`
 	DesiredWorkerID   pgtype.UUID        `json:"desired_worker_id"`
 	RetryCount        int32              `json:"retry_count"`
+	BatchKey          pgtype.Text        `json:"batch_key"`
 }
 
 type V1RetryQueueItem struct {
@@ -3293,8 +3302,19 @@ type V1Task struct {
 	ConcurrencyParentStrategyIds []pgtype.Int8      `json:"concurrency_parent_strategy_ids"`
 	ConcurrencyStrategyIds       []int64            `json:"concurrency_strategy_ids"`
 	ConcurrencyKeys              []string           `json:"concurrency_keys"`
+	BatchKey                     pgtype.Text        `json:"batch_key"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
+}
+
+type V1TaskBatchRun struct {
+	TenantID    pgtype.UUID        `json:"tenant_id"`
+	StepID      pgtype.UUID        `json:"step_id"`
+	ActionID    string             `json:"action_id"`
+	BatchKey    string             `json:"batch_key"`
+	BatchID     pgtype.UUID        `json:"batch_id"`
+	StartedAt   pgtype.Timestamptz `json:"started_at"`
+	CompletedAt pgtype.Timestamptz `json:"completed_at"`
 }
 
 type V1TaskEvent struct {
@@ -3357,6 +3377,10 @@ type V1TaskRuntime struct {
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount     int32              `json:"retry_count"`
 	WorkerID       pgtype.UUID        `json:"worker_id"`
+	BatchID        pgtype.UUID        `json:"batch_id"`
+	BatchSize      pgtype.Int4        `json:"batch_size"`
+	BatchIndex     pgtype.Int4        `json:"batch_index"`
+	BatchKey       pgtype.Text        `json:"batch_key"`
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
 }

@@ -159,6 +159,19 @@ func (worker *subscribedWorker) StartStepRunFromBulk(
 	return worker.stream.Send(action)
 }
 
+func (worker *subscribedWorker) StartBatch(
+	ctx context.Context,
+	action *contracts.AssignedAction,
+) error {
+	_, span := telemetry.NewSpan(ctx, "start-batch")
+	defer span.End()
+
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
+
+	return worker.stream.Send(action)
+}
+
 func (worker *subscribedWorker) StartGroupKeyAction(
 	ctx context.Context,
 	tenantId string,

@@ -301,6 +301,7 @@ CREATE TABLE v1_task (
     concurrency_parent_strategy_ids BIGINT[],
     concurrency_strategy_ids BIGINT[],
     concurrency_keys TEXT[],
+    batch_key TEXT,
     retry_backoff_factor DOUBLE PRECISION,
     retry_max_backoff INTEGER,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
@@ -382,6 +383,7 @@ CREATE TABLE v1_queue_item (
     sticky v1_sticky_strategy NOT NULL,
     desired_worker_id UUID,
     retry_count INTEGER NOT NULL DEFAULT 0,
+    batch_key TEXT,
     CONSTRAINT v1_queue_item_pkey PRIMARY KEY (id)
 );
 
@@ -413,6 +415,10 @@ CREATE TABLE v1_task_runtime (
     task_inserted_at TIMESTAMPTZ NOT NULL,
     retry_count INTEGER NOT NULL,
     worker_id UUID,
+    batch_id UUID,
+    batch_size INTEGER,
+    batch_index INTEGER,
+    batch_key TEXT,
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
 
@@ -422,6 +428,24 @@ CREATE TABLE v1_task_runtime (
 CREATE INDEX v1_task_runtime_tenantId_workerId_idx ON v1_task_runtime (tenant_id ASC, worker_id ASC) WHERE worker_id IS NOT NULL;
 
 CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_id ASC, timeout_at ASC);
+
+CREATE INDEX v1_task_runtime_batch_id_idx ON v1_task_runtime (batch_id) WHERE batch_id IS NOT NULL;
+
+CREATE TABLE v1_task_batch_run (
+    tenant_id UUID NOT NULL,
+    step_id UUID NOT NULL,
+    action_id TEXT NOT NULL,
+    batch_key TEXT NOT NULL,
+    batch_id UUID NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMPTZ,
+
+    CONSTRAINT v1_task_batch_run_pkey PRIMARY KEY (tenant_id, batch_id)
+);
+
+CREATE INDEX v1_task_batch_run_active_key_idx
+    ON v1_task_batch_run (tenant_id, step_id, batch_key)
+    WHERE completed_at IS NULL;
 
 alter table v1_task_runtime set (
     autovacuum_vacuum_scale_factor = '0.1',
@@ -451,6 +475,7 @@ CREATE TABLE v1_rate_limited_queue_items (
     sticky v1_sticky_strategy NOT NULL,
     desired_worker_id UUID,
     retry_count INTEGER NOT NULL DEFAULT 0,
+    batch_key TEXT,
 
     CONSTRAINT v1_rate_limited_queue_items_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
@@ -1048,26 +1073,31 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        batch_key
     )
     SELECT
-        tenant_id,
-        queue,
-        id,
-        inserted_at,
-        external_id,
-        action_id,
-        step_id,
-        workflow_id,
-        workflow_run_id,
-        CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout),
-        step_timeout,
-        COALESCE(priority, 1),
-        sticky,
-        desired_worker_id,
-        retry_count
-    FROM new_table
-    WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL;
+        nt.tenant_id,
+        nt.queue,
+        nt.id,
+        nt.inserted_at,
+        nt.external_id,
+        nt.action_id,
+        nt.step_id,
+        nt.workflow_id,
+        nt.workflow_run_id,
+        CURRENT_TIMESTAMP + convert_duration_to_interval(nt.schedule_timeout),
+        nt.step_timeout,
+        COALESCE(nt.priority, 1),
+        nt.sticky,
+        nt.desired_worker_id,
+        nt.retry_count,
+        COALESCE(nt.batch_key, t.batch_key)
+    FROM new_table nt
+    LEFT JOIN v1_task t
+        ON t.id = nt.id
+        AND t.inserted_at = nt.inserted_at
+    WHERE nt.initial_state = 'QUEUED' AND nt.concurrency_strategy_ids[1] IS NULL;
 
     INSERT INTO v1_dag_to_task (
         dag_id,
@@ -1256,7 +1286,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        batch_key
     )
     SELECT
         nt.tenant_id,
@@ -1273,7 +1304,8 @@ BEGIN
         4,
         nt.sticky,
         nt.desired_worker_id,
-        nt.retry_count
+        nt.retry_count,
+        nt.batch_key
     FROM new_table nt
     JOIN old_table ot ON ot.id = nt.id
     WHERE nt.initial_state = 'QUEUED'
@@ -1397,7 +1429,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        batch_key
     )
     SELECT
         tenant_id,
@@ -1414,7 +1447,8 @@ BEGIN
         4,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        batch_key
     FROM tasks;
 
     RETURN NULL;
@@ -1536,7 +1570,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        batch_key
     )
     SELECT
         tenant_id,
@@ -1553,7 +1588,8 @@ BEGIN
         COALESCE(priority, 1),
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        batch_key
     FROM tasks;
 
     RETURN NULL;

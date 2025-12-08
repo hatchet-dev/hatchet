@@ -31,6 +31,7 @@ sql:
       - users.sql
     schema:
       - ../../../../sql/schema/v0.sql
+      - ../../../../sql/schema/v1-core.sql
     strict_order_by: false
     gen:
       go:

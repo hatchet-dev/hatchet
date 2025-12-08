@@ -382,7 +382,11 @@ INSERT INTO "Step" (
     "retries",
     "scheduleTimeout",
     "retryBackoffFactor",
-    "retryMaxBackoff"
+    "retryMaxBackoff",
+    "batch_size",
+    "batch_flush_interval_ms",
+    "batch_key_expression",
+    "batch_max_runs"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -397,25 +401,33 @@ INSERT INTO "Step" (
     coalesce($11::integer, 0),
     coalesce($12::text, '5m'),
     $13,
-    $14
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout"
+    $14,
+    $15::integer,
+    $16::integer,
+    $17::text,
+    $18::integer
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout", batch_size, batch_flush_interval_ms, batch_key_expression, batch_max_runs
 `
 
 type CreateStepParams struct {
-	ID                 pgtype.UUID      `json:"id"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	Deletedat          pgtype.Timestamp `json:"deletedat"`
-	Readableid         string           `json:"readableid"`
-	Tenantid           pgtype.UUID      `json:"tenantid"`
-	Jobid              pgtype.UUID      `json:"jobid"`
-	Actionid           string           `json:"actionid"`
-	Timeout            pgtype.Text      `json:"timeout"`
-	CustomUserData     []byte           `json:"customUserData"`
-	Retries            pgtype.Int4      `json:"retries"`
-	ScheduleTimeout    pgtype.Text      `json:"scheduleTimeout"`
-	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
-	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
+	ID                   pgtype.UUID      `json:"id"`
+	CreatedAt            pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt            pgtype.Timestamp `json:"updatedAt"`
+	Deletedat            pgtype.Timestamp `json:"deletedat"`
+	Readableid           string           `json:"readableid"`
+	Tenantid             pgtype.UUID      `json:"tenantid"`
+	Jobid                pgtype.UUID      `json:"jobid"`
+	Actionid             string           `json:"actionid"`
+	Timeout              pgtype.Text      `json:"timeout"`
+	CustomUserData       []byte           `json:"customUserData"`
+	Retries              pgtype.Int4      `json:"retries"`
+	ScheduleTimeout      pgtype.Text      `json:"scheduleTimeout"`
+	RetryBackoffFactor   pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff      pgtype.Int4      `json:"retryMaxBackoff"`
+	BatchSize            pgtype.Int4      `json:"batchSize"`
+	BatchFlushIntervalMs pgtype.Int4      `json:"batchFlushIntervalMs"`
+	BatchKeyExpression   pgtype.Text      `json:"batchKeyExpression"`
+	BatchMaxRuns         pgtype.Int4      `json:"batchMaxRuns"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -434,6 +446,10 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.ScheduleTimeout,
 		arg.RetryBackoffFactor,
 		arg.RetryMaxBackoff,
+		arg.BatchSize,
+		arg.BatchFlushIntervalMs,
+		arg.BatchKeyExpression,
+		arg.BatchMaxRuns,
 	)
 	var i Step
 	err := row.Scan(
@@ -451,6 +467,10 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.RetryBackoffFactor,
 		&i.RetryMaxBackoff,
 		&i.ScheduleTimeout,
+		&i.BatchSize,
+		&i.BatchFlushIntervalMs,
+		&i.BatchKeyExpression,
+		&i.BatchMaxRuns,
 	)
 	return &i, err
 }

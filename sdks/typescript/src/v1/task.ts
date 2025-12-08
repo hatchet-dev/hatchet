@@ -54,6 +54,40 @@ export type TaskFn<
   C = Context<I>,
 > = (input: I, ctx: C) => O | Promise<O>;
 
+export type BatchTaskFn<I extends InputType = UnknownInputType, O extends OutputType = void> = (
+  inputs: I[],
+  contexts: Context<I>[]
+) => O[] | Promise<O[]>;
+
+export type BatchTaskConfig<I extends InputType = UnknownInputType, O extends OutputType = void> = {
+  /**
+   * The maximum number of inputs to accumulate before invoking the batch handler.
+   * Must be a positive integer.
+   */
+  batchSize: number;
+  /**
+   * Optional flush interval in milliseconds. When provided, the worker will invoke the batch handler
+   * with whatever inputs have accumulated once this interval elapses, even if the batch size has not
+   * been reached.
+   */
+  flushInterval?: number;
+  /**
+   * Optional CEL expression that evaluates to the partition key for the batch.
+   * Inputs producing the same key will be buffered together.
+   */
+  batchKey?: string;
+  /**
+   * Optional maximum number of concurrently running batches per unique batch key.
+   * Defaults to 1 when provided without a value.
+   */
+  maxRuns?: number;
+  /**
+   * The batch handler invoked with the buffered inputs and their corresponding contexts.
+   * The returned array must match the number of inputs in the batch.
+   */
+  fn: BatchTaskFn<I, O>;
+};
+
 export type DurableTaskFn<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,

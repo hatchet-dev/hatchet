@@ -4,11 +4,13 @@ SELECT
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
     workers."maxRuns" - (
-        SELECT COUNT(*)
-        FROM "SemaphoreQueueItem" sqi
+        SELECT
+            COALESCE(SUM(CASE WHEN runtime.batch_id IS NULL THEN 1 ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT runtime.batch_id)::integer
+        FROM v1_task_runtime runtime
         WHERE
-            sqi."tenantId" = workers."tenantId" AND
-            sqi."workerId" = workers."id"
+            runtime.tenant_id = workers."tenantId" AND
+            runtime.worker_id = workers."id"
     ) AS "remainingSlots"
 FROM
     "Worker" workers
@@ -46,11 +48,13 @@ SELECT
     sqlc.embed(w),
     ww."url" AS "webhookUrl",
     w."maxRuns" - (
-        SELECT COUNT(*)
-        FROM "SemaphoreQueueItem" sqi
+        SELECT
+            COALESCE(SUM(CASE WHEN runtime.batch_id IS NULL THEN 1 ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT runtime.batch_id)::integer
+        FROM v1_task_runtime runtime
         WHERE
-            sqi."tenantId" = w."tenantId" AND
-            sqi."workerId" = w."id"
+            runtime.tenant_id = w."tenantId" AND
+            runtime.worker_id = w."id"
     ) AS "remainingSlots"
 FROM
     "Worker" w

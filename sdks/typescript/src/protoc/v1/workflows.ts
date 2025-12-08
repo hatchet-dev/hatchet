@@ -328,6 +328,17 @@ export interface DesiredWorkerLabels {
   weight?: number | undefined;
 }
 
+export interface TaskBatchConfig {
+  /** (required) maximum number of inputs per flush */
+  batchSize: number;
+  /** (optional) flush interval in milliseconds */
+  flushIntervalMs?: number | undefined;
+  /** (optional) CEL expression to evaluate a batch partition key */
+  batchKey?: string | undefined;
+  /** (optional) maximum concurrently running batches per unique key */
+  maxRuns?: number | undefined;
+}
+
 /** CreateTaskOpts represents options to create a task. */
 export interface CreateTaskOpts {
   /** (required) the task name */
@@ -356,6 +367,8 @@ export interface CreateTaskOpts {
   conditions?: TaskConditions | undefined;
   /** (optional) the timeout for the schedule */
   scheduleTimeout?: string | undefined;
+  /** (optional) batch execution configuration */
+  batch?: TaskBatchConfig | undefined;
 }
 
 export interface CreateTaskOpts_WorkerLabelsEntry {
@@ -1592,6 +1605,116 @@ export const DesiredWorkerLabels: MessageFns<DesiredWorkerLabels> = {
   },
 };
 
+function createBaseTaskBatchConfig(): TaskBatchConfig {
+  return { batchSize: 0, flushIntervalMs: undefined, batchKey: undefined, maxRuns: undefined };
+}
+
+export const TaskBatchConfig: MessageFns<TaskBatchConfig> = {
+  encode(message: TaskBatchConfig, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.batchSize !== 0) {
+      writer.uint32(8).int32(message.batchSize);
+    }
+    if (message.flushIntervalMs !== undefined) {
+      writer.uint32(16).int32(message.flushIntervalMs);
+    }
+    if (message.batchKey !== undefined) {
+      writer.uint32(26).string(message.batchKey);
+    }
+    if (message.maxRuns !== undefined) {
+      writer.uint32(32).int32(message.maxRuns);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TaskBatchConfig {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTaskBatchConfig();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.batchSize = reader.int32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.flushIntervalMs = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.batchKey = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.maxRuns = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TaskBatchConfig {
+    return {
+      batchSize: isSet(object.batchSize) ? globalThis.Number(object.batchSize) : 0,
+      flushIntervalMs: isSet(object.flushIntervalMs)
+        ? globalThis.Number(object.flushIntervalMs)
+        : undefined,
+      batchKey: isSet(object.batchKey) ? globalThis.String(object.batchKey) : undefined,
+      maxRuns: isSet(object.maxRuns) ? globalThis.Number(object.maxRuns) : undefined,
+    };
+  },
+
+  toJSON(message: TaskBatchConfig): unknown {
+    const obj: any = {};
+    if (message.batchSize !== 0) {
+      obj.batchSize = Math.round(message.batchSize);
+    }
+    if (message.flushIntervalMs !== undefined) {
+      obj.flushIntervalMs = Math.round(message.flushIntervalMs);
+    }
+    if (message.batchKey !== undefined) {
+      obj.batchKey = message.batchKey;
+    }
+    if (message.maxRuns !== undefined) {
+      obj.maxRuns = Math.round(message.maxRuns);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<TaskBatchConfig>): TaskBatchConfig {
+    return TaskBatchConfig.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<TaskBatchConfig>): TaskBatchConfig {
+    const message = createBaseTaskBatchConfig();
+    message.batchSize = object.batchSize ?? 0;
+    message.flushIntervalMs = object.flushIntervalMs ?? undefined;
+    message.batchKey = object.batchKey ?? undefined;
+    message.maxRuns = object.maxRuns ?? undefined;
+    return message;
+  },
+};
+
 function createBaseCreateTaskOpts(): CreateTaskOpts {
   return {
     readableId: '',
@@ -1607,6 +1730,7 @@ function createBaseCreateTaskOpts(): CreateTaskOpts {
     concurrency: [],
     conditions: undefined,
     scheduleTimeout: undefined,
+    batch: undefined,
   };
 }
 
@@ -1653,6 +1777,9 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
     }
     if (message.scheduleTimeout !== undefined) {
       writer.uint32(106).string(message.scheduleTimeout);
+    }
+    if (message.batch !== undefined) {
+      TaskBatchConfig.encode(message.batch, writer.uint32(114).fork()).join();
     }
     return writer;
   },
@@ -1771,6 +1898,14 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
           message.scheduleTimeout = reader.string();
           continue;
         }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.batch = TaskBatchConfig.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1815,6 +1950,7 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
       scheduleTimeout: isSet(object.scheduleTimeout)
         ? globalThis.String(object.scheduleTimeout)
         : undefined,
+      batch: isSet(object.batch) ? TaskBatchConfig.fromJSON(object.batch) : undefined,
     };
   },
 
@@ -1865,6 +2001,9 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
     if (message.scheduleTimeout !== undefined) {
       obj.scheduleTimeout = message.scheduleTimeout;
     }
+    if (message.batch !== undefined) {
+      obj.batch = TaskBatchConfig.toJSON(message.batch);
+    }
     return obj;
   },
 
@@ -1896,6 +2035,10 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
         ? TaskConditions.fromPartial(object.conditions)
         : undefined;
     message.scheduleTimeout = object.scheduleTimeout ?? undefined;
+    message.batch =
+      object.batch !== undefined && object.batch !== null
+        ? TaskBatchConfig.fromPartial(object.batch)
+        : undefined;
     return message;
   },
 };

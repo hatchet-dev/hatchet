@@ -37,6 +37,7 @@ type AssignedItem struct {
 
 type AssignResults struct {
 	Assigned           []*AssignedItem
+	Buffered           []*AssignedItem
 	Unassigned         []*sqlcv1.V1QueueItem
 	SchedulingTimedOut []*sqlcv1.V1QueueItem
 	RateLimited        []*RateLimitResult
@@ -197,7 +198,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	durPrepare := time.Since(checkpoint)
 	checkpoint = time.Now()
 
-	idsToUnqueue := make([]int64, 0, len(r.Assigned))
+	idsToUnqueue := make([]int64, 0, len(r.Assigned)+len(r.Buffered))
 	queueItemIdsToAssignedItem := make(map[int64]*AssignedItem, len(r.Assigned))
 	taskIdToAssignedItem := make(map[int64]*AssignedItem, len(r.Assigned))
 
@@ -216,6 +217,23 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 			InsertedAt: id.TaskInsertedAt,
 			RetryCount: id.RetryCount,
 		})
+	}
+
+	bufferedQueueItemIDs := make([]int64, 0, len(r.Buffered))
+	bufferedTaskIds := make([]int64, 0, len(r.Buffered))
+	bufferedTaskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Buffered))
+	bufferedRetryCounts := make([]int32, 0, len(r.Buffered))
+
+	for _, buffered := range r.Buffered {
+		if buffered == nil || buffered.QueueItem == nil {
+			continue
+		}
+
+		idsToUnqueue = append(idsToUnqueue, buffered.QueueItem.ID)
+		bufferedQueueItemIDs = append(bufferedQueueItemIDs, buffered.QueueItem.ID)
+		bufferedTaskIds = append(bufferedTaskIds, buffered.QueueItem.TaskID)
+		bufferedTaskInsertedAts = append(bufferedTaskInsertedAts, buffered.QueueItem.TaskInsertedAt)
+		bufferedRetryCounts = append(bufferedRetryCounts, buffered.QueueItem.RetryCount)
 	}
 
 	// remove rate limited queue items from the queue and place them in the v1_rate_limited_queue_items table
@@ -256,6 +274,24 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 		queuedItemsMap[id] = struct{}{}
 	}
 
+	validBufferedTaskIds := make([]int64, 0, len(bufferedTaskIds))
+	validBufferedInsertedAts := make([]pgtype.Timestamptz, 0, len(bufferedTaskInsertedAts))
+	validBufferedRetryCounts := make([]int32, 0, len(bufferedRetryCounts))
+
+	for idx, queueItemID := range bufferedQueueItemIDs {
+		if _, ok := queuedItemsMap[queueItemID]; !ok {
+			continue
+		}
+
+		if idx >= len(bufferedTaskIds) || idx >= len(bufferedTaskInsertedAts) || idx >= len(bufferedRetryCounts) {
+			continue
+		}
+
+		validBufferedTaskIds = append(validBufferedTaskIds, bufferedTaskIds[idx])
+		validBufferedInsertedAts = append(validBufferedInsertedAts, bufferedTaskInsertedAts[idx])
+		validBufferedRetryCounts = append(validBufferedRetryCounts, bufferedRetryCounts[idx])
+	}
+
 	taskIds := make([]int64, 0, len(r.Assigned))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
 	workerIds := make([]pgtype.UUID, 0, len(r.Assigned))
@@ -278,6 +314,23 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 
 	timeAfterBulkQueueItems := time.Since(checkpoint)
 	checkpoint = time.Now()
+
+	if len(validBufferedTaskIds) > 0 {
+		err = d.queries.InsertBufferedTaskRuntimes(ctx, tx, sqlcv1.InsertBufferedTaskRuntimesParams{
+			Tenantid:        d.tenantId,
+			Taskids:         validBufferedTaskIds,
+			Taskinsertedats: validBufferedInsertedAts,
+			Taskretrycounts: validBufferedRetryCounts,
+		})
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		validBufferedTaskIds = nil
+		validBufferedInsertedAts = nil
+		validBufferedRetryCounts = nil
+	}
 
 	updatedTasks, err := d.queries.UpdateTasksToAssigned(ctx, tx, sqlcv1.UpdateTasksToAssignedParams{
 		Taskids:           taskIds,

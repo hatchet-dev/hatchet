@@ -16,7 +16,9 @@ SELECT
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion",
     ww."url" AS "webhookUrl",
     w."maxRuns" - (
-        SELECT COUNT(*)
+        SELECT
+            COALESCE(SUM(CASE WHEN runtime.batch_id IS NULL THEN 1 ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT runtime.batch_id)::integer
         FROM v1_task_runtime runtime
         WHERE
             runtime.tenant_id = w."tenantId" AND
@@ -118,7 +120,7 @@ func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids [
 
 const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
+    task_id, task_inserted_at, runtime.retry_count, worker_id, batch_id, batch_size, batch_index, runtime.batch_key, runtime.tenant_id, timeout_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, v1_task.batch_key, retry_backoff_factor, retry_max_backoff
 FROM
     v1_task_runtime runtime
 JOIN
@@ -141,6 +143,10 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	TaskInsertedAt               pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount                   int32              `json:"retry_count"`
 	WorkerID                     pgtype.UUID        `json:"worker_id"`
+	BatchID                      pgtype.UUID        `json:"batch_id"`
+	BatchSize                    pgtype.Int4        `json:"batch_size"`
+	BatchIndex                   pgtype.Int4        `json:"batch_index"`
+	BatchKey                     pgtype.Text        `json:"batch_key"`
 	TenantID                     pgtype.UUID        `json:"tenant_id"`
 	TimeoutAt                    pgtype.Timestamp   `json:"timeout_at"`
 	ID                           int64              `json:"id"`
@@ -178,6 +184,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	ConcurrencyParentStrategyIds []pgtype.Int8      `json:"concurrency_parent_strategy_ids"`
 	ConcurrencyStrategyIds       []int64            `json:"concurrency_strategy_ids"`
 	ConcurrencyKeys              []string           `json:"concurrency_keys"`
+	BatchKey_2                   pgtype.Text        `json:"batch_key_2"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
 }
@@ -196,6 +203,10 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.TaskInsertedAt,
 			&i.RetryCount,
 			&i.WorkerID,
+			&i.BatchID,
+			&i.BatchSize,
+			&i.BatchIndex,
+			&i.BatchKey,
 			&i.TenantID,
 			&i.TimeoutAt,
 			&i.ID,
@@ -233,6 +244,7 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.ConcurrencyParentStrategyIds,
 			&i.ConcurrencyStrategyIds,
 			&i.ConcurrencyKeys,
+			&i.BatchKey_2,
 			&i.RetryBackoffFactor,
 			&i.RetryMaxBackoff,
 		); err != nil {
@@ -252,7 +264,9 @@ SELECT
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
     workers."maxRuns" - (
-        SELECT COUNT(*)
+        SELECT
+            COALESCE(SUM(CASE WHEN runtime.batch_id IS NULL THEN 1 ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT runtime.batch_id)::integer
         FROM v1_task_runtime runtime
         WHERE
             runtime.tenant_id = workers."tenantId" AND
