@@ -160,9 +160,7 @@ describe('batch-task e2e', () => {
 
     const results = await Promise.all(inputs.map((input) => keyedWorkflow.run(input)));
 
-    expect(results.map((result) => result.batchKey)).toEqual(
-      inputs.map((input) => input.group)
-    );
+    expect(results.map((result) => result.batchKey)).toEqual(inputs.map((input) => input.group));
     expect(results.slice(0, 3).every((result) => result.batchSize === 3)).toBe(true);
     expect(results[3].batchSize).toBe(1);
     expect(results.every((result) => result.uniqueKeys === 1)).toBe(true);

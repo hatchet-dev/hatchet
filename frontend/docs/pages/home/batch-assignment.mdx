@@ -19,6 +19,7 @@ A step becomes batchable when you set one or more of the following properties in
 its definition (for example via workflow manifests or SDK helpers):
 
 // TODO should probably default to 2?
+
 - `batch_size`: the maximum number of items to flush at once. Defaults to `1`
   and is clamped to at least one.
 - `batch_flush_interval_ms` (optional): the longest time (in milliseconds) that the buffer
@@ -58,6 +59,7 @@ your handler. Each element in the array carries the original task metadata, and
 individual items continue to respect per-task retry policies.
 
 {/* TODO add snippet */}
+
 ```ts
 const batch = hatchet.batchTask({
   name: "simple",
