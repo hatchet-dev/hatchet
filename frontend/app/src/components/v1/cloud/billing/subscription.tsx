@@ -10,7 +10,7 @@ import {
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Switch } from '@/components/v1/ui/switch';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import {
@@ -44,6 +44,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   >(undefined);
 
   const { tenantId } = useCurrentTenantId();
+  const { tenant } = useTenantDetails();
   const { handleApiError } = useApiError({});
   const [portalLoading, setPortalLoading] = useState(false);
 
@@ -67,7 +68,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
       const [plan, period] = plan_code.split(':');
       setLoading(plan_code);
-      const response = await cloudApi.subscriptionUpsert(tenantId, { plan, period });
+      const response = await cloudApi.subscriptionUpsert(tenantId, {
+        plan,
+        period,
+      });
       return response.data;
     },
     onSuccess: async (data) => {
@@ -92,15 +96,12 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     onError: handleApiError,
   });
 
-  const activePlanCode = useMemo(
-    () => {
-      if (!active?.plan || active.plan === 'free') {
-        return 'free';
-      }
-      return [active.plan, active.period].filter((x) => !!x).join(':');
-    },
-    [active],
-  );
+  const activePlanCode = useMemo(() => {
+    if (!active?.plan || active.plan === 'free') {
+      return 'free';
+    }
+    return [active.plan, active.period].filter((x) => !!x).join(':');
+  }, [active]);
 
   useEffect(() => {
     return setShowAnnual(active?.period?.includes('yearly') || false);
@@ -134,6 +135,36 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     },
     [active, activePlanCode, sortedPlans],
   );
+
+  const formattedEndDate = useMemo(() => {
+    if (!active?.ends_at) {
+      return null;
+    }
+    const date = new Date(active.ends_at);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  }, [active?.ends_at]);
+
+  const currentPlanDetails = useMemo(() => {
+    if (!active?.plan) {
+      return null;
+    }
+    return sortedPlans?.find((p) => p.plan_code === activePlanCode);
+  }, [active, activePlanCode, sortedPlans]);
+
+  const enterpriseContactUrl = useMemo(() => {
+    const baseUrl = 'https://cal.com/team/hatchet/website-demo';
+    if (!tenant) {
+      return baseUrl;
+    }
+    const tenantName = tenant.name || 'Unknown';
+    const tenantUuid = tenant.metadata?.id || tenantId;
+    const notes = `Custom pricing request for tenant '${tenantName}' (${tenantUuid})`;
+    return `${baseUrl}?notes=${encodeURIComponent(notes)}`;
+  }, [tenant, tenantId]);
 
   return (
     <>
@@ -173,101 +204,132 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             ))}
           </h3>
 
-          <div className="flex gap-4 items-center">
-            <Button
-              onClick={manageClicked}
-              variant="outline"
-              disabled={portalLoading}
-            >
-              {portalLoading ? <Spinner /> : 'Visit Billing Portal'}
-            </Button>
-            <div className="flex gap-2">
-              <Switch
-                id="sa"
-                checked={showAnnual}
-                onClick={() => {
-                  setShowAnnual((checkedState) => !checkedState);
-                }}
-              />
-              <Label htmlFor="sa" className="text-sm">
-                Annual Billing{' '}
-                <Badge variant="inProgress" className="ml-2">
-                  Save up to 20%
-                </Badge>
-              </Label>
-            </div>
-          </div>
-        </div>
-        <p className="text-gray-700 dark:text-gray-300 my-4">
-          For plan details, please visit{' '}
-          <a
-            href="https://hatchet.run/pricing"
-            className="underline"
-            target="_blank"
-            rel="noreferrer"
+          <Button
+            onClick={manageClicked}
+            variant="outline"
+            disabled={portalLoading}
           >
-            our pricing page
-          </a>{' '}
-          or{' '}
-          <a href="https://hatchet.run/office-hours" className="underline">
-            contact us
-          </a>{' '}
-          if you have custom requirements.
-        </p>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-          {sortedPlans?.map((plan, i) => (
-            <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
-              <CardHeader>
-                <CardTitle className="tracking-wide text-sm">
-                  {plan.name}
-                </CardTitle>
-                <CardDescription className="py-4">
-                  $
-                  {(
-                    plan.amount_cents /
-                    100 /
-                    (plan.period == 'yearly' ? 12 : 1)
-                  ).toLocaleString()}{' '}
-                  per month billed {plan.period}*
-                </CardDescription>
-                <CardDescription>
-                  <Button
-                    disabled={
-                      plan.plan_code === activePlanCode ||
-                      loading === plan.plan_code
-                    }
-                    variant={
-                      plan.plan_code !== activePlanCode ? 'default' : 'outline'
-                    }
-                    onClick={() => setChangeConfirmOpen(plan)}
-                  >
-                    {loading === plan.plan_code ? (
-                      <Spinner />
-                    ) : plan.plan_code === activePlanCode ? (
-                      'Active'
-                    ) : isUpgrade(plan) ? (
-                      'Upgrade'
-                    ) : (
-                      'Downgrade'
+            {portalLoading ? <Spinner /> : 'Visit Billing Portal'}
+          </Button>
+        </div>
+        {/* Current Subscription Section */}
+        {currentPlanDetails && (
+          <div className="mt-6 mb-6">
+            <h4 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+              Current Subscription
+            </h4>
+            <Card className="border-2 border-primary/20 bg-card">
+              <CardHeader className="pb-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <CardTitle className="text-2xl mb-1">
+                      {currentPlanDetails.name}
+                    </CardTitle>
+                    <div className="text-3xl font-bold mb-2">
+                      $
+                      {(
+                        currentPlanDetails.amount_cents /
+                        100 /
+                        (currentPlanDetails.period === 'yearly' ? 12 : 1)
+                      ).toLocaleString()}{' '}
+                      <span className="text-base font-normal text-muted-foreground">
+                        per month
+                      </span>
+                    </div>
+                    {formattedEndDate && (
+                      <p className="text-sm text-muted-foreground flex items-center gap-2">
+                        <span>📅</span>
+                        Your service will end on {formattedEndDate}.
+                      </p>
                     )}
-                  </Button>
-                </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
             </Card>
-          ))}
+          </div>
+        )}
+
+        <div className="flex flex-row justify-between items-center mb-4">
+          <p className="text-gray-700 dark:text-gray-300">
+            For plan details, please visit{' '}
+            <a
+              href="https://hatchet.run/pricing"
+              className="underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              our pricing page
+            </a>{' '}
+            or{' '}
+            <a href="https://hatchet.run/office-hours" className="underline">
+              contact us
+            </a>{' '}
+            if you have custom requirements.
+          </p>
+
+          <div className="flex gap-2 items-center">
+            <Switch
+              id="sa"
+              checked={showAnnual}
+              onClick={() => {
+                setShowAnnual((checkedState) => !checkedState);
+              }}
+            />
+            <Label htmlFor="sa" className="text-sm whitespace-nowrap">
+              Annual Billing{' '}
+              <Badge variant="inProgress" className="ml-2">
+                Save up to 20%
+              </Badge>
+            </Label>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {sortedPlans
+            ?.filter((plan) => plan.plan_code !== activePlanCode)
+            .map((plan, i) => (
+              <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
+                <CardHeader>
+                  <CardTitle className="tracking-wide text-sm">
+                    {plan.name}
+                  </CardTitle>
+                  <CardDescription className="py-4">
+                    $
+                    {(
+                      plan.amount_cents /
+                      100 /
+                      (plan.period == 'yearly' ? 12 : 1)
+                    ).toLocaleString()}{' '}
+                    per month billed {plan.period}*
+                  </CardDescription>
+                  <CardDescription>
+                    <Button
+                      disabled={loading === plan.plan_code}
+                      variant="default"
+                      onClick={() => setChangeConfirmOpen(plan)}
+                    >
+                      {loading === plan.plan_code ? (
+                        <Spinner />
+                      ) : isUpgrade(plan) ? (
+                        'Upgrade'
+                      ) : (
+                        'Downgrade'
+                      )}
+                    </Button>
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ))}
           <Card className="bg-muted/30 gap-4 flex-col flex">
             <CardHeader>
               <CardTitle className="tracking-wide text-sm">
                 Enterprise
               </CardTitle>
-              <CardDescription className="py-4">
-                Custom pricing
-              </CardDescription>
+              <CardDescription className="py-4">Custom pricing</CardDescription>
               <CardDescription>
                 <Button
                   variant="default"
-                  onClick={() => window.open('https://hatchet.run/office-hours', '_blank')}
+                  onClick={() => window.open(enterpriseContactUrl, '_blank')}
                 >
                   Contact Us
                 </Button>

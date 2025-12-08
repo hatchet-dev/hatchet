@@ -6,8 +6,6 @@ import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import { useState } from 'react';
 import { managedCompute } from '@/lib/can/features/managed-compute';
-import { RejectReason } from '@/lib/can/shared/permission.base';
-import { BillingRequired } from './components/billing-required';
 import { queries } from '@/lib/api/queries';
 import { useQuery } from '@tanstack/react-query';
 import { PlusIcon, ArrowUpIcon } from '@radix-ui/react-icons';
@@ -35,9 +33,6 @@ export default function ManagedWorkers() {
     managedCompute.canCreateWorkerPool(workerPoolCount),
   );
 
-
-  const [, rejectReason] = can(managedCompute.create());
-
   const { handleApiError } = useApiError({});
 
   const manageClicked = async () => {
@@ -46,7 +41,6 @@ export default function ManagedWorkers() {
         return;
       }
       setPortalLoading(true);
-      billing?.setPollBilling(true);
       const link = await cloudApi.billingPortalLinkGet(tenant!.metadata.id);
       window.open(link.data.url, '_blank');
     } catch (e) {
@@ -55,21 +49,6 @@ export default function ManagedWorkers() {
       setPortalLoading(false);
     }
   };
-
-  // Only show BillingRequired if there are no managed workers AND billing is required
-  const hasExistingWorkers =
-    (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
-
-  if (rejectReason == RejectReason.BILLING_REQUIRED && !hasExistingWorkers) {
-    return (
-      <BillingRequired
-        tenant={tenant}
-        billing={billing}
-        manageClicked={manageClicked}
-        portalLoading={portalLoading}
-      />
-    );
-  }
 
   // Get limit based on plan
   const getWorkerPoolLimit = () => {

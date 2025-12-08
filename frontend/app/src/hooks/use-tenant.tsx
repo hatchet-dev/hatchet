@@ -157,11 +157,7 @@ export function useTenantDetails() {
       setPollBilling,
       plan: subscriptionPlan,
     };
-  }, [
-    cloudMeta?.data.canBill,
-    billingState.data,
-    subscriptionPlan,
-  ]);
+  }, [cloudMeta?.data.canBill, billingState.data, subscriptionPlan]);
 
   const can = useCallback(
     (evalFn: Evaluate) => {

@@ -344,9 +344,11 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
 
 export interface TenantBillingState {
   /** The subscription associated with this policy. */
-  subscription: TenantSubscription;
+  currentSubscription: TenantSubscription;
+  /** The upcoming subscription associated with this policy. */
+  upcomingSubscription?: TenantSubscription;
   /** A list of plans available for the tenant. */
-  plans?: SubscriptionPlan[];
+  plans: SubscriptionPlan[];
   /** A list of coupons applied to the tenant. */
   coupons?: Coupon[];
 }
@@ -382,13 +384,23 @@ export interface CheckoutURLResponse {
 
 export interface TenantSubscription {
   /** The plan code associated with the tenant subscription. */
-  plan?: string;
+  plan: string;
   /** The period associated with the tenant subscription. */
   period?: string;
   /** The status of the tenant subscription. */
-  status?: TenantSubscriptionStatus;
+  status: TenantSubscriptionStatus;
   /** A note associated with the tenant subscription. */
   note?: string;
+  /**
+   * The start date of the tenant subscription.
+   * @format date-time
+   */
+  started_at: string;
+  /**
+   * The end date of the tenant subscription.
+   * @format date-time
+   */
+  ends_at?: string;
 }
 
 export interface Coupon {
