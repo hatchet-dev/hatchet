@@ -34,8 +34,10 @@ type StoreOLAPPayloadOpts struct {
 }
 
 type OffloadToExternalStoreOpts struct {
-	*StorePayloadOpts
-	OffloadAt time.Time
+	TenantId   TenantID
+	ExternalID PayloadExternalId
+	InsertedAt pgtype.Timestamptz
+	Payload    []byte
 }
 
 type RetrievePayloadOpts struct {
@@ -48,9 +50,10 @@ type RetrievePayloadOpts struct {
 type PayloadLocation string
 type ExternalPayloadLocationKey string
 type TenantID string
+type PayloadExternalId string
 
 type ExternalStore interface {
-	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error)
+	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[PayloadExternalId]ExternalPayloadLocationKey, error)
 	Retrieve(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
 }
 
@@ -166,8 +169,10 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 			payloadIndexMap[uniqueKey] = i
 
 			externalOpts = append(externalOpts, OffloadToExternalStoreOpts{
-				StorePayloadOpts: &payload,
-				OffloadAt:        time.Now(), // Immediate offload
+				TenantId:   TenantID(payload.TenantId),
+				ExternalID: PayloadExternalId(payload.ExternalId.String()),
+				InsertedAt: payload.InsertedAt,
+				Payload:    payload.Payload,
 			})
 		}
 
@@ -189,14 +194,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 				continue // Skip if already processed
 			}
 
-			retrieveOpts := RetrievePayloadOpts{
-				Id:         payload.Id,
-				InsertedAt: payload.InsertedAt,
-				Type:       payload.Type,
-				TenantId:   tenantId,
-			}
-
-			externalKey, exists := retrieveOptsToExternalKey[retrieveOpts]
+			externalKey, exists := retrieveOptsToExternalKey[PayloadExternalId(payload.ExternalId.String())]
 			if !exists {
 				return fmt.Errorf("external key not found for payload %d", payload.Id)
 			}
@@ -426,64 +424,45 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, fmt.Errorf("failed to list payloads for offload: %w", err)
 	}
 
-	alreadyExternalPayloads := make(map[RetrievePayloadOpts]ExternalPayloadLocationKey)
+	alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+	externalIdToPayload := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
 	offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
-	retrieveOptsToExternalId := make(map[RetrievePayloadOpts]string)
 
 	for _, payload := range payloads {
+		externalIdToPayload[PayloadExternalId(payload.ExternalID.String())] = *payload
 		if payload.Location != sqlcv1.V1PayloadLocationINLINE {
-			retrieveOpt := RetrievePayloadOpts{
-				Id:         payload.ID,
-				InsertedAt: payload.InsertedAt,
-				Type:       payload.Type,
-				TenantId:   payload.TenantID,
-			}
-
-			alreadyExternalPayloads[retrieveOpt] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
-			retrieveOptsToExternalId[retrieveOpt] = payload.ExternalID.String()
+			alreadyExternalPayloads[PayloadExternalId(payload.ExternalID.String())] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
 		} else {
 			offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
-				StorePayloadOpts: &StorePayloadOpts{
-					Id:         payload.ID,
-					InsertedAt: payload.InsertedAt,
-					Type:       payload.Type,
-					Payload:    payload.InlineContent,
-					TenantId:   payload.TenantID.String(),
-					ExternalId: payload.ExternalID,
-				},
-				OffloadAt: time.Now(),
-			})
-			retrieveOptsToExternalId[RetrievePayloadOpts{
-				Id:         payload.ID,
+				TenantId:   TenantID(payload.TenantID.String()),
+				ExternalID: PayloadExternalId(payload.ExternalID.String()),
 				InsertedAt: payload.InsertedAt,
-				Type:       payload.Type,
-				TenantId:   payload.TenantID,
-			}] = payload.ExternalID.String()
+				Payload:    payload.InlineContent,
+			})
 		}
 	}
 
-	retrieveOptsToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
+	externalIdToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
 	}
 
 	for r, k := range alreadyExternalPayloads {
-		retrieveOptsToKey[r] = k
+		externalIdToKey[r] = k
 	}
 
 	payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, len(payloads))
 
-	for r, k := range retrieveOptsToKey {
-		externalId := retrieveOptsToExternalId[r]
-
+	for externalId, key := range externalIdToKey {
+		payload := externalIdToPayload[externalId]
 		payloadsToInsert = append(payloadsToInsert, sqlcv1.CutoverPayloadToInsert{
-			TenantID:            r.TenantId,
-			ID:                  r.Id,
-			InsertedAt:          r.InsertedAt,
-			ExternalID:          sqlchelpers.UUIDFromStr(externalId),
-			Type:                r.Type,
-			ExternalLocationKey: string(k),
+			TenantID:            payload.TenantID,
+			ID:                  payload.ID,
+			InsertedAt:          payload.InsertedAt,
+			ExternalID:          sqlchelpers.UUIDFromStr(string(externalId)),
+			Type:                payload.Type,
+			ExternalLocationKey: string(key),
 		})
 	}
 
@@ -720,7 +699,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 
 type NoOpExternalStore struct{}
 
-func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
+func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[PayloadExternalId]ExternalPayloadLocationKey, error) {
 	return nil, fmt.Errorf("external store disabled")
 }
 

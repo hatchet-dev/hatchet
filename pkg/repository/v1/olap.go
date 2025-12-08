@@ -2392,29 +2392,23 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 		defer rollback()
 	}
 
-	placeholderPayloadType := sqlcv1.V1PayloadTypeTASKEVENTDATA // placeholder, not used in OLAP
-	retrieveOptsToKey := make(map[RetrievePayloadOpts]ExternalPayloadLocationKey)
+	externalIdToKey := make(map[PayloadExternalId]ExternalPayloadLocationKey)
 
 	if r.payloadStore.ExternalStoreEnabled() {
 		storeExternalPayloadOpts := make([]OffloadToExternalStoreOpts, len(putPayloadOpts))
 
 		for i, opt := range putPayloadOpts {
 			storeOpts := OffloadToExternalStoreOpts{
-				StorePayloadOpts: &StorePayloadOpts{
-					Id:         opt.Id,
-					InsertedAt: opt.InsertedAt,
-					ExternalId: opt.ExternalId,
-					Type:       placeholderPayloadType,
-					Payload:    opt.Payload,
-					TenantId:   tenantId,
-				},
-				OffloadAt: opt.InsertedAt.Time, // placeholder, offloaded immediately
+				TenantId:   TenantID(tenantId),
+				ExternalID: PayloadExternalId(opt.ExternalId.String()),
+				InsertedAt: opt.InsertedAt,
+				Payload:    opt.Payload,
 			}
 
 			storeExternalPayloadOpts[i] = storeOpts
 		}
 
-		retrieveOptsToKey, err = r.payloadStore.ExternalStore().Store(ctx, storeExternalPayloadOpts...)
+		externalIdToKey, err = r.payloadStore.ExternalStore().Store(ctx, storeExternalPayloadOpts...)
 
 		if err != nil {
 			return fmt.Errorf("error offloading payloads to external store: %v", err)
@@ -2431,14 +2425,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	tenantIdUUID := sqlchelpers.UUIDFromStr(tenantId)
 
 	for _, opt := range putPayloadOpts {
-		retrieveOpts := RetrievePayloadOpts{
-			Id:         opt.Id,
-			InsertedAt: opt.InsertedAt,
-			Type:       placeholderPayloadType,
-			TenantId:   tenantIdUUID,
-		}
-
-		key, ok := retrieveOptsToKey[retrieveOpts]
+		key, ok := externalIdToKey[PayloadExternalId(opt.ExternalId.String())]
 
 		externalIds = append(externalIds, opt.ExternalId)
 		insertedAts = append(insertedAts, opt.InsertedAt)
