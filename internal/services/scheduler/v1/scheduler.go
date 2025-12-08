@@ -1426,36 +1426,39 @@ func (s *Scheduler) batchFlush(ctx context.Context, req *batchFlushRequest) (err
 		"triggeredAt":   triggeredAt.UTC().Format(time.RFC3339),
 		"maxRuns":       req.MaxRuns,
 	})
-	flushMsgs := make([]*msgqueue.Message, 0, len(assignments))
+	monitoringPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(assignments))
 
 	for _, assigned := range req.Items {
 		if assigned == nil || assigned.QueueItem == nil {
 			continue
 		}
 
-		msg, err := tasktypes.MonitoringEventMessageFromInternal(
+		monitoringPayloads = append(monitoringPayloads, tasktypes.CreateMonitoringEventPayload{
+			TaskId:         assigned.QueueItem.TaskID,
+			RetryCount:     assigned.QueueItem.RetryCount,
+			WorkerId:       workerIdPtr,
+			EventType:      eventTypeBatchFlushed,
+			EventTimestamp: triggeredAt,
+			EventMessage:   batchMessage,
+			EventPayload:   batchPayload,
+		})
+	}
+
+	if len(monitoringPayloads) > 0 {
+		flushMsg, err := msgqueue.NewTenantMessage(
 			req.TenantID,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         assigned.QueueItem.TaskID,
-				RetryCount:     assigned.QueueItem.RetryCount,
-				WorkerId:       workerIdPtr,
-				EventType:      eventTypeBatchFlushed,
-				EventTimestamp: triggeredAt,
-				EventMessage:   batchMessage,
-				EventPayload:   batchPayload,
-			},
+			"create-monitoring-event",
+			false,
+			true,
+			monitoringPayloads...,
 		)
 
 		if err != nil {
-			return fmt.Errorf("could not create batch flushed monitoring event: %w", err)
+			return fmt.Errorf("could not create batch flushed monitoring events: %w", err)
 		}
 
-		flushMsgs = append(flushMsgs, msg)
-	}
-
-	for _, flushMsg := range flushMsgs {
 		if err := s.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, flushMsg, false); err != nil {
-			return fmt.Errorf("could not send batch flushed monitoring event: %w", err)
+			return fmt.Errorf("could not send batch flushed monitoring events: %w", err)
 		}
 	}
 
