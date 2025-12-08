@@ -2897,8 +2897,8 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 		offset = outcome.NextOffset
 	}
 
-	tempPartitionName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
-	sourcePartitionName := fmt.Sprintf("v1_payload_%s", partitionDate.String())
+	tempPartitionName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
+	sourcePartitionName := fmt.Sprintf("v1_payloads_olap_%s", partitionDate.String())
 
 	countsEqual, err := sqlcv1.CompareOLAPPartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
 
