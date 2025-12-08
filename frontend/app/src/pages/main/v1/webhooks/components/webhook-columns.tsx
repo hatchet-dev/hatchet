@@ -215,8 +215,8 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
             }
           }}
           className={`bg-muted rounded px-2 py-3 font-mono text-xs w-full h-6 transition-colors ${isEditing || hasChanges
-              ? 'border-input focus:border-ring focus:ring-1 focus:ring-ring cursor-text'
-              : 'border-transparent cursor-text hover:bg-muted/80'
+            ? 'border-input focus:border-ring focus:ring-1 focus:ring-ring cursor-text'
+            : 'border-transparent cursor-text hover:bg-muted/80'
             }`}
           readOnly={!isEditing && !hasChanges}
           autoFocus={isEditing}
@@ -229,8 +229,8 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
             size="icon"
             onClick={handleSave}
             className={`h-7 w-7 ${hasChanges && !mutations.isUpdatePending
-                ? 'text-red-500/80 animate-pulse'
-                : ''
+              ? 'text-red-500/80 animate-pulse'
+              : ''
               }`}
             disabled={!hasChanges || !value.trim() || mutations.isUpdatePending}
           >
