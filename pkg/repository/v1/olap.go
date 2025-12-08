@@ -266,6 +266,8 @@ type OLAPRepository interface {
 	StatusUpdateBatchSizeLimits() StatusUpdateBatchSizeLimits
 
 	ListWorkflowRunExternalIds(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]pgtype.UUID, error)
+
+	ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize int32) error
 }
 
 type StatusUpdateBatchSizeLimits struct {
@@ -2682,7 +2684,7 @@ type BulkCutOverOLAPPayload struct {
 	ExternalLocationKey ExternalPayloadLocationKey
 }
 
-func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, offset int64, externalCutoverBatchSize int32) (*CutoverBatchOutcome, error) {
+func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, offset int64, externalCutoverBatchSize int32) (*CutoverBatchOutcome, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
 	if err != nil {
@@ -2784,7 +2786,7 @@ func (p *OLAPRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx
 	leaseInterval := 2 * time.Minute
 	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
 
-	lease, err := p.queries.AcquireOrExtendCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendCutoverJobLeaseParams{
+	lease, err := p.queries.AcquireOrExtendOLAPCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendOLAPCutoverJobLeaseParams{
 		Key:            pgtype.Date(partitionDate),
 		Lastoffset:     offset,
 		Leaseprocessid: processId,
@@ -2847,7 +2849,7 @@ func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, process
 
 	offset := lease.LastOffset
 
-	err = p.queries.CreateV1PayloadCutoverTemporaryTable(ctx, tx, pgtype.Date(partitionDate))
+	err = p.queries.CreateV1PayloadOLAPCutoverTemporaryTable(ctx, tx, pgtype.Date(partitionDate))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create payload cutover temporary table: %w", err)
@@ -2882,7 +2884,7 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	offset := jobMeta.LastOffset
 
 	for {
-		outcome, err := p.ProcessOLAPPayloadCutoverBatch(ctx, processId, partitionDate, offset, externalCutoverBatchSize)
+		outcome, err := p.processOLAPPayloadCutoverBatch(ctx, processId, partitionDate, offset, externalCutoverBatchSize)
 
 		if err != nil {
 			return fmt.Errorf("failed to process payload cutover batch: %w", err)
@@ -2898,7 +2900,7 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	tempPartitionName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
 	sourcePartitionName := fmt.Sprintf("v1_payload_%s", partitionDate.String())
 
-	countsEqual, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+	countsEqual, err := sqlcv1.CompareOLAPPartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
 
 	if err != nil {
 		return fmt.Errorf("failed to compare partition row counts: %w", err)
@@ -2916,13 +2918,13 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 
 	defer rollback()
 
-	err = p.queries.SwapV1PayloadPartitionWithTemp(ctx, tx, pgtype.Date(partitionDate))
+	err = p.queries.SwapV1PayloadOLAPPartitionWithTemp(ctx, tx, pgtype.Date(partitionDate))
 
 	if err != nil {
 		return fmt.Errorf("failed to swap payload cutover temp table: %w", err)
 	}
 
-	err = p.queries.MarkCutoverJobAsCompleted(ctx, tx, pgtype.Date(partitionDate))
+	err = p.queries.MarkOLAPCutoverJobAsCompleted(ctx, tx, pgtype.Date(partitionDate))
 
 	if err != nil {
 		return fmt.Errorf("failed to mark cutover job as completed: %w", err)
@@ -2952,7 +2954,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 		Valid: true,
 	}
 
-	partitions, err := p.queries.FindV1PayloadPartitionsBeforeDate(ctx, p.pool, mostRecentPartitionToOffload)
+	partitions, err := p.queries.FindV1OLAPPayloadPartitionsBeforeDate(ctx, p.pool, mostRecentPartitionToOffload)
 
 	if err != nil {
 		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
