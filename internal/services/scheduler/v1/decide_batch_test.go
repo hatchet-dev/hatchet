@@ -10,6 +10,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
 
 type countingTaskRepository struct {
@@ -69,8 +70,8 @@ func TestDecideBatchDefersWhenMaxRunsReached(t *testing.T) {
 		sqlchelpers.UUIDFromStr(workerID),
 	)
 
-	require.True(t, decision.Defer)
+	require.True(t, decision.Action == v1.BatchActionDefer)
 	assert.True(t, decision.ReleaseSlot)
-	assert.False(t, decision.Buffer)
+	assert.False(t, decision.Action == v1.BatchActionBuffer)
 	assert.Equal(t, 1, taskRepo.calls)
 }

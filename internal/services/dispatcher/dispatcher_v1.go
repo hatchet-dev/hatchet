@@ -594,6 +594,10 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev
 			continue
 		}
 
+		if taskWithRuntime == nil {
+			continue
+		}
+
 		workerIdToTasks[msg.WorkerId] = append(workerIdToTasks[msg.WorkerId], taskWithRuntime.Task)
 	}
 
