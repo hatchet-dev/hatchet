@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,8 +34,10 @@ type StoreOLAPPayloadOpts struct {
 }
 
 type OffloadToExternalStoreOpts struct {
-	*StorePayloadOpts
-	OffloadAt time.Time
+	TenantId   TenantID
+	ExternalID PayloadExternalId
+	InsertedAt pgtype.Timestamptz
+	Payload    []byte
 }
 
 type RetrievePayloadOpts struct {
@@ -47,9 +50,10 @@ type RetrievePayloadOpts struct {
 type PayloadLocation string
 type ExternalPayloadLocationKey string
 type TenantID string
+type PayloadExternalId string
 
 type ExternalStore interface {
-	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error)
+	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[PayloadExternalId]ExternalPayloadLocationKey, error)
 	Retrieve(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
 }
 
@@ -65,7 +69,7 @@ type PayloadStoreRepository interface {
 	ExternalCutoverProcessInterval() time.Duration
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
-	CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error
+	ProcessPayloadCutovers(ctx context.Context) error
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -165,8 +169,10 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 			payloadIndexMap[uniqueKey] = i
 
 			externalOpts = append(externalOpts, OffloadToExternalStoreOpts{
-				StorePayloadOpts: &payload,
-				OffloadAt:        time.Now(), // Immediate offload
+				TenantId:   TenantID(payload.TenantId),
+				ExternalID: PayloadExternalId(payload.ExternalId.String()),
+				InsertedAt: payload.InsertedAt,
+				Payload:    payload.Payload,
 			})
 		}
 
@@ -188,14 +194,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 				continue // Skip if already processed
 			}
 
-			retrieveOpts := RetrievePayloadOpts{
-				Id:         payload.Id,
-				InsertedAt: payload.InsertedAt,
-				Type:       payload.Type,
-				TenantId:   tenantId,
-			}
-
-			externalKey, exists := retrieveOptsToExternalKey[retrieveOpts]
+			externalKey, exists := retrieveOptsToExternalKey[PayloadExternalId(payload.ExternalId.String())]
 			if !exists {
 				return fmt.Errorf("external key not found for payload %d", payload.Id)
 			}
@@ -425,64 +424,45 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, fmt.Errorf("failed to list payloads for offload: %w", err)
 	}
 
-	alreadyExternalPayloads := make(map[RetrievePayloadOpts]ExternalPayloadLocationKey)
+	alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+	externalIdToPayload := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
 	offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
-	retrieveOptsToExternalId := make(map[RetrievePayloadOpts]string)
 
 	for _, payload := range payloads {
+		externalIdToPayload[PayloadExternalId(payload.ExternalID.String())] = *payload
 		if payload.Location != sqlcv1.V1PayloadLocationINLINE {
-			retrieveOpt := RetrievePayloadOpts{
-				Id:         payload.ID,
-				InsertedAt: payload.InsertedAt,
-				Type:       payload.Type,
-				TenantId:   payload.TenantID,
-			}
-
-			alreadyExternalPayloads[retrieveOpt] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
-			retrieveOptsToExternalId[retrieveOpt] = payload.ExternalID.String()
+			alreadyExternalPayloads[PayloadExternalId(payload.ExternalID.String())] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
 		} else {
 			offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
-				StorePayloadOpts: &StorePayloadOpts{
-					Id:         payload.ID,
-					InsertedAt: payload.InsertedAt,
-					Type:       payload.Type,
-					Payload:    payload.InlineContent,
-					TenantId:   payload.TenantID.String(),
-					ExternalId: payload.ExternalID,
-				},
-				OffloadAt: time.Now(),
-			})
-			retrieveOptsToExternalId[RetrievePayloadOpts{
-				Id:         payload.ID,
+				TenantId:   TenantID(payload.TenantID.String()),
+				ExternalID: PayloadExternalId(payload.ExternalID.String()),
 				InsertedAt: payload.InsertedAt,
-				Type:       payload.Type,
-				TenantId:   payload.TenantID,
-			}] = payload.ExternalID.String()
+				Payload:    payload.InlineContent,
+			})
 		}
 	}
 
-	retrieveOptsToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
+	externalIdToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
 	}
 
 	for r, k := range alreadyExternalPayloads {
-		retrieveOptsToKey[r] = k
+		externalIdToKey[r] = k
 	}
 
 	payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, len(payloads))
 
-	for r, k := range retrieveOptsToKey {
-		externalId := retrieveOptsToExternalId[r]
-
+	for externalId, key := range externalIdToKey {
+		payload := externalIdToPayload[externalId]
 		payloadsToInsert = append(payloadsToInsert, sqlcv1.CutoverPayloadToInsert{
-			TenantID:            r.TenantId,
-			ID:                  r.Id,
-			InsertedAt:          r.InsertedAt,
-			ExternalID:          sqlchelpers.UUIDFromStr(externalId),
-			Type:                r.Type,
-			ExternalLocationKey: string(k),
+			TenantID:            payload.TenantID,
+			ID:                  payload.ID,
+			InsertedAt:          payload.InsertedAt,
+			ExternalID:          sqlchelpers.UUIDFromStr(string(externalId)),
+			Type:                payload.Type,
+			ExternalLocationKey: string(key),
 		})
 	}
 
@@ -566,16 +546,10 @@ func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context
 	}, nil
 }
 
-func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId pgtype.UUID) (*CutoverJobRunMetadata, error) {
+func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate) (*CutoverJobRunMetadata, error) {
 	if p.inlineStoreTTL == nil {
 		return nil, fmt.Errorf("inline store TTL is not set")
 	}
-
-	partitionTime := time.Now().Add(-1 * *p.inlineStoreTTL)
-	partitionDate := PartitionDate(pgtype.Date{
-		Time:  partitionTime,
-		Valid: true,
-	})
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
@@ -615,13 +589,11 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 	}, nil
 }
 
-func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx context.Context) error {
-	if !p.externalStoreEnabled {
-		return nil
-	}
+func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate) error {
+	ctx, span := telemetry.NewSpan(ctx, "payload_store_repository_impl.processSinglePartition")
+	defer span.End()
 
-	processId := sqlchelpers.UUIDFromStr(uuid.NewString())
-	jobMeta, err := p.prepareCutoverTableJob(ctx, processId)
+	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate)
 
 	if err != nil {
 		return fmt.Errorf("failed to prepare cutover table job: %w", err)
@@ -631,7 +603,6 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 		return nil
 	}
 
-	partitionDate := jobMeta.PartitionDate
 	offset := jobMeta.LastOffset
 
 	for {
@@ -686,12 +657,49 @@ func (p *payloadStoreRepositoryImpl) CopyOffloadedPayloadsIntoTempTable(ctx cont
 	}
 
 	return nil
+}
+
+func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context) error {
+	if !p.externalStoreEnabled {
+		return nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "payload_store_repository_impl.ProcessPayloadCutovers")
+	defer span.End()
+
+	if p.inlineStoreTTL == nil {
+		return fmt.Errorf("inline store TTL is not set")
+	}
+
+	mostRecentPartitionToOffload := pgtype.Date{
+		Time:  time.Now().Add(-1 * *p.inlineStoreTTL),
+		Valid: true,
+	}
+
+	partitions, err := p.queries.FindV1PayloadPartitionsBeforeDate(ctx, p.pool, mostRecentPartitionToOffload)
+
+	if err != nil {
+		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
+	}
+
+	processId := sqlchelpers.UUIDFromStr(uuid.NewString())
+
+	for _, partition := range partitions {
+		p.l.Info().Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")
+		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate))
+
+		if err != nil {
+			return fmt.Errorf("failed to process partition %s: %w", partition.PartitionName, err)
+		}
+	}
+
+	return nil
 
 }
 
 type NoOpExternalStore struct{}
 
-func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
+func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[PayloadExternalId]ExternalPayloadLocationKey, error) {
 	return nil, fmt.Errorf("external store disabled")
 }
 

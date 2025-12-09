@@ -1,20 +1,20 @@
-import { ColumnDef, Row } from '@tanstack/react-table';
-import { V1Webhook } from '@/lib/api';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { DotsVerticalIcon } from '@radix-ui/react-icons';
-import { Check, Copy, Loader, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/v1/ui/button';
-import { Input } from '@/components/v1/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { useCallback, useState } from 'react';
+import { Input } from '@/components/v1/ui/input';
+import { V1Webhook } from '@/lib/api';
+import { DotsVerticalIcon } from '@radix-ui/react-icons';
+import { ColumnDef, Row } from '@tanstack/react-table';
+import { Check, Copy, Loader, Save, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import { useWebhooks } from '../hooks/use-webhooks';
-import { SourceName } from './source-name';
 import { AuthMethod } from './auth-method';
+import { SourceName } from './source-name';
 
 export const WebhookColumn = {
   name: 'Name',
@@ -161,6 +161,17 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(row.original.eventKeyExpression || '');
 
+  const hasChanges =
+    value.trim() !== (row.original.eventKeyExpression || '').trim() &&
+    value.trim() !== '';
+
+  // Sync value when row data changes (e.g., after successful save) and there are no unsaved changes
+  useEffect(() => {
+    if (!isEditing && !hasChanges) {
+      setValue(row.original.eventKeyExpression || '');
+    }
+  }, [row.original.eventKeyExpression, isEditing, hasChanges]);
+
   const handleSave = useCallback(() => {
     if (value !== row.original.eventKeyExpression && value.trim()) {
       mutations.updateWebhook({
@@ -176,36 +187,72 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
     setIsEditing(false);
   }, [row.original.eventKeyExpression, setIsEditing, setValue]);
 
+  const handleBlur = useCallback(() => {
+    // Only auto-save if there are no changes, otherwise keep buttons visible
+    if (!hasChanges) {
+      setIsEditing(false);
+    }
+  }, [hasChanges]);
+
   return (
     <div className="flex flex-row items-center gap-x-2">
-      <Input
-        value={isEditing ? value : row.original.eventKeyExpression || ''}
-        onChange={isEditing ? (e) => setValue(e.target.value) : undefined}
-        onClick={!isEditing ? () => setIsEditing(true) : undefined}
-        className={`bg-muted rounded px-2 py-3 font-mono text-xs w-full h-6 ${
-          isEditing
-            ? 'border-input focus:border-ring focus:ring-1 focus:ring-ring cursor-text'
-            : 'border-transparent cursor-text hover:bg-muted/80'
-        }`}
-        readOnly={!isEditing}
-        autoFocus={isEditing}
-      />
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={handleSave}
-        disabled={!isEditing}
-      >
-        <Save className="size-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={handleCancel}
-        disabled={value === row.original.eventKeyExpression || !isEditing}
-      >
-        <X className="size-4" />
-      </Button>
+      <div className="relative w-full">
+        <Input
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            if (!isEditing) {
+              setIsEditing(true);
+            }
+          }}
+          onClick={!isEditing ? () => setIsEditing(true) : undefined}
+          onBlur={handleBlur}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && hasChanges) {
+              handleSave();
+            } else if (e.key === 'Escape') {
+              handleCancel();
+            }
+          }}
+          className={`bg-muted rounded px-2 py-3 font-mono text-xs w-full h-6 transition-colors ${
+            isEditing || hasChanges
+              ? 'border-input focus:border-ring focus:ring-1 focus:ring-ring cursor-text'
+              : 'border-transparent cursor-text hover:bg-muted/80'
+          }`}
+          readOnly={!isEditing && !hasChanges}
+          autoFocus={isEditing}
+        />
+      </div>
+      {(isEditing || hasChanges) && (
+        <div className="flex flex-row items-center gap-x-2 animate-in fade-in-0 slide-in-from-right-2 duration-200">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleSave}
+            className={`h-7 w-7 ${
+              hasChanges && !mutations.isUpdatePending
+                ? 'text-red-500/80 animate-pulse'
+                : ''
+            }`}
+            disabled={!hasChanges || !value.trim() || mutations.isUpdatePending}
+          >
+            {mutations.isUpdatePending ? (
+              <Loader className="size-3 animate-spin" />
+            ) : (
+              <Save className="size-3" />
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleCancel}
+            className="h-7 w-7"
+            disabled={mutations.isUpdatePending}
+          >
+            <X className="size-3" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
