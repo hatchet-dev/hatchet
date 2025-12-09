@@ -91,9 +91,10 @@ class Depends(Generic[T, TWorkflowInput]):
         sig = signature(fn)
         params = list(sig.parameters.values())
 
-        if len(params) != 2:
+        if len(params) < 2:
             raise InvalidDependencyError(
-                f"Dependency function {fn.__name__} must have exactly two parameters: input and ctx."
+                f"Dependency function {fn.__name__} must have at least two parameters: input and ctx. "
+                f"Additional parameters can be dependencies."
             )
 
         self.fn = fn
@@ -168,12 +169,49 @@ class Task(Generic[TWorkflowInput, R]):
             step_output=return_type if is_basemodel_subclass(return_type) else None,
         )
 
+    async def _resolve_function_dependencies(
+        self,
+        fn: Callable[..., Any],
+        input: TWorkflowInput,
+        ctx: Context | DurableContext,
+        resolution_stack: set[str] | None = None,  # detect cycles
+    ) -> dict[str, Any]:
+        if resolution_stack is None:
+            resolution_stack = set()
+
+        fn_name = fn.__name__
+        if fn_name in resolution_stack:
+            stack_path = " -> ".join(resolution_stack)
+            raise InvalidDependencyError(
+                f"Circular dependency detected: {fn_name} is already being resolved. "
+                f"Dependency chain: {stack_path} -> {fn_name}"
+            )
+
+        resolution_stack.add(fn_name)
+        try:
+            sig = signature(fn)
+            params = list(sig.parameters.items())
+
+            dependencies: dict[str, Any] = {}
+
+            for name, param in params[2:]:  # first two params are input and ctx
+                parsed = await self._parse_parameter(
+                    name, param, input, ctx, resolution_stack
+                )
+                if parsed is not None:
+                    dependencies[parsed.name] = parsed.value
+
+            return dependencies
+        finally:
+            resolution_stack.discard(fn_name)
+
     async def _parse_parameter(
         self,
         name: str,
         param: Parameter,
         input: TWorkflowInput,
         ctx: Context | DurableContext,
+        resolution_stack: set[str] | None = None,
     ) -> DependencyToInject | None:
         annotation = param.annotation
 
@@ -187,13 +225,18 @@ class Task(Generic[TWorkflowInput, R]):
 
             for item in metadata:
                 if isinstance(item, Depends):
+                    deps = await self._resolve_function_dependencies(
+                        item.fn, input, ctx, resolution_stack
+                    )
+
                     if iscoroutinefunction(item.fn):
                         return DependencyToInject(
-                            name=name, value=await item.fn(input, ctx)
+                            name=name, value=await item.fn(input, ctx, **deps)
                         )
 
                     return DependencyToInject(
-                        name=name, value=await asyncio.to_thread(item.fn, input, ctx)
+                        name=name,
+                        value=await asyncio.to_thread(item.fn, input, ctx, **deps),
                     )
 
         return None
