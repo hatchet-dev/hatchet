@@ -1,14 +1,19 @@
 import asyncio
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from dataclasses import asdict, is_dataclass
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
     TYPE_CHECKING,
     Annotated,
     Any,
+    AsyncContextManager,
+    AsyncIterator,
     Concatenate,
+    ContextManager,
     Generic,
     ParamSpec,
+    TypeGuard,
     TypeVar,
     cast,
     get_args,
@@ -59,6 +64,16 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 P = ParamSpec("P")
+
+
+def is_async_context_manager(obj: Any) -> TypeGuard[AsyncContextManager[Any]]:
+    """Type guard to check if an object is an async context manager."""
+    return hasattr(obj, "__aenter__") and hasattr(obj, "__aexit__")
+
+
+def is_sync_context_manager(obj: Any) -> TypeGuard[ContextManager[Any]]:
+    """Type guard to check if an object is a sync context manager."""
+    return hasattr(obj, "__enter__") and hasattr(obj, "__exit__")
 
 
 class Depends(Generic[T, TWorkflowInput]):
@@ -185,6 +200,44 @@ class Task(Generic[TWorkflowInput, R]):
             for n, p in sig.parameters.items()
             if (parsed := await self._parse_parameter(n, p, input, ctx)) is not None
         }
+
+    @asynccontextmanager
+    async def _unpack_dependencies_with_cleanup(
+        self, ctx: Context | DurableContext
+    ) -> AsyncIterator[dict[str, Any]]:
+        sig = signature(self.fn)
+        input = self.workflow._get_workflow_input(ctx)
+
+        dependencies: dict[str, Any] = {}
+        cms_to_exit: list[AsyncContextManager[Any] | ContextManager[Any]] = []
+
+        try:
+            for n, p in sig.parameters.items():
+                parsed = await self._parse_parameter(n, p, input, ctx)
+                if parsed is not None:
+                    value = parsed.value
+
+                    if is_async_context_manager(value):
+                        entered_value: Any = await value.__aenter__()
+                        cms_to_exit.append(value)
+                        dependencies[parsed.name] = entered_value
+                    elif is_sync_context_manager(value):
+                        entered_value = await asyncio.to_thread(value.__enter__)
+                        cms_to_exit.append(value)
+                        dependencies[parsed.name] = entered_value
+                    else:
+                        dependencies[parsed.name] = value
+
+            yield dependencies
+        finally:
+            for cm in reversed(cms_to_exit):
+                try:
+                    if is_async_context_manager(cm):
+                        await cm.__aexit__(None, None, None)
+                    elif is_sync_context_manager(cm):
+                        await asyncio.to_thread(cm.__exit__, None, None, None)
+                except Exception:  # noqa: PERF203
+                    pass
 
     def call(
         self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None
