@@ -1875,7 +1875,7 @@ SELECT swap_v1_payloads_olap_partition_with_temp(@date::DATE);
 
 -- name: AcquireOrExtendOLAPCutoverJobLease :one
 INSERT INTO v1_payloads_olap_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at)
-VALUES (@key::DATE, @leaseProcessId::UUID, @leaseExpiresAt::TIMESTAMPTZ, @lastTenantId::BIGINT, @lastExternalId::UUID, @lastInsertedAt::TIMESTAMPTZ)
+VALUES (@key::DATE, @leaseProcessId::UUID, @leaseExpiresAt::TIMESTAMPTZ, @lastTenantId::UUID, @lastExternalId::UUID, @lastInsertedAt::TIMESTAMPTZ)
 ON CONFLICT (key)
 DO UPDATE SET
     -- if the lease is held by this process, then we extend the offset to the new value

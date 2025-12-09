@@ -16,7 +16,14 @@ type CutoverPayloadToInsert struct {
 	ExternalLocationKey string
 }
 
-func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName string, payloads []CutoverPayloadToInsert) (int64, error) {
+type InsertCutOverPayloadsIntoTempTableRow struct {
+	TenantId   pgtype.UUID
+	ID         int64
+	InsertedAt pgtype.Timestamptz
+	Type       V1PayloadType
+}
+
+func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName string, payloads []CutoverPayloadToInsert) (*InsertCutOverPayloadsIntoTempTableRow, error) {
 	tenantIds := make([]pgtype.UUID, 0, len(payloads))
 	ids := make([]int64, 0, len(payloads))
 	insertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
@@ -68,8 +75,10 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 					RETURNING *
 				)
 
-				SELECT COUNT(*)
+				SELECT tenant_id, inserted_at, id, type
 				FROM inserts
+				ORDER BY tenant_id DESC, inserted_at DESC, id DESC, type DESC
+				LIMIT 1
 				`,
 			tableName,
 		),
@@ -82,10 +91,16 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 		externalLocationKeys,
 	)
 
-	var copyCount int64
-	err := row.Scan(&copyCount)
+	var insertRow InsertCutOverPayloadsIntoTempTableRow
 
-	return copyCount, err
+	err := row.Scan(
+		&insertRow.TenantId,
+		&insertRow.InsertedAt,
+		&insertRow.ID,
+		&insertRow.Type,
+	)
+
+	return &insertRow, err
 }
 
 func ComparePartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionName, sourcePartitionName string) (bool, error) {

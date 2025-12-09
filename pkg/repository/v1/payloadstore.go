@@ -402,9 +402,17 @@ type BulkCutOverPayload struct {
 	ExternalLocationKey ExternalPayloadLocationKey
 }
 
+type PaginationParams struct {
+	LastTenantID   pgtype.UUID
+	LastInsertedAt pgtype.Timestamptz
+	LastID         int64
+	LastType       sqlcv1.V1PayloadType
+	Limit          int32
+}
+
 type CutoverBatchOutcome struct {
 	ShouldContinue bool
-	NextOffset     int64
+	NextPagination PaginationParams
 }
 
 type PartitionDate pgtype.Date
@@ -415,7 +423,7 @@ func (d PartitionDate) String() string {
 
 const MAX_PARTITIONS_TO_OFFLOAD = 14 // two weeks
 
-func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, offset int64) (*CutoverBatchOutcome, error) {
+func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverBatchOutcome, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
 	if err != nil {
@@ -426,9 +434,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 
 	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
 	payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
-		Partitiondate: pgtype.Date(partitionDate),
-		Offsetparam:   offset,
-		Limitparam:    p.externalCutoverBatchSize,
+		Partitiondate:  pgtype.Date(partitionDate),
+		Limitparam:     p.externalCutoverBatchSize,
+		Lasttenantid:   pagination.LastTenantID,
+		Lastinsertedat: pagination.LastInsertedAt,
+		Lastid:         pagination.LastID,
+		Lasttype:       pagination.LastType,
 	})
 
 	if err != nil {
@@ -483,15 +494,18 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		})
 	}
 
-	_, err = sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
+	inserted, err := sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
 	}
 
-	offset += int64(len(payloads))
-
-	_, err = p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, offset)
+	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, PaginationParams{
+		LastTenantID:   inserted.TenantId,
+		LastInsertedAt: inserted.InsertedAt,
+		LastID:         inserted.ID,
+		LastType:       inserted.Type,
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
@@ -504,32 +518,35 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	if len(payloads) < int(p.externalCutoverBatchSize) {
 		return &CutoverBatchOutcome{
 			ShouldContinue: false,
-			NextOffset:     offset,
+			NextPagination: extendedLease.Pagination,
 		}, nil
 	}
 
 	return &CutoverBatchOutcome{
 		ShouldContinue: true,
-		NextOffset:     offset,
+		NextPagination: extendedLease.Pagination,
 	}, nil
 }
 
 type CutoverJobRunMetadata struct {
 	ShouldRun      bool
-	LastOffset     int64
+	Pagination     PaginationParams
 	PartitionDate  PartitionDate
 	LeaseProcessId pgtype.UUID
 }
 
-func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId pgtype.UUID, partitionDate PartitionDate, offset int64) (*CutoverJobRunMetadata, error) {
+func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId pgtype.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverJobRunMetadata, error) {
 	leaseInterval := 2 * time.Minute
 	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
 
 	lease, err := p.queries.AcquireOrExtendCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendCutoverJobLeaseParams{
 		Key:            pgtype.Date(partitionDate),
-		Lastoffset:     offset,
 		Leaseprocessid: processId,
 		Leaseexpiresat: leaseExpiresAt,
+		Lasttenantid:   pagination.LastTenantID,
+		Lastinsertedat: pagination.LastInsertedAt,
+		Lastid:         pagination.LastID,
+		Lasttype:       pagination.LastType,
 	})
 
 	if err != nil {
@@ -538,7 +555,6 @@ func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context
 		if errors.Is(err, pgx.ErrNoRows) {
 			return &CutoverJobRunMetadata{
 				ShouldRun:      false,
-				LastOffset:     0,
 				PartitionDate:  partitionDate,
 				LeaseProcessId: processId,
 			}, nil
@@ -548,16 +564,26 @@ func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context
 
 	if lease.LeaseProcessID != processId || lease.IsCompleted {
 		return &CutoverJobRunMetadata{
-			ShouldRun:      false,
-			LastOffset:     lease.LastOffset,
+			ShouldRun: false,
+			Pagination: PaginationParams{
+				LastTenantID:   lease.LastTenantID,
+				LastInsertedAt: lease.LastInsertedAt,
+				LastID:         lease.LastID,
+				LastType:       lease.LastType,
+			},
 			PartitionDate:  partitionDate,
 			LeaseProcessId: lease.LeaseProcessID,
 		}, nil
 	}
 
 	return &CutoverJobRunMetadata{
-		ShouldRun:      true,
-		LastOffset:     lease.LastOffset,
+		ShouldRun: true,
+		Pagination: PaginationParams{
+			LastTenantID:   lease.LastTenantID,
+			LastInsertedAt: lease.LastInsertedAt,
+			LastID:         lease.LastID,
+			LastType:       lease.LastType,
+		},
 		PartitionDate:  partitionDate,
 		LeaseProcessId: processId,
 	}, nil
@@ -576,7 +602,7 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 
 	defer rollback()
 
-	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, 0)
+	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, PaginationParams{})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire or extend cutover job lease: %w", err)
@@ -585,8 +611,6 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 	if !lease.ShouldRun {
 		return lease, nil
 	}
-
-	offset := lease.LastOffset
 
 	err = p.queries.CreateV1PayloadCutoverTemporaryTable(ctx, tx, pgtype.Date(partitionDate))
 
@@ -600,7 +624,7 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 
 	return &CutoverJobRunMetadata{
 		ShouldRun:      true,
-		LastOffset:     offset,
+		Pagination:     lease.Pagination,
 		PartitionDate:  partitionDate,
 		LeaseProcessId: processId,
 	}, nil
@@ -620,10 +644,10 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 		return nil
 	}
 
-	offset := jobMeta.LastOffset
+	pagination := jobMeta.Pagination
 
 	for {
-		outcome, err := p.ProcessPayloadCutoverBatch(ctx, processId, partitionDate, offset)
+		outcome, err := p.ProcessPayloadCutoverBatch(ctx, processId, partitionDate, pagination)
 
 		if err != nil {
 			return fmt.Errorf("failed to process payload cutover batch: %w", err)
@@ -633,7 +657,7 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 			break
 		}
 
-		offset = outcome.NextOffset
+		pagination = outcome.NextPagination
 	}
 
 	tempPartitionName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())

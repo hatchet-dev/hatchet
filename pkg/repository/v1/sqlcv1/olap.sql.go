@@ -13,7 +13,7 @@ import (
 
 const acquireOrExtendOLAPCutoverJobLease = `-- name: AcquireOrExtendOLAPCutoverJobLease :one
 INSERT INTO v1_payloads_olap_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at)
-VALUES ($1::DATE, $2::UUID, $3::TIMESTAMPTZ, $4::BIGINT, $5::UUID, $6::TIMESTAMPTZ)
+VALUES ($1::DATE, $2::UUID, $3::TIMESTAMPTZ, $4::UUID, $5::UUID, $6::TIMESTAMPTZ)
 ON CONFLICT (key)
 DO UPDATE SET
     -- if the lease is held by this process, then we extend the offset to the new value
@@ -41,7 +41,7 @@ type AcquireOrExtendOLAPCutoverJobLeaseParams struct {
 	Key            pgtype.Date        `json:"key"`
 	Leaseprocessid pgtype.UUID        `json:"leaseprocessid"`
 	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
-	Lasttenantid   int64              `json:"lasttenantid"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
 	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 }
