@@ -801,10 +801,13 @@ EXECUTE FUNCTION v1_events_lookup_table_olap_insert_function();
 
 CREATE TABLE v1_payloads_olap_cutover_job_offset (
     key DATE PRIMARY KEY,
-    last_offset BIGINT NOT NULL,
     is_completed BOOLEAN NOT NULL DEFAULT FALSE,
     lease_process_id UUID NOT NULL DEFAULT gen_random_uuid(),
-    lease_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    lease_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    last_tenant_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    last_external_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00'
 );
 
 CREATE OR REPLACE FUNCTION copy_v1_payloads_olap_partition_structure(

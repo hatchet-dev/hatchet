@@ -12,43 +12,65 @@ import (
 )
 
 const acquireOrExtendCutoverJobLease = `-- name: AcquireOrExtendCutoverJobLease :one
-INSERT INTO v1_payload_cutover_job_offset (key, last_offset, lease_process_id, lease_expires_at)
-VALUES ($1::DATE, $2::BIGINT, $3::UUID, $4::TIMESTAMPTZ)
+INSERT INTO v1_payload_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type)
+VALUES ($1::DATE, $2::UUID, $3::TIMESTAMPTZ, $4::UUID, $5::TIMESTAMPTZ, $6::BIGINT, $7::v1_payload_type)
 ON CONFLICT (key)
 DO UPDATE SET
-    last_offset = CASE
-        -- if the lease is held by this process, then we extend the offset to the new value
-        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_offset
-        -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
-        ELSE v1_payload_cutover_job_offset.last_offset
+    -- if the lease is held by this process, then we extend the offset to the new tuple of (last_tenant_id, last_inserted_at, last_id, last_type)
+    -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
+    last_tenant_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_tenant_id
+        ELSE v1_payload_cutover_job_offset.last_tenant_id
     END,
+    last_inserted_at = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_inserted_at
+        ELSE v1_payload_cutover_job_offset.last_inserted_at
+    END,
+    last_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_id
+        ELSE v1_payload_cutover_job_offset.last_id
+    END,
+    last_type = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_type
+        ELSE v1_payload_cutover_job_offset.last_type
+    END,
+
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
-WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = $3::UUID
-RETURNING key, last_offset, is_completed, lease_process_id, lease_expires_at
+WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = $2::UUID
+RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type
 `
 
 type AcquireOrExtendCutoverJobLeaseParams struct {
 	Key            pgtype.Date        `json:"key"`
-	Lastoffset     int64              `json:"lastoffset"`
 	Leaseprocessid pgtype.UUID        `json:"leaseprocessid"`
 	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+	Lastid         int64              `json:"lastid"`
+	Lasttype       V1PayloadType      `json:"lasttype"`
 }
 
 func (q *Queries) AcquireOrExtendCutoverJobLease(ctx context.Context, db DBTX, arg AcquireOrExtendCutoverJobLeaseParams) (*V1PayloadCutoverJobOffset, error) {
 	row := db.QueryRow(ctx, acquireOrExtendCutoverJobLease,
 		arg.Key,
-		arg.Lastoffset,
 		arg.Leaseprocessid,
 		arg.Leaseexpiresat,
+		arg.Lasttenantid,
+		arg.Lastinsertedat,
+		arg.Lastid,
+		arg.Lasttype,
 	)
 	var i V1PayloadCutoverJobOffset
 	err := row.Scan(
 		&i.Key,
-		&i.LastOffset,
 		&i.IsCompleted,
 		&i.LeaseProcessID,
 		&i.LeaseExpiresAt,
+		&i.LastTenantID,
+		&i.LastInsertedAt,
+		&i.LastID,
+		&i.LastType,
 	)
 	return &i, err
 }
