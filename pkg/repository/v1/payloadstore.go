@@ -407,7 +407,6 @@ type PaginationParams struct {
 	LastInsertedAt pgtype.Timestamptz
 	LastID         int64
 	LastType       sqlcv1.V1PayloadType
-	Limit          int32
 }
 
 type CutoverBatchOutcome struct {
