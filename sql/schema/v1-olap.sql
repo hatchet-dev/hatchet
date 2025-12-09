@@ -805,8 +805,8 @@ CREATE TABLE v1_payloads_olap_cutover_job_offset (
     lease_process_id UUID NOT NULL DEFAULT gen_random_uuid(),
     lease_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    last_tenant_id UUID NOT NULL DEFAULT gen_random_uuid(),
-    last_external_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    last_tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
+    last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
     last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00'
 );
 
