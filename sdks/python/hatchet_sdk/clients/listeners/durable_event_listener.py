@@ -103,14 +103,15 @@ class DurableEventListener(
             signal_key=key.signal_key,
         )
 
-    @tenacity_retry
     def register_durable_event(
         self, request: RegisterDurableEventRequest
     ) -> Literal[True]:
         conn = new_conn(self.config, True)
         client = V1DispatcherStub(conn)
 
-        client.RegisterDurableEvent(
+        register_durable_event = tenacity_retry(client.RegisterDurableEvent)
+
+        register_durable_event(
             request.to_proto(),
             timeout=5,
             metadata=get_metadata(self.token),
@@ -118,7 +119,6 @@ class DurableEventListener(
 
         return True
 
-    @tenacity_retry
     async def result(self, task_id: str, signal_key: str) -> dict[str, Any]:
         key = self._generate_key(task_id, signal_key)
 

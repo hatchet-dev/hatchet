@@ -170,14 +170,12 @@ class AdminClient:
             priority=options.priority,
         )
 
-    @tenacity_retry
     async def aio_put_workflow(
         self,
         workflow: workflow_protos.CreateWorkflowVersionRequest,
     ) -> workflow_protos.CreateWorkflowVersionResponse:
         return await asyncio.to_thread(self.put_workflow, workflow)
 
-    @tenacity_retry
     async def aio_put_rate_limit(
         self,
         key: str,
@@ -186,7 +184,6 @@ class AdminClient:
     ) -> None:
         return await asyncio.to_thread(self.put_rate_limit, key, limit, duration)
 
-    @tenacity_retry
     async def aio_schedule_workflow(
         self,
         name: str,
@@ -198,7 +195,6 @@ class AdminClient:
             self.schedule_workflow, name, schedules, input, options
         )
 
-    @tenacity_retry
     def put_workflow(
         self,
         workflow: workflow_protos.CreateWorkflowVersionRequest,
@@ -207,15 +203,15 @@ class AdminClient:
             conn = new_conn(self.config, False)
             self.client = AdminServiceStub(conn)
 
+        put_workflow = tenacity_retry(self.client.PutWorkflow)
         return cast(
             workflow_protos.CreateWorkflowVersionResponse,
-            self.client.PutWorkflow(
+            put_workflow(
                 workflow,
                 metadata=get_metadata(self.token),
             ),
         )
 
-    @tenacity_retry
     def put_rate_limit(
         self,
         key: str,
@@ -227,8 +223,9 @@ class AdminClient:
         )
 
         client = self._get_or_create_v0_client()
+        put_rate_limit = tenacity_retry(client.PutRateLimit)
 
-        client.PutRateLimit(
+        put_rate_limit(
             v0_workflow_protos.PutRateLimitRequest(
                 key=key,
                 limit=limit,
@@ -237,7 +234,6 @@ class AdminClient:
             metadata=get_metadata(self.token),
         )
 
-    @tenacity_retry
     def schedule_workflow(
         self,
         name: str,
@@ -255,10 +251,11 @@ class AdminClient:
             )
 
             client = self._get_or_create_v0_client()
+            schedule_workflow = tenacity_retry(client.ScheduleWorkflow)
 
             return cast(
                 v0_workflow_protos.WorkflowVersion,
-                client.ScheduleWorkflow(
+                schedule_workflow(
                     request,
                     metadata=get_metadata(self.token),
                 ),
@@ -313,7 +310,6 @@ class AdminClient:
         return self._prepare_workflow_request(workflow_name, input, trigger_options)
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    @tenacity_retry
     def run_workflow(
         self,
         workflow_name: str,
@@ -322,11 +318,12 @@ class AdminClient:
     ) -> WorkflowRunRef:
         request = self._create_workflow_run_request(workflow_name, input, options)
         client = self._get_or_create_v0_client()
+        trigger_workflow = tenacity_retry(client.TriggerWorkflow)
 
         try:
             resp = cast(
                 v0_workflow_protos.TriggerWorkflowResponse,
-                client.TriggerWorkflow(
+                trigger_workflow(
                     request,
                     metadata=get_metadata(self.token),
                 ),
@@ -344,7 +341,6 @@ class AdminClient:
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    @tenacity_retry
     async def aio_run_workflow(
         self,
         workflow_name: str,
@@ -352,6 +348,7 @@ class AdminClient:
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         client = self._get_or_create_v0_client()
+        trigger_workflow = tenacity_retry(client.TriggerWorkflow)
         async with spawn_index_lock:
             request = self._create_workflow_run_request(workflow_name, input, options)
 
@@ -359,7 +356,7 @@ class AdminClient:
             resp = cast(
                 v0_workflow_protos.TriggerWorkflowResponse,
                 await asyncio.to_thread(
-                    client.TriggerWorkflow,
+                    trigger_workflow,
                     request,
                     metadata=get_metadata(self.token),
                 ),
@@ -382,7 +379,6 @@ class AdminClient:
             yield xs[i : i + n]
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    @tenacity_retry
     def run_workflows(
         self,
         workflows: list[WorkflowRunTriggerConfig],
@@ -394,6 +390,7 @@ class AdminClient:
             )
             for workflow in workflows
         ]
+        bulk_trigger_workflow = tenacity_retry(client.BulkTriggerWorkflow)
 
         refs: list[WorkflowRunRef] = []
 
@@ -404,7 +401,7 @@ class AdminClient:
 
             resp = cast(
                 v0_workflow_protos.BulkTriggerWorkflowResponse,
-                client.BulkTriggerWorkflow(
+                bulk_trigger_workflow(
                     bulk_request,
                     metadata=get_metadata(self.token),
                 ),
@@ -424,7 +421,6 @@ class AdminClient:
 
         return refs
 
-    @tenacity_retry
     async def aio_run_workflows(
         self,
         workflows: list[WorkflowRunTriggerConfig],
@@ -432,6 +428,7 @@ class AdminClient:
         client = self._get_or_create_v0_client()
         chunks = self.chunk(workflows, MAX_BULK_WORKFLOW_RUN_BATCH_SIZE)
         refs: list[WorkflowRunRef] = []
+        bulk_trigger_workflow = tenacity_retry(client.BulkTriggerWorkflow)
 
         for chunk in chunks:
             async with spawn_index_lock:
@@ -449,7 +446,7 @@ class AdminClient:
             resp = cast(
                 v0_workflow_protos.BulkTriggerWorkflowResponse,
                 await asyncio.to_thread(
-                    client.BulkTriggerWorkflow,
+                    bulk_trigger_workflow,
                     bulk_request,
                     metadata=get_metadata(self.token),
                 ),
