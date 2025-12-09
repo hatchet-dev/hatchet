@@ -211,7 +211,7 @@ class Task(Generic[TWorkflowInput, R]):
 
         dependencies: dict[str, Any] = {}
         cms_to_exit: list[
-            AbstractAsyncContextManager[Any] | AbstractAsyncContextManager[Any]
+            AbstractAsyncContextManager[Any] | AbstractContextManager[Any]
         ] = []
 
         try:
