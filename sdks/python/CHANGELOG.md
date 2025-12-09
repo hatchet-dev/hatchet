@@ -5,6 +5,18 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.0] - 2025-12-12
+
+### Added
+
+- Dependencies are now chainable, so one dependency can rely on an upstream one, similar to in FastAPI.
+- Dependencies can now be both functions (sync and async) and context managers (sync and async) to allow for cleaning up things like database connections, etc.
+- The `ClientConfig` has a new `Tenacity` object, which allows for specifying retry config.
+
+### Changed
+
+- Improves the errors raised out of the sync `result` method on the `WorkflowRunRef` to be more in line with the async version, raising a `FailedTaskRunExceptionGroup` that contains all of the task run errors instead of just the first one.
+
 ## [1.21.8] - 2025-12-26
 
 ### Changed
