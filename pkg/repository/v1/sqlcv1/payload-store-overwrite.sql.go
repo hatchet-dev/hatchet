@@ -124,7 +124,7 @@ WITH partitions AS (
     JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
     JOIN pg_class child ON pg_inherits.inhrelid = child.oid
     WHERE parent.relname = 'v1_payload'
-    ORDER BY child.relname
+    ORDER BY child.relname DESC
 )
 
 SELECT partition_name, lower_bound AS partition_date
