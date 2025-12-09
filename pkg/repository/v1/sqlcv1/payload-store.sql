@@ -251,9 +251,9 @@ ON CONFLICT (key)
 DO UPDATE SET
     last_offset = CASE
         -- if the lease is held by this process, then we extend the offset to the new value
-        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_offset
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_offset
         -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
-        ELSE v1_payloads_olap_cutover_job_offset.last_offset
+        ELSE v1_payload_cutover_job_offset.last_offset
     END,
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
