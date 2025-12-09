@@ -552,12 +552,13 @@ WITH partitions AS (
     JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
     JOIN pg_class child ON pg_inherits.inhrelid = child.oid
     WHERE parent.relname = 'v1_payloads_olap'
-    ORDER BY child.relname
+    ORDER BY child.relname DESC
+	LIMIT $1::INTEGER
 )
 
 SELECT partition_name, lower_bound AS partition_date
 FROM partitions
-WHERE lower_bound <= $1::DATE
+WHERE lower_bound <= $2::DATE
 `
 
 type FindV1OLAPPayloadPartitionsBeforeDateRow struct {
@@ -565,8 +566,9 @@ type FindV1OLAPPayloadPartitionsBeforeDateRow struct {
 	PartitionDate pgtype.Date `json:"partition_date"`
 }
 
-func (q *Queries) FindV1OLAPPayloadPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*FindV1OLAPPayloadPartitionsBeforeDateRow, error) {
+func (q *Queries) FindV1OLAPPayloadPartitionsBeforeDate(ctx context.Context, db DBTX, maxPartitionsToProcess int32, date pgtype.Date) ([]*FindV1OLAPPayloadPartitionsBeforeDateRow, error) {
 	rows, err := db.Query(ctx, findV1OLAPPayloadPartitionsBeforeDate,
+		maxPartitionsToProcess,
 		date,
 	)
 	if err != nil {
