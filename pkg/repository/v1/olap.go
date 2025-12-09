@@ -2872,7 +2872,13 @@ func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, process
 
 	defer rollback()
 
-	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, OLAPPaginationParams{})
+	var zeroUuid uuid.UUID
+
+	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, OLAPPaginationParams{
+		LastTenantId:   sqlchelpers.UUIDFromStr(zeroUuid.String()),
+		LastExternalId: sqlchelpers.UUIDFromStr(zeroUuid.String()),
+		LastInsertedAt: sqlchelpers.TimestamptzFromTime(time.Unix(0, 0)),
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire or extend cutover job lease: %w", err)

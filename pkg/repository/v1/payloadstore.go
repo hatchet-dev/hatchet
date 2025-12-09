@@ -602,8 +602,14 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 
 	defer rollback()
 
+	var zeroUuid uuid.UUID
+
 	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, PaginationParams{
-		LastType: sqlcv1.V1PayloadTypeDAGINPUT, // placeholder initial type
+		// placeholder initial type
+		LastType:       sqlcv1.V1PayloadTypeDAGINPUT,
+		LastTenantID:   sqlchelpers.UUIDFromStr(zeroUuid.String()),
+		LastInsertedAt: sqlchelpers.TimestamptzFromTime(time.Unix(0, 0)),
+		LastID:         0,
 	})
 
 	if err != nil {
