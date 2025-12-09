@@ -355,13 +355,13 @@ export interface TenantBillingState {
 
 export interface SubscriptionPlan {
   /** The code of the plan. */
-  plan_code: string;
+  planCode: string;
   /** The name of the plan. */
   name: string;
   /** The description of the plan. */
   description: string;
   /** The price of the plan. */
-  amount_cents: number;
+  amountCents: number;
   /** The period of the plan. */
   period?: string;
 }
@@ -395,12 +395,12 @@ export interface TenantSubscription {
    * The start date of the tenant subscription.
    * @format date-time
    */
-  started_at: string;
+  startedAt: string;
   /**
    * The end date of the tenant subscription.
    * @format date-time
    */
-  ends_at?: string;
+  endsAt?: string;
 }
 
 export interface Coupon {
@@ -702,6 +702,11 @@ export interface CreateNewTenantForOrganizationRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
+}
+
+export interface UpdateOrganizationTenantRequest {
+  /** The name of the tenant. */
+  name: string;
 }
 
 export type APIToken = any;

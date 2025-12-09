@@ -135,17 +135,18 @@ export function useTenantDetails() {
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenant?.metadata?.id || ''),
-    enabled: tenant && !!cloudMeta?.data.canBill,
+    enabled: !!tenant && !!cloudMeta?.data.canBill,
     refetchInterval: pollBilling ? 1000 : false,
+    retry: false,
   });
 
   const subscriptionPlan: Plan = useMemo(() => {
-    const plan = billingState.data?.subscription?.plan;
+    const plan = billingState.data?.currentSubscription?.plan;
     if (!plan) {
       return 'free';
     }
     return plan as Plan;
-  }, [billingState.data?.subscription?.plan]);
+  }, [billingState.data?.currentSubscription?.plan]);
 
   const billingContext: BillingContext | undefined = useMemo(() => {
     if (!cloudMeta?.data.canBill) {

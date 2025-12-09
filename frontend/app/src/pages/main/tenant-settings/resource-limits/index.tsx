@@ -19,7 +19,8 @@ export default function ResourceLimits() {
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenant.metadata.id),
-    enabled: !!cloudMeta?.data.canBill,
+    enabled: !!tenant?.metadata?.id && !!cloudMeta?.data.canBill,
+    retry: false,
   });
 
   const cols = columns();
@@ -56,7 +57,7 @@ export default function ResourceLimits() {
           <Separator className="my-4" />
           <Subscription
             hasPaymentMethods={hasPaymentMethods}
-            active={billingState.data?.subscription}
+            active={billingState.data?.currentSubscription}
             plans={billingState.data?.plans}
             coupons={billingState.data?.coupons}
           />

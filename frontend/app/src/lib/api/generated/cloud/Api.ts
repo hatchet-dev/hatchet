@@ -51,6 +51,7 @@ import {
   TenantBillingState,
   UpdateManagedWorkerRequest,
   UpdateOrganizationRequest,
+  UpdateOrganizationTenantRequest,
   UpdateTenantSubscriptionRequest,
   UpdateTenantSubscriptionResponse,
   VectorPushRequest,
@@ -949,6 +950,29 @@ export class Api<
     this.request<OrganizationTenant, APIError>({
       path: `/api/v1/management/organizations/${organization}/tenants`,
       method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a tenant in the organization
+   *
+   * @tags Management
+   * @name OrganizationTenantUpdate
+   * @summary Update Tenant in Organization
+   * @request PATCH:/api/v1/management/organization-tenants/{organization-tenant}
+   * @secure
+   */
+  organizationTenantUpdate = (
+    organizationTenant: string,
+    data: UpdateOrganizationTenantRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationTenant, APIError>({
+      path: `/api/v1/management/organization-tenants/${organizationTenant}`,
+      method: "PATCH",
       body: data,
       secure: true,
       type: ContentType.Json,

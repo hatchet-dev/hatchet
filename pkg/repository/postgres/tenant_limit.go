@@ -17,24 +17,26 @@ import (
 )
 
 type tenantLimitRepository struct {
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	queries *dbsqlc.Queries
-	l       *zerolog.Logger
-	config  *server.ConfigFileRuntime
-	plans   *repository.PlanLimitMap
+	pool             *pgxpool.Pool
+	v                validator.Validator
+	queries          *dbsqlc.Queries
+	l                *zerolog.Logger
+	config           *server.ConfigFileRuntime
+	plans            *repository.PlanLimitMap
+	onSuccessMeterCb func(resource dbsqlc.LimitResource, tenantId string, numberOfResources int)
 }
 
 func NewTenantLimitRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, s *server.ConfigFileRuntime) repository.TenantLimitRepository {
 	queries := dbsqlc.New()
 
 	return &tenantLimitRepository{
-		v:       v,
-		queries: queries,
-		pool:    pool,
-		l:       l,
-		config:  s,
-		plans:   nil,
+		v:                v,
+		queries:          queries,
+		pool:             pool,
+		l:                l,
+		config:           s,
+		plans:            nil,
+		onSuccessMeterCb: nil,
 	}
 }
 
@@ -285,6 +287,10 @@ func calcPercent(value int32, limit int32) int {
 	return int((float64(value) / float64(limit)) * 100)
 }
 
+func (t *tenantLimitRepository) SetOnSuccessMeterCallback(cb func(resource dbsqlc.LimitResource, tenantId string, numberOfResources int)) {
+	t.onSuccessMeterCb = cb
+}
+
 func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.LimitResource, tenantId string, numberOfResources int32) (*dbsqlc.TenantResourceLimit, error) {
 	if !t.config.EnforceLimits {
 		return nil, nil
@@ -301,6 +307,12 @@ func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.Limit
 
 	if err != nil {
 		return nil, err
+	}
+
+	if t.onSuccessMeterCb != nil {
+		go func() { // non-blocking callback
+			t.onSuccessMeterCb(resource, tenantId, int(numberOfResources))
+		}()
 	}
 
 	return r, nil
