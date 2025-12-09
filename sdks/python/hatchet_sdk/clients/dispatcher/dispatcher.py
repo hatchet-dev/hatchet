@@ -112,7 +112,6 @@ class DispatcherClient:
 
             return None
 
-    @tenacity_retry
     async def _try_send_step_action_event(
         self,
         action: Action,
@@ -141,9 +140,11 @@ class DispatcherClient:
             shouldNotRetry=should_not_retry,
         )
 
+        send_step_action_event = tenacity_retry(self.aio_client.SendStepActionEvent)
+
         return cast(
             grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
-            await self.aio_client.SendStepActionEvent(
+            await send_step_action_event(
                 event,
                 metadata=get_metadata(self.token),
             ),
