@@ -120,43 +120,38 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 
 			/* Slack interactive payloads use a 'payload' parameter containing JSON
 			 * See: https://docs.slack.dev/interactivity/handling-user-interaction/#payloads
+			 * Slack slash commands send form fields directly without a 'payload' parameter
+			 * See: https://api.slack.com/interactivity/slash-commands
 			 * For GENERIC webhooks, we convert all form fields directly to the payload map
 			 */
 			if webhook.SourceName == sqlcv1.V1IncomingWebhookSourceNameSLACK {
 				payloadValue := formData.Get("payload")
-				if payloadValue == "" {
-					errorMsg := "missing payload parameter in form-encoded request"
-					w.config.Logger.Info().Str("webhook", webhookName).Str("tenant", tenantId).Str("form_keys", fmt.Sprintf("%v", func() []string {
-						keys := make([]string, 0, len(formData))
-						for k := range formData {
-							keys = append(keys, k)
+				if payloadValue != "" {
+					/* Interactive components: parse the payload parameter as JSON */
+					/* url.ParseQuery automatically URL-decodes the payload parameter value */
+					err := json.Unmarshal([]byte(payloadValue), &payloadMap)
+					if err != nil {
+						payloadPreview := payloadValue
+						if len(payloadPreview) > 200 {
+							payloadPreview = payloadPreview[:200] + "..."
 						}
-						return keys
-					}())).Msg(errorMsg)
-					return gen.V1WebhookReceive400JSONResponse{
-						Errors: []gen.APIError{
-							{
-								Description: errorMsg,
+						errorMsg := "Failed to unmarshal payload parameter as JSON"
+						w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Int("payload_length", len(payloadValue)).Str("payload_preview", payloadPreview).Msg(errorMsg)
+						return gen.V1WebhookReceive400JSONResponse{
+							Errors: []gen.APIError{
+								{
+									Description: errorMsg,
+								},
 							},
-						},
-					}, nil
-				}
-				/* url.ParseQuery automatically URL-decodes the payload parameter value */
-				err := json.Unmarshal([]byte(payloadValue), &payloadMap)
-				if err != nil {
-					payloadPreview := payloadValue
-					if len(payloadPreview) > 200 {
-						payloadPreview = payloadPreview[:200] + "..."
+						}, nil
 					}
-					errorMsg := "Failed to unmarshal payload parameter as JSON"
-					w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Int("payload_length", len(payloadValue)).Str("payload_preview", payloadPreview).Msg(errorMsg)
-					return gen.V1WebhookReceive400JSONResponse{
-						Errors: []gen.APIError{
-							{
-								Description: errorMsg,
-							},
-						},
-					}, nil
+				} else {
+					/* Slash commands: convert all form fields directly to the payload map */
+					for key, values := range formData {
+						if len(values) > 0 {
+							payloadMap[key] = values[0]
+						}
+					}
 				}
 			} else if webhook.SourceName == sqlcv1.V1IncomingWebhookSourceNameGENERIC {
 				/* For GENERIC webhooks, convert all form fields to the payload map */
