@@ -17,6 +17,14 @@ type CompressionResult struct {
 	CompressionRatio float64
 }
 
+func getPayloadSize(payloads [][]byte) int {
+	totalSize := 0
+	for _, payload := range payloads {
+		totalSize += len(payload)
+	}
+	return totalSize
+}
+
 // compressPayloads compresses message payloads using gzip if they exceed the minimum size threshold.
 // Returns compression results including the compressed payloads and compression statistics.
 func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResult, error) {
@@ -30,10 +38,7 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 	}
 
 	// Calculate total size to determine if compression is worthwhile
-	totalSize := 0
-	for _, payload := range payloads {
-		totalSize += len(payload)
-	}
+	totalSize := getPayloadSize(payloads)
 	result.OriginalSize = totalSize
 
 	// Only compress if total size exceeds threshold

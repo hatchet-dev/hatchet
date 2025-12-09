@@ -3129,6 +3129,14 @@ type V1Payload struct {
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
+type V1PayloadCutoverJobOffset struct {
+	Key            pgtype.Date        `json:"key"`
+	LastOffset     int64              `json:"last_offset"`
+	IsCompleted    bool               `json:"is_completed"`
+	LeaseProcessID pgtype.UUID        `json:"lease_process_id"`
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
+}
+
 type V1PayloadCutoverQueueItem struct {
 	TenantID          pgtype.UUID        `json:"tenant_id"`
 	CutOverAt         pgtype.Timestamptz `json:"cut_over_at"`
@@ -3154,6 +3162,14 @@ type V1PayloadsOlap struct {
 	InlineContent       []byte                `json:"inline_content"`
 	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
 	UpdatedAt           pgtype.Timestamptz    `json:"updated_at"`
+}
+
+type V1PayloadsOlapCutoverJobOffset struct {
+	Key            pgtype.Date        `json:"key"`
+	LastOffset     int64              `json:"last_offset"`
+	IsCompleted    bool               `json:"is_completed"`
+	LeaseProcessID pgtype.UUID        `json:"lease_process_id"`
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
 }
 
 type V1Queue struct {

@@ -42,29 +42,27 @@ type TasksController interface {
 }
 
 type TasksControllerImpl struct {
-	mq                                       msgqueue.MessageQueue
-	pubBuffer                                *msgqueue.MQPubBuffer
-	l                                        *zerolog.Logger
-	queueLogger                              *zerolog.Logger
-	pgxStatsLogger                           *zerolog.Logger
-	repo                                     repository.EngineRepository
-	repov1                                   v1.Repository
-	dv                                       datautils.DataDecoderValidator
-	s                                        gocron.Scheduler
-	a                                        *hatcheterrors.Wrapped
-	p                                        *partition.Partition
-	celParser                                *cel.CELParser
-	opsPoolPollInterval                      time.Duration
-	opsPoolJitter                            time.Duration
-	timeoutTaskOperations                    *operation.OperationPool
-	reassignTaskOperations                   *operation.OperationPool
-	retryTaskOperations                      *operation.OperationPool
-	emitSleepOperations                      *operation.OperationPool
-	evictExpiredIdempotencyKeysOperations    *operation.OperationPool
-	processPayloadWALOperations              *queueutils.OperationPool[int64]
-	processPayloadExternalCutoversOperations *queueutils.OperationPool[int64]
-	replayEnabled                            bool
-	analyzeCronInterval                      time.Duration
+	mq                                    msgqueue.MessageQueue
+	pubBuffer                             *msgqueue.MQPubBuffer
+	l                                     *zerolog.Logger
+	queueLogger                           *zerolog.Logger
+	pgxStatsLogger                        *zerolog.Logger
+	repo                                  repository.EngineRepository
+	repov1                                v1.Repository
+	dv                                    datautils.DataDecoderValidator
+	s                                     gocron.Scheduler
+	a                                     *hatcheterrors.Wrapped
+	p                                     *partition.Partition
+	celParser                             *cel.CELParser
+	opsPoolPollInterval                   time.Duration
+	opsPoolJitter                         time.Duration
+	timeoutTaskOperations                 *operation.OperationPool
+	reassignTaskOperations                *operation.OperationPool
+	retryTaskOperations                   *operation.OperationPool
+	emitSleepOperations                   *operation.OperationPool
+	evictExpiredIdempotencyKeysOperations *operation.OperationPool
+	replayEnabled                         bool
+	analyzeCronInterval                   time.Duration
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -284,9 +282,6 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.processPayloadWALOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload WAL", t.processPayloadWAL).WithJitter(jitter)
-	t.processPayloadExternalCutoversOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload external cutovers", t.processPayloadExternalCutovers).WithJitter(jitter)
-
 	return t, nil
 }
 
@@ -333,28 +328,11 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = tc.s.NewJob(
-		gocron.DurationJob(tc.repov1.Payloads().WALProcessInterval()),
-		gocron.NewTask(
-			tc.runProcessPayloadWAL(spanContext),
-		),
-	)
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("could not schedule process payload WAL: %w", err)
-
-		cancel()
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not run process payload WAL")
-		span.End()
-
-		return nil, wrappedErr
-	}
-
-	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.repov1.Payloads().ExternalCutoverProcessInterval()),
 		gocron.NewTask(
-			tc.runProcessPayloadExternalCutovers(spanContext),
+			tc.processPayloadExternalCutovers(spanContext),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
