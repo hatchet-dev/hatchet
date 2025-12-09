@@ -438,13 +438,19 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
 
 	for _, payload := range payloads {
-		externalIdToPayload[PayloadExternalId(payload.ExternalID.String())] = *payload
+		externalId := PayloadExternalId(payload.ExternalID.String())
+
+		if externalId == "" {
+			externalId = PayloadExternalId(uuid.NewString())
+		}
+
+		externalIdToPayload[externalId] = *payload
 		if payload.Location != sqlcv1.V1PayloadLocationINLINE {
-			alreadyExternalPayloads[PayloadExternalId(payload.ExternalID.String())] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
+			alreadyExternalPayloads[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
 		} else {
 			offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
 				TenantId:   TenantID(payload.TenantID.String()),
-				ExternalID: PayloadExternalId(payload.ExternalID.String()),
+				ExternalID: externalId,
 				InsertedAt: payload.InsertedAt,
 				Payload:    payload.InlineContent,
 			})
