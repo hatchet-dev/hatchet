@@ -13,6 +13,7 @@ ADD COLUMN last_external_id UUID NOT NULL DEFAULT gen_random_uuid(),
 ADD COLUMN last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00',
 DROP COLUMN last_offset;
 
+-- need to explicitly drop and replace because of the changes to the params
 DROP FUNCTION IF EXISTS list_paginated_payloads_for_offload(date, int, bigint);
 DROP FUNCTION IF EXISTS list_paginated_olap_payloads_for_offload(date, int, bigint);
 
