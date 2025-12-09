@@ -16,7 +16,12 @@ INSERT INTO v1_payload_cutover_job_offset (key, last_offset, lease_process_id, l
 VALUES ($1::DATE, $2::BIGINT, $3::UUID, $4::TIMESTAMPTZ)
 ON CONFLICT (key)
 DO UPDATE SET
-    last_offset = EXCLUDED.last_offset,
+    last_offset = CASE
+        -- if the lease is held by this process, then we extend the offset to the new value
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_offset
+        -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
+        ELSE v1_payloads_olap_cutover_job_offset.last_offset
+    END,
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
 WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = $3::UUID
