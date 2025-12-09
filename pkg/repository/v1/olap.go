@@ -2825,7 +2825,6 @@ func (p *OLAPRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx
 		if errors.Is(err, pgx.ErrNoRows) {
 			return &OLAPCutoverJobRunMetadata{
 				ShouldRun:      false,
-				Pagination:     OLAPPaginationParams{},
 				PartitionDate:  partitionDate,
 				LeaseProcessId: processId,
 			}, nil
