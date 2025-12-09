@@ -1844,3 +1844,47 @@ WHERE
         sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
     )
 ;
+
+-- name: ListPaginatedOLAPPayloadsForOffload :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM list_paginated_olap_payloads_for_offload(
+        @partitionDate::DATE,
+        @limitParam::INT,
+        @offsetParam::BIGINT
+    ) p
+)
+SELECT
+    tenant_id::UUID,
+    external_id::UUID,
+    location::v1_payload_location_olap,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
+    inserted_at::TIMESTAMPTZ,
+    updated_at::TIMESTAMPTZ
+FROM payloads;
+
+-- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
+SELECT copy_v1_payloads_olap_partition_structure(@date::DATE);
+
+-- name: SwapV1PayloadOLAPPartitionWithTemp :exec
+SELECT swap_v1_payloads_olap_partition_with_temp(@date::DATE);
+
+-- name: AcquireOrExtendOLAPCutoverJobLease :one
+INSERT INTO v1_payloads_olap_cutover_job_offset (key, last_offset, lease_process_id, lease_expires_at)
+VALUES (@key::DATE, @lastOffset::BIGINT, @leaseProcessId::UUID, @leaseExpiresAt::TIMESTAMPTZ)
+ON CONFLICT (key)
+DO UPDATE SET
+    last_offset = EXCLUDED.last_offset,
+    lease_process_id = EXCLUDED.lease_process_id,
+    lease_expires_at = EXCLUDED.lease_expires_at
+WHERE v1_payloads_olap_cutover_job_offset.lease_expires_at < NOW() OR v1_payloads_olap_cutover_job_offset.lease_process_id = @leaseProcessId::UUID
+RETURNING *
+;
+
+-- name: MarkOLAPCutoverJobAsCompleted :exec
+UPDATE v1_payloads_olap_cutover_job_offset
+SET is_completed = TRUE
+WHERE key = @key::DATE
+;

@@ -27,7 +27,6 @@ type StorePayloadOpts struct {
 }
 
 type StoreOLAPPayloadOpts struct {
-	Id         int64
 	ExternalId pgtype.UUID
 	InsertedAt pgtype.Timestamptz
 	Payload    []byte
@@ -67,6 +66,8 @@ type PayloadStoreRepository interface {
 	DagDataDualWritesEnabled() bool
 	OLAPDualWritesEnabled() bool
 	ExternalCutoverProcessInterval() time.Duration
+	InlineStoreTTL() *time.Duration
+	ExternalCutoverBatchSize() int32
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
 	ProcessPayloadCutovers(ctx context.Context) error
@@ -376,6 +377,14 @@ func (p *payloadStoreRepositoryImpl) ExternalCutoverProcessInterval() time.Durat
 	return p.externalCutoverProcessInterval
 }
 
+func (p *payloadStoreRepositoryImpl) InlineStoreTTL() *time.Duration {
+	return p.inlineStoreTTL
+}
+
+func (p *payloadStoreRepositoryImpl) ExternalCutoverBatchSize() int32 {
+	return p.externalCutoverBatchSize
+}
+
 func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
 	return p.externalStoreEnabled
 }
@@ -404,6 +413,8 @@ func (d PartitionDate) String() string {
 	return d.Time.Format("20060102")
 }
 
+const MAX_PARTITIONS_TO_OFFLOAD = 14 // two weeks
+
 func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, offset int64) (*CutoverBatchOutcome, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
@@ -429,13 +440,19 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
 
 	for _, payload := range payloads {
-		externalIdToPayload[PayloadExternalId(payload.ExternalID.String())] = *payload
+		externalId := PayloadExternalId(payload.ExternalID.String())
+
+		if externalId == "" {
+			externalId = PayloadExternalId(uuid.NewString())
+		}
+
+		externalIdToPayload[externalId] = *payload
 		if payload.Location != sqlcv1.V1PayloadLocationINLINE {
-			alreadyExternalPayloads[PayloadExternalId(payload.ExternalID.String())] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
+			alreadyExternalPayloads[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
 		} else {
 			offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
 				TenantId:   TenantID(payload.TenantID.String()),
-				ExternalID: PayloadExternalId(payload.ExternalID.String()),
+				ExternalID: externalId,
 				InsertedAt: payload.InsertedAt,
 				Payload:    payload.InlineContent,
 			})
@@ -676,7 +693,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 		Valid: true,
 	}
 
-	partitions, err := p.queries.FindV1PayloadPartitionsBeforeDate(ctx, p.pool, mostRecentPartitionToOffload)
+	partitions, err := p.queries.FindV1PayloadPartitionsBeforeDate(ctx, p.pool, MAX_PARTITIONS_TO_OFFLOAD, mostRecentPartitionToOffload)
 
 	if err != nil {
 		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
@@ -694,7 +711,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 	}
 
 	return nil
-
 }
 
 type NoOpExternalStore struct{}
