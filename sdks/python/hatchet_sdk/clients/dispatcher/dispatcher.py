@@ -140,7 +140,9 @@ class DispatcherClient:
             shouldNotRetry=should_not_retry,
         )
 
-        send_step_action_event = tenacity_retry(self.aio_client.SendStepActionEvent)
+        send_step_action_event = tenacity_retry(
+            self.aio_client.SendStepActionEvent, self.config.tenacity
+        )
 
         return cast(
             grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],

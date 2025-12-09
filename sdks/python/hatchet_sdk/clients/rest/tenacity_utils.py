@@ -4,17 +4,21 @@ from typing import ParamSpec, TypeVar
 import grpc
 import tenacity
 
+from hatchet_sdk.config import TenacityConfig
 from hatchet_sdk.logger import logger
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
 
-def tenacity_retry(func: Callable[P, R]) -> Callable[P, R]:
+def tenacity_retry(func: Callable[P, R], config: TenacityConfig) -> Callable[P, R]:
+    if config.max_attempts <= 0:
+        return func
+
     return tenacity.retry(
         reraise=True,
         wait=tenacity.wait_exponential_jitter(),
-        stop=tenacity.stop_after_attempt(5),
+        stop=tenacity.stop_after_attempt(config.max_attempts),
         before_sleep=tenacity_alert_retry,
         retry=tenacity.retry_if_exception(tenacity_should_retry),
     )(func)

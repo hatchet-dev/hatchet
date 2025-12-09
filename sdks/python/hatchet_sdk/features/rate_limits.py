@@ -38,7 +38,9 @@ class RateLimitsClient(BaseRestClient):
 
         conn = new_conn(self.client_config, False)
         client = WorkflowServiceStub(conn)
-        put_rate_limit = tenacity_retry(client.PutRateLimit)
+        put_rate_limit = tenacity_retry(
+            client.PutRateLimit, self.client_config.tenacity
+        )
 
         put_rate_limit(
             v0_workflow_protos.PutRateLimitRequest(
