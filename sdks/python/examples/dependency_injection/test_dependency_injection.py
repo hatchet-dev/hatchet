@@ -36,8 +36,10 @@ async def test_di_standalones(
     assert isinstance(result, Output)
     assert result.sync_dep == SYNC_DEPENDENCY_VALUE
     assert result.async_dep == ASYNC_DEPENDENCY_VALUE
-    assert result.async_cm_dep == ASYNC_CM_DEPENDENCY_VALUE
-    assert result.sync_cm_dep == SYNC_CM_DEPENDENCY_VALUE
+    assert (
+        result.async_cm_dep == ASYNC_CM_DEPENDENCY_VALUE + "_" + ASYNC_DEPENDENCY_VALUE
+    )
+    assert result.sync_cm_dep == SYNC_CM_DEPENDENCY_VALUE + "_" + SYNC_DEPENDENCY_VALUE
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -51,5 +53,10 @@ async def test_di_workflows() -> None:
 
         assert parsed.sync_dep == SYNC_DEPENDENCY_VALUE
         assert parsed.async_dep == ASYNC_DEPENDENCY_VALUE
-        assert parsed.async_cm_dep == ASYNC_CM_DEPENDENCY_VALUE
-        assert parsed.sync_cm_dep == SYNC_CM_DEPENDENCY_VALUE
+        assert (
+            parsed.async_cm_dep
+            == ASYNC_CM_DEPENDENCY_VALUE + "_" + ASYNC_DEPENDENCY_VALUE
+        )
+        assert (
+            parsed.sync_cm_dep == SYNC_CM_DEPENDENCY_VALUE + "_" + SYNC_DEPENDENCY_VALUE
+        )

@@ -23,19 +23,21 @@ def sync_dep(input: EmptyModel, ctx: Context) -> str:
 
 
 @asynccontextmanager
-async def async_cm_dep(input: EmptyModel, ctx: Context) -> AsyncGenerator[str, None]:
-    value = ASYNC_CM_DEPENDENCY_VALUE
+async def async_cm_dep(
+    input: EmptyModel, ctx: Context, async_dep: Annotated[str, Depends(async_dep)]
+) -> AsyncGenerator[str, None]:
     try:
-        yield value
+        yield ASYNC_CM_DEPENDENCY_VALUE + "_" + async_dep
     finally:
         pass
 
 
 @contextmanager
-def sync_cm_dep(input: EmptyModel, ctx: Context) -> Generator[str, None, None]:
-    value = SYNC_CM_DEPENDENCY_VALUE
+def sync_cm_dep(
+    input: EmptyModel, ctx: Context, sync_dep: Annotated[str, Depends(sync_dep)]
+) -> Generator[str, None, None]:
     try:
-        yield value
+        yield SYNC_CM_DEPENDENCY_VALUE + "_" + sync_dep
     finally:
         pass
 
