@@ -1,9 +1,9 @@
-from typing import Annotated, Generator, AsyncGenerator
+from contextlib import asynccontextmanager, contextmanager
+from typing import Annotated, AsyncGenerator, Generator
 
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Depends, DurableContext, EmptyModel, Hatchet
-from contextlib import asynccontextmanager, contextmanager
 
 hatchet = Hatchet(debug=False)
 

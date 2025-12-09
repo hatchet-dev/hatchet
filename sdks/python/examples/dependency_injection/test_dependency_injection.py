@@ -1,10 +1,10 @@
 import pytest
 
 from examples.dependency_injection.worker import (
-    ASYNC_DEPENDENCY_VALUE,
-    SYNC_DEPENDENCY_VALUE,
-    SYNC_CM_DEPENDENCY_VALUE,
     ASYNC_CM_DEPENDENCY_VALUE,
+    ASYNC_DEPENDENCY_VALUE,
+    SYNC_CM_DEPENDENCY_VALUE,
+    SYNC_DEPENDENCY_VALUE,
     Output,
     async_dep,
     async_task_with_dependencies,

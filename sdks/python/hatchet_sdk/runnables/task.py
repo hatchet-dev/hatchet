@@ -1,16 +1,17 @@
 import asyncio
-from collections.abc import Callable
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Callable
+from contextlib import (
+    AbstractAsyncContextManager,
+    AbstractContextManager,
+    asynccontextmanager,
+)
 from dataclasses import asdict, is_dataclass
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
     TYPE_CHECKING,
     Annotated,
     Any,
-    AsyncContextManager,
-    AsyncIterator,
     Concatenate,
-    ContextManager,
     Generic,
     ParamSpec,
     TypeGuard,
@@ -66,12 +67,12 @@ T = TypeVar("T")
 P = ParamSpec("P")
 
 
-def is_async_context_manager(obj: Any) -> TypeGuard[AsyncContextManager[Any]]:
+def is_async_context_manager(obj: Any) -> TypeGuard[AbstractAsyncContextManager[Any]]:
     """Type guard to check if an object is an async context manager."""
     return hasattr(obj, "__aenter__") and hasattr(obj, "__aexit__")
 
 
-def is_sync_context_manager(obj: Any) -> TypeGuard[ContextManager[Any]]:
+def is_sync_context_manager(obj: Any) -> TypeGuard[AbstractContextManager[Any]]:
     """Type guard to check if an object is a sync context manager."""
     return hasattr(obj, "__enter__") and hasattr(obj, "__exit__")
 
@@ -209,7 +210,9 @@ class Task(Generic[TWorkflowInput, R]):
         input = self.workflow._get_workflow_input(ctx)
 
         dependencies: dict[str, Any] = {}
-        cms_to_exit: list[AsyncContextManager[Any] | ContextManager[Any]] = []
+        cms_to_exit: list[
+            AbstractAsyncContextManager[Any] | AbstractAsyncContextManager[Any]
+        ] = []
 
         try:
             for n, p in sig.parameters.items():
