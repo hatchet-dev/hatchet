@@ -502,12 +502,19 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 
 	isNoRows := errors.Is(err, pgx.ErrNoRows)
 
-	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, PaginationParams{
+	params := PaginationParams{
 		LastTenantID:   inserted.TenantId,
 		LastInsertedAt: inserted.InsertedAt,
 		LastID:         inserted.ID,
 		LastType:       inserted.Type,
-	})
+	}
+
+	// hack so that we don't have errors from zero values when no rows are returned
+	if isNoRows {
+		params = pagination
+	}
+
+	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, params)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)

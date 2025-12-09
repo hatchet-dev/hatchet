@@ -2776,14 +2776,19 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 
 	isNoRows := errors.Is(err, pgx.ErrNoRows)
 
-	pagination = OLAPPaginationParams{
+	params := OLAPPaginationParams{
 		LastTenantId:   insertResult.TenantId,
 		LastInsertedAt: insertResult.InsertedAt,
 		LastExternalId: insertResult.ExternalId,
 		Limit:          pagination.Limit,
 	}
 
-	_, err = p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, pagination)
+	// hack so that we don't have errors from zero values when no rows are returned
+	if isNoRows {
+		params = pagination
+	}
+
+	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, params)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
@@ -2796,13 +2801,13 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	if len(payloads) < int(pagination.Limit) || isNoRows {
 		return &OLAPCutoverBatchOutcome{
 			ShouldContinue: false,
-			NextPagination: pagination,
+			NextPagination: extendedLease.Pagination,
 		}, nil
 	}
 
 	return &OLAPCutoverBatchOutcome{
 		ShouldContinue: true,
-		NextPagination: pagination,
+		NextPagination: extendedLease.Pagination,
 	}, nil
 }
 
