@@ -2713,6 +2713,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	defer rollback()
 
 	tableName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
+
 	payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
 		Partitiondate:  pgtype.Date(partitionDate),
 		Lasttenantid:   pagination.LastTenantId,
@@ -2864,7 +2865,7 @@ func (p *OLAPRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx
 	}, nil
 }
 
-func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration) (*OLAPCutoverJobRunMetadata, error) {
+func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration, externalCutoverBatchSize int32) (*OLAPCutoverJobRunMetadata, error) {
 	if inlineStoreTTL == nil {
 		return nil, fmt.Errorf("inline store TTL is not set")
 	}
@@ -2883,6 +2884,7 @@ func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, process
 		LastTenantId:   sqlchelpers.UUIDFromStr(zeroUuid.String()),
 		LastExternalId: sqlchelpers.UUIDFromStr(zeroUuid.String()),
 		LastInsertedAt: sqlchelpers.TimestamptzFromTime(time.Unix(0, 0)),
+		Limit:          externalCutoverBatchSize,
 	})
 
 	if err != nil {
@@ -2915,7 +2917,7 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	ctx, span := telemetry.NewSpan(ctx, "olap_repository.processSinglePartition")
 	defer span.End()
 
-	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate, inlineStoreTTL)
+	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate, inlineStoreTTL, externalCutoverBatchSize)
 
 	if err != nil {
 		return fmt.Errorf("failed to prepare cutover table job: %w", err)
