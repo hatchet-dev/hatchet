@@ -203,7 +203,7 @@ class AdminClient:
             conn = new_conn(self.config, False)
             self.client = AdminServiceStub(conn)
 
-        put_workflow = tenacity_retry(self.client.PutWorkflow)
+        put_workflow = tenacity_retry(self.client.PutWorkflow, self.config.tenacity)
         return cast(
             workflow_protos.CreateWorkflowVersionResponse,
             put_workflow(
@@ -223,7 +223,7 @@ class AdminClient:
         )
 
         client = self._get_or_create_v0_client()
-        put_rate_limit = tenacity_retry(client.PutRateLimit)
+        put_rate_limit = tenacity_retry(client.PutRateLimit, self.config.tenacity)
 
         put_rate_limit(
             v0_workflow_protos.PutRateLimitRequest(
@@ -251,7 +251,9 @@ class AdminClient:
             )
 
             client = self._get_or_create_v0_client()
-            schedule_workflow = tenacity_retry(client.ScheduleWorkflow)
+            schedule_workflow = tenacity_retry(
+                client.ScheduleWorkflow, self.config.tenacity
+            )
 
             return cast(
                 v0_workflow_protos.WorkflowVersion,
@@ -318,7 +320,7 @@ class AdminClient:
     ) -> WorkflowRunRef:
         request = self._create_workflow_run_request(workflow_name, input, options)
         client = self._get_or_create_v0_client()
-        trigger_workflow = tenacity_retry(client.TriggerWorkflow)
+        trigger_workflow = tenacity_retry(client.TriggerWorkflow, self.config.tenacity)
 
         try:
             resp = cast(
@@ -348,7 +350,7 @@ class AdminClient:
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         client = self._get_or_create_v0_client()
-        trigger_workflow = tenacity_retry(client.TriggerWorkflow)
+        trigger_workflow = tenacity_retry(client.TriggerWorkflow, self.config.tenacity)
         async with spawn_index_lock:
             request = self._create_workflow_run_request(workflow_name, input, options)
 
@@ -390,7 +392,9 @@ class AdminClient:
             )
             for workflow in workflows
         ]
-        bulk_trigger_workflow = tenacity_retry(client.BulkTriggerWorkflow)
+        bulk_trigger_workflow = tenacity_retry(
+            client.BulkTriggerWorkflow, self.config.tenacity
+        )
 
         refs: list[WorkflowRunRef] = []
 
@@ -428,7 +432,9 @@ class AdminClient:
         client = self._get_or_create_v0_client()
         chunks = self.chunk(workflows, MAX_BULK_WORKFLOW_RUN_BATCH_SIZE)
         refs: list[WorkflowRunRef] = []
-        bulk_trigger_workflow = tenacity_retry(client.BulkTriggerWorkflow)
+        bulk_trigger_workflow = tenacity_retry(
+            client.BulkTriggerWorkflow, self.config.tenacity
+        )
 
         for chunk in chunks:
             async with spawn_index_lock:

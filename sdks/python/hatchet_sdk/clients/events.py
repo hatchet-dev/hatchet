@@ -101,7 +101,9 @@ class EventClient(BaseRestClient):
     ) -> Event:
         namespace = options.namespace or self.namespace
         namespaced_event_key = self.client_config.apply_namespace(event_key, namespace)
-        push_event = tenacity_retry(self.events_service_client.Push)
+        push_event = tenacity_retry(
+            self.events_service_client.Push, self.client_config.tenacity
+        )
 
         try:
             meta_bytes = json.dumps(options.additional_metadata)
@@ -163,7 +165,9 @@ class EventClient(BaseRestClient):
         options: BulkPushEventOptions = BulkPushEventOptions(),
     ) -> list[Event]:
         namespace = options.namespace or self.namespace
-        bulk_push = tenacity_retry(self.events_service_client.BulkPush)
+        bulk_push = tenacity_retry(
+            self.events_service_client.BulkPush, self.client_config.tenacity
+        )
 
         bulk_request = BulkPushEventRequest(
             events=[
@@ -181,7 +185,9 @@ class EventClient(BaseRestClient):
     def log(
         self, message: str, step_run_id: str, level: LogLevel | None = None
     ) -> None:
-        put_log = tenacity_retry(self.events_service_client.PutLog)
+        put_log = tenacity_retry(
+            self.events_service_client.PutLog, self.client_config.tenacity
+        )
         request = PutLogRequest(
             stepRunId=step_run_id,
             createdAt=proto_timestamp_now(),
@@ -192,7 +198,9 @@ class EventClient(BaseRestClient):
         put_log(request, metadata=get_metadata(self.token))
 
     def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
-        put_stream_event = tenacity_retry(self.events_service_client.PutStreamEvent)
+        put_stream_event = tenacity_retry(
+            self.events_service_client.PutStreamEvent, self.client_config.tenacity
+        )
         if isinstance(data, str):
             data_bytes = data.encode("utf-8")
         elif isinstance(data, bytes):

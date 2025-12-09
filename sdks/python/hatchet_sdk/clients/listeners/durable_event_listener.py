@@ -109,7 +109,9 @@ class DurableEventListener(
         conn = new_conn(self.config, True)
         client = V1DispatcherStub(conn)
 
-        register_durable_event = tenacity_retry(client.RegisterDurableEvent)
+        register_durable_event = tenacity_retry(
+            client.RegisterDurableEvent, self.config.tenacity
+        )
 
         register_durable_event(
             request.to_proto(),
