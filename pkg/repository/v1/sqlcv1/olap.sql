@@ -1852,7 +1852,9 @@ WITH payloads AS (
     FROM list_paginated_olap_payloads_for_offload(
         @partitionDate::DATE,
         @limitParam::INT,
-        @offsetParam::BIGINT
+        @lastTenantId::UUID,
+        @lastExternalId::UUID,
+        @lastInsertedAt::TIMESTAMPTZ
     ) p
 )
 SELECT

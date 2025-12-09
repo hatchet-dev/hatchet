@@ -1879,7 +1879,10 @@ $$;
 CREATE OR REPLACE FUNCTION list_paginated_payloads_for_offload(
     partition_date date,
     limit_param int,
-    offset_param bigint
+    last_tenant_id uuid,
+    last_inserted_at timestamptz,
+    last_id bigint,
+    last_type v1_payload_type
 ) RETURNS TABLE (
     tenant_id UUID,
     id BIGINT,
@@ -1913,12 +1916,12 @@ BEGIN
         SELECT tenant_id, id, inserted_at, external_id, type, location,
                external_location_key, inline_content, updated_at
         FROM %I
+        WHERE (tenant_id, inserted_at, id, type) > ($1, $2, $3, $4)
         ORDER BY tenant_id, inserted_at, id, type
-        LIMIT $1
-        OFFSET $2
+        LIMIT $5
     ', source_partition_name);
 
-    RETURN QUERY EXECUTE query USING limit_param, offset_param;
+    RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, limit_param;
 END;
 $$;
 

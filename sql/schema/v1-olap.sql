@@ -921,7 +921,9 @@ $$;
 CREATE OR REPLACE FUNCTION list_paginated_olap_payloads_for_offload(
     partition_date date,
     limit_param int,
-    offset_param bigint
+    last_tenant_id uuid,
+    last_external_id uuid,
+    last_inserted_at timestamptz
 ) RETURNS TABLE (
     tenant_id UUID,
     external_id UUID,
@@ -952,12 +954,12 @@ BEGIN
     query := format('
         SELECT tenant_id, external_id, location, external_location_key, inline_content, inserted_at, updated_at
         FROM %I
+        WHERE (tenant_id, external_id, inserted_at) > ($1, $2, $3)
         ORDER BY tenant_id, external_id, inserted_at
-        LIMIT $1
-        OFFSET $2
+        LIMIT $4
     ', source_partition_name);
 
-    RETURN QUERY EXECUTE query USING limit_param, offset_param;
+    RETURN QUERY EXECUTE query USING last_tenant_id, last_external_id, last_inserted_at, limit_param;
 END;
 $$;
 

@@ -1227,7 +1227,9 @@ WITH payloads AS (
     FROM list_paginated_olap_payloads_for_offload(
         $1::DATE,
         $2::INT,
-        $3::BIGINT
+        $3::UUID,
+        $4::UUID,
+        $5::TIMESTAMPTZ
     ) p
 )
 SELECT
@@ -1242,9 +1244,11 @@ FROM payloads
 `
 
 type ListPaginatedOLAPPayloadsForOffloadParams struct {
-	Partitiondate pgtype.Date `json:"partitiondate"`
-	Limitparam    int32       `json:"limitparam"`
-	Offsetparam   int64       `json:"offsetparam"`
+	Partitiondate  pgtype.Date        `json:"partitiondate"`
+	Limitparam     int32              `json:"limitparam"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 }
 
 type ListPaginatedOLAPPayloadsForOffloadRow struct {
@@ -1258,7 +1262,13 @@ type ListPaginatedOLAPPayloadsForOffloadRow struct {
 }
 
 func (q *Queries) ListPaginatedOLAPPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedOLAPPayloadsForOffloadParams) ([]*ListPaginatedOLAPPayloadsForOffloadRow, error) {
-	rows, err := db.Query(ctx, listPaginatedOLAPPayloadsForOffload, arg.Partitiondate, arg.Limitparam, arg.Offsetparam)
+	rows, err := db.Query(ctx, listPaginatedOLAPPayloadsForOffload,
+		arg.Partitiondate,
+		arg.Limitparam,
+		arg.Lasttenantid,
+		arg.Lastexternalid,
+		arg.Lastinsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}
