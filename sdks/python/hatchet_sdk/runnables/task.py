@@ -79,7 +79,14 @@ def is_sync_context_manager(obj: Any) -> TypeGuard[AbstractContextManager[Any]]:
 
 class Depends(Generic[T, TWorkflowInput]):
     def __init__(
-        self, fn: Callable[[TWorkflowInput, Context], T | CoroutineLike[T]]
+        self,
+        fn: Callable[
+            [TWorkflowInput, Context],
+            T
+            | CoroutineLike[T]
+            | AbstractContextManager[T]
+            | AbstractAsyncContextManager[T],
+        ],
     ) -> None:
         sig = signature(fn)
         params = list(sig.parameters.values())
