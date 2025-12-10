@@ -308,6 +308,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		EnableDagDataPayloadDualWrites:   scf.PayloadStore.EnableDagDataPayloadDualWrites,
 		ExternalCutoverProcessInterval:   scf.PayloadStore.ExternalCutoverProcessInterval,
 		ExternalCutoverBatchSize:         scf.PayloadStore.ExternalCutoverBatchSize,
+		ExternalCutoverNumChunks:         scf.PayloadStore.ExternalCutoverNumChunks,
 		InlineStoreTTL:                   &inlineStoreTTL,
 		EnableImmediateOffloads:          scf.PayloadStore.EnableImmediateOffloads,
 	}
