@@ -9,13 +9,11 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/rs/zerolog"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
-	"github.com/hatchet-dev/hatchet/internal/cache"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
@@ -37,33 +35,6 @@ var (
 	eventTypeWaitingForBatch = sqlcv1.V1EventTypeOlapWAITINGFORBATCH
 	eventTypeBatchFlushed    = sqlcv1.V1EventTypeOlapBATCHFLUSHED
 )
-
-const batchConfigCacheTTL = time.Minute
-
-func describeFlushReason(reason batchFlushReason, batchSize int, interval time.Duration) string {
-	switch reason {
-	case flushReasonBatchSizeReached:
-		if batchSize > 0 {
-			return fmt.Sprintf("batch size threshold %d reached", batchSize)
-		}
-
-		return "batch size threshold reached"
-	case flushReasonWorkerChanged:
-		return "assigned worker changed"
-	case flushReasonDispatcherChanged:
-		return "dispatcher changed"
-	case flushReasonIntervalElapsed:
-		if interval > 0 {
-			return fmt.Sprintf("flush interval %s elapsed", interval)
-		}
-
-		return "flush interval elapsed"
-	case flushReasonBufferDrained:
-		return "buffer drained during shutdown"
-	default:
-		return string(reason)
-	}
-}
 
 type SchedulerOpt func(*SchedulerOpts)
 
@@ -165,22 +136,6 @@ type Scheduler struct {
 	pool *v1.SchedulingPool
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
-
-	batchManager *batchBufferManager
-	batchConfigs *cache.TTLCache[string, *batchConfig] // stepID -> *batchConfig (nil indicates no batch configuration)
-
-	batchCoordinator *schedulingBatchCoordinator
-}
-
-type schedulingBatchCoordinator struct {
-	scheduler *Scheduler
-	mu        sync.Mutex
-	states    map[string]*batchCoordinatorState
-}
-
-type batchCoordinatorState struct {
-	workerID string
-	active   bool
 }
 
 func New(
@@ -239,145 +194,9 @@ func New(
 		ql:                     opts.queueLogger,
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
-		batchConfigs:           cache.NewTTL[string, *batchConfig](),
 	}
-
-	q.batchManager = newBatchBufferManager(q.l, q.batchFlush, q.shouldFlushBatch)
-	q.batchCoordinator = newSchedulingBatchCoordinator(q)
 
 	return q, nil
-}
-
-func newSchedulingBatchCoordinator(s *Scheduler) *schedulingBatchCoordinator {
-	return &schedulingBatchCoordinator{
-		scheduler: s,
-		states:    make(map[string]*batchCoordinatorState),
-	}
-}
-
-func batchCoordinatorStateKey(tenantID, stepID, batchKey string) string {
-	return tenantID + ":" + stepID + ":" + batchKey
-}
-
-func (c *schedulingBatchCoordinator) DecideBatch(ctx context.Context, qi *sqlcv1.V1QueueItem, workerID pgtype.UUID) v1.BatchDecision {
-	if c == nil || c.scheduler == nil {
-		return v1.BatchDecision{}
-	}
-
-	tenantID := sqlchelpers.UUIDToStr(qi.TenantID)
-	stepID := sqlchelpers.UUIDToStr(qi.StepID)
-
-	cfg, err := c.scheduler.getBatchConfig(ctx, tenantID, stepID)
-	if err != nil {
-		c.scheduler.l.Error().Err(err).Str("tenant_id", tenantID).Str("step_id", stepID).Msg("batch coordinator: getBatchConfig failed")
-		return v1.BatchDecision{}
-	}
-
-	if cfg == nil {
-		return v1.BatchDecision{}
-	}
-
-	workerStr := ""
-
-	if workerID.Valid {
-		workerStr = sqlchelpers.UUIDToStr(workerID)
-	}
-
-	batchKey := ""
-
-	if qi.BatchKey.Valid {
-		batchKey = strings.TrimSpace(qi.BatchKey.String)
-	}
-
-	if cfg.maxRuns > 0 && batchKey != "" {
-		activeRuns, countErr := c.scheduler.repov1.Tasks().CountActiveTaskBatchRuns(ctx, tenantID, stepID, batchKey)
-		if countErr != nil {
-			c.scheduler.l.Error().
-				Err(countErr).
-				Str("tenant_id", tenantID).
-				Str("step_id", stepID).
-				Str("batch_key", batchKey).
-				Msg("batch coordinator: count active batch runs failed")
-		} else if activeRuns >= cfg.maxRuns {
-			return v1.BatchDecision{
-				Action:      v1.BatchActionDefer,
-				ReleaseSlot: true,
-			}
-		}
-	}
-
-	key := batchCoordinatorStateKey(tenantID, stepID, batchKey)
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.states == nil {
-		c.states = make(map[string]*batchCoordinatorState)
-	}
-
-	state, ok := c.states[key]
-	if !ok {
-		state = &batchCoordinatorState{}
-		c.states[key] = state
-	}
-
-	if !state.active || state.workerID == "" {
-		state.active = true
-		state.workerID = workerStr
-
-		if workerStr == "" {
-			return v1.BatchDecision{}
-		}
-
-		return v1.BatchDecision{
-			Action:      v1.BatchActionBuffer,
-			ReleaseSlot: true,
-		}
-	}
-
-	if state.workerID != "" && workerStr != "" && state.workerID != workerStr {
-		state.workerID = workerStr
-		state.active = true
-
-		return v1.BatchDecision{
-			Action:      v1.BatchActionBuffer,
-			ReleaseSlot: true,
-		}
-	}
-
-	return v1.BatchDecision{
-		Action:      v1.BatchActionBuffer,
-		ReleaseSlot: true,
-	}
-}
-
-func (c *schedulingBatchCoordinator) setBufferState(tenantID, stepID, batchKey, workerID string, active bool) {
-	if c == nil {
-		return
-	}
-
-	key := batchCoordinatorStateKey(tenantID, stepID, batchKey)
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.states == nil {
-		c.states = make(map[string]*batchCoordinatorState)
-	}
-
-	if !active {
-		delete(c.states, key)
-		return
-	}
-
-	state, ok := c.states[key]
-	if !ok {
-		state = &batchCoordinatorState{}
-		c.states[key] = state
-	}
-
-	state.active = true
-	state.workerID = workerID
 }
 
 func (s *Scheduler) Start() (func() error, error) {
@@ -491,17 +310,7 @@ func (s *Scheduler) Start() (func() error, error) {
 
 		wg.Wait()
 
-		if s.batchManager != nil {
-			if err := s.batchManager.FlushAll(context.Background()); err != nil {
-				s.l.Error().Err(err).Msg("failed to flush batch buffers during shutdown")
-			}
-		}
-
 		s.pubBuffer.Stop()
-
-		if s.batchConfigs != nil {
-			s.batchConfigs.Stop()
-		}
 
 		return nil
 	}
@@ -563,12 +372,6 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 		}
 
 		s.pool.SetTenants(tenants)
-
-		if s.batchCoordinator != nil {
-			for _, tenant := range tenants {
-				s.pool.SetBatchCoordinator(sqlchelpers.UUIDToStr(tenant.ID), s.batchCoordinator)
-			}
-		}
 	}
 }
 
@@ -578,37 +381,20 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 	var outerErr error
 
+	if len(res.Buffered) > 0 {
+		if err := s.emitBatchWaitingEvents(ctx, tenantId, res.Buffered); err != nil {
+			outerErr = multierror.Append(outerErr, err)
+		}
+	}
+
 	// bulk assign step runs
-	if len(res.Assigned) > 0 || len(res.Buffered) > 0 {
+	if len(res.Assigned) > 0 {
 		dispatcherIdToWorkerIdsToStepRuns := make(map[string]map[string][]int64)
 
-		workerIdSet := make(map[string]struct{})
-		workerIds := make([]string, 0, len(res.Assigned)+len(res.Buffered))
+		workerIds := make([]string, 0)
 
 		for _, assigned := range res.Assigned {
-			workerId := sqlchelpers.UUIDToStr(assigned.WorkerId)
-
-			if workerId == "" {
-				continue
-			}
-
-			if _, exists := workerIdSet[workerId]; !exists {
-				workerIdSet[workerId] = struct{}{}
-				workerIds = append(workerIds, workerId)
-			}
-		}
-
-		for _, buffered := range res.Buffered {
-			workerId := sqlchelpers.UUIDToStr(buffered.WorkerId)
-
-			if workerId == "" {
-				continue
-			}
-
-			if _, exists := workerIdSet[workerId]; !exists {
-				workerIdSet[workerId] = struct{}{}
-				workerIds = append(workerIds, workerId)
-			}
+			workerIds = append(workerIds, sqlchelpers.UUIDToStr(assigned.WorkerId))
 		}
 
 		var dispatcherIdWorkerIds map[string][]string
@@ -616,10 +402,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 		if err != nil {
-			retryItems := append([]*repov1.AssignedItem{}, res.Assigned...)
-			retryItems = append(retryItems, res.Buffered...)
-
-			s.internalRetry(ctx, tenantId, retryItems...)
+			s.internalRetry(ctx, tenantId, res.Assigned...)
 
 			return fmt.Errorf("could not list dispatcher ids for workers: %w. attempting internal retry", err)
 		}
@@ -633,252 +416,66 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		}
 
 		assignedMsgs := make([]*msgqueue.Message, 0)
+		batchAssignments := make([]*repov1.AssignedItem, 0)
 
-		type queueAssignment struct {
-			item     *repov1.AssignedItem
-			buffered bool
-		}
-
-		allAssignments := make([]queueAssignment, 0, len(res.Assigned)+len(res.Buffered))
-
-		for _, assigned := range res.Assigned {
-			allAssignments = append(allAssignments, queueAssignment{
-				item:     assigned,
-				buffered: false,
-			})
-		}
-
-		for _, buffered := range res.Buffered {
-			allAssignments = append(allAssignments, queueAssignment{
-				item:     buffered,
-				buffered: true,
-			})
-		}
-
-		for _, assignment := range allAssignments {
-			if assignment.item == nil || assignment.item.QueueItem == nil {
+		for _, bulkAssigned := range res.Assigned {
+			if bulkAssigned != nil && bulkAssigned.Batch != nil && bulkAssigned.QueueItem != nil && bulkAssigned.QueueItem.BatchKey.Valid && strings.TrimSpace(bulkAssigned.QueueItem.BatchKey.String) != "" {
+				batchAssignments = append(batchAssignments, bulkAssigned)
 				continue
 			}
 
-			dispatcherId, ok := workerIdToDispatcherId[sqlchelpers.UUIDToStr(assignment.item.WorkerId)]
+			dispatcherId, ok := workerIdToDispatcherId[sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)]
 
 			if !ok {
 				s.l.Error().Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
 
-				s.internalRetry(ctx, tenantId, assignment.item)
+				s.internalRetry(ctx, tenantId, bulkAssigned)
 
 				continue
-			}
-
-			workerId := sqlchelpers.UUIDToStr(assignment.item.WorkerId)
-
-			taskId := assignment.item.QueueItem.TaskID
-
-			stepId := sqlchelpers.UUIDToStr(assignment.item.QueueItem.StepID)
-			actionId := assignment.item.QueueItem.ActionID
-
-			payload := tasktypes.CreateMonitoringEventPayload{
-				TaskId:         taskId,
-				RetryCount:     assignment.item.QueueItem.RetryCount,
-				WorkerId:       &workerId,
-				EventType:      sqlcv1.V1EventTypeOlapASSIGNED,
-				EventTimestamp: time.Now(),
-			}
-
-			batchKey := ""
-			if assignment.item.QueueItem != nil && assignment.item.QueueItem.BatchKey.Valid {
-				batchKey = strings.TrimSpace(assignment.item.QueueItem.BatchKey.String)
-			}
-
-			cfg, cfgErr := s.getBatchConfig(ctx, tenantId, stepId)
-
-			if cfgErr != nil {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("could not fetch batch configuration for step %s: %w", stepId, cfgErr))
-				// fall back to regular dispatch
-			} else if cfg != nil {
-				if cfg.maxRuns > 0 && batchKey != "" {
-					activeRuns, err := s.repov1.Tasks().CountActiveTaskBatchRuns(ctx, tenantId, stepId, batchKey)
-					if err != nil {
-						outerErr = multierror.Append(outerErr, fmt.Errorf("could not count active batches for step %s: %w", stepId, err))
-					} else if activeRuns >= cfg.maxRuns {
-						waitingPayload := payload
-						waitingPayload.EventType = eventTypeWaitingForBatch
-						if batchKey != "" {
-							waitingPayload.EventMessage = fmt.Sprintf("Waiting for batch capacity (%d/%d active) for key %s.", activeRuns, cfg.maxRuns, batchKey)
-						} else {
-							waitingPayload.EventMessage = fmt.Sprintf("Waiting for batch capacity (%d/%d active).", activeRuns, cfg.maxRuns)
-						}
-
-						waitingPayload.EventPayload = buildBatchEventPayload(map[string]interface{}{
-							"status":     "waiting_for_capacity",
-							"batchKey":   batchKey,
-							"maxRuns":    cfg.maxRuns,
-							"activeRuns": activeRuns,
-						})
-
-						msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, waitingPayload)
-						if err != nil {
-							outerErr = multierror.Append(outerErr, fmt.Errorf("could not create capacity waiting event: %w", err))
-						} else {
-							assignedMsgs = append(assignedMsgs, msg)
-						}
-
-						s.l.Debug().
-							Str("tenant_id", tenantId).
-							Str("step_id", stepId).
-							Str("batch_key", batchKey).
-							Int("active_runs", activeRuns).
-							Int("max_runs", cfg.maxRuns).
-							Msg("deferring batch dispatch until capacity is available")
-					}
-				}
-
-				addResult, addErr := s.batchManager.Add(
-					ctx,
-					tenantId,
-					stepId,
-					actionId,
-					dispatcherId,
-					workerId,
-					batchKey,
-					*cfg,
-					assignment.item,
-				)
-
-				if addErr != nil {
-					s.internalRetry(ctx, tenantId, assignment.item)
-					outerErr = multierror.Append(outerErr, fmt.Errorf("could not buffer batch task: %w", addErr))
-					continue
-				}
-
-				displayBatchSize := cfg.batchSize
-				if displayBatchSize <= 0 {
-					displayBatchSize = 1
-				}
-
-				waitingPayload := payload
-				waitingPayload.EventType = eventTypeWaitingForBatch
-				if addResult.Flushed {
-					reasonText := "batch flushed"
-					if addResult.FlushReason != nil {
-						reasonText = describeFlushReason(*addResult.FlushReason, cfg.batchSize, cfg.flushInterval)
-					}
-
-					batchID := addResult.FlushedBatchID
-					if batchID == "" {
-						batchID = "unknown"
-					}
-
-					message := fmt.Sprintf("Batch %s flushed immediately because %s.", batchID, reasonText)
-					if batchKey != "" {
-						message += fmt.Sprintf(" Batch key: %s.", batchKey)
-					}
-					if cfg.maxRuns > 0 {
-						message += fmt.Sprintf(" Max concurrent batches per key: %d.", cfg.maxRuns)
-					}
-					waitingPayload.EventMessage = message
-					waitingPayload.EventPayload = buildBatchEventPayload(map[string]interface{}{
-						"status":   "flushed_immediately",
-						"batchId":  batchID,
-						"batchKey": batchKey,
-						"maxRuns":  cfg.maxRuns,
-					})
-				} else {
-					batchID := addResult.PendingBatchID
-					if batchID == "" {
-						batchID = "pending"
-					}
-
-					var builder strings.Builder
-					fmt.Fprintf(&builder, "Waiting for batch %s (%d/%d).", batchID, addResult.Pending, displayBatchSize)
-					if batchKey != "" {
-						fmt.Fprintf(&builder, " Batch key: %s.", batchKey)
-					}
-					fmt.Fprintf(&builder, " Flush when size reaches %d", displayBatchSize)
-
-					if cfg.flushInterval > 0 {
-						if addResult.NextFlushAt != nil {
-							fmt.Fprintf(&builder, " or at %s (interval %s)", addResult.NextFlushAt.UTC().Format(time.RFC3339), cfg.flushInterval)
-						} else {
-							fmt.Fprintf(&builder, " or after %s interval", cfg.flushInterval)
-						}
-					}
-
-					if cfg.maxRuns > 0 {
-						fmt.Fprintf(&builder, " Max concurrent batches per key: %d.", cfg.maxRuns)
-					}
-
-					builder.WriteString(".")
-					waitingPayload.EventMessage = builder.String()
-					waitingPayload.EventPayload = buildBatchEventPayload(map[string]interface{}{
-						"status":       "waiting_for_batch",
-						"batchId":      batchID,
-						"batchKey":     batchKey,
-						"pending":      addResult.Pending,
-						"expectedSize": displayBatchSize,
-						"maxRuns":      cfg.maxRuns,
-					})
-				}
-
-				msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, waitingPayload)
-				if err != nil {
-					outerErr = multierror.Append(outerErr, fmt.Errorf("could not create buffered assignment monitoring event: %w", err))
-				} else {
-					assignedMsgs = append(assignedMsgs, msg)
-				}
-
-				if s.batchCoordinator != nil {
-					bufferActive := addResult.Pending > 0
-					s.batchCoordinator.setBufferState(tenantId, stepId, batchKey, workerId, bufferActive)
-				}
-
-				// already handled via batch manager
-				continue
-			}
-
-			if assignment.buffered {
-				s.l.Warn().Str("step_id", stepId).Msg("buffered queue item encountered without batch configuration")
-			}
-
-			msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, payload)
-
-			if err != nil {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create monitoring event message: %w", err))
-				continue
-			}
-
-			assignedMsgs = append(assignedMsgs, msg)
-
-			if s.batchCoordinator != nil {
-				s.batchCoordinator.setBufferState(tenantId, stepId, batchKey, workerId, false)
 			}
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[string][]int64)
 			}
 
+			workerId := sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)
+
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
 			}
 
-			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], assignment.item.QueueItem.TaskID)
+			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
+
+			taskId := bulkAssigned.QueueItem.TaskID
+
+			assignedMsg, err := tasktypes.MonitoringEventMessageFromInternal(
+				tenantId,
+				tasktypes.CreateMonitoringEventPayload{
+					TaskId:         taskId,
+					RetryCount:     bulkAssigned.QueueItem.RetryCount,
+					WorkerId:       &workerId,
+					EventType:      sqlcv1.V1EventTypeOlapASSIGNED,
+					EventTimestamp: time.Now(),
+				},
+			)
+
+			if err != nil {
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create monitoring event message: %w", err))
+				continue
+			}
+
+			assignedMsgs = append(assignedMsgs, assignedMsg)
+		}
+
+		if len(batchAssignments) > 0 {
+			if err := s.handleBatchAssignments(ctx, tenantId, batchAssignments, workerIdToDispatcherId); err != nil {
+				outerErr = multierror.Append(outerErr, err)
+			}
 		}
 
 		// for each dispatcher, send a bulk assigned task
 		for dispatcherId, workerIdsToStepRuns := range dispatcherIdToWorkerIdsToStepRuns {
-			workerBatches := make(map[string][]tasktypes.TaskAssignedBatch, len(workerIdsToStepRuns))
-
-			for workerId, taskIds := range workerIdsToStepRuns {
-				for _, taskId := range taskIds {
-					workerBatches[workerId] = append(workerBatches[workerId], tasktypes.TaskAssignedBatch{
-						BatchID:   "",
-						BatchSize: 1,
-						TaskIds:   []int64{taskId},
-					})
-				}
-			}
-
-			msg, err := taskAssignedBatchMessage(tenantId, workerBatches)
+			msg, err := taskBulkAssignedTask(tenantId, workerIdsToStepRuns)
 
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create bulk assigned task: %w", err))
@@ -1024,6 +621,114 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 	return outerErr
 }
 
+func (s *Scheduler) emitBatchWaitingEvents(ctx context.Context, tenantId string, buffered []*repov1.AssignedItem) error {
+	payloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(buffered))
+
+	for _, item := range buffered {
+		if item == nil || item.QueueItem == nil || item.Batch == nil {
+			continue
+		}
+
+		queueItem := item.QueueItem
+		meta := item.Batch
+
+		pending := int(meta.Pending)
+		if pending <= 0 {
+			pending = 1
+		}
+
+		expected := int(meta.ConfiguredBatchSize)
+		if expected <= 0 {
+			expected = pending
+		}
+
+		var builder strings.Builder
+		fmt.Fprintf(&builder, "Waiting for batch (%d/%d).", pending, expected)
+
+		batchKey := ""
+		if queueItem.BatchKey.Valid {
+			batchKey = strings.TrimSpace(queueItem.BatchKey.String)
+			if batchKey != "" {
+				fmt.Fprintf(&builder, " Batch key: %s.", batchKey)
+			}
+		}
+
+		if meta.ConfiguredFlushIntervalMs > 0 {
+			interval := time.Duration(meta.ConfiguredFlushIntervalMs) * time.Millisecond
+			if meta.NextFlushAt != nil {
+				fmt.Fprintf(&builder, " Flush at %s (interval %s).", meta.NextFlushAt.UTC().Format(time.RFC3339), interval)
+			} else {
+				fmt.Fprintf(&builder, " Flush after %s interval.", interval)
+			}
+		}
+
+		if meta.MaxRuns > 0 {
+			fmt.Fprintf(&builder, " Max concurrent batches per key: %d.", meta.MaxRuns)
+		}
+
+		if meta.Reason != "" {
+			fmt.Fprintf(&builder, " Reason: %s.", meta.Reason)
+		}
+
+		eventPayload := map[string]interface{}{
+			"status":       "waiting_for_batch",
+			"batchKey":     batchKey,
+			"pending":      pending,
+			"expectedSize": expected,
+			"maxRuns":      meta.MaxRuns,
+		}
+
+		if meta.NextFlushAt != nil {
+			eventPayload["nextFlushAt"] = meta.NextFlushAt.UTC().Format(time.RFC3339)
+		}
+
+		if meta.ConfiguredFlushIntervalMs > 0 {
+			eventPayload["flushIntervalMs"] = meta.ConfiguredFlushIntervalMs
+		}
+
+		if queueItem.StepID.Valid {
+			eventPayload["stepId"] = sqlchelpers.UUIDToStr(queueItem.StepID)
+		}
+
+		if item.Batch != nil && item.Batch.ActionID != "" {
+			eventPayload["actionId"] = item.Batch.ActionID
+		} else if queueItem.ActionID != "" {
+			eventPayload["actionId"] = queueItem.ActionID
+		}
+
+		payloads = append(payloads, tasktypes.CreateMonitoringEventPayload{
+			TaskId:         queueItem.TaskID,
+			RetryCount:     queueItem.RetryCount,
+			EventType:      eventTypeWaitingForBatch,
+			EventTimestamp: meta.TriggeredAt,
+			EventMessage:   builder.String(),
+			EventPayload:   buildBatchEventPayload(eventPayload),
+		})
+	}
+
+	if len(payloads) == 0 {
+		return nil
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		"create-monitoring-event",
+		false,
+		true,
+		payloads...,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create waiting-for-batch monitoring events: %w", err)
+	}
+
+	if err := s.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+		return fmt.Errorf("could not send waiting-for-batch monitoring events: %w", err)
+	}
+
+	return nil
+}
+
 func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*repov1.AssignedItem) {
 	for _, a := range assigned {
 		msg, err := tasktypes.FailedTaskMessage(
@@ -1128,6 +833,428 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 	}
 }
 
+func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string, assignments []*repov1.AssignedItem, workerIdToDispatcherId map[string]string) error {
+	if len(assignments) == 0 {
+		return nil
+	}
+
+	type batchGroupKey struct {
+		WorkerID string
+		StepID   string
+		ActionID string
+		BatchKey string
+	}
+
+	groups := make(map[batchGroupKey][]*repov1.AssignedItem)
+
+	for _, assignment := range assignments {
+		if assignment == nil || assignment.QueueItem == nil {
+			continue
+		}
+
+		workerID := sqlchelpers.UUIDToStr(assignment.WorkerId)
+		stepID := sqlchelpers.UUIDToStr(assignment.QueueItem.StepID)
+		actionID := assignment.QueueItem.ActionID
+		batchKey := ""
+		if assignment.QueueItem.BatchKey.Valid {
+			batchKey = strings.TrimSpace(assignment.QueueItem.BatchKey.String)
+		}
+
+		if meta := assignment.Batch; meta != nil {
+			if meta.StepID != "" {
+				stepID = meta.StepID
+			}
+			if meta.ActionID != "" {
+				actionID = meta.ActionID
+			}
+			if strings.TrimSpace(meta.BatchKey) != "" {
+				batchKey = strings.TrimSpace(meta.BatchKey)
+			}
+		}
+
+		key := batchGroupKey{
+			WorkerID: workerID,
+			StepID:   stepID,
+			ActionID: actionID,
+			BatchKey: batchKey,
+		}
+
+		groups[key] = append(groups[key], assignment)
+	}
+
+	var result error
+
+	for key, group := range groups {
+		if len(group) == 0 {
+			continue
+		}
+
+		// FIXME: It is not clear why we're ending up in this state, but we should investigate why and fix it.
+		// Deduplicate tasks within a batch group by (task_id, task_inserted_at).
+		// In some edge cases we can end up with multiple AssignedItems that
+		// reference the same underlying task, which would cause duplicate
+		// batch indexes on the worker side.
+		type taskKey struct {
+			id         int64
+			insertedAt time.Time
+		}
+
+		seen := make(map[taskKey]bool, len(group))
+		dedupedGroup := make([]*repov1.AssignedItem, 0, len(group))
+
+		for _, item := range group {
+			if item == nil || item.QueueItem == nil || !item.QueueItem.TaskInsertedAt.Valid {
+				continue
+			}
+
+			k := taskKey{
+				id:         item.QueueItem.TaskID,
+				insertedAt: item.QueueItem.TaskInsertedAt.Time,
+			}
+
+			if seen[k] {
+				s.l.Warn().
+					Int64("task_id", item.QueueItem.TaskID).
+					Str("step_id", sqlchelpers.UUIDToStr(item.QueueItem.StepID)).
+					Str("action_id", item.QueueItem.ActionID).
+					Str("batch_key", key.BatchKey).
+					Msg("skipping duplicate task in batch dispatcher group")
+				continue
+			}
+
+			seen[k] = true
+			dedupedGroup = append(dedupedGroup, item)
+		}
+
+		s.l.Debug().
+			Str("tenant_id", tenantId).
+			Str("worker_id", key.WorkerID).
+			Str("step_id", key.StepID).
+			Str("action_id", key.ActionID).
+			Str("batch_key", key.BatchKey).
+			Int("original_group_size", len(group)).
+			Int("deduped_group_size", len(dedupedGroup)).
+			Msg("prepared batch dispatcher group")
+
+		group = dedupedGroup
+
+		if len(group) == 0 {
+			continue
+		}
+
+		meta := group[0].Batch
+		if meta == nil {
+			meta = &repov1.BatchAssignmentMetadata{}
+		}
+
+		batchID := strings.TrimSpace(meta.BatchID)
+		if batchID == "" {
+			batchID = uuid.NewString()
+		}
+
+		shouldRelease := meta.MaxRuns > 0 && strings.TrimSpace(key.BatchKey) != "" && batchID != ""
+		releaseOnError := func() {
+			if !shouldRelease {
+				return
+			}
+
+			if err := s.repov1.Tasks().CompleteTaskBatchRun(ctx, tenantId, batchID); err != nil {
+				s.l.Error().
+					Err(err).
+					Str("tenant_id", tenantId).
+					Str("batch_id", batchID).
+					Msg("failed to release batch reservation after error")
+			}
+		}
+
+		dispatcherID, ok := workerIdToDispatcherId[key.WorkerID]
+		if !ok {
+			s.internalRetry(ctx, tenantId, group...)
+			releaseOnError()
+			result = multierror.Append(result, fmt.Errorf("could not assign batch to worker %s: dispatcher id missing", key.WorkerID))
+			continue
+		}
+
+		triggeredAt := meta.TriggeredAt
+		if triggeredAt.IsZero() {
+			triggeredAt = time.Now().UTC()
+		}
+
+		batchSize := len(group)
+		configuredSize := int(meta.ConfiguredBatchSize)
+		if configuredSize <= 0 {
+			configuredSize = batchSize
+		}
+
+		flushReason := describeBatchFlushReason(meta.Reason, configuredSize, time.Duration(meta.ConfiguredFlushIntervalMs)*time.Millisecond)
+
+		assignmentsPayload := make([]repov1.TaskBatchAssignment, 0, len(group))
+		taskIds := make([]int64, 0, len(group))
+
+		for idx, item := range group {
+			if item == nil || item.QueueItem == nil || !item.QueueItem.TaskInsertedAt.Valid {
+				continue
+			}
+
+			assignmentsPayload = append(assignmentsPayload, repov1.TaskBatchAssignment{
+				TaskID:         item.QueueItem.TaskID,
+				TaskInsertedAt: item.QueueItem.TaskInsertedAt.Time,
+				BatchIndex:     idx,
+			})
+
+			taskIds = append(taskIds, item.QueueItem.TaskID)
+		}
+
+		if len(assignmentsPayload) == 0 {
+			releaseOnError()
+			continue
+		}
+		if err := s.repov1.Tasks().UpdateTaskBatchMetadata(ctx, tenantId, batchID, key.WorkerID, key.BatchKey, batchSize, assignmentsPayload); err != nil {
+			s.internalRetry(ctx, tenantId, group...)
+			releaseOnError()
+			result = multierror.Append(result, fmt.Errorf("could not persist batch metadata: %w", err))
+			continue
+		}
+
+		startPayload := tasktypes.StartBatchTaskPayload{
+			TenantId:      tenantId,
+			WorkerId:      key.WorkerID,
+			ActionId:      key.ActionID,
+			BatchId:       batchID,
+			ExpectedSize:  batchSize,
+			BatchKey:      key.BatchKey,
+			TriggerReason: flushReason,
+			TriggerTime:   triggeredAt,
+		}
+
+		if meta.MaxRuns > 0 {
+			maxRuns := int(meta.MaxRuns)
+			startPayload.MaxRuns = &maxRuns
+		}
+
+		startMsg, err := tasktypes.StartBatchMessage(tenantId, startPayload)
+		if err != nil {
+			s.internalRetry(ctx, tenantId, group...)
+			releaseOnError()
+			result = multierror.Append(result, fmt.Errorf("could not create batch start message: %w", err))
+			continue
+		}
+
+		if err := s.mq.SendMessage(ctx, msgqueue.QueueTypeFromDispatcherID(dispatcherID), startMsg); err != nil {
+			s.internalRetry(ctx, tenantId, group...)
+			releaseOnError()
+			result = multierror.Append(result, fmt.Errorf("could not send batch start message: %w", err))
+			continue
+		}
+
+		workerBatches := map[string][]tasktypes.TaskAssignedBatch{
+			key.WorkerID: {
+				{
+					BatchID:   batchID,
+					BatchSize: batchSize,
+					TaskIds:   taskIds,
+				},
+			},
+		}
+
+		assignedMsg, err := taskAssignedBatchMessage(tenantId, workerBatches)
+		if err != nil {
+			s.internalRetry(ctx, tenantId, group...)
+			releaseOnError()
+			result = multierror.Append(result, fmt.Errorf("could not create bulk assigned batch message: %w", err))
+			continue
+		}
+
+		if err := s.mq.SendMessage(ctx, msgqueue.QueueTypeFromDispatcherID(dispatcherID), assignedMsg); err != nil {
+			s.internalRetry(ctx, tenantId, group...)
+			releaseOnError()
+			result = multierror.Append(result, fmt.Errorf("could not send bulk assigned batch message: %w", err))
+			continue
+		}
+
+		batchMessage := fmt.Sprintf(
+			"Batch %s flushed (%d/%d tasks) at %s because %s.",
+			batchID,
+			batchSize,
+			configuredSize,
+			triggeredAt.UTC().Format(time.RFC3339),
+			flushReason,
+		)
+
+		if key.BatchKey != "" {
+			batchMessage += fmt.Sprintf(" Batch key: %s.", key.BatchKey)
+		}
+
+		if meta.MaxRuns > 0 {
+			batchMessage += fmt.Sprintf(" Max concurrent batches per key: %d.", meta.MaxRuns)
+		}
+
+		if meta.ConfiguredFlushIntervalMs > 0 {
+			interval := time.Duration(meta.ConfiguredFlushIntervalMs) * time.Millisecond
+			batchMessage += fmt.Sprintf(" Configured flush interval: %s.", interval)
+		}
+
+		batchPayloadFields := map[string]interface{}{
+			"status":         "flushed",
+			"batchId":        batchID,
+			"batchKey":       key.BatchKey,
+			"batchSize":      batchSize,
+			"configuredSize": configuredSize,
+			"triggerReason":  flushReason,
+			"triggeredAt":    triggeredAt.UTC().Format(time.RFC3339),
+			"maxRuns":        meta.MaxRuns,
+		}
+
+		if key.StepID != "" {
+			batchPayloadFields["stepId"] = key.StepID
+		}
+
+		if meta.ActionID != "" {
+			batchPayloadFields["actionId"] = meta.ActionID
+		} else if key.ActionID != "" {
+			batchPayloadFields["actionId"] = key.ActionID
+		}
+
+		if meta.ConfiguredFlushIntervalMs > 0 {
+			batchPayloadFields["flushIntervalMs"] = meta.ConfiguredFlushIntervalMs
+		}
+
+		batchPayload := buildBatchEventPayload(batchPayloadFields)
+
+		workerPtr := &key.WorkerID
+		if key.WorkerID == "" {
+			workerPtr = nil
+		}
+
+		monitoringPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(group))
+		for _, item := range group {
+			if item == nil || item.QueueItem == nil {
+				continue
+			}
+
+			monitoringPayloads = append(monitoringPayloads, tasktypes.CreateMonitoringEventPayload{
+				TaskId:         item.QueueItem.TaskID,
+				RetryCount:     item.QueueItem.RetryCount,
+				WorkerId:       workerPtr,
+				EventType:      eventTypeBatchFlushed,
+				EventTimestamp: triggeredAt,
+				EventMessage:   batchMessage,
+				EventPayload:   batchPayload,
+			})
+		}
+
+		if len(monitoringPayloads) > 0 {
+			flushMsg, err := msgqueue.NewTenantMessage(
+				tenantId,
+				"create-monitoring-event",
+				false,
+				true,
+				monitoringPayloads...,
+			)
+
+			if err != nil {
+				result = multierror.Append(result, fmt.Errorf("could not create batch flushed monitoring events: %w", err))
+			} else if err := s.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, flushMsg, false); err != nil {
+				result = multierror.Append(result, fmt.Errorf("could not send batch flushed monitoring events: %w", err))
+			}
+		}
+	}
+
+	return result
+}
+
+func describeBatchFlushReason(reason string, batchSize int, interval time.Duration) string {
+	switch reason {
+	case "batch_size_reached":
+		if batchSize > 0 {
+			return fmt.Sprintf("batch size threshold %d reached", batchSize)
+		}
+		return "batch size threshold reached"
+	case "worker_changed":
+		return "assigned worker changed"
+	case "dispatcher_changed":
+		return "dispatcher changed"
+	case "interval_elapsed":
+		if interval > 0 {
+			return fmt.Sprintf("flush interval %s elapsed", interval)
+		}
+		return "flush interval elapsed"
+	case "buffer_drained":
+		return "buffer drained during shutdown"
+	default:
+		return reason
+	}
+}
+
+func taskAssignedBatchMessage(tenantId string, workerBatches map[string][]tasktypes.TaskAssignedBatch) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		"task-assigned-bulk",
+		false,
+		true,
+		tasktypes.TaskAssignedBulkTaskPayload{
+			WorkerBatches: workerBatches,
+		},
+	)
+}
+
+func taskBulkAssignedTask(tenantId string, workerIdsToTaskIds map[string][]int64) (*msgqueue.Message, error) {
+	workerBatches := make(map[string][]tasktypes.TaskAssignedBatch, len(workerIdsToTaskIds))
+
+	for workerId, taskIds := range workerIdsToTaskIds {
+		if len(taskIds) == 0 {
+			continue
+		}
+
+		copied := make([]int64, len(taskIds))
+		copy(copied, taskIds)
+
+		workerBatches[workerId] = append(workerBatches[workerId], tasktypes.TaskAssignedBatch{
+			BatchID:   "",
+			BatchSize: len(copied),
+			TaskIds:   copied,
+		})
+	}
+
+	return taskAssignedBatchMessage(tenantId, workerBatches)
+}
+
+func buildBatchEventPayload(fields map[string]interface{}) string {
+	data := make(map[string]interface{}, len(fields))
+
+	for key, value := range fields {
+		switch v := value.(type) {
+		case string:
+			if v != "" {
+				data[key] = v
+			}
+		case int, int32, int64:
+			if fmt.Sprintf("%v", v) != "0" {
+				data[key] = v
+			}
+		case float32, float64:
+			if fmt.Sprintf("%v", v) != "0" {
+				data[key] = v
+			}
+		default:
+			if value != nil {
+				data[key] = value
+			}
+		}
+	}
+
+	if len(data) == 0 {
+		return ""
+	}
+
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return ""
+	}
+
+	return string(bytes)
+}
+
 func (s *Scheduler) handleDeadLetteredMessages(msg *msgqueue.Message) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1154,359 +1281,16 @@ func (s *Scheduler) handleDeadLetteredMessages(msg *msgqueue.Message) (err error
 	return err
 }
 
-func taskAssignedBatchMessage(tenantId string, workerBatches map[string][]tasktypes.TaskAssignedBatch) (*msgqueue.Message, error) {
-	return msgqueue.NewTenantMessage(
-		tenantId,
-		"task-assigned-bulk",
-		false,
-		true,
-		tasktypes.TaskAssignedBulkTaskPayload{
-			WorkerBatches: workerBatches,
-		},
-	)
-}
-
-func buildBatchEventPayload(fields map[string]interface{}) string {
-	data := make(map[string]interface{}, len(fields))
-
-	for key, value := range fields {
-		switch v := value.(type) {
-		case string:
-			if v != "" {
-				data[key] = v
-			}
-		case int:
-			if v != 0 {
-				data[key] = v
-			}
-		case int64:
-			if v != 0 {
-				data[key] = v
-			}
-		case float64:
-			if v != 0 {
-				data[key] = v
-			}
-		default:
-			if value != nil {
-				data[key] = value
-			}
-		}
-	}
-
-	if len(data) == 0 {
-		return ""
-	}
-
-	bytes, err := json.Marshal(data)
-	if err != nil {
-		return ""
-	}
-
-	return string(bytes)
-}
-
-func (s *Scheduler) getBatchConfig(ctx context.Context, tenantId string, stepId string) (*batchConfig, error) {
-	if s.batchConfigs != nil {
-		if cached, ok := s.batchConfigs.Get(stepId); ok {
-			if cached == nil {
-				return nil, nil
-			}
-
-			copied := *cached
-			return &copied, nil
-		}
-	}
-
-	configs, err := s.repov1.Workflows().ListStepBatchConfigs(ctx, tenantId, []string{stepId})
-
-	if err != nil {
-		return nil, err
-	}
-
-	cfg, ok := configs[stepId]
-
-	if !ok || cfg == nil {
-		if s.batchConfigs != nil {
-			s.batchConfigs.Set(stepId, nil, batchConfigCacheTTL)
-		}
-		return nil, nil
-	}
-
-	converted := &batchConfig{
-		batchSize: int(cfg.BatchSize),
-	}
-
-	if cfg.FlushIntervalMs != nil && *cfg.FlushIntervalMs > 0 {
-		converted.flushInterval = time.Duration(*cfg.FlushIntervalMs) * time.Millisecond
-	}
-
-	if cfg.MaxRuns != nil && *cfg.MaxRuns > 0 {
-		converted.maxRuns = int(*cfg.MaxRuns)
-	}
-
-	if s.batchConfigs != nil {
-		s.batchConfigs.Set(stepId, converted, batchConfigCacheTTL)
-	}
-
-	copied := *converted
-
-	return &copied, nil
-}
-
-func (s *Scheduler) shouldFlushBatch(ctx context.Context, req *batchFlushRequest) (bool, error) {
-	switch req.FlushReason {
-	case flushReasonWorkerChanged, flushReasonDispatcherChanged, flushReasonBufferDrained:
-		return true, nil
-	}
-
-	if req.BatchKey == "" || req.StepID == "" || req.MaxRuns <= 0 {
-		return true, nil
-	}
-
-	reserved, err := s.repov1.Tasks().ReserveTaskBatchRun(
-		ctx,
-		req.TenantID,
-		req.StepID,
-		req.ActionID,
-		req.BatchKey,
-		req.BatchID,
-		req.MaxRuns,
-	)
-
-	if err != nil {
-		return false, err
-	}
-
-	return reserved, nil
-}
-
-func (s *Scheduler) batchFlush(ctx context.Context, req *batchFlushRequest) (err error) {
-	if req == nil || len(req.Items) == 0 {
-		return nil
-	}
-
-	reserved := req.BatchKey != "" && req.MaxRuns > 0
-
-	defer func() {
-		if err != nil && reserved {
-			if completeErr := s.repov1.Tasks().CompleteTaskBatchRun(ctx, req.TenantID, req.BatchID); completeErr != nil {
-				s.l.Error().Err(completeErr).Str("tenant_id", req.TenantID).Str("batch_id", req.BatchID).Msg("failed to release reserved batch run after error")
-			}
-		}
-	}()
-
-	assignments := make([]repov1.TaskBatchAssignment, 0, len(req.Items))
-	taskIds := make([]int64, 0, len(req.Items))
-	var actionID string
-
-	for _, assigned := range req.Items {
-		if assigned == nil || assigned.QueueItem == nil || !assigned.QueueItem.TaskInsertedAt.Valid {
-			continue
-		}
-
-		assignments = append(assignments, repov1.TaskBatchAssignment{
-			TaskID:         assigned.QueueItem.TaskID,
-			TaskInsertedAt: assigned.QueueItem.TaskInsertedAt.Time,
-			BatchIndex:     len(assignments),
-		})
-		taskIds = append(taskIds, assigned.QueueItem.TaskID)
-
-		if actionID == "" && assigned.QueueItem.ActionID != "" {
-			actionID = assigned.QueueItem.ActionID
-		}
-	}
-
-	if len(assignments) == 0 {
-		return nil
-	}
-
-	batchSize := len(assignments)
-
-	if actionID == "" {
-		return fmt.Errorf("batch flush missing action id for batch %s", req.BatchID)
-	}
-
-	triggeredAt := req.TriggeredAt
-	if triggeredAt.IsZero() {
-		triggeredAt = time.Now().UTC()
-	}
-
-	reasonText := describeFlushReason(req.FlushReason, req.ConfiguredBatchSize, req.ConfiguredFlushInterval)
-
-	if err := s.repov1.Tasks().UpdateTaskBatchMetadata(ctx, req.TenantID, req.BatchID, req.WorkerID, req.BatchKey, batchSize, assignments); err != nil {
-		s.internalRetry(ctx, req.TenantID, req.Items...)
-
-		return fmt.Errorf("could not persist batch metadata: %w", err)
-	}
-
-	startPayload := tasktypes.StartBatchTaskPayload{
-		TenantId:      req.TenantID,
-		WorkerId:      req.WorkerID,
-		ActionId:      actionID,
-		BatchId:       req.BatchID,
-		ExpectedSize:  batchSize,
-		BatchKey:      req.BatchKey,
-		TriggerReason: reasonText,
-		TriggerTime:   triggeredAt,
-	}
-
-	if req.MaxRuns > 0 {
-		maxRuns := req.MaxRuns
-		startPayload.MaxRuns = &maxRuns
-	}
-
-	startMsg, err := tasktypes.StartBatchMessage(req.TenantID, startPayload)
-
-	if err != nil {
-		s.internalRetry(ctx, req.TenantID, req.Items...)
-
-		return fmt.Errorf("could not create batch start message: %w", err)
-	}
-
-	if err := s.mq.SendMessage(
-		ctx,
-		msgqueue.QueueTypeFromDispatcherID(req.DispatcherID),
-		startMsg,
-	); err != nil {
-		s.internalRetry(ctx, req.TenantID, req.Items...)
-
-		return fmt.Errorf("could not send batch start message: %w", err)
-	}
-
-	workerBatches := map[string][]tasktypes.TaskAssignedBatch{
-		req.WorkerID: {
-			{
-				BatchID:   req.BatchID,
-				BatchSize: batchSize,
-				TaskIds:   taskIds,
-			},
-		},
-	}
-
-	msg, err := taskAssignedBatchMessage(req.TenantID, workerBatches)
-
-	if err != nil {
-		s.internalRetry(ctx, req.TenantID, req.Items...)
-
-		return fmt.Errorf("could not create bulk assigned task message: %w", err)
-	}
-
-	err = s.mq.SendMessage(
-		ctx,
-		msgqueue.QueueTypeFromDispatcherID(req.DispatcherID),
-		msg,
-	)
-
-	if err != nil {
-		s.internalRetry(ctx, req.TenantID, req.Items...)
-
-		return fmt.Errorf("could not send bulk assigned task: %w", err)
-	}
-
-	var workerIdPtr *string
-
-	if req.WorkerID != "" {
-		id := req.WorkerID
-		workerIdPtr = &id
-	}
-
-	keyDisplay := req.BatchKey
-	if strings.TrimSpace(keyDisplay) == "" {
-		keyDisplay = "(none)"
-	}
-
-	batchMessage := fmt.Sprintf(
-		"Batch %s flushed (%d tasks) at %s because %s.",
-		req.BatchID,
-		batchSize,
-		triggeredAt.UTC().Format(time.RFC3339),
-		reasonText,
-	)
-
-	batchMessage += fmt.Sprintf(" Batch key: %s.", keyDisplay)
-
-	if req.MaxRuns > 0 {
-		batchMessage += fmt.Sprintf(" Max concurrent batches per key: %d.", req.MaxRuns)
-	}
-	batchPayload := buildBatchEventPayload(map[string]interface{}{
-		"status":        "flushed",
-		"batchId":       req.BatchID,
-		"batchKey":      req.BatchKey,
-		"batchSize":     batchSize,
-		"expectedSize":  req.ConfiguredBatchSize,
-		"triggerReason": reasonText,
-		"triggeredAt":   triggeredAt.UTC().Format(time.RFC3339),
-		"maxRuns":       req.MaxRuns,
-	})
-	monitoringPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(assignments))
-
-	for _, assigned := range req.Items {
-		if assigned == nil || assigned.QueueItem == nil {
-			continue
-		}
-
-		monitoringPayloads = append(monitoringPayloads, tasktypes.CreateMonitoringEventPayload{
-			TaskId:         assigned.QueueItem.TaskID,
-			RetryCount:     assigned.QueueItem.RetryCount,
-			WorkerId:       workerIdPtr,
-			EventType:      eventTypeBatchFlushed,
-			EventTimestamp: triggeredAt,
-			EventMessage:   batchMessage,
-			EventPayload:   batchPayload,
-		})
-	}
-
-	if len(monitoringPayloads) > 0 {
-		flushMsg, err := msgqueue.NewTenantMessage(
-			req.TenantID,
-			"create-monitoring-event",
-			false,
-			true,
-			monitoringPayloads...,
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not create batch flushed monitoring events: %w", err)
-		}
-
-		if err := s.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, flushMsg, false); err != nil {
-			return fmt.Errorf("could not send batch flushed monitoring events: %w", err)
-		}
-	}
-
-	if s.batchCoordinator != nil && len(req.Items) > 0 {
-		stepID := ""
-
-		for _, item := range req.Items {
-			if item != nil && item.QueueItem != nil {
-				stepID = sqlchelpers.UUIDToStr(item.QueueItem.StepID)
-				break
-			}
-		}
-
-		if stepID != "" {
-			s.batchCoordinator.setBufferState(req.TenantID, stepID, req.BatchKey, req.WorkerID, false)
-		}
-	}
-
-	return nil
-}
-
 func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg *msgqueue.Message) error {
 	msgs := msgqueue.JSONConvert[tasktypes.TaskAssignedBulkTaskPayload](msg.Payloads)
 
 	taskIds := make([]int64, 0)
 
 	for _, innerMsg := range msgs {
-		for _, workerBatches := range innerMsg.WorkerBatches {
-			for _, taskBatch := range workerBatches {
-				if len(taskBatch.TaskIds) == 0 {
-					continue
-				}
-
-				s.l.Error().Msgf("handling dead-lettered task assignments for tenant %s, tasks: %v. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, taskBatch.TaskIds)
-				taskIds = append(taskIds, taskBatch.TaskIds...)
+		for workerID, batches := range innerMsg.WorkerBatches {
+			for _, batch := range batches {
+				s.l.Error().Msgf("handling dead-lettered task assignments for tenant %s, worker %s, batch %s tasks: %v. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, workerID, batch.BatchID, batch.TaskIds)
+				taskIds = append(taskIds, batch.TaskIds...)
 			}
 		}
 	}

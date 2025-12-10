@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -32,14 +33,18 @@ type LeaseManager struct {
 	concurrencyLeases   []*sqlcv1.Lease
 	concurrencyLeasesCh chan<- []*sqlcv1.V1StepConcurrency
 
+	batchLeases []*sqlcv1.Lease
+	batchesCh   chan<- []*sqlcv1.ListDistinctBatchResourcesRow
+
 	cleanedUp bool
 	processMu sync.Mutex
 }
 
-func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []*v1.ListActiveWorkersResult, <-chan []string, <-chan []*sqlcv1.V1StepConcurrency) {
+func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []*v1.ListActiveWorkersResult, <-chan []string, <-chan []*sqlcv1.V1StepConcurrency, <-chan []*sqlcv1.ListDistinctBatchResourcesRow) {
 	workersCh := make(chan []*v1.ListActiveWorkersResult)
 	queuesCh := make(chan []string)
 	concurrencyLeasesCh := make(chan []*sqlcv1.V1StepConcurrency)
+	batchesCh := make(chan []*sqlcv1.ListDistinctBatchResourcesRow)
 
 	return &LeaseManager{
 		lr:                  conf.repo.Lease(),
@@ -48,7 +53,8 @@ func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <
 		workersCh:           workersCh,
 		queuesCh:            queuesCh,
 		concurrencyLeasesCh: concurrencyLeasesCh,
-	}, workersCh, queuesCh, concurrencyLeasesCh
+		batchesCh:           batchesCh,
+	}, workersCh, queuesCh, concurrencyLeasesCh, batchesCh
 }
 
 func (l *LeaseManager) sendWorkerIds(workerIds []*v1.ListActiveWorkersResult) {
@@ -101,6 +107,23 @@ func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepC
 
 	select {
 	case l.concurrencyLeasesCh <- concurrencyLeases:
+	default:
+	}
+}
+
+func (l *LeaseManager) sendBatches(batches []*sqlcv1.ListDistinctBatchResourcesRow) {
+	defer func() {
+		if r := recover(); r != nil {
+			l.conf.l.Error().Interface("recovered", r).Msg("recovered from panic")
+		}
+	}()
+
+	if l.cleanedUp {
+		return
+	}
+
+	select {
+	case l.batchesCh <- batches:
 	default:
 	}
 }
@@ -286,6 +309,74 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 	return nil
 }
 
+func (l *LeaseManager) acquireBatchLeases(ctx context.Context) error {
+	batchRepo := l.conf.repo.BatchQueue().NewBatchQueue(l.tenantId)
+
+	resources, err := batchRepo.ListBatchResources(ctx)
+	if err != nil {
+		return err
+	}
+
+	currResourceIdsToLease := make(map[string]*sqlcv1.Lease, len(l.batchLeases))
+
+	for _, lease := range l.batchLeases {
+		currResourceIdsToLease[lease.ResourceId] = lease
+	}
+
+	resourceIdToRow := make(map[string]*sqlcv1.ListDistinctBatchResourcesRow, len(resources))
+	resourceIds := make([]string, 0, len(resources))
+	leasesToExtend := make([]*sqlcv1.Lease, 0, len(resources))
+	leasesToRelease := make([]*sqlcv1.Lease, 0, len(currResourceIdsToLease))
+
+	for _, row := range resources {
+		if row == nil || row.BatchKey == "" {
+			continue
+		}
+
+		resourceId := fmt.Sprintf("%s:%s", sqlchelpers.UUIDToStr(row.StepID), row.BatchKey)
+		resourceIdToRow[resourceId] = row
+		resourceIds = append(resourceIds, resourceId)
+
+		if lease, ok := currResourceIdsToLease[resourceId]; ok {
+			leasesToExtend = append(leasesToExtend, lease)
+			delete(currResourceIdsToLease, resourceId)
+		}
+	}
+
+	for _, lease := range currResourceIdsToLease {
+		leasesToRelease = append(leasesToRelease, lease)
+	}
+
+	successfullyAcquired := make([]*sqlcv1.ListDistinctBatchResourcesRow, 0, len(resourceIds))
+
+	if len(resourceIds) != 0 {
+		batchLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindBATCH, resourceIds, leasesToExtend)
+		if err != nil {
+			return err
+		}
+
+		l.batchLeases = batchLeases
+
+		for _, lease := range batchLeases {
+			if row, ok := resourceIdToRow[lease.ResourceId]; ok {
+				successfullyAcquired = append(successfullyAcquired, row)
+			}
+		}
+	} else {
+		l.batchLeases = nil
+	}
+
+	l.sendBatches(successfullyAcquired)
+
+	if len(leasesToRelease) != 0 {
+		if err := l.lr.ReleaseLeases(ctx, l.tenantId, leasesToRelease); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // loopForLeases acquires new leases every 1 second for workers and queues
 func (l *LeaseManager) loopForLeases(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
@@ -303,7 +394,7 @@ func (l *LeaseManager) loopForLeases(ctx context.Context) {
 
 			wg := sync.WaitGroup{}
 
-			wg.Add(3)
+			wg.Add(4)
 
 			go func() {
 				defer wg.Done()
@@ -326,6 +417,14 @@ func (l *LeaseManager) loopForLeases(ctx context.Context) {
 
 				if err := l.acquireConcurrencyLeases(loopCtx); err != nil {
 					l.conf.l.Error().Err(err).Msg("error acquiring concurrency leases")
+				}
+			}()
+
+			go func() {
+				defer wg.Done()
+
+				if err := l.acquireBatchLeases(loopCtx); err != nil {
+					l.conf.l.Error().Err(err).Msg("error acquiring batch leases")
 				}
 			}()
 
@@ -362,6 +461,10 @@ func (l *LeaseManager) cleanup(ctx context.Context) error {
 		return l.lr.ReleaseLeases(ctx, l.tenantId, l.concurrencyLeases)
 	})
 
+	eg.Go(func() error {
+		return l.lr.ReleaseLeases(ctx, l.tenantId, l.batchLeases)
+	})
+
 	if err := eg.Wait(); err != nil {
 		return err
 	}
@@ -370,6 +473,7 @@ func (l *LeaseManager) cleanup(ctx context.Context) error {
 	close(l.workersCh)
 	close(l.queuesCh)
 	close(l.concurrencyLeasesCh)
+	close(l.batchesCh)
 
 	return nil
 }

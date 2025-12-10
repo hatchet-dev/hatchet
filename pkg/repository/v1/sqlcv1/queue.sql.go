@@ -127,6 +127,18 @@ func (q *Queries) CleanupV1RetryQueueItem(ctx context.Context, db DBTX, batchsiz
 	return db.Exec(ctx, cleanupV1RetryQueueItem, batchsize)
 }
 
+const deleteBatchedQueueItems = `-- name: DeleteBatchedQueueItems :exec
+DELETE FROM
+    v1_batched_queue_item
+WHERE
+    id = ANY($1::bigint[])
+`
+
+func (q *Queries) DeleteBatchedQueueItems(ctx context.Context, db DBTX, ids []int64) error {
+	_, err := db.Exec(ctx, deleteBatchedQueueItems, ids)
+	return err
+}
+
 const deleteTasksFromQueue = `-- name: DeleteTasksFromQueue :exec
 WITH input AS (
     SELECT
@@ -499,6 +511,256 @@ func (q *Queries) ListAvailableSlotsForWorkers(ctx context.Context, db DBTX, arg
 	return items, nil
 }
 
+const listBatchedQueueItemsForBatch = `-- name: ListBatchedQueueItemsForBatch :many
+SELECT
+    id,
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    batch_key,
+    inserted_at
+FROM
+    v1_batched_queue_item
+WHERE
+    tenant_id = $1::uuid
+    AND step_id = $2::uuid
+    AND batch_key = $3::text
+    AND (
+        $4::bigint IS NULL
+        OR id > $4::bigint
+    )
+ORDER BY
+    priority DESC,
+    id ASC
+LIMIT
+    COALESCE($5::integer, 1000)
+`
+
+type ListBatchedQueueItemsForBatchParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Stepid   pgtype.UUID `json:"stepid"`
+	Batchkey string      `json:"batchkey"`
+	AfterId  pgtype.Int8 `json:"afterId"`
+	Limit    pgtype.Int4 `json:"limit"`
+}
+
+func (q *Queries) ListBatchedQueueItemsForBatch(ctx context.Context, db DBTX, arg ListBatchedQueueItemsForBatchParams) ([]*V1BatchedQueueItem, error) {
+	rows, err := db.Query(ctx, listBatchedQueueItemsForBatch,
+		arg.Tenantid,
+		arg.Stepid,
+		arg.Batchkey,
+		arg.AfterId,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1BatchedQueueItem
+	for rows.Next() {
+		var i V1BatchedQueueItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Queue,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.ExternalID,
+			&i.ActionID,
+			&i.StepID,
+			&i.WorkflowID,
+			&i.WorkflowRunID,
+			&i.ScheduleTimeoutAt,
+			&i.StepTimeout,
+			&i.Priority,
+			&i.Sticky,
+			&i.DesiredWorkerID,
+			&i.RetryCount,
+			&i.BatchKey,
+			&i.InsertedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBatchedQueueItemsToTimeout = `-- name: ListBatchedQueueItemsToTimeout :many
+SELECT
+    bqi.id,
+    bqi.tenant_id,
+    bqi.queue,
+    bqi.task_id,
+    bqi.task_inserted_at,
+    bqi.external_id,
+    bqi.action_id,
+    bqi.step_id,
+    bqi.workflow_id,
+    bqi.workflow_run_id,
+    bqi.schedule_timeout_at,
+    bqi.step_timeout,
+    bqi.priority,
+    bqi.sticky,
+    bqi.desired_worker_id,
+    bqi.retry_count,
+    bqi.batch_key
+FROM
+    v1_batched_queue_item bqi
+LEFT JOIN
+    v1_task_runtime tr ON (
+        tr.task_id = bqi.task_id
+        AND tr.task_inserted_at = bqi.task_inserted_at
+        AND tr.retry_count = bqi.retry_count
+    )
+WHERE
+    bqi.tenant_id = $1::uuid
+    AND bqi.schedule_timeout_at <= NOW()
+    AND tr.task_id IS NULL  -- Only timeout tasks that are NOT already running
+ORDER BY
+    bqi.id ASC
+LIMIT
+    COALESCE($2::integer, 1000)
+`
+
+type ListBatchedQueueItemsToTimeoutParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    pgtype.Int4 `json:"limit"`
+}
+
+type ListBatchedQueueItemsToTimeoutRow struct {
+	ID                int64              `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	Queue             string             `json:"queue"`
+	TaskID            int64              `json:"task_id"`
+	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
+	ExternalID        pgtype.UUID        `json:"external_id"`
+	ActionID          string             `json:"action_id"`
+	StepID            pgtype.UUID        `json:"step_id"`
+	WorkflowID        pgtype.UUID        `json:"workflow_id"`
+	WorkflowRunID     pgtype.UUID        `json:"workflow_run_id"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
+	StepTimeout       pgtype.Text        `json:"step_timeout"`
+	Priority          int32              `json:"priority"`
+	Sticky            V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID   pgtype.UUID        `json:"desired_worker_id"`
+	RetryCount        int32              `json:"retry_count"`
+	BatchKey          string             `json:"batch_key"`
+}
+
+func (q *Queries) ListBatchedQueueItemsToTimeout(ctx context.Context, db DBTX, arg ListBatchedQueueItemsToTimeoutParams) ([]*ListBatchedQueueItemsToTimeoutRow, error) {
+	rows, err := db.Query(ctx, listBatchedQueueItemsToTimeout, arg.Tenantid, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListBatchedQueueItemsToTimeoutRow
+	for rows.Next() {
+		var i ListBatchedQueueItemsToTimeoutRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Queue,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.ExternalID,
+			&i.ActionID,
+			&i.StepID,
+			&i.WorkflowID,
+			&i.WorkflowRunID,
+			&i.ScheduleTimeoutAt,
+			&i.StepTimeout,
+			&i.Priority,
+			&i.Sticky,
+			&i.DesiredWorkerID,
+			&i.RetryCount,
+			&i.BatchKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDistinctBatchResources = `-- name: ListDistinctBatchResources :many
+SELECT
+    b.step_id,
+    b.batch_key,
+    MIN(b.inserted_at)::timestamptz AS oldest_item_at,
+    COUNT(*) AS pending_count,
+    MAX(s."batch_size")::integer AS batch_size,
+    MAX(s."batch_flush_interval_ms")::integer AS batch_flush_interval_ms,
+    MAX(s."batch_max_runs")::integer AS batch_max_runs
+FROM
+    v1_batched_queue_item b
+JOIN
+    "Step" s ON s."id" = b.step_id
+WHERE
+    b.tenant_id = $1::uuid
+GROUP BY
+    b.step_id,
+    b.batch_key
+ORDER BY
+    oldest_item_at ASC
+`
+
+type ListDistinctBatchResourcesRow struct {
+	StepID               pgtype.UUID        `json:"step_id"`
+	BatchKey             string             `json:"batch_key"`
+	OldestItemAt         pgtype.Timestamptz `json:"oldest_item_at"`
+	PendingCount         int64              `json:"pending_count"`
+	BatchSize            int32              `json:"batch_size"`
+	BatchFlushIntervalMs int32              `json:"batch_flush_interval_ms"`
+	BatchMaxRuns         int32              `json:"batch_max_runs"`
+}
+
+func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListDistinctBatchResourcesRow, error) {
+	rows, err := db.Query(ctx, listDistinctBatchResources, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListDistinctBatchResourcesRow
+	for rows.Next() {
+		var i ListDistinctBatchResourcesRow
+		if err := rows.Scan(
+			&i.StepID,
+			&i.BatchKey,
+			&i.OldestItemAt,
+			&i.PendingCount,
+			&i.BatchSize,
+			&i.BatchFlushIntervalMs,
+			&i.BatchMaxRuns,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQueueItemsForQueue = `-- name: ListQueueItemsForQueue :many
 SELECT
     id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, batch_key
@@ -590,6 +852,104 @@ func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID)
 	for rows.Next() {
 		var i V1Queue
 		if err := rows.Scan(&i.TenantID, &i.Name, &i.LastActive); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const moveBatchedQueueItems = `-- name: MoveBatchedQueueItems :many
+WITH input AS (
+    SELECT
+        UNNEST($1::bigint[]) AS id
+), moved_items AS (
+    DELETE FROM v1_batched_queue_item
+    WHERE id = ANY(SELECT id FROM input)
+    RETURNING
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        batch_key
+)
+INSERT INTO v1_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    batch_key
+)
+SELECT
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    batch_key
+FROM moved_items
+RETURNING id, tenant_id, task_id, task_inserted_at, retry_count
+`
+
+type MoveBatchedQueueItemsRow struct {
+	ID             int64              `json:"id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+}
+
+func (q *Queries) MoveBatchedQueueItems(ctx context.Context, db DBTX, ids []int64) ([]*MoveBatchedQueueItemsRow, error) {
+	rows, err := db.Query(ctx, moveBatchedQueueItems, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*MoveBatchedQueueItemsRow
+	for rows.Next() {
+		var i MoveBatchedQueueItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

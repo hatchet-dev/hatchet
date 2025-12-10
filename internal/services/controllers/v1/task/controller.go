@@ -57,6 +57,7 @@ type TasksControllerImpl struct {
 	opsPoolPollInterval                   time.Duration
 	opsPoolJitter                         time.Duration
 	timeoutTaskOperations                 *operation.OperationPool
+	timeoutBatchedQueueItemOperations     *operation.OperationPool
 	reassignTaskOperations                *operation.OperationPool
 	retryTaskOperations                   *operation.OperationPool
 	emitSleepOperations                   *operation.OperationPool
@@ -246,6 +247,15 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
+	t.timeoutBatchedQueueItemOperations = operation.NewOperationPool(opts.p, opts.l, "timeout-batched-queue-items", timeout, "timeout batched queue items", t.processBatchedQueueItemTimeouts, operation.WithPoolInterval(
+		opts.repov1.IntervalSettings(),
+		jitter,
+		1*time.Second,
+		30*time.Second,
+		3,
+		opts.repov1.Tasks().DefaultTaskActivityGauge,
+	))
+
 	t.emitSleepOperations = operation.NewOperationPool(opts.p, opts.l, "emit-sleep-step-runs", timeout, "emit sleep step runs", t.processSleeps, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
@@ -393,6 +403,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		}
 
 		tc.timeoutTaskOperations.Cleanup()
+		tc.timeoutBatchedQueueItemOperations.Cleanup()
 		tc.reassignTaskOperations.Cleanup()
 		tc.retryTaskOperations.Cleanup()
 		tc.emitSleepOperations.Cleanup()

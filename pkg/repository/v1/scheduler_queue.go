@@ -2,10 +2,12 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -33,6 +35,32 @@ type AssignedItem struct {
 	WorkerId pgtype.UUID
 
 	QueueItem *sqlcv1.V1QueueItem
+
+	Batch *BatchAssignmentMetadata
+}
+
+type BatchAssignmentMetadata struct {
+	State string
+
+	Reason string
+
+	TriggeredAt time.Time
+
+	ConfiguredBatchSize int32
+
+	ConfiguredFlushIntervalMs int32
+
+	MaxRuns int32
+
+	Pending int32
+
+	NextFlushAt *time.Time
+
+	BatchID string
+
+	StepID   string
+	ActionID string
+	BatchKey string
 }
 
 type AssignResults struct {
@@ -56,6 +84,23 @@ func newQueueFactoryRepository(shared *sharedRepository) *queueFactoryRepository
 
 func (q *queueFactoryRepository) NewQueue(tenantId pgtype.UUID, queueName string) QueueRepository {
 	return newQueueRepository(q.sharedRepository, tenantId, queueName)
+}
+
+type batchQueueFactoryRepository struct {
+	*sharedRepository
+}
+
+func newBatchQueueFactoryRepository(shared *sharedRepository) *batchQueueFactoryRepository {
+	return &batchQueueFactoryRepository{
+		sharedRepository: shared,
+	}
+}
+
+func (b *batchQueueFactoryRepository) NewBatchQueue(tenantId pgtype.UUID) BatchQueueRepository {
+	return &batchQueueRepository{
+		sharedRepository: b.sharedRepository,
+		tenantId:         tenantId,
+	}
 }
 
 type queueRepository struct {
@@ -679,6 +724,172 @@ func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId 
 	saveQueues()
 
 	return rows, nil
+}
+
+type batchQueueRepository struct {
+	*sharedRepository
+	tenantId pgtype.UUID
+}
+
+func (b *batchQueueRepository) ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-batch-resources")
+	defer span.End()
+
+	rows, err := b.queries.ListDistinctBatchResources(ctx, b.pool, b.tenantId)
+	if err != nil {
+		return nil, err
+	}
+
+	return rows, nil
+}
+
+func (b *batchQueueRepository) ListBatchedQueueItems(ctx context.Context, stepId pgtype.UUID, batchKey string, afterId pgtype.Int8, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-batched-queue-items")
+	defer span.End()
+
+	params := sqlcv1.ListBatchedQueueItemsForBatchParams{
+		Tenantid: b.tenantId,
+		Stepid:   stepId,
+		Batchkey: batchKey,
+		AfterId:  afterId,
+	}
+
+	if limit > 0 {
+		params.Limit = pgtype.Int4{
+			Int32: limit,
+			Valid: true,
+		}
+	}
+
+	return b.queries.ListBatchedQueueItemsForBatch(ctx, b.pool, params)
+}
+
+func (b *batchQueueRepository) DeleteBatchedQueueItems(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	return b.queries.DeleteBatchedQueueItems(ctx, b.pool, ids)
+}
+
+func (b *batchQueueRepository) MoveBatchedQueueItems(ctx context.Context, ids []int64) ([]*sqlcv1.MoveBatchedQueueItemsRow, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	return b.queries.MoveBatchedQueueItems(ctx, b.pool, ids)
+}
+
+func (b *batchQueueRepository) CommitAssignments(ctx context.Context, assignments []*BatchAssignment) error {
+	if len(assignments) == 0 {
+		return nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "commit-batch-assignments")
+	defer span.End()
+
+	// Deduplicate assignments by (task_id, task_inserted_at) to avoid
+	// "cannot affect row a second time" errors in UpdateTasksToAssigned.
+	// UpdateTasksToAssigned joins on (id, inserted_at) and uses the DB-stored
+	// retry_count, so multiple assignments for the same (task_id, inserted_at)
+	// in a single call will target the same v1_task_runtime row.
+
+	// FIXME: It is not clear why we're ending up in this state, but we should investigate why and fix it.
+	type taskKey struct {
+		taskId     int64
+		insertedAt time.Time
+	}
+
+	seenTasks := make(map[taskKey]bool)
+	deduplicatedAssignments := make([]*BatchAssignment, 0, len(assignments))
+
+	for _, assignment := range assignments {
+		if assignment == nil {
+			continue
+		}
+
+		key := taskKey{
+			taskId:     assignment.TaskID,
+			insertedAt: assignment.TaskInsertedAt.Time,
+		}
+
+		if seenTasks[key] {
+			b.l.Warn().
+				Int64("task_id", assignment.TaskID).
+				Int32("retry_count", assignment.RetryCount).
+				Str("step_id", sqlchelpers.UUIDToStr(assignment.StepID)).
+				Str("action_id", assignment.ActionID).
+				Str("batch_key", assignment.BatchKey).
+				Str("batch_id", assignment.BatchID).
+				Msg("skipping duplicate task in batch assignments")
+			continue
+		}
+
+		seenTasks[key] = true
+		deduplicatedAssignments = append(deduplicatedAssignments, assignment)
+	}
+
+	b.l.Debug().
+		Int("incoming_assignment_count", len(assignments)).
+		Int("deduped_assignment_count", len(deduplicatedAssignments)).
+		Msg("prepared batch assignments for commit")
+
+	ids := make([]int64, 0, len(deduplicatedAssignments))
+	taskIds := make([]int64, 0, len(deduplicatedAssignments))
+	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(deduplicatedAssignments))
+	workerIds := make([]pgtype.UUID, 0, len(deduplicatedAssignments))
+
+	var minTaskInsertedAt pgtype.Timestamptz
+
+	for _, assignment := range deduplicatedAssignments {
+		if assignment == nil {
+			continue
+		}
+
+		ids = append(ids, assignment.BatchQueueItemID)
+		taskIds = append(taskIds, assignment.TaskID)
+		taskInsertedAts = append(taskInsertedAts, assignment.TaskInsertedAt)
+		workerIds = append(workerIds, assignment.WorkerID)
+
+		if assignment.TaskInsertedAt.Valid && (!minTaskInsertedAt.Valid || assignment.TaskInsertedAt.Time.Before(minTaskInsertedAt.Time)) {
+			minTaskInsertedAt = assignment.TaskInsertedAt
+		}
+	}
+
+	if len(ids) == 0 {
+		return nil
+	}
+
+	tx, err := b.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("could not begin transaction: %w", err)
+	}
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			b.l.Error().Err(err).Msg("rollback failed after commit assignments")
+		}
+	}()
+
+	if err := b.queries.DeleteBatchedQueueItems(ctx, tx, ids); err != nil {
+		return fmt.Errorf("could not delete batched queue items: %w", err)
+	}
+
+	_, err = b.queries.UpdateTasksToAssigned(ctx, tx, sqlcv1.UpdateTasksToAssignedParams{
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Workerids:         workerIds,
+		Mintaskinsertedat: minTaskInsertedAt,
+		Tenantid:          b.tenantId,
+	})
+	if err != nil {
+		return fmt.Errorf("could not update tasks to assigned: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("could not commit batch assignment transaction: %w", err)
+	}
+
+	return nil
 }
 
 func getLargerDuration(s1, s2 string) (string, error) {

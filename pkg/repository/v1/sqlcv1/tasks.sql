@@ -363,7 +363,9 @@ WITH expired_runtimes AS (
         task_id,
         task_inserted_at,
         retry_count,
-        worker_id
+        worker_id,
+        batch_id,
+        batch_key
     FROM
         v1_task_runtime
     WHERE
@@ -386,11 +388,31 @@ SELECT
     v1_task.app_retry_count,
     v1_task.retry_backoff_factor,
     v1_task.retry_max_backoff,
-    expired_runtimes.worker_id
+    expired_runtimes.worker_id,
+    expired_runtimes.batch_id,
+    expired_runtimes.batch_key
 FROM
     v1_task
 JOIN
     expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.task_inserted_at = v1_task.inserted_at;
+
+-- name: ListTasksInBatch :many
+SELECT
+    v1_task.id,
+    v1_task.inserted_at,
+    v1_task.retry_count,
+    v1_task.external_id,
+    v1_task.workflow_run_id,
+    runtime.worker_id
+FROM
+    v1_task
+JOIN
+    v1_task_runtime runtime ON runtime.task_id = v1_task.id
+        AND runtime.task_inserted_at = v1_task.inserted_at
+        AND runtime.retry_count = v1_task.retry_count
+WHERE
+    v1_task.tenant_id = @tenantId::uuid
+    AND runtime.batch_id = @batchId::uuid;
 
 -- name: ListTasksToReassign :many
 WITH tasks_on_inactive_workers AS (
@@ -984,32 +1006,40 @@ FROM
 SELECT * FROM v1_task WHERE id = $1;
 
 -- name: CountActiveTaskBatchRuns :one
+-- Count only batch runs that still have active task runtimes. This prevents
+-- "zombie" v1_batch_runtime rows (with no v1_task_runtime rows) from blocking
+-- new batch runs.
 SELECT
-    COUNT(*)::integer AS active_count
+    COUNT(DISTINCT br.batch_id)::integer AS active_count
 FROM
-    v1_task_batch_run
+    v1_batch_runtime br
+JOIN
+    v1_task_runtime rt ON rt.tenant_id = br.tenant_id AND rt.batch_id = br.batch_id
 WHERE
-    tenant_id = @tenantId::uuid
-    AND step_id = @stepId::uuid
-    AND batch_key = @batchKey::text
-    AND completed_at IS NULL;
+    br.tenant_id = @tenantId::uuid
+    AND br.step_id = @stepId::uuid
+    AND br.batch_key = @batchKey::text;
 
 -- name: ReserveTaskBatchRun :one
+-- Reserve a new batch run slot, considering only batch runs that still have
+-- active task runtimes. This mirrors CountActiveTaskBatchRuns and ensures
+-- zombie rows do not block new reservations.
 WITH locked AS (
     SELECT
-        *
+        br.*
     FROM
-        v1_task_batch_run
+        v1_batch_runtime br
+    JOIN
+        v1_task_runtime rt ON rt.tenant_id = br.tenant_id AND rt.batch_id = br.batch_id
     WHERE
-        tenant_id = @tenantId::uuid
-        AND step_id = @stepId::uuid
-        AND batch_key = @batchKey::text
-        AND completed_at IS NULL
+        br.tenant_id = @tenantId::uuid
+        AND br.step_id = @stepId::uuid
+        AND br.batch_key = @batchKey::text
     FOR UPDATE
 ), existing AS (
-    SELECT COUNT(*) AS cnt FROM locked
+    SELECT COUNT(DISTINCT batch_id) AS cnt FROM locked
 ), inserted AS (
-    INSERT INTO v1_task_batch_run (
+    INSERT INTO v1_batch_runtime (
         tenant_id,
         step_id,
         action_id,
@@ -1031,20 +1061,20 @@ SELECT
     EXISTS(SELECT 1 FROM inserted) AS reserved;
 
 -- name: CompleteTaskBatchRun :exec
-UPDATE
-    v1_task_batch_run
-SET
-    completed_at = CURRENT_TIMESTAMP
+DELETE FROM
+    v1_batch_runtime
 WHERE
     tenant_id = @tenantId::uuid
-    AND batch_id = @batchId::uuid
-    AND completed_at IS NULL;
+    AND batch_id = @batchId::uuid;
 
 -- name: AnalyzeV1Task :exec
 ANALYZE v1_task;
 
 -- name: AnalyzeV1TaskEvent :exec
 ANALYZE v1_task_event;
+
+-- name: AnalyzeV1BatchRuntime :exec
+ANALYZE v1_batch_runtime;
 
 -- name: AnalyzeV1Dag :exec
 ANALYZE v1_dag;

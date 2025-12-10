@@ -250,6 +250,8 @@ type TaskRepository interface {
 
 	ProcessTaskTimeouts(ctx context.Context, tenantId string) (*TimeoutTasksResponse, bool, error)
 
+	ProcessBatchedQueueItemTimeouts(ctx context.Context, tenantId string) (int, bool, error)
+
 	ProcessTaskReassignments(ctx context.Context, tenantId string) (*FailTasksResponse, bool, error)
 
 	ProcessTaskRetryQueueItems(ctx context.Context, tenantId string) ([]*sqlcv1.V1RetryQueueItem, bool, error)
@@ -1287,10 +1289,63 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 		}, false, nil
 	}
 
+	// Check for batched tasks and collect all tasks in affected batches
+	batchIdsToFail := make(map[string]bool)
+	taskIdsToFail := make(map[string]bool) // key is "taskId:retryCount"
+
+	for _, task := range toTimeout {
+		taskKey := fmt.Sprintf("%d:%d", task.ID, task.RetryCount)
+		taskIdsToFail[taskKey] = true
+
+		// If this task is part of a batch, we need to fail the entire batch
+		if task.BatchID.Valid {
+			batchId := sqlchelpers.UUIDToStr(task.BatchID)
+			if batchId != "" {
+				batchIdsToFail[batchId] = true
+			}
+		}
+	}
+
+	// For each batch that has a timed-out task, get all tasks in that batch and add them to the fail list
+	for batchId := range batchIdsToFail {
+		batchTasks, err := r.queries.ListTasksInBatch(ctx, tx, sqlcv1.ListTasksInBatchParams{
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Batchid:  sqlchelpers.UUIDFromStr(batchId),
+		})
+
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to list tasks in batch %s: %w", batchId, err)
+		}
+
+		// Add all tasks in the batch to the timeout list if not already present
+		for _, batchTask := range batchTasks {
+			taskKey := fmt.Sprintf("%d:%d", batchTask.ID, batchTask.RetryCount)
+			if !taskIdsToFail[taskKey] {
+				taskIdsToFail[taskKey] = true
+
+				// Add to toTimeout list for cancellation signals
+				toTimeout = append(toTimeout, &sqlcv1.ListTasksToTimeoutRow{
+					ID:            batchTask.ID,
+					InsertedAt:    batchTask.InsertedAt,
+					RetryCount:    batchTask.RetryCount,
+					ExternalID:    batchTask.ExternalID,
+					WorkflowRunID: batchTask.WorkflowRunID,
+					WorkerID:      batchTask.WorkerID,
+					StepTimeout:   pgtype.Text{String: "batch timeout", Valid: true},
+				})
+			}
+		}
+	}
+
 	// parse into FailTaskOpts
 	failOpts := make([]FailTaskOpts, 0, len(toTimeout))
 
 	for _, task := range toTimeout {
+		errorMsg := fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String)
+		if task.BatchID.Valid {
+			errorMsg = "Task failed due to batch timeout"
+		}
+
 		failOpts = append(failOpts, FailTaskOpts{
 			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
 				Id:         task.ID,
@@ -1298,7 +1353,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 				RetryCount: task.RetryCount,
 			},
 			IsAppError:     true,
-			ErrorMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
+			ErrorMessage:   errorMsg,
 			IsNonRetryable: false,
 		})
 	}
@@ -1310,6 +1365,19 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 		return nil, false, err
 	}
 
+	// Release batch reservations for any batches that were affected
+	for batchId := range batchIdsToFail {
+		err := r.queries.CompleteTaskBatchRun(ctx, tx, sqlcv1.CompleteTaskBatchRunParams{
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Batchid:  sqlchelpers.UUIDFromStr(batchId),
+		})
+
+		if err != nil {
+			r.l.Error().Err(err).Str("batch_id", batchId).Msg("failed to release batch reservation after timeout")
+			// Don't fail the whole operation, just log the error
+		}
+	}
+
 	// commit the transaction
 	if err := commit(ctx); err != nil {
 		return nil, false, err
@@ -1319,6 +1387,14 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 		FailTasksResponse: failResp,
 		TimeoutTasks:      toTimeout,
 	}, len(toTimeout) == limit, nil
+}
+
+func (r *TaskRepositoryImpl) ProcessBatchedQueueItemTimeouts(ctx context.Context, tenantId string) (int, bool, error) {
+	// NOTE: Batched schedule timeouts are currently handled by the in-memory batch
+	// scheduler, which deletes timed-out rows and emits SCHEDULING_TIMED_OUT events.
+	// This background DB cleanup was causing confusion by deleting rows without
+	// updating task state, so it is intentionally a no-op for now.
+	return 0, false, nil
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenantId string) (*FailTasksResponse, bool, error) {
@@ -3863,6 +3939,12 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_task_event: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1BatchRuntime(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_batch_runtime: %v", err)
+	}
+
 	err = r.queries.AnalyzeV1Dag(ctx, tx)
 
 	if err != nil {
@@ -4137,15 +4219,49 @@ func (r *TaskRepositoryImpl) ReserveTaskBatchRun(ctx context.Context, tenantId, 
 		Maxruns:  int32(maxRuns), // nolint: gosec
 	})
 
-	return reserved, err
+	if err != nil {
+		return false, err
+	}
+
+	if reserved {
+		r.l.Info().
+			Str("tenant_id", tenantId).
+			Str("step_id", stepId).
+			Str("action_id", actionId).
+			Str("batch_key", batchKey).
+			Str("batch_id", batchId).
+			Int("max_runs", maxRuns).
+			Msg("reserved task batch run")
+	} else {
+		r.l.Debug().
+			Str("tenant_id", tenantId).
+			Str("step_id", stepId).
+			Str("action_id", actionId).
+			Str("batch_key", batchKey).
+			Int("max_runs", maxRuns).
+			Msg("could not reserve task batch run (limit reached)")
+	}
+
+	return reserved, nil
 }
 
 func (r *TaskRepositoryImpl) CompleteTaskBatchRun(ctx context.Context, tenantId, batchId string) error {
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CompleteTaskBatchRun")
 	defer span.End()
 
-	return r.queries.CompleteTaskBatchRun(ctx, r.pool, sqlcv1.CompleteTaskBatchRunParams{
+	err := r.queries.CompleteTaskBatchRun(ctx, r.pool, sqlcv1.CompleteTaskBatchRunParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Batchid:  sqlchelpers.UUIDFromStr(batchId),
 	})
+
+	if err != nil {
+		return err
+	}
+
+	r.l.Info().
+		Str("tenant_id", tenantId).
+		Str("batch_id", batchId).
+		Msg("completed task batch run")
+
+	return nil
 }

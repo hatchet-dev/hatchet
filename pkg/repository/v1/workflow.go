@@ -122,10 +122,10 @@ type CreateStepOpts struct {
 }
 
 type StepBatchConfig struct {
-	BatchSize          int32   `json:"batchSize"`
-	FlushIntervalMs    *int32  `json:"flushIntervalMs,omitempty"`
+	BatchSize          int32   `json:"batchSize" validate:"required,min=1,max=100000"`
+	FlushIntervalMs    *int32  `json:"flushIntervalMs,omitempty" validate:"omitempty,min=1,max=86400000"`
 	BatchKeyExpression *string `json:"batchKeyExpression,omitempty"`
-	MaxRuns            *int32  `json:"maxRuns,omitempty"`
+	MaxRuns            *int32  `json:"maxRuns,omitempty" validate:"omitempty,min=1,max=10000"`
 }
 
 type CreateStepMatchConditionOpt struct {

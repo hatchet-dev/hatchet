@@ -13,7 +13,8 @@ import (
 )
 
 type sharedConfig struct {
-	repo v1.SchedulerRepository
+	repo     v1.SchedulerRepository
+	taskRepo v1.TaskRepository
 
 	l *zerolog.Logger
 
@@ -42,7 +43,7 @@ type SchedulingPool struct {
 	concurrencyResultsCh chan *ConcurrencyResults
 }
 
-func NewSchedulingPool(repo v1.SchedulerRepository, l *zerolog.Logger, singleQueueLimit int, schedulerConcurrencyRateLimit int, schedulerConcurrencyPollingMinInterval time.Duration, schedulerConcurrencyPollingMaxInterval time.Duration) (*SchedulingPool, func() error, error) {
+func NewSchedulingPool(repo v1.SchedulerRepository, taskRepo v1.TaskRepository, l *zerolog.Logger, singleQueueLimit int, schedulerConcurrencyRateLimit int, schedulerConcurrencyPollingMinInterval time.Duration, schedulerConcurrencyPollingMaxInterval time.Duration) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
 
@@ -50,6 +51,7 @@ func NewSchedulingPool(repo v1.SchedulerRepository, l *zerolog.Logger, singleQue
 		Extensions: &Extensions{},
 		cf: &sharedConfig{
 			repo:                                   repo,
+			taskRepo:                               taskRepo,
 			l:                                      l,
 			singleQueueLimit:                       singleQueueLimit,
 			schedulerConcurrencyRateLimit:          schedulerConcurrencyRateLimit,

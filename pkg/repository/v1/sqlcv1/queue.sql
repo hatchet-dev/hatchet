@@ -564,3 +564,165 @@ WHERE (task_id, task_inserted_at) IN (
     SELECT task_id, task_inserted_at
     FROM locked_qis
 );
+
+-- name: ListBatchedQueueItemsForBatch :many
+SELECT
+    id,
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    batch_key,
+    inserted_at
+FROM
+    v1_batched_queue_item
+WHERE
+    tenant_id = @tenantId::uuid
+    AND step_id = @stepId::uuid
+    AND batch_key = @batchKey::text
+    AND (
+        sqlc.narg('afterId')::bigint IS NULL
+        OR id > sqlc.narg('afterId')::bigint
+    )
+ORDER BY
+    priority DESC,
+    id ASC
+LIMIT
+    COALESCE(sqlc.narg('limit')::integer, 1000);
+
+-- name: ListDistinctBatchResources :many
+SELECT
+    b.step_id,
+    b.batch_key,
+    MIN(b.inserted_at)::timestamptz AS oldest_item_at,
+    COUNT(*) AS pending_count,
+    MAX(s."batch_size")::integer AS batch_size,
+    MAX(s."batch_flush_interval_ms")::integer AS batch_flush_interval_ms,
+    MAX(s."batch_max_runs")::integer AS batch_max_runs
+FROM
+    v1_batched_queue_item b
+JOIN
+    "Step" s ON s."id" = b.step_id
+WHERE
+    b.tenant_id = @tenantId::uuid
+GROUP BY
+    b.step_id,
+    b.batch_key
+ORDER BY
+    oldest_item_at ASC;
+
+-- name: DeleteBatchedQueueItems :exec
+DELETE FROM
+    v1_batched_queue_item
+WHERE
+    id = ANY(@ids::bigint[]);
+
+-- name: ListBatchedQueueItemsToTimeout :many
+SELECT
+    bqi.id,
+    bqi.tenant_id,
+    bqi.queue,
+    bqi.task_id,
+    bqi.task_inserted_at,
+    bqi.external_id,
+    bqi.action_id,
+    bqi.step_id,
+    bqi.workflow_id,
+    bqi.workflow_run_id,
+    bqi.schedule_timeout_at,
+    bqi.step_timeout,
+    bqi.priority,
+    bqi.sticky,
+    bqi.desired_worker_id,
+    bqi.retry_count,
+    bqi.batch_key
+FROM
+    v1_batched_queue_item bqi
+LEFT JOIN
+    v1_task_runtime tr ON (
+        tr.task_id = bqi.task_id
+        AND tr.task_inserted_at = bqi.task_inserted_at
+        AND tr.retry_count = bqi.retry_count
+    )
+WHERE
+    bqi.tenant_id = @tenantId::uuid
+    AND bqi.schedule_timeout_at <= NOW()
+    AND tr.task_id IS NULL  -- Only timeout tasks that are NOT already running
+ORDER BY
+    bqi.id ASC
+LIMIT
+    COALESCE(sqlc.narg('limit')::integer, 1000);
+
+-- name: MoveBatchedQueueItems :many
+WITH input AS (
+    SELECT
+        UNNEST(@ids::bigint[]) AS id
+), moved_items AS (
+    DELETE FROM v1_batched_queue_item
+    WHERE id = ANY(SELECT id FROM input)
+    RETURNING
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        batch_key
+)
+INSERT INTO v1_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    batch_key
+)
+SELECT
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    batch_key
+FROM moved_items
+RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;

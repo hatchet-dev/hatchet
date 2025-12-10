@@ -12,6 +12,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const analyzeV1BatchRuntime = `-- name: AnalyzeV1BatchRuntime :exec
+ANALYZE v1_batch_runtime
+`
+
+func (q *Queries) AnalyzeV1BatchRuntime(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1BatchRuntime)
+	return err
+}
+
 const analyzeV1Dag = `-- name: AnalyzeV1Dag :exec
 ANALYZE v1_dag
 `
@@ -121,14 +130,11 @@ func (q *Queries) CleanupWorkflowConcurrencySlotsAfterInsert(ctx context.Context
 }
 
 const completeTaskBatchRun = `-- name: CompleteTaskBatchRun :exec
-UPDATE
-    v1_task_batch_run
-SET
-    completed_at = CURRENT_TIMESTAMP
+DELETE FROM
+    v1_batch_runtime
 WHERE
     tenant_id = $1::uuid
     AND batch_id = $2::uuid
-    AND completed_at IS NULL
 `
 
 type CompleteTaskBatchRunParams struct {
@@ -143,14 +149,15 @@ func (q *Queries) CompleteTaskBatchRun(ctx context.Context, db DBTX, arg Complet
 
 const countActiveTaskBatchRuns = `-- name: CountActiveTaskBatchRuns :one
 SELECT
-    COUNT(*)::integer AS active_count
+    COUNT(DISTINCT br.batch_id)::integer AS active_count
 FROM
-    v1_task_batch_run
+    v1_batch_runtime br
+JOIN
+    v1_task_runtime rt ON rt.tenant_id = br.tenant_id AND rt.batch_id = br.batch_id
 WHERE
-    tenant_id = $1::uuid
-    AND step_id = $2::uuid
-    AND batch_key = $3::text
-    AND completed_at IS NULL
+    br.tenant_id = $1::uuid
+    AND br.step_id = $2::uuid
+    AND br.batch_key = $3::text
 `
 
 type CountActiveTaskBatchRunsParams struct {
@@ -159,6 +166,9 @@ type CountActiveTaskBatchRunsParams struct {
 	Batchkey string      `json:"batchkey"`
 }
 
+// Count only batch runs that still have active task runtimes. This prevents
+// "zombie" v1_batch_runtime rows (with no v1_task_runtime rows) from blocking
+// new batch runs.
 func (q *Queries) CountActiveTaskBatchRuns(ctx context.Context, db DBTX, arg CountActiveTaskBatchRunsParams) (int32, error) {
 	row := db.QueryRow(ctx, countActiveTaskBatchRuns, arg.Tenantid, arg.Stepid, arg.Batchkey)
 	var active_count int32
@@ -1662,6 +1672,66 @@ func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasks
 	return items, nil
 }
 
+const listTasksInBatch = `-- name: ListTasksInBatch :many
+SELECT
+    v1_task.id,
+    v1_task.inserted_at,
+    v1_task.retry_count,
+    v1_task.external_id,
+    v1_task.workflow_run_id,
+    runtime.worker_id
+FROM
+    v1_task
+JOIN
+    v1_task_runtime runtime ON runtime.task_id = v1_task.id
+        AND runtime.task_inserted_at = v1_task.inserted_at
+        AND runtime.retry_count = v1_task.retry_count
+WHERE
+    v1_task.tenant_id = $1::uuid
+    AND runtime.batch_id = $2::uuid
+`
+
+type ListTasksInBatchParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Batchid  pgtype.UUID `json:"batchid"`
+}
+
+type ListTasksInBatchRow struct {
+	ID            int64              `json:"id"`
+	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount    int32              `json:"retry_count"`
+	ExternalID    pgtype.UUID        `json:"external_id"`
+	WorkflowRunID pgtype.UUID        `json:"workflow_run_id"`
+	WorkerID      pgtype.UUID        `json:"worker_id"`
+}
+
+func (q *Queries) ListTasksInBatch(ctx context.Context, db DBTX, arg ListTasksInBatchParams) ([]*ListTasksInBatchRow, error) {
+	rows, err := db.Query(ctx, listTasksInBatch, arg.Tenantid, arg.Batchid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTasksInBatchRow
+	for rows.Next() {
+		var i ListTasksInBatchRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.ExternalID,
+			&i.WorkflowRunID,
+			&i.WorkerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasksToReassign = `-- name: ListTasksToReassign :many
 WITH tasks_on_inactive_workers AS (
     SELECT
@@ -1725,7 +1795,9 @@ WITH expired_runtimes AS (
         task_id,
         task_inserted_at,
         retry_count,
-        worker_id
+        worker_id,
+        batch_id,
+        batch_key
     FROM
         v1_task_runtime
     WHERE
@@ -1748,7 +1820,9 @@ SELECT
     v1_task.app_retry_count,
     v1_task.retry_backoff_factor,
     v1_task.retry_max_backoff,
-    expired_runtimes.worker_id
+    expired_runtimes.worker_id,
+    expired_runtimes.batch_id,
+    expired_runtimes.batch_key
 FROM
     v1_task
 JOIN
@@ -1772,6 +1846,8 @@ type ListTasksToTimeoutRow struct {
 	RetryBackoffFactor pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff    pgtype.Int4        `json:"retry_max_backoff"`
 	WorkerID           pgtype.UUID        `json:"worker_id"`
+	BatchID            pgtype.UUID        `json:"batch_id"`
+	BatchKey           pgtype.Text        `json:"batch_key"`
 }
 
 func (q *Queries) ListTasksToTimeout(ctx context.Context, db DBTX, arg ListTasksToTimeoutParams) ([]*ListTasksToTimeoutRow, error) {
@@ -1795,6 +1871,8 @@ func (q *Queries) ListTasksToTimeout(ctx context.Context, db DBTX, arg ListTasks
 			&i.RetryBackoffFactor,
 			&i.RetryMaxBackoff,
 			&i.WorkerID,
+			&i.BatchID,
+			&i.BatchKey,
 		); err != nil {
 			return nil, err
 		}
@@ -2310,19 +2388,20 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 const reserveTaskBatchRun = `-- name: ReserveTaskBatchRun :one
 WITH locked AS (
     SELECT
-        tenant_id, step_id, action_id, batch_key, batch_id, started_at, completed_at
+        br.tenant_id, br.step_id, br.action_id, br.batch_key, br.batch_id, br.started_at
     FROM
-        v1_task_batch_run
+        v1_batch_runtime br
+    JOIN
+        v1_task_runtime rt ON rt.tenant_id = br.tenant_id AND rt.batch_id = br.batch_id
     WHERE
-        tenant_id = $1::uuid
-        AND step_id = $2::uuid
-        AND batch_key = $3::text
-        AND completed_at IS NULL
+        br.tenant_id = $1::uuid
+        AND br.step_id = $2::uuid
+        AND br.batch_key = $3::text
     FOR UPDATE
 ), existing AS (
-    SELECT COUNT(*) AS cnt FROM locked
+    SELECT COUNT(DISTINCT batch_id) AS cnt FROM locked
 ), inserted AS (
-    INSERT INTO v1_task_batch_run (
+    INSERT INTO v1_batch_runtime (
         tenant_id,
         step_id,
         action_id,
@@ -2353,6 +2432,9 @@ type ReserveTaskBatchRunParams struct {
 	Maxruns  int32       `json:"maxruns"`
 }
 
+// Reserve a new batch run slot, considering only batch runs that still have
+// active task runtimes. This mirrors CountActiveTaskBatchRuns and ensures
+// zombie rows do not block new reservations.
 func (q *Queries) ReserveTaskBatchRun(ctx context.Context, db DBTX, arg ReserveTaskBatchRunParams) (bool, error) {
 	row := db.QueryRow(ctx, reserveTaskBatchRun,
 		arg.Tenantid,

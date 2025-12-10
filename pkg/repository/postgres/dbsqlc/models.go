@@ -238,6 +238,7 @@ const (
 	LeaseKindWORKER              LeaseKind = "WORKER"
 	LeaseKindQUEUE               LeaseKind = "QUEUE"
 	LeaseKindCONCURRENCYSTRATEGY LeaseKind = "CONCURRENCY_STRATEGY"
+	LeaseKindBATCH               LeaseKind = "BATCH"
 )
 
 func (e *LeaseKind) Scan(src interface{}) error {
@@ -2554,6 +2555,36 @@ type UserSession struct {
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
 }
 
+type V1BatchRuntime struct {
+	TenantID  pgtype.UUID        `json:"tenant_id"`
+	StepID    pgtype.UUID        `json:"step_id"`
+	ActionID  string             `json:"action_id"`
+	BatchKey  string             `json:"batch_key"`
+	BatchID   pgtype.UUID        `json:"batch_id"`
+	StartedAt pgtype.Timestamptz `json:"started_at"`
+}
+
+type V1BatchedQueueItem struct {
+	ID                int64              `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	Queue             string             `json:"queue"`
+	TaskID            int64              `json:"task_id"`
+	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
+	ExternalID        pgtype.UUID        `json:"external_id"`
+	ActionID          string             `json:"action_id"`
+	StepID            pgtype.UUID        `json:"step_id"`
+	WorkflowID        pgtype.UUID        `json:"workflow_id"`
+	WorkflowRunID     pgtype.UUID        `json:"workflow_run_id"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
+	StepTimeout       pgtype.Text        `json:"step_timeout"`
+	Priority          int32              `json:"priority"`
+	Sticky            V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID   pgtype.UUID        `json:"desired_worker_id"`
+	RetryCount        int32              `json:"retry_count"`
+	BatchKey          string             `json:"batch_key"`
+	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
+}
+
 type V1ConcurrencySlot struct {
 	SortID                pgtype.Int8        `json:"sort_id"`
 	TaskID                int64              `json:"task_id"`
@@ -2873,16 +2904,6 @@ type V1Task struct {
 	BatchKey                     pgtype.Text        `json:"batch_key"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
-}
-
-type V1TaskBatchRun struct {
-	TenantID    pgtype.UUID        `json:"tenant_id"`
-	StepID      pgtype.UUID        `json:"step_id"`
-	ActionID    string             `json:"action_id"`
-	BatchKey    string             `json:"batch_key"`
-	BatchID     pgtype.UUID        `json:"batch_id"`
-	StartedAt   pgtype.Timestamptz `json:"started_at"`
-	CompletedAt pgtype.Timestamptz `json:"completed_at"`
 }
 
 type V1TaskEvent struct {

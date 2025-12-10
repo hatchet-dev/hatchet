@@ -654,6 +654,65 @@ WHERE
     (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM queue_items_to_delete)
 `
 
+const releaseBatchedQueueItems = `-- name: ReleaseBatchedQueueItems :batchexec
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS retry_count
+        ) AS subquery
+), batched_items_to_delete AS (
+    SELECT
+        tenant_id, step_id, batch_key, task_id, task_inserted_at, retry_count
+    FROM
+        v1_batched_queue_item
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+), deleted_batched_items AS (
+    DELETE FROM
+        v1_batched_queue_item
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM batched_items_to_delete)
+    RETURNING
+        tenant_id,
+        step_id,
+        batch_key
+), orphaned_batch_runs AS (
+    SELECT
+        br.tenant_id,
+        br.batch_id
+    FROM
+        v1_batch_runtime br
+    JOIN
+        deleted_batched_items dbi ON
+            dbi.tenant_id = br.tenant_id
+            AND dbi.step_id = br.step_id
+            AND dbi.batch_key = br.batch_key
+    WHERE NOT EXISTS (
+        SELECT
+            1
+        FROM
+            v1_batched_queue_item bqi
+        WHERE
+            bqi.tenant_id = br.tenant_id
+            AND bqi.step_id = br.step_id
+            AND bqi.batch_key = br.batch_key
+    )
+    FOR UPDATE
+)
+DELETE FROM
+    v1_batch_runtime br
+WHERE
+    (br.tenant_id, br.batch_id) IN (SELECT tenant_id, batch_id FROM orphaned_batch_runs)
+`
+
 const releaseRateLimitedQueueItems = `-- name: ReleaseRateLimitedQueueItems :batchexec
 WITH input AS (
     SELECT
@@ -767,7 +826,7 @@ FROM
 JOIN
     input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
 LEFT JOIN
-    runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count
+    runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = i.retry_count
 `
 
 type ReleaseTasksParams struct {
@@ -835,6 +894,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 	})
 	batch.Queue(releaseRetryQueueItems, vals...)
 	batch.Queue(releaseQueueItems, vals...)
+	batch.Queue(releaseBatchedQueueItems, vals...)
 	batch.Queue(lockParentConcurrencySlots, vals...)
 	batch.Queue(releaseConcurrencySlots, vals...)
 	batch.Queue(releaseRateLimitedQueueItems, vals...)

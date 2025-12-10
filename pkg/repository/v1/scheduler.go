@@ -12,6 +12,7 @@ type SchedulerRepository interface {
 	Concurrency() ConcurrencyRepository
 	Lease() LeaseRepository
 	QueueFactory() QueueFactoryRepository
+	BatchQueue() BatchQueueFactoryRepository
 	RateLimit() RateLimitRepository
 	Assignment() AssignmentRepository
 }
@@ -29,6 +30,10 @@ type QueueFactoryRepository interface {
 	NewQueue(tenantId pgtype.UUID, queueName string) QueueRepository
 }
 
+type BatchQueueFactoryRepository interface {
+	NewBatchQueue(tenantId pgtype.UUID) BatchQueueRepository
+}
+
 type QueueRepository interface {
 	ListQueueItems(ctx context.Context, limit int) ([]*sqlcv1.V1QueueItem, error)
 	MarkQueueItemsProcessed(ctx context.Context, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
@@ -37,6 +42,27 @@ type QueueRepository interface {
 	RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error)
 	GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error)
 	Cleanup()
+}
+
+type BatchQueueRepository interface {
+	ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error)
+	ListBatchedQueueItems(ctx context.Context, stepId pgtype.UUID, batchKey string, afterId pgtype.Int8, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error)
+	DeleteBatchedQueueItems(ctx context.Context, ids []int64) error
+	MoveBatchedQueueItems(ctx context.Context, ids []int64) ([]*sqlcv1.MoveBatchedQueueItemsRow, error)
+	CommitAssignments(ctx context.Context, assignments []*BatchAssignment) error
+}
+
+type BatchAssignment struct {
+	BatchQueueItemID int64
+	TaskID           int64
+	TaskInsertedAt   pgtype.Timestamptz
+	RetryCount       int32
+	WorkerID         pgtype.UUID
+
+	BatchID  string
+	StepID   pgtype.UUID
+	ActionID string
+	BatchKey string
 }
 
 type RateLimitRepository interface {
@@ -52,6 +78,7 @@ type schedulerRepository struct {
 	concurrency  ConcurrencyRepository
 	lease        LeaseRepository
 	queueFactory QueueFactoryRepository
+	batchQueue   BatchQueueFactoryRepository
 	rateLimit    RateLimitRepository
 	assignment   AssignmentRepository
 }
@@ -61,6 +88,7 @@ func newSchedulerRepository(shared *sharedRepository) *schedulerRepository {
 		concurrency:  newConcurrencyRepository(shared),
 		lease:        newLeaseRepository(shared),
 		queueFactory: newQueueFactoryRepository(shared),
+		batchQueue:   newBatchQueueFactoryRepository(shared),
 		rateLimit:    newRateLimitRepository(shared),
 		assignment:   newAssignmentRepository(shared),
 	}
@@ -76,6 +104,10 @@ func (d *schedulerRepository) Lease() LeaseRepository {
 
 func (d *schedulerRepository) QueueFactory() QueueFactoryRepository {
 	return d.queueFactory
+}
+
+func (d *schedulerRepository) BatchQueue() BatchQueueFactoryRepository {
+	return d.batchQueue
 }
 
 func (d *schedulerRepository) RateLimit() RateLimitRepository {
