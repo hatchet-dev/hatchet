@@ -29,7 +29,7 @@ export const batch = hatchet.batchTask({
       inputs.map(async (input, index) => {
         await sleep(10000);
 
-        if (ctx.some((ctx) => ctx.cancelled)) {
+        if (ctx.some((c) => c.cancelled)) {
           throw new Error('cancelled');
         }
         console.log(`${input.Message.toLowerCase()}index:${index}`);

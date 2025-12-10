@@ -33,4 +33,3 @@ CREATE INDEX IF NOT EXISTS v1_task_batch_run_active_key_idx
     ON v1_task_batch_run (tenant_id, step_id, batch_key)
     WHERE completed_at IS NULL;
 -- +goose StatementEnd
-
