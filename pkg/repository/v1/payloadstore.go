@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -436,56 +438,118 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	defer rollback()
 
 	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
-	payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
-		Partitiondate:  pgtype.Date(partitionDate),
-		Limitparam:     p.externalCutoverBatchSize,
+	windowSize := int64(p.externalCutoverBatchSize * 10)
+
+	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, tx, sqlcv1.CreatePayloadRangeChunksParams{
+		Chunksize:     p.externalCutoverBatchSize,
+		Partitiondate: pgtype.Date(partitionDate),
+		// 10 chunks per batch
+		Windowsize:     windowSize,
 		Lasttenantid:   pagination.LastTenantID,
 		Lastinsertedat: pagination.LastInsertedAt,
 		Lastid:         pagination.LastID,
 		Lasttype:       pagination.LastType,
 	})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to list payloads for offload: %w", err)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("failed to create payload range chunks: %w", err)
 	}
 
-	span.SetAttributes(attribute.Int("num_payloads_read", len(payloads)))
+	isNoRows := errors.Is(err, pgx.ErrNoRows)
 
-	alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+	if isNoRows {
+		return &CutoverBatchOutcome{
+			ShouldContinue: false,
+			NextPagination: pagination,
+		}, nil
+	}
+
+	wg := sync.WaitGroup{}
+	mu := sync.Mutex{}
+	var returnErr error
+
+	externalIdToKey := make(map[PayloadExternalId]ExternalPayloadLocationKey)
 	externalIdToPayload := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
-	offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
+	numPayloads := 0
 
-	for _, payload := range payloads {
-		externalId := PayloadExternalId(payload.ExternalID.String())
+	for _, payloadRange := range payloadRanges {
+		wg.Add(1)
+		go func(pr sqlcv1.CreatePayloadRangeChunksRow) {
+			defer wg.Done()
 
-		if externalId == "" {
-			externalId = PayloadExternalId(uuid.NewString())
-		}
-
-		externalIdToPayload[externalId] = *payload
-		if payload.Location != sqlcv1.V1PayloadLocationINLINE {
-			alreadyExternalPayloads[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
-		} else {
-			offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
-				TenantId:   TenantID(payload.TenantID.String()),
-				ExternalID: externalId,
-				InsertedAt: payload.InsertedAt,
-				Payload:    payload.InlineContent,
+			payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
+				Partitiondate:  pgtype.Date(partitionDate),
+				Limitparam:     p.externalCutoverBatchSize,
+				Lasttenantid:   pagination.LastTenantID,
+				Lastinsertedat: pagination.LastInsertedAt,
+				Lastid:         pagination.LastID,
+				Lasttype:       pagination.LastType,
 			})
-		}
+
+			if err != nil {
+				returnErr = multierror.Append(err, fmt.Errorf("failed to list paginated payloads for offload"))
+				return
+			}
+
+			span.SetAttributes(attribute.Int("num_payloads_read", len(payloads)))
+
+			alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+			externalIdToPayloadInner := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
+			offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
+
+			for _, payload := range payloads {
+				externalId := PayloadExternalId(payload.ExternalID.String())
+
+				if externalId == "" {
+					externalId = PayloadExternalId(uuid.NewString())
+				}
+
+				externalIdToPayloadInner[externalId] = *payload
+				if payload.Location != sqlcv1.V1PayloadLocationINLINE {
+					alreadyExternalPayloads[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
+				} else {
+					offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
+						TenantId:   TenantID(payload.TenantID.String()),
+						ExternalID: externalId,
+						InsertedAt: payload.InsertedAt,
+						Payload:    payload.InlineContent,
+					})
+				}
+			}
+
+			externalIdToKeyInner, err := p.ExternalStore().Store(ctx, offloadOpts...)
+
+			if err != nil {
+				returnErr = multierror.Append(err, fmt.Errorf("failed to offload payloads to external store"))
+				return
+			}
+
+			for r, k := range alreadyExternalPayloads {
+				externalIdToKeyInner[r] = k
+			}
+
+			mu.Lock()
+			for externalId, key := range externalIdToKeyInner {
+				externalIdToKey[externalId] = key
+			}
+			for externalId, key := range alreadyExternalPayloads {
+				externalIdToKey[externalId] = key
+			}
+			for externalId, payload := range externalIdToPayloadInner {
+				externalIdToPayload[externalId] = payload
+			}
+			numPayloads += len(payloads)
+			mu.Unlock()
+		}(*payloadRange)
 	}
 
-	externalIdToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
+	wg.Wait()
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
+	if returnErr != nil {
+		return nil, returnErr
 	}
 
-	for r, k := range alreadyExternalPayloads {
-		externalIdToKey[r] = k
-	}
-
-	payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, len(payloads))
+	payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, numPayloads)
 
 	for externalId, key := range externalIdToKey {
 		payload := externalIdToPayload[externalId]
@@ -505,18 +569,18 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
 	}
 
-	isNoRows := errors.Is(err, pgx.ErrNoRows)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &CutoverBatchOutcome{
+			ShouldContinue: false,
+			NextPagination: pagination,
+		}, nil
+	}
 
 	params := PaginationParams{
 		LastTenantID:   inserted.TenantId,
 		LastInsertedAt: inserted.InsertedAt,
 		LastID:         inserted.ID,
 		LastType:       inserted.Type,
-	}
-
-	// hack so that we don't have errors from zero values when no rows are returned
-	if isNoRows {
-		params = pagination
 	}
 
 	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, params)
@@ -529,7 +593,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
-	if len(payloads) < int(p.externalCutoverBatchSize) || isNoRows {
+	if numPayloads < int(windowSize) {
 		return &CutoverBatchOutcome{
 			ShouldContinue: false,
 			NextPagination: extendedLease.Pagination,
