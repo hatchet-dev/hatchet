@@ -501,11 +501,10 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 					FROM inputs
 					ORDER BY tenant_id, external_id, inserted_at
 					ON CONFLICT(tenant_id, external_id, inserted_at) DO NOTHING
-					RETURNING *
 				)
 
 				SELECT tenant_id, external_id, inserted_at
-				FROM inserts
+				FROM inputs
 				ORDER BY tenant_id DESC, external_id DESC, inserted_at DESC
 				LIMIT 1
 				`,
