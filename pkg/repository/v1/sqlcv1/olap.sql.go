@@ -338,14 +338,14 @@ WITH payloads AS (
         tenant_id::UUID,
         external_id::UUID,
         inserted_at::TIMESTAMPTZ,
-        ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, external_id) AS rn
+        ROW_NUMBER() OVER (ORDER BY tenant_id, external_id, inserted_at) AS rn
     FROM payloads
 )
 
 SELECT tenant_id, external_id, inserted_at, rn
 FROM with_rows
 WHERE MOD(rn, $1::INTEGER) = 1
-ORDER BY tenant_id, inserted_at, external_id
+ORDER BY tenant_id, external_id, inserted_at
 `
 
 type CreateOLAPPayloadRangeChunksParams struct {

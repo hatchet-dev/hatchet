@@ -1883,7 +1883,7 @@ WITH payloads AS (
         tenant_id::UUID,
         external_id::UUID,
         inserted_at::TIMESTAMPTZ,
-        ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, external_id) AS rn
+        ROW_NUMBER() OVER (ORDER BY tenant_id, external_id, inserted_at) AS rn
     FROM payloads
 )
 
@@ -1891,7 +1891,7 @@ SELECT *
 FROM with_rows
 -- row numbers are one-indexed
 WHERE MOD(rn, @chunkSize::INTEGER) = 1
-ORDER BY tenant_id, inserted_at, external_id
+ORDER BY tenant_id, external_id, inserted_at
 ;
 
 -- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
