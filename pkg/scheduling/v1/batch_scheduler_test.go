@@ -529,12 +529,15 @@ func TestBatchSchedulerScheduleTimeout(t *testing.T) {
 	require.NotNil(t, scheduler)
 
 	scheduler.Start(context.Background())
-	defer func() {
+	t.Cleanup(func() {
 		_ = scheduler.Cleanup(context.Background())
-	}()
+	})
 
 	// Wait for scheduler to process items
 	time.Sleep(500 * time.Millisecond)
+
+	// Stop scheduler to avoid races with result inspection
+	require.NoError(t, scheduler.Cleanup(context.Background()))
 
 	// Check that timed out items were emitted as SchedulingTimedOut
 	var schedulingTimedOutCount int
