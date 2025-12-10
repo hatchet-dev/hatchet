@@ -1867,6 +1867,33 @@ SELECT
     updated_at::TIMESTAMPTZ
 FROM payloads;
 
+-- name: CreateOLAPPayloadRangeChunks :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM list_paginated_olap_payloads_for_offload(
+        @partitionDate::DATE,
+        @windowSize::INTEGER,
+        @lastTenantId::UUID,
+        @lastExternalId::UUID,
+        @lastInsertedAt::TIMESTAMPTZ
+    ) p
+), with_rows AS (
+    SELECT
+        tenant_id::UUID,
+        external_id::UUID,
+        inserted_at::TIMESTAMPTZ,
+        ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, external_id) AS rn
+    FROM payloads
+)
+
+SELECT *
+FROM with_rows
+-- row numbers are one-indexed
+WHERE MOD(rn, @chunkSize::INTEGER) = 1
+ORDER BY tenant_id, inserted_at, external_id
+;
+
 -- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
 SELECT copy_v1_payloads_olap_partition_structure(@date::DATE);
 

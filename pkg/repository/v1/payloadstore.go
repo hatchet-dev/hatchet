@@ -481,8 +481,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 				return
 			}
 
-			span.SetAttributes(attribute.Int("num_payloads_read", len(payloads)))
-
 			alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
 			externalIdToPayloadInner := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
 			offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
@@ -529,6 +527,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, returnErr
 	}
 
+	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
 	payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, numPayloads)
 
 	for externalId, key := range externalIdToKey {
