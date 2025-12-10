@@ -223,7 +223,10 @@ WITH payloads AS (
     FROM list_paginated_payloads_for_offload(
         @partitionDate::DATE,
         @limitParam::INT,
-        @offsetParam::BIGINT
+        @lastTenantId::UUID,
+        @lastInsertedAt::TIMESTAMPTZ,
+        @lastId::BIGINT,
+        @lastType::v1_payload_type
     ) p
 )
 SELECT
@@ -245,11 +248,29 @@ SELECT copy_v1_payload_partition_structure(@date::DATE);
 SELECT swap_v1_payload_partition_with_temp(@date::DATE);
 
 -- name: AcquireOrExtendCutoverJobLease :one
-INSERT INTO v1_payload_cutover_job_offset (key, last_offset, lease_process_id, lease_expires_at)
-VALUES (@key::DATE, @lastOffset::BIGINT, @leaseProcessId::UUID, @leaseExpiresAt::TIMESTAMPTZ)
+INSERT INTO v1_payload_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type)
+VALUES (@key::DATE, @leaseProcessId::UUID, @leaseExpiresAt::TIMESTAMPTZ, @lastTenantId::UUID, @lastInsertedAt::TIMESTAMPTZ, @lastId::BIGINT, @lastType::v1_payload_type)
 ON CONFLICT (key)
 DO UPDATE SET
-    last_offset = EXCLUDED.last_offset,
+    -- if the lease is held by this process, then we extend the offset to the new tuple of (last_tenant_id, last_inserted_at, last_id, last_type)
+    -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
+    last_tenant_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_tenant_id
+        ELSE v1_payload_cutover_job_offset.last_tenant_id
+    END,
+    last_inserted_at = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_inserted_at
+        ELSE v1_payload_cutover_job_offset.last_inserted_at
+    END,
+    last_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_id
+        ELSE v1_payload_cutover_job_offset.last_id
+    END,
+    last_type = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_type
+        ELSE v1_payload_cutover_job_offset.last_type
+    END,
+
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
 WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = @leaseProcessId::UUID

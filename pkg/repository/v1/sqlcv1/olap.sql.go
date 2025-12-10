@@ -12,38 +12,58 @@ import (
 )
 
 const acquireOrExtendOLAPCutoverJobLease = `-- name: AcquireOrExtendOLAPCutoverJobLease :one
-INSERT INTO v1_payloads_olap_cutover_job_offset (key, last_offset, lease_process_id, lease_expires_at)
-VALUES ($1::DATE, $2::BIGINT, $3::UUID, $4::TIMESTAMPTZ)
+INSERT INTO v1_payloads_olap_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at)
+VALUES ($1::DATE, $2::UUID, $3::TIMESTAMPTZ, $4::UUID, $5::UUID, $6::TIMESTAMPTZ)
 ON CONFLICT (key)
 DO UPDATE SET
-    last_offset = EXCLUDED.last_offset,
+    -- if the lease is held by this process, then we extend the offset to the new value
+    -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
+    last_tenant_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_tenant_id
+        ELSE v1_payloads_olap_cutover_job_offset.last_tenant_id
+    END,
+    last_external_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_external_id
+        ELSE v1_payloads_olap_cutover_job_offset.last_external_id
+    END,
+    last_inserted_at = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_inserted_at
+        ELSE v1_payloads_olap_cutover_job_offset.last_inserted_at
+    END,
+
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
-WHERE v1_payloads_olap_cutover_job_offset.lease_expires_at < NOW() OR v1_payloads_olap_cutover_job_offset.lease_process_id = $3::UUID
-RETURNING key, last_offset, is_completed, lease_process_id, lease_expires_at
+WHERE v1_payloads_olap_cutover_job_offset.lease_expires_at < NOW() OR v1_payloads_olap_cutover_job_offset.lease_process_id = $2::UUID
+RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at
 `
 
 type AcquireOrExtendOLAPCutoverJobLeaseParams struct {
 	Key            pgtype.Date        `json:"key"`
-	Lastoffset     int64              `json:"lastoffset"`
 	Leaseprocessid pgtype.UUID        `json:"leaseprocessid"`
 	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 }
 
 func (q *Queries) AcquireOrExtendOLAPCutoverJobLease(ctx context.Context, db DBTX, arg AcquireOrExtendOLAPCutoverJobLeaseParams) (*V1PayloadsOlapCutoverJobOffset, error) {
 	row := db.QueryRow(ctx, acquireOrExtendOLAPCutoverJobLease,
 		arg.Key,
-		arg.Lastoffset,
 		arg.Leaseprocessid,
 		arg.Leaseexpiresat,
+		arg.Lasttenantid,
+		arg.Lastexternalid,
+		arg.Lastinsertedat,
 	)
 	var i V1PayloadsOlapCutoverJobOffset
 	err := row.Scan(
 		&i.Key,
-		&i.LastOffset,
 		&i.IsCompleted,
 		&i.LeaseProcessID,
 		&i.LeaseExpiresAt,
+		&i.LastTenantID,
+		&i.LastExternalID,
+		&i.LastInsertedAt,
 	)
 	return &i, err
 }
@@ -1207,7 +1227,9 @@ WITH payloads AS (
     FROM list_paginated_olap_payloads_for_offload(
         $1::DATE,
         $2::INT,
-        $3::BIGINT
+        $3::UUID,
+        $4::UUID,
+        $5::TIMESTAMPTZ
     ) p
 )
 SELECT
@@ -1222,9 +1244,11 @@ FROM payloads
 `
 
 type ListPaginatedOLAPPayloadsForOffloadParams struct {
-	Partitiondate pgtype.Date `json:"partitiondate"`
-	Limitparam    int32       `json:"limitparam"`
-	Offsetparam   int64       `json:"offsetparam"`
+	Partitiondate  pgtype.Date        `json:"partitiondate"`
+	Limitparam     int32              `json:"limitparam"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 }
 
 type ListPaginatedOLAPPayloadsForOffloadRow struct {
@@ -1238,7 +1262,13 @@ type ListPaginatedOLAPPayloadsForOffloadRow struct {
 }
 
 func (q *Queries) ListPaginatedOLAPPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedOLAPPayloadsForOffloadParams) ([]*ListPaginatedOLAPPayloadsForOffloadRow, error) {
-	rows, err := db.Query(ctx, listPaginatedOLAPPayloadsForOffload, arg.Partitiondate, arg.Limitparam, arg.Offsetparam)
+	rows, err := db.Query(ctx, listPaginatedOLAPPayloadsForOffload,
+		arg.Partitiondate,
+		arg.Limitparam,
+		arg.Lasttenantid,
+		arg.Lastexternalid,
+		arg.Lastinsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}

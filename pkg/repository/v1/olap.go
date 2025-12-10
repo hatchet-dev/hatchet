@@ -2684,7 +2684,26 @@ type BulkCutOverOLAPPayload struct {
 	ExternalLocationKey ExternalPayloadLocationKey
 }
 
-func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, offset int64, externalCutoverBatchSize int32) (*CutoverBatchOutcome, error) {
+type OLAPPaginationParams struct {
+	LastTenantId   pgtype.UUID
+	LastInsertedAt pgtype.Timestamptz
+	LastExternalId pgtype.UUID
+	Limit          int32
+}
+
+type OLAPCutoverJobRunMetadata struct {
+	ShouldRun      bool
+	Pagination     OLAPPaginationParams
+	PartitionDate  PartitionDate
+	LeaseProcessId pgtype.UUID
+}
+
+type OLAPCutoverBatchOutcome struct {
+	ShouldContinue bool
+	NextPagination OLAPPaginationParams
+}
+
+func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, pagination OLAPPaginationParams) (*OLAPCutoverBatchOutcome, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
 	if err != nil {
@@ -2694,10 +2713,13 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	defer rollback()
 
 	tableName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
+
 	payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
-		Partitiondate: pgtype.Date(partitionDate),
-		Offsetparam:   offset,
-		Limitparam:    externalCutoverBatchSize,
+		Partitiondate:  pgtype.Date(partitionDate),
+		Lasttenantid:   pagination.LastTenantId,
+		Lastexternalid: pagination.LastExternalId,
+		Lastinsertedat: pagination.LastInsertedAt,
+		Limitparam:     pagination.Limit,
 	})
 
 	if err != nil {
@@ -2747,15 +2769,27 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 		})
 	}
 
-	_, err = sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
+	insertResult, err := sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
 	}
 
-	offset += int64(len(payloads))
+	isNoRows := errors.Is(err, pgx.ErrNoRows)
 
-	_, err = p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, offset)
+	params := OLAPPaginationParams{
+		LastTenantId:   insertResult.TenantId,
+		LastInsertedAt: insertResult.InsertedAt,
+		LastExternalId: insertResult.ExternalId,
+		Limit:          pagination.Limit,
+	}
+
+	// hack so that we don't have errors from zero values when no rows are returned
+	if isNoRows {
+		params = pagination
+	}
+
+	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, params)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
@@ -2765,26 +2799,28 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
-	if len(payloads) < int(externalCutoverBatchSize) {
-		return &CutoverBatchOutcome{
+	if len(payloads) < int(pagination.Limit) || isNoRows {
+		return &OLAPCutoverBatchOutcome{
 			ShouldContinue: false,
-			NextOffset:     offset,
+			NextPagination: extendedLease.Pagination,
 		}, nil
 	}
 
-	return &CutoverBatchOutcome{
+	return &OLAPCutoverBatchOutcome{
 		ShouldContinue: true,
-		NextOffset:     offset,
+		NextPagination: extendedLease.Pagination,
 	}, nil
 }
 
-func (p *OLAPRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId pgtype.UUID, partitionDate PartitionDate, offset int64) (*CutoverJobRunMetadata, error) {
+func (p *OLAPRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId pgtype.UUID, partitionDate PartitionDate, pagination OLAPPaginationParams) (*OLAPCutoverJobRunMetadata, error) {
 	leaseInterval := 2 * time.Minute
 	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
 
 	lease, err := p.queries.AcquireOrExtendOLAPCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendOLAPCutoverJobLeaseParams{
 		Key:            pgtype.Date(partitionDate),
-		Lastoffset:     offset,
+		Lasttenantid:   pagination.LastTenantId,
+		Lastexternalid: pagination.LastExternalId,
+		Lastinsertedat: pagination.LastInsertedAt,
 		Leaseprocessid: processId,
 		Leaseexpiresat: leaseExpiresAt,
 	})
@@ -2793,9 +2829,8 @@ func (p *OLAPRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx
 		// ErrNoRows here means that something else is holding the lease
 		// since we did not insert a new record, and the `UPDATE` returned an empty set
 		if errors.Is(err, pgx.ErrNoRows) {
-			return &CutoverJobRunMetadata{
+			return &OLAPCutoverJobRunMetadata{
 				ShouldRun:      false,
-				LastOffset:     0,
 				PartitionDate:  partitionDate,
 				LeaseProcessId: processId,
 			}, nil
@@ -2804,23 +2839,33 @@ func (p *OLAPRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx
 	}
 
 	if lease.LeaseProcessID != processId || lease.IsCompleted {
-		return &CutoverJobRunMetadata{
-			ShouldRun:      false,
-			LastOffset:     lease.LastOffset,
+		return &OLAPCutoverJobRunMetadata{
+			ShouldRun: false,
+			Pagination: OLAPPaginationParams{
+				LastTenantId:   lease.LastTenantID,
+				LastInsertedAt: lease.LastInsertedAt,
+				LastExternalId: lease.LastExternalID,
+				Limit:          pagination.Limit,
+			},
 			PartitionDate:  partitionDate,
 			LeaseProcessId: lease.LeaseProcessID,
 		}, nil
 	}
 
-	return &CutoverJobRunMetadata{
-		ShouldRun:      true,
-		LastOffset:     lease.LastOffset,
+	return &OLAPCutoverJobRunMetadata{
+		ShouldRun: true,
+		Pagination: OLAPPaginationParams{
+			LastTenantId:   lease.LastTenantID,
+			LastInsertedAt: lease.LastInsertedAt,
+			LastExternalId: lease.LastExternalID,
+			Limit:          pagination.Limit,
+		},
 		PartitionDate:  partitionDate,
 		LeaseProcessId: processId,
 	}, nil
 }
 
-func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration) (*CutoverJobRunMetadata, error) {
+func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration, externalCutoverBatchSize int32) (*OLAPCutoverJobRunMetadata, error) {
 	if inlineStoreTTL == nil {
 		return nil, fmt.Errorf("inline store TTL is not set")
 	}
@@ -2833,7 +2878,14 @@ func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, process
 
 	defer rollback()
 
-	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, 0)
+	var zeroUuid uuid.UUID
+
+	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, OLAPPaginationParams{
+		LastTenantId:   sqlchelpers.UUIDFromStr(zeroUuid.String()),
+		LastExternalId: sqlchelpers.UUIDFromStr(zeroUuid.String()),
+		LastInsertedAt: sqlchelpers.TimestamptzFromTime(time.Unix(0, 0)),
+		Limit:          externalCutoverBatchSize,
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire or extend cutover job lease: %w", err)
@@ -2842,8 +2894,6 @@ func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, process
 	if !lease.ShouldRun {
 		return lease, nil
 	}
-
-	offset := lease.LastOffset
 
 	err = p.queries.CreateV1PayloadOLAPCutoverTemporaryTable(ctx, tx, pgtype.Date(partitionDate))
 
@@ -2855,9 +2905,9 @@ func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, process
 		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
-	return &CutoverJobRunMetadata{
+	return &OLAPCutoverJobRunMetadata{
 		ShouldRun:      true,
-		LastOffset:     offset,
+		Pagination:     lease.Pagination,
 		PartitionDate:  partitionDate,
 		LeaseProcessId: processId,
 	}, nil
@@ -2867,7 +2917,7 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	ctx, span := telemetry.NewSpan(ctx, "olap_repository.processSinglePartition")
 	defer span.End()
 
-	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate, inlineStoreTTL)
+	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate, inlineStoreTTL, externalCutoverBatchSize)
 
 	if err != nil {
 		return fmt.Errorf("failed to prepare cutover table job: %w", err)
@@ -2877,10 +2927,10 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 		return nil
 	}
 
-	offset := jobMeta.LastOffset
+	pagination := jobMeta.Pagination
 
 	for {
-		outcome, err := p.processOLAPPayloadCutoverBatch(ctx, processId, partitionDate, offset, externalCutoverBatchSize)
+		outcome, err := p.processOLAPPayloadCutoverBatch(ctx, processId, partitionDate, pagination)
 
 		if err != nil {
 			return fmt.Errorf("failed to process payload cutover batch: %w", err)
@@ -2890,7 +2940,7 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 			break
 		}
 
-		offset = outcome.NextOffset
+		pagination = outcome.NextPagination
 	}
 
 	tempPartitionName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())

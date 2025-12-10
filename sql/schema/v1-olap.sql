@@ -801,10 +801,13 @@ EXECUTE FUNCTION v1_events_lookup_table_olap_insert_function();
 
 CREATE TABLE v1_payloads_olap_cutover_job_offset (
     key DATE PRIMARY KEY,
-    last_offset BIGINT NOT NULL,
     is_completed BOOLEAN NOT NULL DEFAULT FALSE,
     lease_process_id UUID NOT NULL DEFAULT gen_random_uuid(),
-    lease_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    lease_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    last_tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
+    last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
+    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00'
 );
 
 CREATE OR REPLACE FUNCTION copy_v1_payloads_olap_partition_structure(
@@ -918,7 +921,9 @@ $$;
 CREATE OR REPLACE FUNCTION list_paginated_olap_payloads_for_offload(
     partition_date date,
     limit_param int,
-    offset_param bigint
+    last_tenant_id uuid,
+    last_external_id uuid,
+    last_inserted_at timestamptz
 ) RETURNS TABLE (
     tenant_id UUID,
     external_id UUID,
@@ -949,12 +954,12 @@ BEGIN
     query := format('
         SELECT tenant_id, external_id, location, external_location_key, inline_content, inserted_at, updated_at
         FROM %I
+        WHERE (tenant_id, external_id, inserted_at) > ($1, $2, $3)
         ORDER BY tenant_id, external_id, inserted_at
-        LIMIT $1
-        OFFSET $2
+        LIMIT $4
     ', source_partition_name);
 
-    RETURN QUERY EXECUTE query USING limit_param, offset_param;
+    RETURN QUERY EXECUTE query USING last_tenant_id, last_external_id, last_inserted_at, limit_param;
 END;
 $$;
 

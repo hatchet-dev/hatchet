@@ -1852,7 +1852,9 @@ WITH payloads AS (
     FROM list_paginated_olap_payloads_for_offload(
         @partitionDate::DATE,
         @limitParam::INT,
-        @offsetParam::BIGINT
+        @lastTenantId::UUID,
+        @lastExternalId::UUID,
+        @lastInsertedAt::TIMESTAMPTZ
     ) p
 )
 SELECT
@@ -1872,11 +1874,25 @@ SELECT copy_v1_payloads_olap_partition_structure(@date::DATE);
 SELECT swap_v1_payloads_olap_partition_with_temp(@date::DATE);
 
 -- name: AcquireOrExtendOLAPCutoverJobLease :one
-INSERT INTO v1_payloads_olap_cutover_job_offset (key, last_offset, lease_process_id, lease_expires_at)
-VALUES (@key::DATE, @lastOffset::BIGINT, @leaseProcessId::UUID, @leaseExpiresAt::TIMESTAMPTZ)
+INSERT INTO v1_payloads_olap_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at)
+VALUES (@key::DATE, @leaseProcessId::UUID, @leaseExpiresAt::TIMESTAMPTZ, @lastTenantId::UUID, @lastExternalId::UUID, @lastInsertedAt::TIMESTAMPTZ)
 ON CONFLICT (key)
 DO UPDATE SET
-    last_offset = EXCLUDED.last_offset,
+    -- if the lease is held by this process, then we extend the offset to the new value
+    -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
+    last_tenant_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_tenant_id
+        ELSE v1_payloads_olap_cutover_job_offset.last_tenant_id
+    END,
+    last_external_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_external_id
+        ELSE v1_payloads_olap_cutover_job_offset.last_external_id
+    END,
+    last_inserted_at = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_inserted_at
+        ELSE v1_payloads_olap_cutover_job_offset.last_inserted_at
+    END,
+
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
 WHERE v1_payloads_olap_cutover_job_offset.lease_expires_at < NOW() OR v1_payloads_olap_cutover_job_offset.lease_process_id = @leaseProcessId::UUID
