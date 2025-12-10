@@ -72,11 +72,10 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 					FROM inputs
 					ORDER BY tenant_id, inserted_at, id, type
 					ON CONFLICT(tenant_id, id, inserted_at, type) DO NOTHING
-					RETURNING *
 				)
 
 				SELECT tenant_id, inserted_at, id, type
-				FROM inserts
+				FROM inputs
 				ORDER BY tenant_id DESC, inserted_at DESC, id DESC, type DESC
 				LIMIT 1
 				`,
