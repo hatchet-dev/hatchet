@@ -247,7 +247,7 @@ WITH payloads AS (
         (p).*
     FROM list_paginated_payloads_for_offload(
         @partitionDate::DATE,
-        @windowSize::BIGINT,
+        @windowSize::INTEGER,
         @lastTenantId::UUID,
         @lastInsertedAt::TIMESTAMPTZ,
         @lastId::BIGINT,
@@ -265,7 +265,8 @@ WITH payloads AS (
 
 SELECT *
 FROM with_rows
-WHERE MOD(rn, @chunkSize::INTEGER) = 0
+-- row numbers are one-indexed
+WHERE MOD(rn, @chunkSize::INTEGER) = 1
 ORDER BY tenant_id, inserted_at, id, type
 ;
 

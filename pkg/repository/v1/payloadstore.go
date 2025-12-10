@@ -429,21 +429,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
-	}
-
-	defer rollback()
-
 	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
-	windowSize := int64(p.externalCutoverBatchSize * 10)
+	windowSize := p.externalCutoverBatchSize * 10 // 10 chunks per batch
 
-	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, tx, sqlcv1.CreatePayloadRangeChunksParams{
-		Chunksize:     p.externalCutoverBatchSize,
-		Partitiondate: pgtype.Date(partitionDate),
-		// 10 chunks per batch
+	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, p.pool, sqlcv1.CreatePayloadRangeChunksParams{
+		Chunksize:      p.externalCutoverBatchSize,
+		Partitiondate:  pgtype.Date(partitionDate),
 		Windowsize:     windowSize,
 		Lasttenantid:   pagination.LastTenantID,
 		Lastinsertedat: pagination.LastInsertedAt,
@@ -455,9 +446,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, fmt.Errorf("failed to create payload range chunks: %w", err)
 	}
 
-	isNoRows := errors.Is(err, pgx.ErrNoRows)
-
-	if isNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return &CutoverBatchOutcome{
 			ShouldContinue: false,
 			NextPagination: pagination,
@@ -477,13 +466,13 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		go func(pr sqlcv1.CreatePayloadRangeChunksRow) {
 			defer wg.Done()
 
-			payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
+			payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedPayloadsForOffloadParams{
 				Partitiondate:  pgtype.Date(partitionDate),
 				Limitparam:     p.externalCutoverBatchSize,
-				Lasttenantid:   pagination.LastTenantID,
-				Lastinsertedat: pagination.LastInsertedAt,
-				Lastid:         pagination.LastID,
-				Lasttype:       pagination.LastType,
+				Lasttenantid:   payloadRange.TenantID,
+				Lastinsertedat: payloadRange.InsertedAt,
+				Lastid:         payloadRange.ID,
+				Lasttype:       payloadRange.Type,
 			})
 
 			if err != nil {
@@ -524,10 +513,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 				return
 			}
 
-			for r, k := range alreadyExternalPayloads {
-				externalIdToKeyInner[r] = k
-			}
-
 			mu.Lock()
 			for externalId, key := range externalIdToKeyInner {
 				externalIdToKey[externalId] = key
@@ -563,6 +548,14 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		})
 	}
 
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+	}
+
+	defer rollback()
+
 	inserted, err := sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -576,14 +569,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		}, nil
 	}
 
-	params := PaginationParams{
+	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, PaginationParams{
 		LastTenantID:   inserted.TenantId,
 		LastInsertedAt: inserted.InsertedAt,
 		LastID:         inserted.ID,
 		LastType:       inserted.Type,
-	}
-
-	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, params)
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)

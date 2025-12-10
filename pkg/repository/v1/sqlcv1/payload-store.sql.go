@@ -113,7 +113,7 @@ WITH payloads AS (
         (p).*
     FROM list_paginated_payloads_for_offload(
         $2::DATE,
-        $3::BIGINT,
+        $3::INTEGER,
         $4::UUID,
         $5::TIMESTAMPTZ,
         $6::BIGINT,
@@ -131,14 +131,14 @@ WITH payloads AS (
 
 SELECT tenant_id, id, inserted_at, type, rn
 FROM with_rows
-WHERE MOD(rn, $1::INTEGER) = 0
+WHERE MOD(rn, $1::INTEGER) = 1
 ORDER BY tenant_id, inserted_at, id, type
 `
 
 type CreatePayloadRangeChunksParams struct {
 	Chunksize      int32              `json:"chunksize"`
 	Partitiondate  pgtype.Date        `json:"partitiondate"`
-	Windowsize     int64              `json:"windowsize"`
+	Windowsize     int32              `json:"windowsize"`
 	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 	Lastid         int64              `json:"lastid"`
@@ -153,6 +153,7 @@ type CreatePayloadRangeChunksRow struct {
 	Rn         int64              `json:"rn"`
 }
 
+// row numbers are one-indexed
 func (q *Queries) CreatePayloadRangeChunks(ctx context.Context, db DBTX, arg CreatePayloadRangeChunksParams) ([]*CreatePayloadRangeChunksRow, error) {
 	rows, err := db.Query(ctx, createPayloadRangeChunks,
 		arg.Chunksize,
