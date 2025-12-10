@@ -1917,10 +1917,14 @@ $$;
 
 CREATE TABLE v1_payload_cutover_job_offset (
     key DATE PRIMARY KEY,
-    last_offset BIGINT NOT NULL,
     is_completed BOOLEAN NOT NULL DEFAULT FALSE,
     lease_process_id UUID NOT NULL DEFAULT gen_random_uuid(),
-    lease_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    lease_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    last_tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
+    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00',
+    last_id BIGINT NOT NULL DEFAULT 0,
+    last_type v1_payload_type NOT NULL DEFAULT 'TASK_INPUT'
 );
 
 CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(
@@ -2034,7 +2038,10 @@ $$;
 CREATE OR REPLACE FUNCTION list_paginated_payloads_for_offload(
     partition_date date,
     limit_param int,
-    offset_param bigint
+    last_tenant_id uuid,
+    last_inserted_at timestamptz,
+    last_id bigint,
+    last_type v1_payload_type
 ) RETURNS TABLE (
     tenant_id UUID,
     id BIGINT,
@@ -2068,12 +2075,12 @@ BEGIN
         SELECT tenant_id, id, inserted_at, external_id, type, location,
                external_location_key, inline_content, updated_at
         FROM %I
+        WHERE (tenant_id, inserted_at, id, type) > ($1, $2, $3, $4)
         ORDER BY tenant_id, inserted_at, id, type
-        LIMIT $1
-        OFFSET $2
+        LIMIT $5
     ', source_partition_name);
 
-    RETURN QUERY EXECUTE query USING limit_param, offset_param;
+    RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, limit_param;
 END;
 $$;
 

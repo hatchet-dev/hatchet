@@ -12,38 +12,88 @@ import (
 )
 
 const acquireOrExtendCutoverJobLease = `-- name: AcquireOrExtendCutoverJobLease :one
-INSERT INTO v1_payload_cutover_job_offset (key, last_offset, lease_process_id, lease_expires_at)
-VALUES ($1::DATE, $2::BIGINT, $3::UUID, $4::TIMESTAMPTZ)
+WITH inputs AS (
+    SELECT
+        $2::DATE AS key,
+        $1::UUID AS lease_process_id,
+        $3::TIMESTAMPTZ AS lease_expires_at,
+        $4::UUID AS last_tenant_id,
+        $5::TIMESTAMPTZ AS last_inserted_at,
+        $6::BIGINT AS last_id,
+        $7::v1_payload_type AS last_type
+), any_lease_held_by_other_process AS (
+    -- need coalesce here in case there are no rows that don't belong to this process
+    SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
+    FROM v1_payload_cutover_job_offset
+    WHERE lease_process_id != $1::UUID
+), to_insert AS (
+    SELECT key, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type
+    FROM inputs
+    -- if a lease is held by another process, we shouldn't try to insert a new row regardless
+    -- of which key we're trying to acquire a lease on
+    WHERE NOT (SELECT lease_exists FROM any_lease_held_by_other_process)
+)
+
+INSERT INTO v1_payload_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type)
+SELECT ti.key, ti.lease_process_id, ti.lease_expires_at, ti.last_tenant_id, ti.last_inserted_at, ti.last_id, ti.last_type
+FROM to_insert ti
 ON CONFLICT (key)
 DO UPDATE SET
-    last_offset = EXCLUDED.last_offset,
+    -- if the lease is held by this process, then we extend the offset to the new tuple of (last_tenant_id, last_inserted_at, last_id, last_type)
+    -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
+    last_tenant_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_tenant_id
+        ELSE v1_payload_cutover_job_offset.last_tenant_id
+    END,
+    last_inserted_at = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_inserted_at
+        ELSE v1_payload_cutover_job_offset.last_inserted_at
+    END,
+    last_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_id
+        ELSE v1_payload_cutover_job_offset.last_id
+    END,
+    last_type = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_type
+        ELSE v1_payload_cutover_job_offset.last_type
+    END,
+
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
-WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = $3::UUID
-RETURNING key, last_offset, is_completed, lease_process_id, lease_expires_at
+WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = $1::UUID
+RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type
 `
 
 type AcquireOrExtendCutoverJobLeaseParams struct {
-	Key            pgtype.Date        `json:"key"`
-	Lastoffset     int64              `json:"lastoffset"`
 	Leaseprocessid pgtype.UUID        `json:"leaseprocessid"`
+	Key            pgtype.Date        `json:"key"`
 	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+	Lastid         int64              `json:"lastid"`
+	Lasttype       V1PayloadType      `json:"lasttype"`
 }
 
 func (q *Queries) AcquireOrExtendCutoverJobLease(ctx context.Context, db DBTX, arg AcquireOrExtendCutoverJobLeaseParams) (*V1PayloadCutoverJobOffset, error) {
 	row := db.QueryRow(ctx, acquireOrExtendCutoverJobLease,
-		arg.Key,
-		arg.Lastoffset,
 		arg.Leaseprocessid,
+		arg.Key,
 		arg.Leaseexpiresat,
+		arg.Lasttenantid,
+		arg.Lastinsertedat,
+		arg.Lastid,
+		arg.Lasttype,
 	)
 	var i V1PayloadCutoverJobOffset
 	err := row.Scan(
 		&i.Key,
-		&i.LastOffset,
 		&i.IsCompleted,
 		&i.LeaseProcessID,
 		&i.LeaseExpiresAt,
+		&i.LastTenantID,
+		&i.LastInsertedAt,
+		&i.LastID,
+		&i.LastType,
 	)
 	return &i, err
 }
@@ -127,7 +177,10 @@ WITH payloads AS (
     FROM list_paginated_payloads_for_offload(
         $1::DATE,
         $2::INT,
-        $3::BIGINT
+        $3::UUID,
+        $4::TIMESTAMPTZ,
+        $5::BIGINT,
+        $6::v1_payload_type
     ) p
 )
 SELECT
@@ -144,9 +197,12 @@ FROM payloads
 `
 
 type ListPaginatedPayloadsForOffloadParams struct {
-	Partitiondate pgtype.Date `json:"partitiondate"`
-	Limitparam    int32       `json:"limitparam"`
-	Offsetparam   int64       `json:"offsetparam"`
+	Partitiondate  pgtype.Date        `json:"partitiondate"`
+	Limitparam     int32              `json:"limitparam"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+	Lastid         int64              `json:"lastid"`
+	Lasttype       V1PayloadType      `json:"lasttype"`
 }
 
 type ListPaginatedPayloadsForOffloadRow struct {
@@ -162,7 +218,14 @@ type ListPaginatedPayloadsForOffloadRow struct {
 }
 
 func (q *Queries) ListPaginatedPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedPayloadsForOffloadParams) ([]*ListPaginatedPayloadsForOffloadRow, error) {
-	rows, err := db.Query(ctx, listPaginatedPayloadsForOffload, arg.Partitiondate, arg.Limitparam, arg.Offsetparam)
+	rows, err := db.Query(ctx, listPaginatedPayloadsForOffload,
+		arg.Partitiondate,
+		arg.Limitparam,
+		arg.Lasttenantid,
+		arg.Lastinsertedat,
+		arg.Lastid,
+		arg.Lasttype,
+	)
 	if err != nil {
 		return nil, err
 	}

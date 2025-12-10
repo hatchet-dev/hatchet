@@ -1844,3 +1844,91 @@ WHERE
         sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
     )
 ;
+
+-- name: ListPaginatedOLAPPayloadsForOffload :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM list_paginated_olap_payloads_for_offload(
+        @partitionDate::DATE,
+        @limitParam::INT,
+        @lastTenantId::UUID,
+        @lastExternalId::UUID,
+        @lastInsertedAt::TIMESTAMPTZ
+    ) p
+)
+SELECT
+    tenant_id::UUID,
+    external_id::UUID,
+    location::v1_payload_location_olap,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
+    inserted_at::TIMESTAMPTZ,
+    updated_at::TIMESTAMPTZ
+FROM payloads;
+
+-- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
+SELECT copy_v1_payloads_olap_partition_structure(@date::DATE);
+
+-- name: SwapV1PayloadOLAPPartitionWithTemp :exec
+SELECT swap_v1_payloads_olap_partition_with_temp(@date::DATE);
+
+-- name: AcquireOrExtendOLAPCutoverJobLease :one
+WITH inputs AS (
+    SELECT
+        @key::DATE AS key,
+        @leaseProcessId::UUID AS lease_process_id,
+        @leaseExpiresAt::TIMESTAMPTZ AS lease_expires_at,
+        @lastTenantId::UUID AS last_tenant_id,
+        @lastExternalId::UUID AS last_external_id,
+        @lastInsertedAt::TIMESTAMPTZ AS last_inserted_at
+), any_lease_held_by_other_process AS (
+    -- need coalesce here in case there are no rows that don't belong to this process
+    SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
+    FROM v1_payloads_olap_cutover_job_offset
+    WHERE lease_process_id != @leaseProcessId::UUID
+), to_insert AS (
+    SELECT *
+    FROM inputs
+    -- if a lease is held by another process, we shouldn't try to insert a new row regardless
+    -- of which key we're trying to acquire a lease on
+    WHERE NOT (SELECT lease_exists FROM any_lease_held_by_other_process)
+)
+
+INSERT INTO v1_payloads_olap_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at)
+SELECT
+    ti.key,
+    ti.lease_process_id,
+    ti.lease_expires_at,
+    ti.last_tenant_id,
+    ti.last_external_id,
+    ti.last_inserted_at
+FROM to_insert ti
+ON CONFLICT (key)
+DO UPDATE SET
+    -- if the lease is held by this process, then we extend the offset to the new value
+    -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
+    last_tenant_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_tenant_id
+        ELSE v1_payloads_olap_cutover_job_offset.last_tenant_id
+    END,
+    last_external_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_external_id
+        ELSE v1_payloads_olap_cutover_job_offset.last_external_id
+    END,
+    last_inserted_at = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_inserted_at
+        ELSE v1_payloads_olap_cutover_job_offset.last_inserted_at
+    END,
+
+    lease_process_id = EXCLUDED.lease_process_id,
+    lease_expires_at = EXCLUDED.lease_expires_at
+WHERE v1_payloads_olap_cutover_job_offset.lease_expires_at < NOW() OR v1_payloads_olap_cutover_job_offset.lease_process_id = @leaseProcessId::UUID
+RETURNING *
+;
+
+-- name: MarkOLAPCutoverJobAsCompleted :exec
+UPDATE v1_payloads_olap_cutover_job_offset
+SET is_completed = TRUE
+WHERE key = @key::DATE
+;
