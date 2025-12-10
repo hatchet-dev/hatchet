@@ -1,13 +1,8 @@
-from collections.abc import Callable
 from typing import ParamSpec, TypeVar
-
-import tenacity
 
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.configuration import Configuration
-from hatchet_sdk.clients.rest.exceptions import NotFoundException, ServiceException
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 ## Type variables to use with coroutines.
@@ -47,24 +42,3 @@ class BaseRestClient:
 
     def client(self) -> ApiClient:
         return ApiClient(self.api_config)
-
-
-def retry(func: Callable[P, R]) -> Callable[P, R]:
-    return tenacity.retry(
-        reraise=True,
-        wait=tenacity.wait_exponential_jitter(),
-        stop=tenacity.stop_after_attempt(5),
-        before_sleep=_alert_on_retry,
-        retry=tenacity.retry_if_exception(_should_retry),
-    )(func)
-
-
-def _alert_on_retry(retry_state: tenacity.RetryCallState) -> None:
-    logger.debug(
-        f"retrying {retry_state.fn}: attempt "
-        f"{retry_state.attempt_number} ended with: {retry_state.outcome}",
-    )
-
-
-def _should_retry(ex: BaseException) -> bool:
-    return isinstance(ex, ServiceException | NotFoundException)

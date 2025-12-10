@@ -9,7 +9,8 @@ from hatchet_sdk.clients.rest.models.v1_cel_debug_request import V1CELDebugReque
 from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
     V1CELDebugResponseStatus,
 )
-from hatchet_sdk.clients.v1.api_client import BaseRestClient, retry
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.clients.v1.api_client import BaseRestClient
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -35,7 +36,6 @@ class CELClient(BaseRestClient):
     def _ca(self, client: ApiClient) -> CELApi:
         return CELApi(client)
 
-    @retry
     def debug(
         self,
         expression: str,
@@ -62,7 +62,10 @@ class CELClient(BaseRestClient):
             filterPayload=filter_payload,
         )
         with self.client() as client:
-            result = self._ca(client).v1_cel_debug(
+            v1_cel_debug = tenacity_retry(
+                self._ca(client).v1_cel_debug, self.client_config.tenacity
+            )
+            result = v1_cel_debug(
                 tenant=self.client_config.tenant_id, v1_cel_debug_request=request
             )
 

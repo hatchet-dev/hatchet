@@ -4,6 +4,7 @@ from typing import ParamSpec, TypeVar
 import grpc
 import tenacity
 
+from hatchet_sdk.clients.rest.exceptions import NotFoundException, ServiceException
 from hatchet_sdk.config import TenacityConfig
 from hatchet_sdk.logger import logger
 
@@ -33,6 +34,9 @@ def tenacity_alert_retry(retry_state: tenacity.RetryCallState) -> None:
 
 
 def tenacity_should_retry(ex: BaseException) -> bool:
+    if isinstance(ex, ServiceException | NotFoundException):
+        return True
+
     if isinstance(ex, grpc.aio.AioRpcError | grpc.RpcError):
         return ex.code() not in [
             grpc.StatusCode.UNIMPLEMENTED,
@@ -42,4 +46,5 @@ def tenacity_should_retry(ex: BaseException) -> bool:
             grpc.StatusCode.UNAUTHENTICATED,
             grpc.StatusCode.PERMISSION_DENIED,
         ]
+
     return False

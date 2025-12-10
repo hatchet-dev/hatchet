@@ -30,6 +30,7 @@ async def async_cm_dep(
         yield ASYNC_CM_DEPENDENCY_VALUE + "_" + async_dep
     finally:
         pass
+    raise Exception("Test exception in sync_cm_dep")
 
 
 @contextmanager
@@ -40,6 +41,7 @@ def sync_cm_dep(
         yield SYNC_CM_DEPENDENCY_VALUE + "_" + sync_dep
     finally:
         pass
+    raise Exception("Test exception in sync_cm_dep")
 
 
 # !!
