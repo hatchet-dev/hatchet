@@ -7,7 +7,7 @@ async function main() {
     // 👀 Declare the workflows that the worker can execute
     workflows: [batch],
     // 👀 Declare the number of concurrent task runs the worker can accept
-    slots: 5,
+    slots: 2,
   });
 
   await worker.start();

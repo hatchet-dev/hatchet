@@ -7,41 +7,65 @@ async function main() {
       batchId: '1',
     },
     {
+      Message: 'task1',
+      batchId: '1',
+    },
+    {
+      Message: 'task1',
+      batchId: '1',
+    },
+    {
+      Message: 'task1',
+      batchId: '1',
+    },
+    {
+      Message: 'task1',
+      batchId: '1',
+    },
+    {
+      Message: 'task1',
+      batchId: '1',
+    },
+    {
       Message: 'task2',
-      batchId: '1',
-    },
-    {
-      Message: 'task3',
-      batchId: '1',
-    },
-    {
-      Message: 'task4',
-      batchId: '1',
-    },
-    {
-      Message: 'task5',
-      batchId: '1',
-    },
-    {
-      Message: 'task6',
-      batchId: '1',
-    },
-    {
-      Message: 'task7',
-      batchId: '1',
-    },
-    {
-      Message: 'task8',
-      batchId: '1',
-    },
-    {
-      Message: 'task9',
-      batchId: '1',
-    },
-    {
-      Message: 'task10',
       batchId: '2',
     },
+    // {
+    //   Message: 'task2',
+    //   batchId: '1',
+    // },
+    // {
+    //   Message: 'task3',
+    //   batchId: '1',
+    // },
+    // {
+    //   Message: 'task4',
+    //   batchId: '1',
+    // },
+    // {
+    //   Message: 'task5',
+    //   batchId: '1',
+    // },
+    // {
+    //   Message: 'task6',
+    //   batchId: '1',
+    // },
+    // {
+    //   Message: 'task7',
+    //   batchId: '1',
+    // },
+    // {
+    //   Message: 'task8',
+    //   batchId: '1',
+    // },
+    // {
+    //   Message: 'task9',
+    //   batchId: '1',
+    // },
+    // {
+    //   Message: 'task10',
+    //   batchId: '2',
+    // },
   ]);
   const results = await task1;
   console.log(results[0].TransformedMessage);
