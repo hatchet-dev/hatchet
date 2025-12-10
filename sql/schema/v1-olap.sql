@@ -954,7 +954,7 @@ BEGIN
     query := format('
         SELECT tenant_id, external_id, location, external_location_key, inline_content, inserted_at, updated_at
         FROM %I
-        WHERE (tenant_id, external_id, inserted_at) > ($1, $2, $3)
+        WHERE (tenant_id, external_id, inserted_at) >= ($1, $2, $3)
         ORDER BY tenant_id, external_id, inserted_at
         LIMIT $4
     ', source_partition_name);
