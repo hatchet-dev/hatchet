@@ -2768,10 +2768,11 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			tenantIdToOffloadOpts := make(map[TenantID][]StoreOLAPPayloadOpts)
 
 			for _, payload := range payloads {
-				externalIdToPayloadInner[PayloadExternalId(payload.ExternalID.String())] = *payload
+				externalId := PayloadExternalId(payload.ExternalID.String())
+				externalIdToPayloadInner[externalId] = *payload
 
 				if payload.Location != sqlcv1.V1PayloadLocationOlapINLINE {
-					alreadyExternalPayloads[PayloadExternalId(payload.ExternalID.String())] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
+					alreadyExternalPayloads[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
 				} else {
 					tenantIdToOffloadOpts[TenantID(payload.TenantID.String())] = append(tenantIdToOffloadOpts[TenantID(payload.TenantID.String())], StoreOLAPPayloadOpts{
 						InsertedAt: payload.InsertedAt,
