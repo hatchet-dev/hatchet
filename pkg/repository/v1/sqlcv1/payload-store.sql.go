@@ -107,6 +107,87 @@ func (q *Queries) AnalyzeV1Payload(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const createPayloadRangeChunks = `-- name: CreatePayloadRangeChunks :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM list_paginated_payloads_for_offload(
+        $2::DATE,
+        $3::INTEGER,
+        $4::UUID,
+        $5::TIMESTAMPTZ,
+        $6::BIGINT,
+        $7::v1_payload_type
+    ) p
+), with_rows AS (
+    SELECT
+        tenant_id::UUID,
+        id::BIGINT,
+        inserted_at::TIMESTAMPTZ,
+        type::v1_payload_type,
+        ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, id, type) AS rn
+    FROM payloads
+)
+
+SELECT tenant_id, id, inserted_at, type, rn
+FROM with_rows
+WHERE MOD(rn, $1::INTEGER) = 1
+ORDER BY tenant_id, inserted_at, id, type
+`
+
+type CreatePayloadRangeChunksParams struct {
+	Chunksize      int32              `json:"chunksize"`
+	Partitiondate  pgtype.Date        `json:"partitiondate"`
+	Windowsize     int32              `json:"windowsize"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+	Lastid         int64              `json:"lastid"`
+	Lasttype       V1PayloadType      `json:"lasttype"`
+}
+
+type CreatePayloadRangeChunksRow struct {
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	Type       V1PayloadType      `json:"type"`
+	Rn         int64              `json:"rn"`
+}
+
+// row numbers are one-indexed
+func (q *Queries) CreatePayloadRangeChunks(ctx context.Context, db DBTX, arg CreatePayloadRangeChunksParams) ([]*CreatePayloadRangeChunksRow, error) {
+	rows, err := db.Query(ctx, createPayloadRangeChunks,
+		arg.Chunksize,
+		arg.Partitiondate,
+		arg.Windowsize,
+		arg.Lasttenantid,
+		arg.Lastinsertedat,
+		arg.Lastid,
+		arg.Lasttype,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*CreatePayloadRangeChunksRow
+	for rows.Next() {
+		var i CreatePayloadRangeChunksRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.Type,
+			&i.Rn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createV1PayloadCutoverTemporaryTable = `-- name: CreateV1PayloadCutoverTemporaryTable :exec
 SELECT copy_v1_payload_partition_structure($1::DATE)
 `

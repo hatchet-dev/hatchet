@@ -322,6 +322,81 @@ func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateO
 	return err
 }
 
+const createOLAPPayloadRangeChunks = `-- name: CreateOLAPPayloadRangeChunks :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM list_paginated_olap_payloads_for_offload(
+        $2::DATE,
+        $3::INTEGER,
+        $4::UUID,
+        $5::UUID,
+        $6::TIMESTAMPTZ
+    ) p
+), with_rows AS (
+    SELECT
+        tenant_id::UUID,
+        external_id::UUID,
+        inserted_at::TIMESTAMPTZ,
+        ROW_NUMBER() OVER (ORDER BY tenant_id, external_id, inserted_at) AS rn
+    FROM payloads
+)
+
+SELECT tenant_id, external_id, inserted_at, rn
+FROM with_rows
+WHERE MOD(rn, $1::INTEGER) = 1
+ORDER BY tenant_id, external_id, inserted_at
+`
+
+type CreateOLAPPayloadRangeChunksParams struct {
+	Chunksize      int32              `json:"chunksize"`
+	Partitiondate  pgtype.Date        `json:"partitiondate"`
+	Windowsize     int32              `json:"windowsize"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+}
+
+type CreateOLAPPayloadRangeChunksRow struct {
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	ExternalID pgtype.UUID        `json:"external_id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	Rn         int64              `json:"rn"`
+}
+
+// row numbers are one-indexed
+func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg CreateOLAPPayloadRangeChunksParams) ([]*CreateOLAPPayloadRangeChunksRow, error) {
+	rows, err := db.Query(ctx, createOLAPPayloadRangeChunks,
+		arg.Chunksize,
+		arg.Partitiondate,
+		arg.Windowsize,
+		arg.Lasttenantid,
+		arg.Lastexternalid,
+		arg.Lastinsertedat,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*CreateOLAPPayloadRangeChunksRow
+	for rows.Next() {
+		var i CreateOLAPPayloadRangeChunksRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ExternalID,
+			&i.InsertedAt,
+			&i.Rn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 type CreateTaskEventsOLAPParams struct {
 	TenantID               pgtype.UUID          `json:"tenant_id"`
 	TaskID                 int64                `json:"task_id"`
