@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 	"sync"
 	"time"
@@ -514,15 +515,9 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			}
 
 			mu.Lock()
-			for externalId, key := range externalIdToKeyInner {
-				externalIdToKey[externalId] = key
-			}
-			for externalId, key := range alreadyExternalPayloads {
-				externalIdToKey[externalId] = key
-			}
-			for externalId, payload := range externalIdToPayloadInner {
-				externalIdToPayload[externalId] = payload
-			}
+			maps.Copy(externalIdToKey, externalIdToKeyInner)
+			maps.Copy(externalIdToKey, alreadyExternalPayloads)
+			maps.Copy(externalIdToPayload, externalIdToPayloadInner)
 			numPayloads += len(payloads)
 			mu.Unlock()
 		}(*payloadRange)
