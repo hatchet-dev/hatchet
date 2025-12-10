@@ -1883,7 +1883,8 @@ WITH inputs AS (
         @lastExternalId::UUID AS last_external_id,
         @lastInsertedAt::TIMESTAMPTZ AS last_inserted_at
 ), any_lease_held_by_other_process AS (
-    SELECT BOOL_OR(lease_expires_at > NOW()) AS lease_exists
+    -- need coalesce here in case there are no rows that don't belong to this process
+    SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
     FROM v1_payloads_olap_cutover_job_offset
     WHERE lease_process_id != @leaseProcessId::UUID
 ), to_insert AS (
