@@ -72,39 +72,39 @@ type PayloadStoreRepository interface {
 	ExternalCutoverProcessInterval() time.Duration
 	InlineStoreTTL() *time.Duration
 	ExternalCutoverBatchSize() int32
-	ExternalCutoverNumChunks() int32
+	ExternalCutoverNumConcurrentOffloads() int32
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
 	ProcessPayloadCutovers(ctx context.Context) error
 }
 
 type payloadStoreRepositoryImpl struct {
-	pool                             *pgxpool.Pool
-	l                                *zerolog.Logger
-	queries                          *sqlcv1.Queries
-	externalStoreEnabled             bool
-	inlineStoreTTL                   *time.Duration
-	externalStore                    ExternalStore
-	enablePayloadDualWrites          bool
-	enableTaskEventPayloadDualWrites bool
-	enableDagDataPayloadDualWrites   bool
-	enableOLAPPayloadDualWrites      bool
-	externalCutoverProcessInterval   time.Duration
-	externalCutoverBatchSize         int32
-	externalCutoverNumChunks         int32
-	enableImmediateOffloads          bool
+	pool                                 *pgxpool.Pool
+	l                                    *zerolog.Logger
+	queries                              *sqlcv1.Queries
+	externalStoreEnabled                 bool
+	inlineStoreTTL                       *time.Duration
+	externalStore                        ExternalStore
+	enablePayloadDualWrites              bool
+	enableTaskEventPayloadDualWrites     bool
+	enableDagDataPayloadDualWrites       bool
+	enableOLAPPayloadDualWrites          bool
+	externalCutoverProcessInterval       time.Duration
+	externalCutoverBatchSize             int32
+	externalCutoverNumConcurrentOffloads int32
+	enableImmediateOffloads              bool
 }
 
 type PayloadStoreRepositoryOpts struct {
-	EnablePayloadDualWrites          bool
-	EnableTaskEventPayloadDualWrites bool
-	EnableDagDataPayloadDualWrites   bool
-	EnableOLAPPayloadDualWrites      bool
-	ExternalCutoverProcessInterval   time.Duration
-	ExternalCutoverBatchSize         int32
-	ExternalCutoverNumChunks         int32
-	InlineStoreTTL                   *time.Duration
-	EnableImmediateOffloads          bool
+	EnablePayloadDualWrites              bool
+	EnableTaskEventPayloadDualWrites     bool
+	EnableDagDataPayloadDualWrites       bool
+	EnableOLAPPayloadDualWrites          bool
+	ExternalCutoverProcessInterval       time.Duration
+	ExternalCutoverBatchSize             int32
+	ExternalCutoverNumConcurrentOffloads int32
+	InlineStoreTTL                       *time.Duration
+	EnableImmediateOffloads              bool
 }
 
 func NewPayloadStoreRepository(
@@ -118,17 +118,17 @@ func NewPayloadStoreRepository(
 		l:       l,
 		queries: queries,
 
-		externalStoreEnabled:             false,
-		inlineStoreTTL:                   opts.InlineStoreTTL,
-		externalStore:                    &NoOpExternalStore{},
-		enablePayloadDualWrites:          opts.EnablePayloadDualWrites,
-		enableTaskEventPayloadDualWrites: opts.EnableTaskEventPayloadDualWrites,
-		enableDagDataPayloadDualWrites:   opts.EnableDagDataPayloadDualWrites,
-		enableOLAPPayloadDualWrites:      opts.EnableOLAPPayloadDualWrites,
-		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
-		externalCutoverBatchSize:         opts.ExternalCutoverBatchSize,
-		externalCutoverNumChunks:         opts.ExternalCutoverNumChunks,
-		enableImmediateOffloads:          opts.EnableImmediateOffloads,
+		externalStoreEnabled:                 false,
+		inlineStoreTTL:                       opts.InlineStoreTTL,
+		externalStore:                        &NoOpExternalStore{},
+		enablePayloadDualWrites:              opts.EnablePayloadDualWrites,
+		enableTaskEventPayloadDualWrites:     opts.EnableTaskEventPayloadDualWrites,
+		enableDagDataPayloadDualWrites:       opts.EnableDagDataPayloadDualWrites,
+		enableOLAPPayloadDualWrites:          opts.EnableOLAPPayloadDualWrites,
+		externalCutoverProcessInterval:       opts.ExternalCutoverProcessInterval,
+		externalCutoverBatchSize:             opts.ExternalCutoverBatchSize,
+		externalCutoverNumConcurrentOffloads: opts.ExternalCutoverNumConcurrentOffloads,
+		enableImmediateOffloads:              opts.EnableImmediateOffloads,
 	}
 }
 
@@ -393,8 +393,8 @@ func (p *payloadStoreRepositoryImpl) ExternalCutoverBatchSize() int32 {
 	return p.externalCutoverBatchSize
 }
 
-func (p *payloadStoreRepositoryImpl) ExternalCutoverNumChunks() int32 {
-	return p.externalCutoverNumChunks
+func (p *payloadStoreRepositoryImpl) ExternalCutoverNumConcurrentOffloads() int32 {
+	return p.externalCutoverNumConcurrentOffloads
 }
 
 func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
@@ -439,7 +439,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	defer span.End()
 
 	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
-	windowSize := p.externalCutoverBatchSize * p.externalCutoverNumChunks
+	windowSize := p.externalCutoverBatchSize * p.externalCutoverNumConcurrentOffloads
 
 	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, p.pool, sqlcv1.CreatePayloadRangeChunksParams{
 		Chunksize:      p.externalCutoverBatchSize,
