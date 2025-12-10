@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/go-multierror"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -2737,30 +2736,26 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 		}, nil
 	}
 
-	wg := sync.WaitGroup{}
 	mu := sync.Mutex{}
-	var returnErr error
+	eg := errgroup.Group{}
 
 	externalIdToKey := make(map[PayloadExternalId]ExternalPayloadLocationKey)
 	externalIdToPayload := make(map[PayloadExternalId]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
 	numPayloads := 0
 
 	for _, payloadRange := range payloadRanges {
-		wg.Add(1)
-		go func(pr sqlcv1.CreateOLAPPayloadRangeChunksRow) {
-			defer wg.Done()
-
+		pr := payloadRange
+		eg.Go(func() error {
 			payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
 				Partitiondate:  pgtype.Date(partitionDate),
 				Limitparam:     externalCutoverBatchSize,
-				Lasttenantid:   payloadRange.TenantID,
-				Lastexternalid: payloadRange.ExternalID,
-				Lastinsertedat: payloadRange.InsertedAt,
+				Lasttenantid:   pr.TenantID,
+				Lastexternalid: pr.ExternalID,
+				Lastinsertedat: pr.InsertedAt,
 			})
 
 			if err != nil {
-				returnErr = multierror.Append(returnErr, fmt.Errorf("failed to list paginated payloads for offload"))
-				return
+				return fmt.Errorf("failed to list paginated payloads for offload")
 			}
 
 			alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
@@ -2787,8 +2782,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 				externalIdToKeyForTenant, err := p.PutPayloads(ctx, p.pool, tenant, opts...)
 
 				if err != nil {
-					returnErr = multierror.Append(returnErr, fmt.Errorf("failed to offload olap payloads for tenant %s", tenant))
-					return
+					return fmt.Errorf("failed to offload olap payloads for tenant %s", tenant)
 				}
 
 				maps.Copy(externalIdToKeyInner, externalIdToKeyForTenant)
@@ -2800,13 +2794,15 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			maps.Copy(externalIdToPayload, externalIdToPayloadInner)
 			numPayloads += len(payloads)
 			mu.Unlock()
-		}(*payloadRange)
+
+			return nil
+		})
 	}
 
-	wg.Wait()
+	err = eg.Wait()
 
-	if returnErr != nil {
-		return nil, returnErr
+	if err != nil {
+		return nil, err
 	}
 
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/go-multierror"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -19,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/sync/errgroup"
 )
 
 type StorePayloadOpts struct {
@@ -462,31 +462,27 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		}, nil
 	}
 
-	wg := sync.WaitGroup{}
+	eg := errgroup.Group{}
 	mu := sync.Mutex{}
-	var returnErr error
 
 	externalIdToKey := make(map[PayloadExternalId]ExternalPayloadLocationKey)
 	externalIdToPayload := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
 	numPayloads := 0
 
 	for _, payloadRange := range payloadRanges {
-		wg.Add(1)
-		go func(pr sqlcv1.CreatePayloadRangeChunksRow) {
-			defer wg.Done()
-
+		pr := payloadRange
+		eg.Go(func() error {
 			payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedPayloadsForOffloadParams{
 				Partitiondate:  pgtype.Date(partitionDate),
 				Limitparam:     p.externalCutoverBatchSize,
-				Lasttenantid:   payloadRange.TenantID,
-				Lastinsertedat: payloadRange.InsertedAt,
-				Lastid:         payloadRange.ID,
-				Lasttype:       payloadRange.Type,
+				Lasttenantid:   pr.TenantID,
+				Lastinsertedat: pr.InsertedAt,
+				Lastid:         pr.ID,
+				Lasttype:       pr.Type,
 			})
 
 			if err != nil {
-				returnErr = multierror.Append(returnErr, fmt.Errorf("failed to list paginated payloads for offload"))
-				return
+				return fmt.Errorf("failed to list paginated payloads for offload")
 			}
 
 			alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
@@ -516,8 +512,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			externalIdToKeyInner, err := p.ExternalStore().Store(ctx, offloadOpts...)
 
 			if err != nil {
-				returnErr = multierror.Append(returnErr, fmt.Errorf("failed to offload payloads to external store"))
-				return
+				return fmt.Errorf("failed to offload payloads to external store")
 			}
 
 			mu.Lock()
@@ -526,13 +521,15 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			maps.Copy(externalIdToPayload, externalIdToPayloadInner)
 			numPayloads += len(payloads)
 			mu.Unlock()
-		}(*payloadRange)
+
+			return nil
+		})
 	}
 
-	wg.Wait()
+	err = eg.Wait()
 
-	if returnErr != nil {
-		return nil, returnErr
+	if err != nil {
+		return nil, err
 	}
 
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
