@@ -159,9 +159,9 @@ tasks:
     cmds:
       - bash ./hack/proto/proto.sh
   generate-proto-python:
-    dir: ./python-sdk
+    dir: ./sdks/python
     cmds:
-      - sh ./generate.sh
+      - bash ./generate.sh
   generate-sqlc:
     cmds:
       - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate --file pkg/repository/postgres/dbsqlc/sqlc.yaml

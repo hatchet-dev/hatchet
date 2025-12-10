@@ -23,6 +23,7 @@ from examples.conditions.worker import task_condition_workflow
 from examples.dag.worker import dag_workflow
 from examples.dataclasses.worker import say_hello
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
+from examples.delayed.worker import print_printer_wf, print_schedule_wf
 from examples.dependency_injection.worker import (
     async_task_with_dependencies,
     di_workflow,
@@ -61,6 +62,8 @@ def main() -> None:
             dag_workflow,
             dedupe_child_wf,
             dedupe_parent_wf,
+            print_printer_wf,
+            print_schedule_wf,
             durable_workflow,
             child_wf,
             event_workflow,
