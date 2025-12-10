@@ -72,6 +72,7 @@ type PayloadStoreRepository interface {
 	ExternalCutoverProcessInterval() time.Duration
 	InlineStoreTTL() *time.Duration
 	ExternalCutoverBatchSize() int32
+	ExternalCutoverNumChunks() int32
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
 	ProcessPayloadCutovers(ctx context.Context) error
@@ -90,6 +91,7 @@ type payloadStoreRepositoryImpl struct {
 	enableOLAPPayloadDualWrites      bool
 	externalCutoverProcessInterval   time.Duration
 	externalCutoverBatchSize         int32
+	externalCutoverNumChunks         int32
 	enableImmediateOffloads          bool
 }
 
@@ -100,6 +102,7 @@ type PayloadStoreRepositoryOpts struct {
 	EnableOLAPPayloadDualWrites      bool
 	ExternalCutoverProcessInterval   time.Duration
 	ExternalCutoverBatchSize         int32
+	ExternalCutoverNumChunks         int32
 	InlineStoreTTL                   *time.Duration
 	EnableImmediateOffloads          bool
 }
@@ -124,6 +127,7 @@ func NewPayloadStoreRepository(
 		enableOLAPPayloadDualWrites:      opts.EnableOLAPPayloadDualWrites,
 		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
 		externalCutoverBatchSize:         opts.ExternalCutoverBatchSize,
+		externalCutoverNumChunks:         opts.ExternalCutoverNumChunks,
 		enableImmediateOffloads:          opts.EnableImmediateOffloads,
 	}
 }
@@ -389,6 +393,10 @@ func (p *payloadStoreRepositoryImpl) ExternalCutoverBatchSize() int32 {
 	return p.externalCutoverBatchSize
 }
 
+func (p *payloadStoreRepositoryImpl) ExternalCutoverNumChunks() int32 {
+	return p.externalCutoverNumChunks
+}
+
 func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
 	return p.externalStoreEnabled
 }
@@ -431,7 +439,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	defer span.End()
 
 	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
-	windowSize := p.externalCutoverBatchSize * 10 // 10 chunks per batch
+	windowSize := p.externalCutoverBatchSize * p.externalCutoverNumChunks
 
 	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, p.pool, sqlcv1.CreatePayloadRangeChunksParams{
 		Chunksize:      p.externalCutoverBatchSize,

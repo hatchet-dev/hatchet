@@ -865,7 +865,7 @@ func (oc *OLAPControllerImpl) processPayloadExternalCutovers(ctx context.Context
 		oc.l.Debug().Msgf("payload external cutover: processing external cutover payloads")
 
 		p := oc.repo.Payloads()
-		err := oc.repo.OLAP().ProcessOLAPPayloadCutovers(ctx, p.ExternalStoreEnabled(), p.InlineStoreTTL(), p.ExternalCutoverBatchSize())
+		err := oc.repo.OLAP().ProcessOLAPPayloadCutovers(ctx, p.ExternalStoreEnabled(), p.InlineStoreTTL(), p.ExternalCutoverBatchSize(), p.ExternalCutoverNumChunks())
 
 		if err != nil {
 			span.RecordError(err)
