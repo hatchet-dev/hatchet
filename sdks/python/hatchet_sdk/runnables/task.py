@@ -284,13 +284,10 @@ class Task(Generic[TWorkflowInput, R]):
             yield dependencies
         finally:
             for cm in reversed(cms_to_exit):
-                try:
-                    if is_async_context_manager(cm):
-                        await cm.__aexit__(None, None, None)
-                    elif is_sync_context_manager(cm):
-                        await asyncio.to_thread(cm.__exit__, None, None, None)
-                except Exception:  # noqa: PERF203
-                    pass
+                if is_async_context_manager(cm):
+                    await cm.__aexit__(None, None, None)
+                elif is_sync_context_manager(cm):
+                    await asyncio.to_thread(cm.__exit__, None, None, None)
 
     def call(
         self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None
