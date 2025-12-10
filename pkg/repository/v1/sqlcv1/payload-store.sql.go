@@ -170,6 +170,75 @@ func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg Cu
 	return count, err
 }
 
+const listPaginatedPayloadsForChunking = `-- name: ListPaginatedPayloadsForChunking :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM list_paginated_payloads_for_offload(
+        $1::DATE,
+        $2::INT,
+        $3::UUID,
+        $4::TIMESTAMPTZ,
+        $5::BIGINT,
+        $6::v1_payload_type
+    ) p
+)
+SELECT
+    tenant_id::UUID,
+    id::BIGINT,
+    inserted_at::TIMESTAMPTZ,
+    type::v1_payload_type
+FROM payloads
+`
+
+type ListPaginatedPayloadsForChunkingParams struct {
+	Partitiondate  pgtype.Date        `json:"partitiondate"`
+	Limitparam     int32              `json:"limitparam"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+	Lastid         int64              `json:"lastid"`
+	Lasttype       V1PayloadType      `json:"lasttype"`
+}
+
+type ListPaginatedPayloadsForChunkingRow struct {
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	Type       V1PayloadType      `json:"type"`
+}
+
+func (q *Queries) ListPaginatedPayloadsForChunking(ctx context.Context, db DBTX, arg ListPaginatedPayloadsForChunkingParams) ([]*ListPaginatedPayloadsForChunkingRow, error) {
+	rows, err := db.Query(ctx, listPaginatedPayloadsForChunking,
+		arg.Partitiondate,
+		arg.Limitparam,
+		arg.Lasttenantid,
+		arg.Lastinsertedat,
+		arg.Lastid,
+		arg.Lasttype,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListPaginatedPayloadsForChunkingRow
+	for rows.Next() {
+		var i ListPaginatedPayloadsForChunkingRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.Type,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many
 WITH payloads AS (
     SELECT

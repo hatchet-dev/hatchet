@@ -241,6 +241,26 @@ SELECT
     updated_at::TIMESTAMPTZ
 FROM payloads;
 
+-- name: ListPaginatedPayloadsForChunking :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM list_paginated_payloads_for_offload(
+        @partitionDate::DATE,
+        @limitParam::INT,
+        @lastTenantId::UUID,
+        @lastInsertedAt::TIMESTAMPTZ,
+        @lastId::BIGINT,
+        @lastType::v1_payload_type
+    ) p
+)
+SELECT
+    tenant_id::UUID,
+    id::BIGINT,
+    inserted_at::TIMESTAMPTZ,
+    type::v1_payload_type
+FROM payloads;
+
 -- name: CreateV1PayloadCutoverTemporaryTable :exec
 SELECT copy_v1_payload_partition_structure(@date::DATE);
 
