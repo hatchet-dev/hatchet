@@ -485,7 +485,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			})
 
 			if err != nil {
-				returnErr = multierror.Append(err, fmt.Errorf("failed to list paginated payloads for offload"))
+				returnErr = multierror.Append(returnErr, fmt.Errorf("failed to list paginated payloads for offload"))
 				return
 			}
 
@@ -516,7 +516,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			externalIdToKeyInner, err := p.ExternalStore().Store(ctx, offloadOpts...)
 
 			if err != nil {
-				returnErr = multierror.Append(err, fmt.Errorf("failed to offload payloads to external store"))
+				returnErr = multierror.Append(returnErr, fmt.Errorf("failed to offload payloads to external store"))
 				return
 			}
 

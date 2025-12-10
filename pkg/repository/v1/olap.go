@@ -2759,7 +2759,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			})
 
 			if err != nil {
-				returnErr = multierror.Append(err, fmt.Errorf("failed to list paginated payloads for offload"))
+				returnErr = multierror.Append(returnErr, fmt.Errorf("failed to list paginated payloads for offload"))
 				return
 			}
 
@@ -2787,7 +2787,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 				externalIdToKeyForTenant, err := p.PutPayloads(ctx, p.pool, tenant, opts...)
 
 				if err != nil {
-					returnErr = multierror.Append(err, fmt.Errorf("failed to offload olap payloads for tenant %s", tenant))
+					returnErr = multierror.Append(returnErr, fmt.Errorf("failed to offload olap payloads for tenant %s", tenant))
 					return
 				}
 
