@@ -43,7 +43,7 @@ type TenantLimitRepository interface {
 	SetPlanLimitMap(planLimitMap PlanLimitMap) error
 
 	// SetOnSuccessMeterCallback sets a callback to be invoked after successful metering
-	SetOnSuccessMeterCallback(cb func(resource dbsqlc.LimitResource, tenantId string, numberOfResources int))
+	SetOnSuccessMeterCallback(cb func(resource dbsqlc.LimitResource, tenantId string, currentUsage int64))
 
 	DefaultLimits() []Limit
 }

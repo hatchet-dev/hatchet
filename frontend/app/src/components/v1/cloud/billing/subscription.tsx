@@ -66,7 +66,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const subscriptionMutation = useMutation({
     mutationKey: ['user:update:logout'],
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
-      const [plan, period] = plan_code.split(':');
+      const [plan, period] = plan_code.split('_');
       setLoading(plan_code);
       const response = await cloudApi.subscriptionUpsert(tenantId, {
         plan,
@@ -100,7 +100,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     if (!active?.plan || active.plan === 'free') {
       return 'free';
     }
-    return [active.plan, active.period].filter((x) => !!x).join(':');
+    return [active.plan, active.period].filter((x) => !!x).join('_');
   }, [active]);
 
   useEffect(() => {
@@ -111,12 +111,12 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     return plans
       ?.filter(
         (v) =>
-          v.plan_code === 'free' ||
+          v.planCode === 'free' ||
           (showAnnual
             ? v.period?.includes('yearly')
             : v.period?.includes('monthly')),
       )
-      .sort((a, b) => a.amount_cents - b.amount_cents);
+      .sort((a, b) => a.amountCents - b.amountCents);
   }, [plans, showAnnual]);
 
   const isUpgrade = useCallback(
@@ -126,33 +126,33 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       }
 
       const activePlan = sortedPlans?.find(
-        (p) => p.plan_code === activePlanCode,
+        (p) => p.planCode === activePlanCode,
       );
 
-      const activeAmount = activePlan?.amount_cents || 0;
+      const activeAmount = activePlan?.amountCents || 0;
 
-      return plan.amount_cents > activeAmount;
+      return plan.amountCents > activeAmount;
     },
     [active, activePlanCode, sortedPlans],
   );
 
   const formattedEndDate = useMemo(() => {
-    if (!active?.ends_at) {
+    if (!active?.endsAt) {
       return null;
     }
-    const date = new Date(active.ends_at);
+    const date = new Date(active.endsAt);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     });
-  }, [active?.ends_at]);
+  }, [active?.endsAt]);
 
   const currentPlanDetails = useMemo(() => {
     if (!active?.plan) {
       return null;
     }
-    return sortedPlans?.find((p) => p.plan_code === activePlanCode);
+    return sortedPlans?.find((p) => p.planCode === activePlanCode);
   }, [active, activePlanCode, sortedPlans]);
 
   const enterpriseContactUrl = useMemo(() => {
@@ -185,7 +185,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         submitLabel={'Change Plan'}
         onSubmit={async () => {
           await subscriptionMutation.mutateAsync({
-            plan_code: isChangeConfirmOpen!.plan_code,
+            plan_code: isChangeConfirmOpen!.planCode,
           });
           setLoading(undefined);
           setChangeConfirmOpen(undefined);
@@ -228,7 +228,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     <div className="text-3xl font-bold mb-2">
                       $
                       {(
-                        currentPlanDetails.amount_cents /
+                        currentPlanDetails.amountCents /
                         100 /
                         (currentPlanDetails.period === 'yearly' ? 12 : 1)
                       ).toLocaleString()}{' '}
@@ -286,7 +286,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sortedPlans
-            ?.filter((plan) => plan.plan_code !== activePlanCode)
+            ?.filter((plan) => plan.planCode !== activePlanCode)
             .map((plan, i) => (
               <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
                 <CardHeader>
@@ -296,7 +296,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                   <CardDescription className="py-4">
                     $
                     {(
-                      plan.amount_cents /
+                      plan.amountCents /
                       100 /
                       (plan.period == 'yearly' ? 12 : 1)
                     ).toLocaleString()}{' '}
@@ -304,11 +304,11 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                   </CardDescription>
                   <CardDescription>
                     <Button
-                      disabled={loading === plan.plan_code}
+                      disabled={loading === plan.planCode}
                       variant="default"
                       onClick={() => setChangeConfirmOpen(plan)}
                     >
-                      {loading === plan.plan_code ? (
+                      {loading === plan.planCode ? (
                         <Spinner />
                       ) : isUpgrade(plan) ? (
                         'Upgrade'

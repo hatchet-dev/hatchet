@@ -231,39 +231,34 @@ func (w *workflowRunEngineRepository) GetWorkflowRunInputData(tenantId, workflow
 }
 
 func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error) {
-	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, 1, func() (*string, *dbsqlc.WorkflowRun, error) {
-		opts.TenantId = tenantId
+	opts.TenantId = tenantId
 
-		if err := w.v.Validate(opts); err != nil {
-			return nil, nil, err
+	if err := w.v.Validate(opts); err != nil {
+		return nil, err
+	}
+	var wfr *dbsqlc.WorkflowRun
+	var err error
+
+	if w.cf.BufferCreateWorkflowRuns {
+		wfr, err = w.bulkWorkflowRunBuffer.FireAndWait(ctx, tenantId, opts)
+
+		if err != nil {
+			return nil, err
 		}
-		var wfr *dbsqlc.WorkflowRun
-		var err error
+	} else {
+		workflowRuns, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
 
-		if w.cf.BufferCreateWorkflowRuns {
-			wfr, err = w.bulkWorkflowRunBuffer.FireAndWait(ctx, tenantId, opts)
-
-			if err != nil {
-				return nil, nil, err
-			}
-		} else {
-			workflowRuns, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
-
-			if err != nil {
-				return nil, nil, err
-			}
-			wfr = workflowRuns[0]
+		if err != nil {
+			return nil, err
 		}
+		wfr = workflowRuns[0]
+	}
 
-		id := sqlchelpers.UUIDToStr(wfr.ID)
+	for _, cb := range w.createCallbacks {
+		cb.Do(w.l, tenantId, wfr)
+	}
 
-		for _, cb := range w.createCallbacks {
-			cb.Do(w.l, tenantId, wfr)
-		}
-
-		return &id, wfr, nil
-	})
-
+	return wfr, nil
 }
 
 type updateWorkflowRunQueueData struct {
@@ -1277,74 +1272,53 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context,
 		opt.TenantId = tenantId
 	}
 
-	wfrs, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, int32(meteredAmount), func() (*string, *[]*dbsqlc.WorkflowRun, error) { // nolint: gosec
-
-		wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		for _, cb := range w.createCallbacks {
-			for _, wfr := range wfrs {
-				cb.Do(w.l, tenantId, wfr) // nolint: errcheck
-			}
-		}
-
-		ids := make([]string, len(wfrs))
-
-		for i, wfr := range wfrs {
-			ids[i] = sqlchelpers.UUIDToStr(wfr.ID)
-		}
-
-		str := strings.Join(ids, ",")
-
-		return &str,
-			&wfrs, nil
-	})
+	wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
 
 	if err != nil {
 		w.l.Error().Err(err).Msg("error creating workflow runs")
 		return nil, err
 	}
 
-	return *wfrs, err
+	for _, cb := range w.createCallbacks {
+		for _, wfr := range wfrs {
+			cb.Do(w.l, tenantId, wfr) // nolint: errcheck
+		}
+	}
+
+	ids := make([]string, len(wfrs))
+
+	for i, wfr := range wfrs {
+		ids[i] = sqlchelpers.UUIDToStr(wfr.ID)
+	}
+
+	return wfrs, err
 }
 
 func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error) {
-	wfr, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, 1, func() (*string, *dbsqlc.WorkflowRun, error) {
-		opts.TenantId = tenantId
+	opts.TenantId = tenantId
 
-		if err := w.v.Validate(opts); err != nil {
-			return nil, nil, err
-		}
-
-		var workflowRun *dbsqlc.WorkflowRun
-		var err error
-
-		if w.cf.BufferCreateWorkflowRuns {
-			workflowRun, err = w.bulkWorkflowRunBuffer.FireAndWait(ctx, tenantId, opts)
-
-			if err != nil {
-				return nil, nil, err
-			}
-		} else {
-			wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
-			if err != nil {
-				return nil, nil, err
-			}
-			workflowRun = wfrs[0]
-		}
-
-		meterKey := sqlchelpers.UUIDToStr(workflowRun.ID)
-		return &meterKey, workflowRun, nil
-	})
-
-	if err != nil {
+	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	return wfr, nil
+	var workflowRun *dbsqlc.WorkflowRun
+	var err error
+
+	if w.cf.BufferCreateWorkflowRuns {
+		workflowRun, err = w.bulkWorkflowRunBuffer.FireAndWait(ctx, tenantId, opts)
+
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
+		if err != nil {
+			return nil, err
+		}
+		workflowRun = wfrs[0]
+	}
+
+	return workflowRun, nil
 }
 
 func (w *workflowRunEngineRepository) ListActiveQueuedWorkflowVersions(ctx context.Context, tenantId string) ([]*dbsqlc.ListActiveQueuedWorkflowVersionsRow, error) {

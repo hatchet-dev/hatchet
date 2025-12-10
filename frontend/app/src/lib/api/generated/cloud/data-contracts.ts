@@ -387,10 +387,6 @@ export interface TenantSubscription {
   plan: string;
   /** The period associated with the tenant subscription. */
   period?: string;
-  /** The status of the tenant subscription. */
-  status: TenantSubscriptionStatus;
-  /** A note associated with the tenant subscription. */
-  note?: string;
   /**
    * The start date of the tenant subscription.
    * @format date-time

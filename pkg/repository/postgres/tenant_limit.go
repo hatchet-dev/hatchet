@@ -23,7 +23,7 @@ type tenantLimitRepository struct {
 	l                *zerolog.Logger
 	config           *server.ConfigFileRuntime
 	plans            *repository.PlanLimitMap
-	onSuccessMeterCb func(resource dbsqlc.LimitResource, tenantId string, numberOfResources int)
+	onSuccessMeterCb func(resource dbsqlc.LimitResource, tenantId string, currentUsage int64)
 }
 
 func NewTenantLimitRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, s *server.ConfigFileRuntime) repository.TenantLimitRepository {
@@ -52,13 +52,6 @@ func (t *tenantLimitRepository) SetPlanLimitMap(planLimitMap repository.PlanLimi
 
 func (t *tenantLimitRepository) DefaultLimits() []repository.Limit {
 	return []repository.Limit{
-		{
-			Resource:         dbsqlc.LimitResourceWORKFLOWRUN,
-			Limit:            int32(t.config.Limits.DefaultWorkflowRunLimit),      // nolint: gosec
-			Alarm:            int32(t.config.Limits.DefaultWorkflowRunAlarmLimit), // nolint: gosec
-			Window:           &t.config.Limits.DefaultWorkflowRunWindow,
-			CustomValueMeter: false,
-		},
 		{
 			Resource:         dbsqlc.LimitResourceTASKRUN,
 			Limit:            int32(t.config.Limits.DefaultTaskRunLimit),      // nolint: gosec
@@ -287,7 +280,7 @@ func calcPercent(value int32, limit int32) int {
 	return int((float64(value) / float64(limit)) * 100)
 }
 
-func (t *tenantLimitRepository) SetOnSuccessMeterCallback(cb func(resource dbsqlc.LimitResource, tenantId string, numberOfResources int)) {
+func (t *tenantLimitRepository) SetOnSuccessMeterCallback(cb func(resource dbsqlc.LimitResource, tenantId string, currentUsage int64)) {
 	t.onSuccessMeterCb = cb
 }
 
@@ -311,7 +304,7 @@ func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.Limit
 
 	if t.onSuccessMeterCb != nil {
 		go func() { // non-blocking callback
-			t.onSuccessMeterCb(resource, tenantId, int(numberOfResources))
+			t.onSuccessMeterCb(resource, tenantId, int64(r.Value))
 		}()
 	}
 

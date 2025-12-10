@@ -69,7 +69,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const subscriptionMutation = useMutation({
     mutationKey: ['user:update:logout'],
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
-      const [plan, period] = plan_code.split(':');
+      const [plan, period] = plan_code.split('_');
       setLoading(plan_code);
       await cloudApi.subscriptionUpsert(tenant.metadata.id, { plan, period });
     },
@@ -92,7 +92,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const activePlanCode = useMemo(
     () =>
       active?.plan
-        ? [active.plan, active.period].filter((x) => !!x).join(':')
+        ? [active.plan, active.period].filter((x) => !!x).join('_')
         : 'free',
     [active],
   );
@@ -105,12 +105,12 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     return plans
       ?.filter(
         (v) =>
-          v.plan_code === 'free' ||
+          v.planCode === 'free' ||
           (showAnnual
             ? v.period?.includes('yearly')
             : v.period?.includes('monthly')),
       )
-      .sort((a, b) => a.amount_cents - b.amount_cents);
+      .sort((a, b) => a.amountCents - b.amountCents);
   }, [plans, showAnnual]);
 
   const isUpgrade = useCallback(
@@ -120,12 +120,12 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       }
 
       const activePlan = sortedPlans?.find(
-        (p) => p.plan_code === activePlanCode,
+        (p) => p.planCode === activePlanCode,
       );
 
-      const activeAmount = activePlan?.amount_cents || 0;
+      const activeAmount = activePlan?.amountCents || 0;
 
-      return plan.amount_cents > activeAmount;
+      return plan.amountCents > activeAmount;
     },
     [active, activePlanCode, sortedPlans],
   );
@@ -149,7 +149,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         submitLabel={'Change Plan'}
         onSubmit={async () => {
           await subscriptionMutation.mutateAsync({
-            plan_code: isChangeConfirmOpen!.plan_code,
+            plan_code: isChangeConfirmOpen!.planCode,
           });
           setLoading(undefined);
           setChangeConfirmOpen(undefined);
@@ -226,7 +226,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 <CardDescription className="py-4">
                   $
                   {(
-                    plan.amount_cents /
+                    plan.amountCents /
                     100 /
                     (plan.period == 'yearly' ? 12 : 1)
                   ).toLocaleString()}{' '}
@@ -236,17 +236,17 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                   <Button
                     disabled={
                       !hasPaymentMethods ||
-                      plan.plan_code === activePlanCode ||
-                      loading === plan.plan_code
+                      plan.planCode === activePlanCode ||
+                      loading === plan.planCode
                     }
                     variant={
-                      plan.plan_code !== activePlanCode ? 'default' : 'outline'
+                      plan.planCode !== activePlanCode ? 'default' : 'outline'
                     }
                     onClick={() => setChangeConfirmOpen(plan)}
                   >
-                    {loading === plan.plan_code ? (
+                    {loading === plan.planCode ? (
                       <Spinner />
-                    ) : plan.plan_code === activePlanCode ? (
+                    ) : plan.planCode === activePlanCode ? (
                       'Active'
                     ) : isUpgrade(plan) ? (
                       'Upgrade'
