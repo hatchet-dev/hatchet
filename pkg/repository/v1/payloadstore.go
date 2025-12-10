@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type StorePayloadOpts struct {
@@ -423,6 +424,9 @@ func (d PartitionDate) String() string {
 const MAX_PARTITIONS_TO_OFFLOAD = 14 // two weeks
 
 func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverBatchOutcome, error) {
+	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
+	defer span.End()
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
 	if err != nil {
@@ -444,6 +448,8 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	if err != nil {
 		return nil, fmt.Errorf("failed to list payloads for offload: %w", err)
 	}
+
+	span.SetAttributes(attribute.Int("num_payloads_read", len(payloads)))
 
 	alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
 	externalIdToPayload := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
