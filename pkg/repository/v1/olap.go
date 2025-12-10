@@ -2368,6 +2368,11 @@ type OffloadPayloadOpts struct {
 }
 
 func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId TenantID, putPayloadOpts ...StoreOLAPPayloadOpts) (map[PayloadExternalId]ExternalPayloadLocationKey, error) {
+	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.PutPayloads")
+	defer span.End()
+
+	span.SetAttributes(attribute.Int("olap_repository.put_payloads.batch_size", len(putPayloadOpts)))
+
 	localTx := false
 	var (
 		commit   func(context.Context) error
@@ -2704,6 +2709,9 @@ type OLAPCutoverBatchOutcome struct {
 }
 
 func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, pagination OLAPPaginationParams) (*OLAPCutoverBatchOutcome, error) {
+	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.processOLAPPayloadCutoverBatch")
+	defer span.End()
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
 	if err != nil {
@@ -2725,6 +2733,8 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	if err != nil {
 		return nil, fmt.Errorf("failed to list payloads for offload: %w", err)
 	}
+
+	span.SetAttributes(attribute.Int("num_payloads_read", len(payloads)))
 
 	tenantIdToOffloadOpts := make(map[TenantID][]StoreOLAPPayloadOpts)
 	externalIdToKey := make(map[PayloadExternalId]ExternalPayloadLocationKey)
