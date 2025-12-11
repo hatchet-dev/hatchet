@@ -12,7 +12,9 @@ from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 async def test_delayed_workflow(hatchet: Hatchet) -> None:
     """Test that a workflow can schedule another workflow to run in the future"""
 
-    result = await print_schedule_wf.aio_run(PrinterInput(message="test delayed message"))
+    result = await print_schedule_wf.aio_run(
+        PrinterInput(message="test delayed message")
+    )
 
     assert result is not None
 
@@ -24,4 +26,6 @@ async def test_delayed_workflow(hatchet: Hatchet) -> None:
     assert len(runs) > 0, "At least one PrintPrinterWorkflow run should exist"
 
     most_recent_run = runs[0]
-    assert most_recent_run.status == V1TaskStatus.COMPLETED, f"Scheduled workflow should have completed, got {most_recent_run.status}"
+    assert (
+        most_recent_run.status == V1TaskStatus.COMPLETED
+    ), f"Scheduled workflow should have completed, got {most_recent_run.status}"
