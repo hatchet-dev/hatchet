@@ -4,9 +4,6 @@ from dataclasses import Field as DataclassField
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Protocol, TypeAlias, TypeVar
 
-if TYPE_CHECKING:
-    from hatchet_sdk.runnables.types import EmptyModel
-
 
 class DataclassInstance(Protocol):
     __dataclass_fields__: ClassVar[dict[str, DataclassField[Any]]]
@@ -52,20 +49,3 @@ class LogLevel(str, Enum):
 
         # fall back to INFO
         return cls.INFO
-
-
-def normalize_input_validator(
-    validator: type["EmptyModel"] | None,
-) -> type["EmptyModel"]:
-    """
-    Normalize input validator to ensure it's never None.
-
-    When validator is None, returns EmptyModel to maintain backwards compatibility.
-    EmptyModel accepts empty dict {} which is the default workflow input.
-    """
-    if validator is None:
-        # Import here to avoid circular dependency
-        from hatchet_sdk.runnables.types import EmptyModel
-
-        return EmptyModel
-    return validator
