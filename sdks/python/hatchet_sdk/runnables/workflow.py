@@ -48,6 +48,7 @@ from hatchet_sdk.runnables.types import (
     TaskPayloadForInternalUse,
     TWorkflowInput,
     WorkflowConfig,
+    normalize_validator,
 )
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import Duration
@@ -1200,7 +1201,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         return_type = get_type_hints(self._task.fn).get("return")
 
         self._output_validator: TypeAdapter[TaskPayloadForInternalUse] = TypeAdapter(
-            return_type
+            normalize_validator(return_type)
         )
 
         self.config = self._workflow.config

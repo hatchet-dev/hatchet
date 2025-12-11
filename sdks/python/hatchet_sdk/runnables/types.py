@@ -169,20 +169,23 @@ _T = TypeVar("_T")
 
 
 @overload
-def normalize_input_validator(validator: None) -> type[EmptyModel]: ...
+def normalize_validator(validator: None) -> type[EmptyModel]: ...
 
 
 @overload
-def normalize_input_validator(validator: type[_TModel]) -> type[_TModel]: ...
+def normalize_validator(validator: type[_TModel]) -> type[_TModel]: ...
 
 
 @overload
-def normalize_input_validator(validator: type[_TDataclass]) -> type[_TDataclass]: ...
+def normalize_validator(validator: type[_TDataclass]) -> type[_TDataclass]: ...
 
 
 @overload
-def normalize_input_validator(validator: type[_T]) -> type[_T]: ...
+def normalize_validator(validator: type[_T]) -> type[_T]: ...
 
 
-def normalize_input_validator(validator: object) -> object:
-    return validator or EmptyModel
+def normalize_validator(validator: object) -> object:
+    if validator is None or validator is type(None):
+        return EmptyModel
+
+    return validator
