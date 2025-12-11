@@ -1217,7 +1217,11 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         if isinstance(result, BaseException):
             return result
 
-        output = result.get(self._task.name)
+        ## if a task is cancelled, we can get `None` back here
+        ## this is a bit of an edge case since both `None` and an empty dict
+        ## would cause Pydantic validation errors, but if you were expecting a `dict`
+        ## return, then the empty dict would not error and would work correctly
+        output = result.get(self._task.name) or {}
 
         return cast(R, self._output_validator.validate_python(output))
 
