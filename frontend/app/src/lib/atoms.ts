@@ -244,7 +244,7 @@ export function useTenant(): TenantContext {
     }
 
     const hasPaymentMethods =
-      (paymentMethodsQuery.data?.paymentMethods?.length || 0) > 0;
+      (paymentMethodsQuery.data?.length || 0) > 0;
 
     return {
       state: billingState.data,

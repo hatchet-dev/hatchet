@@ -745,14 +745,12 @@ export class Api<
    * @name AutumnEventCreate
    * @summary Receive a webhook message from Autumn
    * @request POST:/api/v1/billing/autumn/webhook
-   * @secure
    */
   autumnEventCreate = (data: AutumnWebhookEvent, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/billing/autumn/webhook`,
       method: "POST",
       body: data,
-      secure: true,
       type: ContentType.Json,
       ...params,
     });

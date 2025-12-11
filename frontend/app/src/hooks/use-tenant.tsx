@@ -140,6 +140,12 @@ export function useTenantDetails() {
     retry: false,
   });
 
+  const paymentMethodsQuery = useQuery({
+    ...queries.cloud.paymentMethods(tenant?.metadata?.id || ''),
+    enabled: !!tenant && !!cloudMeta?.data.canBill,
+    retry: false,
+  });
+
   const subscriptionPlan: Plan = useMemo(() => {
     const plan = billingState.data?.currentSubscription?.plan;
     if (!plan) {
@@ -153,12 +159,20 @@ export function useTenantDetails() {
       return;
     }
 
+    const hasPaymentMethods = (paymentMethodsQuery.data?.length || 0) > 0;
+
     return {
       state: billingState.data,
       setPollBilling,
       plan: subscriptionPlan,
+      hasPaymentMethods,
     };
-  }, [cloudMeta?.data.canBill, billingState.data, subscriptionPlan]);
+  }, [
+    cloudMeta?.data.canBill,
+    billingState.data,
+    subscriptionPlan,
+    paymentMethodsQuery.data,
+  ]);
 
   const can = useCallback(
     (evalFn: Evaluate) => {
