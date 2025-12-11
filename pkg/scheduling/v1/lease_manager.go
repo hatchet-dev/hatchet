@@ -323,7 +323,7 @@ func (l *LeaseManager) acquireBatchLeases(ctx context.Context) error {
 		currResourceIdsToLease[lease.ResourceId] = lease
 	}
 
-	resourceIdToRow := make(map[string]*sqlcv1.ListDistinctBatchResourcesRow, len(resources))
+	resourceIdToRows := make(map[string][]*sqlcv1.ListDistinctBatchResourcesRow)
 	resourceIds := make([]string, 0, len(resources))
 	leasesToExtend := make([]*sqlcv1.Lease, 0, len(resources))
 	leasesToRelease := make([]*sqlcv1.Lease, 0, len(currResourceIdsToLease))
@@ -333,9 +333,12 @@ func (l *LeaseManager) acquireBatchLeases(ctx context.Context) error {
 			continue
 		}
 
-		resourceId := fmt.Sprintf("%s:%s", sqlchelpers.UUIDToStr(row.StepID), row.BatchKey)
-		resourceIdToRow[resourceId] = row
-		resourceIds = append(resourceIds, resourceId)
+		resourceId := sqlchelpers.UUIDToStr(row.StepID)
+		resourceIdToRows[resourceId] = append(resourceIdToRows[resourceId], row)
+
+		if len(resourceIdToRows[resourceId]) == 1 {
+			resourceIds = append(resourceIds, resourceId)
+		}
 
 		if lease, ok := currResourceIdsToLease[resourceId]; ok {
 			leasesToExtend = append(leasesToExtend, lease)
@@ -347,7 +350,7 @@ func (l *LeaseManager) acquireBatchLeases(ctx context.Context) error {
 		leasesToRelease = append(leasesToRelease, lease)
 	}
 
-	successfullyAcquired := make([]*sqlcv1.ListDistinctBatchResourcesRow, 0, len(resourceIds))
+	successfullyAcquired := make([]*sqlcv1.ListDistinctBatchResourcesRow, 0, len(resources))
 
 	if len(resourceIds) != 0 {
 		batchLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindBATCH, resourceIds, leasesToExtend)
@@ -358,8 +361,8 @@ func (l *LeaseManager) acquireBatchLeases(ctx context.Context) error {
 		l.batchLeases = batchLeases
 
 		for _, lease := range batchLeases {
-			if row, ok := resourceIdToRow[lease.ResourceId]; ok {
-				successfullyAcquired = append(successfullyAcquired, row)
+			if rows, ok := resourceIdToRows[lease.ResourceId]; ok {
+				successfullyAcquired = append(successfullyAcquired, rows...)
 			}
 		}
 	} else {
