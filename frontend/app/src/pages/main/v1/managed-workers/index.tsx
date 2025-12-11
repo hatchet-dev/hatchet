@@ -2,8 +2,6 @@ import { Separator } from '@/components/ui/separator';
 import { Link } from 'react-router-dom';
 import { ManagedWorkersTable } from './components/managed-workers-table';
 import { Button } from '@/components/ui/button';
-import { cloudApi } from '@/lib/api/api';
-import { useApiError } from '@/lib/hooks';
 import { useState } from 'react';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { queries } from '@/lib/api/queries';
@@ -16,7 +14,7 @@ export default function ManagedWorkers() {
   const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
-  const [portalLoading, setPortalLoading] = useState(false);
+  // const [portalLoading, setPortalLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const computeCostQuery = useQuery({
@@ -33,22 +31,22 @@ export default function ManagedWorkers() {
     managedCompute.canCreateWorkerPool(workerPoolCount),
   );
 
-  const { handleApiError } = useApiError({});
+  // const { handleApiError } = useApiError({});
 
-  const manageClicked = async () => {
-    try {
-      if (portalLoading) {
-        return;
-      }
-      setPortalLoading(true);
-      const link = await cloudApi.billingPortalLinkGet(tenant!.metadata.id);
-      window.open(link.data.url, '_blank');
-    } catch (e) {
-      handleApiError(e as any);
-    } finally {
-      setPortalLoading(false);
-    }
-  };
+  // const manageClicked = async () => {
+  //   try {
+  //     if (portalLoading) {
+  //       return;
+  //     }
+  //     setPortalLoading(true);
+  //     const link = await cloudApi.billingPortalLinkGet(tenant!.metadata.id);
+  //     window.open(link.data.url, '_blank');
+  //   } catch (e) {
+  //     handleApiError(e as any);
+  //   } finally {
+  //     setPortalLoading(false);
+  //   }
+  // };
 
   // Get limit based on plan
   const getWorkerPoolLimit = () => {

@@ -25,7 +25,7 @@ const replicaLimits = {
 };
 
 export const managedCompute: PermissionSet = {
-  create: () => (context) => {
+  create: () => () => {
     return [true, undefined];
   },
 

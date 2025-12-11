@@ -48,13 +48,6 @@ export enum CouponFrequency {
   Recurring = "recurring",
 }
 
-export enum TenantSubscriptionStatus {
-  Active = "active",
-  Pending = "pending",
-  Terminated = "terminated",
-  Canceled = "canceled",
-}
-
 export enum ManagedWorkerRegion {
   Ams = "ams",
   Arn = "arn",
@@ -351,6 +344,18 @@ export interface TenantBillingState {
   plans: SubscriptionPlan[];
   /** A list of coupons applied to the tenant. */
   coupons?: Coupon[];
+  paymentMethods?: TenantPaymentMethod[];
+}
+
+export interface TenantPaymentMethod {
+  /** The brand of the payment method. */
+  brand: string;
+  /** The last 4 digits of the card. */
+  last4?: string;
+  /** The expiration date of the card. */
+  expiration?: string;
+  /** The description of the payment method. */
+  description?: string;
 }
 
 export interface SubscriptionPlan {

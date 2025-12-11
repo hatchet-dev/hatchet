@@ -270,15 +270,24 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     </div>
                     <CardTitle className="text-lg mb-1">
                       Switching to{' '}
-                      {plans?.find((p) => p.planCode === [upcoming.plan, upcoming.period].filter((x) => !!x).join('_'))?.name || upcoming.plan}
+                      {plans?.find(
+                        (p) =>
+                          p.planCode ===
+                          [upcoming.plan, upcoming.period]
+                            .filter((x) => !!x)
+                            .join('_'),
+                      )?.name || upcoming.plan}
                     </CardTitle>
                     <p className="text-sm text-muted-foreground">
                       This change will take effect on{' '}
-                      {new Date(upcoming.startedAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })}
+                      {new Date(upcoming.startedAt).toLocaleDateString(
+                        'en-US',
+                        {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        },
+                      )}
                     </p>
                   </div>
                 </div>
@@ -324,7 +333,11 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sortedPlans
-            ?.filter((plan) => plan.planCode !== activePlanCode && plan.planCode !== upcomingPlanCode)
+            ?.filter(
+              (plan) =>
+                plan.planCode !== activePlanCode &&
+                plan.planCode !== upcomingPlanCode,
+            )
             .map((plan, i) => (
               <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
                 <CardHeader>
