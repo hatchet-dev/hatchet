@@ -71,7 +71,7 @@ export const columns = ({
       cell: ({ row }) =>
         row.original.workflowRunId ? (
           <Link
-            to="/tenants/$tenant/runs/$run"
+            to={appRoutes.tenantRunRoute.to}
             params={{ tenant: tenantId, run: row.original.workflowRunId }}
           >
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">

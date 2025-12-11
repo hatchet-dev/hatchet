@@ -68,7 +68,7 @@ export default function Login() {
               <p className="text-sm text-gray-700 dark:text-gray-300">
                 Don't have an account?{' '}
                 <Link
-                  to="/auth/register"
+                  to={appRoutes.authRegisterRoute.to}
                   className="underline underline-offset-4 hover:text-primary"
                 >
                   Sign up

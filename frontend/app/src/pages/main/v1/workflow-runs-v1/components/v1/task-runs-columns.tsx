@@ -113,7 +113,7 @@ export const columns: (
       if (row.getCanExpand()) {
         return (
           <Link
-            to="/tenants/$tenant/runs/$run"
+            to={appRoutes.tenantRunRoute.to}
             params={{ tenant: tenantId, run: row.original.metadata.id }}
           >
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">

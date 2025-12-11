@@ -43,7 +43,7 @@ export function ExpandedScheduledRunContent({
                 Workflow Run
               </span>
               <Link
-                to="/tenants/$tenant/runs/$run"
+                to={appRoutes.tenantRunRoute.to}
                 params={{ tenant: tenantId, run: scheduledRun.workflowRunId }}
                 className="font-medium hover:underline truncate"
               >

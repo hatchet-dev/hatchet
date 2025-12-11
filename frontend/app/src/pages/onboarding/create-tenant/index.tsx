@@ -28,11 +28,15 @@ export default function CreateTenant() {
   const { data: cloudMeta } = useCloudApiMeta();
 
   const getValidatedStep = (stepParam: string | null): number => {
-    if (stepParam === null) return 0;
+    if (stepParam === null) {
+      return 0;
+    }
 
     // Handle numbers that may be wrapped in quotes (e.g. "%221%22")
     const normalized =
-      typeof stepParam === 'string' ? stepParam.replaceAll('"', '') : stepParam;
+      typeof stepParam === 'string'
+        ? stepParam.replace(/["']/g, '')
+        : stepParam;
 
     const parsedStep = Number.parseInt(normalized, 10);
     if (!Number.isFinite(parsedStep)) {

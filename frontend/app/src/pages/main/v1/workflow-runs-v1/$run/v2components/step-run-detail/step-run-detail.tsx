@@ -29,6 +29,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
 import { useCallback, useState } from 'react';
 import { FullscreenIcon } from 'lucide-react';
+import { appRoutes } from '@/router';
 
 export enum TabOption {
   Output = 'output',
@@ -63,7 +64,7 @@ const TaskRunPermalinkOrBacklink = ({
   if (showViewTaskRunButton) {
     return (
       <Link
-        to="/tenants/$tenant/runs/$run"
+        to={appRoutes.tenantRunRoute.to}
         params={{ tenant: tenantId, run: taskRun.metadata.id }}
       >
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
@@ -79,7 +80,7 @@ const TaskRunPermalinkOrBacklink = ({
   ) {
     return (
       <Link
-        to="/tenants/$tenant/runs/$run"
+        to={appRoutes.tenantRunRoute.to}
         params={{ tenant: tenantId, run: taskRun.workflowRunExternalId }}
       >
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
@@ -419,7 +420,7 @@ function TriggeringParentWorkflowRunSection({
     <div className="text-sm text-gray-700 dark:text-gray-300 flex flex-row gap-1">
       Triggered by
       <Link
-        to="/tenants/$tenant/runs/$run"
+        to={appRoutes.tenantRunRoute.to}
         params={{
           tenant: tenantId,
           run: parentWorkflowRun.workflowRunExternalId,
