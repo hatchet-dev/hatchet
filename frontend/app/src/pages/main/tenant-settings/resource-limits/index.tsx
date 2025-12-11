@@ -23,12 +23,17 @@ export default function ResourceLimits() {
     retry: false,
   });
 
+  const paymentMethodsQuery = useQuery({
+    ...queries.cloud.paymentMethods(tenant.metadata.id),
+    enabled: !!tenant?.metadata?.id && !!cloudMeta?.data.canBill,
+    retry: false,
+  });
+
   const cols = columns();
 
   const billingEnabled = cloudMeta?.data.canBill;
 
-  const hasPaymentMethods =
-    (billingState.data?.paymentMethods?.length || 0) > 0;
+  const hasPaymentMethods = (paymentMethodsQuery.data?.length || 0) > 0;
 
   if (resourcePolicyQuery.isLoading || billingState.isLoading) {
     return (
@@ -52,7 +57,7 @@ export default function ResourceLimits() {
           <Separator className="my-4" />
           <PaymentMethods
             hasMethods={hasPaymentMethods}
-            methods={billingState.data?.paymentMethods}
+            methods={paymentMethodsQuery.data}
           />
           <Separator className="my-4" />
           <Subscription

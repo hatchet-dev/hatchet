@@ -49,6 +49,7 @@ import {
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
   TenantBillingState,
+  TenantPaymentMethodList,
   UpdateManagedWorkerRequest,
   UpdateOrganizationRequest,
   UpdateOrganizationTenantRequest,
@@ -813,6 +814,23 @@ export class Api<
       APIErrors
     >({
       path: `/api/v1/billing/tenants/${tenant}/billing-portal-link`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the payment methods for a tenant
+   *
+   * @tags Billing
+   * @name TenantPaymentMethodsGet
+   * @summary Get the payment methods for a tenant
+   * @request GET:/api/v1/billing/tenants/{tenant}/payment-methods
+   * @secure
+   */
+  tenantPaymentMethodsGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantPaymentMethodList, APIErrors>({
+      path: `/api/v1/billing/tenants/${tenant}/payment-methods`,
       method: "GET",
       secure: true,
       format: "json",

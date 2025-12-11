@@ -32,6 +32,7 @@ export type BillingContext = {
   state: TenantBillingState | undefined;
   setPollBilling: (pollBilling: boolean) => void;
   plan: Plan;
+  hasPaymentMethods: boolean;
 };
 
 type Can = (evalFn: Evaluate) => ReturnType<Evaluate>;
@@ -223,25 +224,40 @@ export function useTenant(): TenantContext {
     retry: false,
   });
 
+  const paymentMethodsQuery = useQuery({
+    ...queries.cloud.paymentMethods(tenant?.metadata?.id || ''),
+    enabled: !!tenant && !!cloudMeta?.data.canBill,
+    retry: false,
+  });
+
   const subscriptionPlan: Plan = useMemo(() => {
-    const plan = billingState.data?.subscription?.plan;
+    const plan = billingState.data?.currentSubscription?.plan;
     if (!plan) {
       return 'free';
     }
     return plan as Plan;
-  }, [billingState.data?.subscription?.plan]);
+  }, [billingState.data?.currentSubscription?.plan]);
 
   const billingContext: BillingContext | undefined = useMemo(() => {
     if (!cloudMeta?.data.canBill) {
       return;
     }
 
+    const hasPaymentMethods =
+      (paymentMethodsQuery.data?.paymentMethods?.length || 0) > 0;
+
     return {
       state: billingState.data,
       setPollBilling,
       plan: subscriptionPlan,
+      hasPaymentMethods,
     };
-  }, [cloudMeta?.data.canBill, billingState.data, subscriptionPlan]);
+  }, [
+    cloudMeta?.data.canBill,
+    billingState.data,
+    subscriptionPlan,
+    paymentMethodsQuery.data,
+  ]);
 
   const can = useCallback(
     (evalFn: Evaluate) => {

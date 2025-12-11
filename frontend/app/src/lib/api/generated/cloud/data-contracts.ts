@@ -344,7 +344,6 @@ export interface TenantBillingState {
   plans: SubscriptionPlan[];
   /** A list of coupons applied to the tenant. */
   coupons?: Coupon[];
-  paymentMethods?: TenantPaymentMethod[];
 }
 
 export interface TenantPaymentMethod {
@@ -357,6 +356,8 @@ export interface TenantPaymentMethod {
   /** The description of the payment method. */
   description?: string;
 }
+
+export type TenantPaymentMethodList = TenantPaymentMethod[];
 
 export interface SubscriptionPlan {
   /** The code of the plan. */
