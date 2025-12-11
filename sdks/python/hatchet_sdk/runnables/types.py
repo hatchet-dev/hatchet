@@ -159,3 +159,9 @@ def is_durable_sync_fn(
     fn: DurableTaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[DurableSyncFunc[TWorkflowInput, R]]:
     return not asyncio.iscoroutinefunction(fn)
+
+
+def normalize_input_validator(
+    validator: type["EmptyModel"] | None,
+) -> type["EmptyModel"]:
+    return validator or EmptyModel
