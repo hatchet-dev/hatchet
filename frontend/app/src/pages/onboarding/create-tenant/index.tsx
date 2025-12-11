@@ -27,12 +27,24 @@ export default function CreateTenant() {
   const { organizationData, isCloudEnabled } = useOrganizations();
   const { data: cloudMeta } = useCloudApiMeta();
 
-  const stepFromUrl = parseInt(searchParams.get('step') || '0', 10);
+  const getValidatedStep = (stepParam: string | null): number => {
+    if (stepParam === null) return 0;
+
+    // Handle numbers that may be wrapped in quotes (e.g. "%221%22")
+    const normalized =
+      typeof stepParam === 'string' ? stepParam.replaceAll('"', '') : stepParam;
+
+    const parsedStep = Number.parseInt(normalized, 10);
+    if (!Number.isFinite(parsedStep)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(parsedStep, FINAL_STEP));
+  };
+
+  const stepFromUrl = getValidatedStep(searchParams.get('step'));
   const organizationId = searchParams.get('organizationId');
 
-  const [currentStep, setCurrentStep] = useState(
-    Math.max(0, Math.min(stepFromUrl, FINAL_STEP)),
-  );
+  const [currentStep, setCurrentStep] = useState(stepFromUrl);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<
     string | null
   >(null);
@@ -73,9 +85,8 @@ export default function CreateTenant() {
 
   // Sync currentStep with URL parameter
   useEffect(() => {
-    const stepFromUrl = parseInt(searchParams.get('step') || '0', 10);
-    const validStep = Math.max(0, Math.min(stepFromUrl, FINAL_STEP));
-    setCurrentStep(validStep);
+    const stepFromUrl = getValidatedStep(searchParams.get('step'));
+    setCurrentStep(stepFromUrl);
   }, [searchParams]);
 
   const listMembershipsQuery = useQuery({
@@ -172,6 +183,7 @@ export default function CreateTenant() {
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       const nextStep = currentStep + 1;
+      setCurrentStep(nextStep);
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set('step', String(nextStep));
@@ -226,6 +238,7 @@ export default function CreateTenant() {
   const handlePrevious = () => {
     if (currentStep > 0) {
       const previousStep = currentStep - 1;
+      setCurrentStep(previousStep);
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set('step', String(previousStep));
@@ -237,6 +250,7 @@ export default function CreateTenant() {
   const handleStepClick = (stepIndex: number) => {
     // Allow navigation to any step within valid range
     if (stepIndex >= 0 && stepIndex < steps.length) {
+      setCurrentStep(stepIndex);
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set('step', String(stepIndex));
