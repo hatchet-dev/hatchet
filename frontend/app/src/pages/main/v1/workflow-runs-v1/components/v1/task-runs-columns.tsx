@@ -1,5 +1,5 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import {
   AdditionalMetadata,
   AdditionalMetadataClick,
@@ -14,6 +14,7 @@ import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { Duration } from '@/components/v1/shared/duration';
+import { appRoutes } from '@/router';
 
 export const TaskRunColumn = {
   taskName: 'Task Name',
@@ -111,7 +112,10 @@ export const columns: (
     cell: ({ row }) => {
       if (row.getCanExpand()) {
         return (
-          <Link to={`/tenants/${tenantId}/runs/${row.original.metadata.id}`}>
+          <Link
+            to="/tenants/$tenant/runs/$run"
+            params={{ tenant: tenantId, run: row.original.metadata.id }}
+          >
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
               {row.original.displayName}
             </div>
@@ -158,9 +162,12 @@ export const columns: (
       return (
         <div className="min-w-fit whitespace-nowrap">
           {(workflowId && workflowName && (
-            <a href={`/tenants/${tenantId}/workflows/${workflowId}`}>
+            <Link
+              to={appRoutes.tenantWorkflowRoute.to}
+              params={{ tenant: tenantId, workflow: workflowId }}
+            >
               {workflowName}
-            </a>
+            </Link>
           )) ||
             'N/A'}
         </div>

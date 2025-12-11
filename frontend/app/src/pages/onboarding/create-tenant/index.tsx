@@ -10,7 +10,7 @@ import { cloudApi } from '@/lib/api/api';
 import useCloudApiMeta from '../../auth/hooks/use-cloud-api-meta';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from '@/lib/router-helpers';
 import { TenantCreateForm } from './components/tenant-create-form';
 import { Button } from '@/components/v1/ui/button';
 import { HearAboutUsForm } from './components/hear-about-us-form';
@@ -23,8 +23,7 @@ import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
 const FINAL_STEP = 2;
 
 export default function CreateTenant() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { organizationData, isCloudEnabled } = useOrganizations();
   const { data: cloudMeta } = useCloudApiMeta();
 
@@ -173,7 +172,11 @@ export default function CreateTenant() {
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       const nextStep = currentStep + 1;
-      navigate(`?step=${nextStep}`, { replace: false });
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('step', String(nextStep));
+        return next;
+      });
     }
   };
 
@@ -223,14 +226,22 @@ export default function CreateTenant() {
   const handlePrevious = () => {
     if (currentStep > 0) {
       const previousStep = currentStep - 1;
-      navigate(`?step=${previousStep}`, { replace: false });
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('step', String(previousStep));
+        return next;
+      });
     }
   };
 
   const handleStepClick = (stepIndex: number) => {
     // Allow navigation to any step within valid range
     if (stepIndex >= 0 && stepIndex < steps.length) {
-      navigate(`?step=${stepIndex}`, { replace: false });
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('step', String(stepIndex));
+        return next;
+      });
     }
   };
 
@@ -346,7 +357,11 @@ export default function CreateTenant() {
               variant="outline"
               size="sm"
               onClick={() =>
-                navigate(`?step=${currentStep + 1}`, { replace: false })
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.set('step', String(currentStep + 1));
+                  return next;
+                })
               }
             >
               Skip

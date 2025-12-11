@@ -2,9 +2,10 @@ import { ScheduledWorkflows } from '@/lib/api';
 import { Separator } from '@/components/v1/ui/separator';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
+import { appRoutes } from '@/router';
 
 export function ExpandedScheduledRunContent({
   scheduledRun,
@@ -19,7 +20,8 @@ export function ExpandedScheduledRunContent({
         <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 pb-4 border-b text-sm">
           <span className="text-muted-foreground font-medium">Workflow</span>
           <Link
-            to={`/tenants/${tenantId}/workflows/${scheduledRun.workflowId}`}
+            to={appRoutes.tenantWorkflowRoute.to}
+            params={{ tenant: tenantId, workflow: scheduledRun.workflowId }}
             className="font-medium hover:underline truncate"
           >
             {scheduledRun.workflowName}
@@ -41,7 +43,8 @@ export function ExpandedScheduledRunContent({
                 Workflow Run
               </span>
               <Link
-                to={`/tenants/${tenantId}/runs/${scheduledRun.workflowRunId}`}
+                to="/tenants/$tenant/runs/$run"
+                params={{ tenant: tenantId, run: scheduledRun.workflowRunId }}
                 className="font-medium hover:underline truncate"
               >
                 {scheduledRun.workflowRunName || scheduledRun.workflowRunId}

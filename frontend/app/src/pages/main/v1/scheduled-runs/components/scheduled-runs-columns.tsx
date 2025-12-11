@@ -5,7 +5,8 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
+import { appRoutes } from '@/router';
 
 export const ScheduledRunColumn = {
   id: 'ID',
@@ -69,7 +70,10 @@ export const columns = ({
       ),
       cell: ({ row }) =>
         row.original.workflowRunId ? (
-          <Link to={`/tenants/${tenantId}/runs/${row.original.workflowRunId}`}>
+          <Link
+            to="/tenants/$tenant/runs/$run"
+            params={{ tenant: tenantId, run: row.original.workflowRunId }}
+          >
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
               {row.original.workflowRunName}
             </div>
@@ -127,11 +131,12 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
           <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-            <a
-              href={`/tenants/${tenantId}/workflows/${row.original.workflowId}`}
+            <Link
+              to={appRoutes.tenantWorkflowRoute.to}
+              params={{ tenant: tenantId, workflow: row.original.workflowId }}
             >
               {row.original.workflowName}
-            </a>
+            </Link>
           </div>
         </div>
       ),

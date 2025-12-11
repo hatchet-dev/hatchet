@@ -1,5 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import {
   CalendarIcon,
   CpuChipIcon,
@@ -8,6 +8,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api/queries';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { appRoutes } from '@/router';
 
 interface BillingRequiredProps {
   tenant: any;
@@ -128,7 +129,8 @@ export function BillingRequired({
               </div>
 
               <Link
-                to={`/tenants/${tenantId}/managed-workers/demo-template`}
+                to={appRoutes.tenantManagedWorkersTemplateRoute.to}
+                params={{ tenant: tenantId }}
                 className="w-full"
               >
                 <Button

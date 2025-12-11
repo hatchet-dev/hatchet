@@ -16,7 +16,7 @@ import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Toaster } from '@/components/v1/ui/toaster';
 
@@ -222,7 +222,8 @@ function TriggeringParentWorkflowRunSection({
     <div className="text-sm text-gray-700 dark:text-gray-300 flex flex-row gap-1">
       Triggered by
       <Link
-        to={`/tenants/${tenantId}/runs/${parentWorkflowRunId}`}
+        to="/tenants/$tenant/runs/$run"
+        params={{ tenant: tenantId, run: parentWorkflowRunId }}
         className="font-semibold hover:underline text-indigo-500 dark:text-indigo-200"
       >
         {parentWorkflowRun.displayName} ➶

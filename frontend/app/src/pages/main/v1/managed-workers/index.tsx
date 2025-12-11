@@ -1,5 +1,5 @@
 import { Separator } from '@/components/v1/ui/separator';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { ManagedWorkersTable } from './components/managed-workers-table';
 import { Button } from '@/components/v1/ui/button';
 import { cloudApi } from '@/lib/api/api';
@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { PlusIcon, ArrowUpIcon } from '@radix-ui/react-icons';
 import { MonthlyUsageCard } from './components/monthly-usage-card';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { appRoutes } from '@/router';
 
 export default function ManagedWorkers() {
   const { tenant, billing, can } = useTenantDetails();
@@ -128,7 +129,8 @@ export default function ManagedWorkers() {
               Cancel
             </Button>
             <Link
-              to={`/tenants/${tenantId}/tenant-settings/billing-and-limits`}
+              to={appRoutes.tenantSettingsBillingRoute.to}
+              params={{ tenant: tenantId }}
             >
               <Button>
                 <ArrowUpIcon className="h-4 w-4 mr-2" />
@@ -149,7 +151,10 @@ export default function ManagedWorkers() {
             Managed Compute
           </h2>
           {canCreateMoreWorkerPools ? (
-            <Link to={`/tenants/${tenantId}/managed-workers/create`}>
+            <Link
+              to={appRoutes.tenantManagedWorkersCreateRoute.to}
+              params={{ tenant: tenantId }}
+            >
               <Button>
                 <PlusIcon className="w-4 h-4 mr-2" />
                 Add Service

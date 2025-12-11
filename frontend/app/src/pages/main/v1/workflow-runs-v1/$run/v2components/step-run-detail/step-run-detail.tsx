@@ -11,7 +11,7 @@ import {
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { RunsTable } from '../../../components/runs-table';
 import { RunsProvider } from '../../../hooks/runs-provider';
 import { V1RunIndicator } from '../../../components/run-statuses';
@@ -62,7 +62,10 @@ const TaskRunPermalinkOrBacklink = ({
 
   if (showViewTaskRunButton) {
     return (
-      <Link to={`/tenants/${tenantId}/runs/${taskRun.metadata.id}`}>
+      <Link
+        to="/tenants/$tenant/runs/$run"
+        params={{ tenant: tenantId, run: taskRun.metadata.id }}
+      >
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
           <FullscreenIcon className="w-4 h-4" />
           Expand
@@ -75,7 +78,10 @@ const TaskRunPermalinkOrBacklink = ({
     taskRun.workflowRunExternalId !== taskRun.metadata.id
   ) {
     return (
-      <Link to={`/tenants/${tenantId}/runs/${taskRun.workflowRunExternalId}`}>
+      <Link
+        to="/tenants/$tenant/runs/$run"
+        params={{ tenant: tenantId, run: taskRun.workflowRunExternalId }}
+      >
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
           <FullscreenIcon className="w-4 h-4" />
           View DAG Run
@@ -413,7 +419,11 @@ function TriggeringParentWorkflowRunSection({
     <div className="text-sm text-gray-700 dark:text-gray-300 flex flex-row gap-1">
       Triggered by
       <Link
-        to={`/tenants/${tenantId}/runs/${parentWorkflowRun.workflowRunExternalId}`}
+        to="/tenants/$tenant/runs/$run"
+        params={{
+          tenant: tenantId,
+          run: parentWorkflowRun.workflowRunExternalId,
+        }}
         className="font-semibold hover:underline text-indigo-500 dark:text-indigo-200"
       >
         {parentWorkflowRun.displayName} ➶

@@ -9,7 +9,7 @@ import api, {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ColumnFiltersState, Updater } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from '@/lib/router-helpers';
 import { scopeKey, workflowIdKey } from '../components/filter-columns';
 import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
 

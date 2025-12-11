@@ -1,10 +1,11 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Workflow } from '@/lib/api';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { ChevronRightIcon } from '@radix-ui/react-icons';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { appRoutes } from '@/router';
 
 export const WorkflowColumn = {
   status: 'Status',
@@ -44,7 +45,10 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
       <DataTableColumnHeader column={column} title={WorkflowColumn.name} />
     ),
     cell: ({ row }) => (
-      <Link to={`/tenants/${tenantId}/workflows/${row.original.metadata.id}`}>
+      <Link
+        to={appRoutes.tenantWorkflowRoute.to}
+        params={{ tenant: tenantId, workflow: row.original.metadata.id }}
+      >
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap text-md p-2">
           {row.original.name}
         </div>
@@ -85,7 +89,8 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
       return (
         <div className="flex gap-2 justify-end">
           <Link
-            to={`/tenants/${tenantId}/workflows/${row.original.metadata.id}`}
+            to={appRoutes.tenantWorkflowRoute.to}
+            params={{ tenant: tenantId, workflow: row.original.metadata.id }}
           >
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap text-md p-2">
               <ChevronRightIcon

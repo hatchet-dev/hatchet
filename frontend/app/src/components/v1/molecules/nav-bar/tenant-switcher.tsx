@@ -13,7 +13,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/v1/ui/command';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { TenantMember } from '@/lib/api';
 import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import {
@@ -26,6 +26,7 @@ import { Spinner } from '@/components/v1/ui/loading.tsx';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { appRoutes } from '@/router';
 
 interface TenantSwitcherProps {
   className?: string;
@@ -91,7 +92,7 @@ export function TenantSwitcher({
             <>
               <CommandSeparator />
               <CommandList>
-                <Link to="/onboarding/create-tenant">
+                <Link to={appRoutes.onboardingCreateTenantRoute.to}>
                   <CommandItem className="text-sm cursor-pointer">
                     <PlusCircledIcon className="mr-2 h-4 w-4" />
                     New Tenant

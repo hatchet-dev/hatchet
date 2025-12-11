@@ -1,10 +1,11 @@
 import api from '@/lib/api';
-import { LoaderFunctionArgs, redirect, useLoaderData } from 'react-router-dom';
+import { redirect, useLoaderData } from '@tanstack/react-router';
 import queryClient from '@/query-client';
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
 import { Loading } from '@/components/v1/ui/loading';
+import { appRoutes } from '@/router';
 
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function loader({ request }: { request: Request }) {
   try {
     const user = await queryClient.fetchQuery({
       queryKey: ['user:get:current'],
@@ -19,7 +20,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       user.emailVerified &&
       request.url.includes('/onboarding/verify-email')
     ) {
-      throw redirect('/');
+      throw redirect({ to: appRoutes.authenticatedRoute.to });
     }
 
     return { user };
@@ -30,13 +31,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
       !request.url.includes('/auth/login') &&
       !request.url.includes('/auth/register')
     ) {
-      throw redirect('/auth/login');
+      throw redirect({ to: appRoutes.authLoginRoute.to });
     }
   }
 }
 
 export default function VerifyEmail() {
-  const res = useLoaderData() as Awaited<ReturnType<typeof loader>>;
+  const res = useLoaderData({
+    from: appRoutes.onboardingVerifyRoute.to,
+  }) as Awaited<ReturnType<typeof loader>>;
 
   if (!res?.user) {
     return <Loading />;

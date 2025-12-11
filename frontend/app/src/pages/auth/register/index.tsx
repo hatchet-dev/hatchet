@@ -1,4 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { appRoutes } from '@/router';
 import { UserRegisterForm } from './components/user-register-form';
 import { useMutation } from '@tanstack/react-query';
 import api, { UserRegisterRequest } from '@/lib/api';
@@ -88,7 +89,7 @@ export default function Register() {
               <p className="text-sm text-gray-700 dark:text-gray-300">
                 Already have an account?{' '}
                 <Link
-                  to="/auth/login"
+                  to={appRoutes.authLoginRoute.to}
                   className="underline underline-offset-4 hover:text-primary"
                 >
                   Log in
@@ -97,26 +98,26 @@ export default function Register() {
             </div>
             <p className="text-left text-sm text-gray-700 dark:text-gray-300 w-full">
               By clicking continue, you agree to our{' '}
-              <Link
-                to="https://www.iubenda.com/terms-and-conditions/76608149"
+              <a
+                href="https://hatchet.run/policies/terms"
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Terms of Service
-              </Link>
+              </a>
               ,{' '}
-              <Link
-                to="https://www.iubenda.com/privacy-policy/76608149/cookie-policy"
+              <a
+                href="https://hatchet.run/policies/cookie"
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Cookie Policy
-              </Link>
+              </a>
               , and{' '}
-              <Link
-                to="https://www.iubenda.com/privacy-policy/76608149"
+              <a
+                href="https://hatchet.run/policies/privacy"
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Privacy Policy
-              </Link>
+              </a>
               .
             </p>
           </div>
@@ -139,7 +140,7 @@ function BasicRegister() {
       await api.userCreate(data);
     },
     onSuccess: () => {
-      navigate('/');
+      navigate({ to: appRoutes.authenticatedRoute.to });
     },
     onError: handleApiError,
   });

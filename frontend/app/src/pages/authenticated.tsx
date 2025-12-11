@@ -1,5 +1,5 @@
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import api, { queries, User } from '@/lib/api';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -11,6 +11,8 @@ import { AxiosError } from 'axios';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { cloudApi } from '@/lib/api/api';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { OutletWithContext } from '@/lib/router-helpers';
+import { appRoutes } from '@/router';
 
 export default function Authenticated() {
   const { tenant } = useTenantDetails();
@@ -31,7 +33,7 @@ export default function Authenticated() {
       await api.userUpdateLogout();
     },
     onSuccess: () => {
-      navigate('/auth/login');
+      navigate({ to: appRoutes.authLoginRoute.to });
     },
   });
 
@@ -110,6 +112,22 @@ export default function Authenticated() {
       window.location.href = '/onboarding/create-tenant';
       return;
     }
+
+    // If user has memberships and we're at the bare root, go to their first tenant
+    if (
+      currentUrl === '/' &&
+      listMembershipsQuery.data?.rows &&
+      listMembershipsQuery.data.rows.length > 0
+    ) {
+      const firstTenant = listMembershipsQuery.data.rows[0].tenant;
+      if (firstTenant) {
+        navigate({
+          to: appRoutes.tenantRunsRoute.to,
+          params: { tenant: firstTenant.metadata.id },
+          replace: true,
+        });
+      }
+    }
   }, [
     tenant?.metadata.id,
     userQuery.data,
@@ -117,6 +135,7 @@ export default function Authenticated() {
     listMembershipsQuery.data,
     tenant?.version,
     userQuery.error,
+    navigate,
   ]);
 
   if (
@@ -157,7 +176,7 @@ export default function Authenticated() {
             tenantMemberships={listMembershipsQuery.data?.rows || []}
           />
           <div className="pt-16 flex-grow overflow-y-auto overflow-x-hidden">
-            <Outlet context={ctx} />
+            <OutletWithContext context={ctx} />
           </div>
         </div>
       </SupportChat>

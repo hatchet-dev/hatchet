@@ -38,7 +38,6 @@ import { Spinner } from '@/components/v1/ui/loading';
 import { SourceName } from './components/source-name';
 import { AuthMethod } from './components/auth-method';
 import { AuthSetup } from './components/auth-setup';
-import { Link } from 'react-router-dom';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 
@@ -451,14 +450,14 @@ const CreateWebhookModal = () => {
               <p>
                 CEL expression to extract the event key from the webhook
                 payload. See{' '}
-                <Link
-                  to="https://cel.dev/"
+                <a
+                  href="https://cel.dev/"
                   className="text-blue-600"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   the docs
-                </Link>{' '}
+                </a>{' '}
                 for details.
               </p>
               <ul className="list-disc pl-4">
