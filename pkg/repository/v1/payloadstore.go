@@ -75,6 +75,7 @@ type PayloadStoreRepository interface {
 	ExternalCutoverNumConcurrentOffloads() int32
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
+	ImmediateOffloadsEnabled() bool
 	ProcessPayloadCutovers(ctx context.Context) error
 }
 
@@ -399,6 +400,10 @@ func (p *payloadStoreRepositoryImpl) ExternalCutoverNumConcurrentOffloads() int3
 
 func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
 	return p.externalStoreEnabled
+}
+
+func (p *payloadStoreRepositoryImpl) ImmediateOffloadsEnabled() bool {
+	return p.enableImmediateOffloads
 }
 
 func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
