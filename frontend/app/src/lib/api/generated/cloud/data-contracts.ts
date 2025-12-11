@@ -375,7 +375,10 @@ export interface UpdateTenantSubscriptionRequest {
 
 export type UpdateTenantSubscriptionResponse =
   | CheckoutURLResponse
-  | TenantSubscription;
+  | {
+      currentSubscription: TenantSubscription;
+      upcomingSubscription?: TenantSubscription;
+    };
 
 export interface CheckoutURLResponse {
   /** The URL to the checkout page. */

@@ -26,12 +26,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface SubscriptionProps {
   active?: TenantSubscription;
+  upcoming?: TenantSubscription;
   plans?: SubscriptionPlan[];
   coupons?: Coupon[];
 }
 
 export const Subscription: React.FC<SubscriptionProps> = ({
   active,
+  upcoming,
   plans,
   coupons,
 }) => {
@@ -106,6 +108,13 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   useEffect(() => {
     return setShowAnnual(active?.period?.includes('yearly') || false);
   }, [active]);
+
+  const upcomingPlanCode = useMemo(() => {
+    if (!upcoming?.plan) {
+      return null;
+    }
+    return [upcoming.plan, upcoming.period].filter((x) => !!x).join('_');
+  }, [upcoming]);
 
   const sortedPlans = useMemo(() => {
     return plans
@@ -249,6 +258,35 @@ export const Subscription: React.FC<SubscriptionProps> = ({
           </div>
         )}
 
+        {/* Upcoming Subscription Section */}
+        {upcoming && upcoming.plan && (
+          <div className="mb-6">
+            <Card className="border-2 border-orange-500/30 bg-orange-50 dark:bg-orange-950/20">
+              <CardHeader className="pb-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="inProgress">Scheduled Change</Badge>
+                    </div>
+                    <CardTitle className="text-lg mb-1">
+                      Switching to{' '}
+                      {plans?.find((p) => p.planCode === [upcoming.plan, upcoming.period].filter((x) => !!x).join('_'))?.name || upcoming.plan}
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      This change will take effect on{' '}
+                      {new Date(upcoming.startedAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+          </div>
+        )}
+
         <div className="flex flex-row justify-between items-center mb-4">
           <p className="text-gray-700 dark:text-gray-300">
             For plan details, please visit{' '}
@@ -286,7 +324,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sortedPlans
-            ?.filter((plan) => plan.planCode !== activePlanCode)
+            ?.filter((plan) => plan.planCode !== activePlanCode && plan.planCode !== upcomingPlanCode)
             .map((plan, i) => (
               <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
                 <CardHeader>

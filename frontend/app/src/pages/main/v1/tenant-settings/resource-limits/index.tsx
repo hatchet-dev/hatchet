@@ -41,6 +41,7 @@ export default function ResourceLimits() {
         <>
           <Subscription
             active={billingState.data?.currentSubscription}
+            upcoming={billingState.data?.upcomingSubscription}
             plans={billingState.data?.plans}
             coupons={billingState.data?.coupons}
           />
