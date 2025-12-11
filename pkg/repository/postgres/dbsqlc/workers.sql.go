@@ -267,11 +267,13 @@ SELECT
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion",
     ww."url" AS "webhookUrl",
     w."maxRuns" - (
-        SELECT COUNT(*)
-        FROM "SemaphoreQueueItem" sqi
+        SELECT
+            COALESCE(SUM(CASE WHEN runtime.batch_id IS NULL THEN 1 ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT runtime.batch_id)::integer
+        FROM v1_task_runtime runtime
         WHERE
-            sqi."tenantId" = w."tenantId" AND
-            sqi."workerId" = w."id"
+            runtime.tenant_id = w."tenantId" AND
+            runtime.worker_id = w."id"
     ) AS "remainingSlots"
 FROM
     "Worker" w
@@ -749,11 +751,13 @@ SELECT
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
     workers."maxRuns" - (
-        SELECT COUNT(*)
-        FROM "SemaphoreQueueItem" sqi
+        SELECT
+            COALESCE(SUM(CASE WHEN runtime.batch_id IS NULL THEN 1 ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT runtime.batch_id)::integer
+        FROM v1_task_runtime runtime
         WHERE
-            sqi."tenantId" = workers."tenantId" AND
-            sqi."workerId" = workers."id"
+            runtime.tenant_id = workers."tenantId" AND
+            runtime.worker_id = workers."id"
     ) AS "remainingSlots"
 FROM
     "Worker" workers

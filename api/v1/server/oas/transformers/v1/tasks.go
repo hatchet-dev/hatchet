@@ -215,6 +215,11 @@ func ToWorkflowRunTaskRunEventsMany(
 			RetryCount:      &retryCount,
 			Attempt:         &attempt,
 		}
+
+		if event.AdditionalEventData.Valid && event.AdditionalEventData.String != "" {
+			payload := event.AdditionalEventData.String
+			toReturn[i].EventPayload = &payload
+		}
 	}
 
 	return gen.V1TaskEventList{

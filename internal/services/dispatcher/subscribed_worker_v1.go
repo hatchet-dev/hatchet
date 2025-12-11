@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
@@ -34,7 +35,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 		inputBytes = task.Payload
 	}
 
-	action := populateAssignedAction(tenantId, task.V1Task, task.RetryCount)
+	action := populateAssignedAction(tenantId, task.V1Task, task.Runtime, task.RetryCount)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
@@ -186,7 +187,7 @@ func (worker *subscribedWorker) CancelTask(
 	ctx, span := telemetry.NewSpan(ctx, "cancel-task") // nolint:ineffassign
 	defer span.End()
 
-	action := populateAssignedAction(tenantId, task, retryCount)
+	action := populateAssignedAction(tenantId, task, nil, retryCount)
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
@@ -223,7 +224,7 @@ func (worker *subscribedWorker) CancelTask(
 	return nil
 }
 
-func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
+func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, runtime *sqlcv1.V1TaskRuntime, retryCount int32) *contracts.AssignedAction {
 	workflowId := sqlchelpers.UUIDToStr(task.WorkflowID)
 	workflowVersionId := sqlchelpers.UUIDToStr(task.WorkflowVersionID)
 
@@ -261,6 +262,37 @@ func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int
 	if task.ChildKey.Valid {
 		key := task.ChildKey.String
 		action.ChildWorkflowKey = &key
+	}
+
+	if runtime != nil {
+		if runtime.BatchID.Valid {
+			batchID := sqlchelpers.UUIDToStr(runtime.BatchID)
+			action.BatchId = &batchID
+		}
+
+		if runtime.BatchSize.Valid {
+			size := runtime.BatchSize.Int32
+			action.BatchSize = &size
+		}
+
+		if runtime.BatchIndex.Valid {
+			index := runtime.BatchIndex.Int32
+			action.BatchIndex = &index
+		}
+
+		if runtime.BatchKey.Valid {
+			key := strings.TrimSpace(runtime.BatchKey.String)
+			if key != "" {
+				action.BatchKey = &key
+			}
+		}
+	}
+
+	if action.BatchKey == nil && task.BatchKey.Valid {
+		key := strings.TrimSpace(task.BatchKey.String)
+		if key != "" {
+			action.BatchKey = &key
+		}
 	}
 
 	return action

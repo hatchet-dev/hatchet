@@ -18,6 +18,8 @@ import {
   CreateOnSuccessTaskOpts,
   Concurrency,
   DurableTaskFn,
+  BatchTaskConfig,
+  BatchTaskFn,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -141,6 +143,18 @@ export type CreateTaskWorkflowOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
 > = CreateBaseWorkflowOpts & CreateBaseTaskOpts<I, O, TaskFn<I, O>>;
+
+export type CreateBatchTaskWorkflowOpts<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+> = CreateBaseWorkflowOpts &
+  Omit<CreateWorkflowTaskOpts<I, O>, 'fn'> & {
+    fn: BatchTaskFn<I, O>;
+    batchSize: number;
+    flushInterval?: number;
+    batchKey?: string;
+    maxRuns?: number;
+  };
 
 export type CreateDurableTaskWorkflowOpts<
   I extends InputType = UnknownInputType,
@@ -792,6 +806,51 @@ export function CreateTaskWorkflow<
   client?: IHatchetClient
 ): TaskWorkflowDeclaration<I, O> {
   return new TaskWorkflowDeclaration<I, O>(options as any, client);
+}
+
+/**
+ * Creates a new batched task workflow declaration. Batched tasks buffer individual task executions
+ * until the configured batch size is met or the optional flush interval elapses, then invoke the
+ * provided batch handler with all pending inputs at once.
+ * @template I The input type for each task invocation.
+ * @template O The output type for each task invocation.
+ * @param options The batch task configuration options.
+ * @param client Optional Hatchet client instance.
+ * @returns A TaskWorkflowDeclaration configured for batched execution.
+ */
+export function CreateBatchTaskWorkflow<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+>(
+  options: CreateBatchTaskWorkflowOpts<I, O>,
+  client?: IHatchetClient
+): TaskWorkflowDeclaration<I, O> {
+  const { fn, batchSize, flushInterval, batchKey, maxRuns, ...rest } = options;
+
+  if (!Number.isFinite(batchSize) || batchSize <= 0 || !Number.isInteger(batchSize)) {
+    throw new Error(`batchSize must be a positive integer, received '${batchSize}'`);
+  }
+
+  const normalizedFlush =
+    flushInterval && Number.isFinite(flushInterval) && flushInterval > 0
+      ? flushInterval
+      : undefined;
+
+  const taskOptions = {
+    ...rest,
+    batch: {
+      fn,
+      batchSize,
+      flushInterval: normalizedFlush,
+      batchKey,
+      maxRuns,
+    },
+  } as CreateWorkflowTaskOpts<I, O> & { batch: BatchTaskConfig<I, O> };
+
+  return new TaskWorkflowDeclaration<I, O>(
+    taskOptions as unknown as CreateTaskWorkflowOpts<I, O>,
+    client
+  );
 }
 
 /**

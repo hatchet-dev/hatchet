@@ -35,6 +35,10 @@ export function createActionKey(action: Action): ActionKey {
     case ActionType.START_STEP_RUN:
     case ActionType.UNRECOGNIZED:
       return `${action.stepRunId}/${action.retryCount}`;
+    case ActionType.START_BATCH: {
+      const batchKey = action.batchId ?? action.actionId ?? 'unknown';
+      return `${batchKey}/${action.retryCount ?? 0}`;
+    }
     default:
       // eslint-disable-next-line no-case-declarations
       const exhaustivenessCheck: never = action.actionType;
