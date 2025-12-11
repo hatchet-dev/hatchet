@@ -498,6 +498,11 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 
 			for _, payload := range payloads {
 				externalId := PayloadExternalId(payload.ExternalID.String())
+
+				if externalId == "" {
+					externalId = PayloadExternalId(uuid.NewString())
+				}
+
 				externalIdToPayloadInner[externalId] = *payload
 
 				if payload.Location != sqlcv1.V1PayloadLocationINLINE {
