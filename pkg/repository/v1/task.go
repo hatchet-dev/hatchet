@@ -3808,6 +3808,10 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 				result[stepReadableId] = taskStat
 			}
 			statusStat = result[stepReadableId].Queued
+
+			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
+				statusStat.Oldest = &oldest.Time
+			}
 		case "running":
 			if taskStat.Running == nil {
 				taskStat.Running = &TaskStatusStat{}
@@ -3818,7 +3822,6 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
 				statusStat.Oldest = &oldest.Time
 			}
-
 		}
 
 		statusStat.Total += count
@@ -3828,10 +3831,6 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 				statusStat.Queues = make(map[string]int64)
 			}
 			statusStat.Queues[queue] += count
-
-			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
-				statusStat.Oldest = &oldest.Time
-			}
 		}
 
 		if expression != "" && key != "" && strategy != "NONE" {
