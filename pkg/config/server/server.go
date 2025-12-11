@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"time"
 
@@ -186,8 +187,12 @@ type ConfigFileRuntime struct {
 	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
 	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
 
-	// Enforce limits controls whether the server enforces tenant limits
+	// EnforceLimits controls whether the server enforces tenant limits
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
+
+	// EnforceLimitsFunc is a function that returns whether the server should enforce limits for a tenant
+	// This will take precedence over EnforceLimits if set.
+	EnforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error)
 
 	// Default limit values
 	Limits LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`

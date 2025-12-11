@@ -70,7 +70,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
       const [plan, period] = plan_code.split('_');
       setLoading(plan_code);
-      const response = await cloudApi.subscriptionUpsert(tenantId, {
+      const response = await cloudApi.tenantSubscriptionUpdate(tenantId, {
         plan,
         period,
       });
@@ -78,8 +78,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     },
     onSuccess: async (data) => {
       // Check if response is a CheckoutURLResponse
-      if (data && 'checkout_url' in data) {
-        window.location.href = data.checkout_url;
+      if (data && 'checkoutUrl' in data) {
+        window.location.href = data.checkoutUrl;
         return;
       }
 
@@ -349,7 +349,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     {(
                       plan.amountCents /
                       100 /
-                      (plan.period == 'yearly' ? 12 : 1)
+                      (plan.period === 'yearly' ? 12 : 1)
                     ).toLocaleString()}{' '}
                     per month billed {plan.period}*
                   </CardDescription>

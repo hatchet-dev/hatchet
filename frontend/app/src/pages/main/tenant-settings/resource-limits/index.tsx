@@ -20,13 +20,11 @@ export default function ResourceLimits() {
   const billingState = useQuery({
     ...queries.cloud.billing(tenant.metadata.id),
     enabled: !!tenant?.metadata?.id && !!cloudMeta?.data.canBill,
-    retry: false,
   });
 
   const paymentMethodsQuery = useQuery({
     ...queries.cloud.paymentMethods(tenant.metadata.id),
     enabled: !!tenant?.metadata?.id && !!cloudMeta?.data.canBill,
-    retry: false,
   });
 
   const cols = columns();

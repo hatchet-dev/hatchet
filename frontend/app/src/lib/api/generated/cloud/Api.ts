@@ -775,12 +775,12 @@ export class Api<
    * @description Update a subscription
    *
    * @tags Billing
-   * @name SubscriptionUpsert
+   * @name TenantSubscriptionUpdate
    * @summary Create a new subscription
    * @request PATCH:/api/v1/billing/tenants/{tenant}/subscription
    * @secure
    */
-  subscriptionUpsert = (
+  tenantSubscriptionUpdate = (
     tenant: string,
     data: UpdateTenantSubscriptionRequest,
     params: RequestParams = {},

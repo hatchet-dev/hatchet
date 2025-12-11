@@ -192,7 +192,16 @@ func (t *tenantLimitRepository) patchTenantResourceLimit(ctx context.Context, te
 }
 
 func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) ([]*dbsqlc.TenantResourceLimit, error) {
-	if !t.config.EnforceLimits {
+	if t.config.EnforceLimitsFunc != nil {
+		enforce, err := t.config.EnforceLimitsFunc(ctx, tenantId)
+		if err != nil {
+			return nil, err
+		}
+
+		if !enforce {
+			return []*dbsqlc.TenantResourceLimit{}, nil
+		}
+	} else if !t.config.EnforceLimits {
 		return []*dbsqlc.TenantResourceLimit{}, nil
 	}
 
@@ -228,7 +237,16 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 
 func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.LimitResource, tenantId string, numberOfResources int32) (bool, int, error) {
 
-	if !t.config.EnforceLimits {
+	if t.config.EnforceLimitsFunc != nil {
+		enforce, err := t.config.EnforceLimitsFunc(ctx, tenantId)
+		if err != nil {
+			return false, 0, err
+		}
+
+		if !enforce {
+			return true, 0, nil
+		}
+	} else if !t.config.EnforceLimits {
 		return true, 0, nil
 	}
 
@@ -285,7 +303,16 @@ func (t *tenantLimitRepository) SetOnSuccessMeterCallback(cb func(resource dbsql
 }
 
 func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.LimitResource, tenantId string, numberOfResources int32) (*dbsqlc.TenantResourceLimit, error) {
-	if !t.config.EnforceLimits {
+	if t.config.EnforceLimitsFunc != nil {
+		enforce, err := t.config.EnforceLimitsFunc(ctx, tenantId)
+		if err != nil {
+			return nil, err
+		}
+
+		if !enforce {
+			return nil, nil
+		}
+	} else if !t.config.EnforceLimits {
 		return nil, nil
 	}
 

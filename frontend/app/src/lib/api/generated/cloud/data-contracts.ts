@@ -388,7 +388,7 @@ export type UpdateTenantSubscriptionResponse =
 
 export interface CheckoutURLResponse {
   /** The URL to the checkout page. */
-  checkout_url: string;
+  checkoutUrl: string;
 }
 
 export interface TenantSubscription {
