@@ -35,7 +35,7 @@ from hatchet_sdk.runnables.types import (
     TaskDefaults,
     TWorkflowInput,
     WorkflowConfig,
-    normalize_input_validator,
+    normalize_validator,
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
@@ -305,7 +305,7 @@ class Hatchet:
                 on_crons=on_crons or [],
                 sticky=sticky,
                 concurrency=concurrency,
-                input_validator=TypeAdapter(normalize_input_validator(input_validator)),
+                input_validator=TypeAdapter(normalize_validator(input_validator)),
                 task_defaults=task_defaults,
                 default_priority=default_priority,
                 default_filters=default_filters or [],
@@ -451,9 +451,7 @@ class Hatchet:
                     on_crons=on_crons or [],
                     sticky=sticky,
                     default_priority=default_priority,
-                    input_validator=TypeAdapter(
-                        normalize_input_validator(input_validator)
-                    ),
+                    input_validator=TypeAdapter(normalize_validator(input_validator)),
                     default_filters=default_filters or [],
                 ),
                 self,
@@ -636,9 +634,7 @@ class Hatchet:
                     on_events=on_events or [],
                     on_crons=on_crons or [],
                     sticky=sticky,
-                    input_validator=TypeAdapter(
-                        normalize_input_validator(input_validator)
-                    ),
+                    input_validator=TypeAdapter(normalize_validator(input_validator)),
                     default_priority=default_priority,
                     default_filters=default_filters or [],
                 ),

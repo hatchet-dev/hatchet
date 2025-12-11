@@ -50,6 +50,7 @@ from hatchet_sdk.runnables.types import (
     TWorkflowInput,
     is_async_fn,
     is_sync_fn,
+    normalize_validator,
 )
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import (
@@ -165,7 +166,7 @@ class Task(Generic[TWorkflowInput, R]):
 
         self.validators: TaskIOValidator = TaskIOValidator(
             workflow_input=workflow.config.input_validator,
-            step_output=TypeAdapter(return_type),
+            step_output=TypeAdapter(normalize_validator(return_type)),
         )
 
     async def _resolve_function_dependencies(
