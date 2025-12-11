@@ -271,7 +271,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         return cast(
             JSONSerializableMapping,
-            self.config.input_validator.dump_python(input, mode="json"),
+            self.config.input_validator.dump_python(input, mode="json"),  # type: ignore[arg-type]
         )
 
     @cached_property

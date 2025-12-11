@@ -2,7 +2,7 @@ import sys
 from collections.abc import Awaitable, Coroutine, Generator
 from dataclasses import Field as DataclassField
 from enum import Enum
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Protocol, TypeAlias, TypeVar
+from typing import Any, ClassVar, Literal, Protocol, TypeAlias, TypeVar
 
 
 class DataclassInstance(Protocol):

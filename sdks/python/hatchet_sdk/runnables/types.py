@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import Callable, Mapping
 from enum import Enum
-from typing import Any, ParamSpec, TypeGuard, TypeVar
+from typing import Any, ParamSpec, TypeGuard, TypeVar, overload
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
@@ -60,7 +60,9 @@ class ConcurrencyExpression(BaseModel):
         )
 
 
-TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel | DataclassInstance)
+TWorkflowInput = TypeVar(
+    "TWorkflowInput", bound=BaseModel | DataclassInstance | dict[str, Any] | None
+)
 
 
 class TaskDefaults(BaseModel):
@@ -161,7 +163,26 @@ def is_durable_sync_fn(
     return not asyncio.iscoroutinefunction(fn)
 
 
-def normalize_input_validator(
-    validator: type["EmptyModel"] | None,
-) -> type["EmptyModel"]:
+_TModel = TypeVar("_TModel", bound=BaseModel)
+_TDataclass = TypeVar("_TDataclass", bound=DataclassInstance)
+_T = TypeVar("_T")
+
+
+@overload
+def normalize_input_validator(validator: None) -> type[EmptyModel]: ...
+
+
+@overload
+def normalize_input_validator(validator: type[_TModel]) -> type[_TModel]: ...
+
+
+@overload
+def normalize_input_validator(validator: type[_TDataclass]) -> type[_TDataclass]: ...
+
+
+@overload
+def normalize_input_validator(validator: type[_T]) -> type[_T]: ...
+
+
+def normalize_input_validator(validator: object) -> object:
     return validator or EmptyModel

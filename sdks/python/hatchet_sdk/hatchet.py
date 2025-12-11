@@ -35,10 +35,11 @@ from hatchet_sdk.runnables.types import (
     TaskDefaults,
     TWorkflowInput,
     WorkflowConfig,
+    normalize_input_validator,
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
-from hatchet_sdk.utils.typing import CoroutineLike, normalize_input_validator
+from hatchet_sdk.utils.typing import CoroutineLike
 from hatchet_sdk.worker.worker import LifespanFn, Worker
 
 P = ParamSpec("P")
@@ -450,7 +451,9 @@ class Hatchet:
                     on_crons=on_crons or [],
                     sticky=sticky,
                     default_priority=default_priority,
-                    input_validator=TypeAdapter(normalize_input_validator(input_validator)),
+                    input_validator=TypeAdapter(
+                        normalize_input_validator(input_validator)
+                    ),
                     default_filters=default_filters or [],
                 ),
                 self,
@@ -633,7 +636,9 @@ class Hatchet:
                     on_events=on_events or [],
                     on_crons=on_crons or [],
                     sticky=sticky,
-                    input_validator=TypeAdapter(normalize_input_validator(input_validator)),
+                    input_validator=TypeAdapter(
+                        normalize_input_validator(input_validator)
+                    ),
                     default_priority=default_priority,
                     default_filters=default_filters or [],
                 ),
