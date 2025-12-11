@@ -1,10 +1,13 @@
+import datetime
+
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from hatchet_sdk.contracts.v1.shared import condition_pb2 as _condition_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
+from collections.abc import Iterable as _Iterable, Mapping as _Mapping
+from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -88,7 +91,7 @@ class TasksFilter(_message.Message):
     until: _timestamp_pb2.Timestamp
     workflow_ids: _containers.RepeatedScalarFieldContainer[str]
     additional_metadata: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, statuses: _Optional[_Iterable[str]] = ..., since: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., until: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., workflow_ids: _Optional[_Iterable[str]] = ..., additional_metadata: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, statuses: _Optional[_Iterable[str]] = ..., since: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., until: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., workflow_ids: _Optional[_Iterable[str]] = ..., additional_metadata: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class CancelTasksResponse(_message.Message):
     __slots__ = ("cancelled_tasks",)
