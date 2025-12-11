@@ -2760,7 +2760,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 
 			alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
 			externalIdToPayloadInner := make(map[PayloadExternalId]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
-			tenantIdToOffloadOpts := make(map[TenantID][]StoreOLAPPayloadOpts)
+			offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
 
 			for _, payload := range payloads {
 				externalId := PayloadExternalId(payload.ExternalID.String())
@@ -2769,27 +2769,23 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 				if payload.Location != sqlcv1.V1PayloadLocationOlapINLINE {
 					alreadyExternalPayloads[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
 				} else {
-					tenantIdToOffloadOpts[TenantID(payload.TenantID.String())] = append(tenantIdToOffloadOpts[TenantID(payload.TenantID.String())], StoreOLAPPayloadOpts{
+					offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, OffloadToExternalStoreOpts{
+						TenantId:   TenantID(payload.TenantID.String()),
+						ExternalID: externalId,
 						InsertedAt: payload.InsertedAt,
 						Payload:    payload.InlineContent,
-						ExternalId: payload.ExternalID,
 					})
 				}
 			}
 
-			externalIdToKeyInner := make(map[PayloadExternalId]ExternalPayloadLocationKey)
-			for tenant, opts := range tenantIdToOffloadOpts {
-				externalIdToKeyForTenant, err := p.PutPayloads(ctx, p.pool, tenant, opts...)
+			newlyOffloadedExternalIdToKey, err := p.PayloadStore().ExternalStore().Store(ctx, offloadToExternalStoreOpts...)
 
-				if err != nil {
-					return fmt.Errorf("failed to offload olap payloads for tenant %s", tenant)
-				}
-
-				maps.Copy(externalIdToKeyInner, externalIdToKeyForTenant)
+			if err != nil {
+				return fmt.Errorf("failed to offload payloads to external store: %w", err)
 			}
 
 			mu.Lock()
-			maps.Copy(externalIdToKey, externalIdToKeyInner)
+			maps.Copy(externalIdToKey, newlyOffloadedExternalIdToKey)
 			maps.Copy(externalIdToKey, alreadyExternalPayloads)
 			maps.Copy(externalIdToPayload, externalIdToPayloadInner)
 			numPayloads += len(payloads)
