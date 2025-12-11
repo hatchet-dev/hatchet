@@ -12,8 +12,36 @@ import (
 )
 
 const acquireOrExtendOLAPCutoverJobLease = `-- name: AcquireOrExtendOLAPCutoverJobLease :one
+WITH inputs AS (
+    SELECT
+        $2::DATE AS key,
+        $1::UUID AS lease_process_id,
+        $3::TIMESTAMPTZ AS lease_expires_at,
+        $4::UUID AS last_tenant_id,
+        $5::UUID AS last_external_id,
+        $6::TIMESTAMPTZ AS last_inserted_at
+), any_lease_held_by_other_process AS (
+    -- need coalesce here in case there are no rows that don't belong to this process
+    SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
+    FROM v1_payloads_olap_cutover_job_offset
+    WHERE lease_process_id != $1::UUID
+), to_insert AS (
+    SELECT key, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at
+    FROM inputs
+    -- if a lease is held by another process, we shouldn't try to insert a new row regardless
+    -- of which key we're trying to acquire a lease on
+    WHERE NOT (SELECT lease_exists FROM any_lease_held_by_other_process)
+)
+
 INSERT INTO v1_payloads_olap_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at)
-VALUES ($1::DATE, $2::UUID, $3::TIMESTAMPTZ, $4::UUID, $5::UUID, $6::TIMESTAMPTZ)
+SELECT
+    ti.key,
+    ti.lease_process_id,
+    ti.lease_expires_at,
+    ti.last_tenant_id,
+    ti.last_external_id,
+    ti.last_inserted_at
+FROM to_insert ti
 ON CONFLICT (key)
 DO UPDATE SET
     -- if the lease is held by this process, then we extend the offset to the new value
@@ -33,13 +61,13 @@ DO UPDATE SET
 
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
-WHERE v1_payloads_olap_cutover_job_offset.lease_expires_at < NOW() OR v1_payloads_olap_cutover_job_offset.lease_process_id = $2::UUID
+WHERE v1_payloads_olap_cutover_job_offset.lease_expires_at < NOW() OR v1_payloads_olap_cutover_job_offset.lease_process_id = $1::UUID
 RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at
 `
 
 type AcquireOrExtendOLAPCutoverJobLeaseParams struct {
-	Key            pgtype.Date        `json:"key"`
 	Leaseprocessid pgtype.UUID        `json:"leaseprocessid"`
+	Key            pgtype.Date        `json:"key"`
 	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
 	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
 	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
@@ -48,8 +76,8 @@ type AcquireOrExtendOLAPCutoverJobLeaseParams struct {
 
 func (q *Queries) AcquireOrExtendOLAPCutoverJobLease(ctx context.Context, db DBTX, arg AcquireOrExtendOLAPCutoverJobLeaseParams) (*V1PayloadsOlapCutoverJobOffset, error) {
 	row := db.QueryRow(ctx, acquireOrExtendOLAPCutoverJobLease,
-		arg.Key,
 		arg.Leaseprocessid,
+		arg.Key,
 		arg.Leaseexpiresat,
 		arg.Lasttenantid,
 		arg.Lastexternalid,
@@ -292,6 +320,81 @@ type CreateOLAPPartitionsParams struct {
 func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateOLAPPartitionsParams) error {
 	_, err := db.Exec(ctx, createOLAPPartitions, arg.Partitions, arg.Date)
 	return err
+}
+
+const createOLAPPayloadRangeChunks = `-- name: CreateOLAPPayloadRangeChunks :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM list_paginated_olap_payloads_for_offload(
+        $2::DATE,
+        $3::INTEGER,
+        $4::UUID,
+        $5::UUID,
+        $6::TIMESTAMPTZ
+    ) p
+), with_rows AS (
+    SELECT
+        tenant_id::UUID,
+        external_id::UUID,
+        inserted_at::TIMESTAMPTZ,
+        ROW_NUMBER() OVER (ORDER BY tenant_id, external_id, inserted_at) AS rn
+    FROM payloads
+)
+
+SELECT tenant_id, external_id, inserted_at, rn
+FROM with_rows
+WHERE MOD(rn, $1::INTEGER) = 1
+ORDER BY tenant_id, external_id, inserted_at
+`
+
+type CreateOLAPPayloadRangeChunksParams struct {
+	Chunksize      int32              `json:"chunksize"`
+	Partitiondate  pgtype.Date        `json:"partitiondate"`
+	Windowsize     int32              `json:"windowsize"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+}
+
+type CreateOLAPPayloadRangeChunksRow struct {
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	ExternalID pgtype.UUID        `json:"external_id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	Rn         int64              `json:"rn"`
+}
+
+// row numbers are one-indexed
+func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg CreateOLAPPayloadRangeChunksParams) ([]*CreateOLAPPayloadRangeChunksRow, error) {
+	rows, err := db.Query(ctx, createOLAPPayloadRangeChunks,
+		arg.Chunksize,
+		arg.Partitiondate,
+		arg.Windowsize,
+		arg.Lasttenantid,
+		arg.Lastexternalid,
+		arg.Lastinsertedat,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*CreateOLAPPayloadRangeChunksRow
+	for rows.Next() {
+		var i CreateOLAPPayloadRangeChunksRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ExternalID,
+			&i.InsertedAt,
+			&i.Rn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 type CreateTaskEventsOLAPParams struct {

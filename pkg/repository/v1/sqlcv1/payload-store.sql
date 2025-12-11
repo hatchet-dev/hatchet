@@ -241,6 +241,35 @@ SELECT
     updated_at::TIMESTAMPTZ
 FROM payloads;
 
+-- name: CreatePayloadRangeChunks :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM list_paginated_payloads_for_offload(
+        @partitionDate::DATE,
+        @windowSize::INTEGER,
+        @lastTenantId::UUID,
+        @lastInsertedAt::TIMESTAMPTZ,
+        @lastId::BIGINT,
+        @lastType::v1_payload_type
+    ) p
+), with_rows AS (
+    SELECT
+        tenant_id::UUID,
+        id::BIGINT,
+        inserted_at::TIMESTAMPTZ,
+        type::v1_payload_type,
+        ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, id, type) AS rn
+    FROM payloads
+)
+
+SELECT *
+FROM with_rows
+-- row numbers are one-indexed
+WHERE MOD(rn, @chunkSize::INTEGER) = 1
+ORDER BY tenant_id, inserted_at, id, type
+;
+
 -- name: CreateV1PayloadCutoverTemporaryTable :exec
 SELECT copy_v1_payload_partition_structure(@date::DATE);
 
@@ -248,8 +277,31 @@ SELECT copy_v1_payload_partition_structure(@date::DATE);
 SELECT swap_v1_payload_partition_with_temp(@date::DATE);
 
 -- name: AcquireOrExtendCutoverJobLease :one
+WITH inputs AS (
+    SELECT
+        @key::DATE AS key,
+        @leaseProcessId::UUID AS lease_process_id,
+        @leaseExpiresAt::TIMESTAMPTZ AS lease_expires_at,
+        @lastTenantId::UUID AS last_tenant_id,
+        @lastInsertedAt::TIMESTAMPTZ AS last_inserted_at,
+        @lastId::BIGINT AS last_id,
+        @lastType::v1_payload_type AS last_type
+), any_lease_held_by_other_process AS (
+    -- need coalesce here in case there are no rows that don't belong to this process
+    SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
+    FROM v1_payload_cutover_job_offset
+    WHERE lease_process_id != @leaseProcessId::UUID
+), to_insert AS (
+    SELECT *
+    FROM inputs
+    -- if a lease is held by another process, we shouldn't try to insert a new row regardless
+    -- of which key we're trying to acquire a lease on
+    WHERE NOT (SELECT lease_exists FROM any_lease_held_by_other_process)
+)
+
 INSERT INTO v1_payload_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type)
-VALUES (@key::DATE, @leaseProcessId::UUID, @leaseExpiresAt::TIMESTAMPTZ, @lastTenantId::UUID, @lastInsertedAt::TIMESTAMPTZ, @lastId::BIGINT, @lastType::v1_payload_type)
+SELECT ti.key, ti.lease_process_id, ti.lease_expires_at, ti.last_tenant_id, ti.last_inserted_at, ti.last_id, ti.last_type
+FROM to_insert ti
 ON CONFLICT (key)
 DO UPDATE SET
     -- if the lease is held by this process, then we extend the offset to the new tuple of (last_tenant_id, last_inserted_at, last_id, last_type)

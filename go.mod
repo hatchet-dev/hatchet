@@ -47,9 +47,9 @@ require (
 	golang.org/x/time v0.14.0
 	google.golang.org/api v0.257.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217
-	k8s.io/api v0.34.2
-	k8s.io/apimachinery v0.34.2
-	k8s.io/client-go v0.34.2
+	k8s.io/api v0.34.3
+	k8s.io/apimachinery v0.34.3
+	k8s.io/client-go v0.34.3
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -175,7 +175,7 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/exaring/otelpgx v0.9.3
+	github.com/exaring/otelpgx v0.9.4
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/getsentry/sentry-go v0.40.0
 	github.com/go-chi/chi v1.5.5

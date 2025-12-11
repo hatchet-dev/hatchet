@@ -1916,7 +1916,7 @@ BEGIN
         SELECT tenant_id, id, inserted_at, external_id, type, location,
                external_location_key, inline_content, updated_at
         FROM %I
-        WHERE (tenant_id, inserted_at, id, type) > ($1, $2, $3, $4)
+        WHERE (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
         ORDER BY tenant_id, inserted_at, id, type
         LIMIT $5
     ', source_partition_name);
