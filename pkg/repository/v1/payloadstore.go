@@ -467,11 +467,13 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		}, nil
 	}
 
-	eg := errgroup.Group{}
 	mu := sync.Mutex{}
+	eg := errgroup.Group{}
 
-	externalIdToKey := make(map[PayloadExternalId]ExternalPayloadLocationKey)
 	externalIdToPayload := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
+	alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
+
 	numPayloads := 0
 
 	for _, payloadRange := range payloadRanges {
@@ -490,9 +492,9 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 				return fmt.Errorf("failed to list paginated payloads for offload")
 			}
 
-			alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+			alreadyExternalPayloadsInner := make(map[PayloadExternalId]ExternalPayloadLocationKey)
 			externalIdToPayloadInner := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
-			offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
+			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
 
 			for _, payload := range payloads {
 				externalId := PayloadExternalId(payload.ExternalID.String())
@@ -502,10 +504,11 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 				}
 
 				externalIdToPayloadInner[externalId] = *payload
+
 				if payload.Location != sqlcv1.V1PayloadLocationINLINE {
-					alreadyExternalPayloads[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
+					alreadyExternalPayloadsInner[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
 				} else {
-					offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
+					offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{
 						TenantId:   TenantID(payload.TenantID.String()),
 						ExternalID: externalId,
 						InsertedAt: payload.InsertedAt,
@@ -514,16 +517,10 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 				}
 			}
 
-			externalIdToKeyInner, err := p.ExternalStore().Store(ctx, offloadOpts...)
-
-			if err != nil {
-				return fmt.Errorf("failed to offload payloads to external store")
-			}
-
 			mu.Lock()
-			maps.Copy(externalIdToKey, externalIdToKeyInner)
-			maps.Copy(externalIdToKey, alreadyExternalPayloads)
 			maps.Copy(externalIdToPayload, externalIdToPayloadInner)
+			maps.Copy(alreadyExternalPayloads, alreadyExternalPayloadsInner)
+			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
 			numPayloads += len(payloads)
 			mu.Unlock()
 
@@ -536,6 +533,14 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	if err != nil {
 		return nil, err
 	}
+
+	externalIdToKey, err := p.ExternalStore().Store(ctx, offloadToExternalStoreOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
+	}
+
+	maps.Copy(externalIdToKey, alreadyExternalPayloads)
 
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
 	payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, numPayloads)
