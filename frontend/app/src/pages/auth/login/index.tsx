@@ -78,21 +78,21 @@ export default function Login() {
             <p className="text-left text-sm text-gray-700 dark:text-gray-300 w-full">
               By clicking continue, you agree to our{' '}
               <a
-                href="https://www.iubenda.com/terms-and-conditions/76608149"
+                href="https://hatchet.run/policies/terms"
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Terms of Service
               </a>
               ,{' '}
               <a
-                href="https://www.iubenda.com/privacy-policy/76608149/cookie-policy"
+                href="https://hatchet.run/policies/cookie"
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Cookie Policy
               </a>
               , and{' '}
               <a
-                href="https://www.iubenda.com/privacy-policy/76608149"
+                href="https://hatchet.run/policies/privacy"
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Privacy Policy
