@@ -22,7 +22,7 @@ from typing import (
     get_type_hints,
 )
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from hatchet_sdk.conditions import (
     Action,
@@ -46,6 +46,7 @@ from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     R,
     StepType,
+    TaskIOValidator,
     TWorkflowInput,
     is_async_fn,
     is_sync_fn,
@@ -55,8 +56,6 @@ from hatchet_sdk.utils.typing import (
     AwaitableLike,
     CoroutineLike,
     JSONSerializableMapping,
-    TaskIOValidator,
-    is_basemodel_subclass,
 )
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender
 
@@ -166,7 +165,7 @@ class Task(Generic[TWorkflowInput, R]):
 
         self.validators: TaskIOValidator = TaskIOValidator(
             workflow_input=workflow.config.input_validator,
-            step_output=return_type if is_basemodel_subclass(return_type) else None,
+            step_output=TypeAdapter(return_type),
         )
 
     async def _resolve_function_dependencies(

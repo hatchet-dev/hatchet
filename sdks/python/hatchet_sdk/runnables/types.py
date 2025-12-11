@@ -4,7 +4,7 @@ from collections.abc import Callable, Mapping
 from enum import Enum
 from typing import Any, ParamSpec, TypeGuard, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, SkipValidation
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
@@ -87,6 +87,21 @@ class DefaultFilter(BaseModel):
         )
 
 
+TaskPayloadForInternalUse = (
+    type[BaseModel] | type[DataclassInstance] | dict[str, Any] | None
+)
+
+
+class TaskIOValidator:
+    def __init__(
+        self,
+        workflow_input: TypeAdapter[TaskPayloadForInternalUse],
+        step_output: TypeAdapter[TaskPayloadForInternalUse],
+    ) -> None:
+        self.workflow_input = workflow_input
+        self.step_output = step_output
+
+
 class WorkflowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
@@ -97,9 +112,7 @@ class WorkflowConfig(BaseModel):
     on_crons: list[str] = Field(default_factory=list)
     sticky: StickyStrategy | None = None
     concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None
-    input_validator: SkipValidation[type[BaseModel] | type[DataclassInstance]] = (
-        EmptyModel
-    )
+    input_validator: TypeAdapter[TaskPayloadForInternalUse]
     default_priority: int | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()

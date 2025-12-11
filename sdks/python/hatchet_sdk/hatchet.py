@@ -2,9 +2,9 @@ import asyncio
 import logging
 from collections.abc import Callable
 from datetime import timedelta
-from typing import Any, Concatenate, ParamSpec, cast, overload
+from typing import Any, Concatenate, ParamSpec, overload
 
-from pydantic import BaseModel
+from pydantic import TypeAdapter
 
 from hatchet_sdk import Context, DurableContext
 from hatchet_sdk.client import Client
@@ -38,7 +38,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
-from hatchet_sdk.utils.typing import CoroutineLike, DataclassInstance
+from hatchet_sdk.utils.typing import CoroutineLike, normalize_input_validator
 from hatchet_sdk.worker.worker import LifespanFn, Worker
 
 P = ParamSpec("P")
@@ -304,10 +304,7 @@ class Hatchet:
                 on_crons=on_crons or [],
                 sticky=sticky,
                 concurrency=concurrency,
-                input_validator=cast(
-                    type[BaseModel] | type[DataclassInstance],
-                    input_validator or EmptyModel,
-                ),
+                input_validator=TypeAdapter(input_validator),
                 task_defaults=task_defaults,
                 default_priority=default_priority,
                 default_filters=default_filters or [],
@@ -453,10 +450,7 @@ class Hatchet:
                     on_crons=on_crons or [],
                     sticky=sticky,
                     default_priority=default_priority,
-                    input_validator=cast(
-                        type[BaseModel] | type[DataclassInstance],
-                        input_validator or EmptyModel,
-                    ),
+                    input_validator=TypeAdapter(input_validator),
                     default_filters=default_filters or [],
                 ),
                 self,
@@ -639,10 +633,7 @@ class Hatchet:
                     on_events=on_events or [],
                     on_crons=on_crons or [],
                     sticky=sticky,
-                    input_validator=cast(
-                        type[BaseModel] | type[DataclassInstance],
-                        input_validator or EmptyModel,
-                    ),
+                    input_validator=TypeAdapter(input_validator),
                     default_priority=default_priority,
                     default_filters=default_filters or [],
                 ),
