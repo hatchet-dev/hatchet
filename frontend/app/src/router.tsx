@@ -137,7 +137,7 @@ const tenantIndexRedirectRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: '/',
   loader: ({ params }) => {
-    throw redirect({ to: '/tenants/$tenant/runs', params });
+    throw redirect({ to: appRoutes.tenantRunsRoute.to, params });
   },
 });
 
@@ -405,7 +405,7 @@ const tenantWorkflowRunRedirectRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'workflow-runs/$run',
   loader: ({ params }) => {
-    throw redirect({ to: '/tenants/$tenant/runs/$run', params });
+    throw redirect({ to: appRoutes.tenantRunsRoute.to, params });
   },
 });
 
@@ -413,7 +413,7 @@ const tenantTasksRedirectRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'tasks',
   loader: ({ params }) => {
-    throw redirect({ to: '/tenants/$tenant/workflows', params });
+    throw redirect({ to: appRoutes.tenantWorkflowsRoute.to, params });
   },
 });
 
@@ -422,7 +422,7 @@ const tenantTasksWorkflowRedirectRoute = createRoute({
   path: 'tasks/$workflow',
   loader: ({ params }) => {
     throw redirect({
-      to: '/tenants/$tenant/workflows/$workflow',
+      to: appRoutes.tenantWorkflowRoute.to,
       params,
     });
   },
