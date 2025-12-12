@@ -323,16 +323,27 @@ func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateO
 }
 
 const createOLAPPayloadRangeChunks = `-- name: CreateOLAPPayloadRangeChunks :many
+WITH chunks AS (
+    SELECT
+        (p).*
+    FROM create_olap_payload_offload_range_chunks(
+        $1::DATE,
+        $2::INTEGER,
+        $3::INTEGER,
+        $4::UUID,
+        $5::UUID,
+        $6::TIMESTAMPTZ
+    ) p
+)
+
 SELECT
-    (p).*
-FROM create_olap_payload_offload_range_chunks(
-    $1::DATE,
-    $2::INTEGER,
-    $3::INTEGER,
-    $4::UUID,
-    $5::UUID,
-    $6::TIMESTAMPTZ
-) p
+    lower_tenant_id::UUID,
+    lower_external_id::UUID,
+    lower_inserted_at::TIMESTAMPTZ,
+    upper_tenant_id::UUID,
+    upper_external_id::UUID,
+    upper_inserted_at::TIMESTAMPTZ
+FROM chunks
 `
 
 type CreateOLAPPayloadRangeChunksParams struct {
@@ -344,7 +355,16 @@ type CreateOLAPPayloadRangeChunksParams struct {
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 }
 
-func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg CreateOLAPPayloadRangeChunksParams) ([]interface{}, error) {
+type CreateOLAPPayloadRangeChunksRow struct {
+	LowerTenantID   pgtype.UUID        `json:"lower_tenant_id"`
+	LowerExternalID pgtype.UUID        `json:"lower_external_id"`
+	LowerInsertedAt pgtype.Timestamptz `json:"lower_inserted_at"`
+	UpperTenantID   pgtype.UUID        `json:"upper_tenant_id"`
+	UpperExternalID pgtype.UUID        `json:"upper_external_id"`
+	UpperInsertedAt pgtype.Timestamptz `json:"upper_inserted_at"`
+}
+
+func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg CreateOLAPPayloadRangeChunksParams) ([]*CreateOLAPPayloadRangeChunksRow, error) {
 	rows, err := db.Query(ctx, createOLAPPayloadRangeChunks,
 		arg.Partitiondate,
 		arg.Windowsize,
@@ -357,13 +377,20 @@ func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg
 		return nil, err
 	}
 	defer rows.Close()
-	var items []interface{}
+	var items []*CreateOLAPPayloadRangeChunksRow
 	for rows.Next() {
-		var column_1 interface{}
-		if err := rows.Scan(&column_1); err != nil {
+		var i CreateOLAPPayloadRangeChunksRow
+		if err := rows.Scan(
+			&i.LowerTenantID,
+			&i.LowerExternalID,
+			&i.LowerInsertedAt,
+			&i.UpperTenantID,
+			&i.UpperExternalID,
+			&i.UpperInsertedAt,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, column_1)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

@@ -108,17 +108,29 @@ func (q *Queries) AnalyzeV1Payload(ctx context.Context, db DBTX) error {
 }
 
 const createPayloadRangeChunks = `-- name: CreatePayloadRangeChunks :many
+WITH chunks AS (
+    SELECT
+        (p).*
+    FROM create_payload_offload_range_chunks(
+        $1::DATE,
+        $2::INTEGER,
+        $3::INTEGER,
+        $4::UUID,
+        $5::TIMESTAMPTZ,
+        $6::BIGINT,
+        $7::v1_payload_type
+    ) p
+)
+
 SELECT
-    (p).*
-FROM create_payload_offload_range_chunks(
-    $1::DATE,
-    $2::INTEGER,
-    $3::INTEGER,
-    $4::UUID,
-    $5::TIMESTAMPTZ,
-    $6::BIGINT,
-    $7::v1_payload_type
-) p
+    lower_tenant_id::UUID,
+    lower_id::BIGINT,
+    lower_inserted_at::TIMESTAMPTZ,
+    lower_type::v1_payload_type,
+    upper_tenant_id::UUID,
+    upper_id::BIGINT,
+    upper_inserted_at::TIMESTAMPTZ,
+    upper_type::v1_payload_type
 `
 
 type CreatePayloadRangeChunksParams struct {
@@ -131,7 +143,18 @@ type CreatePayloadRangeChunksParams struct {
 	Lasttype       V1PayloadType      `json:"lasttype"`
 }
 
-func (q *Queries) CreatePayloadRangeChunks(ctx context.Context, db DBTX, arg CreatePayloadRangeChunksParams) ([]interface{}, error) {
+type CreatePayloadRangeChunksRow struct {
+	LowerTenantID   pgtype.UUID        `json:"lower_tenant_id"`
+	LowerID         int64              `json:"lower_id"`
+	LowerInsertedAt pgtype.Timestamptz `json:"lower_inserted_at"`
+	LowerType       V1PayloadType      `json:"lower_type"`
+	UpperTenantID   pgtype.UUID        `json:"upper_tenant_id"`
+	UpperID         int64              `json:"upper_id"`
+	UpperInsertedAt pgtype.Timestamptz `json:"upper_inserted_at"`
+	UpperType       V1PayloadType      `json:"upper_type"`
+}
+
+func (q *Queries) CreatePayloadRangeChunks(ctx context.Context, db DBTX, arg CreatePayloadRangeChunksParams) ([]*CreatePayloadRangeChunksRow, error) {
 	rows, err := db.Query(ctx, createPayloadRangeChunks,
 		arg.Partitiondate,
 		arg.Windowsize,
@@ -145,13 +168,22 @@ func (q *Queries) CreatePayloadRangeChunks(ctx context.Context, db DBTX, arg Cre
 		return nil, err
 	}
 	defer rows.Close()
-	var items []interface{}
+	var items []*CreatePayloadRangeChunksRow
 	for rows.Next() {
-		var column_1 interface{}
-		if err := rows.Scan(&column_1); err != nil {
+		var i CreatePayloadRangeChunksRow
+		if err := rows.Scan(
+			&i.LowerTenantID,
+			&i.LowerID,
+			&i.LowerInsertedAt,
+			&i.LowerType,
+			&i.UpperTenantID,
+			&i.UpperID,
+			&i.UpperInsertedAt,
+			&i.UpperType,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, column_1)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

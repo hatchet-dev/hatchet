@@ -1870,16 +1870,27 @@ SELECT
 FROM payloads;
 
 -- name: CreateOLAPPayloadRangeChunks :many
+WITH chunks AS (
+    SELECT
+        (p).*
+    FROM create_olap_payload_offload_range_chunks(
+        @partitionDate::DATE,
+        @windowSize::INTEGER,
+        @chunkSize::INTEGER,
+        @lastTenantId::UUID,
+        @lastExternalId::UUID,
+        @lastInsertedAt::TIMESTAMPTZ
+    ) p
+)
+
 SELECT
-    (p).*
-FROM create_olap_payload_offload_range_chunks(
-    @partitionDate::DATE,
-    @windowSize::INTEGER,
-    @chunkSize::INTEGER,
-    @lastTenantId::UUID,
-    @lastExternalId::UUID,
-    @lastInsertedAt::TIMESTAMPTZ
-) p
+    lower_tenant_id::UUID,
+    lower_external_id::UUID,
+    lower_inserted_at::TIMESTAMPTZ,
+    upper_tenant_id::UUID,
+    upper_external_id::UUID,
+    upper_inserted_at::TIMESTAMPTZ
+FROM chunks
 ;
 
 -- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec

@@ -245,17 +245,29 @@ SELECT
 FROM payloads;
 
 -- name: CreatePayloadRangeChunks :many
+WITH chunks AS (
+    SELECT
+        (p).*
+    FROM create_payload_offload_range_chunks(
+        @partitionDate::DATE,
+        @windowSize::INTEGER,
+        @chunkSize::INTEGER,
+        @lastTenantId::UUID,
+        @lastInsertedAt::TIMESTAMPTZ,
+        @lastId::BIGINT,
+        @lastType::v1_payload_type
+    ) p
+)
+
 SELECT
-    (p).*
-FROM create_payload_offload_range_chunks(
-    @partitionDate::DATE,
-    @windowSize::INTEGER,
-    @chunkSize::INTEGER,
-    @lastTenantId::UUID,
-    @lastInsertedAt::TIMESTAMPTZ,
-    @lastId::BIGINT,
-    @lastType::v1_payload_type
-) p
+    lower_tenant_id::UUID,
+    lower_id::BIGINT,
+    lower_inserted_at::TIMESTAMPTZ,
+    lower_type::v1_payload_type,
+    upper_tenant_id::UUID,
+    upper_id::BIGINT,
+    upper_inserted_at::TIMESTAMPTZ,
+    upper_type::v1_payload_type
 ;
 
 -- name: CreateV1PayloadCutoverTemporaryTable :exec
