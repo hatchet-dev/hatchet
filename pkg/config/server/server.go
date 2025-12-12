@@ -192,7 +192,7 @@ type ConfigFileRuntime struct {
 
 	// EnforceLimitsFunc is a function that returns whether the server should enforce limits for a tenant
 	// This will take precedence over EnforceLimits if set.
-	EnforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error)
+	EnforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error) `json:"-"`
 
 	// Default limit values
 	Limits LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
