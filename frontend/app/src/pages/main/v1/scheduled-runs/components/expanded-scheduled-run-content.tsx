@@ -1,10 +1,10 @@
-import { ScheduledWorkflows } from '@/lib/api';
-import { Separator } from '@/components/v1/ui/separator';
+import { RunStatus } from '../../workflow-runs/components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { Link } from 'react-router-dom';
+import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { RunStatus } from '../../workflow-runs/components/run-statuses';
+import { ScheduledWorkflows } from '@/lib/api';
+import { Link } from 'react-router-dom';
 
 export function ExpandedScheduledRunContent({
   scheduledRun,

@@ -1,4 +1,21 @@
-import * as React from 'react';
+import { DataTablePagination } from './data-table-pagination';
+import {
+  DataTableToolbar,
+  ShowTableActionsProps,
+  ToolbarFilters,
+} from './data-table-toolbar';
+import { Skeleton } from '@/components/v1/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/v1/ui/table';
+import { cn } from '@/lib/utils';
+import { ConfirmActionModal } from '@/pages/main/v1/task-runs-v1/actions';
+import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -18,26 +35,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/v1/ui/table';
-
-import { DataTablePagination } from './data-table-pagination';
-import {
-  DataTableToolbar,
-  ShowTableActionsProps,
-  ToolbarFilters,
-} from './data-table-toolbar';
-import { Skeleton } from '@/components/v1/ui/skeleton';
-import { cn } from '@/lib/utils';
-import { ConfirmActionModal } from '@/pages/main/v1/task-runs-v1/actions';
-import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
+import * as React from 'react';
 
 export interface IDGetter<T> {
   metadata: {

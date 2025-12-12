@@ -1,8 +1,8 @@
-import { queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
-import { Spinner } from '@/components/v1/ui/loading';
 import { ManagedWorkerBuildLogs } from './managed-worker-build-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Spinner } from '@/components/v1/ui/loading';
+import { queries } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 
 export function ManagedWorkerBuild({ buildId }: { buildId: string }) {
   const getBuildQuery = useQuery({

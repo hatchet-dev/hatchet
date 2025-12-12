@@ -1,36 +1,37 @@
-import { Separator } from '@/components/v1/ui/separator';
-import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
-import invariant from 'tiny-invariant';
-import { ServerStackIcon } from '@heroicons/react/24/outline';
-import { Button } from '@/components/v1/ui/button';
-import { Loading } from '@/components/v1/ui/loading.tsx';
-import { Badge, BadgeProps } from '@/components/v1/ui/badge';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
+import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
+import { flattenDAGsKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
+import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
+import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { useApiError } from '@/lib/hooks';
-import queryClient from '@/query-client';
-import { BiDotsVertical } from 'react-icons/bi';
+import { Badge, BadgeProps } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
-import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
-import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { capitalize } from '@/lib/utils';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { Separator } from '@/components/v1/ui/separator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { flattenDAGsKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { capitalize } from '@/lib/utils';
+import queryClient from '@/query-client';
+import { ServerStackIcon } from '@heroicons/react/24/outline';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { BiDotsVertical } from 'react-icons/bi';
+import { Link, useParams } from 'react-router-dom';
+import invariant from 'tiny-invariant';
+
 const isHealthy = (worker?: Worker) => {
   const reasons = [];
 

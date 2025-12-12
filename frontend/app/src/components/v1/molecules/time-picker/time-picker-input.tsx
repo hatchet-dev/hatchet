@@ -1,7 +1,3 @@
-import { Input } from '@/components/v1/ui/input';
-
-import { cn } from '@/lib/utils';
-import React from 'react';
 import {
   Period,
   TimePickerType,
@@ -9,6 +5,9 @@ import {
   getDateByType,
   setDateByType,
 } from './time-picker-utils';
+import { Input } from '@/components/v1/ui/input';
+import { cn } from '@/lib/utils';
+import React from 'react';
 
 interface TimePickerInputProps
   extends React.InputHTMLAttributes<HTMLInputElement> {

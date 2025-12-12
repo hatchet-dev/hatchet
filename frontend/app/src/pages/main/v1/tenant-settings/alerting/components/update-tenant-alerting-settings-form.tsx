@@ -1,9 +1,5 @@
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/v1/ui/button';
 import { Label } from '@/components/v1/ui/label';
-import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   Select,
@@ -12,9 +8,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { TenantAlertingSettings } from '@/lib/api';
-import { useState } from 'react';
 import { Switch } from '@/components/v1/ui/switch';
+import { TenantAlertingSettings } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 const schema = z.object({
   maxAlertingFrequency: z.string(),

@@ -1,13 +1,13 @@
 import { Button } from '@/components/v1/ui/button';
-import { Link } from 'react-router-dom';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api/queries';
 import {
   CalendarIcon,
   CpuChipIcon,
   CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api/queries';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { Link } from 'react-router-dom';
 
 interface BillingRequiredProps {
   tenant: any;

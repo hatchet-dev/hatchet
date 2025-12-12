@@ -1,3 +1,12 @@
+import { AuthMethod } from './components/auth-method';
+import { AuthSetup } from './components/auth-setup';
+import { SourceName } from './components/source-name';
+import { columns, WebhookColumn } from './components/webhook-columns';
+import {
+  useWebhooks,
+  WebhookFormData,
+  webhookFormSchema,
+} from './hooks/use-webhooks';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { Button } from '@/components/v1/ui/button';
@@ -32,15 +41,6 @@ import { AlertTriangle, Check, Copy, Lightbulb, Webhook } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
-import { AuthMethod } from './components/auth-method';
-import { AuthSetup } from './components/auth-setup';
-import { SourceName } from './components/source-name';
-import { columns, WebhookColumn } from './components/webhook-columns';
-import {
-  useWebhooks,
-  WebhookFormData,
-  webhookFormSchema,
-} from './hooks/use-webhooks';
 
 export default function Webhooks() {
   const { data, isLoading, error } = useWebhooks();

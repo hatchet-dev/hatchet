@@ -1,4 +1,15 @@
-import React from 'react';
+import hatchet from '@/assets/hatchet_logo.png';
+import hatchetDark from '@/assets/hatchet_logo_dark.png';
+import { useSidebar } from '@/components/sidebar-provider';
+import { useTheme } from '@/components/theme-provider';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/v1/ui/breadcrumb';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -9,14 +20,17 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-
-import { useNavigate } from 'react-router-dom';
+import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { TenantMember, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useMutation } from '@tanstack/react-query';
-import hatchet from '@/assets/hatchet_logo.png';
-import hatchetDark from '@/assets/hatchet_logo_dark.png';
-import { useSidebar } from '@/components/sidebar-provider';
+import { Menu } from 'lucide-react';
+import React from 'react';
+import { useMemo } from 'react';
 import {
   BiBook,
   BiCalendar,
@@ -27,22 +41,7 @@ import {
   BiUserCircle,
   BiEnvelope,
 } from 'react-icons/bi';
-import { Menu } from 'lucide-react';
-import { useTheme } from '@/components/theme-provider';
-import { useMemo } from 'react';
-import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { VersionInfo } from '@/pages/main/info/components/version-info';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/v1/ui/breadcrumb';
-import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
-import { usePendingInvites } from '@/hooks/use-pending-invites';
-import { useTenantDetails } from '@/hooks/use-tenant';
+import { useNavigate } from 'react-router-dom';
 
 function HelpDropdown() {
   const meta = useApiMeta();

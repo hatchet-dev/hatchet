@@ -1,4 +1,10 @@
 import { Button } from '@/components/v1/ui/button';
+import { Spinner } from '@/components/v1/ui/loading';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { cloudApi } from '@/lib/api/api';
+import { TenantPaymentMethod } from '@/lib/api/generated/cloud/data-contracts';
+import { useApiError } from '@/lib/hooks';
+import { useState } from 'react';
 import {
   FaCcAmex,
   FaCcDiscover,
@@ -8,16 +14,8 @@ import {
   FaCcDinersClub,
   FaCcJcb,
 } from 'react-icons/fa';
-
-import { LuBanknote } from 'react-icons/lu';
-
 import { IconType } from 'react-icons/lib';
-import { useApiError } from '@/lib/hooks';
-import { useState } from 'react';
-import { Spinner } from '@/components/v1/ui/loading';
-import { TenantPaymentMethod } from '@/lib/api/generated/cloud/data-contracts';
-import { cloudApi } from '@/lib/api/api';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { LuBanknote } from 'react-icons/lu';
 
 const ccIcons: Record<string, IconType> = {
   visa: FaCcVisa,

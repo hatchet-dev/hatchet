@@ -1,7 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { useQuery } from '@tanstack/react-query';
 
 export const usePendingInvites = () => {
   const { data: cloudMeta } = useCloudApiMeta();

@@ -1,16 +1,16 @@
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
-import { Outlet, useNavigate } from 'react-router-dom';
-import api, { queries, User } from '@/lib/api';
-import { Loading } from '@/components/v1/ui/loading.tsx';
-import { useMutation, useQuery } from '@tanstack/react-query';
 import SupportChat from '@/components/molecules/support-chat';
-import { PostHogProvider } from '@/providers/posthog';
-import { useEffect } from 'react';
-import { useContextFromParent } from '@/lib/outlet';
-import { AxiosError } from 'axios';
-import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
-import { cloudApi } from '@/lib/api/api';
+import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import api, { queries, User } from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
+import { useContextFromParent } from '@/lib/outlet';
+import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
+import { PostHogProvider } from '@/providers/posthog';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
+import { useEffect } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 
 export default function Authenticated() {
   const { tenant } = useTenantDetails();

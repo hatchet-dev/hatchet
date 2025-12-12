@@ -1,7 +1,14 @@
-import { Label } from '@/components/v1/ui/label';
-import { Textarea } from '@/components/v1/ui/textarea';
+import { OnboardingStepProps } from '../types';
+import {
+  extractOtherSelection,
+  toggleOtherOption,
+  toggleRegularOption,
+  updateOtherText,
+} from '../utils/other-selection';
 import { Button } from '@/components/v1/ui/button';
 import { Card, CardContent } from '@/components/v1/ui/card';
+import { Label } from '@/components/v1/ui/label';
+import { Textarea } from '@/components/v1/ui/textarea';
 import {
   Search,
   FileText,
@@ -10,14 +17,7 @@ import {
   Calendar,
   HelpCircle,
 } from 'lucide-react';
-import { OnboardingStepProps } from '../types';
 import { FaHackerNews, FaLinkedin, FaTwitter } from 'react-icons/fa';
-import {
-  extractOtherSelection,
-  toggleOtherOption,
-  toggleRegularOption,
-  updateOtherText,
-} from '../utils/other-selection';
 
 interface HearAboutUsFormProps extends OnboardingStepProps<string | string[]> {}
 

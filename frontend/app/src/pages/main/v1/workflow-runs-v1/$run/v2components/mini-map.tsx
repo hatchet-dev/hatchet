@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
-import { queries, WorkflowRunShapeItemForWorkflowRunDetails } from '@/lib/api';
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
-import { useWorkflowDetails } from '../../hooks/use-workflow-details';
-import { useQuery } from '@tanstack/react-query';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { queries, WorkflowRunShapeItemForWorkflowRunDetails } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 interface JobMiniMapProps {
   onClick: (stepRunId?: string, defaultOpenTab?: TabOption) => void;

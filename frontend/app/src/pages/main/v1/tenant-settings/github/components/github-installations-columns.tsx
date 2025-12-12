@@ -1,10 +1,10 @@
-import { ColumnDef } from '@tanstack/react-table';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/v1/ui/avatar';
 import { Button } from '@/components/v1/ui/button';
-import { GearIcon } from '@radix-ui/react-icons';
 import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { CheckCircleIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
+import { GearIcon } from '@radix-ui/react-icons';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const columns = (
   linkToTenant: (installationId: string) => void,

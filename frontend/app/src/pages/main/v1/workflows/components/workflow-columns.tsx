@@ -1,10 +1,10 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { Workflow } from '@/lib/api';
-import { Link } from 'react-router-dom';
-import { ChevronRightIcon } from '@radix-ui/react-icons';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { Workflow } from '@/lib/api';
+import { ChevronRightIcon } from '@radix-ui/react-icons';
+import { ColumnDef } from '@tanstack/react-table';
+import { Link } from 'react-router-dom';
 
 export const WorkflowColumn = {
   status: 'Status',

@@ -1,7 +1,14 @@
+import { CreateEmailGroupDialog } from './components/create-email-group-dialog';
+import { DeleteEmailGroupForm } from './components/delete-email-group-form';
+import { DeleteSlackForm } from './components/delete-slack-form';
+import { columns as emailGroupsColumns } from './components/email-groups-columns';
+import { columns } from './components/slack-webhooks-columns';
+import { UpdateTenantAlertingSettings } from './components/update-tenant-alerting-settings-form';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { Button } from '@/components/v1/ui/button';
+import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
-import { useMemo, useState } from 'react';
-import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, {
   CreateTenantAlertEmailGroupRequest,
   SlackWebhook,
@@ -9,18 +16,10 @@ import api, {
   UpdateTenantRequest,
   queries,
 } from '@/lib/api';
-import { Spinner } from '@/components/v1/ui/loading';
-import { UpdateTenantAlertingSettings } from './components/update-tenant-alerting-settings-form';
-import { columns } from './components/slack-webhooks-columns';
-import { columns as emailGroupsColumns } from './components/email-groups-columns';
-
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { DeleteSlackForm } from './components/delete-slack-form';
-import { Button } from '@/components/v1/ui/button';
+import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
 import { Dialog } from '@radix-ui/react-dialog';
-import { CreateEmailGroupDialog } from './components/create-email-group-dialog';
-import { DeleteEmailGroupForm } from './components/delete-email-group-form';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 
 export default function Alerting() {
   const integrations = useApiMetaIntegrations();

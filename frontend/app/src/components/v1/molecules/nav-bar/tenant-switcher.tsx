@@ -1,11 +1,4 @@
 import { Button } from '@/components/v1/ui/button';
-import { cn } from '@/lib/utils';
-import {
-  BuildingOffice2Icon,
-  // ChartBarSquareIcon,
-  CheckIcon,
-} from '@heroicons/react/24/outline';
-import invariant from 'tiny-invariant';
 import {
   Command,
   CommandEmpty,
@@ -13,8 +6,17 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/v1/ui/command';
-import { Link } from 'react-router-dom';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { TenantMember } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import {
+  BuildingOffice2Icon,
+  // ChartBarSquareIcon,
+  CheckIcon,
+} from '@heroicons/react/24/outline';
 import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import {
   PopoverTrigger,
@@ -22,10 +24,8 @@ import {
   PopoverContent,
 } from '@radix-ui/react-popover';
 import React from 'react';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
-import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { useTenantDetails } from '@/hooks/use-tenant';
-import { useOrganizations } from '@/hooks/use-organizations';
+import { Link } from 'react-router-dom';
+import invariant from 'tiny-invariant';
 
 interface TenantSwitcherProps {
   className?: string;

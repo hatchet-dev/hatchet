@@ -1,11 +1,3 @@
-import { V1TaskStatus } from '@/lib/api';
-import { useMemo } from 'react';
-import {
-  FilterOption,
-  ToolbarFilters,
-  ToolbarType,
-  TimeRangeConfig,
-} from '@/components/v1/molecules/data-table/data-table-toolbar';
 import {
   additionalMetadataKey,
   createdAtKey,
@@ -13,8 +5,16 @@ import {
   statusKey,
   workflowKey,
 } from '../components/v1/task-runs-columns';
-import { useWorkflows } from './use-workflows';
 import { FilterActions } from './use-runs-table-filters';
+import { useWorkflows } from './use-workflows';
+import {
+  FilterOption,
+  ToolbarFilters,
+  ToolbarType,
+  TimeRangeConfig,
+} from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { V1TaskStatus } from '@/lib/api';
+import { useMemo } from 'react';
 
 export const workflowRunStatusFilters = [
   {
