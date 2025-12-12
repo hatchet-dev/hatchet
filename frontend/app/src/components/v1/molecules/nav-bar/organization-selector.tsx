@@ -37,6 +37,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useOrganizations } from '@/hooks/use-organizations';
 import invariant from 'tiny-invariant';
+import { appRoutes } from '@/router';
 
 interface OrganizationGroupProps {
   organization: OrganizationForUser;
@@ -219,7 +220,10 @@ export function OrganizationSelector({
     handleCreateOrganization(orgName.trim(), (organizationId) => {
       setShowCreateModal(false);
       setOrgName('');
-      navigate({ to: `/organizations/${organizationId}` });
+      navigate({
+        to: appRoutes.organizationsRoute.to,
+        params: { organization: organizationId },
+      });
     });
   };
 
