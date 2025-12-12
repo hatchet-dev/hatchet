@@ -811,9 +811,7 @@ export interface RejectOrganizationInviteRequest {
   id: string;
 }
 
-export type AutumnWebhookEvent =
-  | AutumnCustomerProductsUpdatedEvent
-  | AutumnThresholdReachedEvent;
+export type AutumnWebhookEvent = AutumnCustomerProductsUpdatedEvent;
 
 export interface AutumnCustomerProductsUpdatedEvent {
   data: AutumnCustomerProductsUpdatedEventData;
@@ -822,69 +820,19 @@ export interface AutumnCustomerProductsUpdatedEvent {
 
 export interface AutumnCustomerProductsUpdatedEventData {
   customer: AutumnCustomer;
-  scenario: string;
-  updated_product: AutumnProduct;
+  entity: {
+    id: string;
+    customer_id: string;
+    products: AutumnCustomerProduct[];
+  };
 }
 
 export interface AutumnCustomer {
-  created_at: number;
-  email?: string;
-  env: string;
-  features: object;
-  fingerprint?: string;
-  id?: string;
-  metadata?: object;
-  name?: string;
-  products: any[];
-  stripe_id?: string;
-}
-
-export interface AutumnProduct {
-  created_at: number;
-  env: string;
-  free_trial: AutumnFreeTrialResponse;
-  group?: string;
   id: string;
-  is_add_on: boolean;
-  is_default: boolean;
-  items: any[];
-  name?: string;
-  version: number;
-}
-
-export interface AutumnFreeTrialResponse {
-  days: number;
-}
-
-export interface AutumnThresholdReachedEvent {
-  customer: AutumnCustomer;
-  feature: AutumnFeature;
-  threshold_type: string;
-}
-
-export interface AutumnFeature {
-  archived?: boolean;
-  credit_schema?: any[];
-  display: AutumnFeatureDisplay;
-  id: string;
-  name?: string;
-  type: string;
-}
-
-export interface AutumnFeatureDisplay {
-  plural: string;
-  singular: string;
+  metadata: object;
+  name: string;
 }
 
 export interface AutumnCustomerProduct {
-  canceled_at?: number;
-  current_period_end?: number;
-  current_period_start?: number;
-  entity_id?: string;
-  group?: string;
   id: string;
-  name?: string;
-  started_at: number;
-  status: string;
-  subscription_ids?: any[];
 }

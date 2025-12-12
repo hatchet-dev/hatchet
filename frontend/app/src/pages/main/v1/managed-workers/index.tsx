@@ -14,7 +14,6 @@ export default function ManagedWorkers() {
   const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
-  // const [portalLoading, setPortalLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const computeCostQuery = useQuery({
