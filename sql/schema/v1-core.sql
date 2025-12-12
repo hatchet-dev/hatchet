@@ -1969,7 +1969,7 @@ BEGIN
         WITH paginated AS (
             SELECT tenant_id, id, inserted_at, type, ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, id, type) AS rn
             FROM %I
-            WHERE (tenant_id, inserted_at, id, type) = ($1, $2, $3, $4)
+            WHERE (tenant_id, inserted_at, id, type) > ($1, $2, $3, $4)
             ORDER BY tenant_id, inserted_at, id, type
             LIMIT $5::INTEGER
         ), lower_bounds AS (
@@ -2007,7 +2007,6 @@ BEGIN
     RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, window_size, chunk_size;
 END;
 $$;
-
 
 CREATE OR REPLACE FUNCTION swap_v1_payload_partition_with_temp(
     partition_date date
