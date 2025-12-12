@@ -46,7 +46,7 @@ BEGIN
         FROM %I
         WHERE
             (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
-            AND (tenant_id, inserted_at, id, type) < ($5, $6, $7, $8)
+            AND (tenant_id, inserted_at, id, type) <= ($5, $6, $7, $8)
         ORDER BY tenant_id, inserted_at, id, type
     ', source_partition_name);
 
@@ -95,7 +95,7 @@ BEGIN
         FROM %I
         WHERE
             (tenant_id, external_id, inserted_at) >= ($1, $2, $3)
-            AND (tenant_id, external_id, inserted_at) < ($4, $5, $6)
+            AND (tenant_id, external_id, inserted_at) <= ($4, $5, $6)
         ORDER BY tenant_id, external_id, inserted_at
     ', source_partition_name);
 
