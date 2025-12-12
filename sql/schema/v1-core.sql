@@ -1969,7 +1969,7 @@ BEGIN
         WITH paginated AS (
             SELECT tenant_id, id, inserted_at, type, ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, id, type) AS rn
             FROM %I
-            WHERE (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
+            WHERE (tenant_id, inserted_at, id, type) = ($1, $2, $3, $4)
             ORDER BY tenant_id, inserted_at, id, type
             LIMIT $5::INTEGER
         ), lower_bounds AS (
@@ -1979,7 +1979,7 @@ BEGIN
         ), upper_bounds AS (
             SELECT
                 CASE
-                    WHEN rn = (SELECT MAX(rn) FROM paginated) THEN (rn::INTEGER / $6::INTEGER)
+                    WHEN rn = (SELECT MAX(rn) FROM paginated) AND rn != $5::INTEGER THEN (rn::INTEGER / $6::INTEGER)
                     ELSE (rn::INTEGER / $6::INTEGER) - 1
                 END AS batch_ix,
                 tenant_id::UUID,

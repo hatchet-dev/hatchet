@@ -143,7 +143,7 @@ BEGIN
         WITH paginated AS (
             SELECT tenant_id, id, inserted_at, type, ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, id, type) AS rn
             FROM %I
-            WHERE (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
+            WHERE (tenant_id, inserted_at, id, type) > ($1, $2, $3, $4)
             ORDER BY tenant_id, inserted_at, id, type
             LIMIT $5::INTEGER
         ), lower_bounds AS (
@@ -153,7 +153,7 @@ BEGIN
         ), upper_bounds AS (
             SELECT
                 CASE
-                    WHEN rn = (SELECT MAX(rn) FROM paginated) THEN (rn::INTEGER / $6::INTEGER)
+                    WHEN rn = (SELECT MAX(rn) FROM paginated) AND rn != $5::INTEGER THEN (rn::INTEGER / $6::INTEGER)
                     ELSE (rn::INTEGER / $6::INTEGER) - 1
                 END AS batch_ix,
                 tenant_id::UUID,
@@ -219,7 +219,7 @@ BEGIN
         WITH paginated AS (
             SELECT tenant_id, external_id, inserted_at, ROW_NUMBER() OVER (ORDER BY tenant_id, external_id, inserted_at) AS rn
             FROM %I
-            WHERE (tenant_id, external_id, inserted_at) >= ($1, $2, $3)
+            WHERE (tenant_id, external_id, inserted_at) > ($1, $2, $3)
             ORDER BY tenant_id, external_id, inserted_at
             LIMIT $4
         ), lower_bounds AS (
@@ -229,7 +229,7 @@ BEGIN
         ), upper_bounds AS (
             SELECT
                 CASE
-                    WHEN rn = (SELECT MAX(rn) FROM paginated) THEN (rn::INTEGER /$5::INTEGER)
+                    WHEN rn = (SELECT MAX(rn) FROM paginated) AND rn != $4::INTEGER THEN (rn::INTEGER /$5::INTEGER)
                     ELSE (rn::INTEGER / $5::INTEGER) - 1
                 END AS batch_ix,
                 tenant_id::UUID,
