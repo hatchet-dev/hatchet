@@ -1978,10 +1978,7 @@ BEGIN
             WHERE MOD(rn, $6::INTEGER) = 1
         ), upper_bounds AS (
             SELECT
-                CASE
-                    WHEN rn = (SELECT MAX(rn) FROM paginated) AND rn != $5::INTEGER THEN (rn::INTEGER / $6::INTEGER)
-                    ELSE (rn::INTEGER / $6::INTEGER) - 1
-                END AS batch_ix,
+                CEIL(rn::FLOAT / $6::FLOAT) AS batch_ix,
                 tenant_id::UUID,
                 id::BIGINT,
                 inserted_at::TIMESTAMPTZ,
