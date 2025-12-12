@@ -1977,7 +1977,15 @@ BEGIN
             FROM paginated
             WHERE MOD(rn, $6::INTEGER) = 1
         ), upper_bounds AS (
-            SELECT (rn::INTEGER / $6::INTEGER) - 1 AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
+            SELECT
+                CASE
+                    WHEN rn = (SELECT MAX(rn) FROM paginated) THEN (rn::INTEGER / 4::INTEGER)
+                    ELSE (rn::INTEGER / 4::INTEGER) - 1
+                END AS batch_ix,
+                tenant_id::UUID,
+                id::BIGINT,
+                inserted_at::TIMESTAMPTZ,
+                type::v1_payload_type
             FROM paginated
             WHERE MOD(rn, $6::INTEGER) = 0
         )
