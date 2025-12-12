@@ -1007,11 +1007,11 @@ BEGIN
             ORDER BY tenant_id, external_id, inserted_at
             LIMIT $4
         ), lower_bounds AS (
-            SELECT rn::INTEGER / $4::INTEGER AS batch_ix, tenant_id::UUID, external_id::UUID, inserted_at::TIMESTAMPTZ
+            SELECT rn::INTEGER / $5::INTEGER AS batch_ix, tenant_id::UUID, external_id::UUID, inserted_at::TIMESTAMPTZ
             FROM paginated
             WHERE MOD(rn, $5::INTEGER) = 1
         ), upper_bounds AS (
-            SELECT rn::INTEGER / $4::INTEGER AS batch_ix, tenant_id::UUID, external_id::UUID, inserted_at::TIMESTAMPTZ
+            SELECT rn::INTEGER / $5::INTEGER AS batch_ix, tenant_id::UUID, external_id::UUID, inserted_at::TIMESTAMPTZ
             FROM paginated
             WHERE MOD(rn, $5::INTEGER) = 0
         )

@@ -1973,11 +1973,11 @@ BEGIN
             ORDER BY tenant_id, inserted_at, id, type
             LIMIT $5::INTEGER
         ), lower_bounds AS (
-            SELECT rn::INTEGER / $5::INTEGER AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
+            SELECT rn::INTEGER / $6::INTEGER AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
             FROM paginated
             WHERE MOD(rn, $6::INTEGER) = 1
         ), upper_bounds AS (
-            SELECT rn::INTEGER / $5::INTEGER AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
+            SELECT rn::INTEGER / $6::INTEGER AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
             FROM paginated
             WHERE MOD(rn, $6::INTEGER) = 0
         )
