@@ -75,7 +75,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
         <div className="space-y-3">
           {config.isCustomTimeRange && (
             <div className="space-y-3">
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">
                   Custom Range
                 </span>
@@ -85,12 +85,12 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                   size="sm"
                   className="h-6 px-2 text-xs"
                 >
-                  <XCircleIcon className="h-3 w-3 mr-1" />
+                  <XCircleIcon className="mr-1 h-3 w-3" />
                   Clear
                 </Button>
               </div>
               <div className="space-y-2">
-                <div className="space-y-1 w-full">
+                <div className="w-full space-y-1">
                   <DateTimePicker
                     label="After"
                     date={
@@ -104,7 +104,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                     triggerClassName="w-full"
                   />
                 </div>
-                <div className="space-y-1 w-full">
+                <div className="w-full space-y-1">
                   <DateTimePicker
                     label="Before"
                     date={
@@ -147,10 +147,10 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
       );
     case ToolbarType.Switch:
       return (
-        <div className="flex items-center justify-between hover:bg-muted/50 rounded-md px-3 py-2 bg-muted/10 border">
+        <div className="flex items-center justify-between rounded-md border bg-muted/10 px-3 py-2 hover:bg-muted/50">
           <Label
             htmlFor={`filter-${filter.columnId}`}
-            className="text-sm font-medium cursor-pointer flex-1"
+            className="flex-1 cursor-pointer text-sm font-medium"
           >
             {filter.title}
           </Label>
@@ -189,10 +189,10 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                 return (
                   <div
                     key={index}
-                    className="flex items-center justify-between bg-muted/50 rounded-md px-2 py-1 text-xs"
+                    className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1 text-xs"
                   >
                     <div className="flex items-center gap-1 font-mono">
-                      <span className="text-blue-600 font-medium">{key}</span>
+                      <span className="font-medium text-blue-600">{key}</span>
                       <span className="text-muted-foreground">{separator}</span>
                       <span className="text-green-600">{value}</span>
                     </div>
@@ -261,7 +261,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
               size="sm"
               disabled={!newKey.trim() || !newValue.trim()}
               onClick={addKeyValue}
-              className="w-full h-8 text-xs"
+              className="h-8 w-full text-xs"
             >
               Add Filter
             </Button>
@@ -290,7 +290,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                 return (
                   <div
                     key={index}
-                    className="flex items-center justify-between bg-muted/50 rounded-md px-2 py-1 text-xs"
+                    className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1 text-xs"
                   >
                     <div className="flex items-center gap-1 font-mono">
                       <span className="text-muted-foreground">{val}</span>
@@ -327,14 +327,14 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                   addArrayValue();
                 }
               }}
-              className="h-8 text-xs placeholder:text-muted-foreground/50 w-full"
+              className="h-8 w-full text-xs placeholder:text-muted-foreground/50"
             />
             <Button
               variant="outline"
               size="sm"
               disabled={!newArrayValue.trim()}
               onClick={addArrayValue}
-              className="w-full h-8 text-xs"
+              className="h-8 w-full text-xs"
             >
               Add Filter
             </Button>
@@ -366,12 +366,12 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
               className="h-8 text-xs"
             />
           )}
-          <div className="max-h-56 overflow-y-auto space-y-1 border rounded-md p-2 bg-muted/10">
+          <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border bg-muted/10 p-2">
             {filteredOptions.length > 0 ? (
               filteredOptions.map((option) => (
                 <div
                   key={option.value}
-                  className="flex items-center space-x-2 hover:bg-muted/50 rounded-md px-2 py-1.5"
+                  className="flex items-center space-x-2 rounded-md px-2 py-1.5 hover:bg-muted/50"
                 >
                   <Checkbox
                     id={`${filter.columnId}-${option.value}`}
@@ -392,14 +392,14 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                   />
                   <Label
                     htmlFor={`${filter.columnId}-${option.value}`}
-                    className="text-sm cursor-pointer flex-1 truncate"
+                    className="flex-1 cursor-pointer truncate text-sm"
                   >
                     {option.label}
                   </Label>
                 </div>
               ))
             ) : (
-              <div className="text-xs text-muted-foreground text-center py-3">
+              <div className="py-3 text-center text-xs text-muted-foreground">
                 No options found
               </div>
             )}
@@ -420,7 +420,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
               column?.setFilterValue(undefined);
             }
           }}
-          className="h-8 text-xs placeholder:text-muted-foreground/50 w-full"
+          className="h-8 w-full text-xs placeholder:text-muted-foreground/50"
         />
       );
 
@@ -520,18 +520,18 @@ export function DataTableOptions<TData>({
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 flex-shrink-0">
           <MixerHorizontalIcon className="h-4 w-4" />
-          <span className="cq-xl:inline hidden ml-2 text-sm">Filters</span>
+          <span className="cq-xl:inline ml-2 hidden text-sm">Filters</span>
           {activeFiltersCount > 0 && (
             <Badge variant="secondary" className="ml-2 px-1 py-0 text-xs">
               {activeFiltersCount}
             </Badge>
           )}
-          <ChevronDownIcon className="h-4 w-4 ml-2 hidden cq-xl:inline" />
+          <ChevronDownIcon className="cq-xl:inline ml-2 hidden h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-96 max-h-[32rem] overflow-y-auto z-[70] shadow-lg p-0"
+        className="z-[70] max-h-[32rem] w-96 overflow-y-auto p-0 shadow-lg"
       >
         <DataTableOptionsContent
           table={table}
@@ -582,20 +582,20 @@ function FiltersContent<TData>({
   return (
     <div className="space-y-0">
       {onResetFilters && activeFiltersCount > 0 && (
-        <div className="p-3 border-b bg-muted/10">
+        <div className="border-b bg-muted/10 p-3">
           <Button
             variant="outline"
             size="sm"
             onClick={onResetFilters}
-            className="w-full h-8 text-xs"
+            className="h-8 w-full text-xs"
           >
-            <Cross2Icon className="h-3 w-3 mr-2" />
+            <Cross2Icon className="mr-2 h-3 w-3" />
             Clear All Filters
           </Button>
         </div>
       )}
       <div className="max-h-96 overflow-y-auto">
-        <div className="p-3 space-y-4">
+        <div className="space-y-4 p-3">
           {visibleFilters.map((filter, index) => (
             <div key={filter.columnId} className="space-y-2">
               <div className="flex items-center justify-between">
@@ -652,7 +652,7 @@ function ColumnsContent<TData>({
   return (
     <div className="space-y-0">
       <div className="max-h-80 overflow-y-auto">
-        <div className="p-3 space-y-1">
+        <div className="space-y-1 p-3">
           {table
             .getAllColumns()
             .filter(
@@ -668,7 +668,7 @@ function ColumnsContent<TData>({
               return (
                 <div
                   key={column.id}
-                  className="flex items-center space-x-3 hover:bg-muted/50 rounded-md px-2 py-2 transition-colors"
+                  className="flex items-center space-x-3 rounded-md px-2 py-2 transition-colors hover:bg-muted/50"
                 >
                   <Checkbox
                     id={`column-${column.id}`}
@@ -679,7 +679,7 @@ function ColumnsContent<TData>({
                   />
                   <Label
                     htmlFor={`column-${column.id}`}
-                    className="text-sm cursor-pointer flex-1 truncate font-medium"
+                    className="flex-1 cursor-pointer truncate text-sm font-medium"
                   >
                     {columnName}
                   </Label>
@@ -688,13 +688,13 @@ function ColumnsContent<TData>({
             })}
         </div>
       </div>
-      <div className="p-3 border-t">
-        <div className="flex gap-1 w-full">
+      <div className="border-t p-3">
+        <div className="flex w-full gap-1">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => table.toggleAllColumnsVisible(false)}
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex-1"
+            className="h-7 flex-1 px-2 text-xs text-muted-foreground hover:text-foreground"
           >
             Hide All
           </Button>
@@ -702,7 +702,7 @@ function ColumnsContent<TData>({
             variant="ghost"
             size="sm"
             onClick={() => table.toggleAllColumnsVisible(true)}
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex-1"
+            className="h-7 flex-1 px-2 text-xs text-muted-foreground hover:text-foreground"
           >
             Show All
           </Button>
@@ -772,7 +772,7 @@ export function DataTableOptionsContent<TData>({
       onValueChange={(value) => setSelectedTab(value as 'filters' | 'columns')}
       className="w-full rounded-none p-0"
     >
-      <TabsList className="grid w-full grid-cols-2 bg-muted/30 rounded-none px-2">
+      <TabsList className="grid w-full grid-cols-2 rounded-none bg-muted/30 px-2">
         <TabsTrigger
           value="filters"
           className="text-xs font-medium data-[state=active]:bg-background data-[state=active]:text-foreground"

@@ -90,8 +90,8 @@ export function SecretCopier({
   };
 
   return (
-    <div className={cn(className, 'w-full h-fit relative')}>
-      <div className="mb-2 justify-right flex flex-row items-center">
+    <div className={cn(className, 'relative h-fit w-full')}>
+      <div className="justify-right mb-2 flex flex-row items-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -131,7 +131,7 @@ export function SecretCopier({
           // eslint-disable-next-line @typescript-eslint/no-unused-expressions
           onClick && onClick();
         }}
-        className="relative flex bg-muted rounded-lg"
+        className="relative flex rounded-lg bg-muted"
       >
         {format === Formats.TABLE ? (
           renderSecrets()

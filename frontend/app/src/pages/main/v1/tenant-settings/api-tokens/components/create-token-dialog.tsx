@@ -76,7 +76,7 @@ export function CreateTokenDialog({
   }
 
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Create a new API token</DialogTitle>
       </DialogHeader>

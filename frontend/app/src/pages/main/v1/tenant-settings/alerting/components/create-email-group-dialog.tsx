@@ -39,7 +39,7 @@ export function CreateEmailGroupDialog({
     errors.emails?.message?.toString() || props.fieldErrors?.name;
 
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Create an email group</DialogTitle>
         <DialogDescription className="py-2">

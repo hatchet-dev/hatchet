@@ -109,7 +109,7 @@ export function ManagedWorkerLogs({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-row justify-between items-center">
+      <div className="flex flex-row items-center justify-between">
         <form
           onSubmit={() =>
             setQueryParams({

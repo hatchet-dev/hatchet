@@ -55,7 +55,7 @@ export function UpdateTenantForm({
               type="name"
               autoCapitalize="none"
               autoCorrect="off"
-              className=" min-w-[300px]"
+              className="min-w-[300px]"
               disabled={props.isLoading}
             />
             {nameError && (

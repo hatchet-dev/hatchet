@@ -9,21 +9,21 @@ export const AuthMethod = ({
   switch (authMethod) {
     case V1WebhookAuthType.BASIC:
       return (
-        <span className="flex flex-row gap-x-2 items-center">
+        <span className="flex flex-row items-center gap-x-2">
           <UserCheck className="size-4" />
           Basic
         </span>
       );
     case V1WebhookAuthType.API_KEY:
       return (
-        <span className="flex flex-row gap-x-2 items-center">
+        <span className="flex flex-row items-center gap-x-2">
           <Key className="size-4" />
           API Key
         </span>
       );
     case V1WebhookAuthType.HMAC:
       return (
-        <span className="flex flex-row gap-x-2 items-center">
+        <span className="flex flex-row items-center gap-x-2">
           <ShieldCheck className="size-4" />
           HMAC
         </span>

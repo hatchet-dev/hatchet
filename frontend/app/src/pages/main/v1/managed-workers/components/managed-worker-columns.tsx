@@ -15,7 +15,7 @@ export const columns: (tenantId: string) => ColumnDef<ManagedWorker>[] = (
     ),
     cell: ({ row }) => (
       <Link to={`/tenants/${tenantId}/workflows/${row.original.metadata.id}`}>
-        <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap text-md p-2">
+        <div className="text-md min-w-fit cursor-pointer whitespace-nowrap p-2 hover:underline">
           {row.original.name}
         </div>
       </Link>
@@ -53,11 +53,11 @@ export const columns: (tenantId: string) => ColumnDef<ManagedWorker>[] = (
     accessorKey: 'chevron',
     cell: ({ row }) => {
       return (
-        <div className="flex gap-2 justify-end">
+        <div className="flex justify-end gap-2">
           <Link
             to={`/tenants/${tenantId}/workflows/${row.original.metadata.id}`}
           >
-            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap text-md p-2">
+            <div className="text-md min-w-fit cursor-pointer whitespace-nowrap p-2 hover:underline">
               <ChevronRightIcon
                 className="h-5 w-5 flex-none text-gray-700 dark:text-gray-300"
                 aria-hidden="true"

@@ -40,7 +40,7 @@ export function CodeEditor({
     <div
       className={cn(
         className,
-        'w-full h-fit relative rounded-lg overflow-hidden',
+        'relative h-fit w-full overflow-hidden rounded-lg',
       )}
     >
       <Editor
@@ -73,7 +73,7 @@ export function CodeEditor({
       />
       {copy && (
         <CopyToClipboard
-          className="absolute top-2 right-2"
+          className="absolute right-2 top-2"
           text={code?.trim() || ''}
         />
       )}

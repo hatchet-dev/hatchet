@@ -17,12 +17,12 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function Ingestors() {
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-semibold leading-tight text-foreground">
           Ingestors
         </h2>
-        <p className="text-gray-700 dark:text-gray-300 my-4">
+        <p className="my-4 text-gray-700 dark:text-gray-300">
           Ingestors are integrations that allow you to send events to Hatchet.
         </p>
         <Separator className="my-4" />
@@ -49,7 +49,7 @@ function SNSIntegrationsList() {
 
   return (
     <div>
-      <div className="flex flex-row justify-between items-center">
+      <div className="flex flex-row items-center justify-between">
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           SNS Integrations
         </h3>

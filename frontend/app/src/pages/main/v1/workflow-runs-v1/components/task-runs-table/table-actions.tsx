@@ -42,9 +42,9 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
         >
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-8">
-              <Command className="h-4 w-4 cq-xl:hidden" />
+              <Command className="cq-xl:hidden h-4 w-4" />
               <span className="cq-xl:inline hidden text-sm">Actions</span>
-              <ChevronDownIcon className="h-4 w-4 ml-2 hidden cq-xl:inline" />
+              <ChevronDownIcon className="cq-xl:inline ml-2 hidden h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="z-[70]">
@@ -59,11 +59,11 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
       baseActions = [
         <Button
           key="trigger"
-          className="h-8 border ml-2 px-3"
+          className="ml-2 h-8 border px-3"
           onClick={onTriggerWorkflow}
         >
           <span className="cq-xl:inline hidden text-sm">Trigger Run</span>
-          <Play className="size-4 cq-xl:hidden" />
+          <Play className="cq-xl:hidden size-4" />
         </Button>,
         ...baseActions,
       ];
@@ -89,7 +89,7 @@ const CancelMenuItem = () => {
         actionType="cancel"
         disabled={false}
         showModal
-        className="w-full justify-start h-8 px-2 py-1.5 font-normal border-0 bg-transparent hover:bg-accent hover:text-accent-foreground rounded-sm"
+        className="h-8 w-full justify-start rounded-sm border-0 bg-transparent px-2 py-1.5 font-normal hover:bg-accent hover:text-accent-foreground"
       />
     </div>
   );
@@ -102,7 +102,7 @@ const ReplayMenuItem = () => {
         actionType="replay"
         disabled={false}
         showModal
-        className="w-full justify-start h-8 px-2 py-1.5 font-normal border-0 bg-transparent hover:bg-accent hover:text-accent-foreground rounded-sm"
+        className="h-8 w-full justify-start rounded-sm border-0 bg-transparent px-2 py-1.5 font-normal hover:bg-accent hover:text-accent-foreground"
       />
     </div>
   );

@@ -20,12 +20,12 @@ export function DeleteEmailGroupForm({
   ...props
 }: DeleteEmailGroupFormProps) {
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Delete email group</DialogTitle>
       </DialogHeader>
       <div>
-        <div className="text-sm text-foreground mb-4">
+        <div className="mb-4 text-sm text-foreground">
           Are you sure you want to delete this email group?
         </div>
         <div className="flex flex-row gap-4">

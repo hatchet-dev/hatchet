@@ -196,7 +196,7 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
       <p className="text-md">
         Confirm to {label.toLowerCase()} the following runs:
       </p>
-      <ul className="list-disc pl-4 ml-4">
+      <ul className="ml-4 list-disc pl-4">
         {displayNames?.slice(0, 10).map((record) => (
           <li className="font-semibold" key={record.metadata.id}>
             {record.displayName}
@@ -258,9 +258,9 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
 
   return (
     <Dialog open={isActionModalOpen} onOpenChange={setIsActionModalOpen}>
-      <DialogContent className="sm:max-w-[700px] py-8 max-h-[90%] overflow-auto z-[70]">
+      <DialogContent className="z-[70] max-h-[90%] overflow-auto py-8 sm:max-w-[700px]">
         <DialogHeader className="gap-2">
-          <div className="flex flex-row justify-between items-center w-full">
+          <div className="flex w-full flex-row items-center justify-between">
             <DialogTitle>{label} runs</DialogTitle>
           </div>
         </DialogHeader>
@@ -278,7 +278,7 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
             />
           </div>
 
-          <div className="flex flex-row items-center gap-3 justify-end pt-4 border-t">
+          <div className="flex flex-row items-center justify-end gap-3 border-t pt-4">
             <Button
               onClick={() => {
                 setIsActionModalOpen(false);
@@ -332,7 +332,7 @@ const BaseActionButton = ({
   return (
     <Button
       size={'sm'}
-      className={cn('text-sm px-2 py-2 gap-2', className)}
+      className={cn('gap-2 px-2 py-2 text-sm', className)}
       variant={'outline'}
       disabled={disabled}
       onClick={() => {
@@ -375,7 +375,7 @@ export const TaskRunActionButton = ({
         <BaseActionButton
           disabled={disabled}
           params={{ ...params, actionType: 'cancel' }}
-          icon={<XCircleIcon className="w-4 h-4" />}
+          icon={<XCircleIcon className="h-4 w-4" />}
           label={'Cancel'}
           showModal={showModal}
           className={className}
@@ -386,7 +386,7 @@ export const TaskRunActionButton = ({
         <BaseActionButton
           disabled={disabled}
           params={{ ...params, actionType: 'replay' }}
-          icon={<Repeat1 className="w-4 h-4" />}
+          icon={<Repeat1 className="h-4 w-4" />}
           label={'Replay'}
           showModal={showModal}
           className={className}

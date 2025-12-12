@@ -74,7 +74,7 @@ const WorkerStatus = ({
   };
 
   return (
-    <div className="flex flex-row gap-2 item-center">
+    <div className="item-center flex flex-row gap-2">
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger>
@@ -141,11 +141,11 @@ export default function ExpandedWorkflowRun() {
   }
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto px-4 sm:px-6 lg:px-8 flex flex-col">
-        <div className="flex flex-row justify-between items-center">
-          <div className="flex flex-row gap-4 items-center justify-between">
-            <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto flex flex-col px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
+          <div className="flex flex-row items-center justify-between gap-4">
+            <ServerStackIcon className="mt-1 h-6 w-6 text-foreground" />
             <Badge>{worker.type}</Badge>
             <h2 className="text-2xl font-bold leading-tight text-foreground">
               <Link to={`/tenants/${tenantId}/workers`}>Workers/</Link>
@@ -201,7 +201,7 @@ export default function ExpandedWorkflowRun() {
         </p>
         <Separator className="my-4" />
 
-        <div className="flex flex-row justify-between items-center mb-4">
+        <div className="mb-4 flex flex-row items-center justify-between">
           <h3 className="text-xl font-bold leading-tight text-foreground">
             {(worker.maxRuns ?? 0) > 0
               ? `${worker.availableRuns} / ${worker.maxRuns ?? 0}`
@@ -217,7 +217,7 @@ export default function ExpandedWorkflowRun() {
         </div>
 
         <Separator className="my-4" />
-        <div className="flex flex-row justify-between items-center mb-4">
+        <div className="mb-4 flex flex-row items-center justify-between">
           <h3 className="text-xl font-bold leading-tight text-foreground">
             Recent Task Runs
           </h3>
@@ -238,10 +238,10 @@ export default function ExpandedWorkflowRun() {
           <RunsTable />
         </RunsProvider>
         <Separator className="my-4" />
-        <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
+        <h3 className="mb-4 text-xl font-bold leading-tight text-foreground">
           Registered Workflows
         </h3>
-        <div className="flex-wrap flex flex-row gap-4">
+        <div className="flex flex-row flex-wrap gap-4">
           {filteredWorkflows.map((workflow) => {
             return (
               <Link
@@ -253,7 +253,7 @@ export default function ExpandedWorkflowRun() {
             );
           })}
         </div>
-        <div className="flex flex-row w-full items-center justify-center py-4">
+        <div className="flex w-full flex-row items-center justify-center py-4">
           {!showAllActions &&
             registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
               <Button variant="outline" onClick={() => setShowAllActions(true)}>
@@ -264,7 +264,7 @@ export default function ExpandedWorkflowRun() {
         {worker.webhookId && (
           <>
             <Separator className="my-4" />
-            <div className="flex flex-row justify-between items-center mb-4">
+            <div className="mb-4 flex flex-row items-center justify-between">
               <h3 className="text-xl font-bold leading-tight text-foreground">
                 Recent HTTP Health Checks
               </h3>
@@ -276,7 +276,7 @@ export default function ExpandedWorkflowRun() {
         {worker.labels && worker.labels.length > 0 && (
           <>
             <Separator className="my-4" />
-            <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
+            <h3 className="mb-4 text-xl font-bold leading-tight text-foreground">
               Worker Labels
             </h3>
             <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
@@ -305,7 +305,7 @@ export default function ExpandedWorkflowRun() {
             worker.runtimeInfo?.runtimeExtra) && (
             <>
               <Separator className="my-4" />
-              <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
+              <h3 className="mb-4 text-xl font-bold leading-tight text-foreground">
                 Worker Runtime Info
               </h3>
               <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">

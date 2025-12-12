@@ -17,8 +17,8 @@ export const columns = (
       ),
       cell: ({ row }) => {
         return (
-          <div className="flex flex-row gap-4 items-center">
-            <Avatar className="w-6 h-6">
+          <div className="flex flex-row items-center gap-4">
+            <Avatar className="h-6 w-6">
               <AvatarImage src={row.original.account_avatar_url} />
               <AvatarFallback />
             </Avatar>
