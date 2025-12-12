@@ -51,6 +51,14 @@ class OpenTelemetryConfig(BaseSettings):
     include_task_name_in_start_step_run_span_name: bool = False
 
 
+class TenacityConfig(BaseSettings):
+    model_config = create_settings_config(
+        env_prefix="HATCHET_CLIENT_TENACITY_",
+    )
+
+    max_attempts: int = 5
+
+
 DEFAULT_HOST_PORT = "localhost:7070"
 
 
@@ -89,6 +97,7 @@ class ClientConfig(BaseSettings):
     log_queue_size: int = 1000
     grpc_enable_fork_support: bool = False
     force_shutdown_on_shutdown_signal: bool = False
+    tenacity: TenacityConfig = Field(default_factory=lambda: TenacityConfig())
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":

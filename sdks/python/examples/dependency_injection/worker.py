@@ -1,4 +1,5 @@
-from typing import Annotated
+from contextlib import asynccontextmanager, contextmanager
+from typing import Annotated, AsyncGenerator, Generator
 
 from pydantic import BaseModel
 
@@ -8,6 +9,8 @@ hatchet = Hatchet(debug=False)
 
 SYNC_DEPENDENCY_VALUE = "sync_dependency_value"
 ASYNC_DEPENDENCY_VALUE = "async_dependency_value"
+SYNC_CM_DEPENDENCY_VALUE = "sync_cm_dependency_value"
+ASYNC_CM_DEPENDENCY_VALUE = "async_cm_dependency_value"
 
 
 # > Declare dependencies
@@ -19,12 +22,34 @@ def sync_dep(input: EmptyModel, ctx: Context) -> str:
     return SYNC_DEPENDENCY_VALUE
 
 
+@asynccontextmanager
+async def async_cm_dep(
+    input: EmptyModel, ctx: Context, async_dep: Annotated[str, Depends(async_dep)]
+) -> AsyncGenerator[str, None]:
+    try:
+        yield ASYNC_CM_DEPENDENCY_VALUE + "_" + async_dep
+    finally:
+        pass
+
+
+@contextmanager
+def sync_cm_dep(
+    input: EmptyModel, ctx: Context, sync_dep: Annotated[str, Depends(sync_dep)]
+) -> Generator[str, None, None]:
+    try:
+        yield SYNC_CM_DEPENDENCY_VALUE + "_" + sync_dep
+    finally:
+        pass
+
+
 # !!
 
 
 class Output(BaseModel):
     sync_dep: str
     async_dep: str
+    async_cm_dep: str
+    sync_cm_dep: str
 
 
 # > Inject dependencies
@@ -34,10 +59,14 @@ async def async_task_with_dependencies(
     ctx: Context,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
+    async_cm_dep: Annotated[str, Depends(async_cm_dep)],
+    sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
+        async_cm_dep=async_cm_dep,
+        sync_cm_dep=sync_cm_dep,
     )
 
 
@@ -50,10 +79,14 @@ def sync_task_with_dependencies(
     ctx: Context,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
+    async_cm_dep: Annotated[str, Depends(async_cm_dep)],
+    sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
+        async_cm_dep=async_cm_dep,
+        sync_cm_dep=sync_cm_dep,
     )
 
 
@@ -63,10 +96,14 @@ async def durable_async_task_with_dependencies(
     ctx: DurableContext,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
+    async_cm_dep: Annotated[str, Depends(async_cm_dep)],
+    sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
+        async_cm_dep=async_cm_dep,
+        sync_cm_dep=sync_cm_dep,
     )
 
 
@@ -76,10 +113,14 @@ def durable_sync_task_with_dependencies(
     ctx: DurableContext,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
+    async_cm_dep: Annotated[str, Depends(async_cm_dep)],
+    sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
+        async_cm_dep=async_cm_dep,
+        sync_cm_dep=sync_cm_dep,
     )
 
 
@@ -94,10 +135,14 @@ async def wf_async_task_with_dependencies(
     ctx: Context,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
+    async_cm_dep: Annotated[str, Depends(async_cm_dep)],
+    sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
+        async_cm_dep=async_cm_dep,
+        sync_cm_dep=sync_cm_dep,
     )
 
 
@@ -107,10 +152,14 @@ def wf_sync_task_with_dependencies(
     ctx: Context,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
+    async_cm_dep: Annotated[str, Depends(async_cm_dep)],
+    sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
+        async_cm_dep=async_cm_dep,
+        sync_cm_dep=sync_cm_dep,
     )
 
 
@@ -120,10 +169,14 @@ async def wf_durable_async_task_with_dependencies(
     ctx: DurableContext,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
+    async_cm_dep: Annotated[str, Depends(async_cm_dep)],
+    sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
+        async_cm_dep=async_cm_dep,
+        sync_cm_dep=sync_cm_dep,
     )
 
 
@@ -133,10 +186,14 @@ def wf_durable_sync_task_with_dependencies(
     ctx: DurableContext,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
+    async_cm_dep: Annotated[str, Depends(async_cm_dep)],
+    sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
+        async_cm_dep=async_cm_dep,
+        sync_cm_dep=sync_cm_dep,
     )
 
 

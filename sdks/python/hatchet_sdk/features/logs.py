@@ -4,7 +4,8 @@ from datetime import datetime
 from hatchet_sdk.clients.rest.api.log_api import LogApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
-from hatchet_sdk.clients.v1.api_client import BaseRestClient, retry
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.clients.v1.api_client import BaseRestClient
 
 
 class LogsClient(BaseRestClient):
@@ -15,7 +16,6 @@ class LogsClient(BaseRestClient):
     def _la(self, client: ApiClient) -> LogApi:
         return LogApi(client)
 
-    @retry
     def list(
         self,
         task_run_id: str,
@@ -33,7 +33,10 @@ class LogsClient(BaseRestClient):
         :return: A list of log lines for the specified task run.
         """
         with self.client() as client:
-            return self._la(client).v1_log_line_list(
+            v1_log_line_list = tenacity_retry(
+                self._la(client).v1_log_line_list, self.client_config.tenacity
+            )
+            return v1_log_line_list(
                 task=task_run_id, limit=limit, since=since, until=until
             )
 

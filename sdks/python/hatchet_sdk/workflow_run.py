@@ -7,6 +7,7 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
 )
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 
 
@@ -62,8 +63,13 @@ class WorkflowRunRef:
                 case V1TaskStatus.RUNNING:
                     time.sleep(1)
                 case V1TaskStatus.FAILED:
-                    raise ValueError(
-                        f"Workflow run failed: {details.run.error_message}"
+                    raise FailedTaskRunExceptionGroup(
+                        f"Workflow run {self.workflow_run_id} failed.",
+                        [
+                            TaskRunError.deserialize(t.error_message)
+                            for t in details.tasks
+                            if t.error_message
+                        ],
                     )
                 case V1TaskStatus.COMPLETED:
                     return {
