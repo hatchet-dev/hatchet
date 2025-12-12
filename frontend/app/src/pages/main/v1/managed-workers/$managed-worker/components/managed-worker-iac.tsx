@@ -8,7 +8,7 @@ export function ManagedWorkerIaC({
   deployKey: string;
 }) {
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex w-full flex-col gap-4">
       <h4 className="text-lg font-semibold text-foreground">IaC Logs</h4>
       <ManagedWorkerIaCLogs
         managedWorkerId={managedWorkerId}

@@ -80,12 +80,12 @@ function EventList({
   const events = getLogsQuery.data?.rows || [];
 
   return (
-    <div className="flex flex-col gap-2 mt-4">
+    <div className="mt-4 flex flex-col gap-2">
       {getLogsQuery.isLoading && <Spinner />}
       {events.length === 0 && (
-        <Card className="bg-muted/30 h-[400px]">
+        <Card className="h-[400px] bg-muted/30">
           <CardHeader>
-            <CardTitle className="tracking-wide text-sm">
+            <CardTitle className="text-sm tracking-wide">
               No events found
             </CardTitle>
           </CardHeader>
@@ -106,14 +106,14 @@ function EventList({
 
 function Build({ buildId, back }: { buildId: string; back: () => void }) {
   return (
-    <div className="flex flex-col justify-start items-start gap-4 mt-8">
-      <div className="flex flex-row justify-start gap-4 items-center">
+    <div className="mt-8 flex flex-col items-start justify-start gap-4">
+      <div className="flex flex-row items-center justify-start gap-4">
         <Button
           onClick={back}
           variant="link"
           className="flex items-center gap-1"
         >
-          <ChevronLeftIcon className="w-4 h-4" />
+          <ChevronLeftIcon className="h-4 w-4" />
           Back
         </Button>
       </div>
@@ -133,14 +133,14 @@ function IaCDebug({
   back: () => void;
 }) {
   return (
-    <div className="flex flex-col justify-start items-start gap-4 mt-8">
-      <div className="flex flex-row justify-start gap-4 items-center">
+    <div className="mt-8 flex flex-col items-start justify-start gap-4">
+      <div className="flex flex-row items-center justify-start gap-4">
         <Button
           onClick={back}
           variant="link"
           className="flex items-center gap-1"
         >
-          <ChevronLeftIcon className="w-4 h-4" />
+          <ChevronLeftIcon className="h-4 w-4" />
           Back
         </Button>
       </div>
@@ -165,12 +165,12 @@ function ManagedWorkerEventCard({
   setDeployKey: (key: string) => void;
 }) {
   return (
-    <Card className=" bg-muted/30">
+    <Card className="bg-muted/30">
       <CardHeader>
-        <div className="flex flex-row justify-between items-center text-sm">
-          <div className="flex flex-row justify-between gap-3 items-center">
+        <div className="flex flex-row items-center justify-between text-sm">
+          <div className="flex flex-row items-center justify-between gap-3">
             <EventIndicator severity={event.status} />
-            <CardTitle className="tracking-wide text-sm">
+            <CardTitle className="text-sm tracking-wide">
               {event.message}
             </CardTitle>
           </div>
@@ -178,7 +178,7 @@ function ManagedWorkerEventCard({
         </div>
         <CardDescription className="mt-2">{event.message}</CardDescription>
       </CardHeader>
-      <CardContent className="p-0 z-10 bg-background"></CardContent>
+      <CardContent className="z-10 bg-background p-0"></CardContent>
       {renderCardFooter(managedWorker, event, setBuildId, setDeployKey)}
     </Card>
   );
@@ -204,7 +204,7 @@ function renderCardFooter(
             setBuildId(data.build_id);
           }}
         >
-          <ArrowRightIcon className="w-4 h-4 mr-1" />
+          <ArrowRightIcon className="mr-1 h-4 w-4" />
           View build info
         </Button>,
       );
@@ -219,7 +219,7 @@ function renderCardFooter(
             setDeployKey(data.deploy_key);
           }}
         >
-          <ArrowRightIcon className="w-4 h-4 mr-1" />
+          <ArrowRightIcon className="mr-1 h-4 w-4" />
           View IaC debug info
         </Button>,
       );
@@ -256,7 +256,7 @@ function EventIndicator({ severity }: { severity: ManagedWorkerEventStatus }) {
     <div
       className={cn(
         RUN_STATUS_VARIANTS[severity],
-        'rounded-full h-[6px] w-[6px]',
+        'h-[6px] w-[6px] rounded-full',
       )}
     />
   );

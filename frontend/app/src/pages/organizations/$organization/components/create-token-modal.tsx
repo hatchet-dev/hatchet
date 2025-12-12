@@ -113,8 +113,8 @@ export function CreateTokenModal({
 
         {createdToken ? (
           <div className="space-y-4">
-            <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-              <div className="text-sm text-green-800 mb-2">
+            <div className="rounded-md border border-green-200 bg-green-50 p-4">
+              <div className="mb-2 text-sm text-green-800">
                 <strong>Token created successfully!</strong>
               </div>
               <p className="text-xs text-green-700">

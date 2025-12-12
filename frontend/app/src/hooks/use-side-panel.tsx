@@ -140,10 +140,10 @@ function useSidePanelData(): SidePanelData {
         return {
           isDocs: true,
           component: (
-            <div className="p-4 size-full">
+            <div className="size-full p-4">
               <iframe
                 src={url}
-                className="inset-0 w-full rounded-md border border-slate-800 size-full"
+                className="inset-0 size-full w-full rounded-md border border-slate-800"
                 loading="lazy"
               />
             </div>

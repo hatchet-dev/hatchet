@@ -108,11 +108,11 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
   }
 
   return (
-    <div className="flex flex-1 flex-row p-4 rounded-sm relative gap-1">
+    <div className="relative flex flex-1 flex-row gap-1 rounded-sm p-4">
       {columns.map((column, colIndex) => (
         <div
           key={colIndex}
-          className="flex flex-col justify-start h-full min-w-fit grow"
+          className="flex h-full min-w-fit grow flex-col justify-start"
         >
           {column.map((shapeItem) => {
             const taskRun = tasks.find(
@@ -166,8 +166,8 @@ export const TaskRunMiniMap = ({
   }
 
   return (
-    <div className="flex flex-1 flex-row p-4 rounded-sm relative gap-1">
-      <div className="flex flex-col justify-start w-full h-fit grow">
+    <div className="relative flex flex-1 flex-row gap-1 rounded-sm p-4">
+      <div className="flex h-fit w-full grow flex-col justify-start">
         <StepRunNode
           data={{
             taskRun,

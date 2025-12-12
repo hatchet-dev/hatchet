@@ -123,7 +123,7 @@ export function CreateWebhookWorkerDialog({
   }
 
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Create a New Webhook Worker</DialogTitle>
       </DialogHeader>
@@ -137,7 +137,7 @@ export function CreateWebhookWorkerDialog({
           <div className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="url">URL</Label>
-              <p className="text-sm dark:text-gray-400 text-gray-800">
+              <p className="text-sm text-gray-800 dark:text-gray-400">
                 The URL with full path where the webhook worker will be
                 available.
               </p>
@@ -155,7 +155,7 @@ export function CreateWebhookWorkerDialog({
             </div>
             <div className="grid gap-2">
               <Label htmlFor="name">Friendly Name (optional)</Label>
-              <p className="text-sm dark:text-gray-400 text-gray-800">
+              <p className="text-sm text-gray-800 dark:text-gray-400">
                 An easy to remember name to identify worker.
               </p>
               <Input

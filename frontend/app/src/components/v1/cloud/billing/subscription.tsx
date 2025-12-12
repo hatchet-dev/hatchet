@@ -155,9 +155,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         onCancel={() => setChangeConfirmOpen(undefined)}
         isLoading={!!loading}
       />
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
-          <h3 className="text-xl font-semibold leading-tight text-foreground flex flex-row gap-2">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
+          <h3 className="flex flex-row gap-2 text-xl font-semibold leading-tight text-foreground">
             Subscription
             {coupons?.map((coupon, i) => (
               <Badge key={`c${i}`} variant="successful">
@@ -182,7 +182,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             </Label>
           </div>
         </div>
-        <p className="text-gray-700 dark:text-gray-300 my-4">
+        <p className="my-4 text-gray-700 dark:text-gray-300">
           For plan details, please visit{' '}
           <a
             href="https://hatchet.run/pricing"
@@ -206,7 +206,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             </AlertTitle>
             <AlertDescription>
               A payment method is required to upgrade your subscription, please{' '}
-              <a onClick={manageClicked} className="underline pointer" href="#">
+              <a onClick={manageClicked} className="pointer underline" href="#">
                 add one
               </a>{' '}
               first.
@@ -216,9 +216,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {sortedPlans?.map((plan, i) => (
-            <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
+            <Card className="flex flex-col gap-4 bg-muted/30" key={i}>
               <CardHeader>
-                <CardTitle className="tracking-wide text-sm">
+                <CardTitle className="text-sm tracking-wide">
                   {plan.name}
                 </CardTitle>
                 <CardDescription className="py-4">
@@ -258,7 +258,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
           ))}
         </div>
         {active?.note && <p className="mt-4">{active?.note}</p>}
-        <p className="text-sm text-gray-500 mt-4">
+        <p className="mt-4 text-sm text-gray-500">
           * subscription fee billed upfront {showAnnual ? 'yearly' : 'monthly'},
           overages billed at the end of each month for usage in that month
         </p>

@@ -227,7 +227,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
                 <TableHead
                   key={header.id}
                   colSpan={header.colSpan}
-                  className={cn('bg-background border-b', headerClassName)}
+                  className={cn('border-b bg-background', headerClassName)}
                 >
                   {header.isPlaceholder
                     ? null
@@ -288,7 +288,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   );
 
   return (
-    <div className="flex flex-col max-h-full space-y-4">
+    <div className="flex max-h-full flex-col space-y-4">
       {tableActions?.selectedActionType && (
         <ConfirmActionModal
           actionType={tableActions.selectedActionType}
@@ -316,7 +316,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
         />
       )}
       <div
-        className={`flex-1 min-h-0 rounded-md ${!card && 'border'} ${!card && 'overflow-auto'}`}
+        className={`min-h-0 flex-1 rounded-md ${!card && 'border'} ${!card && 'overflow-auto'}`}
       >
         {!card ? getTable() : getCards()}
       </div>

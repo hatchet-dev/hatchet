@@ -21,8 +21,8 @@ export function MonthlyUsageCard({
     return (
       <Card className="w-full">
         <CardHeader className="pb-2">
-          <CardTitle className="text-md font-medium flex items-center">
-            <CurrencyDollarIcon className="h-5 w-5 mr-2 text-primary" />
+          <CardTitle className="text-md flex items-center font-medium">
+            <CurrencyDollarIcon className="mr-2 h-5 w-5 text-primary" />
             Monthly Usage
           </CardTitle>
         </CardHeader>
@@ -48,8 +48,8 @@ export function MonthlyUsageCard({
   return (
     <Card className="w-full">
       <CardHeader className="pb-2">
-        <CardTitle className="text-md font-medium flex items-center">
-          <CurrencyDollarIcon className="h-5 w-5 mr-2 text-primary" />
+        <CardTitle className="text-md flex items-center font-medium">
+          <CurrencyDollarIcon className="mr-2 h-5 w-5 text-primary" />
           Monthly Usage
         </CardTitle>
         <CardDescription>Current billing period</CardDescription>

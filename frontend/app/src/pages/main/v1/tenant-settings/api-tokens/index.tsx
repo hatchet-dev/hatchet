@@ -27,9 +27,9 @@ export default function APITokens() {
   });
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
           <h2 className="text-2xl font-semibold leading-tight text-foreground">
             API Tokens
           </h2>
@@ -41,7 +41,7 @@ export default function APITokens() {
             Create API Token
           </Button>
         </div>
-        <p className="text-gray-700 dark:text-gray-300 my-4">
+        <p className="my-4 text-gray-700 dark:text-gray-300">
           API tokens are used by workers to connect with the Hatchet API and
           engine.
         </p>

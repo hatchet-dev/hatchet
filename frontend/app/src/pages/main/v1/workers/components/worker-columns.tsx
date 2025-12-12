@@ -110,7 +110,7 @@ function WorkerStatusBadge({
       className={cn(
         'px-3 py-1',
         finalConfig.colors,
-        'text-xs font-medium rounded-md border-transparent',
+        'rounded-md border-transparent text-xs font-medium',
         className,
       )}
       variant={variant}
@@ -144,7 +144,7 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     ),
     cell: ({ row }) => (
       <Link to={`/tenants/${tenantId}/workers/${row.original.metadata.id}`}>
-        <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+        <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
           {row.original.webhookUrl || row.original.name}
         </div>
       </Link>
@@ -158,7 +158,7 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
       <DataTableColumnHeader column={column} title={WorkerColumn.type} />
     ),
     cell: ({ row }) => (
-      <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+      <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
         {row.original.type.toLocaleLowerCase()}
       </div>
     ),

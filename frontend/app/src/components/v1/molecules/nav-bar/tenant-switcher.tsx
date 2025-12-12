@@ -59,7 +59,7 @@ export function TenantSwitcher({
           <CaretSortIcon className="ml-auto h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent side="right" className="w-full p-0 mb-6 z-50">
+      <PopoverContent side="right" className="z-50 mb-6 w-full p-0">
         <Command className="min-w-[260px]" value={currTenant.slug}>
           <CommandList>
             <CommandEmpty>No tenants found.</CommandEmpty>
@@ -72,7 +72,7 @@ export function TenantSwitcher({
                   setOpen(false);
                 }}
                 value={membership.tenant?.slug}
-                className="text-sm cursor-pointer"
+                className="cursor-pointer text-sm"
               >
                 <BuildingOffice2Icon className="mr-2 h-4 w-4" />
                 {membership.tenant?.name}
@@ -92,7 +92,7 @@ export function TenantSwitcher({
               <CommandSeparator />
               <CommandList>
                 <Link to="/onboarding/create-tenant">
-                  <CommandItem className="text-sm cursor-pointer">
+                  <CommandItem className="cursor-pointer text-sm">
                     <PlusCircledIcon className="mr-2 h-4 w-4" />
                     New Tenant
                   </CommandItem>

@@ -33,10 +33,10 @@ export default function Webhooks() {
   });
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
-          <h2 className="text-2xl font-semibold leading-tight text-foreground flex flex-row items-center gap-2">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
+          <h2 className="flex flex-row items-center gap-2 text-2xl font-semibold leading-tight text-foreground">
             Webhook Workers <Badge variant="inProgress">BETA</Badge>
           </h2>
 
@@ -47,7 +47,7 @@ export default function Webhooks() {
             Create Webhook Endpoint
           </Button>
         </div>
-        <p className="text-gray-700 dark:text-gray-300 my-4">
+        <p className="my-4 text-gray-700 dark:text-gray-300">
           Assign task runs to a HTTP endpoint.{' '}
           <a
             className="underline"
@@ -60,14 +60,14 @@ export default function Webhooks() {
         </p>
         <Separator className="my-4" />
 
-        <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="">
             {listWebhookWorkersQuery.isLoading && 'Loading...'}
           </div>
           <div className="">{listWebhookWorkersQuery.isError && 'Error'}</div>
           {listWebhookWorkersQuery.data?.rows?.map((worker) => (
             <div key={worker.metadata!.id}>
-              <div className="flex flex-row justify-between items-center">
+              <div className="flex flex-row items-center justify-between">
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
@@ -94,10 +94,10 @@ export default function Webhooks() {
                       </DropdownMenu>
                     </CardTitle>
                     <CardDescription>
-                      <div className="text-sm mt-2 font-mono">
+                      <div className="mt-2 font-mono text-sm">
                         {worker.metadata.id}
                       </div>
-                      <div className="text-sm mt-2">{worker.url}</div>
+                      <div className="mt-2 text-sm">{worker.url}</div>
                     </CardDescription>
                   </CardHeader>
                 </Card>

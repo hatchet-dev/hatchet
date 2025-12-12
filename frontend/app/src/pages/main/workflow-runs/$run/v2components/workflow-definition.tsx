@@ -16,8 +16,8 @@ export const WorkflowDefinitionLink = ({
       target="_blank"
       rel="noreferrer"
     >
-      <Button size={'sm'} className="px-2 py-2 gap-2" variant="outline">
-        <Squares2X2Icon className="w-4 h-4" />
+      <Button size={'sm'} className="gap-2 px-2 py-2" variant="outline">
+        <Squares2X2Icon className="h-4 w-4" />
         Workflow
       </Button>
     </Link>

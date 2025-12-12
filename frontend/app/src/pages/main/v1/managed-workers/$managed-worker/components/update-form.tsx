@@ -488,7 +488,7 @@ export default function UpdateWorkerForm({
             <AccordionTrigger className="text-lg font-semibold text-foreground">
               Build configuration
             </AccordionTrigger>
-            <AccordionContent className="max-w-3xl grid gap-4">
+            <AccordionContent className="grid max-w-3xl gap-4">
               <Label htmlFor="role">Github account</Label>
               <Controller
                 control={control}
@@ -689,7 +689,7 @@ export default function UpdateWorkerForm({
                     Infra-As-Code
                   </TabsTrigger>
                 </TabsList>
-                <TabsContent value="iac" className="pt-4 grid gap-4">
+                <TabsContent value="iac" className="grid gap-4 pt-4">
                   <a
                     href="https://docs.hatchet.run/compute/cpu"
                     className="underline"
@@ -697,7 +697,7 @@ export default function UpdateWorkerForm({
                     Learn how to configure infra-as-code.
                   </a>
                 </TabsContent>
-                <TabsContent value="ui" className="pt-4 grid gap-4">
+                <TabsContent value="ui" className="grid gap-4 pt-4">
                   <Label htmlFor="region">Region</Label>
                   <Select
                     value={region?.toString()}
@@ -819,7 +819,7 @@ export default function UpdateWorkerForm({
                         </TabsTrigger>
                       ))}
                     </TabsList>
-                    <TabsContent value="Static" className="pt-4 grid gap-4">
+                    <TabsContent value="Static" className="grid gap-4 pt-4">
                       <Label htmlFor="numReplicas">Number of replicas</Label>
                       <Controller
                         control={control}
@@ -852,7 +852,7 @@ export default function UpdateWorkerForm({
                     </TabsContent>
                     <TabsContent
                       value="Autoscaling"
-                      className="pt-4 grid gap-4"
+                      className="grid gap-4 pt-4"
                     >
                       <Label htmlFor="minAwakeReplicas">Min Replicas</Label>
                       <Controller
@@ -908,7 +908,7 @@ export default function UpdateWorkerForm({
                         name="runtimeConfig.autoscaling.scaleToZero"
                         render={({ field }) => {
                           return (
-                            <div className="flex flex-row gap-4 items-center">
+                            <div className="flex flex-row items-center gap-4">
                               <Label htmlFor="scaleToZero">
                                 Scale to zero during periods of inactivity?
                               </Label>

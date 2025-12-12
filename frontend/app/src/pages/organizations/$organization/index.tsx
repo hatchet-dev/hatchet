@@ -211,12 +211,12 @@ export default function OrganizationPage() {
 
   if (organizationQuery.error || !organizationQuery.data) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex h-96 items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
             Organization not found
           </h2>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
             The organization you're looking for doesn't exist or you don't have
             access to it.
           </p>
@@ -229,7 +229,7 @@ export default function OrganizationPage() {
 
   return (
     <div className="max-h-full overflow-y-auto">
-      <div className="p-6 space-y-6 max-w-6xl mx-auto">
+      <div className="mx-auto max-w-6xl space-y-6 p-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -240,7 +240,7 @@ export default function OrganizationPage() {
                     value={editedName}
                     onChange={(e) => setEditedName(e.target.value)}
                     onKeyDown={handleKeyPress}
-                    className="text-2xl font-bold h-10 px-3"
+                    className="h-10 px-3 text-2xl font-bold"
                     autoFocus
                     disabled={updateOrganizationLoading}
                   />
@@ -314,7 +314,7 @@ export default function OrganizationPage() {
                   );
                 }}
               >
-                <PlusIcon className="h-4 w-4 mr-2" />
+                <PlusIcon className="mr-2 h-4 w-4" />
                 Add Tenant
               </Button>
             </CardTitle>
@@ -381,7 +381,7 @@ export default function OrganizationPage() {
                                         navigate(`/tenants/${orgTenant.id}`);
                                       }}
                                     >
-                                      <ArrowRightIcon className="h-4 w-4 mr-2" />
+                                      <ArrowRightIcon className="mr-2 h-4 w-4" />
                                       View Tenant
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
@@ -389,7 +389,7 @@ export default function OrganizationPage() {
                                         setTenantToArchive(orgTenant)
                                       }
                                     >
-                                      <TrashIcon className="h-4 w-4 mr-2" />
+                                      <TrashIcon className="mr-2 h-4 w-4" />
                                       Archive Tenant
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
@@ -403,7 +403,7 @@ export default function OrganizationPage() {
                 </div>
 
                 {/* Mobile Card View */}
-                <div className="md:hidden space-y-4">
+                <div className="space-y-4 md:hidden">
                   {organization.tenants
                     .filter(
                       (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
@@ -415,7 +415,7 @@ export default function OrganizationPage() {
                       return (
                         <div
                           key={orgTenant.id}
-                          className="border rounded-lg p-4 space-y-3"
+                          className="space-y-3 rounded-lg border p-4"
                         >
                           <div className="flex items-center justify-between">
                             <h4 className="font-medium">
@@ -461,13 +461,13 @@ export default function OrganizationPage() {
                                     navigate(`/tenants/${orgTenant.id}`);
                                   }}
                                 >
-                                  <ArrowRightIcon className="h-4 w-4 mr-2" />
+                                  <ArrowRightIcon className="mr-2 h-4 w-4" />
                                   View Tenant
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => setTenantToArchive(orgTenant)}
                                 >
-                                  <TrashIcon className="h-4 w-4 mr-2" />
+                                  <TrashIcon className="mr-2 h-4 w-4" />
                                   Archive Tenant
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -479,10 +479,10 @@ export default function OrganizationPage() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <BuildingOffice2Icon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Tenants Yet</h3>
-                <p className="text-muted-foreground mb-4">
+              <div className="py-8 text-center">
+                <BuildingOffice2Icon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="mb-2 text-lg font-medium">No Tenants Yet</h3>
+                <p className="mb-4 text-muted-foreground">
                   Add your first tenant to get started.
                 </p>
                 <Button
@@ -493,7 +493,7 @@ export default function OrganizationPage() {
                     );
                   }}
                 >
-                  <PlusIcon className="h-4 w-4 mr-2" />
+                  <PlusIcon className="mr-2 h-4 w-4" />
                   Add Tenant
                 </Button>
               </div>
@@ -561,9 +561,9 @@ export default function OrganizationPage() {
                                       <TooltipTrigger asChild>
                                         <DropdownMenuItem
                                           disabled
-                                          className="text-gray-400 cursor-not-allowed"
+                                          className="cursor-not-allowed text-gray-400"
                                         >
-                                          <TrashIcon className="h-4 w-4 mr-2" />
+                                          <TrashIcon className="mr-2 h-4 w-4" />
                                           Remove Member
                                         </DropdownMenuItem>
                                       </TooltipTrigger>
@@ -576,7 +576,7 @@ export default function OrganizationPage() {
                                   <DropdownMenuItem
                                     onClick={() => setMemberToDelete(member)}
                                   >
-                                    <TrashIcon className="h-4 w-4 mr-2" />
+                                    <TrashIcon className="mr-2 h-4 w-4" />
                                     Remove Member
                                   </DropdownMenuItem>
                                 )}
@@ -590,11 +590,11 @@ export default function OrganizationPage() {
                 </div>
 
                 {/* Mobile Card View */}
-                <div className="md:hidden space-y-4">
+                <div className="space-y-4 md:hidden">
                   {organization.members.map((member) => (
                     <div
                       key={member.metadata.id}
-                      className="border rounded-lg p-4 space-y-3"
+                      className="space-y-3 rounded-lg border p-4"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -618,7 +618,7 @@ export default function OrganizationPage() {
                               <DropdownMenuItem
                                 onClick={() => setMemberToDelete(member)}
                               >
-                                <TrashIcon className="h-4 w-4 mr-2" />
+                                <TrashIcon className="mr-2 h-4 w-4" />
                                 Remove Member
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -653,10 +653,10 @@ export default function OrganizationPage() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <UserIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Members Yet</h3>
-                <p className="text-muted-foreground mb-4">
+              <div className="py-8 text-center">
+                <UserIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="mb-2 text-lg font-medium">No Members Yet</h3>
+                <p className="mb-4 text-muted-foreground">
                   Members will appear here when they join this organization.
                 </p>
               </div>
@@ -674,7 +674,7 @@ export default function OrganizationPage() {
                 size="sm"
                 onClick={() => setShowInviteMemberModal(true)}
               >
-                <PlusIcon className="h-4 w-4 mr-2" />
+                <PlusIcon className="mr-2 h-4 w-4" />
                 Invite Member
               </Button>
             </CardTitle>
@@ -754,7 +754,7 @@ export default function OrganizationPage() {
                                     <DropdownMenuItem
                                       onClick={() => setInviteToCancel(invite)}
                                     >
-                                      <TrashIcon className="h-4 w-4 mr-2" />
+                                      <TrashIcon className="mr-2 h-4 w-4" />
                                       Cancel Invitation
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
@@ -768,11 +768,11 @@ export default function OrganizationPage() {
                 </div>
 
                 {/* Mobile Card View */}
-                <div className="md:hidden space-y-4">
+                <div className="space-y-4 md:hidden">
                   {organizationInvitesQuery.data.rows.map((invite) => (
                     <div
                       key={invite.metadata.id}
-                      className="border rounded-lg p-4 space-y-3"
+                      className="space-y-3 rounded-lg border p-4"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -810,7 +810,7 @@ export default function OrganizationPage() {
                                 <DropdownMenuItem
                                   onClick={() => setInviteToCancel(invite)}
                                 >
-                                  <TrashIcon className="h-4 w-4 mr-2" />
+                                  <TrashIcon className="mr-2 h-4 w-4" />
                                   Cancel Invitation
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -850,14 +850,14 @@ export default function OrganizationPage() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <EnvelopeIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Pending Invites</h3>
-                <p className="text-muted-foreground mb-4">
+              <div className="py-8 text-center">
+                <EnvelopeIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="mb-2 text-lg font-medium">No Pending Invites</h3>
+                <p className="mb-4 text-muted-foreground">
                   Invite members to join this organization.
                 </p>
                 <Button onClick={() => setShowInviteMemberModal(true)}>
-                  <PlusIcon className="h-4 w-4 mr-2" />
+                  <PlusIcon className="mr-2 h-4 w-4" />
                   Invite Member
                 </Button>
               </div>
@@ -875,7 +875,7 @@ export default function OrganizationPage() {
                 size="sm"
                 onClick={() => setShowCreateTokenModal(true)}
               >
-                <PlusIcon className="h-4 w-4 mr-2" />
+                <PlusIcon className="mr-2 h-4 w-4" />
                 Create Token
               </Button>
             </CardTitle>
@@ -948,11 +948,11 @@ export default function OrganizationPage() {
                 </div>
 
                 {/* Mobile Card View */}
-                <div className="md:hidden space-y-4">
+                <div className="space-y-4 md:hidden">
                   {managementTokensQuery.data.rows.map((token) => (
                     <div
                       key={token.id}
-                      className="border rounded-lg p-4 space-y-3"
+                      className="space-y-3 rounded-lg border p-4"
                     >
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium">{token.name}</h4>
@@ -999,17 +999,17 @@ export default function OrganizationPage() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <KeyIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">
+              <div className="py-8 text-center">
+                <KeyIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="mb-2 text-lg font-medium">
                   No Management Tokens
                 </h3>
-                <p className="text-muted-foreground mb-4">
+                <p className="mb-4 text-muted-foreground">
                   Create API tokens to manage this organization
                   programmatically.
                 </p>
                 <Button onClick={() => setShowCreateTokenModal(true)}>
-                  <PlusIcon className="h-4 w-4 mr-2" />
+                  <PlusIcon className="mr-2 h-4 w-4" />
                   Create Token
                 </Button>
               </div>

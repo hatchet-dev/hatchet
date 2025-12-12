@@ -80,11 +80,11 @@ function OrganizationGroup({
       <CommandItem
         onSelect={onToggleExpand}
         value={`org-${organization.metadata.id}`}
-        className="text-sm cursor-pointer hover:bg-accent focus:bg-accent"
+        className="cursor-pointer text-sm hover:bg-accent focus:bg-accent"
       >
-        <div className="flex items-start justify-between w-full">
-          <div className="flex items-start gap-2 flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex w-full items-start justify-between">
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            <div className="flex flex-shrink-0 items-center gap-2">
               {isExpanded ? (
                 <ChevronDownIcon className="h-3 w-3" />
               ) : (
@@ -92,12 +92,12 @@ function OrganizationGroup({
               )}
               <BuildingOffice2Icon className="h-4 w-4" />
             </div>
-            <span className="font-medium leading-tight break-words">
+            <span className="break-words font-medium leading-tight">
               {organization.name}
             </span>
           </div>
           {organization.isOwner && (
-            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+            <div className="ml-2 flex flex-shrink-0 items-center gap-1">
               <Button
                 variant="ghost"
                 size="sm"
@@ -138,12 +138,12 @@ function OrganizationGroup({
                 onTenantSelect(membership.tenant);
                 onClose();
               }}
-              className="text-sm cursor-pointer pl-6 hover:bg-accent focus:bg-accent"
+              className="cursor-pointer pl-6 text-sm hover:bg-accent focus:bg-accent"
             >
-              <div className="flex items-center justify-between w-full">
+              <div className="flex w-full items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <div className="flex h-5 w-5 items-center justify-center">
+                    <div className="h-2 w-2 rounded-full bg-green-500" />
                   </div>
                   <span className="text-muted-foreground">
                     {membership.tenant?.name}
@@ -311,7 +311,7 @@ export function OrganizationSelector({
           side="top"
           align="start"
           sideOffset={20}
-          className="w-[287px] p-0 z-50 border border-border shadow-md rounded-md"
+          className="z-50 w-[287px] rounded-md border border-border p-0 shadow-md"
         >
           <Command className="border-0">
             <CommandList>
@@ -339,7 +339,7 @@ export function OrganizationSelector({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full justify-center gap-2 h-8 text-sm hover:bg-accent"
+                      className="h-8 w-full justify-center gap-2 text-sm hover:bg-accent"
                       onClick={handleCreateOrgClick}
                     >
                       <PlusIcon className="h-4 w-4" />
@@ -382,7 +382,7 @@ export function OrganizationSelector({
                         handleTenantSelect(membership.tenant);
                         handleClose();
                       }}
-                      className="text-sm cursor-pointer"
+                      className="cursor-pointer text-sm"
                     >
                       <BuildingOffice2Icon className="mr-2 h-4 w-4" />
                       {membership.tenant?.name}

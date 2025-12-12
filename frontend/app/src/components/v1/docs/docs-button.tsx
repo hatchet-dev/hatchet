@@ -39,7 +39,7 @@ export const DocsButton = ({
       return (
         <Button
           onClick={handleClick}
-          className="w-auto px-4 py-2 flex flex-row items-center gap-x-2"
+          className="flex w-auto flex-row items-center gap-x-2 px-4 py-2"
           variant={variant}
         >
           <BookOpenText className="size-4" />
@@ -48,7 +48,7 @@ export const DocsButton = ({
       );
     case 'mini':
       return (
-        <div className="flex flex-row items-center gap-x-4 w-full justify-center">
+        <div className="flex w-full flex-row items-center justify-center gap-x-4">
           <span className="text-mono font-semibold">{label}</span>
           <Button
             variant="ghost"

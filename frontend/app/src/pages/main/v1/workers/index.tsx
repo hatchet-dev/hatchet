@@ -84,7 +84,7 @@ export default function Workers() {
         },
       ]}
       emptyState={
-        <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
           <p className="text-lg font-semibold">No workers found</p>
           <div className="w-fit">
             <DocsButton
