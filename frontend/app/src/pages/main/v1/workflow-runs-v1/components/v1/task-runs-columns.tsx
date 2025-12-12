@@ -31,15 +31,14 @@ export const TaskRunColumn = {
 export type TaskRunColumnKeys = keyof typeof TaskRunColumn;
 
 export const workflowKey: TaskRunColumnKeys = 'workflow';
-export const parentTaskExternalIdKey: TaskRunColumnKeys =
-  'parentTaskExternalId';
+const parentTaskExternalIdKey: TaskRunColumnKeys = 'parentTaskExternalId';
 export const flattenDAGsKey: TaskRunColumnKeys = 'flattenDAGs';
 export const createdAtKey: TaskRunColumnKeys = 'createdAt';
-export const startedAtKey: TaskRunColumnKeys = 'startedAt';
-export const finishedAtKey: TaskRunColumnKeys = 'finishedAt';
-export const durationKey: TaskRunColumnKeys = 'duration';
+const startedAtKey: TaskRunColumnKeys = 'startedAt';
+const finishedAtKey: TaskRunColumnKeys = 'finishedAt';
+const durationKey: TaskRunColumnKeys = 'duration';
 export const additionalMetadataKey: TaskRunColumnKeys = 'additionalMetadata';
-export const taskNameKey: TaskRunColumnKeys = 'taskName';
+const taskNameKey: TaskRunColumnKeys = 'taskName';
 export const statusKey: TaskRunColumnKeys = 'status';
 
 export const createdAfterKey = 'createdAfter';

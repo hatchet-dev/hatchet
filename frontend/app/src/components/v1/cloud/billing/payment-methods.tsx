@@ -30,7 +30,7 @@ const ccIcons: Record<string, IconType> = {
   link: LuBanknote,
 };
 
-export interface PaymentMethodsProps {
+interface PaymentMethodsProps {
   hasMethods?: boolean;
   methods?: TenantPaymentMethod[];
 }

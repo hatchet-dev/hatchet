@@ -9,7 +9,6 @@ import api, {
   queries,
   V1CancelTaskRequest,
   V1ReplayTaskRequest,
-  V1TaskStatus,
 } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { XCircleIcon } from '@heroicons/react/24/outline';
@@ -27,12 +26,6 @@ import {
 } from '@/components/v1/molecules/data-table/data-table-options';
 import { IDGetter } from '@/components/v1/molecules/data-table/data-table';
 
-export const TASK_RUN_TERMINAL_STATUSES = [
-  V1TaskStatus.CANCELLED,
-  V1TaskStatus.FAILED,
-  V1TaskStatus.COMPLETED,
-];
-
 export type ActionType = 'cancel' | 'replay';
 
 export type BaseTaskRunActionParams =
@@ -49,7 +42,7 @@ export type BaseTaskRunActionParams =
       externalIds?: never;
     };
 
-export type TaskRunActionsParams =
+type TaskRunActionsParams =
   | {
       actionType: 'cancel';
       filter?: never;
@@ -71,7 +64,7 @@ export type TaskRunActionsParams =
       externalIds?: never;
     };
 
-export const useTaskRunActions = () => {
+const useTaskRunActions = () => {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 

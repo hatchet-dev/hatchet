@@ -1,27 +1,27 @@
 /**
  * regular expression to check for valid hour format (01-23)
  */
-export function isValidHour(value: string) {
+function isValidHour(value: string) {
   return /^(0[0-9]|1[0-9]|2[0-3])$/.test(value);
 }
 
 /**
  * regular expression to check for valid 12 hour format (01-12)
  */
-export function isValid12Hour(value: string) {
+function isValid12Hour(value: string) {
   return /^(0[1-9]|1[0-2])$/.test(value);
 }
 
 /**
  * regular expression to check for valid minute format (00-59)
  */
-export function isValidMinuteOrSecond(value: string) {
+function isValidMinuteOrSecond(value: string) {
   return /^[0-5][0-9]$/.test(value);
 }
 
 type GetValidNumberConfig = { max: number; min?: number; loop?: boolean };
 
-export function getValidNumber(
+function getValidNumber(
   value: string,
   { max, min = 0, loop = false }: GetValidNumberConfig,
 ) {
@@ -49,21 +49,21 @@ export function getValidNumber(
   return '00';
 }
 
-export function getValidHour(value: string) {
+function getValidHour(value: string) {
   if (isValidHour(value)) {
     return value;
   }
   return getValidNumber(value, { max: 23 });
 }
 
-export function getValid12Hour(value: string) {
+function getValid12Hour(value: string) {
   if (isValid12Hour(value)) {
     return value;
   }
   return getValidNumber(value, { min: 1, max: 12 });
 }
 
-export function getValidMinuteOrSecond(value: string) {
+function getValidMinuteOrSecond(value: string) {
   if (isValidMinuteOrSecond(value)) {
     return value;
   }
@@ -76,7 +76,7 @@ type GetValidArrowNumberConfig = {
   step: number;
 };
 
-export function getValidArrowNumber(
+function getValidArrowNumber(
   value: string,
   { min, max, step }: GetValidArrowNumberConfig,
 ) {
@@ -88,37 +88,37 @@ export function getValidArrowNumber(
   return '00';
 }
 
-export function getValidArrowHour(value: string, step: number) {
+function getValidArrowHour(value: string, step: number) {
   return getValidArrowNumber(value, { min: 0, max: 23, step });
 }
 
-export function getValidArrow12Hour(value: string, step: number) {
+function getValidArrow12Hour(value: string, step: number) {
   return getValidArrowNumber(value, { min: 1, max: 12, step });
 }
 
-export function getValidArrowMinuteOrSecond(value: string, step: number) {
+function getValidArrowMinuteOrSecond(value: string, step: number) {
   return getValidArrowNumber(value, { min: 0, max: 59, step });
 }
 
-export function setMinutes(date: Date, value: string) {
+function setMinutes(date: Date, value: string) {
   const minutes = getValidMinuteOrSecond(value);
   date.setMinutes(parseInt(minutes, 10));
   return date;
 }
 
-export function setSeconds(date: Date, value: string) {
+function setSeconds(date: Date, value: string) {
   const seconds = getValidMinuteOrSecond(value);
   date.setSeconds(parseInt(seconds, 10));
   return date;
 }
 
-export function setHours(date: Date, value: string) {
+function setHours(date: Date, value: string) {
   const hours = getValidHour(value);
   date.setHours(parseInt(hours, 10));
   return date;
 }
 
-export function set12Hours(date: Date, value: string, period: Period) {
+function set12Hours(date: Date, value: string, period: Period) {
   const hours = parseInt(getValid12Hour(value), 10);
   const convertedHours = convert12HourTo24Hour(hours, period);
   date.setHours(convertedHours);
@@ -191,7 +191,7 @@ export function getArrowByType(
  * 12:00 PM is 12:00
  * 12:00 AM is 00:00
  */
-export function convert12HourTo24Hour(hour: number, period: Period) {
+function convert12HourTo24Hour(hour: number, period: Period) {
   if (period === 'PM') {
     if (hour <= 11) {
       return hour + 12;
@@ -212,7 +212,7 @@ export function convert12HourTo24Hour(hour: number, period: Period) {
  * but needs to be displayed to the user
  * in its 12-hour representation
  */
-export function display12HourValue(hours: number) {
+function display12HourValue(hours: number) {
   if (hours === 0 || hours === 12) {
     return '12';
   }

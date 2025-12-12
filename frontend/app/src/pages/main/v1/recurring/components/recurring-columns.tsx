@@ -22,17 +22,17 @@ export const CronColumn = {
   enabled: 'Enabled',
 };
 
-export type CronColumnKeys = keyof typeof CronColumn;
+type CronColumnKeys = keyof typeof CronColumn;
 
-export const enabledKey: CronColumnKeys = 'enabled';
-export const expressionKey: CronColumnKeys = 'expression';
-export const descriptionKey: CronColumnKeys = 'description';
-export const timezoneKey: CronColumnKeys = 'timezone';
-export const nameKey: CronColumnKeys = 'name';
+const enabledKey: CronColumnKeys = 'enabled';
+const expressionKey: CronColumnKeys = 'expression';
+const descriptionKey: CronColumnKeys = 'description';
+const timezoneKey: CronColumnKeys = 'timezone';
+const nameKey: CronColumnKeys = 'name';
 export const workflowKey: CronColumnKeys = 'workflow';
 export const metadataKey: CronColumnKeys = 'metadata';
-export const createdAtKey: CronColumnKeys = 'createdAt';
-export const actionsKey: CronColumnKeys = 'actions';
+const createdAtKey: CronColumnKeys = 'createdAt';
+const actionsKey: CronColumnKeys = 'actions';
 
 export const columns = ({
   tenantId,

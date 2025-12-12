@@ -13,12 +13,12 @@ export const FilterColumn = {
   isDeclarative: 'Is Declarative',
 } as const;
 
-export type FilterColumnKeys = keyof typeof FilterColumn;
+type FilterColumnKeys = keyof typeof FilterColumn;
 
-export const idKey = 'id';
+const idKey = 'id';
 export const workflowIdKey: FilterColumnKeys = 'workflowId';
 export const scopeKey: FilterColumnKeys = 'scope';
-export const expressionKey: FilterColumnKeys = 'expression';
+const expressionKey: FilterColumnKeys = 'expression';
 export const isDeclarativeKey: FilterColumnKeys = 'isDeclarative';
 
 export const filterColumns = (
