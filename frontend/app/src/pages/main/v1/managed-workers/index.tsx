@@ -1,7 +1,7 @@
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { Link } from 'react-router-dom';
 import { ManagedWorkersTable } from './components/managed-workers-table';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { useState } from 'react';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { queries } from '@/lib/api/queries';

@@ -24,13 +24,13 @@ export const WebhookColumn = {
   actions: 'Actions',
 };
 
-export type WebhookColumnKeys = keyof typeof WebhookColumn;
+type WebhookColumnKeys = keyof typeof WebhookColumn;
 
-export const nameKey: WebhookColumnKeys = 'name';
-export const sourceNameKey: WebhookColumnKeys = 'sourceName';
-export const expressionKey: WebhookColumnKeys = 'expression';
-export const authTypeKey: WebhookColumnKeys = 'authType';
-export const actionsKey: WebhookColumnKeys = 'actions';
+const nameKey: WebhookColumnKeys = 'name';
+const sourceNameKey: WebhookColumnKeys = 'sourceName';
+const expressionKey: WebhookColumnKeys = 'expression';
+const authTypeKey: WebhookColumnKeys = 'authType';
+const actionsKey: WebhookColumnKeys = 'actions';
 
 export const columns = (): ColumnDef<V1Webhook>[] => {
   return [

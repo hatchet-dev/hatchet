@@ -18,7 +18,7 @@ jobs:
         pg-version: ["15-alpine", "16-alpine", "17-alpine"]
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Task
         uses: arduino/setup-task@v2

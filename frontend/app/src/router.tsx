@@ -8,7 +8,7 @@ import {
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
 
-export const tenantedPaths = [
+const tenantedPaths = [
   '/tenants/:tenant/events',
   '/tenants/:tenant/filters',
   '/tenants/:tenant/webhooks',
@@ -401,7 +401,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
   }
 };
 
-export const routes: RouteObject[] = [
+const routes: RouteObject[] = [
   {
     path: '/',
     element: <Root />,
@@ -469,14 +469,13 @@ export const routes: RouteObject[] = [
           }),
         children: [
           {
-            path: '/',
-            lazy: async () => {
-              return {
-                loader: function () {
-                  return redirect('/workflow-runs');
-                },
-              };
-            },
+            index: true,
+            lazy: async () =>
+              import('./pages/root-redirect').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
           },
           {
             path: '/onboarding/create-tenant',
@@ -505,245 +504,6 @@ export const routes: RouteObject[] = [
                   loader: res.loader,
                 };
               }),
-          },
-          {
-            path: '/',
-            lazy: async () =>
-              import('./pages/main').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-            children: [
-              {
-                path: '/events',
-                lazy: async () =>
-                  import('./pages/main/events').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/rate-limits',
-                lazy: async () =>
-                  import('./pages/main/rate-limits').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/scheduled',
-                lazy: async () =>
-                  import('./pages/main/scheduled-runs').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/cron-jobs',
-                lazy: async () =>
-                  import('./pages/main/recurring').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workflows',
-                lazy: async () =>
-                  import('./pages/main/workflows').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workflows/:workflow',
-                lazy: async () =>
-                  import('./pages/main/workflows/$workflow').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workflow-runs',
-                lazy: async () =>
-                  import('./pages/main/workflow-runs').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workflow-runs/:run',
-                lazy: async () =>
-                  import('./pages/main/workflow-runs/$run').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workers',
-                lazy: async () => {
-                  return {
-                    loader: function () {
-                      return redirect('/workers/all');
-                    },
-                  };
-                },
-              },
-              {
-                path: '/workers/all',
-                lazy: async () =>
-                  import('./pages/main/workers').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workers/webhook',
-                lazy: async () =>
-                  import('./pages/main/workers/webhooks/index.tsx').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/workers/:worker',
-                lazy: async () =>
-                  import('./pages/main/workers/$worker').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/managed-workers',
-                lazy: async () =>
-                  import('./pages/main/managed-workers/index.tsx').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/managed-workers/demo-template',
-                lazy: async () =>
-                  import(
-                    './pages/main/managed-workers/demo-template/index.tsx'
-                  ).then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/managed-workers/create',
-                lazy: async () =>
-                  import('./pages/main/managed-workers/create/index.tsx').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/managed-workers/:managed-worker',
-                lazy: async () =>
-                  import(
-                    './pages/main/managed-workers/$managed-worker/index.tsx'
-                  ).then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/tenant-settings/overview',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/overview').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/api-tokens',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/api-tokens').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/github',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/github').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/tenant-settings/members',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/members').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/tenant-settings/alerting',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/alerting').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/billing-and-limits',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/resource-limits').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/ingestors',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/ingestors').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-            ],
           },
         ],
       },

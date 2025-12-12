@@ -430,6 +430,9 @@ TaskStatusStat:
       type: array
       items:
         $ref: "#/ConcurrencyStat"
+    oldest:
+      type: string
+      format: date-time
   type: object
 
 ConcurrencyStat:

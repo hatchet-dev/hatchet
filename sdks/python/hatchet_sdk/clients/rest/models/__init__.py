@@ -31,6 +31,7 @@ from hatchet_sdk.clients.rest.models.cancel_event_request import CancelEventRequ
 from hatchet_sdk.clients.rest.models.concurrency_limit_strategy import (
     ConcurrencyLimitStrategy,
 )
+from hatchet_sdk.clients.rest.models.concurrency_stat import ConcurrencyStat
 from hatchet_sdk.clients.rest.models.create_api_token_request import (
     CreateAPITokenRequest,
 )
@@ -149,6 +150,8 @@ from hatchet_sdk.clients.rest.models.step_run_event_list import StepRunEventList
 from hatchet_sdk.clients.rest.models.step_run_event_reason import StepRunEventReason
 from hatchet_sdk.clients.rest.models.step_run_event_severity import StepRunEventSeverity
 from hatchet_sdk.clients.rest.models.step_run_status import StepRunStatus
+from hatchet_sdk.clients.rest.models.task_stat import TaskStat
+from hatchet_sdk.clients.rest.models.task_status_stat import TaskStatusStat
 from hatchet_sdk.clients.rest.models.tenant import Tenant
 from hatchet_sdk.clients.rest.models.tenant_alert_email_group import (
     TenantAlertEmailGroup,

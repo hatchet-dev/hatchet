@@ -2176,6 +2176,8 @@ export interface TaskStatusStat {
   total?: number;
   queues?: Record<string, number>;
   concurrency?: ConcurrencyStat[];
+  /** @format date-time */
+  oldest?: string;
 }
 
 export interface TaskStat {

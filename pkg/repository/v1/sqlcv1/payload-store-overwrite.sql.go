@@ -16,7 +16,14 @@ type CutoverPayloadToInsert struct {
 	ExternalLocationKey string
 }
 
-func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName string, payloads []CutoverPayloadToInsert) (int64, error) {
+type InsertCutOverPayloadsIntoTempTableRow struct {
+	TenantId   pgtype.UUID
+	ID         int64
+	InsertedAt pgtype.Timestamptz
+	Type       V1PayloadType
+}
+
+func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName string, payloads []CutoverPayloadToInsert) (*InsertCutOverPayloadsIntoTempTableRow, error) {
 	tenantIds := make([]pgtype.UUID, 0, len(payloads))
 	ids := make([]int64, 0, len(payloads))
 	insertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
@@ -65,11 +72,12 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 					FROM inputs
 					ORDER BY tenant_id, inserted_at, id, type
 					ON CONFLICT(tenant_id, id, inserted_at, type) DO NOTHING
-					RETURNING *
 				)
 
-				SELECT COUNT(*)
-				FROM inserts
+				SELECT tenant_id, inserted_at, id, type
+				FROM inputs
+				ORDER BY tenant_id DESC, inserted_at DESC, id DESC, type DESC
+				LIMIT 1
 				`,
 			tableName,
 		),
@@ -82,10 +90,16 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 		externalLocationKeys,
 	)
 
-	var copyCount int64
-	err := row.Scan(&copyCount)
+	var insertRow InsertCutOverPayloadsIntoTempTableRow
 
-	return copyCount, err
+	err := row.Scan(
+		&insertRow.TenantId,
+		&insertRow.InsertedAt,
+		&insertRow.ID,
+		&insertRow.Type,
+	)
+
+	return &insertRow, err
 }
 
 func ComparePartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionName, sourcePartitionName string) (bool, error) {
@@ -124,12 +138,13 @@ WITH partitions AS (
     JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
     JOIN pg_class child ON pg_inherits.inhrelid = child.oid
     WHERE parent.relname = 'v1_payload'
-    ORDER BY child.relname
+    ORDER BY child.relname DESC
+	LIMIT $1::INTEGER
 )
 
 SELECT partition_name, lower_bound AS partition_date
 FROM partitions
-WHERE lower_bound <= $1::DATE
+WHERE lower_bound <= $2::DATE
 `
 
 type FindV1PayloadPartitionsBeforeDateRow struct {
@@ -137,8 +152,9 @@ type FindV1PayloadPartitionsBeforeDateRow struct {
 	PartitionDate pgtype.Date `json:"partition_date"`
 }
 
-func (q *Queries) FindV1PayloadPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*FindV1PayloadPartitionsBeforeDateRow, error) {
+func (q *Queries) FindV1PayloadPartitionsBeforeDate(ctx context.Context, db DBTX, maxPartitionsToProcess int32, date pgtype.Date) ([]*FindV1PayloadPartitionsBeforeDateRow, error) {
 	rows, err := db.Query(ctx, findV1PayloadPartitionsBeforeDate,
+		maxPartitionsToProcess,
 		date,
 	)
 	if err != nil {

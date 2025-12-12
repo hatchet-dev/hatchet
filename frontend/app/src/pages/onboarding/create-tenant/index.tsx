@@ -3,7 +3,6 @@ import api, {
   queries,
   Tenant,
   TenantEnvironment,
-  TenantVersion,
 } from '@/lib/api';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useApiError } from '@/lib/hooks';
@@ -13,7 +12,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { TenantCreateForm } from './components/tenant-create-form';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { HearAboutUsForm } from './components/hear-about-us-form';
 import { WhatBuildingForm } from './components/what-building-form';
 import { StepProgress } from './components/step-progress';
@@ -140,11 +139,7 @@ export default function CreateTenant() {
         }
 
         const tenant = result.data as Tenant;
-        if (tenant.version === TenantVersion.V1) {
-          window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
-        } else {
-          window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
-        }
+        window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
       }, 0);
     },
     onError: handleApiError,
