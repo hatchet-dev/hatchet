@@ -5,18 +5,19 @@ import api, {
   CreateTenantRequest,
   queries,
 } from '@/lib/api';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { Evaluate } from '@/lib/can/shared/permission.base';
 import { useAtom } from 'jotai';
+import { appRoutes } from '@/router';
 
 type Plan = 'free' | 'starter' | 'growth';
 
 export function useCurrentTenantId() {
-  const params = useParams();
+  const params = useParams({ from: appRoutes.tenantRoute.to });
   const tenantId = params.tenant;
 
   invariant(tenantId, 'Tenant ID is required');
@@ -25,7 +26,9 @@ export function useCurrentTenantId() {
 }
 
 export function useTenantDetails() {
-  const params = useParams();
+  // Allow calling this hook even when not currently on a tenant route
+  // (e.g., onboarding pages). When not matched, params will be empty.
+  const params = useParams({ strict: false });
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const tenantId = params.tenant || lastTenant?.metadata.id;
 
@@ -53,7 +56,7 @@ export function useTenantDetails() {
 
       setLastTenant(tenant);
       queryClient.clear();
-      navigate(newPath);
+      navigate({ to: newPath });
     },
     [navigate, location.pathname, setLastTenant, queryClient],
   );

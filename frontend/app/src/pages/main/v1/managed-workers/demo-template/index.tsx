@@ -1,6 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeftIcon } from '@radix-ui/react-icons';
 import {
@@ -30,6 +30,7 @@ import {
 } from '@/components/v1/ui/tabs';
 import { GitHubLogoIcon } from '@radix-ui/react-icons';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { appRoutes } from '@/router';
 
 export default function DemoTemplate() {
   const { tenantId } = useCurrentTenantId();
@@ -351,7 +352,11 @@ func main() {
     <div className="flex-grow h-full w-full">
       <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row items-center mb-4">
-          <Link to={`/tenants/${tenantId}/managed-workers`} className="mr-4">
+          <Link
+            to={appRoutes.tenantManagedWorkersRoute.to}
+            params={{ tenant: tenantId }}
+            className="mr-4"
+          >
             <Button variant="ghost" size="icon">
               <ArrowLeftIcon className="h-4 w-4" />
             </Button>
@@ -655,14 +660,18 @@ func main() {
                           <p className="text-sm text-muted-foreground flex justify-between items-center">
                             <span>{deploymentStatus}</span>
                             {deployedWorkerId && (
-                              <a
-                                href={`/tenants/${tenantId}/managed-workers/${deployedWorkerId}`}
+                              <Link
+                                to={appRoutes.tenantManagedWorkerRoute.to}
+                                params={{
+                                  tenant: tenantId,
+                                  'managed-worker': deployedWorkerId,
+                                }}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary hover:underline ml-2"
                               >
                                 View Logs
-                              </a>
+                              </Link>
                             )}
                           </p>
                         </div>
@@ -887,7 +896,11 @@ func main() {
                   {/* Main action button */}
                   {deployedWorkerId && (
                     <Link
-                      to={`/tenants/${tenantId}/managed-workers/${deployedWorkerId}`}
+                      to={appRoutes.tenantManagedWorkerRoute.to}
+                      params={{
+                        tenant: tenantId,
+                        'managed-worker': deployedWorkerId,
+                      }}
                     >
                       <Button variant="default" className="w-full mb-4">
                         View Your Service
@@ -897,12 +910,18 @@ func main() {
 
                   {/* Secondary action buttons */}
                   <div className="grid grid-cols-2 gap-3">
-                    <Link to={`/tenants/${tenantId}/runs`}>
+                    <Link
+                      to={appRoutes.tenantRunsRoute.to}
+                      params={{ tenant: tenantId }}
+                    >
                       <Button variant="outline" className="w-full">
                         View Runs
                       </Button>
                     </Link>
-                    <Link to={`/tenants/${tenantId}/workflows`}>
+                    <Link
+                      to={appRoutes.tenantWorkflowsRoute.to}
+                      params={{ tenant: tenantId }}
+                    >
                       <Button variant="outline" className="w-full">
                         View RegisteredTasks
                       </Button>

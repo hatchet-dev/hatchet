@@ -1,7 +1,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { CronWorkflows } from '@/lib/api';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { Badge } from '@/components/v1/ui/badge';
@@ -9,6 +9,7 @@ import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data
 import { extractCronTz, formatCron } from '@/lib/utils';
 import { Check, X } from 'lucide-react';
 import { Spinner } from '@/components/v1/ui/loading';
+import { appRoutes } from '@/router';
 
 export const CronColumn = {
   expression: 'Expression',
@@ -112,7 +113,8 @@ export const columns = ({
         <div className="flex flex-row items-center gap-4">
           <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
             <Link
-              to={`/tenants/${tenantId}/workflows/${row.original.workflowId}`}
+              to={appRoutes.tenantWorkflowRoute.to}
+              params={{ tenant: tenantId, workflow: row.original.workflowId }}
             >
               {row.original.workflowName}
             </Link>

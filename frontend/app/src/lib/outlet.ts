@@ -1,4 +1,4 @@
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from '@/lib/router-helpers';
 import { TenantMember, User } from './api';
 
 export type UserContextType = { user: User };

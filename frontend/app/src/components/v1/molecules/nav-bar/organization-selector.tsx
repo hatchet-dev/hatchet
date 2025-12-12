@@ -33,10 +33,11 @@ import {
 import { Input } from '@/components/v1/ui/input';
 import { TooltipProvider } from '@/components/v1/ui/tooltip';
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useOrganizations } from '@/hooks/use-organizations';
 import invariant from 'tiny-invariant';
+import { appRoutes } from '@/router';
 
 interface OrganizationGroupProps {
   organization: OrganizationForUser;
@@ -191,7 +192,7 @@ export function OrganizationSelector({
   const handleNavigate = (path: string) => {
     // Store the current path before navigating to org settings
     sessionStorage.setItem('orgSettingsPreviousPath', window.location.pathname);
-    navigate(path, { replace: false });
+    navigate({ to: path as string, replace: false });
   };
 
   const handleTenantSelect = (tenant: Tenant) => {
@@ -219,7 +220,10 @@ export function OrganizationSelector({
     handleCreateOrganization(orgName.trim(), (organizationId) => {
       setShowCreateModal(false);
       setOrgName('');
-      navigate(`/organizations/${organizationId}`);
+      navigate({
+        to: appRoutes.organizationsRoute.to,
+        params: { organization: organizationId },
+      });
     });
   };
 

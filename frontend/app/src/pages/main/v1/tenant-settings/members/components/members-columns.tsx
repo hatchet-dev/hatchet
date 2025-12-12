@@ -3,7 +3,7 @@ import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data
 import api, { TenantMember, queries } from '@/lib/api';
 import { capitalize } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from '@/lib/router-helpers';
 import { UserContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { useMutation } from '@tanstack/react-query';

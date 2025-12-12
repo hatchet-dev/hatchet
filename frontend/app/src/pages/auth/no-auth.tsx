@@ -1,7 +1,8 @@
-import { redirect } from 'react-router-dom';
+import { redirect } from '@tanstack/react-router';
 import api from '@/lib/api';
 import queryClient from '@/query-client';
 import { AxiosError, isAxiosError } from 'axios';
+import { appRoutes } from '@/router';
 
 const noAuthMiddleware = async () => {
   try {
@@ -15,7 +16,7 @@ const noAuthMiddleware = async () => {
     });
 
     if (user) {
-      throw redirect('/');
+      throw redirect({ to: appRoutes.authenticatedRoute.to });
     }
   } catch (error) {
     if (error instanceof Response) {

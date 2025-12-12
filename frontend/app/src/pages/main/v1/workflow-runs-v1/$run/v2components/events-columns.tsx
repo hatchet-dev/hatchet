@@ -9,7 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { cn, emptyGolangUUID } from '@/lib/utils';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/v1/ui/button';
 import {
   Popover,
@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
 import { EventWithMetadata } from './step-run-events-for-workflow-run';
+import { appRoutes } from '@/router';
 
 function eventTypeToSeverity(
   eventType: V1TaskEventType | undefined,
@@ -125,7 +126,8 @@ export const columns = ({
         if (event.workerId && event.workerId !== emptyGolangUUID) {
           items.push(
             <Link
-              to={`/tenants/${tenantId}/workers/${event.workerId}`}
+              to={appRoutes.tenantWorkerRoute.to}
+              params={{ tenant: tenantId, worker: event.workerId }}
               key="worker"
             >
               <Button

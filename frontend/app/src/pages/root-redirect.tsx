@@ -1,8 +1,9 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useEffect } from 'react';
+import { appRoutes } from '@/router';
 
 export default function RootRedirect() {
   const navigate = useNavigate();
@@ -19,7 +20,9 @@ export default function RootRedirect() {
     ) {
       const firstTenant = listMembershipsQuery.data.rows[0].tenant;
       if (firstTenant) {
-        navigate(`/tenants/${firstTenant.metadata.id}`, {
+        navigate({
+          to: appRoutes.tenantRoute.to,
+          params: { tenant: firstTenant.metadata.id },
           replace: true,
         });
       }

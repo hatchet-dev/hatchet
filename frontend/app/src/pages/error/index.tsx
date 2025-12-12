@@ -1,13 +1,15 @@
 import { Button } from '@/components/v1/ui/button';
 import { PropsWithChildren } from 'react';
-import { ErrorResponse, useNavigate, useRouteError } from 'react-router-dom';
-import { useLocation } from 'react-router-dom';
+import {
+  ErrorComponentProps,
+  useLocation,
+  useNavigate,
+} from '@tanstack/react-router';
+import { appRoutes } from '@/router';
 
-export default function ErrorBoundary() {
+export default function ErrorBoundary({ error }: ErrorComponentProps) {
   const navigate = useNavigate();
   const location = useLocation();
-
-  const error = useRouteError();
 
   console.error(error);
 
@@ -37,36 +39,47 @@ export default function ErrorBoundary() {
         <Button onClick={() => window.location.reload()}>
           Reload to Update
         </Button>
-        <Button onClick={() => navigate('/')} variant="outline">
+        <Button
+          onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
+          variant="outline"
+        >
           Return to Dashboard
         </Button>
       </Layout>
     );
   }
 
-  if ((error as ErrorResponse).status === 404) {
+  if ((error as { status?: number }).status === 404) {
     return (
       <Layout>
         <h1 className="text-2xl font-semibold tracking-tight">404</h1>
         <h2 className="text-xl font-semibold tracking-tight">Page Not Found</h2>
-        <Button onClick={() => navigate('/')}>Return to Dashboard</Button>
+        <Button
+          onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
+        >
+          Return to Dashboard
+        </Button>
       </Layout>
     );
   }
 
   return (
     <Layout>
-      {(error as ErrorResponse).status && (
+      {(error as { status?: number }).status && (
         <h1 className="text-2xl font-semibold tracking-tight">
-          {(error as ErrorResponse).status}
+          {(error as { status?: number }).status}
         </h1>
       )}
       <h2 className="text-xl font-semibold tracking-tight">
-        {(error as ErrorResponse).statusText || 'Something went wrong'}
+        {(error as { statusText?: string }).statusText ||
+          'Something went wrong'}
       </h2>
 
       <Button onClick={() => window.location.reload()}>Try Again</Button>
-      <Button onClick={() => navigate('/')} variant="outline">
+      <Button
+        onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
+        variant="outline"
+      >
         Return to Dashboard
       </Button>
     </Layout>

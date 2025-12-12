@@ -1,7 +1,7 @@
 import { Separator } from '@/components/v1/ui/separator';
 import { queries } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import invariant from 'tiny-invariant';
 import { relativeDate } from '@/lib/utils';
 import { CpuChipIcon } from '@heroicons/react/24/outline';
@@ -26,6 +26,7 @@ import { useApiError } from '@/lib/hooks';
 import GithubButton from './components/github-button';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { appRoutes } from '@/router';
 
 export default function ExpandedWorkflow() {
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ export default function ExpandedWorkflow() {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
 
-  const params = useParams();
+  const params = useParams({ from: appRoutes.tenantManagedWorkerRoute.to });
   invariant(params['managed-worker']);
 
   const managedWorkerQuery = useQuery({
@@ -78,7 +79,10 @@ export default function ExpandedWorkflow() {
     },
     onSuccess: () => {
       setDeleteWorker(false);
-      navigate(`/tenants/${tenantId}/managed-workers`);
+      navigate({
+        to: appRoutes.tenantManagedWorkersRoute.to,
+        params: { tenant: tenantId },
+      });
     },
     onError: handleApiError,
   });

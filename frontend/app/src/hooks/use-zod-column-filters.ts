@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from '@/lib/router-helpers';
 import { useCallback, useMemo } from 'react';
 import { ColumnFiltersState, Updater } from '@tanstack/react-table';
 

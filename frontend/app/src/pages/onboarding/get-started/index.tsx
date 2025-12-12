@@ -10,7 +10,7 @@ import {
 import { Step, Steps } from '@/components/v1/ui/steps';
 import { MembershipsContextType, UserContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from '@/lib/router-helpers';
 import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-auth';
 import { DefaultOnboardingWorkflow } from './platforms/defaults/default-onboarding-workflow';
 import { WorkerListener } from './platforms/defaults/default-worker-listener';

@@ -2,7 +2,7 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import posthog from 'posthog-js';
 import { PostHogProvider as PhProvider, usePostHog } from 'posthog-js/react';
 import { useEffect, useRef, useMemo, createContext } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from '@tanstack/react-router';
 import type { User } from '@/lib/api';
 import { useTenantDetails } from '@/hooks/use-tenant';
 
@@ -150,8 +150,8 @@ function PostHogPageView() {
     }
 
     let url = window.origin + location.pathname;
-    if (location.search) {
-      url = `${url}${location.search}`;
+    if (location.searchStr) {
+      url = `${url}?${location.searchStr}`;
     }
 
     posthogClient.capture('$pageview', { $current_url: url });
