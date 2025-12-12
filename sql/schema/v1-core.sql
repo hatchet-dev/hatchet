@@ -1938,10 +1938,14 @@ CREATE OR REPLACE FUNCTION create_payload_offload_range_chunks(
     last_id bigint,
     last_type v1_payload_type
 ) RETURNS TABLE (
-    tenant_id UUID,
-    id BIGINT,
-    inserted_at TIMESTAMPTZ,
-    type v1_payload_type
+    lower_tenant_id UUID,
+    lower_id BIGINT,
+    lower_inserted_at TIMESTAMPTZ,
+    lower_type v1_payload_type,
+    upper_tenant_id UUID,
+    upper_id BIGINT,
+    upper_inserted_at TIMESTAMPTZ,
+    upper_type v1_payload_type
 )
     LANGUAGE plpgsql AS
 $$
@@ -1967,18 +1971,35 @@ BEGIN
             FROM %I
             WHERE (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
             ORDER BY tenant_id, inserted_at, id, type
-            LIMIT $5
+            LIMIT $5::INTEGER
+        ), lower_bounds AS (
+            SELECT rn::INTEGER / $5::INTEGER AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
+            FROM paginated
+            WHERE MOD(rn, $6::INTEGER) = 1
+        ), upper_bounds AS (
+            SELECT rn::INTEGER / $5::INTEGER AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
+            FROM paginated
+            WHERE MOD(rn, $6::INTEGER) = 0
         )
 
-        SELECT tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
-        FROM paginated
-        WHERE MOD(rn, $6::INTEGER) = 1
+        SELECT
+            lb.tenant_id AS lower_tenant_id,
+            lb.id AS lower_id,
+            lb.inserted_at AS lower_inserted_at,
+            lb.type AS lower_type,
+            ub.tenant_id AS upper_tenant_id,
+            ub.id AS upper_id,
+            ub.inserted_at AS upper_inserted_at,
+            ub.type AS upper_type
+        FROM lower_bounds lb
+        JOIN upper_bounds ub ON lb.batch_ix = ub.batch_ix
         ORDER BY tenant_id, inserted_at, id, type
     ', source_partition_name);
 
     RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, window_size, chunk_size;
 END;
 $$;
+
 
 CREATE OR REPLACE FUNCTION swap_v1_payload_partition_with_temp(
     partition_date date

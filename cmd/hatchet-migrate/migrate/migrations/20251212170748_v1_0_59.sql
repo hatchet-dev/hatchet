@@ -112,10 +112,14 @@ CREATE OR REPLACE FUNCTION create_payload_offload_range_chunks(
     last_id bigint,
     last_type v1_payload_type
 ) RETURNS TABLE (
-    tenant_id UUID,
-    id BIGINT,
-    inserted_at TIMESTAMPTZ,
-    type v1_payload_type
+    lower_tenant_id UUID,
+    lower_id BIGINT,
+    lower_inserted_at TIMESTAMPTZ,
+    lower_type v1_payload_type,
+    upper_tenant_id UUID,
+    upper_id BIGINT,
+    upper_inserted_at TIMESTAMPTZ,
+    upper_type v1_payload_type
 )
     LANGUAGE plpgsql AS
 $$
@@ -141,12 +145,28 @@ BEGIN
             FROM %I
             WHERE (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
             ORDER BY tenant_id, inserted_at, id, type
-            LIMIT $5
+            LIMIT $5::INTEGER
+        ), lower_bounds AS (
+            SELECT rn::INTEGER / $5::INTEGER AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
+            FROM paginated
+            WHERE MOD(rn, $6::INTEGER) = 1
+        ), upper_bounds AS (
+            SELECT rn::INTEGER / $5::INTEGER AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
+            FROM paginated
+            WHERE MOD(rn, $6::INTEGER) = 0
         )
 
-        SELECT tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
-        FROM paginated
-        WHERE MOD(rn, $6::INTEGER) = 1
+        SELECT
+            lb.tenant_id AS lower_tenant_id,
+            lb.id AS lower_id,
+            lb.inserted_at AS lower_inserted_at,
+            lb.type AS lower_type,
+            ub.tenant_id AS upper_tenant_id,
+            ub.id AS upper_id,
+            ub.inserted_at AS upper_inserted_at,
+            ub.type AS upper_type
+        FROM lower_bounds lb
+        JOIN upper_bounds ub ON lb.batch_ix = ub.batch_ix
         ORDER BY tenant_id, inserted_at, id, type
     ', source_partition_name);
 
@@ -162,9 +182,12 @@ CREATE OR REPLACE FUNCTION create_olap_payload_offload_range_chunks(
     last_external_id uuid,
     last_inserted_at timestamptz
 ) RETURNS TABLE (
-    tenant_id UUID,
-    external_id UUID,
-    inserted_at TIMESTAMPTZ
+    lower_tenant_id UUID,
+    lower_external_id UUID,
+    lower_inserted_at TIMESTAMPTZ,
+    upper_tenant_id UUID,
+    upper_external_id UUID,
+    upper_inserted_at TIMESTAMPTZ
 )
     LANGUAGE plpgsql AS
 $$
@@ -191,11 +214,25 @@ BEGIN
             WHERE (tenant_id, external_id, inserted_at) >= ($1, $2, $3)
             ORDER BY tenant_id, external_id, inserted_at
             LIMIT $4
+        ), lower_bounds AS (
+            SELECT rn::INTEGER / $4::INTEGER AS batch_ix, tenant_id::UUID, external_id::UUID, inserted_at::TIMESTAMPTZ
+            FROM paginated
+            WHERE MOD(rn, $5::INTEGER) = 1
+        ), upper_bounds AS (
+            SELECT rn::INTEGER / $4::INTEGER AS batch_ix, tenant_id::UUID, external_id::UUID, inserted_at::TIMESTAMPTZ
+            FROM paginated
+            WHERE MOD(rn, $5::INTEGER) = 0
         )
 
-        SELECT tenant_id::UUID, external_id::UUID, inserted_at::TIMESTAMPTZ
-        FROM paginated
-        WHERE MOD(rn, $5::INTEGER) = 1
+        SELECT
+            lb.tenant_id AS tenant_id,
+            lb.external_id AS external_id,
+            lb.inserted_at AS inserted_at,
+            ub.tenant_id AS tenant_id,
+            ub.external_id AS external_id,
+            ub.inserted_at AS inserted_at
+        FROM lower_bounds lb
+        JOIN upper_bounds ub ON lb.batch_ix = ub.batch_ix
         ORDER BY tenant_id, external_id, inserted_at
     ', source_partition_name);
 
