@@ -153,8 +153,8 @@ BEGIN
         ), upper_bounds AS (
             SELECT
                 CASE
-                    WHEN rn = (SELECT MAX(rn) FROM paginated) THEN (rn::INTEGER / 4::INTEGER)
-                    ELSE (rn::INTEGER / 4::INTEGER) - 1
+                    WHEN rn = (SELECT MAX(rn) FROM paginated) THEN (rn::INTEGER / $6::INTEGER)
+                    ELSE (rn::INTEGER / $6::INTEGER) - 1
                 END AS batch_ix,
                 tenant_id::UUID,
                 id::BIGINT,
@@ -229,8 +229,8 @@ BEGIN
         ), upper_bounds AS (
             SELECT
                 CASE
-                    WHEN rn = (SELECT MAX(rn) FROM paginated) THEN (rn::INTEGER / 4::INTEGER)
-                    ELSE (rn::INTEGER / 4::INTEGER) - 1
+                    WHEN rn = (SELECT MAX(rn) FROM paginated) THEN (rn::INTEGER /$5::INTEGER)
+                    ELSE (rn::INTEGER / $5::INTEGER) - 1
                 END AS batch_ix,
                 tenant_id::UUID,
                 external_id::UUID,
