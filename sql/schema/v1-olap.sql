@@ -1016,7 +1016,7 @@ BEGIN
                 -- We need the `CEIL` to handle the case where the number of rows in the window is not evenly divisible by the batch size,
                 -- because without CEIL if e.g. there were 5 rows in the window and a batch size of two and we did integer division, we would end
                 -- up with batches of index 0, 1, and 1 after dividing and subtracting. With float division and `CEIL`, we get 0, 1, and 2 as expected.
-                -- Then we need to subtract one because we compute the batch size by using integer division on the lower bounds, which are all zero indexed.
+                -- Then we need to subtract one because we compute the batch index by using integer division on the lower bounds, which are all zero indexed.
                 CEIL(rn::FLOAT / $5::FLOAT) - 1 AS batch_ix,
                 tenant_id::UUID,
                 external_id::UUID,
