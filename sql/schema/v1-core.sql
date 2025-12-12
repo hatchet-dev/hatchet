@@ -1987,7 +1987,7 @@ BEGIN
                 inserted_at::TIMESTAMPTZ,
                 type::v1_payload_type
             FROM paginated
-            WHERE MOD(rn, $6::INTEGER) = 0
+            WHERE MOD(rn, $6::INTEGER) = 0 OR rn = (SELECT MAX(rn) FROM paginated)
         )
 
         SELECT

@@ -161,7 +161,7 @@ BEGIN
                 inserted_at::TIMESTAMPTZ,
                 type::v1_payload_type
             FROM paginated
-            WHERE MOD(rn, $6::INTEGER) = 0
+            WHERE MOD(rn, $6::INTEGER) = 0 OR rn = (SELECT MAX(rn) FROM paginated)
         )
 
         SELECT
@@ -236,7 +236,7 @@ BEGIN
                 external_id::UUID,
                 inserted_at::TIMESTAMPTZ
             FROM paginated
-            WHERE MOD(rn, $5::INTEGER) = 0
+            WHERE MOD(rn, $5::INTEGER) = 0 OR rn = (SELECT MAX(rn) FROM paginated)
         )
 
         SELECT
