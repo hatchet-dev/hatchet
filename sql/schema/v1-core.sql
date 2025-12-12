@@ -1978,12 +1978,18 @@ BEGIN
             WHERE MOD(rn, $6::INTEGER) = 1
         ), upper_bounds AS (
             SELECT
+                -- Using `CEIL` and subtracting 1 here to make the `batch_ix` zero indexed like the `lower_bounds` one is.
+                -- We need the `CEIL` to handle the case where the number of rows in the window is not evenly divisible by the batch size,
+                -- because without CEIL if e.g. there were 5 rows in the window and a batch size of two and we did integer division, we would end
+                -- up with batches of index 0, 1, and 1 after dividing and subtracting. With float division and `CEIL`, we get 0, 1, and 2 as expected.
+                -- Then we need to subtract one because we compute the batch size by using integer division on the lower bounds, which are all zero indexed.
                 CEIL(rn::FLOAT / $6::FLOAT) - 1 AS batch_ix,
                 tenant_id::UUID,
                 id::BIGINT,
                 inserted_at::TIMESTAMPTZ,
                 type::v1_payload_type
             FROM paginated
+            -- We want to include either the last row of each batch, or the last row of the entire paginated set, which may not line up with a batch end.
             WHERE MOD(rn, $6::INTEGER) = 0 OR rn = (SELECT MAX(rn) FROM paginated)
         )
 
