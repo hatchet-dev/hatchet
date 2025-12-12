@@ -167,7 +167,7 @@ BEGIN
             ub.type AS upper_type
         FROM lower_bounds lb
         JOIN upper_bounds ub ON lb.batch_ix = ub.batch_ix
-        ORDER BY lower_tenant_id, lower_inserted_at, lower_id, lower_type
+        ORDER BY lb.tenant_id, lb.inserted_at, lb.id, lb.type
     ', source_partition_name);
 
     RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, window_size, chunk_size;
@@ -233,7 +233,7 @@ BEGIN
             ub.inserted_at AS upper_inserted_at
         FROM lower_bounds lb
         JOIN upper_bounds ub ON lb.batch_ix = ub.batch_ix
-        ORDER BY lower_tenant_id, lower_external_id, lower_inserted_at
+        ORDER BY lb.tenant_id, lb.external_id, lb.inserted_at
     ', source_partition_name);
 
     RETURN QUERY EXECUTE query USING last_tenant_id, last_external_id, last_inserted_at, window_size, chunk_size;
