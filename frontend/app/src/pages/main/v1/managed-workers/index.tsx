@@ -31,23 +31,6 @@ export default function ManagedWorkers() {
     managedCompute.canCreateWorkerPool(workerPoolCount),
   );
 
-  // const { handleApiError } = useApiError({});
-
-  // const manageClicked = async () => {
-  //   try {
-  //     if (portalLoading) {
-  //       return;
-  //     }
-  //     setPortalLoading(true);
-  //     const link = await cloudApi.billingPortalLinkGet(tenant!.metadata.id);
-  //     window.open(link.data.url, '_blank');
-  //   } catch (e) {
-  //     handleApiError(e as any);
-  //   } finally {
-  //     setPortalLoading(false);
-  //   }
-  // };
-
   // Get limit based on plan
   const getWorkerPoolLimit = () => {
     if (!billing?.plan) {
