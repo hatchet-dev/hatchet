@@ -1993,7 +1993,7 @@ BEGIN
             ub.type AS upper_type
         FROM lower_bounds lb
         JOIN upper_bounds ub ON lb.batch_ix = ub.batch_ix
-        ORDER BY tenant_id, inserted_at, id, type
+        ORDER BY lower_tenant_id, lower_inserted_at, lower_id, lower_type
     ', source_partition_name);
 
     RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, window_size, chunk_size;

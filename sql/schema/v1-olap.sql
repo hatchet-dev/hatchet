@@ -1017,15 +1017,15 @@ BEGIN
         )
 
         SELECT
-            lb.tenant_id AS tenant_id,
-            lb.external_id AS external_id,
-            lb.inserted_at AS inserted_at,
-            ub.tenant_id AS tenant_id,
-            ub.external_id AS external_id,
-            ub.inserted_at AS inserted_at
+            lb.tenant_id AS lower_tenant_id,
+            lb.external_id AS lower_external_id,
+            lb.inserted_at AS lower_inserted_at,
+            ub.tenant_id AS upper_tenant_id,
+            ub.external_id AS upper_external_id,
+            ub.inserted_at AS upper_inserted_at
         FROM lower_bounds lb
         JOIN upper_bounds ub ON lb.batch_ix = ub.batch_ix
-        ORDER BY tenant_id, external_id, inserted_at
+        ORDER BY lower_tenant_id, lower_external_id, lower_inserted_at
     ', source_partition_name);
 
     RETURN QUERY EXECUTE query USING last_tenant_id, last_external_id, last_inserted_at, window_size, chunk_size;
