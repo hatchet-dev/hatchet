@@ -1929,6 +1929,57 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION create_payload_offload_range_chunks(
+    partition_date date,
+    window_size int,
+    chunk_size int,
+    last_tenant_id uuid,
+    last_inserted_at timestamptz,
+    last_id bigint,
+    last_type v1_payload_type
+) RETURNS TABLE (
+    tenant_id UUID,
+    id BIGINT,
+    inserted_at TIMESTAMPTZ,
+    type v1_payload_type
+)
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    partition_date_str varchar;
+    source_partition_name varchar;
+    query text;
+BEGIN
+    IF partition_date IS NULL THEN
+        RAISE EXCEPTION 'partition_date parameter cannot be NULL';
+    END IF;
+
+    SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
+    SELECT format('v1_payload_%s', partition_date_str) INTO source_partition_name;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
+        RAISE EXCEPTION 'Partition % does not exist', source_partition_name;
+    END IF;
+
+    query := format('
+        WITH paginated AS (
+            SELECT tenant_id, id, inserted_at, type, ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, id, type) AS rn
+            FROM %I
+            WHERE (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
+            ORDER BY tenant_id, inserted_at, id, type
+            LIMIT $5
+        )
+
+        SELECT tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
+        FROM paginated
+        WHERE MOD(rn, $6::INTEGER) = 1
+        ORDER BY tenant_id, inserted_at, id, type
+    ', source_partition_name);
+
+    RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, window_size, chunk_size;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION swap_v1_payload_partition_with_temp(
     partition_date date
 ) RETURNS text

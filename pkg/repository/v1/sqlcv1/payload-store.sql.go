@@ -108,57 +108,34 @@ func (q *Queries) AnalyzeV1Payload(ctx context.Context, db DBTX) error {
 }
 
 const createPayloadRangeChunks = `-- name: CreatePayloadRangeChunks :many
-WITH payloads AS (
-    SELECT
-        (p).*
-    FROM list_paginated_payloads_for_offload(
-        $2::DATE,
-        $3::INTEGER,
-        $4::UUID,
-        $5::TIMESTAMPTZ,
-        $6::BIGINT,
-        $7::v1_payload_type
-    ) p
-), with_rows AS (
-    SELECT
-        tenant_id::UUID,
-        id::BIGINT,
-        inserted_at::TIMESTAMPTZ,
-        type::v1_payload_type,
-        ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, id, type) AS rn
-    FROM payloads
-)
-
-SELECT tenant_id, id, inserted_at, type, rn
-FROM with_rows
-WHERE MOD(rn, $1::INTEGER) = 1
-ORDER BY tenant_id, inserted_at, id, type
+SELECT
+    (p).*
+FROM create_payload_offload_range_chunks(
+    $1::DATE,
+    $2::INTEGER,
+    $3::INTEGER,
+    $4::UUID,
+    $5::TIMESTAMPTZ,
+    $6::BIGINT,
+    $7::v1_payload_type
+) p
 `
 
 type CreatePayloadRangeChunksParams struct {
-	Chunksize      int32              `json:"chunksize"`
 	Partitiondate  pgtype.Date        `json:"partitiondate"`
 	Windowsize     int32              `json:"windowsize"`
+	Chunksize      int32              `json:"chunksize"`
 	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 	Lastid         int64              `json:"lastid"`
 	Lasttype       V1PayloadType      `json:"lasttype"`
 }
 
-type CreatePayloadRangeChunksRow struct {
-	TenantID   pgtype.UUID        `json:"tenant_id"`
-	ID         int64              `json:"id"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	Type       V1PayloadType      `json:"type"`
-	Rn         int64              `json:"rn"`
-}
-
-// row numbers are one-indexed
-func (q *Queries) CreatePayloadRangeChunks(ctx context.Context, db DBTX, arg CreatePayloadRangeChunksParams) ([]*CreatePayloadRangeChunksRow, error) {
+func (q *Queries) CreatePayloadRangeChunks(ctx context.Context, db DBTX, arg CreatePayloadRangeChunksParams) ([]interface{}, error) {
 	rows, err := db.Query(ctx, createPayloadRangeChunks,
-		arg.Chunksize,
 		arg.Partitiondate,
 		arg.Windowsize,
+		arg.Chunksize,
 		arg.Lasttenantid,
 		arg.Lastinsertedat,
 		arg.Lastid,
@@ -168,19 +145,13 @@ func (q *Queries) CreatePayloadRangeChunks(ctx context.Context, db DBTX, arg Cre
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*CreatePayloadRangeChunksRow
+	var items []interface{}
 	for rows.Next() {
-		var i CreatePayloadRangeChunksRow
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.ID,
-			&i.InsertedAt,
-			&i.Type,
-			&i.Rn,
-		); err != nil {
+		var column_1 interface{}
+		if err := rows.Scan(&column_1); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, column_1)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -257,11 +228,14 @@ WITH payloads AS (
         (p).*
     FROM list_paginated_payloads_for_offload(
         $1::DATE,
-        $2::INT,
-        $3::UUID,
-        $4::TIMESTAMPTZ,
-        $5::BIGINT,
-        $6::v1_payload_type
+        $2::UUID,
+        $3::TIMESTAMPTZ,
+        $4::BIGINT,
+        $5::v1_payload_type,
+        $6::UUID,
+        $7::TIMESTAMPTZ,
+        $8::BIGINT,
+        $9::v1_payload_type
     ) p
 )
 SELECT
@@ -279,11 +253,14 @@ FROM payloads
 
 type ListPaginatedPayloadsForOffloadParams struct {
 	Partitiondate  pgtype.Date        `json:"partitiondate"`
-	Limitparam     int32              `json:"limitparam"`
 	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 	Lastid         int64              `json:"lastid"`
 	Lasttype       V1PayloadType      `json:"lasttype"`
+	Nexttenantid   pgtype.UUID        `json:"nexttenantid"`
+	Nextinsertedat pgtype.Timestamptz `json:"nextinsertedat"`
+	Nextid         int64              `json:"nextid"`
+	Nexttype       V1PayloadType      `json:"nexttype"`
 }
 
 type ListPaginatedPayloadsForOffloadRow struct {
@@ -301,11 +278,14 @@ type ListPaginatedPayloadsForOffloadRow struct {
 func (q *Queries) ListPaginatedPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedPayloadsForOffloadParams) ([]*ListPaginatedPayloadsForOffloadRow, error) {
 	rows, err := db.Query(ctx, listPaginatedPayloadsForOffload,
 		arg.Partitiondate,
-		arg.Limitparam,
 		arg.Lasttenantid,
 		arg.Lastinsertedat,
 		arg.Lastid,
 		arg.Lasttype,
+		arg.Nexttenantid,
+		arg.Nextinsertedat,
+		arg.Nextid,
+		arg.Nexttype,
 	)
 	if err != nil {
 		return nil, err

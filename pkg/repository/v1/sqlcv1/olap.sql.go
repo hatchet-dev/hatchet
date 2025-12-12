@@ -323,53 +323,32 @@ func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateO
 }
 
 const createOLAPPayloadRangeChunks = `-- name: CreateOLAPPayloadRangeChunks :many
-WITH payloads AS (
-    SELECT
-        (p).*
-    FROM list_paginated_olap_payloads_for_offload(
-        $2::DATE,
-        $3::INTEGER,
-        $4::UUID,
-        $5::UUID,
-        $6::TIMESTAMPTZ
-    ) p
-), with_rows AS (
-    SELECT
-        tenant_id::UUID,
-        external_id::UUID,
-        inserted_at::TIMESTAMPTZ,
-        ROW_NUMBER() OVER (ORDER BY tenant_id, external_id, inserted_at) AS rn
-    FROM payloads
-)
-
-SELECT tenant_id, external_id, inserted_at, rn
-FROM with_rows
-WHERE MOD(rn, $1::INTEGER) = 1
-ORDER BY tenant_id, external_id, inserted_at
+SELECT
+    (p).*
+FROM create_olap_payload_offload_range_chunks(
+    $1::DATE,
+    $2::INTEGER,
+    $3::INTEGER,
+    $4::UUID,
+    $5::UUID,
+    $6::TIMESTAMPTZ
+) p
 `
 
 type CreateOLAPPayloadRangeChunksParams struct {
-	Chunksize      int32              `json:"chunksize"`
 	Partitiondate  pgtype.Date        `json:"partitiondate"`
 	Windowsize     int32              `json:"windowsize"`
+	Chunksize      int32              `json:"chunksize"`
 	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
 	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 }
 
-type CreateOLAPPayloadRangeChunksRow struct {
-	TenantID   pgtype.UUID        `json:"tenant_id"`
-	ExternalID pgtype.UUID        `json:"external_id"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	Rn         int64              `json:"rn"`
-}
-
-// row numbers are one-indexed
-func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg CreateOLAPPayloadRangeChunksParams) ([]*CreateOLAPPayloadRangeChunksRow, error) {
+func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg CreateOLAPPayloadRangeChunksParams) ([]interface{}, error) {
 	rows, err := db.Query(ctx, createOLAPPayloadRangeChunks,
-		arg.Chunksize,
 		arg.Partitiondate,
 		arg.Windowsize,
+		arg.Chunksize,
 		arg.Lasttenantid,
 		arg.Lastexternalid,
 		arg.Lastinsertedat,
@@ -378,18 +357,13 @@ func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*CreateOLAPPayloadRangeChunksRow
+	var items []interface{}
 	for rows.Next() {
-		var i CreateOLAPPayloadRangeChunksRow
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.ExternalID,
-			&i.InsertedAt,
-			&i.Rn,
-		); err != nil {
+		var column_1 interface{}
+		if err := rows.Scan(&column_1); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, column_1)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1329,10 +1303,12 @@ WITH payloads AS (
         (p).*
     FROM list_paginated_olap_payloads_for_offload(
         $1::DATE,
-        $2::INT,
+        $2::UUID,
         $3::UUID,
-        $4::UUID,
-        $5::TIMESTAMPTZ
+        $4::TIMESTAMPTZ,
+        $5::UUID,
+        $6::UUID,
+        $7::TIMESTAMPTZ
     ) p
 )
 SELECT
@@ -1348,10 +1324,12 @@ FROM payloads
 
 type ListPaginatedOLAPPayloadsForOffloadParams struct {
 	Partitiondate  pgtype.Date        `json:"partitiondate"`
-	Limitparam     int32              `json:"limitparam"`
 	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
 	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+	Nexttenantid   pgtype.UUID        `json:"nexttenantid"`
+	Nextexternalid pgtype.UUID        `json:"nextexternalid"`
+	Nextinsertedat pgtype.Timestamptz `json:"nextinsertedat"`
 }
 
 type ListPaginatedOLAPPayloadsForOffloadRow struct {
@@ -1367,10 +1345,12 @@ type ListPaginatedOLAPPayloadsForOffloadRow struct {
 func (q *Queries) ListPaginatedOLAPPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedOLAPPayloadsForOffloadParams) ([]*ListPaginatedOLAPPayloadsForOffloadRow, error) {
 	rows, err := db.Query(ctx, listPaginatedOLAPPayloadsForOffload,
 		arg.Partitiondate,
-		arg.Limitparam,
 		arg.Lasttenantid,
 		arg.Lastexternalid,
 		arg.Lastinsertedat,
+		arg.Nexttenantid,
+		arg.Nextexternalid,
+		arg.Nextinsertedat,
 	)
 	if err != nil {
 		return nil, err
