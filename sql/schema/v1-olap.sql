@@ -1011,7 +1011,7 @@ BEGIN
             FROM paginated
             WHERE MOD(rn, $5::INTEGER) = 1
         ), upper_bounds AS (
-            SELECT rn::INTEGER / $5::INTEGER AS batch_ix, tenant_id::UUID, external_id::UUID, inserted_at::TIMESTAMPTZ
+            SELECT (rn::INTEGER / $5::INTEGER) - 1 AS batch_ix, tenant_id::UUID, external_id::UUID, inserted_at::TIMESTAMPTZ
             FROM paginated
             WHERE MOD(rn, $5::INTEGER) = 0
         )

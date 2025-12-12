@@ -151,7 +151,7 @@ BEGIN
             FROM paginated
             WHERE MOD(rn, $6::INTEGER) = 1
         ), upper_bounds AS (
-            SELECT rn::INTEGER / $6::INTEGER AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
+            SELECT (rn::INTEGER / $6::INTEGER) - 1 AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
             FROM paginated
             WHERE MOD(rn, $6::INTEGER) = 0
         )
@@ -219,7 +219,7 @@ BEGIN
             FROM paginated
             WHERE MOD(rn, $5::INTEGER) = 1
         ), upper_bounds AS (
-            SELECT rn::INTEGER / $5::INTEGER AS batch_ix, tenant_id::UUID, external_id::UUID, inserted_at::TIMESTAMPTZ
+            SELECT (rn::INTEGER / $5::INTEGER) - 1 AS batch_ix, tenant_id::UUID, external_id::UUID, inserted_at::TIMESTAMPTZ
             FROM paginated
             WHERE MOD(rn, $5::INTEGER) = 0
         )
