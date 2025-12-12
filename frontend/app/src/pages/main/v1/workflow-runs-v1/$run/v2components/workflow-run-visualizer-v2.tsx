@@ -1,3 +1,8 @@
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
+import stepRunNode, { NodeData } from './step-run-node';
+import { useTheme } from '@/components/theme-provider';
+import { V1TaskStatus } from '@/lib/api';
+import dagre from 'dagre';
 import { useMemo } from 'react';
 import ReactFlow, {
   Position,
@@ -7,11 +12,6 @@ import ReactFlow, {
   BezierEdge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import dagre from 'dagre';
-import { useTheme } from '@/components/theme-provider';
-import stepRunNode, { NodeData } from './step-run-node';
-import { V1TaskStatus } from '@/lib/api';
-import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 
 const connectionLineStyleDark = { stroke: '#fff' };
 const connectionLineStyleLight = { stroke: '#000' };

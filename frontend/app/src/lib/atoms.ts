@@ -1,7 +1,6 @@
-import { atom } from 'jotai';
 import { Tenant } from './api';
-
 import { TenantBillingState } from './api/generated/cloud/data-contracts';
+import { atom } from 'jotai';
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   const item = localStorage.getItem(key);

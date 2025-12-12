@@ -1,8 +1,8 @@
-import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api';
 import { Loading } from '@/components/v1/ui/loading.tsx';
+import { queries } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function RootRedirect() {
   const navigate = useNavigate();

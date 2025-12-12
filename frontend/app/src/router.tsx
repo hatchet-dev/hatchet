@@ -1,3 +1,5 @@
+import ErrorBoundary from './pages/error/index.tsx';
+import Root from './pages/root.tsx';
 import { FC } from 'react';
 import {
   createBrowserRouter,
@@ -5,8 +7,6 @@ import {
   RouteObject,
   RouterProvider,
 } from 'react-router-dom';
-import ErrorBoundary from './pages/error/index.tsx';
-import Root from './pages/root.tsx';
 
 const tenantedPaths = [
   '/tenants/:tenant/events',

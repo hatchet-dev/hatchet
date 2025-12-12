@@ -1,5 +1,5 @@
-import { useLocation, useParams } from 'react-router-dom';
 import { generateBreadcrumbs, BreadcrumbItem } from '@/lib/breadcrumbs';
+import { useLocation, useParams } from 'react-router-dom';
 
 export function useBreadcrumbs(): BreadcrumbItem[] {
   const location = useLocation();

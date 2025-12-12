@@ -1,17 +1,16 @@
-import { Separator } from '@/components/v1/ui/separator';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api';
-
 import { columns as githubInstallationsColumns } from './components/github-installations-columns';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { Button } from '@/components/v1/ui/button';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
-import invariant from 'tiny-invariant';
-import { useState } from 'react';
+import { Separator } from '@/components/v1/ui/separator';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import invariant from 'tiny-invariant';
 
 export default function Github() {
   const { data: cloudMeta } = useCloudApiMeta();

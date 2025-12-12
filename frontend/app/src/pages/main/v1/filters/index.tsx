@@ -6,15 +6,15 @@ import {
   workflowIdKey,
 } from './components/filter-columns';
 import { FilterCreateButton } from './components/filter-create-form';
-import { useState } from 'react';
-import { VisibilityState } from '@tanstack/react-table';
-import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { useFilters } from './hooks/use-filters';
-import { V1Filter } from '@/lib/api';
-import { useSidePanel } from '@/hooks/use-side-panel';
 import { DocsButton } from '@/components/v1/docs/docs-button';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useSidePanel } from '@/hooks/use-side-panel';
+import { V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
+import { VisibilityState } from '@tanstack/react-table';
+import { useState } from 'react';
 
 export default function Filters() {
   const sidePanel = useSidePanel();

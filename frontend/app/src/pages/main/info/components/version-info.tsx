@@ -1,7 +1,7 @@
-import React from 'react';
 import { Spinner } from '@/components/v1/ui/loading';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
+import React from 'react';
 
 export const VersionInfo: React.FC = () => {
   const { data, isLoading, isError, error } = useQuery({

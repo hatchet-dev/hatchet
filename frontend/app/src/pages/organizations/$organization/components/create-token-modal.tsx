@@ -1,4 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
+import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 import {
   Dialog,
   DialogContent,
@@ -15,14 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
+import { KeyIcon } from '@heroicons/react/24/outline';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { KeyIcon } from '@heroicons/react/24/outline';
-import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
-import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 
 const schema = z.object({
   name: z.string().min(1, 'Token name is required'),

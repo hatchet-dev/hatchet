@@ -3,11 +3,11 @@ import {
   keyKey,
   RateLimitColumn,
 } from './components/rate-limit-columns';
-import { useState } from 'react';
-import { VisibilityState } from '@tanstack/react-table';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { useRateLimits } from './hooks/use-rate-limits';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { VisibilityState } from '@tanstack/react-table';
+import { useState } from 'react';
 
 export default function RateLimits() {
   return <RateLimitsTable />;

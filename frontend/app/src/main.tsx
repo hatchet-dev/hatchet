@@ -1,10 +1,10 @@
-import ReactDOM from 'react-dom/client';
 import './index.css';
-import { QueryClientProvider } from '@tanstack/react-query';
 import queryClient from './query-client.tsx';
 import Router from './router.tsx';
 import * as Sentry from '@sentry/react';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import ReactDOM from 'react-dom/client';
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({

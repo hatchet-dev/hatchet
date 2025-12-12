@@ -1,24 +1,24 @@
+import useCloudApiMeta from '../../auth/hooks/use-cloud-api-meta';
+import { HearAboutUsForm } from './components/hear-about-us-form';
+import { StepProgress } from './components/step-progress';
+import { TenantCreateForm } from './components/tenant-create-form';
+import { WhatBuildingForm } from './components/what-building-form';
+import { OnboardingStepConfig, OnboardingFormData } from './types';
+import { Button } from '@/components/v1/ui/button';
+import { useAnalytics } from '@/hooks/use-analytics';
+import { useOrganizations } from '@/hooks/use-organizations';
 import api, {
   CreateTenantRequest,
   queries,
   Tenant,
   TenantEnvironment,
 } from '@/lib/api';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { useApiError } from '@/lib/hooks';
 import { cloudApi } from '@/lib/api/api';
-import useCloudApiMeta from '../../auth/hooks/use-cloud-api-meta';
+import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
+import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { TenantCreateForm } from './components/tenant-create-form';
-import { Button } from '@/components/v1/ui/button';
-import { HearAboutUsForm } from './components/hear-about-us-form';
-import { WhatBuildingForm } from './components/what-building-form';
-import { StepProgress } from './components/step-progress';
-import { OnboardingStepConfig, OnboardingFormData } from './types';
-import { useAnalytics } from '@/hooks/use-analytics';
-import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
 
 const FINAL_STEP = 2;
 

@@ -1,9 +1,9 @@
+import { columns } from './events-columns';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, V1TaskEvent } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { columns } from './events-columns';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export type EventWithMetadata = V1TaskEvent & {
   metadata: {

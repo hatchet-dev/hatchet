@@ -1,3 +1,6 @@
+import { useWebhooks } from '../hooks/use-webhooks';
+import { AuthMethod } from './auth-method';
+import { SourceName } from './source-name';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -12,9 +15,6 @@ import { DotsVerticalIcon } from '@radix-ui/react-icons';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Check, Copy, Loader, Save, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { useWebhooks } from '../hooks/use-webhooks';
-import { AuthMethod } from './auth-method';
-import { SourceName } from './source-name';
 
 export const WebhookColumn = {
   name: 'Name',

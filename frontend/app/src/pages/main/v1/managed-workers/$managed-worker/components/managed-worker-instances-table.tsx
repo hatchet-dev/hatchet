@@ -1,9 +1,6 @@
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './managed-worker-instances-columns';
-import { Loading } from '@/components/v1/ui/loading.tsx';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
   Card,
@@ -12,13 +9,16 @@ import {
   CardDescription,
   CardFooter,
 } from '@/components/v1/ui/card';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { queries } from '@/lib/api';
+import { Instance } from '@/lib/api/generated/cloud/data-contracts';
 import { capitalize } from '@/lib/utils';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { useQuery } from '@tanstack/react-query';
 import { VisibilityState } from '@tanstack/react-table';
+import { useMemo, useState } from 'react';
 import { BiCard, BiTable } from 'react-icons/bi';
-import { Instance } from '@/lib/api/generated/cloud/data-contracts';
-import { Badge } from '@/components/v1/ui/badge';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function ManagedWorkerInstancesTable({
   managedWorkerId,

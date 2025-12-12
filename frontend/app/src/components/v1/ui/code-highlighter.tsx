@@ -1,16 +1,14 @@
+import CopyToClipboard from './copy-to-clipboard';
+import { useTheme } from '@/components/theme-provider';
+import { cn } from '@/lib/utils';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
-
+import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
 import typescript from 'react-syntax-highlighter/dist/esm/languages/hljs/typescript';
 import yaml from 'react-syntax-highlighter/dist/esm/languages/hljs/yaml';
-import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
-
 import {
   anOldHope,
   atomOneLight,
 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import CopyToClipboard from './copy-to-clipboard';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/theme-provider';
 
 SyntaxHighlighter.registerLanguage('typescript', typescript);
 SyntaxHighlighter.registerLanguage('yaml', yaml);

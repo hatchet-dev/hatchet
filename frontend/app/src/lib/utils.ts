@@ -1,7 +1,7 @@
-import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 import { APIErrors } from './api/generated/data-contracts';
+import { type ClassValue, clsx } from 'clsx';
 import CronPrettifier from 'cronstrue';
+import { twMerge } from 'tailwind-merge';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

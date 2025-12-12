@@ -1,6 +1,6 @@
-import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { Instance } from '@/lib/api/generated/cloud/data-contracts';
+import { ColumnDef } from '@tanstack/react-table';
 
 type InstanceWithMetadata = Instance & {
   metadata: {

@@ -1,9 +1,9 @@
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
+import { ChevronRightIcon } from '@radix-ui/react-icons';
 import { ColumnDef } from '@tanstack/react-table';
 import { Link } from 'react-router-dom';
-import { ChevronRightIcon } from '@radix-ui/react-icons';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
 
 export const columns: (tenantId: string) => ColumnDef<ManagedWorker>[] = (
   tenantId,

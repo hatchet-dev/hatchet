@@ -1,17 +1,17 @@
-import { useCallback, useMemo, useState } from 'react';
 import api, {
   UpdateTenantRequest,
   Tenant,
   CreateTenantRequest,
   queries,
 } from '@/lib/api';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { Evaluate } from '@/lib/can/shared/permission.base';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAtom } from 'jotai';
+import { useCallback, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import invariant from 'tiny-invariant';
 
 type Plan = 'free' | 'starter' | 'growth';
 
