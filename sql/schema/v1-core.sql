@@ -1978,7 +1978,7 @@ BEGIN
             WHERE MOD(rn, $6::INTEGER) = 1
         ), upper_bounds AS (
             SELECT
-                CEIL(rn::FLOAT / $6::FLOAT) AS batch_ix,
+                CEIL(rn::FLOAT / $6::FLOAT) - 1 AS batch_ix,
                 tenant_id::UUID,
                 id::BIGINT,
                 inserted_at::TIMESTAMPTZ,

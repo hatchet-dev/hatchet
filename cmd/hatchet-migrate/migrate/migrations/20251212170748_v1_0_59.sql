@@ -152,7 +152,7 @@ BEGIN
             WHERE MOD(rn, $6::INTEGER) = 1
         ), upper_bounds AS (
             SELECT
-                CEIL(rn::FLOAT / $6::FLOAT) AS batch_ix,
+                CEIL(rn::FLOAT / $6::FLOAT) - 1 AS batch_ix,
                 tenant_id::UUID,
                 id::BIGINT,
                 inserted_at::TIMESTAMPTZ,
@@ -225,7 +225,7 @@ BEGIN
             WHERE MOD(rn, $5::INTEGER) = 1
         ), upper_bounds AS (
             SELECT
-                CEIL(rn::FLOAT / $5::FLOAT) AS batch_ix,
+                CEIL(rn::FLOAT / $5::FLOAT) - 1 AS batch_ix,
                 tenant_id::UUID,
                 external_id::UUID,
                 inserted_at::TIMESTAMPTZ
