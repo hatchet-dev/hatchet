@@ -222,11 +222,14 @@ WITH payloads AS (
         (p).*
     FROM list_paginated_payloads_for_offload(
         @partitionDate::DATE,
-        @limitParam::INT,
         @lastTenantId::UUID,
         @lastInsertedAt::TIMESTAMPTZ,
         @lastId::BIGINT,
-        @lastType::v1_payload_type
+        @lastType::v1_payload_type,
+        @nextTenantId::UUID,
+        @nextInsertedAt::TIMESTAMPTZ,
+        @nextId::BIGINT,
+        @nextType::v1_payload_type
     ) p
 )
 SELECT
@@ -242,32 +245,30 @@ SELECT
 FROM payloads;
 
 -- name: CreatePayloadRangeChunks :many
-WITH payloads AS (
+WITH chunks AS (
     SELECT
         (p).*
-    FROM list_paginated_payloads_for_offload(
+    FROM create_payload_offload_range_chunks(
         @partitionDate::DATE,
         @windowSize::INTEGER,
+        @chunkSize::INTEGER,
         @lastTenantId::UUID,
         @lastInsertedAt::TIMESTAMPTZ,
         @lastId::BIGINT,
         @lastType::v1_payload_type
     ) p
-), with_rows AS (
-    SELECT
-        tenant_id::UUID,
-        id::BIGINT,
-        inserted_at::TIMESTAMPTZ,
-        type::v1_payload_type,
-        ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, id, type) AS rn
-    FROM payloads
 )
 
-SELECT *
-FROM with_rows
--- row numbers are one-indexed
-WHERE MOD(rn, @chunkSize::INTEGER) = 1
-ORDER BY tenant_id, inserted_at, id, type
+SELECT
+    lower_tenant_id::UUID,
+    lower_id::BIGINT,
+    lower_inserted_at::TIMESTAMPTZ,
+    lower_type::v1_payload_type,
+    upper_tenant_id::UUID,
+    upper_id::BIGINT,
+    upper_inserted_at::TIMESTAMPTZ,
+    upper_type::v1_payload_type
+FROM chunks
 ;
 
 -- name: CreateV1PayloadCutoverTemporaryTable :exec

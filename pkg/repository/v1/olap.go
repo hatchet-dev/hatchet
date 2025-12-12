@@ -2750,10 +2750,12 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 		eg.Go(func() error {
 			payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
 				Partitiondate:  pgtype.Date(partitionDate),
-				Limitparam:     externalCutoverBatchSize,
-				Lasttenantid:   pr.TenantID,
-				Lastexternalid: pr.ExternalID,
-				Lastinsertedat: pr.InsertedAt,
+				Lasttenantid:   pr.LowerTenantID,
+				Lastexternalid: pr.LowerExternalID,
+				Lastinsertedat: pr.LowerInsertedAt,
+				Nexttenantid:   pr.UpperTenantID,
+				Nextexternalid: pr.UpperExternalID,
+				Nextinsertedat: pr.UpperInsertedAt,
 			})
 
 			if err != nil {

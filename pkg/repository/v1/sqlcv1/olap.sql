@@ -1851,10 +1851,12 @@ WITH payloads AS (
         (p).*
     FROM list_paginated_olap_payloads_for_offload(
         @partitionDate::DATE,
-        @limitParam::INT,
         @lastTenantId::UUID,
         @lastExternalId::UUID,
-        @lastInsertedAt::TIMESTAMPTZ
+        @lastInsertedAt::TIMESTAMPTZ,
+        @nextTenantId::UUID,
+        @nextExternalId::UUID,
+        @nextInsertedAt::TIMESTAMPTZ
     ) p
 )
 SELECT
@@ -1868,30 +1870,27 @@ SELECT
 FROM payloads;
 
 -- name: CreateOLAPPayloadRangeChunks :many
-WITH payloads AS (
+WITH chunks AS (
     SELECT
         (p).*
-    FROM list_paginated_olap_payloads_for_offload(
+    FROM create_olap_payload_offload_range_chunks(
         @partitionDate::DATE,
         @windowSize::INTEGER,
+        @chunkSize::INTEGER,
         @lastTenantId::UUID,
         @lastExternalId::UUID,
         @lastInsertedAt::TIMESTAMPTZ
     ) p
-), with_rows AS (
-    SELECT
-        tenant_id::UUID,
-        external_id::UUID,
-        inserted_at::TIMESTAMPTZ,
-        ROW_NUMBER() OVER (ORDER BY tenant_id, external_id, inserted_at) AS rn
-    FROM payloads
 )
 
-SELECT *
-FROM with_rows
--- row numbers are one-indexed
-WHERE MOD(rn, @chunkSize::INTEGER) = 1
-ORDER BY tenant_id, external_id, inserted_at
+SELECT
+    lower_tenant_id::UUID,
+    lower_external_id::UUID,
+    lower_inserted_at::TIMESTAMPTZ,
+    upper_tenant_id::UUID,
+    upper_external_id::UUID,
+    upper_inserted_at::TIMESTAMPTZ
+FROM chunks
 ;
 
 -- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
