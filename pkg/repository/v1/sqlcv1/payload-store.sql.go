@@ -131,6 +131,7 @@ SELECT
     upper_id::BIGINT,
     upper_inserted_at::TIMESTAMPTZ,
     upper_type::v1_payload_type
+FROM chunks
 `
 
 type CreatePayloadRangeChunksParams struct {
