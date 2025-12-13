@@ -30,7 +30,7 @@ def schedule(input: PrinterInput, ctx: Context) -> None:
     print_printer_wf.schedule(future_time, input=input)
 
 
-@print_schedule_wf.task()
+@print_printer_wf.task()
 def step1(input: PrinterInput, ctx: Context) -> None:
     now = datetime.now(tz=timezone.utc)
     print(f"printed at \t {now.strftime('%H:%M:%S')}")
