@@ -46,7 +46,7 @@ export function BillingRequired({
             </h3>
 
             <p className="text-muted-foreground mb-6">
-              Unlock Managed Compute by adding a payment method. No commitment
+              Unlock Managed Compute by setting up billing. No commitment
               required - you only pay for what you use!
             </p>
 
@@ -113,7 +113,7 @@ export function BillingRequired({
                 className="min-w-40 py-6 px-8 text-base"
                 size="lg"
               >
-                {portalLoading ? 'Loading...' : 'Add Payment Method →'}
+                {portalLoading ? 'Loading...' : 'Set Up Billing →'}
               </Button>
 
               <div className="relative">

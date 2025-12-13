@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"time"
 
@@ -186,8 +187,12 @@ type ConfigFileRuntime struct {
 	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
 	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
 
-	// Enforce limits controls whether the server enforces tenant limits
+	// EnforceLimits controls whether the server enforces tenant limits
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
+
+	// EnforceLimitsFunc is a function that returns whether the server should enforce limits for a tenant
+	// This will take precedence over EnforceLimits if set.
+	EnforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error) `json:"-"`
 
 	// Default limit values
 	Limits LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
@@ -312,10 +317,6 @@ type SecurityCheckConfigFile struct {
 
 type LimitConfigFile struct {
 	DefaultTenantRetentionPeriod string `mapstructure:"defaultTenantRetentionPeriod" json:"defaultTenantRetentionPeriod,omitempty" default:"720h"`
-
-	DefaultWorkflowRunLimit      int           `mapstructure:"defaultWorkflowRunLimit" json:"defaultWorkflowRunLimit,omitempty" default:"1000"`
-	DefaultWorkflowRunAlarmLimit int           `mapstructure:"defaultWorkflowRunAlarmLimit" json:"defaultWorkflowRunAlarmLimit,omitempty" default:"750"`
-	DefaultWorkflowRunWindow     time.Duration `mapstructure:"defaultWorkflowRunWindow" json:"defaultWorkflowRunWindow,omitempty" default:"24h"`
 
 	DefaultTaskRunLimit      int           `mapstructure:"defaultTaskRunLimit" json:"defaultTaskRunLimit,omitempty" default:"2000"`
 	DefaultTaskRunAlarmLimit int           `mapstructure:"defaultTaskRunAlarmLimit" json:"defaultTaskRunAlarmLimit,omitempty" default:"1500"`
@@ -706,10 +707,6 @@ func BindAllEnv(v *viper.Viper) {
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultTenantRetentionPeriod", "SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD")
-
-	_ = v.BindEnv("runtime.limits.defaultWorkflowRunLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_LIMIT")
-	_ = v.BindEnv("runtime.limits.defaultWorkflowRunAlarmLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_ALARM_LIMIT")
-	_ = v.BindEnv("runtime.limits.defaultWorkflowRunWindow", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_WINDOW")
 
 	_ = v.BindEnv("runtime.limits.defaultTaskRunLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultTaskRunAlarmLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT")

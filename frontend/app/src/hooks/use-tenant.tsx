@@ -120,26 +120,31 @@ export function useTenantDetails() {
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenant?.metadata?.id || ''),
-    enabled: tenant && !!cloudMeta?.data.canBill,
+    enabled: !!tenant && !!cloudMeta?.data.canBill,
     refetchInterval: pollBilling ? 1000 : false,
+    retry: false,
+  });
+
+  const paymentMethodsQuery = useQuery({
+    ...queries.cloud.paymentMethods(tenant?.metadata?.id || ''),
+    enabled: !!tenant && !!cloudMeta?.data.canBill,
+    retry: false,
   });
 
   const subscriptionPlan: Plan = useMemo(() => {
-    const plan = billingState.data?.subscription?.plan;
+    const plan = billingState.data?.currentSubscription?.plan;
     if (!plan) {
       return 'free';
     }
     return plan as Plan;
-  }, [billingState.data?.subscription?.plan]);
-
-  const hasPaymentMethods = useMemo(() => {
-    return (billingState.data?.paymentMethods?.length || 0) > 0;
-  }, [billingState.data?.paymentMethods]);
+  }, [billingState.data?.currentSubscription?.plan]);
 
   const billingContext: BillingContext | undefined = useMemo(() => {
     if (!cloudMeta?.data.canBill) {
       return;
     }
+
+    const hasPaymentMethods = (paymentMethodsQuery.data?.length || 0) > 0;
 
     return {
       state: billingState.data,
@@ -151,7 +156,7 @@ export function useTenantDetails() {
     cloudMeta?.data.canBill,
     billingState.data,
     subscriptionPlan,
-    hasPaymentMethods,
+    paymentMethodsQuery.data,
   ]);
 
   const can = useCallback(
