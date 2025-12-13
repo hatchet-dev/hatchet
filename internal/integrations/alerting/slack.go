@@ -66,7 +66,7 @@ func (t *TenantAlertManager) getSlackWorkflowRunTextAndBlocks(numFailed int, fai
 		res = append(res, slack.NewSectionBlock(
 			slack.NewTextBlockObject(
 				slack.MarkdownType,
-				fmt.Sprintf(":warning: %s failed %s", workflowRun.WorkflowName, workflowRun.RelativeDate),
+				fmt.Sprintf(":warning: %s failed %s\n_%s_", workflowRun.WorkflowName, workflowRun.RelativeDate, workflowRun.AbsoluteDate),
 				false,
 				false,
 			),

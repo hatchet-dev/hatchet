@@ -3,6 +3,7 @@ package alerting
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -218,7 +219,7 @@ func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListW
 			WorkflowName:          workflowRun.Workflow.Name,
 			WorkflowRunReadableId: readableId,
 			RelativeDate:          timediff.TimeDiff(finishedAt),
-			AbsoluteDate:          finishedAt.Format("2006-01-02 15:04:05"),
+			AbsoluteDate:          finishedAt.Format("01/02/2006 03:04 pm UTC"),
 		})
 	}
 
@@ -238,16 +239,35 @@ func (t *TenantAlertManager) getFailedItemsV1(failedRuns []*v1.WorkflowRunData) 
 
 		readableId := workflowRun.DisplayName
 
+		// Extract base workflow name (remove suffix pattern: -{6chars})
+		baseWorkflowName := readableId
+		if lastDash := strings.LastIndex(readableId, "-"); lastDash > 0 {
+			// Check if suffix looks like a 6-character random suffix (alphanumeric)
+			suffix := readableId[lastDash+1:]
+			if len(suffix) == 6 && isAlphanumeric(suffix) {
+				baseWorkflowName = readableId[:lastDash]
+			}
+		}
+
 		res = append(res, alerttypes.WorkflowRunFailedItem{
 			Link:                  fmt.Sprintf("%s/tenants/%s/runs/%s", t.serverURL, tenantId, workflowRunId),
-			WorkflowName:          readableId,
+			WorkflowName:          baseWorkflowName,
 			WorkflowRunReadableId: readableId,
 			RelativeDate:          timediff.TimeDiff(workflowRun.FinishedAt.Time),
-			AbsoluteDate:          workflowRun.FinishedAt.Time.Format("2006-01-02 15:04:05"),
+			AbsoluteDate:          workflowRun.FinishedAt.Time.Format("01/02/2006 03:04 pm UTC"),
 		})
 	}
 
 	return res
+}
+
+func isAlphanumeric(s string) bool {
+	for _, r := range s {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+			return false
+		}
+	}
+	return true
 }
 
 func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId string, token *dbsqlc.PollExpiringTokensRow) error {
