@@ -22,3 +22,20 @@ func (t *EventService) EventDataGet(ctx echo.Context, request gen.EventDataGetRe
 		},
 	), nil
 }
+
+func (t *EventService) EventDataGetWithTenant(ctx echo.Context, request gen.EventDataGetWithTenantRequestObject) (gen.EventDataGetWithTenantResponseObject, error) {
+	// hack to use the tenant id to populate the event in the v1 case
+	event := ctx.Get("event-with-tenant").(*dbsqlc.Event)
+
+	var dataStr string
+
+	if len(event.Data) > 0 {
+		dataStr = string(event.Data)
+	}
+
+	return gen.EventDataGetWithTenant200JSONResponse(
+		gen.EventData{
+			Data: dataStr,
+		},
+	), nil
+}
