@@ -583,6 +583,70 @@ export class WorkflowDeclaration<
   O extends OutputType = void,
 > extends BaseWorkflowDeclaration<I, O> {
   /**
+   * Adds a batched task to the workflow.
+   *
+   * Batched tasks buffer individual executions until the configured batch size is reached
+   * (or the optional flush interval elapses), then invoke the handler with all buffered inputs.
+   *
+   * This mirrors `hatchet.batchTask(...)`, but binds the task to this workflow DAG.
+   */
+  batchTask<
+    Name extends string,
+    Fn extends Name extends keyof O
+      ? (
+          inputs: I[],
+          ctxs: Context<I>[]
+        ) => O[Name] extends OutputType ? O[Name][] | Promise<O[Name][]> : void
+      : (inputs: I[], ctxs: Context<I>[]) => void,
+    FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
+    TO extends OutputType = Name extends keyof O
+      ? O[Name] extends OutputType
+        ? O[Name]
+        : never
+      : FnReturn extends OutputType[]
+        ? FnReturn[number]
+        : never,
+  >(
+    options:
+      | (Omit<CreateBatchTaskWorkflowOpts<I, TO>, 'fn'> & {
+          name: Name;
+          fn: BatchTaskFn<I, TO>;
+        })
+      | TaskWorkflowDeclaration<I, TO>
+  ): CreateWorkflowTaskOpts<I, TO> {
+    let typedOptions: CreateWorkflowTaskOpts<I, TO>;
+
+    if (options instanceof TaskWorkflowDeclaration) {
+      typedOptions = options.taskDef;
+    } else {
+      const { fn, batchSize, flushInterval, batchKey, maxRuns, ...rest } = options;
+
+      if (!Number.isFinite(batchSize) || batchSize <= 0 || !Number.isInteger(batchSize)) {
+        throw new Error(`batchSize must be a positive integer, received '${batchSize}'`);
+      }
+
+      const normalizedFlush =
+        flushInterval && Number.isFinite(flushInterval) && flushInterval > 0
+          ? flushInterval
+          : undefined;
+
+      typedOptions = {
+        ...(rest as any),
+        batch: {
+          fn,
+          batchSize,
+          flushInterval: normalizedFlush,
+          batchKey,
+          maxRuns,
+        },
+      } as CreateWorkflowTaskOpts<I, TO> & { batch: BatchTaskConfig<I, TO> };
+    }
+
+    this.definition._tasks.push(typedOptions);
+    return typedOptions;
+  }
+
+  /**
    * Adds a task to the workflow.
    * The return type will be either the property on O that corresponds to the task name,
    * or if there is no matching property, the inferred return type of the function.
