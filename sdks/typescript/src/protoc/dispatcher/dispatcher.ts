@@ -444,12 +444,9 @@ export interface AssignedAction {
 }
 
 export interface BatchStartPayload {
-  batchId: string;
-  expectedSize: number;
   triggerReason: string;
   triggerTime: Date | undefined;
-  /** (optional) the partition key used for batching */
-  batchKey?: string | undefined;
+  expectedSize: number;
 }
 
 export interface WorkerListenRequest {
@@ -1952,31 +1949,19 @@ export const AssignedAction: MessageFns<AssignedAction> = {
 };
 
 function createBaseBatchStartPayload(): BatchStartPayload {
-  return {
-    batchId: '',
-    expectedSize: 0,
-    triggerReason: '',
-    triggerTime: undefined,
-    batchKey: undefined,
-  };
+  return { triggerReason: '', triggerTime: undefined, expectedSize: 0 };
 }
 
 export const BatchStartPayload: MessageFns<BatchStartPayload> = {
   encode(message: BatchStartPayload, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.batchId !== '') {
-      writer.uint32(10).string(message.batchId);
-    }
-    if (message.expectedSize !== 0) {
-      writer.uint32(16).int32(message.expectedSize);
-    }
     if (message.triggerReason !== '') {
-      writer.uint32(26).string(message.triggerReason);
+      writer.uint32(10).string(message.triggerReason);
     }
     if (message.triggerTime !== undefined) {
-      Timestamp.encode(toTimestamp(message.triggerTime), writer.uint32(34).fork()).join();
+      Timestamp.encode(toTimestamp(message.triggerTime), writer.uint32(18).fork()).join();
     }
-    if (message.batchKey !== undefined) {
-      writer.uint32(42).string(message.batchKey);
+    if (message.expectedSize !== 0) {
+      writer.uint32(24).int32(message.expectedSize);
     }
     return writer;
   },
@@ -1993,39 +1978,23 @@ export const BatchStartPayload: MessageFns<BatchStartPayload> = {
             break;
           }
 
-          message.batchId = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 16) {
-            break;
-          }
-
-          message.expectedSize = reader.int32();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
           message.triggerReason = reader.string();
           continue;
         }
-        case 4: {
-          if (tag !== 34) {
+        case 2: {
+          if (tag !== 18) {
             break;
           }
 
           message.triggerTime = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
           continue;
         }
-        case 5: {
-          if (tag !== 42) {
+        case 3: {
+          if (tag !== 24) {
             break;
           }
 
-          message.batchKey = reader.string();
+          message.expectedSize = reader.int32();
           continue;
         }
       }
@@ -2039,30 +2008,22 @@ export const BatchStartPayload: MessageFns<BatchStartPayload> = {
 
   fromJSON(object: any): BatchStartPayload {
     return {
-      batchId: isSet(object.batchId) ? globalThis.String(object.batchId) : '',
-      expectedSize: isSet(object.expectedSize) ? globalThis.Number(object.expectedSize) : 0,
       triggerReason: isSet(object.triggerReason) ? globalThis.String(object.triggerReason) : '',
       triggerTime: isSet(object.triggerTime) ? fromJsonTimestamp(object.triggerTime) : undefined,
-      batchKey: isSet(object.batchKey) ? globalThis.String(object.batchKey) : undefined,
+      expectedSize: isSet(object.expectedSize) ? globalThis.Number(object.expectedSize) : 0,
     };
   },
 
   toJSON(message: BatchStartPayload): unknown {
     const obj: any = {};
-    if (message.batchId !== '') {
-      obj.batchId = message.batchId;
-    }
-    if (message.expectedSize !== 0) {
-      obj.expectedSize = Math.round(message.expectedSize);
-    }
     if (message.triggerReason !== '') {
       obj.triggerReason = message.triggerReason;
     }
     if (message.triggerTime !== undefined) {
       obj.triggerTime = message.triggerTime.toISOString();
     }
-    if (message.batchKey !== undefined) {
-      obj.batchKey = message.batchKey;
+    if (message.expectedSize !== 0) {
+      obj.expectedSize = Math.round(message.expectedSize);
     }
     return obj;
   },
@@ -2072,11 +2033,9 @@ export const BatchStartPayload: MessageFns<BatchStartPayload> = {
   },
   fromPartial(object: DeepPartial<BatchStartPayload>): BatchStartPayload {
     const message = createBaseBatchStartPayload();
-    message.batchId = object.batchId ?? '';
-    message.expectedSize = object.expectedSize ?? 0;
     message.triggerReason = object.triggerReason ?? '';
     message.triggerTime = object.triggerTime ?? undefined;
-    message.batchKey = object.batchKey ?? undefined;
+    message.expectedSize = object.expectedSize ?? 0;
     return message;
   },
 };

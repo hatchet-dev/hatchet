@@ -498,18 +498,12 @@ func (d *DispatcherImpl) handleBatchStartTask(ctx context.Context, msg *msgqueue
 
 		batchID := payload.BatchId
 		batchStart := &contracts.BatchStartPayload{
-			BatchId:      payload.BatchId,
-			ExpectedSize: expectedSize,
 			TriggerTime:  timestamppb.New(payload.TriggerTime),
+			ExpectedSize: expectedSize,
 		}
 
 		if payload.TriggerReason != "" {
 			batchStart.TriggerReason = payload.TriggerReason
-		}
-
-		if strings.TrimSpace(payload.BatchKey) != "" {
-			key := strings.TrimSpace(payload.BatchKey)
-			batchStart.BatchKey = &key
 		}
 
 		action := &contracts.AssignedAction{
@@ -521,8 +515,9 @@ func (d *DispatcherImpl) handleBatchStartTask(ctx context.Context, msg *msgqueue
 
 		action.BatchId = &batchID
 
-		if batchStart.BatchKey != nil {
-			action.BatchKey = batchStart.BatchKey
+		if strings.TrimSpace(payload.BatchKey) != "" {
+			key := strings.TrimSpace(payload.BatchKey)
+			action.BatchKey = &key
 		}
 
 		var sendErr error

@@ -145,9 +145,7 @@ export class V1Worker {
   }
 
   private handleStartBatchAction(action: Action) {
-    const { actionId } = action;
-    const { batchId } = action;
-    const { batchStart } = action;
+    const { actionId, batchId, batchStart } = action;
 
     if (!actionId) {
       this.logger.error('Received start batch action without action id');
@@ -178,7 +176,7 @@ export class V1Worker {
       expectedSize: batchStart.expectedSize ?? 0,
       triggerReason: batchStart.triggerReason ?? undefined,
       triggerTime: batchStart.triggerTime ?? undefined,
-      batchKey: batchStart.batchKey ?? action.batchKey ?? undefined,
+      batchKey: action.batchKey ?? undefined,
     });
   }
 

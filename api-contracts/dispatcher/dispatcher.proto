@@ -193,12 +193,9 @@ message AssignedAction {
 }
 
 message BatchStartPayload {
-    string batchId = 1;
-    int32 expectedSize = 2;
-    string triggerReason = 3;
-    google.protobuf.Timestamp triggerTime = 4;
-    // (optional) the partition key used for batching
-    optional string batchKey = 5;
+    string triggerReason = 1;
+    google.protobuf.Timestamp triggerTime = 2;
+    int32 expectedSize = 3;
 }
 
 message WorkerListenRequest {
