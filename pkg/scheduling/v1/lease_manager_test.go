@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -78,8 +79,12 @@ func (f *fakeBatchQueueRepo) MoveBatchedQueueItems(context.Context, []int64) ([]
 	return nil, nil
 }
 
-func (f *fakeBatchQueueRepo) CommitAssignments(context.Context, []*v1repo.BatchAssignment) error {
-	return nil
+func (f *fakeBatchQueueRepo) ListExistingBatchedQueueItemIds(context.Context, []int64) (map[int64]struct{}, error) {
+	return map[int64]struct{}{}, nil
+}
+
+func (f *fakeBatchQueueRepo) CommitAssignments(context.Context, []*v1repo.BatchAssignment) ([]*v1repo.BatchAssignment, error) {
+	return nil, nil
 }
 
 type fakeSchedulerRepo struct {
@@ -156,7 +161,7 @@ func TestAcquireBatchLeasesUsesStepLevelResourceIds(t *testing.T) {
 	select {
 	case rows := <-received:
 		require.Len(t, rows, 3, "all batch keys for leased steps should propagate")
-	default:
+	case <-time.After(1 * time.Second):
 		t.Fatal("expected batch resources to be sent")
 	}
 

@@ -17,6 +17,7 @@ import (
 
 const defaultBatchPollInterval = 200 * time.Millisecond
 const batchFetchLimit int32 = 256
+const defaultBatchIdleTTL = 30 * time.Second
 
 type BatchFlushReason string
 
@@ -53,8 +54,55 @@ type BatchScheduler struct {
 
 	batchSize     int
 	flushInterval time.Duration
+	idleTTL       time.Duration
+	lastActiveAt  time.Time
 
 	l zerolog.Logger
+}
+
+func (b *BatchScheduler) reconcileBuffer() {
+	if b.ctx == nil || b.ctx.Err() != nil {
+		return
+	}
+
+	if len(b.buffer) == 0 {
+		return
+	}
+
+	ids := make([]int64, 0, len(b.buffer))
+	for _, item := range b.buffer {
+		if item != nil {
+			ids = append(ids, item.ID)
+		}
+	}
+
+	existing, err := b.repo.ListExistingBatchedQueueItemIds(b.ctx, ids)
+	if err != nil {
+		b.l.Debug().Err(err).Msg("failed to reconcile batch buffer")
+		return
+	}
+
+	if len(existing) == len(ids) {
+		return
+	}
+
+	newBuf := make([]*sqlcv1.V1BatchedQueueItem, 0, len(b.buffer))
+	dropped := 0
+	for _, item := range b.buffer {
+		if item == nil {
+			continue
+		}
+		if _, ok := existing[item.ID]; ok {
+			newBuf = append(newBuf, item)
+		} else {
+			dropped++
+		}
+	}
+
+	if dropped > 0 {
+		b.l.Debug().Int("dropped", dropped).Msg("dropped stale/cancelled batched queue items from buffer")
+		b.buffer = newBuf
+	}
 }
 
 type assignmentFn func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, labels map[string][]*sqlcv1.GetDesiredLabelsRow, rateLimits map[int64]map[string]int32) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error)
@@ -117,8 +165,14 @@ func newBatchScheduler(
 		batchSize:     int(batchSize),
 		flushInterval: flushInterval,
 		maxRuns:       int(resource.BatchMaxRuns),
+		idleTTL:       defaultBatchIdleTTL,
+		lastActiveAt:  time.Now().UTC(),
 		l:             logger,
 	}
+}
+
+func (b *BatchScheduler) touch() {
+	b.lastActiveAt = time.Now().UTC()
 }
 
 func (b *BatchScheduler) Start(ctx context.Context) {
@@ -129,6 +183,7 @@ func (b *BatchScheduler) Start(ctx context.Context) {
 
 	b.ctx, b.cancel = context.WithCancel(ctx)
 	b.done = make(chan struct{})
+	b.touch()
 
 	go b.run()
 }
@@ -182,6 +237,9 @@ func (b *BatchScheduler) tick() error {
 		return err
 	}
 
+	// Reconcile in-memory buffer with DB to drop cancelled/deleted items that were buffered.
+	b.reconcileBuffer()
+
 	// Check for timed out items in the buffer
 	if err := b.checkBufferForTimeouts(); err != nil {
 		return err
@@ -198,6 +256,8 @@ func (b *BatchScheduler) tick() error {
 			return err
 		}
 	}
+
+	b.maybeStopIfIdle()
 
 	return nil
 }
@@ -267,8 +327,67 @@ func (b *BatchScheduler) fetchNewItems() error {
 	}
 
 	b.emitWaitingEvents(newItems)
+	if len(newItems) > 0 {
+		b.touch()
+	}
 
 	return nil
+}
+
+func (b *BatchScheduler) maybeStopIfIdle() {
+	if b.ctx == nil || b.cancel == nil {
+		return
+	}
+
+	if b.ctx.Err() != nil {
+		return
+	}
+
+	if len(b.buffer) > 0 || b.flushDeadline != nil {
+		return
+	}
+
+	if b.idleTTL <= 0 {
+		return
+	}
+
+	if time.Since(b.lastActiveAt) < b.idleTTL {
+		return
+	}
+
+	// Confirm there are no DB items for this (step_id, batch_key).
+	after := pgtype.Int8{}
+	rows, err := b.repo.ListBatchedQueueItems(b.ctx, b.stepId, b.batchKey, after, 1)
+	if err != nil {
+		b.l.Debug().Err(err).Msg("idle check failed to list batched queue items")
+		return
+	}
+
+	if len(rows) > 0 {
+		b.touch()
+		return
+	}
+
+	if b.cf != nil && b.cf.taskRepo != nil && strings.TrimSpace(b.batchKey) != "" {
+		cnt, err := b.cf.taskRepo.CountActiveTaskBatchRuns(
+			b.ctx,
+			sqlchelpers.UUIDToStr(b.tenantId),
+			sqlchelpers.UUIDToStr(b.stepId),
+			strings.TrimSpace(b.batchKey),
+		)
+		if err != nil {
+			b.l.Debug().Err(err).Msg("idle check failed to count active batch runs")
+			return
+		}
+
+		if cnt > 0 {
+			b.touch()
+			return
+		}
+	}
+
+	b.l.Info().Msg("batch scheduler idle; stopping")
+	b.cancel()
 }
 
 func (b *BatchScheduler) flush(count int, reason BatchFlushReason) error {
@@ -301,6 +420,8 @@ func (b *BatchScheduler) flush(count int, reason BatchFlushReason) error {
 	} else {
 		b.flushDeadline = nil
 	}
+
+	b.touch()
 
 	return nil
 }
@@ -401,38 +522,48 @@ func (b *BatchScheduler) assignQueueItems(
 		return b.assignOverride(ctx, queueItems, labels, rateLimits)
 	}
 
-	resultsCh := b.scheduler.tryAssign(ctx, queueItems, labels, rateLimits)
-
-	assigned := make([]*assignedQueueItem, 0)
-	failed := make([]*sqlcv1.V1QueueItem, 0)
-
-	for res := range resultsCh {
-		if res == nil {
-			continue
-		}
-
-		assigned = append(assigned, res.assigned...)
-
-		for _, unassigned := range res.unassigned {
-			if unassigned != nil {
-				failed = append(failed, unassigned)
-			}
-		}
-
-		for _, rl := range res.rateLimited {
-			if rl != nil && rl.qi != nil {
-				failed = append(failed, rl.qi)
-			}
-		}
-
-		for _, rl := range res.rateLimitedToMove {
-			if rl != nil && rl.qi != nil {
-				failed = append(failed, rl.qi)
-			}
-		}
+	// Batch flush scheduling is intentionally a separate path: we only need ONE slot for the whole batch.
+	if len(queueItems) == 0 || queueItems[0] == nil {
+		return nil, nil, nil
 	}
 
-	return assigned, failed, nil
+	schedulingItem := queueItems[0]
+	stepKey := sqlchelpers.UUIDToStr(schedulingItem.StepID)
+	stepLabels := labels[stepKey]
+
+	res, err := b.scheduler.tryAssignBatchQueueItem(ctx, schedulingItem, stepLabels)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !res.succeeded {
+		return nil, []*sqlcv1.V1QueueItem{schedulingItem}, nil
+	}
+
+	return []*assignedQueueItem{{
+		AckId:    res.ackId,
+		WorkerId: res.workerId,
+		QueueItem: &sqlcv1.V1QueueItem{
+			// preserve the scheduling item as the representative
+			ID:                schedulingItem.ID,
+			TenantID:          schedulingItem.TenantID,
+			Queue:             schedulingItem.Queue,
+			TaskID:            schedulingItem.TaskID,
+			TaskInsertedAt:    schedulingItem.TaskInsertedAt,
+			ExternalID:        schedulingItem.ExternalID,
+			ActionID:          schedulingItem.ActionID,
+			StepID:            schedulingItem.StepID,
+			WorkflowID:        schedulingItem.WorkflowID,
+			WorkflowRunID:     schedulingItem.WorkflowRunID,
+			ScheduleTimeoutAt: schedulingItem.ScheduleTimeoutAt,
+			StepTimeout:       schedulingItem.StepTimeout,
+			Priority:          schedulingItem.Priority,
+			Sticky:            schedulingItem.Sticky,
+			DesiredWorkerID:   schedulingItem.DesiredWorkerID,
+			RetryCount:        schedulingItem.RetryCount,
+			BatchKey:          schedulingItem.BatchKey,
+		},
+	}}, nil, nil
 }
 
 func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.V1BatchedQueueItem, reason BatchFlushReason) ([]*sqlcv1.V1BatchedQueueItem, error) {
@@ -670,7 +801,7 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 		}
 
 		batchAssignments := make([]*v1repo.BatchAssignment, 0, len(group))
-		queueResults := make([]*v1repo.AssignedItem, 0, len(group))
+		queueResultsByTaskID := make(map[int64]*v1repo.AssignedItem, len(group))
 		triggeredAt := time.Now().UTC()
 
 		flushIntervalMs := int32(0)
@@ -700,7 +831,7 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 				BatchKey:         batchKeyNormalized,
 			})
 
-			queueResults = append(queueResults, &v1repo.AssignedItem{
+			queueResultsByTaskID[queueItem.TaskID] = &v1repo.AssignedItem{
 				WorkerId:  workerID,
 				QueueItem: queueItem,
 				Batch: &v1repo.BatchAssignmentMetadata{
@@ -717,7 +848,7 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 					ActionID:                  actionID,
 					BatchKey:                  batchKeyNormalized,
 				},
-			})
+			}
 		}
 
 		if len(batchAssignments) == 0 {
@@ -727,11 +858,31 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 			continue
 		}
 
-		if err := b.repo.CommitAssignments(ctx, batchAssignments); err != nil {
+		succeededAssignments, err := b.repo.CommitAssignments(ctx, batchAssignments)
+		if err != nil {
 			if len(ackIds) > 0 {
 				b.scheduler.nack(ackIds)
 			}
 			return items, fmt.Errorf("commit batch assignments: %w", err)
+		}
+
+		// Only emit/ack tasks that were actually assigned (e.g. drop cancellations).
+		queueResults := make([]*v1repo.AssignedItem, 0, len(succeededAssignments))
+		for _, a := range succeededAssignments {
+			if a == nil {
+				continue
+			}
+			if item, ok := queueResultsByTaskID[a.TaskID]; ok && item != nil {
+				queueResults = append(queueResults, item)
+			}
+		}
+
+		if len(queueResults) == 0 {
+			// Nothing actually assigned; release the slot and continue.
+			if len(ackIds) > 0 {
+				b.scheduler.nack(ackIds)
+			}
+			continue
 		}
 
 		allAssigned = append(allAssigned, queueResults...)

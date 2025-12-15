@@ -257,6 +257,21 @@ func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv
 	defer t.batchSchedulersMu.Unlock()
 
 	for key, scheduler := range t.batchSchedulers {
+		// If the scheduler self-stopped due to idleness, remove it so it can be recreated
+		// if/when new batched queue items appear.
+		if scheduler != nil && scheduler.ctx != nil && scheduler.ctx.Err() != nil {
+			if err := scheduler.Cleanup(ctx); err != nil {
+				t.cf.l.Error().
+					Err(err).
+					Str("tenant_id", sqlchelpers.UUIDToStr(t.tenantId)).
+					Str("batch_resource", key).
+					Msg("failed to cleanup stopped batch scheduler")
+			}
+
+			delete(t.batchSchedulers, key)
+			continue
+		}
+
 		if _, ok := desired[key]; ok {
 			continue
 		}

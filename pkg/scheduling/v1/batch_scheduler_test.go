@@ -66,7 +66,15 @@ func (f *fakeBatchRepo) MoveBatchedQueueItems(ctx context.Context, ids []int64) 
 	return rows, nil
 }
 
-func (f *fakeBatchRepo) CommitAssignments(ctx context.Context, assignments []*v1repo.BatchAssignment) error {
+func (f *fakeBatchRepo) ListExistingBatchedQueueItemIds(ctx context.Context, ids []int64) (map[int64]struct{}, error) {
+	existing := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		existing[id] = struct{}{}
+	}
+	return existing, nil
+}
+
+func (f *fakeBatchRepo) CommitAssignments(ctx context.Context, assignments []*v1repo.BatchAssignment) ([]*v1repo.BatchAssignment, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -80,7 +88,7 @@ func (f *fakeBatchRepo) CommitAssignments(ctx context.Context, assignments []*v1
 	}
 
 	f.commitCalls = append(f.commitCalls, copied)
-	return nil
+	return copied, nil
 }
 
 type fakeQueueFactory struct {
@@ -103,6 +111,10 @@ func (f *fakeQueueRepository) MarkQueueItemsProcessed(context.Context, *v1repo.A
 
 func (f *fakeQueueRepository) GetTaskRateLimits(context.Context, []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error) {
 	return nil, nil
+}
+
+func (f *fakeQueueRepository) GetStepBatchConfigs(context.Context, []pgtype.UUID) (map[string]bool, error) {
+	return map[string]bool{}, nil
 }
 
 func (f *fakeQueueRepository) RequeueRateLimitedItems(context.Context, pgtype.UUID, string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {

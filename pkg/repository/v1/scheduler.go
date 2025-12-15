@@ -39,6 +39,7 @@ type QueueRepository interface {
 	MarkQueueItemsProcessed(ctx context.Context, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
 
 	GetTaskRateLimits(ctx context.Context, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error)
+	GetStepBatchConfigs(ctx context.Context, stepIds []pgtype.UUID) (map[string]bool, error)
 	RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error)
 	GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error)
 	Cleanup()
@@ -47,9 +48,10 @@ type QueueRepository interface {
 type BatchQueueRepository interface {
 	ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error)
 	ListBatchedQueueItems(ctx context.Context, stepId pgtype.UUID, batchKey string, afterId pgtype.Int8, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error)
+	ListExistingBatchedQueueItemIds(ctx context.Context, ids []int64) (map[int64]struct{}, error)
 	DeleteBatchedQueueItems(ctx context.Context, ids []int64) error
 	MoveBatchedQueueItems(ctx context.Context, ids []int64) ([]*sqlcv1.MoveBatchedQueueItemsRow, error)
-	CommitAssignments(ctx context.Context, assignments []*BatchAssignment) error
+	CommitAssignments(ctx context.Context, assignments []*BatchAssignment) ([]*BatchAssignment, error)
 }
 
 type BatchAssignment struct {

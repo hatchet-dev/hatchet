@@ -226,6 +226,15 @@ WITH input AS (
         input i ON (t.id, t.inserted_at) = (i.id, i.inserted_at)
     WHERE
         t.inserted_at >= @minTaskInsertedAt::timestamptz
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_task_event e
+            WHERE
+                e.task_id = t.id
+                AND e.task_inserted_at = t.inserted_at
+                AND e.retry_count = t.retry_count
+                AND e.event_type = 'CANCELLED'::v1_task_event_type
+        )
     ORDER BY t.id
 ), assigned_tasks AS (
     INSERT INTO v1_task_runtime (
@@ -310,6 +319,16 @@ FROM
     "StepDesiredWorkerLabel"
 WHERE
     "stepId" = ANY(@stepIds::uuid[]);
+
+-- name: ListStepsWithBatchConfig :many
+SELECT
+    "id" AS step_id
+FROM
+    "Step"
+WHERE
+    "id" = ANY(@stepIds::uuid[])
+    AND "batch_size" IS NOT NULL
+    AND "batch_size" >= 1;
 
 -- name: GetQueuedCounts :many
 SELECT
@@ -622,6 +641,71 @@ GROUP BY
 ORDER BY
     oldest_item_at ASC;
 
+-- name: MoveQueueItemsToBatchedQueue :many
+WITH locked_qis AS (
+    SELECT
+        qi.*
+    FROM
+        v1_queue_item qi
+    JOIN
+        "Step" s ON s."id" = qi.step_id
+    WHERE
+        qi.id = ANY(@ids::bigint[])
+        AND NULLIF(BTRIM(qi.batch_key), '') IS NOT NULL
+        AND s."batch_size" IS NOT NULL
+        AND s."batch_size" >= 1
+    ORDER BY
+        qi.id ASC
+    FOR UPDATE
+), inserted AS (
+    INSERT INTO v1_batched_queue_item (
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        batch_key,
+        inserted_at
+    )
+    SELECT
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        BTRIM(batch_key),
+        CURRENT_TIMESTAMP
+    FROM
+        locked_qis
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    RETURNING task_id
+), deleted AS (
+    DELETE FROM v1_queue_item
+    WHERE id IN (SELECT id FROM locked_qis)
+    RETURNING id
+)
+SELECT id FROM deleted;
+
 -- name: DeleteBatchedQueueItems :exec
 DELETE FROM
     v1_batched_queue_item
@@ -663,6 +747,15 @@ ORDER BY
     bqi.id ASC
 LIMIT
     COALESCE(sqlc.narg('limit')::integer, 1000);
+
+-- name: ListExistingBatchedQueueItemIds :many
+SELECT
+    id
+FROM
+    v1_batched_queue_item
+WHERE
+    tenant_id = @tenantId::uuid
+    AND id = ANY(@ids::bigint[]);
 
 -- name: MoveBatchedQueueItems :many
 WITH input AS (

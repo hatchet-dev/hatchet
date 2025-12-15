@@ -41,10 +41,10 @@ type LeaseManager struct {
 }
 
 func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []*v1.ListActiveWorkersResult, <-chan []string, <-chan []*sqlcv1.V1StepConcurrency, <-chan []*sqlcv1.ListDistinctBatchResourcesRow) {
-	workersCh := make(chan []*v1.ListActiveWorkersResult)
-	queuesCh := make(chan []string)
-	concurrencyLeasesCh := make(chan []*sqlcv1.V1StepConcurrency)
-	batchesCh := make(chan []*sqlcv1.ListDistinctBatchResourcesRow)
+	workersCh := make(chan []*v1.ListActiveWorkersResult, 1)
+	queuesCh := make(chan []string, 1)
+	concurrencyLeasesCh := make(chan []*sqlcv1.V1StepConcurrency, 1)
+	batchesCh := make(chan []*sqlcv1.ListDistinctBatchResourcesRow, 1)
 
 	return &LeaseManager{
 		lr:                  conf.repo.Lease(),
@@ -64,7 +64,6 @@ func (l *LeaseManager) sendWorkerIds(workerIds []*v1.ListActiveWorkersResult) {
 		}
 	}()
 
-	// at this point, we have a cleanupMu lock, so it's safe to read
 	if l.cleanedUp {
 		return
 	}
@@ -82,7 +81,6 @@ func (l *LeaseManager) sendQueues(queues []string) {
 		}
 	}()
 
-	// at this point, we have a cleanupMu lock, so it's safe to read
 	if l.cleanedUp {
 		return
 	}
@@ -100,7 +98,6 @@ func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepC
 		}
 	}()
 
-	// at this point, we have a cleanupMu lock, so it's safe to read
 	if l.cleanedUp {
 		return
 	}
@@ -383,6 +380,7 @@ func (l *LeaseManager) acquireBatchLeases(ctx context.Context) error {
 // loopForLeases acquires new leases every 1 second for workers and queues
 func (l *LeaseManager) loopForLeases(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
