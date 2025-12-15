@@ -709,7 +709,7 @@ SELECT
     COUNT(*) AS pending_count,
     MAX(s."batch_size")::integer AS batch_size,
     MAX(s."batch_flush_interval_ms")::integer AS batch_flush_interval_ms,
-    MAX(s."batch_max_runs")::integer AS batch_max_runs
+    MAX(s."batch_max_runs") AS batch_max_runs
 FROM
     v1_batched_queue_item b
 JOIN
@@ -730,7 +730,7 @@ type ListDistinctBatchResourcesRow struct {
 	PendingCount         int64              `json:"pending_count"`
 	BatchSize            int32              `json:"batch_size"`
 	BatchFlushIntervalMs int32              `json:"batch_flush_interval_ms"`
-	BatchMaxRuns         int32              `json:"batch_max_runs"`
+	BatchMaxRuns         pgtype.Int4        `json:"batch_max_runs"`
 }
 
 func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListDistinctBatchResourcesRow, error) {

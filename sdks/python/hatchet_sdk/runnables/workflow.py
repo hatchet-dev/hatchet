@@ -12,6 +12,8 @@ from typing import (
     ParamSpec,
     TypeVar,
     cast,
+    get_args,
+    get_origin,
     get_type_hints,
     overload,
 )
@@ -39,7 +41,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrat
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.task import BatchTaskConfig, Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     EmptyModel,
@@ -908,6 +910,107 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         return inner
 
+    def batch_task(
+        self,
+        name: str | None = None,
+        *,
+        batch_size: int,
+        flush_interval_ms: int | None = None,
+        batch_key: str | None = None,
+        max_runs: int | None = None,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        parents: list[Task[TWorkflowInput, Any]] | None = None,
+        retries: int = 0,
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        concurrency: list[ConcurrencyExpression] | None = None,
+        wait_for: list[Condition | OrGroup] | None = None,
+        skip_if: list[Condition | OrGroup] | None = None,
+        cancel_if: list[Condition | OrGroup] | None = None,
+    ) -> Callable[
+        [
+            Callable[
+                [list[TWorkflowInput], list[Context]], list[R] | CoroutineLike[list[R]]
+            ]
+        ],
+        Task[TWorkflowInput, R],
+    ]:
+        """
+        A decorator to transform a function into a Hatchet *batch* task that runs as part of a workflow.
+
+        Batch tasks buffer individual executions until Hatchet flushes the batch (size reached or flush interval),
+        then invoke the handler once with all inputs and their corresponding contexts.
+
+        The handler must return a list of outputs with the same length as the input list.
+        """
+
+        if not isinstance(batch_size, int) or batch_size <= 0:
+            raise ValueError("batch_size must be a positive integer")
+
+        normalized_flush: int | None = None
+        if flush_interval_ms is not None:
+            if not isinstance(flush_interval_ms, int) or flush_interval_ms <= 0:
+                raise ValueError(
+                    "flush_interval_ms must be a positive integer when provided"
+                )
+            normalized_flush = flush_interval_ms
+
+        if max_runs is not None and (not isinstance(max_runs, int) or max_runs <= 0):
+            raise ValueError("max_runs must be a positive integer when provided")
+
+        computed_params = ComputedTaskParameters(
+            schedule_timeout=schedule_timeout,
+            execution_timeout=execution_timeout,
+            retries=retries,
+            backoff_factor=backoff_factor,
+            backoff_max_seconds=backoff_max_seconds,
+            task_defaults=self.config.task_defaults,
+        )
+
+        def inner(
+            func: Callable[
+                [list[TWorkflowInput], list[Context]],
+                list[R] | CoroutineLike[list[R]],
+            ],
+        ) -> Task[TWorkflowInput, R]:
+            task = Task(
+                _fn=func,  # batch handler; executed by worker batch coordinator
+                is_durable=False,
+                workflow=self,
+                type=StepType.DEFAULT,
+                name=self._parse_task_name(name, func),
+                execution_timeout=computed_params.execution_timeout,
+                schedule_timeout=computed_params.schedule_timeout,
+                parents=parents,
+                retries=computed_params.retries,
+                rate_limits=[r.to_proto() for r in rate_limits or []],
+                desired_worker_labels={
+                    key: transform_desired_worker_label(d)
+                    for key, d in (desired_worker_labels or {}).items()
+                },
+                backoff_factor=computed_params.backoff_factor,
+                backoff_max_seconds=computed_params.backoff_max_seconds,
+                concurrency=concurrency,
+                wait_for=wait_for,
+                skip_if=skip_if,
+                cancel_if=cancel_if,
+                batch=BatchTaskConfig(
+                    batch_size=batch_size,
+                    flush_interval_ms=normalized_flush,
+                    batch_key=batch_key,
+                    max_runs=max_runs,
+                ),
+            )
+
+            self._default_tasks.append(task)
+
+            return task
+
+        return inner
+
     def durable_task(
         self,
         name: str | None = None,
@@ -1229,6 +1332,12 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self._task = task
 
         return_type = get_type_hints(self._task.fn).get("return")
+
+        if getattr(self._task, "is_batch", False):
+            origin = get_origin(return_type)
+            args = get_args(return_type)
+            if origin is list and len(args) == 1:
+                return_type = args[0]
 
         self._output_validator = self.get_output_validator(return_type)
 

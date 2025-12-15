@@ -48,6 +48,8 @@ class V1TaskEventType(str, Enum):
     CREATED = "CREATED"
     QUEUED = "QUEUED"
     SKIPPED = "SKIPPED"
+    WAITING_FOR_BATCH = "WAITING_FOR_BATCH"
+    BATCH_FLUSHED = "BATCH_FLUSHED"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

@@ -628,7 +628,7 @@ SELECT
     COUNT(*) AS pending_count,
     MAX(s."batch_size")::integer AS batch_size,
     MAX(s."batch_flush_interval_ms")::integer AS batch_flush_interval_ms,
-    MAX(s."batch_max_runs")::integer AS batch_max_runs
+    MAX(s."batch_max_runs") AS batch_max_runs
 FROM
     v1_batched_queue_item b
 JOIN

@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import Callable
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
     TYPE_CHECKING,
@@ -35,6 +35,9 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskRateLimit,
     DesiredWorkerLabels,
 )
+from hatchet_sdk.contracts.v1.workflows_pb2 import (
+    TaskBatchConfig as TaskBatchConfigProto,
+)
 from hatchet_sdk.exceptions import InvalidDependencyError
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
@@ -59,6 +62,14 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 P = ParamSpec("P")
+
+
+@dataclass(frozen=True)
+class BatchTaskConfig:
+    batch_size: int
+    flush_interval_ms: int | None = None
+    batch_key: str | None = None
+    max_runs: int | None = None
 
 
 class Depends(Generic[T, TWorkflowInput]):
@@ -89,6 +100,10 @@ class Task(Generic[TWorkflowInput, R]):
         _fn: (
             Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]
             | Callable[Concatenate[TWorkflowInput, Context, P], AwaitableLike[R]]
+            | Callable[
+                Concatenate[list[TWorkflowInput], list[Context], P],
+                list[R] | CoroutineLike[list[R]] | AwaitableLike[list[R]],
+            ]
             | (
                 Callable[
                     Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
@@ -114,8 +129,11 @@ class Task(Generic[TWorkflowInput, R]):
         wait_for: list[Condition | OrGroup] | None,
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
+        batch: BatchTaskConfig | None = None,
     ) -> None:
         self.is_durable = is_durable
+        self.batch = batch
+        self.is_batch = batch is not None
 
         self.fn = _fn
         self.is_async_function = is_async_fn(self.fn)  # type: ignore
@@ -139,6 +157,13 @@ class Task(Generic[TWorkflowInput, R]):
         self.cancel_if = flatten_conditions(cancel_if or [])
 
         return_type = get_type_hints(_fn).get("return")
+
+        # For batch tasks, the handler returns a list of per-item outputs. We validate the item type.
+        if self.is_batch:
+            origin = get_origin(return_type)
+            args = get_args(return_type)
+            if origin is list and len(args) == 1:
+                return_type = args[0]
 
         self.validators: TaskIOValidator = TaskIOValidator(
             workflow_input=workflow.config.input_validator,
@@ -217,7 +242,7 @@ class Task(Generic[TWorkflowInput, R]):
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
 
     def to_proto(self, service_name: str) -> CreateTaskOpts:
-        return CreateTaskOpts(
+        proto = CreateTaskOpts(
             readable_id=self.name,
             action=service_name + ":" + self.name,
             timeout=timedelta_to_expr(self.execution_timeout),
@@ -232,6 +257,19 @@ class Task(Generic[TWorkflowInput, R]):
             conditions=self._conditions_to_proto(),
             schedule_timeout=timedelta_to_expr(self.schedule_timeout),
         )
+
+        if self.batch is not None:
+            batch_proto = TaskBatchConfigProto(batch_size=self.batch.batch_size)
+            if self.batch.flush_interval_ms is not None:
+                batch_proto.flush_interval_ms = self.batch.flush_interval_ms
+            if self.batch.batch_key is not None:
+                batch_proto.batch_key = self.batch.batch_key
+            if self.batch.max_runs is not None:
+                batch_proto.max_runs = self.batch.max_runs
+
+            proto.batch.CopyFrom(batch_proto)
+
+        return proto
 
     def _assign_action(self, condition: Condition, action: Action) -> Condition:
         condition.base.action = action

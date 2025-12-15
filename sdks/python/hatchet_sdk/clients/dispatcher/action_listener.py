@@ -29,7 +29,12 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.runnables.action import Action, ActionPayload, ActionType
+from hatchet_sdk.runnables.action import (
+    Action,
+    ActionPayload,
+    ActionType,
+    BatchStartPayload,
+)
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
 from hatchet_sdk.utils.typing import JSONSerializableMapping
@@ -227,6 +232,22 @@ class ActionListener:
 
                         action_payload = ActionPayload()
 
+                    batch_start_payload: BatchStartPayload | None = None
+                    if assigned_action.batch_start is not None:
+                        trigger_time = None
+                        if hasattr(
+                            assigned_action.batch_start.triggerTime, "ToDatetime"
+                        ):
+                            trigger_time = (
+                                assigned_action.batch_start.triggerTime.ToDatetime()
+                            )
+
+                        batch_start_payload = BatchStartPayload(
+                            expected_size=assigned_action.batch_start.expectedSize,
+                            trigger_reason=assigned_action.batch_start.triggerReason,
+                            trigger_time=trigger_time,
+                        )
+
                     action = Action(
                         tenant_id=assigned_action.tenantId,
                         worker_id=self.worker_id,
@@ -253,6 +274,27 @@ class ActionListener:
                         priority=assigned_action.priority,
                         workflow_version_id=assigned_action.workflowVersionId,
                         workflow_id=assigned_action.workflowId,
+                        batch_id=(
+                            assigned_action.batchId
+                            if assigned_action.HasField("batchId")
+                            else None
+                        ),
+                        batch_size=(
+                            assigned_action.batchSize
+                            if assigned_action.HasField("batchSize")
+                            else None
+                        ),
+                        batch_index=(
+                            assigned_action.batchIndex
+                            if assigned_action.HasField("batchIndex")
+                            else None
+                        ),
+                        batch_key=(
+                            assigned_action.batchKey
+                            if assigned_action.batchKey
+                            else None
+                        ),
+                        batch_start=batch_start_payload,
                     )
 
                     yield action

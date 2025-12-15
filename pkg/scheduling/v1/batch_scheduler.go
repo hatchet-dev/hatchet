@@ -152,6 +152,11 @@ func newBatchScheduler(
 		flushInterval = time.Duration(resource.BatchFlushIntervalMs) * time.Millisecond
 	}
 
+	maxRuns := 0
+	if resource.BatchMaxRuns.Valid {
+		maxRuns = int(resource.BatchMaxRuns.Int32)
+	}
+
 	return &BatchScheduler{
 		cf:            cf,
 		tenantId:      tenantId,
@@ -164,7 +169,7 @@ func newBatchScheduler(
 		reserveBatch:  reserveBatch,
 		batchSize:     int(batchSize),
 		flushInterval: flushInterval,
-		maxRuns:       int(resource.BatchMaxRuns),
+		maxRuns:       maxRuns,
 		idleTTL:       defaultBatchIdleTTL,
 		lastActiveAt:  time.Now().UTC(),
 		l:             logger,
