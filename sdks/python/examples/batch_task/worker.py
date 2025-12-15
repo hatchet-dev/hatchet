@@ -1,8 +1,10 @@
+import asyncio
+
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
 
-import asyncio
+
 class BatchInput(BaseModel):
     message: str
     group: str

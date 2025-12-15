@@ -1,5 +1,7 @@
-from examples.batch_task.worker import BatchInput, workflow
 import asyncio
+
+from examples.batch_task.worker import BatchInput, workflow
+
 
 async def main() -> None:
     # Trigger three runs in the same group so the batch flushes at size=3.
