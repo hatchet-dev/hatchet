@@ -144,9 +144,9 @@ message DesiredWorkerLabels {
 
 message TaskBatchConfig {
     int32 batch_size = 1; // (required) maximum number of inputs per flush
-    optional int32 flush_interval_ms = 2; // (optional) flush interval in milliseconds
-    optional string batch_key = 3; // (optional) CEL expression to evaluate a batch partition key
-    optional int32 max_runs = 4; // (optional) maximum concurrently running batches per unique key
+    optional int32 flush_interval_ms = 2; // (optional) flush interval in milliseconds, default: 1000
+    optional string batch_key = 3; // (optional) CEL expression to evaluate a batch partition key, default: default
+    optional int32 max_runs = 4; // (optional) maximum concurrently running batches per unique key, default: 100
 }
 
 // CreateTaskOpts represents options to create a task.

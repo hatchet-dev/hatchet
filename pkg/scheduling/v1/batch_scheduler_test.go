@@ -284,7 +284,7 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 			BatchKey:             "group",
 			BatchSize:            2,
 			BatchFlushIntervalMs: 0,
-			BatchMaxRuns:         pgtype.Int4{Int32: 1, Valid: true},
+			BatchMaxRuns:         1,
 		},
 		queueFactory,
 		&Scheduler{},

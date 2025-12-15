@@ -121,9 +121,14 @@ SELECT
 	i.retry_max_backoff,
 	i.workflow_version_id,
 	i.workflow_run_id,
-	NULLIF(i.batch_key, '')
+	CASE
+		WHEN s."batch_size" IS NOT NULL AND s."batch_size" >= 1 THEN COALESCE(NULLIF(BTRIM(i.batch_key), ''), 'default')
+		ELSE NULLIF(BTRIM(i.batch_key), '')
+	END
 FROM
     input i
+LEFT JOIN
+	"Step" s ON s."id" = i.step_id
 RETURNING
     id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, batch_key
 `
@@ -422,7 +427,7 @@ SET
     initial_state = i.initial_state,
     concurrency_keys = i.concurrency_keys,
     initial_state_reason = i.initial_state_reason,
-    batch_key = NULLIF(i.batch_key, '')
+    batch_key = COALESCE(NULLIF(BTRIM(i.batch_key), ''), v1_task.batch_key)
 FROM
     input i
 WHERE

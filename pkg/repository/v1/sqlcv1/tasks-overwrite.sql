@@ -50,7 +50,8 @@ INSERT INTO v1_task (
     additional_metadata,
     initial_state,
     dag_id,
-    dag_inserted_at
+    dag_inserted_at,
+    batch_key
 )
 SELECT
     i.tenant_id,
@@ -71,9 +72,15 @@ SELECT
     i.additional_metadata,
     i.initial_state,
     i.dag_id,
-    i.dag_inserted_at
+    i.dag_inserted_at,
+    CASE
+        WHEN s."batch_size" IS NOT NULL AND s."batch_size" >= 1 THEN COALESCE(NULLIF(BTRIM(i.batch_key), ''), '\'default\'')
+        ELSE NULLIF(BTRIM(i.batch_key), '')
+    END
 FROM
     input i
+LEFT JOIN
+    "Step" s ON s."id" = i.step_id
 RETURNING
     *;
 

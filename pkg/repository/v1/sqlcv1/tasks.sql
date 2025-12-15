@@ -210,6 +210,7 @@ LEFT JOIN
     AND tr.task_inserted_at = t.inserted_at
     AND tr.retry_count = t.retry_count
     AND tr.tenant_id = t.tenant_id
+    AND t.batch_key IS NOT NULL
 WHERE
     t.tenant_id = @tenantId::uuid
     AND t.id = ANY(@ids::bigint[]);

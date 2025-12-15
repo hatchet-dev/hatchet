@@ -626,9 +626,9 @@ SELECT
     b.batch_key,
     MIN(b.inserted_at)::timestamptz AS oldest_item_at,
     COUNT(*) AS pending_count,
-    MAX(s."batch_size")::integer AS batch_size,
-    MAX(s."batch_flush_interval_ms")::integer AS batch_flush_interval_ms,
-    MAX(s."batch_max_runs") AS batch_max_runs
+    COALESCE(MAX(s."batch_size"), -1)::integer AS batch_size,
+    COALESCE(MAX(s."batch_flush_interval_ms"), -1)::integer AS batch_flush_interval_ms,
+    COALESCE(MAX(s."batch_max_runs"), -1)::integer AS batch_max_runs
 FROM
     v1_batched_queue_item b
 JOIN
@@ -651,7 +651,6 @@ WITH locked_qis AS (
         "Step" s ON s."id" = qi.step_id
     WHERE
         qi.id = ANY(@ids::bigint[])
-        AND NULLIF(BTRIM(qi.batch_key), '') IS NOT NULL
         AND s."batch_size" IS NOT NULL
         AND s."batch_size" >= 1
     ORDER BY
@@ -693,7 +692,7 @@ WITH locked_qis AS (
         sticky,
         desired_worker_id,
         retry_count,
-        BTRIM(batch_key),
+        COALESCE(BTRIM(batch_key), ''),
         CURRENT_TIMESTAMP
     FROM
         locked_qis

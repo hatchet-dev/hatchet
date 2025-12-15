@@ -876,8 +876,16 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 		}
 
 		if stepCp.Batch != nil {
+
+			defaultFlushIntervalMs := int32(1000)
+			defaultBatchKeyExpression := "'default'"
+			defaultMaxRuns := int32(100)
+
 			steps[j].BatchConfig = &v1.StepBatchConfig{
-				BatchSize: stepCp.Batch.BatchSize,
+				BatchSize:          stepCp.Batch.BatchSize,
+				FlushIntervalMs:    &defaultFlushIntervalMs,
+				BatchKeyExpression: &defaultBatchKeyExpression,
+				MaxRuns:            &defaultMaxRuns,
 			}
 
 			if stepCp.Batch.FlushIntervalMs != nil {
@@ -891,6 +899,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 			if stepCp.Batch.MaxRuns != nil {
 				steps[j].BatchConfig.MaxRuns = stepCp.Batch.MaxRuns
 			}
+
 		}
 	}
 
