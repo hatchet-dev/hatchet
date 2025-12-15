@@ -39,7 +39,7 @@ export default function RootRedirect() {
 
       return;
     }
-  }, [listMembershipsQuery.data, navigate]);
+  }, [listMembershipsQuery.data, navigate, lastTenant]);
 
   return <Loading />;
 }
