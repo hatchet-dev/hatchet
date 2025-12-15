@@ -249,6 +249,7 @@ type OLAPRepository interface {
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error)
 	GetEvent(ctx context.Context, externalId string) (*sqlcv1.V1EventsOlap, error)
+	GetEventUsingTenantId(ctx context.Context, externalId, tenantId string) (*sqlcv1.V1EventsOlap, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 
 	GetDAGDurations(ctx context.Context, tenantId string, externalIds []pgtype.UUID, minInsertedAt pgtype.Timestamptz) (map[string]*sqlcv1.GetDagDurationsRow, error)
@@ -2119,6 +2120,13 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 
 func (r *OLAPRepositoryImpl) GetEvent(ctx context.Context, externalId string) (*sqlcv1.V1EventsOlap, error) {
 	return r.queries.GetEventByExternalId(ctx, r.readPool, sqlchelpers.UUIDFromStr(externalId))
+}
+
+func (r *OLAPRepositoryImpl) GetEventUsingTenantId(ctx context.Context, externalId, tenantId string) (*sqlcv1.V1EventsOlap, error) {
+	return r.queries.GetEventByExternalIdUsingTenantId(ctx, r.readPool, sqlcv1.GetEventByExternalIdUsingTenantIdParams{
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Eventexternalid: sqlchelpers.UUIDFromStr(externalId),
+	})
 }
 
 type ListEventsRow struct {

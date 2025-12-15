@@ -1533,6 +1533,15 @@ JOIN v1_events_olap e ON (elt.event_id, elt.event_seen_at) = (e.id, e.seen_at)
 WHERE elt.external_id = @eventExternalId::uuid
 ;
 
+-- name: GetEventByExternalIdUsingTenantId :one
+SELECT e.*
+FROM v1_event_lookup_table_olap elt
+JOIN v1_events_olap e ON (elt.event_id, elt.event_seen_at) = (e.id, e.seen_at)
+WHERE
+    elt.external_id = @eventExternalId::uuid
+    AND elt.tenant_id = @tenantId::uuid
+;
+
 -- name: ListEvents :many
 SELECT e.*
 FROM v1_event_lookup_table_olap elt
