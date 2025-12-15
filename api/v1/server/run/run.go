@@ -487,8 +487,8 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	populatorMW.RegisterGetter("v1-event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		event, err := t.config.V1.OLAP().GetEventWithPayload(
 			context.Background(),
-			parentId,
 			id,
+			parentId,
 		)
 
 		if err != nil {
