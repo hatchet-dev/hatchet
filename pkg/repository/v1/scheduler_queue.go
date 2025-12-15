@@ -511,9 +511,11 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 			continue
 		}
 
-		upsertRateLimitBulkParams.Keys = append(upsertRateLimitBulkParams.Keys, key)
-		upsertRateLimitBulkParams.Windows = append(upsertRateLimitBulkParams.Windows, getWindowParamFromDurString(duration))
-		upsertRateLimitBulkParams.Limitvalues = append(upsertRateLimitBulkParams.Limitvalues, int32(limitValue)) // nolint: gosec
+		if limitValue > 0 {
+			upsertRateLimitBulkParams.Keys = append(upsertRateLimitBulkParams.Keys, key)
+			upsertRateLimitBulkParams.Windows = append(upsertRateLimitBulkParams.Windows, getWindowParamFromDurString(duration))
+			upsertRateLimitBulkParams.Limitvalues = append(upsertRateLimitBulkParams.Limitvalues, int32(limitValue))
+		}
 	}
 
 	var stepRateLimits []*sqlcv1.StepRateLimit
