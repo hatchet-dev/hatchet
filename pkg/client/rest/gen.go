@@ -3124,6 +3124,9 @@ type ClientInterface interface {
 	// V1EventKeyList request
 	V1EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1EventGet request
+	V1EventGet(ctx context.Context, tenant openapi_types.UUID, v1Event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1FilterList request
 	V1FilterList(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3783,6 +3786,18 @@ func (c *Client) V1EventList(ctx context.Context, tenant openapi_types.UUID, par
 
 func (c *Client) V1EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1EventKeyListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1EventGet(ctx context.Context, tenant openapi_types.UUID, v1Event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1EventGetRequest(c.Server, tenant, v1Event)
 	if err != nil {
 		return nil, err
 	}
@@ -6495,6 +6510,47 @@ func NewV1EventKeyListRequest(server string, tenant openapi_types.UUID) (*http.R
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/events/keys", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1EventGetRequest generates requests for V1EventGet
+func NewV1EventGetRequest(server string, tenant openapi_types.UUID, v1Event openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-event", runtime.ParamLocationPath, v1Event)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/events/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -12715,6 +12771,9 @@ type ClientWithResponsesInterface interface {
 	// V1EventKeyListWithResponse request
 	V1EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1EventKeyListResponse, error)
 
+	// V1EventGetWithResponse request
+	V1EventGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Event openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1EventGetResponse, error)
+
 	// V1FilterListWithResponse request
 	V1FilterListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*V1FilterListResponse, error)
 
@@ -13600,6 +13659,30 @@ func (r V1EventKeyListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1EventKeyListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1EventGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Event
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1EventGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1EventGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -16445,6 +16528,15 @@ func (c *ClientWithResponses) V1EventKeyListWithResponse(ctx context.Context, te
 	return ParseV1EventKeyListResponse(rsp)
 }
 
+// V1EventGetWithResponse request returning *V1EventGetResponse
+func (c *ClientWithResponses) V1EventGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Event openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1EventGetResponse, error) {
+	rsp, err := c.V1EventGet(ctx, tenant, v1Event, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1EventGetResponse(rsp)
+}
+
 // V1FilterListWithResponse request returning *V1FilterListResponse
 func (c *ClientWithResponses) V1FilterListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*V1FilterListResponse, error) {
 	rsp, err := c.V1FilterList(ctx, tenant, params, reqEditors...)
@@ -18463,6 +18555,46 @@ func ParseV1EventKeyListResponse(rsp *http.Response) (*V1EventKeyListResponse, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest EventKeyList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1EventGetResponse parses an HTTP response from a V1EventGetWithResponse call
+func ParseV1EventGetResponse(rsp *http.Response) (*V1EventGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1EventGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Event
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
