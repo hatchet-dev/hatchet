@@ -1851,10 +1851,12 @@ WITH payloads AS (
         (p).*
     FROM list_paginated_olap_payloads_for_offload(
         @partitionDate::DATE,
-        @limitParam::INT,
         @lastTenantId::UUID,
         @lastExternalId::UUID,
-        @lastInsertedAt::TIMESTAMPTZ
+        @lastInsertedAt::TIMESTAMPTZ,
+        @nextTenantId::UUID,
+        @nextExternalId::UUID,
+        @nextInsertedAt::TIMESTAMPTZ
     ) p
 )
 SELECT
@@ -1866,6 +1868,30 @@ SELECT
     inserted_at::TIMESTAMPTZ,
     updated_at::TIMESTAMPTZ
 FROM payloads;
+
+-- name: CreateOLAPPayloadRangeChunks :many
+WITH chunks AS (
+    SELECT
+        (p).*
+    FROM create_olap_payload_offload_range_chunks(
+        @partitionDate::DATE,
+        @windowSize::INTEGER,
+        @chunkSize::INTEGER,
+        @lastTenantId::UUID,
+        @lastExternalId::UUID,
+        @lastInsertedAt::TIMESTAMPTZ
+    ) p
+)
+
+SELECT
+    lower_tenant_id::UUID,
+    lower_external_id::UUID,
+    lower_inserted_at::TIMESTAMPTZ,
+    upper_tenant_id::UUID,
+    upper_external_id::UUID,
+    upper_inserted_at::TIMESTAMPTZ
+FROM chunks
+;
 
 -- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
 SELECT copy_v1_payloads_olap_partition_structure(@date::DATE);

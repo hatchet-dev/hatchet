@@ -35,6 +35,7 @@ class TenantResource(str, Enum):
     TASK_RUN = "TASK_RUN"
     CRON = "CRON"
     SCHEDULE = "SCHEDULE"
+    INCOMING_WEBHOOK = "INCOMING_WEBHOOK"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

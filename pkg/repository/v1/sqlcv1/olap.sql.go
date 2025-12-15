@@ -322,6 +322,82 @@ func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateO
 	return err
 }
 
+const createOLAPPayloadRangeChunks = `-- name: CreateOLAPPayloadRangeChunks :many
+WITH chunks AS (
+    SELECT
+        (p).*
+    FROM create_olap_payload_offload_range_chunks(
+        $1::DATE,
+        $2::INTEGER,
+        $3::INTEGER,
+        $4::UUID,
+        $5::UUID,
+        $6::TIMESTAMPTZ
+    ) p
+)
+
+SELECT
+    lower_tenant_id::UUID,
+    lower_external_id::UUID,
+    lower_inserted_at::TIMESTAMPTZ,
+    upper_tenant_id::UUID,
+    upper_external_id::UUID,
+    upper_inserted_at::TIMESTAMPTZ
+FROM chunks
+`
+
+type CreateOLAPPayloadRangeChunksParams struct {
+	Partitiondate  pgtype.Date        `json:"partitiondate"`
+	Windowsize     int32              `json:"windowsize"`
+	Chunksize      int32              `json:"chunksize"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+}
+
+type CreateOLAPPayloadRangeChunksRow struct {
+	LowerTenantID   pgtype.UUID        `json:"lower_tenant_id"`
+	LowerExternalID pgtype.UUID        `json:"lower_external_id"`
+	LowerInsertedAt pgtype.Timestamptz `json:"lower_inserted_at"`
+	UpperTenantID   pgtype.UUID        `json:"upper_tenant_id"`
+	UpperExternalID pgtype.UUID        `json:"upper_external_id"`
+	UpperInsertedAt pgtype.Timestamptz `json:"upper_inserted_at"`
+}
+
+func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg CreateOLAPPayloadRangeChunksParams) ([]*CreateOLAPPayloadRangeChunksRow, error) {
+	rows, err := db.Query(ctx, createOLAPPayloadRangeChunks,
+		arg.Partitiondate,
+		arg.Windowsize,
+		arg.Chunksize,
+		arg.Lasttenantid,
+		arg.Lastexternalid,
+		arg.Lastinsertedat,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*CreateOLAPPayloadRangeChunksRow
+	for rows.Next() {
+		var i CreateOLAPPayloadRangeChunksRow
+		if err := rows.Scan(
+			&i.LowerTenantID,
+			&i.LowerExternalID,
+			&i.LowerInsertedAt,
+			&i.UpperTenantID,
+			&i.UpperExternalID,
+			&i.UpperInsertedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 type CreateTaskEventsOLAPParams struct {
 	TenantID               pgtype.UUID          `json:"tenant_id"`
 	TaskID                 int64                `json:"task_id"`
@@ -1254,10 +1330,12 @@ WITH payloads AS (
         (p).*
     FROM list_paginated_olap_payloads_for_offload(
         $1::DATE,
-        $2::INT,
+        $2::UUID,
         $3::UUID,
-        $4::UUID,
-        $5::TIMESTAMPTZ
+        $4::TIMESTAMPTZ,
+        $5::UUID,
+        $6::UUID,
+        $7::TIMESTAMPTZ
     ) p
 )
 SELECT
@@ -1273,10 +1351,12 @@ FROM payloads
 
 type ListPaginatedOLAPPayloadsForOffloadParams struct {
 	Partitiondate  pgtype.Date        `json:"partitiondate"`
-	Limitparam     int32              `json:"limitparam"`
 	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
 	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+	Nexttenantid   pgtype.UUID        `json:"nexttenantid"`
+	Nextexternalid pgtype.UUID        `json:"nextexternalid"`
+	Nextinsertedat pgtype.Timestamptz `json:"nextinsertedat"`
 }
 
 type ListPaginatedOLAPPayloadsForOffloadRow struct {
@@ -1292,10 +1372,12 @@ type ListPaginatedOLAPPayloadsForOffloadRow struct {
 func (q *Queries) ListPaginatedOLAPPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedOLAPPayloadsForOffloadParams) ([]*ListPaginatedOLAPPayloadsForOffloadRow, error) {
 	rows, err := db.Query(ctx, listPaginatedOLAPPayloadsForOffload,
 		arg.Partitiondate,
-		arg.Limitparam,
 		arg.Lasttenantid,
 		arg.Lastexternalid,
 		arg.Lastinsertedat,
+		arg.Nexttenantid,
+		arg.Nextexternalid,
+		arg.Nextinsertedat,
 	)
 	if err != nil {
 		return nil, err

@@ -11,7 +11,7 @@ type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
-export type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
+type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
 type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
 type WorkflowRunEventsMetrics = Parameters<
   typeof cloudApi.workflowRunEventsGetMetrics

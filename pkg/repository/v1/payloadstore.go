@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/sync/errgroup"
 )
 
 type StorePayloadOpts struct {
@@ -69,36 +72,40 @@ type PayloadStoreRepository interface {
 	ExternalCutoverProcessInterval() time.Duration
 	InlineStoreTTL() *time.Duration
 	ExternalCutoverBatchSize() int32
+	ExternalCutoverNumConcurrentOffloads() int32
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
+	ImmediateOffloadsEnabled() bool
 	ProcessPayloadCutovers(ctx context.Context) error
 }
 
 type payloadStoreRepositoryImpl struct {
-	pool                             *pgxpool.Pool
-	l                                *zerolog.Logger
-	queries                          *sqlcv1.Queries
-	externalStoreEnabled             bool
-	inlineStoreTTL                   *time.Duration
-	externalStore                    ExternalStore
-	enablePayloadDualWrites          bool
-	enableTaskEventPayloadDualWrites bool
-	enableDagDataPayloadDualWrites   bool
-	enableOLAPPayloadDualWrites      bool
-	externalCutoverProcessInterval   time.Duration
-	externalCutoverBatchSize         int32
-	enableImmediateOffloads          bool
+	pool                                 *pgxpool.Pool
+	l                                    *zerolog.Logger
+	queries                              *sqlcv1.Queries
+	externalStoreEnabled                 bool
+	inlineStoreTTL                       *time.Duration
+	externalStore                        ExternalStore
+	enablePayloadDualWrites              bool
+	enableTaskEventPayloadDualWrites     bool
+	enableDagDataPayloadDualWrites       bool
+	enableOLAPPayloadDualWrites          bool
+	externalCutoverProcessInterval       time.Duration
+	externalCutoverBatchSize             int32
+	externalCutoverNumConcurrentOffloads int32
+	enableImmediateOffloads              bool
 }
 
 type PayloadStoreRepositoryOpts struct {
-	EnablePayloadDualWrites          bool
-	EnableTaskEventPayloadDualWrites bool
-	EnableDagDataPayloadDualWrites   bool
-	EnableOLAPPayloadDualWrites      bool
-	ExternalCutoverProcessInterval   time.Duration
-	ExternalCutoverBatchSize         int32
-	InlineStoreTTL                   *time.Duration
-	EnableImmediateOffloads          bool
+	EnablePayloadDualWrites              bool
+	EnableTaskEventPayloadDualWrites     bool
+	EnableDagDataPayloadDualWrites       bool
+	EnableOLAPPayloadDualWrites          bool
+	ExternalCutoverProcessInterval       time.Duration
+	ExternalCutoverBatchSize             int32
+	ExternalCutoverNumConcurrentOffloads int32
+	InlineStoreTTL                       *time.Duration
+	EnableImmediateOffloads              bool
 }
 
 func NewPayloadStoreRepository(
@@ -112,16 +119,17 @@ func NewPayloadStoreRepository(
 		l:       l,
 		queries: queries,
 
-		externalStoreEnabled:             false,
-		inlineStoreTTL:                   opts.InlineStoreTTL,
-		externalStore:                    &NoOpExternalStore{},
-		enablePayloadDualWrites:          opts.EnablePayloadDualWrites,
-		enableTaskEventPayloadDualWrites: opts.EnableTaskEventPayloadDualWrites,
-		enableDagDataPayloadDualWrites:   opts.EnableDagDataPayloadDualWrites,
-		enableOLAPPayloadDualWrites:      opts.EnableOLAPPayloadDualWrites,
-		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
-		externalCutoverBatchSize:         opts.ExternalCutoverBatchSize,
-		enableImmediateOffloads:          opts.EnableImmediateOffloads,
+		externalStoreEnabled:                 false,
+		inlineStoreTTL:                       opts.InlineStoreTTL,
+		externalStore:                        &NoOpExternalStore{},
+		enablePayloadDualWrites:              opts.EnablePayloadDualWrites,
+		enableTaskEventPayloadDualWrites:     opts.EnableTaskEventPayloadDualWrites,
+		enableDagDataPayloadDualWrites:       opts.EnableDagDataPayloadDualWrites,
+		enableOLAPPayloadDualWrites:          opts.EnableOLAPPayloadDualWrites,
+		externalCutoverProcessInterval:       opts.ExternalCutoverProcessInterval,
+		externalCutoverBatchSize:             opts.ExternalCutoverBatchSize,
+		externalCutoverNumConcurrentOffloads: opts.ExternalCutoverNumConcurrentOffloads,
+		enableImmediateOffloads:              opts.EnableImmediateOffloads,
 	}
 }
 
@@ -386,8 +394,16 @@ func (p *payloadStoreRepositoryImpl) ExternalCutoverBatchSize() int32 {
 	return p.externalCutoverBatchSize
 }
 
+func (p *payloadStoreRepositoryImpl) ExternalCutoverNumConcurrentOffloads() int32 {
+	return p.externalCutoverNumConcurrentOffloads
+}
+
 func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
 	return p.externalStoreEnabled
+}
+
+func (p *payloadStoreRepositoryImpl) ImmediateOffloadsEnabled() bool {
+	return p.enableImmediateOffloads
 }
 
 func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
@@ -427,65 +443,110 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
-	}
-
-	defer rollback()
-
 	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
-	payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
+	windowSize := p.externalCutoverBatchSize * p.externalCutoverNumConcurrentOffloads
+
+	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, p.pool, sqlcv1.CreatePayloadRangeChunksParams{
+		Chunksize:      p.externalCutoverBatchSize,
 		Partitiondate:  pgtype.Date(partitionDate),
-		Limitparam:     p.externalCutoverBatchSize,
+		Windowsize:     windowSize,
 		Lasttenantid:   pagination.LastTenantID,
 		Lastinsertedat: pagination.LastInsertedAt,
 		Lastid:         pagination.LastID,
 		Lasttype:       pagination.LastType,
 	})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to list payloads for offload: %w", err)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("failed to create payload range chunks: %w", err)
 	}
 
-	span.SetAttributes(attribute.Int("num_payloads_read", len(payloads)))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &CutoverBatchOutcome{
+			ShouldContinue: false,
+			NextPagination: pagination,
+		}, nil
+	}
 
-	alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+	mu := sync.Mutex{}
+	eg := errgroup.Group{}
+
 	externalIdToPayload := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
-	offloadOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
+	alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
 
-	for _, payload := range payloads {
-		externalId := PayloadExternalId(payload.ExternalID.String())
+	numPayloads := 0
 
-		if externalId == "" {
-			externalId = PayloadExternalId(uuid.NewString())
-		}
-
-		externalIdToPayload[externalId] = *payload
-		if payload.Location != sqlcv1.V1PayloadLocationINLINE {
-			alreadyExternalPayloads[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
-		} else {
-			offloadOpts = append(offloadOpts, OffloadToExternalStoreOpts{
-				TenantId:   TenantID(payload.TenantID.String()),
-				ExternalID: externalId,
-				InsertedAt: payload.InsertedAt,
-				Payload:    payload.InlineContent,
+	for _, payloadRange := range payloadRanges {
+		pr := payloadRange
+		eg.Go(func() error {
+			payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedPayloadsForOffloadParams{
+				Partitiondate:  pgtype.Date(partitionDate),
+				Lasttenantid:   pr.LowerTenantID,
+				Lastinsertedat: pr.LowerInsertedAt,
+				Lastid:         pr.LowerID,
+				Lasttype:       pr.LowerType,
+				Nexttenantid:   pr.UpperTenantID,
+				Nextinsertedat: pr.UpperInsertedAt,
+				Nextid:         pr.UpperID,
+				Nexttype:       pr.UpperType,
 			})
-		}
+
+			if err != nil {
+				return fmt.Errorf("failed to list paginated payloads for offload")
+			}
+
+			alreadyExternalPayloadsInner := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+			externalIdToPayloadInner := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
+			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
+
+			for _, payload := range payloads {
+				externalId := PayloadExternalId(payload.ExternalID.String())
+
+				if externalId == "" {
+					externalId = PayloadExternalId(uuid.NewString())
+				}
+
+				externalIdToPayloadInner[externalId] = *payload
+
+				if payload.Location != sqlcv1.V1PayloadLocationINLINE {
+					alreadyExternalPayloadsInner[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
+				} else {
+					offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{
+						TenantId:   TenantID(payload.TenantID.String()),
+						ExternalID: externalId,
+						InsertedAt: payload.InsertedAt,
+						Payload:    payload.InlineContent,
+					})
+				}
+			}
+
+			mu.Lock()
+			maps.Copy(externalIdToPayload, externalIdToPayloadInner)
+			maps.Copy(alreadyExternalPayloads, alreadyExternalPayloadsInner)
+			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
+			numPayloads += len(payloads)
+			mu.Unlock()
+
+			return nil
+		})
 	}
 
-	externalIdToKey, err := p.ExternalStore().Store(ctx, offloadOpts...)
+	err = eg.Wait()
+
+	if err != nil {
+		return nil, err
+	}
+
+	externalIdToKey, err := p.ExternalStore().Store(ctx, offloadToExternalStoreOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
 	}
 
-	for r, k := range alreadyExternalPayloads {
-		externalIdToKey[r] = k
-	}
+	maps.Copy(externalIdToKey, alreadyExternalPayloads)
 
-	payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, len(payloads))
+	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
+	payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, numPayloads)
 
 	for externalId, key := range externalIdToKey {
 		payload := externalIdToPayload[externalId]
@@ -499,27 +560,33 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		})
 	}
 
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+	}
+
+	defer rollback()
+
 	inserted, err := sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
 	}
 
-	isNoRows := errors.Is(err, pgx.ErrNoRows)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &CutoverBatchOutcome{
+			ShouldContinue: false,
+			NextPagination: pagination,
+		}, nil
+	}
 
-	params := PaginationParams{
+	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, PaginationParams{
 		LastTenantID:   inserted.TenantId,
 		LastInsertedAt: inserted.InsertedAt,
 		LastID:         inserted.ID,
 		LastType:       inserted.Type,
-	}
-
-	// hack so that we don't have errors from zero values when no rows are returned
-	if isNoRows {
-		params = pagination
-	}
-
-	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, params)
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
@@ -529,7 +596,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
-	if len(payloads) < int(p.externalCutoverBatchSize) || isNoRows {
+	if numPayloads < int(windowSize) {
 		return &CutoverBatchOutcome{
 			ShouldContinue: false,
 			NextPagination: extendedLease.Pagination,

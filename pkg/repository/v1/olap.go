@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"math/rand"
 	"sort"
 	"sync"
@@ -267,7 +268,7 @@ type OLAPRepository interface {
 
 	ListWorkflowRunExternalIds(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]pgtype.UUID, error)
 
-	ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize int32) error
+	ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error
 }
 
 type StatusUpdateBatchSizeLimits struct {
@@ -2393,7 +2394,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 
 	externalIdToKey := make(map[PayloadExternalId]ExternalPayloadLocationKey)
 
-	if r.payloadStore.ExternalStoreEnabled() {
+	if r.payloadStore.ExternalStoreEnabled() && r.payloadStore.ImmediateOffloadsEnabled() {
 		storeExternalPayloadOpts := make([]OffloadToExternalStoreOpts, len(putPayloadOpts))
 
 		for i, opt := range putPayloadOpts {
@@ -2708,9 +2709,116 @@ type OLAPCutoverBatchOutcome struct {
 	NextPagination OLAPPaginationParams
 }
 
-func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, pagination OLAPPaginationParams) (*OLAPCutoverBatchOutcome, error) {
+func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, pagination OLAPPaginationParams, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) (*OLAPCutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.processOLAPPayloadCutoverBatch")
 	defer span.End()
+
+	tableName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
+	windowSize := externalCutoverBatchSize * externalCutoverNumConcurrentOffloads
+
+	payloadRanges, err := p.queries.CreateOLAPPayloadRangeChunks(ctx, p.pool, sqlcv1.CreateOLAPPayloadRangeChunksParams{
+		Chunksize:      externalCutoverBatchSize,
+		Partitiondate:  pgtype.Date(partitionDate),
+		Windowsize:     windowSize,
+		Lasttenantid:   pagination.LastTenantId,
+		Lastexternalid: pagination.LastExternalId,
+		Lastinsertedat: pagination.LastInsertedAt,
+	})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("failed to create payload range chunks: %w", err)
+	}
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &OLAPCutoverBatchOutcome{
+			ShouldContinue: false,
+			NextPagination: pagination,
+		}, nil
+	}
+
+	mu := sync.Mutex{}
+	eg := errgroup.Group{}
+
+	externalIdToPayload := make(map[PayloadExternalId]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
+	alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
+
+	numPayloads := 0
+
+	for _, payloadRange := range payloadRanges {
+		pr := payloadRange
+		eg.Go(func() error {
+			payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
+				Partitiondate:  pgtype.Date(partitionDate),
+				Lasttenantid:   pr.LowerTenantID,
+				Lastexternalid: pr.LowerExternalID,
+				Lastinsertedat: pr.LowerInsertedAt,
+				Nexttenantid:   pr.UpperTenantID,
+				Nextexternalid: pr.UpperExternalID,
+				Nextinsertedat: pr.UpperInsertedAt,
+			})
+
+			if err != nil {
+				return fmt.Errorf("failed to list paginated payloads for offload")
+			}
+
+			alreadyExternalPayloadsInner := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+			externalIdToPayloadInner := make(map[PayloadExternalId]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
+			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
+
+			for _, payload := range payloads {
+				externalId := PayloadExternalId(payload.ExternalID.String())
+				externalIdToPayloadInner[externalId] = *payload
+
+				if payload.Location != sqlcv1.V1PayloadLocationOlapINLINE {
+					alreadyExternalPayloadsInner[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
+				} else {
+					offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{
+						TenantId:   TenantID(payload.TenantID.String()),
+						ExternalID: externalId,
+						InsertedAt: payload.InsertedAt,
+						Payload:    payload.InlineContent,
+					})
+				}
+			}
+
+			mu.Lock()
+			maps.Copy(externalIdToPayload, externalIdToPayloadInner)
+			maps.Copy(alreadyExternalPayloads, alreadyExternalPayloadsInner)
+			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
+			numPayloads += len(payloads)
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	err = eg.Wait()
+
+	if err != nil {
+		return nil, err
+	}
+
+	externalIdToKey, err := p.PayloadStore().ExternalStore().Store(ctx, offloadToExternalStoreOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
+	}
+
+	maps.Copy(externalIdToKey, alreadyExternalPayloads)
+
+	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
+	payloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, 0, numPayloads)
+
+	for externalId, key := range externalIdToKey {
+		payload := externalIdToPayload[externalId]
+		payloadsToInsert = append(payloadsToInsert, sqlcv1.CutoverOLAPPayloadToInsert{
+			TenantID:            payload.TenantID,
+			InsertedAt:          payload.InsertedAt,
+			ExternalID:          sqlchelpers.UUIDFromStr(string(externalId)),
+			ExternalLocationKey: string(key),
+		})
+	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
@@ -2720,86 +2828,25 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 
 	defer rollback()
 
-	tableName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
-
-	payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
-		Partitiondate:  pgtype.Date(partitionDate),
-		Lasttenantid:   pagination.LastTenantId,
-		Lastexternalid: pagination.LastExternalId,
-		Lastinsertedat: pagination.LastInsertedAt,
-		Limitparam:     pagination.Limit,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to list payloads for offload: %w", err)
-	}
-
-	span.SetAttributes(attribute.Int("num_payloads_read", len(payloads)))
-
-	tenantIdToOffloadOpts := make(map[TenantID][]StoreOLAPPayloadOpts)
-	externalIdToKey := make(map[PayloadExternalId]ExternalPayloadLocationKey)
-	externalIdToPayload := make(map[PayloadExternalId]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
-
-	for _, payload := range payloads {
-		externalIdToPayload[PayloadExternalId(payload.ExternalID.String())] = *payload
-
-		if payload.Location != sqlcv1.V1PayloadLocationOlapINLINE {
-			externalIdToKey[PayloadExternalId(payload.ExternalID.String())] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
-		} else {
-			tenantIdToOffloadOpts[TenantID(payload.TenantID.String())] = append(tenantIdToOffloadOpts[TenantID(payload.TenantID.String())], StoreOLAPPayloadOpts{
-				InsertedAt: payload.InsertedAt,
-				Payload:    payload.InlineContent,
-				ExternalId: payload.ExternalID,
-			})
-		}
-	}
-
-	for tenant, opts := range tenantIdToOffloadOpts {
-		externalIdToKeyInner, err := p.PutPayloads(ctx, tx, tenant, opts...)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to offload olap payloads for tenant %s: %w", tenant, err)
-		}
-
-		for externalId, key := range externalIdToKeyInner {
-			externalIdToKey[externalId] = key
-		}
-	}
-
-	payloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, 0, len(payloads))
-
-	for externalId, key := range externalIdToKey {
-		payload := externalIdToPayload[externalId]
-
-		payloadsToInsert = append(payloadsToInsert, sqlcv1.CutoverOLAPPayloadToInsert{
-			TenantID:            payload.TenantID,
-			InsertedAt:          payload.InsertedAt,
-			ExternalID:          sqlchelpers.UUIDFromStr(string(externalId)),
-			ExternalLocationKey: string(key),
-		})
-	}
-
-	insertResult, err := sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
+	inserted, err := sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
 	}
 
-	isNoRows := errors.Is(err, pgx.ErrNoRows)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &OLAPCutoverBatchOutcome{
+			ShouldContinue: false,
+			NextPagination: pagination,
+		}, nil
+	}
 
-	params := OLAPPaginationParams{
-		LastTenantId:   insertResult.TenantId,
-		LastInsertedAt: insertResult.InsertedAt,
-		LastExternalId: insertResult.ExternalId,
+	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, OLAPPaginationParams{
+		LastTenantId:   inserted.TenantId,
+		LastInsertedAt: inserted.InsertedAt,
+		LastExternalId: inserted.ExternalId,
 		Limit:          pagination.Limit,
-	}
-
-	// hack so that we don't have errors from zero values when no rows are returned
-	if isNoRows {
-		params = pagination
-	}
-
-	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, params)
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
@@ -2809,7 +2856,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
-	if len(payloads) < int(pagination.Limit) || isNoRows {
+	if numPayloads < int(windowSize) {
 		return &OLAPCutoverBatchOutcome{
 			ShouldContinue: false,
 			NextPagination: extendedLease.Pagination,
@@ -2923,7 +2970,7 @@ func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, process
 	}, nil
 }
 
-func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration, externalCutoverBatchSize int32) error {
+func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error {
 	ctx, span := telemetry.NewSpan(ctx, "olap_repository.processSinglePartition")
 	defer span.End()
 
@@ -2940,7 +2987,7 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	pagination := jobMeta.Pagination
 
 	for {
-		outcome, err := p.processOLAPPayloadCutoverBatch(ctx, processId, partitionDate, pagination)
+		outcome, err := p.processOLAPPayloadCutoverBatch(ctx, processId, partitionDate, pagination, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads)
 
 		if err != nil {
 			return fmt.Errorf("failed to process payload cutover batch: %w", err)
@@ -2993,7 +3040,7 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	return nil
 }
 
-func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize int32) error {
+func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error {
 	if !externalStoreEnabled {
 		return nil
 	}
@@ -3020,7 +3067,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 
 	for _, partition := range partitions {
 		p.l.Info().Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")
-		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate), inlineStoreTTL, externalCutoverBatchSize)
+		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate), inlineStoreTTL, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads)
 
 		if err != nil {
 			return fmt.Errorf("failed to process partition %s: %w", partition.PartitionName, err)

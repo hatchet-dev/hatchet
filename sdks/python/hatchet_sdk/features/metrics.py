@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
+from hatchet_sdk.clients.rest.models.task_stat import TaskStat
 from hatchet_sdk.clients.v1.api_client import BaseRestClient, retry
 
 
@@ -82,6 +83,16 @@ class MetricsClient(BaseRestClient):
         """
 
         return await asyncio.to_thread(self.scrape_tenant_prometheus_metrics)
+
+    @retry
+    def get_task_stats(self) -> dict[str, TaskStat]:
+        with self.client() as client:
+            return self._ta(client).tenant_get_task_stats(
+                tenant=self.client_config.tenant_id,
+            )
+
+    async def aio_get_task_stats(self) -> dict[str, TaskStat]:
+        return await asyncio.to_thread(self.get_task_stats)
 
     @retry
     def get_task_metrics(

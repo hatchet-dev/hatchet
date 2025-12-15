@@ -35,8 +35,3 @@ export interface OnboardingStepConfig {
   validate?: (value: any) => boolean;
   buttonLabel?: string;
 }
-
-// Base component type that all steps should extend
-export type OnboardingStepComponent<T = any> = React.ComponentType<
-  OnboardingStepProps<T>
->;

@@ -1,6 +1,6 @@
 import CopyToClipboard from './copy-to-clipboard';
 import { cn } from '@/lib/utils';
-import Editor, { DiffEditor, Monaco } from '@monaco-editor/react';
+import Editor, { Monaco } from '@monaco-editor/react';
 import 'monaco-themes/themes/Pastels on Dark.json';
 import { useTheme } from '@/components/theme-provider';
 
@@ -61,63 +61,6 @@ export function CodeEditor({
             : 'off',
           theme: editorTheme,
           autoDetectHighContrast: true,
-          readOnly: !setCode,
-          scrollbar: { vertical: 'hidden', horizontal: 'hidden' },
-          showFoldingControls: language == 'json' ? 'always' : 'never',
-          lineDecorationsWidth: 0,
-          overviewRulerBorder: false,
-          colorDecorators: false,
-          hideCursorInOverviewRuler: true,
-          contextmenu: false,
-        }}
-      />
-      {copy && (
-        <CopyToClipboard
-          className="absolute top-2 right-2"
-          text={code?.trim() || ''}
-        />
-      )}
-    </div>
-  );
-}
-
-export function DiffCodeEditor({
-  code = '',
-  setCode,
-  language,
-  className,
-  height,
-  width,
-  copy,
-  originalValue = '',
-  wrapLines = true,
-}: CodeEditorProps & {
-  originalValue: string;
-}) {
-  const setEditorTheme = (monaco: Monaco) => {
-    monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
-    monaco.editor.setTheme('pastels-on-dark');
-  };
-
-  return (
-    <div
-      className={cn(
-        className,
-        'w-full h-fit relative rounded-lg overflow-hidden',
-      )}
-    >
-      <DiffEditor
-        beforeMount={setEditorTheme}
-        language={language}
-        width={width || '100%'}
-        height={height || '400px'}
-        theme="pastels-on-dark"
-        original={originalValue}
-        modified={code || ''}
-        options={{
-          minimap: { enabled: false },
-          wordWrap: wrapLines ? 'on' : 'off',
-          lineNumbers: 'off',
           readOnly: !setCode,
           scrollbar: { vertical: 'hidden', horizontal: 'hidden' },
           showFoldingControls: language == 'json' ? 'always' : 'never',

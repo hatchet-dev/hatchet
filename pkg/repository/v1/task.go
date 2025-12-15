@@ -4024,6 +4024,7 @@ type TaskStat struct {
 // TaskStatusStat represents statistics for a specific task status (queued or running)
 type TaskStatusStat struct {
 	Total       int64             `json:"total"`
+	Oldest      *time.Time        `json:"oldest,omitempty"`
 	Queues      map[string]int64  `json:"queues,omitempty"`
 	Concurrency []ConcurrencyStat `json:"concurrency,omitempty"`
 }
@@ -4052,6 +4053,7 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 		strategy := row.Strategy.String
 		key := row.Key.String
 		count := row.Count
+		oldest := row.Oldest
 
 		taskStat, ok := result[stepReadableId]
 		if !ok {
@@ -4070,12 +4072,20 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 				result[stepReadableId] = taskStat
 			}
 			statusStat = result[stepReadableId].Queued
+
+			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
+				statusStat.Oldest = &oldest.Time
+			}
 		case "running":
 			if taskStat.Running == nil {
 				taskStat.Running = &TaskStatusStat{}
 				result[stepReadableId] = taskStat
 			}
 			statusStat = result[stepReadableId].Running
+
+			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
+				statusStat.Oldest = &oldest.Time
+			}
 		}
 
 		statusStat.Total += count
