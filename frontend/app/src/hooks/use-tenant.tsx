@@ -145,18 +145,22 @@ export function useTenantDetails() {
     }
 
     const hasPaymentMethods = (paymentMethodsQuery.data?.length || 0) > 0;
+    const isLoading = paymentMethodsQuery.isLoading || billingState.isLoading;
 
     return {
       state: billingState.data,
       setPollBilling,
       plan: subscriptionPlan,
       hasPaymentMethods,
+      isLoading,
     };
   }, [
     cloudMeta?.data.canBill,
     billingState.data,
+    billingState.isLoading,
     subscriptionPlan,
     paymentMethodsQuery.data,
+    paymentMethodsQuery.isLoading,
   ]);
 
   const can = useCallback(
