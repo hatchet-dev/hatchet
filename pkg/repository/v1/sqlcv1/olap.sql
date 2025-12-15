@@ -555,6 +555,7 @@ WITH input AS (
         t.step_id,
         t.workflow_id,
         t.workflow_version_id,
+        COALESCE(w.name, '') AS workflow_name,
         t.schedule_timeout,
         t.step_timeout,
         t.priority,
@@ -572,6 +573,8 @@ WITH input AS (
         v1_tasks_olap t
     JOIN
         input i ON i.id = t.id AND i.inserted_at = t.inserted_at
+    LEFT JOIN
+        "Workflow" w ON t.workflow_id = w.id
     WHERE
         t.tenant_id = @tenantId::uuid
 ), relevant_events AS (
@@ -674,6 +677,7 @@ SELECT
     t.step_id,
     t.workflow_id,
     t.workflow_version_id,
+    t.workflow_name,
     t.schedule_timeout,
     t.step_timeout,
     t.priority,
@@ -1097,6 +1101,7 @@ WITH input AS (
         r.kind,
         r.workflow_id,
         d.display_name,
+        COALESCE(w.name, '') AS workflow_name,
         CASE
             WHEN @includePayloads::BOOLEAN THEN d.input
             ELSE '{}'::JSONB
@@ -1107,6 +1112,7 @@ WITH input AS (
     FROM input i
     JOIN v1_runs_olap r ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
+    LEFT JOIN "Workflow" w ON r.workflow_id = w.id
     WHERE r.tenant_id = @tenantId::uuid AND r.kind = 'DAG'
 ), relevant_events AS (
     SELECT r.run_id, e.*

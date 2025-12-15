@@ -113,6 +113,7 @@ type WorkflowRunData struct {
 	TaskInsertedAt       *pgtype.Timestamptz         `json:"task_inserted_at,omitempty"`
 	TenantID             pgtype.UUID                 `json:"tenant_id"`
 	WorkflowID           pgtype.UUID                 `json:"workflow_id"`
+	WorkflowName         string                      `json:"workflow_name"`
 	WorkflowVersionId    pgtype.UUID                 `json:"workflow_version_id"`
 	RetryCount           *int                        `json:"retry_count,omitempty"`
 }
@@ -1148,6 +1149,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				InsertedAt:           dag.InsertedAt,
 				ExternalID:           dag.ExternalID,
 				WorkflowID:           dag.WorkflowID,
+				WorkflowName:         dag.WorkflowName,
 				DisplayName:          dag.DisplayName,
 				ReadableStatus:       dag.ReadableStatus,
 				AdditionalMetadata:   dag.AdditionalMetadata,
@@ -1198,6 +1200,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				InsertedAt:         task.InsertedAt,
 				ExternalID:         task.ExternalID,
 				WorkflowID:         task.WorkflowID,
+				WorkflowName:       task.WorkflowName,
 				WorkflowVersionId:  task.WorkflowVersionID,
 				DisplayName:        task.DisplayName,
 				ReadableStatus:     task.Status,

@@ -3,7 +3,6 @@ package alerting
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -27,7 +26,7 @@ type TenantAlertManager struct {
 }
 
 func New(repo repository.EngineRepository, e encryption.EncryptionService, serverURL string, email email.EmailService) *TenantAlertManager {
-	return &TenantAlertManager{repo, e, serverURL, email}
+	return &TenantAlertManager{repo: repo, enc: e, serverURL: serverURL, email: email}
 }
 
 func (t *TenantAlertManager) HandleAlert(tenantId string) error {
@@ -88,7 +87,10 @@ func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId string, failedRuns 
 		return fmt.Errorf("could not get tenant alerting settings: %w", err)
 	}
 
-	failedItems := t.getFailedItemsV1(failedRuns)
+	failedItems, err := t.getFailedItemsV1(failedRuns)
+	if err != nil {
+		return fmt.Errorf("could not process failed workflow runs: %w", err)
+	}
 
 	if len(failedItems) == 0 {
 		return nil
@@ -219,55 +221,69 @@ func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListW
 			WorkflowName:          workflowRun.Workflow.Name,
 			WorkflowRunReadableId: readableId,
 			RelativeDate:          timediff.TimeDiff(finishedAt),
-			AbsoluteDate:          finishedAt.Format("01/02/2006 03:04 pm UTC"),
+			AbsoluteDate:          finishedAt.Format("01/02/2006 03:04:05 pm UTC"),
 		})
 	}
 
 	return res
 }
 
-func (t *TenantAlertManager) getFailedItemsV1(failedRuns []*v1.WorkflowRunData) []alerttypes.WorkflowRunFailedItem {
+func (t *TenantAlertManager) getFailedItemsV1(failedRuns []*v1.WorkflowRunData) ([]alerttypes.WorkflowRunFailedItem, error) {
 	res := make([]alerttypes.WorkflowRunFailedItem, 0)
 
-	for i, workflowRun := range failedRuns {
-		if i >= 5 {
-			break
+	if len(failedRuns) == 0 {
+		return res, nil
+	}
+
+	// Limit to first 5 failed runs
+	maxRuns := 5
+	if len(failedRuns) < maxRuns {
+		maxRuns = len(failedRuns)
+	}
+
+	// Build result items using workflow name directly from WorkflowRunData
+	for i := 0; i < maxRuns; i++ {
+		workflowRun := failedRuns[i]
+		
+		if workflowRun == nil {
+			continue
+		}
+
+		if !workflowRun.ExternalID.Valid {
+			continue
+		}
+
+		if !workflowRun.TenantID.Valid {
+			continue
 		}
 
 		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ExternalID)
-		tenantId := sqlchelpers.UUIDToStr(workflowRun.TenantID)
-
+		tenantIdStr := sqlchelpers.UUIDToStr(workflowRun.TenantID)
 		readableId := workflowRun.DisplayName
 
-		// Extract base workflow name (remove suffix pattern: -{6chars})
-		baseWorkflowName := readableId
-		if lastDash := strings.LastIndex(readableId, "-"); lastDash > 0 {
-			// Check if suffix looks like a 6-character random suffix (alphanumeric)
-			suffix := readableId[lastDash+1:]
-			if len(suffix) == 6 && isAlphanumeric(suffix) {
-				baseWorkflowName = readableId[:lastDash]
-			}
+		// Use WorkflowName directly from the query result (populated via SQL JOIN)
+		workflowName := workflowRun.WorkflowName
+		if workflowName == "" {
+			// Fallback to DisplayName if workflow was deleted or join failed
+			workflowName = readableId
+		}
+
+		// Validate FinishedAt is valid
+		if !workflowRun.FinishedAt.Valid || workflowRun.FinishedAt.Time.IsZero() {
+			// Skip runs with invalid finished_at timestamps
+			continue
 		}
 
 		res = append(res, alerttypes.WorkflowRunFailedItem{
-			Link:                  fmt.Sprintf("%s/tenants/%s/runs/%s", t.serverURL, tenantId, workflowRunId),
-			WorkflowName:          baseWorkflowName,
+			Link:                  fmt.Sprintf("%s/tenants/%s/runs/%s", t.serverURL, tenantIdStr, workflowRunId),
+			WorkflowName:          workflowName,
 			WorkflowRunReadableId: readableId,
 			RelativeDate:          timediff.TimeDiff(workflowRun.FinishedAt.Time),
-			AbsoluteDate:          workflowRun.FinishedAt.Time.Format("01/02/2006 03:04 pm UTC"),
+			AbsoluteDate:          workflowRun.FinishedAt.Time.Format("01/02/2006 03:04:05 pm UTC"),
 		})
 	}
 
-	return res
-}
-
-func isAlphanumeric(s string) bool {
-	for _, r := range s {
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
-			return false
-		}
-	}
-	return true
+	return res, nil
 }
 
 func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId string, token *dbsqlc.PollExpiringTokensRow) error {

@@ -1900,6 +1900,7 @@ WITH input AS (
         r.kind,
         r.workflow_id,
         d.display_name,
+        COALESCE(w.name, '') AS workflow_name,
         CASE
             WHEN $1::BOOLEAN THEN d.input
             ELSE '{}'::JSONB
@@ -1910,6 +1911,7 @@ WITH input AS (
     FROM input i
     JOIN v1_runs_olap r ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
+    LEFT JOIN "Workflow" w ON r.workflow_id = w.id
     WHERE r.tenant_id = $4::uuid AND r.kind = 'DAG'
 ), relevant_events AS (
     SELECT r.run_id, e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
@@ -1953,7 +1955,7 @@ WITH input AS (
 )
 
 SELECT
-    r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
+    r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.workflow_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
     m.created_at,
     m.started_at,
     m.finished_at,
@@ -1989,6 +1991,7 @@ type PopulateDAGMetadataRow struct {
 	Kind                  V1RunKind            `json:"kind"`
 	WorkflowID            pgtype.UUID          `json:"workflow_id"`
 	DisplayName           string               `json:"display_name"`
+	WorkflowName          string               `json:"workflow_name"`
 	Input                 []byte               `json:"input"`
 	AdditionalMetadata    []byte               `json:"additional_metadata"`
 	WorkflowVersionID     pgtype.UUID          `json:"workflow_version_id"`
@@ -2026,6 +2029,7 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 			&i.Kind,
 			&i.WorkflowID,
 			&i.DisplayName,
+			&i.WorkflowName,
 			&i.Input,
 			&i.AdditionalMetadata,
 			&i.WorkflowVersionID,
@@ -2331,6 +2335,7 @@ WITH input AS (
         t.step_id,
         t.workflow_id,
         t.workflow_version_id,
+        COALESCE(w.name, '') AS workflow_name,
         t.schedule_timeout,
         t.step_timeout,
         t.priority,
@@ -2348,6 +2353,8 @@ WITH input AS (
         v1_tasks_olap t
     JOIN
         input i ON i.id = t.id AND i.inserted_at = t.inserted_at
+    LEFT JOIN
+        "Workflow" w ON t.workflow_id = w.id
     WHERE
         t.tenant_id = $4::uuid
 ), relevant_events AS (
@@ -2450,6 +2457,7 @@ SELECT
     t.step_id,
     t.workflow_id,
     t.workflow_version_id,
+    t.workflow_name,
     t.schedule_timeout,
     t.step_timeout,
     t.priority,
@@ -2505,6 +2513,7 @@ type PopulateTaskRunDataRow struct {
 	StepID                pgtype.UUID          `json:"step_id"`
 	WorkflowID            pgtype.UUID          `json:"workflow_id"`
 	WorkflowVersionID     pgtype.UUID          `json:"workflow_version_id"`
+	WorkflowName          string               `json:"workflow_name"`
 	ScheduleTimeout       string               `json:"schedule_timeout"`
 	StepTimeout           pgtype.Text          `json:"step_timeout"`
 	Priority              pgtype.Int4          `json:"priority"`
@@ -2548,6 +2557,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.StepID,
 			&i.WorkflowID,
 			&i.WorkflowVersionID,
+			&i.WorkflowName,
 			&i.ScheduleTimeout,
 			&i.StepTimeout,
 			&i.Priority,
