@@ -129,24 +129,6 @@ func (q *Queries) CleanupWorkflowConcurrencySlotsAfterInsert(ctx context.Context
 	return err
 }
 
-const completeTaskBatchRun = `-- name: CompleteTaskBatchRun :exec
-DELETE FROM
-    v1_batch_runtime
-WHERE
-    tenant_id = $1::uuid
-    AND batch_id = $2::uuid
-`
-
-type CompleteTaskBatchRunParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Batchid  pgtype.UUID `json:"batchid"`
-}
-
-func (q *Queries) CompleteTaskBatchRun(ctx context.Context, db DBTX, arg CompleteTaskBatchRunParams) error {
-	_, err := db.Exec(ctx, completeTaskBatchRun, arg.Tenantid, arg.Batchid)
-	return err
-}
-
 const countActiveTaskBatchRuns = `-- name: CountActiveTaskBatchRuns :one
 SELECT
     COUNT(DISTINCT br.batch_id)::integer AS active_count
@@ -259,6 +241,24 @@ func (q *Queries) DeleteMatchingSignalEvents(ctx context.Context, db DBTX, arg D
 		arg.Tenantid,
 		arg.Eventtype,
 	)
+	return err
+}
+
+const deleteTaskBatchRun = `-- name: DeleteTaskBatchRun :exec
+DELETE FROM
+    v1_batch_runtime
+WHERE
+    tenant_id = $1::uuid
+    AND batch_id = $2::uuid
+`
+
+type DeleteTaskBatchRunParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Batchid  pgtype.UUID `json:"batchid"`
+}
+
+func (q *Queries) DeleteTaskBatchRun(ctx context.Context, db DBTX, arg DeleteTaskBatchRunParams) error {
+	_, err := db.Exec(ctx, deleteTaskBatchRun, arg.Tenantid, arg.Batchid)
 	return err
 }
 

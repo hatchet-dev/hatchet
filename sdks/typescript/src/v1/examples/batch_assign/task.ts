@@ -17,8 +17,8 @@ export const batch = hatchet.batchTask({
   // retries are on the individual invocation, not the batch
   retries: 0,
   executionTimeout: '60s',
-  batchSize: 100,
-  flushInterval: 5000,
+  batchSize: 200,
+  flushInterval: 1000,
   // group inputs by a computed key (e.g. tenant id or message)
   batchKey: 'input.batchId',
   // allow at most two concurrent batches per key
@@ -27,7 +27,10 @@ export const batch = hatchet.batchTask({
   fn: async (inputs: SimpleInput[], ctx) =>
     Promise.all(
       inputs.map(async (input, index) => {
-        await sleep(10000);
+        // sleep for a random amount of time between 0 and 10 seconds
+        const sleepTime = Math.floor(Math.random() * 10000);
+        console.log(`sleeping for ${sleepTime}ms`);
+        await sleep(sleepTime);
 
         if (ctx.some((c) => c.cancelled)) {
           throw new Error('cancelled');

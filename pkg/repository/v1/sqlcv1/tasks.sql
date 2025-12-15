@@ -1060,7 +1060,7 @@ WITH locked AS (
 SELECT
     EXISTS(SELECT 1 FROM inserted) AS reserved;
 
--- name: CompleteTaskBatchRun :exec
+-- name: DeleteTaskBatchRun :exec
 DELETE FROM
     v1_batch_runtime
 WHERE

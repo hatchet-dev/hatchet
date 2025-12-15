@@ -169,3 +169,62 @@ func TestInsertTasksPersistsBatchKeys(t *testing.T) {
 	require.NoError(t, queueRows.Err())
 	require.Equal(t, []string{"1", "2"}, queueKeys)
 }
+
+func TestV1TaskRuntimeDeleteTrigger_CleansUpBatchRuntime(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	tenantID := uuid.New()
+	batchID := uuid.New()
+	stepID := uuid.New()
+
+	_, err := pool.Exec(ctx, `
+		INSERT INTO v1_batch_runtime (tenant_id, step_id, action_id, batch_key, batch_id)
+		VALUES ($1, $2, $3, $4, $5)
+	`, tenantID, stepID, "test-action", "test-key", batchID)
+	require.NoError(t, err)
+
+	now := time.Now().UTC()
+	timeoutAt := now.Add(time.Hour)
+
+	for _, taskID := range []int64{1, 2} {
+		_, err := pool.Exec(ctx, `
+			INSERT INTO v1_task_runtime (task_id, task_inserted_at, retry_count, tenant_id, batch_id, timeout_at)
+			VALUES ($1, $2, $3, $4, $5, $6)
+		`, taskID, now, int32(0), tenantID, batchID, timeoutAt)
+		require.NoError(t, err)
+	}
+
+	// Delete one runtime: reservation should still exist.
+	_, err = pool.Exec(ctx, `
+		DELETE FROM v1_task_runtime
+		WHERE tenant_id = $1 AND batch_id = $2 AND task_id = $3
+	`, tenantID, batchID, int64(1))
+	require.NoError(t, err)
+
+	var cnt int
+	err = pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM v1_batch_runtime
+		WHERE tenant_id = $1 AND batch_id = $2
+	`, tenantID, batchID).Scan(&cnt)
+	require.NoError(t, err)
+	require.Equal(t, 1, cnt)
+
+	// Delete the final runtime: trigger should delete the reservation.
+	_, err = pool.Exec(ctx, `
+		DELETE FROM v1_task_runtime
+		WHERE tenant_id = $1 AND batch_id = $2
+	`, tenantID, batchID)
+	require.NoError(t, err)
+
+	err = pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM v1_batch_runtime
+		WHERE tenant_id = $1 AND batch_id = $2
+	`, tenantID, batchID).Scan(&cnt)
+	require.NoError(t, err)
+	require.Equal(t, 0, cnt)
+}

@@ -270,7 +270,7 @@ type TaskRepository interface {
 
 	CountActiveTaskBatchRuns(ctx context.Context, tenantId, stepId, batchKey string) (int, error)
 	ReserveTaskBatchRun(ctx context.Context, tenantId, stepId, actionId, batchKey, batchId string, maxRuns int) (bool, error)
-	CompleteTaskBatchRun(ctx context.Context, tenantId, batchId string) error
+	DeleteTaskBatchRun(ctx context.Context, tenantId, batchId string) error
 
 	// AnalyzeTaskTables runs ANALYZE on the task tables
 	AnalyzeTaskTables(ctx context.Context) error
@@ -1365,19 +1365,6 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 		return nil, false, err
 	}
 
-	// Release batch reservations for any batches that were affected
-	for batchId := range batchIdsToFail {
-		err := r.queries.CompleteTaskBatchRun(ctx, tx, sqlcv1.CompleteTaskBatchRunParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-			Batchid:  sqlchelpers.UUIDFromStr(batchId),
-		})
-
-		if err != nil {
-			r.l.Error().Err(err).Str("batch_id", batchId).Msg("failed to release batch reservation after timeout")
-			// Don't fail the whole operation, just log the error
-		}
-	}
-
 	// commit the transaction
 	if err := commit(ctx); err != nil {
 		return nil, false, err
@@ -1742,28 +1729,6 @@ func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, ten
 	for _, task := range releasedTasks {
 		idx := orderedMap[fmt.Sprintf("%d:%d", task.ID, task.RetryCount)]
 		res[idx] = task
-	}
-
-	uniqueBatchIDs := make(map[string]struct{})
-
-	for _, task := range releasedTasks {
-		if task.BatchID.Valid {
-			id := sqlchelpers.UUIDToStr(task.BatchID)
-			if id != "" {
-				uniqueBatchIDs[id] = struct{}{}
-			}
-		}
-	}
-
-	for batchID := range uniqueBatchIDs {
-		err := r.queries.CompleteTaskBatchRun(ctx, tx, sqlcv1.CompleteTaskBatchRunParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-			Batchid:  sqlchelpers.UUIDFromStr(batchID),
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to complete batch run %s: %w", batchID, err)
-		}
 	}
 
 	return res, nil
@@ -4245,11 +4210,11 @@ func (r *TaskRepositoryImpl) ReserveTaskBatchRun(ctx context.Context, tenantId, 
 	return reserved, nil
 }
 
-func (r *TaskRepositoryImpl) CompleteTaskBatchRun(ctx context.Context, tenantId, batchId string) error {
+func (r *TaskRepositoryImpl) DeleteTaskBatchRun(ctx context.Context, tenantId, batchId string) error {
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CompleteTaskBatchRun")
 	defer span.End()
 
-	err := r.queries.CompleteTaskBatchRun(ctx, r.pool, sqlcv1.CompleteTaskBatchRunParams{
+	err := r.queries.DeleteTaskBatchRun(ctx, r.pool, sqlcv1.DeleteTaskBatchRunParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Batchid:  sqlchelpers.UUIDFromStr(batchId),
 	})
@@ -4261,7 +4226,7 @@ func (r *TaskRepositoryImpl) CompleteTaskBatchRun(ctx context.Context, tenantId,
 	r.l.Info().
 		Str("tenant_id", tenantId).
 		Str("batch_id", batchId).
-		Msg("completed task batch run")
+		Msg("deleted task batch run")
 
 	return nil
 }

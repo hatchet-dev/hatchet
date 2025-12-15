@@ -716,6 +716,51 @@ BEGIN
 END;
 $$
 LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn()
+RETURNS trigger AS $$
+BEGIN
+    -- Consider only batch-associated runtime rows which were deleted in this statement.
+    -- Delete the corresponding v1_batch_runtime reservation iff no runtimes remain for that batch.
+    WITH deleted_batches AS (
+        SELECT DISTINCT
+            d.tenant_id,
+            d.batch_id
+        FROM
+            deleted_rows d
+        WHERE
+            d.batch_id IS NOT NULL
+    ), deletable AS (
+        SELECT
+            br.tenant_id,
+            br.batch_id
+        FROM
+            v1_batch_runtime br
+        JOIN
+            deleted_batches db ON db.tenant_id = br.tenant_id AND db.batch_id = br.batch_id
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM v1_task_runtime tr
+            WHERE tr.tenant_id = br.tenant_id
+              AND tr.batch_id = br.batch_id
+            FOR UPDATE SKIP LOCKED -- NOTE: important to use skip locked here to avoid race conditions on multiple completions of the same batch run
+        )
+        FOR UPDATE
+    )
+    DELETE FROM
+        v1_batch_runtime br
+    WHERE
+        (br.tenant_id, br.batch_id) IN (SELECT tenant_id, batch_id FROM deletable);
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_task_runtime_delete_cleanup_batch_runtime
+AFTER DELETE ON v1_task_runtime
+REFERENCING OLD TABLE AS deleted_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
 -- +goose StatementEnd
 
 -- +goose Down
@@ -723,6 +768,9 @@ LANGUAGE plpgsql;
 -- Remove any historical redirect trigger/function
 DROP TRIGGER IF EXISTS v1_queue_item_redirect_to_batch ON v1_queue_item;
 DROP FUNCTION IF EXISTS v1_queue_item_redirect_to_batch_fn();
+
+DROP TRIGGER IF EXISTS after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runtime;
+DROP FUNCTION IF EXISTS after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
 
 -- Drop batch buffer table and indexes
 DROP INDEX IF EXISTS v1_batched_queue_item_queue_idx;

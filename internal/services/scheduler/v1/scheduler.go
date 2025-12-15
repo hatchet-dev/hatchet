@@ -958,7 +958,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 				return
 			}
 
-			if err := s.repov1.Tasks().CompleteTaskBatchRun(ctx, tenantId, batchID); err != nil {
+			if err := s.repov1.Tasks().DeleteTaskBatchRun(ctx, tenantId, batchID); err != nil {
 				s.l.Error().
 					Err(err).
 					Str("tenant_id", tenantId).
