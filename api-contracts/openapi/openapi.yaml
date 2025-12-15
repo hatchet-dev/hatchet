@@ -163,6 +163,8 @@ paths:
     $ref: "./paths/event/event.yaml#/withEvent"
   /api/v1/events/{event}/data:
     $ref: "./paths/event/event.yaml#/eventData"
+  /api/v1/tenants/{tenant}/events/{event}/data:
+    $ref: "./paths/event/event.yaml#/eventDataWithTenant"
   /api/v1/tenants/{tenant}/events/keys:
     $ref: "./paths/event/event.yaml#/keys"
   /api/v1/tenants/{tenant}/workflows:

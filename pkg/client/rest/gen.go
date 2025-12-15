@@ -3277,6 +3277,9 @@ type ClientInterface interface {
 
 	EventUpdateReplay(ctx context.Context, tenant openapi_types.UUID, body EventUpdateReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// EventDataGetWithTenant request
+	EventDataGetWithTenant(ctx context.Context, tenant openapi_types.UUID, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// TenantInviteList request
 	TenantInviteList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4458,6 +4461,18 @@ func (c *Client) EventUpdateReplayWithBody(ctx context.Context, tenant openapi_t
 
 func (c *Client) EventUpdateReplay(ctx context.Context, tenant openapi_types.UUID, body EventUpdateReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEventUpdateReplayRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventDataGetWithTenant(ctx context.Context, tenant openapi_types.UUID, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventDataGetWithTenantRequest(c.Server, tenant, event)
 	if err != nil {
 		return nil, err
 	}
@@ -9137,6 +9152,47 @@ func NewEventUpdateReplayRequestWithBody(server string, tenant openapi_types.UUI
 	return req, nil
 }
 
+// NewEventDataGetWithTenantRequest generates requests for EventDataGetWithTenant
+func NewEventDataGetWithTenantRequest(server string, tenant openapi_types.UUID, event openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "event", runtime.ParamLocationPath, event)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/events/%s/data", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewTenantInviteListRequest generates requests for TenantInviteList
 func NewTenantInviteListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -12924,6 +12980,9 @@ type ClientWithResponsesInterface interface {
 
 	EventUpdateReplayWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventUpdateReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*EventUpdateReplayResponse, error)
 
+	// EventDataGetWithTenantWithResponse request
+	EventDataGetWithTenantWithResponse(ctx context.Context, tenant openapi_types.UUID, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetWithTenantResponse, error)
+
 	// TenantInviteListWithResponse request
 	TenantInviteListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantInviteListResponse, error)
 
@@ -14672,6 +14731,30 @@ func (r EventUpdateReplayResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r EventUpdateReplayResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type EventDataGetWithTenantResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventData
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r EventDataGetWithTenantResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EventDataGetWithTenantResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -17015,6 +17098,15 @@ func (c *ClientWithResponses) EventUpdateReplayWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseEventUpdateReplayResponse(rsp)
+}
+
+// EventDataGetWithTenantWithResponse request returning *EventDataGetWithTenantResponse
+func (c *ClientWithResponses) EventDataGetWithTenantWithResponse(ctx context.Context, tenant openapi_types.UUID, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetWithTenantResponse, error) {
+	rsp, err := c.EventDataGetWithTenant(ctx, tenant, event, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventDataGetWithTenantResponse(rsp)
 }
 
 // TenantInviteListWithResponse request returning *TenantInviteListResponse
@@ -20404,6 +20496,46 @@ func ParseEventUpdateReplayResponse(rsp *http.Response) (*EventUpdateReplayRespo
 			return nil, err
 		}
 		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseEventDataGetWithTenantResponse parses an HTTP response from a EventDataGetWithTenantWithResponse call
+func ParseEventDataGetWithTenantResponse(rsp *http.Response) (*EventDataGetWithTenantResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EventDataGetWithTenantResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventData
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

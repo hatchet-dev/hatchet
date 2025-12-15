@@ -2124,6 +2124,27 @@ export class Api<
       ...params,
     });
   /**
+   * @description Get the data for an event.
+   *
+   * @tags Event
+   * @name EventDataGetWithTenant
+   * @summary Get event data
+   * @request GET:/api/v1/tenants/{tenant}/events/{event}/data
+   * @secure
+   */
+  eventDataGetWithTenant = (
+    event: string,
+    tenant: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<EventData, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/events/${event}/data`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Lists all event keys for a tenant.
    *
    * @tags Event
