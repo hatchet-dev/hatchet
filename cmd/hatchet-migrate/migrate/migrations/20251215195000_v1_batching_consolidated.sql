@@ -1417,5 +1417,3 @@ END;
 $$
 LANGUAGE plpgsql;
 -- +goose StatementEnd
-
-
