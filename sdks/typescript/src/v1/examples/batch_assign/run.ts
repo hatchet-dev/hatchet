@@ -1,5 +1,4 @@
 /* eslint-disable no-console */
-import { batch } from './task';
 import { dag } from './workflow';
 
 async function main() {
