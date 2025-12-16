@@ -41,9 +41,13 @@ export function MonthlyUsageCard({
 
   // If cost is negative or has credits remaining, show credits
   const showingCredits = cost < 0 || hasCreditsRemaining;
-  const formattedAmount = Math.abs(
+  const amount = Math.abs(
     showingCredits && creditsRemaining !== undefined ? creditsRemaining : cost,
-  ).toFixed(2);
+  );
+  const formattedAmount = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(amount);
 
   return (
     <Card className="w-full">
@@ -59,7 +63,7 @@ export function MonthlyUsageCard({
           <div
             className={`text-xl font-bold ${showingCredits ? 'text-green-500' : 'text-foreground'}`}
           >
-            {showingCredits ? '+ ' : '- '}${formattedAmount}
+            {showingCredits ? '+ ' : '- '}{formattedAmount}
           </div>
           <div className="ml-2 text-sm text-muted-foreground">
             {showingCredits ? 'credits remaining' : 'used this month'}

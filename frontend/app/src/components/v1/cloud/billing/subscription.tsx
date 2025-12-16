@@ -20,7 +20,6 @@ import {
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
-// import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import { useMutation } from '@tanstack/react-query';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -235,12 +234,14 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                       {currentPlanDetails.name}
                     </CardTitle>
                     <div className="text-3xl font-bold mb-2">
-                      $
-                      {(
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                      }).format(
                         currentPlanDetails.amountCents /
-                        100 /
-                        (currentPlanDetails.period === 'yearly' ? 12 : 1)
-                      ).toLocaleString()}{' '}
+                          100 /
+                          (currentPlanDetails.period === 'yearly' ? 12 : 1),
+                      )}{' '}
                       <span className="text-base font-normal text-muted-foreground">
                         per month
                       </span>
@@ -345,12 +346,14 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     {plan.name}
                   </CardTitle>
                   <CardDescription className="py-4">
-                    $
-                    {(
+                    {new Intl.NumberFormat('en-US', {
+                      style: 'currency',
+                      currency: 'USD',
+                    }).format(
                       plan.amountCents /
-                      100 /
-                      (plan.period === 'yearly' ? 12 : 1)
-                    ).toLocaleString()}{' '}
+                        100 /
+                        (plan.period === 'yearly' ? 12 : 1),
+                    )}{' '}
                     per month billed {plan.period}*
                   </CardDescription>
                   <CardDescription>

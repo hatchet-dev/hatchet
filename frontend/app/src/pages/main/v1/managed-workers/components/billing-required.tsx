@@ -76,7 +76,10 @@ export function BillingRequired({
                             Monthly Free Credits:
                           </span>
                           <span className="font-medium text-green-500">
-                            ${computeCostQuery.data.creditsRemaining.toFixed(2)}
+                            {new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: 'USD',
+                            }).format(computeCostQuery.data.creditsRemaining)}
                           </span>
                         </div>
                       )}
