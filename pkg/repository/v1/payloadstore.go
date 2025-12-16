@@ -489,6 +489,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 				Nextinsertedat: pr.UpperInsertedAt,
 				Nextid:         pr.UpperID,
 				Nexttype:       pr.UpperType,
+				Batchsize:      p.externalCutoverBatchSize,
 			})
 
 			if err != nil {

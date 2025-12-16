@@ -2756,6 +2756,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 				Nexttenantid:   pr.UpperTenantID,
 				Nextexternalid: pr.UpperExternalID,
 				Nextinsertedat: pr.UpperInsertedAt,
+				Batchsize:      externalCutoverBatchSize,
 			})
 
 			if err != nil {
