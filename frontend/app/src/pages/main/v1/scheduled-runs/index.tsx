@@ -97,8 +97,7 @@ export default function ScheduledRunsTable({
     <ReviewedButtonTemp
       key="schedule-run"
       onClick={() => setTriggerWorkflow(true)}
-      size="sm"
-      className="text-sm"
+      variant="cta"
     >
       Schedule Run
     </ReviewedButtonTemp>,

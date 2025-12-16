@@ -33,6 +33,7 @@ const buttonVariants = cva(
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
         icon: 'hover:bg-accent hover:text-accent-foreground p-1',
+        cta: 'bg-primary text-primary-foreground shadow hover:bg-primary/90 h-8 border px-3',
       },
     },
     defaultVariants: {
@@ -49,6 +50,7 @@ export interface ButtonProps
   hoverText?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  fullWidth?: boolean;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -61,6 +63,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       hoverText = undefined,
       leftIcon,
       rightIcon,
+      fullWidth,
       children,
       ...props
     },
@@ -73,6 +76,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       rightIcon && size !== 'icon' && 'pr-3',
     );
 
+    const fullWidthClass = fullWidth ? 'w-full' : '';
+
     return (
       <TooltipProvider>
         <Tooltip>
@@ -81,6 +86,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
               className={cn(
                 buttonVariants({ variant, size, className }),
                 iconPaddingClasses,
+                fullWidthClass,
               )}
               ref={ref}
               {...props}
