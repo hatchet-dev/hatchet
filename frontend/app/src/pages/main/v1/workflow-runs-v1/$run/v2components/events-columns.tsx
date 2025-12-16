@@ -10,7 +10,7 @@ import {
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { cn, emptyGolangUUID } from '@/lib/utils';
 import { Link } from 'react-router-dom';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   Popover,
   PopoverContent,
@@ -128,13 +128,13 @@ export const columns = ({
               to={`/tenants/${tenantId}/workers/${event.workerId}`}
               key="worker"
             >
-              <ReviewedButtonTemp
+              <Button
                 variant="link"
                 size="xs"
                 leftIcon={<ServerStackIcon className="size-4" />}
               >
                 View Worker
-              </ReviewedButtonTemp>
+              </Button>
             </Link>,
           );
         }
@@ -232,13 +232,13 @@ function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
   return (
     <Popover>
       <PopoverTrigger className="cursor-pointer">
-        <ReviewedButtonTemp
+        <Button
           variant="link"
           size="xs"
           leftIcon={<XCircleIcon className="size-4" />}
         >
           View Error
-        </ReviewedButtonTemp>
+        </Button>
       </PopoverTrigger>
       <PopoverContent
         className="p-0 bg-popover border-border shadow-lg z-[80] w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]"

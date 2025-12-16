@@ -1,5 +1,5 @@
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -115,9 +115,9 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
   return (
     <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
       <DropdownMenuTrigger asChild>
-        <ReviewedButtonTemp variant="icon" size="sm">
+        <Button variant="icon" size="sm">
           <DotsVerticalIcon className="size-4 text-muted-foreground cursor-pointer" />
-        </ReviewedButtonTemp>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem
@@ -225,7 +225,7 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
       </div>
       {(isEditing || hasChanges) && (
         <div className="flex flex-row items-center animate-in fade-in-0 slide-in-from-right-2 duration-200">
-          <ReviewedButtonTemp
+          <Button
             variant="icon"
             size="icon"
             onClick={handleSave}
@@ -241,15 +241,15 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
             ) : (
               <Save className="size-3" />
             )}
-          </ReviewedButtonTemp>
-          <ReviewedButtonTemp
+          </Button>
+          <Button
             variant="icon"
             size="icon"
             onClick={handleCancel}
             disabled={mutations.isUpdatePending}
           >
             <X className="size-3" />
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { type ViewOptions } from '@/lib/atoms';
 import { useAtom } from 'jotai';
@@ -36,13 +36,9 @@ export const ViewToggle = () => {
 
   return (
     <div className="sticky ml-auto mt-auto bottom-2 right-2 z-20">
-      <ReviewedButtonTemp
-        variant="outline"
-        size="icon"
-        onClick={() => setView(otherView)}
-      >
+      <Button variant="outline" size="icon" onClick={() => setView(otherView)}>
         <ToggleIcon view={view} />
-      </ReviewedButtonTemp>
+      </Button>
     </div>
   );
 };

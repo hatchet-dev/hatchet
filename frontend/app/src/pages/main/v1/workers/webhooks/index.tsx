@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/v1/ui/card.tsx';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button.tsx';
+import { Button } from '@/components/v1/ui/button.tsx';
 import { useEffect, useState } from 'react';
 import { useApiError } from '@/lib/hooks.ts';
 import { Dialog } from '@/components/v1/ui/dialog.tsx';
@@ -40,12 +40,12 @@ export default function Webhooks() {
             Webhook Workers <Badge variant="inProgress">BETA</Badge>
           </h2>
 
-          <ReviewedButtonTemp
+          <Button
             key="create-webhook-worker"
             onClick={() => setShowCreateTokenDialog(true)}
           >
             Create Webhook Endpoint
-          </ReviewedButtonTemp>
+          </Button>
         </div>
         <p className="text-gray-700 dark:text-gray-300 my-4">
           Assign task runs to a HTTP endpoint.{' '}
@@ -74,13 +74,13 @@ export default function Webhooks() {
                       {worker.name}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <ReviewedButtonTemp
+                          <Button
                             aria-label="Registered Tasks"
                             size="icon"
                             variant="ghost"
                           >
                             <BiDotsVertical />
-                          </ReviewedButtonTemp>
+                          </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                           <DropdownMenuItem

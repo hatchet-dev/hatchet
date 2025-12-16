@@ -8,7 +8,7 @@ import { Loading } from '@/components/v1/ui/loading';
 import { useEffect, useMemo, useState } from 'react';
 import { Separator } from '@/components/v1/ui/separator';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import {
   DataPoint,
@@ -128,7 +128,7 @@ export function ManagedWorkerMetrics({
         </h3>
         <div className="flex flex-row justify-end items-center my-4 gap-2">
           {customTimeRange && [
-            <ReviewedButtonTemp
+            <Button
               key="clear"
               onClick={() => {
                 setCustomTimeRange(undefined);
@@ -139,7 +139,7 @@ export function ManagedWorkerMetrics({
             >
               <XCircleIcon className="h-[18px] w-[18px] mr-2" />
               Clear
-            </ReviewedButtonTemp>,
+            </Button>,
             <DateTimePicker
               key="after"
               label="After"

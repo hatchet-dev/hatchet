@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
 import { useState, useEffect, useMemo } from 'react';
 import { CreateInviteForm } from './components/create-invite-form';
@@ -292,12 +292,12 @@ function InvitesList() {
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Invites
         </h3>
-        <ReviewedButtonTemp
+        <Button
           key="create-invite"
           onClick={() => setShowCreateInviteModal(true)}
         >
           Create Invite
-        </ReviewedButtonTemp>
+        </Button>
       </div>
       <Separator className="my-4" />
       <DataTable

@@ -1,6 +1,6 @@
 import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import {
@@ -63,13 +63,13 @@ const TaskRunPermalinkOrBacklink = ({
   if (showViewTaskRunButton) {
     return (
       <Link to={`/tenants/${tenantId}/runs/${taskRun.metadata.id}`}>
-        <ReviewedButtonTemp
+        <Button
           size={'sm'}
           variant={'outline'}
           leftIcon={<FullscreenIcon className="size-4" />}
         >
           Expand
-        </ReviewedButtonTemp>
+        </Button>
       </Link>
     );
   } else if (
@@ -79,13 +79,13 @@ const TaskRunPermalinkOrBacklink = ({
   ) {
     return (
       <Link to={`/tenants/${tenantId}/runs/${taskRun.workflowRunExternalId}`}>
-        <ReviewedButtonTemp
+        <Button
           size={'sm'}
           variant={'outline'}
           leftIcon={<FullscreenIcon className="size-4" />}
         >
           View DAG Run
-        </ReviewedButtonTemp>
+        </Button>
       </Link>
     );
   } else {

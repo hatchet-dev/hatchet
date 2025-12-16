@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   FaCcAmex,
   FaCcDiscover,
@@ -86,9 +86,9 @@ export function PaymentMethods({
               );
             })}
             <div className="mt-4">
-              <ReviewedButtonTemp onClick={manageClicked} variant="default">
+              <Button onClick={manageClicked} variant="default">
                 {loading ? <Spinner /> : 'Manage Payment Methods'}
-              </ReviewedButtonTemp>
+              </Button>
             </div>
           </>
         ) : (
@@ -98,9 +98,9 @@ export function PaymentMethods({
               your subscription.
             </p>
             <div className="mt-4">
-              <ReviewedButtonTemp onClick={manageClicked} variant="default">
+              <Button onClick={manageClicked} variant="default">
                 {loading ? <Spinner /> : 'Add a Payment Method'}
-              </ReviewedButtonTemp>
+              </Button>
             </div>
           </div>
         )}

@@ -12,7 +12,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { TenantCreateForm } from './components/tenant-create-form';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { HearAboutUsForm } from './components/hear-about-us-form';
 import { WhatBuildingForm } from './components/what-building-form';
 import { StepProgress } from './components/step-progress';
@@ -342,7 +342,7 @@ export default function CreateTenant() {
           />
 
           {currentStepConfig.canSkip ? (
-            <ReviewedButtonTemp
+            <Button
               variant="outline"
               size="sm"
               onClick={() =>
@@ -350,9 +350,9 @@ export default function CreateTenant() {
               }
             >
               Skip
-            </ReviewedButtonTemp>
+            </Button>
           ) : (
-            <ReviewedButtonTemp
+            <Button
               variant="default"
               onClick={() => {
                 if (currentStep === FINAL_STEP) {
@@ -377,7 +377,7 @@ export default function CreateTenant() {
               ) : (
                 currentStepConfig.buttonLabel || 'Next'
               )}
-            </ReviewedButtonTemp>
+            </Button>
           )}
         </div>
       </>

@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   DialogContent,
@@ -29,15 +29,15 @@ export function DeleteInviteForm({
           Are you sure you want to delete this invite?
         </div>
         <div className="flex flex-row gap-4">
-          <ReviewedButtonTemp
+          <Button
             variant="ghost"
             onClick={() => {
               props.onCancel();
             }}
           >
             Cancel
-          </ReviewedButtonTemp>
-          <ReviewedButtonTemp
+          </Button>
+          <Button
             variant="destructive"
             onClick={() => {
               props.onSubmit(props.invite);
@@ -45,7 +45,7 @@ export function DeleteInviteForm({
           >
             {props.isLoading && <Spinner />}
             Delete invite
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       </div>
     </DialogContent>

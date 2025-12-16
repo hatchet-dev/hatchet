@@ -13,7 +13,7 @@ import { CirclePlus, CircleMinus, Loader } from 'lucide-react';
 
 import { ChartContainer, ChartTooltipContent } from '@/components/v1/ui/chart';
 import { V1TaskStatus, V1TaskTiming, queries } from '@/lib/api';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
   TooltipProvider,
@@ -822,7 +822,7 @@ const Tick = ({
             <TooltipProvider>
               <BaseTooltip>
                 <TooltipTrigger asChild>
-                  <ReviewedButtonTemp
+                  <Button
                     variant="link"
                     size="icon"
                     className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
@@ -838,7 +838,7 @@ const Tick = ({
                     ) : (
                       <CirclePlus className="size-3" />
                     )}
-                  </ReviewedButtonTemp>
+                  </Button>
                 </TooltipTrigger>
                 <TooltipContent>
                   {task.isExpanded ? 'Collapse children' : 'Expand children'}

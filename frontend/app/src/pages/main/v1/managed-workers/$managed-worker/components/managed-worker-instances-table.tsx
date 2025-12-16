@@ -4,7 +4,7 @@ import { queries } from '@/lib/api';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './managed-worker-instances-columns';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardHeader,
@@ -85,7 +85,7 @@ export function ManagedWorkerInstancesTable({
   );
 
   const actions = [
-    <ReviewedButtonTemp
+    <Button
       key="card-toggle"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -100,8 +100,8 @@ export function ManagedWorkerInstancesTable({
       ) : (
         <BiTable className={`size-4 `} />
       )}
-    </ReviewedButtonTemp>,
-    <ReviewedButtonTemp
+    </Button>,
+    <Button
       key="refresh"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -115,7 +115,7 @@ export function ManagedWorkerInstancesTable({
       <ArrowPathIcon
         className={`size-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
       />
-    </ReviewedButtonTemp>,
+    </Button>,
   ];
 
   const dataWithMetadata = data.map((d) => ({

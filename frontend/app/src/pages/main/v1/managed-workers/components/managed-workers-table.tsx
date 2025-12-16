@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './managed-worker-columns';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardHeader,
@@ -111,7 +111,7 @@ export function ManagedWorkersTable() {
             <Link
               to={`/tenants/${tenantId}/managed-workers/${data.metadata?.id}`}
             >
-              <ReviewedButtonTemp>View Compute Instance</ReviewedButtonTemp>
+              <Button>View Compute Instance</Button>
             </Link>
           </div>
         </div>
@@ -120,7 +120,7 @@ export function ManagedWorkersTable() {
   };
 
   const actions = [
-    <ReviewedButtonTemp
+    <Button
       key="card-toggle"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -135,8 +135,8 @@ export function ManagedWorkersTable() {
       ) : (
         <BiTable className={`size-4 `} />
       )}
-    </ReviewedButtonTemp>,
-    <ReviewedButtonTemp
+    </Button>,
+    <Button
       key="refresh"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -150,7 +150,7 @@ export function ManagedWorkersTable() {
       <ArrowPathIcon
         className={`size-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
       />
-    </ReviewedButtonTemp>,
+    </Button>,
   ];
 
   return (

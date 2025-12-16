@@ -1,7 +1,7 @@
 import { Separator } from '@/components/v1/ui/separator';
 import { Link } from 'react-router-dom';
 import { ManagedWorkersTable } from './components/managed-workers-table';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import { useEffect, useState } from 'react';
@@ -121,18 +121,18 @@ export default function ManagedWorkers() {
             create more services.
           </p>
           <div className="flex justify-end gap-3">
-            <ReviewedButtonTemp
+            <Button
               variant="outline"
               onClick={() => setShowUpgradeModal(false)}
             >
               Cancel
-            </ReviewedButtonTemp>
+            </Button>
             <Link
               to={`/tenants/${tenantId}/tenant-settings/billing-and-limits`}
             >
-              <ReviewedButtonTemp leftIcon={<ArrowUpIcon className="size-4" />}>
+              <Button leftIcon={<ArrowUpIcon className="size-4" />}>
                 Upgrade Plan
-              </ReviewedButtonTemp>
+              </Button>
             </Link>
           </div>
         </div>
@@ -149,17 +149,17 @@ export default function ManagedWorkers() {
           </h2>
           {canCreateMoreWorkerPools ? (
             <Link to={`/tenants/${tenantId}/managed-workers/create`}>
-              <ReviewedButtonTemp leftIcon={<PlusIcon className="size-4" />}>
+              <Button leftIcon={<PlusIcon className="size-4" />}>
                 Add Service
-              </ReviewedButtonTemp>
+              </Button>
             </Link>
           ) : (
-            <ReviewedButtonTemp
+            <Button
               onClick={handleAddWorkerPool}
               leftIcon={<PlusIcon className="size-4" />}
             >
               Add Service ({workerPoolCount}/{getWorkerPoolLimit()})
-            </ReviewedButtonTemp>
+            </Button>
           )}
         </div>
         <Separator className="my-4" />

@@ -7,7 +7,7 @@ import { relativeDate } from '@/lib/utils';
 import { CpuChipIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useState } from 'react';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   Tabs,
   TabsContent,
@@ -168,14 +168,14 @@ export default function ExpandedWorkflow() {
               Danger Zone
             </h4>
             <Separator className="my-4" />
-            <ReviewedButtonTemp
+            <Button
               variant="destructive"
               onClick={() => {
                 setDeleteWorker(true);
               }}
             >
               Delete Managed Worker
-            </ReviewedButtonTemp>
+            </Button>
 
             <ConfirmDialog
               title={`Delete managed worker`}

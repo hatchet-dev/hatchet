@@ -3,7 +3,7 @@ import { V1Filter } from '@/lib/api';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { CheckIcon } from 'lucide-react';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 
 export const FilterColumn = {
   id: 'ID',
@@ -33,7 +33,7 @@ export const filterColumns = (
       ),
       cell: ({ row }) => (
         <div className="w-full">
-          <ReviewedButtonTemp
+          <Button
             className="w-fit pl-0"
             variant="link"
             onClick={() => {
@@ -41,7 +41,7 @@ export const filterColumns = (
             }}
           >
             {row.original.metadata.id}
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       ),
       enableSorting: false,

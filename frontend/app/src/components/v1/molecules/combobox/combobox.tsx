@@ -189,15 +189,16 @@ export function Combobox({
                   />
                 </div>
               )}
-              <Button type="submit" className="w-full" size="sm">
+              <Button type="submit" fullWidth size="sm">
                 Add {title} Filter
               </Button>
               {values.length > 0 && (
                 <Button
                   onClick={() => setValues([])}
-                  className="w-full mt-2"
+                  className="mt-2"
                   size="sm"
                   variant={'ghost'}
+                  fullWidth
                 >
                   Reset
                 </Button>

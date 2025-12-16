@@ -6,7 +6,7 @@ import {
 } from '@radix-ui/react-icons';
 import { Table } from '@tanstack/react-table';
 
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   Select,
   SelectContent,
@@ -78,7 +78,7 @@ export function DataTablePagination<TData>({
           Page {pagination.pageIndex + 1} of {table.getPageCount()}
         </div>
         <div className="flex items-center space-x-1">
-          <ReviewedButtonTemp
+          <Button
             variant="outline"
             size="sm"
             className="hidden lg:flex"
@@ -87,8 +87,8 @@ export function DataTablePagination<TData>({
           >
             <span className="sr-only">Go to first page</span>
             <DoubleArrowLeftIcon className="size-4" />
-          </ReviewedButtonTemp>
-          <ReviewedButtonTemp
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             onClick={() => table.previousPage()}
@@ -96,8 +96,8 @@ export function DataTablePagination<TData>({
           >
             <span className="sr-only">Go to previous page</span>
             <ChevronLeftIcon className="size-4" />
-          </ReviewedButtonTemp>
-          <ReviewedButtonTemp
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             onClick={() => table.nextPage()}
@@ -105,8 +105,8 @@ export function DataTablePagination<TData>({
           >
             <span className="sr-only">Go to next page</span>
             <ChevronRightIcon className="size-4" />
-          </ReviewedButtonTemp>
-          <ReviewedButtonTemp
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             className="hidden lg:flex"
@@ -115,7 +115,7 @@ export function DataTablePagination<TData>({
           >
             <span className="sr-only">Go to last page</span>
             <DoubleArrowRightIcon className="size-4" />
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       </div>
     </div>

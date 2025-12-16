@@ -4,7 +4,7 @@ import { cloudApi } from '@/lib/api/api';
 import api from '@/lib/api';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { Loading } from '@/components/v1/ui/loading';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -244,21 +244,21 @@ export default function OrganizationPage() {
                     autoFocus
                     disabled={updateOrganizationLoading}
                   />
-                  <ReviewedButtonTemp
+                  <Button
                     size="sm"
                     onClick={handleSaveEdit}
                     disabled={updateOrganizationLoading || !editedName.trim()}
                   >
                     <CheckIcon className="size-4" />
-                  </ReviewedButtonTemp>
-                  <ReviewedButtonTemp
+                  </Button>
+                  <Button
                     size="sm"
                     variant="outline"
                     onClick={handleCancelEdit}
                     disabled={updateOrganizationLoading}
                   >
                     <XMarkIcon className="size-4" />
-                  </ReviewedButtonTemp>
+                  </Button>
                 </>
               ) : (
                 <>
@@ -304,7 +304,7 @@ export default function OrganizationPage() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Tenants
-              <ReviewedButtonTemp
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
@@ -316,7 +316,7 @@ export default function OrganizationPage() {
                 leftIcon={<PlusIcon className="size-4 mr-2" />}
               >
                 Add Tenant
-              </ReviewedButtonTemp>
+              </Button>
             </CardTitle>
             <CardDescription>Tenants within this organization</CardDescription>
           </CardHeader>
@@ -485,7 +485,7 @@ export default function OrganizationPage() {
                 <p className="text-muted-foreground mb-4">
                   Add your first tenant to get started.
                 </p>
-                <ReviewedButtonTemp
+                <Button
                   onClick={() => {
                     navigate(
                       '/onboarding/create-tenant?organizationId=' +
@@ -495,7 +495,7 @@ export default function OrganizationPage() {
                   leftIcon={<PlusIcon className="size-4 mr-2" />}
                 >
                   Add Tenant
-                </ReviewedButtonTemp>
+                </Button>
               </div>
             )}
           </CardContent>
@@ -669,14 +669,14 @@ export default function OrganizationPage() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Invites
-              <ReviewedButtonTemp
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowInviteMemberModal(true)}
                 leftIcon={<PlusIcon className="size-4 mr-2" />}
               >
                 Invite Member
-              </ReviewedButtonTemp>
+              </Button>
             </CardTitle>
             <CardDescription>
               Pending invitations to join this organization
@@ -856,12 +856,12 @@ export default function OrganizationPage() {
                 <p className="text-muted-foreground mb-4">
                   Invite members to join this organization.
                 </p>
-                <ReviewedButtonTemp
+                <Button
                   onClick={() => setShowInviteMemberModal(true)}
                   leftIcon={<PlusIcon className="size-4 mr-2" />}
                 >
                   Invite Member
-                </ReviewedButtonTemp>
+                </Button>
               </div>
             )}
           </CardContent>
@@ -872,14 +872,14 @@ export default function OrganizationPage() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Management Tokens
-              <ReviewedButtonTemp
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowCreateTokenModal(true)}
                 leftIcon={<PlusIcon className="size-4 mr-2" />}
               >
                 Create Token
-              </ReviewedButtonTemp>
+              </Button>
             </CardTitle>
             <CardDescription>
               API tokens for managing this organization
@@ -1010,12 +1010,12 @@ export default function OrganizationPage() {
                   Create API tokens to manage this organization
                   programmatically.
                 </p>
-                <ReviewedButtonTemp
+                <Button
                   onClick={() => setShowCreateTokenModal(true)}
                   leftIcon={<PlusIcon className="size-4 mr-2" />}
                 >
                   Create Token
-                </ReviewedButtonTemp>
+                </Button>
               </div>
             )}
           </CardContent>

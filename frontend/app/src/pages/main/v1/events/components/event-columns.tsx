@@ -1,7 +1,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/v1/ui/badge';
 import { V1Event } from '@/lib/api';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 
 import { AdditionalMetadata } from './additional-metadata';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -52,7 +52,7 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div className="w-full">
-          <ReviewedButtonTemp
+          <Button
             className="w-fit pl-0"
             variant="link"
             onClick={() => {
@@ -60,7 +60,7 @@ export const columns = ({
             }}
           >
             {row.original.metadata.id}
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       ),
       enableSorting: false,
@@ -73,7 +73,7 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div className="w-full">
-          <ReviewedButtonTemp
+          <Button
             className="pl-0 text-left h-auto whitespace-normal min-w-0 justify-start"
             variant="link"
             onClick={() => {
@@ -81,7 +81,7 @@ export const columns = ({
             }}
           >
             <span className="break-all">{row.original.key}</span>
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       ),
       enableSorting: false,

@@ -1,6 +1,6 @@
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -345,7 +345,7 @@ const CreateWebhookModal = () => {
       }}
     >
       <DialogTrigger asChild>
-        <ReviewedButtonTemp>Create Webhook</ReviewedButtonTemp>
+        <Button>Create Webhook</Button>
       </DialogTrigger>
       <DialogContent className="max-w-[90%] md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%] max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
@@ -383,7 +383,7 @@ const CreateWebhookModal = () => {
                 <code className="max-w-full font-mono bg-muted px-2 py-1 rounded text-xs">
                   {createWebhookURL(webhookName)}
                 </code>
-                <ReviewedButtonTemp
+                <Button
                   type="button"
                   variant="icon"
                   size="xs"
@@ -396,7 +396,7 @@ const CreateWebhookModal = () => {
                   ) : (
                     <Copy className="size-4" />
                   )}
-                </ReviewedButtonTemp>
+                </Button>
               </div>
             </div>
           </div>
@@ -534,14 +534,14 @@ const CreateWebhookModal = () => {
 
           <div className="flex justify-end gap-3 pt-4">
             <DialogClose asChild>
-              <ReviewedButtonTemp type="button" variant="outline">
+              <Button type="button" variant="outline">
                 Cancel
-              </ReviewedButtonTemp>
+              </Button>
             </DialogClose>
-            <ReviewedButtonTemp type="submit" disabled={isCreatePending}>
+            <Button type="submit" disabled={isCreatePending}>
               {isCreatePending && <Spinner />}
               Create Webhook
-            </ReviewedButtonTemp>
+            </Button>
           </div>
         </form>
       </DialogContent>

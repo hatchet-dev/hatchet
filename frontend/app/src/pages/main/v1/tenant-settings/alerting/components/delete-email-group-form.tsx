@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   DialogContent,
@@ -29,15 +29,15 @@ export function DeleteEmailGroupForm({
           Are you sure you want to delete this email group?
         </div>
         <div className="flex flex-row gap-4">
-          <ReviewedButtonTemp
+          <Button
             variant="ghost"
             onClick={() => {
               props.onCancel();
             }}
           >
             Cancel
-          </ReviewedButtonTemp>
-          <ReviewedButtonTemp
+          </Button>
+          <Button
             variant="destructive"
             onClick={() => {
               props.onSubmit(props.emailGroup);
@@ -45,7 +45,7 @@ export function DeleteEmailGroupForm({
           >
             {props.isLoading && <Spinner />}
             Delete group
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       </div>
     </DialogContent>

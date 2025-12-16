@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Textarea } from '@/components/v1/ui/textarea';
@@ -124,42 +124,42 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
         <div className="flex items-center justify-between">
           <div className="flex gap-2 pt-2">
             {!isEditing ? (
-              <ReviewedButtonTemp
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={handleEdit}
                 leftIcon={<EditIcon className="size-4" />}
               >
                 Edit
-              </ReviewedButtonTemp>
+              </Button>
             ) : (
               <>
-                <ReviewedButtonTemp
+                <Button
                   variant="outline"
                   size="sm"
                   onClick={handleCancel}
                   leftIcon={<XIcon className="size-4" />}
                 >
                   Cancel
-                </ReviewedButtonTemp>
-                <ReviewedButtonTemp
+                </Button>
+                <Button
                   size="sm"
                   onClick={handleSubmit(onSubmit)}
                   disabled={mutations.update.isPending}
                   leftIcon={<SaveIcon className="size-4" />}
                 >
                   {mutations.update.isPending ? 'Saving...' : 'Save'}
-                </ReviewedButtonTemp>
+                </Button>
               </>
             )}
-            <ReviewedButtonTemp
+            <Button
               variant="destructive"
               size="sm"
               onClick={() => setShowDeleteDialog(true)}
               leftIcon={<Trash2Icon className="size-4" />}
             >
               Delete
-            </ReviewedButtonTemp>
+            </Button>
           </div>
         </div>
 
@@ -273,19 +273,19 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <ReviewedButtonTemp
+            <Button
               variant="outline"
               onClick={() => setShowDeleteDialog(false)}
             >
               Cancel
-            </ReviewedButtonTemp>
-            <ReviewedButtonTemp
+            </Button>
+            <Button
               variant="destructive"
               onClick={handleDelete}
               disabled={mutations.delete.isPending}
             >
               {mutations.delete.isPending ? 'Deleting...' : 'Delete'}
-            </ReviewedButtonTemp>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

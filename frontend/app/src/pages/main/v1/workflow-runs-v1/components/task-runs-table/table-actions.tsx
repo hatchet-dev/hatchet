@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { useRunsContext } from '../../hooks/runs-provider';
 import {
@@ -41,11 +41,11 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
           }}
         >
           <DropdownMenuTrigger asChild>
-            <ReviewedButtonTemp variant="outline" size="sm">
+            <Button variant="outline" size="sm">
               <Command className="size-4 cq-xl:hidden" />
               <span className="cq-xl:inline hidden text-sm">Actions</span>
               <ChevronDownIcon className="size-4 ml-2 hidden cq-xl:inline" />
-            </ReviewedButtonTemp>
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="z-[70]">
             <CancelMenuItem />
@@ -57,11 +57,11 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
 
     if (!hideTriggerRunButton) {
       baseActions = [
-        <ReviewedButtonTemp key="trigger" size="sm" onClick={onTriggerWorkflow}>
+        <Button key="trigger" size="sm" onClick={onTriggerWorkflow}>
           <span className="cq-xl:inline hidden text-sm">Trigger Run</span>
           {/* important: this icon can't be the `rightIcon` in the button b/c it's dynamically shown */}
           <Play className="size-4 cq-xl:hidden" />
-        </ReviewedButtonTemp>,
+        </Button>,
         ...baseActions,
       ];
     }

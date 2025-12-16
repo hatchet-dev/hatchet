@@ -6,7 +6,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/v1/ui/dialog';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Textarea } from '@/components/v1/ui/textarea';
@@ -170,15 +170,12 @@ function FilterCreateForm({
         </div>
 
         <DialogFooter>
-          <ReviewedButtonTemp variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose}>
             Cancel
-          </ReviewedButtonTemp>
-          <ReviewedButtonTemp
-            onClick={handleSubmit(onSubmit)}
-            disabled={isCreating}
-          >
+          </Button>
+          <Button onClick={handleSubmit(onSubmit)} disabled={isCreating}>
             {isCreating ? 'Creating...' : 'Create Filter'}
-          </ReviewedButtonTemp>
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -194,9 +191,9 @@ export function FilterCreateButton({
 
   return (
     <>
-      <ReviewedButtonTemp onClick={() => setIsOpen(true)} variant="cta">
+      <Button onClick={() => setIsOpen(true)} variant="cta">
         Create Filter
-      </ReviewedButtonTemp>
+      </Button>
       <FilterCreateForm
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}

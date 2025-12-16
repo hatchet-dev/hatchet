@@ -3,7 +3,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/v1/ui/loading';
 
@@ -28,14 +28,14 @@ export function DeleteWebhookWorkerDialog({
         <div className="grid gap-4">
           This is a permanent action. Are you sure you want to delete this
           webhook worker?
-          <ReviewedButtonTemp
+          <Button
             onClick={() => {
               onSubmit();
             }}
           >
             {props.isLoading && <Spinner />}
             Delete
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       </div>
     </DialogContent>

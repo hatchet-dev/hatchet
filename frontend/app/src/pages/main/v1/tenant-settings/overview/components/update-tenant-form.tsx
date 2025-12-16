@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Label } from '@/components/v1/ui/label';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -62,10 +62,10 @@ export function UpdateTenantForm({
               <div className="text-sm text-red-500">{nameError}</div>
             )}
           </div>
-          <ReviewedButtonTemp disabled={props.isLoading} className="w-fit">
+          <Button disabled={props.isLoading} className="w-fit">
             {props.isLoading && <Spinner />}
             Change Name
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       </form>
     </div>

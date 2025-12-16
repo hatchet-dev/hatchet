@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   DialogContent,
@@ -28,15 +28,15 @@ export function DeleteSlackForm({ className, ...props }: DeleteSlackFormProps) {
           ?
         </div>
         <div className="flex flex-row gap-4">
-          <ReviewedButtonTemp
+          <Button
             variant="ghost"
             onClick={() => {
               props.onCancel();
             }}
           >
             Cancel
-          </ReviewedButtonTemp>
-          <ReviewedButtonTemp
+          </Button>
+          <Button
             variant="destructive"
             onClick={() => {
               props.onSubmit(props.slackWebhook);
@@ -44,7 +44,7 @@ export function DeleteSlackForm({ className, ...props }: DeleteSlackFormProps) {
           >
             {props.isLoading && <Spinner />}
             Delete webhook
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       </div>
     </DialogContent>

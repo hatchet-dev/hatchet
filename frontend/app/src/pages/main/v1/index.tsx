@@ -1,4 +1,4 @@
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import {
   CalendarDaysIcon,
@@ -307,7 +307,7 @@ function SidebarButtonPrimary({
 
   const primaryLink = (
     <Link to={to} onClick={onNavLinkClick}>
-      <ReviewedButtonTemp
+      <Button
         variant="ghost"
         className={cn(
           'w-full justify-start pl-2',
@@ -316,7 +316,7 @@ function SidebarButtonPrimary({
       >
         {icon}
         {name}
-      </ReviewedButtonTemp>
+      </Button>
     </Link>
   );
 
@@ -353,7 +353,7 @@ function SidebarButtonSecondary({
 
   return (
     <Link to={to} onClick={onNavLinkClick}>
-      <ReviewedButtonTemp
+      <Button
         variant="ghost"
         size="sm"
         className={cn(
@@ -362,7 +362,7 @@ function SidebarButtonSecondary({
         )}
       >
         {name}
-      </ReviewedButtonTemp>
+      </Button>
     </Link>
   );
 }

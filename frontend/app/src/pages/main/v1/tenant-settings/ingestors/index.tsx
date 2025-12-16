@@ -8,7 +8,7 @@ import api, {
   queries,
 } from '@/lib/api';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Dialog } from '@radix-ui/react-dialog';
 import { CreateSNSDialog } from './components/create-sns-dialog';
 import { DeleteSNSForm } from './components/delete-sns-form';
@@ -53,12 +53,9 @@ function SNSIntegrationsList() {
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           SNS Integrations
         </h3>
-        <ReviewedButtonTemp
-          key="create-api-token"
-          onClick={() => setShowSNSDialog(true)}
-        >
+        <Button key="create-api-token" onClick={() => setShowSNSDialog(true)}>
           Create SNS Endpoint
-        </ReviewedButtonTemp>
+        </Button>
       </div>
       <Separator className="my-4" />
       <DataTable

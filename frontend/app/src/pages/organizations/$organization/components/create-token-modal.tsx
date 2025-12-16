@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -136,9 +136,7 @@ export function CreateTokenModal({
             </div>
 
             <div className="flex items-center justify-end pt-4">
-              <ReviewedButtonTemp onClick={handleClose}>
-                Done
-              </ReviewedButtonTemp>
+              <Button onClick={handleClose}>Done</Button>
             </div>
           </div>
         ) : (
@@ -191,16 +189,12 @@ export function CreateTokenModal({
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-4">
-              <ReviewedButtonTemp
-                type="button"
-                variant="outline"
-                onClick={handleClose}
-              >
+              <Button type="button" variant="outline" onClick={handleClose}>
                 Cancel
-              </ReviewedButtonTemp>
-              <ReviewedButtonTemp type="submit" disabled={createTokenLoading}>
+              </Button>
+              <Button type="submit" disabled={createTokenLoading}>
                 {createTokenLoading ? 'Creating...' : 'Create Token'}
-              </ReviewedButtonTemp>
+              </Button>
             </div>
           </form>
         )}

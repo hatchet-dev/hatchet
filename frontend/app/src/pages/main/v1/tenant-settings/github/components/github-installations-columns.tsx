@@ -1,6 +1,6 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/v1/ui/avatar';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { GearIcon } from '@radix-ui/react-icons';
 import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
@@ -37,23 +37,23 @@ export const columns = (
       cell: ({ row }) => {
         if (row.original.is_linked_to_tenant) {
           return (
-            <ReviewedButtonTemp
+            <Button
               variant="ghost"
               disabled
               leftIcon={<CheckCircleIcon className="size-4" />}
             >
               Linked
-            </ReviewedButtonTemp>
+            </Button>
           );
         }
         return row.original.type == 'installation' ? (
-          <ReviewedButtonTemp
+          <Button
             variant="outline"
             onClick={() => linkToTenant(row.original.metadata.id)}
             leftIcon={<PlusCircleIcon className="size-4" />}
           >
             Link to tenant
-          </ReviewedButtonTemp>
+          </Button>
         ) : (
           <a
             href={
@@ -63,9 +63,7 @@ export const columns = (
             target="_blank"
             rel="noreferrer"
           >
-            <ReviewedButtonTemp variant="outline">
-              Finish Setup
-            </ReviewedButtonTemp>
+            <Button variant="outline">Finish Setup</Button>
           </a>
         );
       },
@@ -87,12 +85,9 @@ export const columns = (
             target="_blank"
             rel="noreferrer"
           >
-            <ReviewedButtonTemp
-              variant="ghost"
-              leftIcon={<GearIcon className="size-4" />}
-            >
+            <Button variant="ghost" leftIcon={<GearIcon className="size-4" />}>
               Configure
-            </ReviewedButtonTemp>
+            </Button>
           </a>
         );
       },

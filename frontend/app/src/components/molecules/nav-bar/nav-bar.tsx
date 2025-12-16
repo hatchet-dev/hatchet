@@ -1,5 +1,5 @@
 import React from 'react';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,9 +60,9 @@ function HelpDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <ReviewedButtonTemp variant="icon" aria-label="Help Menu">
+        <Button variant="icon" aria-label="Help Menu">
           <BiHelpCircle className="h-6 w-6 text-foreground cursor-pointer" />
-        </ReviewedButtonTemp>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         {hasPylon && (
@@ -134,12 +134,12 @@ function AccountDropdown({ user }: { user: User }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <ReviewedButtonTemp variant="icon" aria-label="User Menu">
+        <Button variant="icon" aria-label="User Menu">
           <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
           {(pendingInvitesQuery.data ?? 0) > 0 && (
             <div className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-blue-500 rounded-full border-2 border-background animate-pulse"></div>
           )}
-        </ReviewedButtonTemp>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
@@ -194,14 +194,14 @@ export default function MainNav({ user }: MainNavProps) {
         <div className="flex h-16 items-center pr-4 pl-4">
           <div className="flex flex-row items-center gap-x-8">
             <div className="flex items-center gap-3">
-              <ReviewedButtonTemp
+              <Button
                 variant="icon"
                 onClick={() => toggleSidebarOpen()}
                 aria-label="Toggle sidebar"
                 size="icon"
               >
                 <Menu className="size-4" />
-              </ReviewedButtonTemp>
+              </Button>
               <img
                 src={theme == 'dark' ? hatchet : hatchetDark}
                 alt="Hatchet"

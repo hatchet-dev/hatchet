@@ -8,7 +8,7 @@ import {
   useLoaderData,
   useNavigate,
 } from 'react-router-dom';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { useOrganizations } from '@/hooks/use-organizations';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -104,7 +104,7 @@ export default function Invites() {
                     Hatchet.
                   </p>
                   <div className="flex flex-row gap-2 justify-center">
-                    <ReviewedButtonTemp
+                    <Button
                       variant="outline"
                       className="w-full"
                       onClick={() => {
@@ -114,8 +114,8 @@ export default function Invites() {
                       }}
                     >
                       Decline
-                    </ReviewedButtonTemp>
-                    <ReviewedButtonTemp
+                    </Button>
+                    <Button
                       className="w-full"
                       onClick={() => {
                         acceptMutation.mutate({
@@ -127,7 +127,7 @@ export default function Invites() {
                       }}
                     >
                       Accept
-                    </ReviewedButtonTemp>
+                    </Button>
                   </div>
                 </div>
               );
@@ -143,7 +143,7 @@ export default function Invites() {
                     {invite.inviterEmail} on Hatchet.
                   </p>
                   <div className="flex flex-row gap-2 justify-center">
-                    <ReviewedButtonTemp
+                    <Button
                       variant="outline"
                       className="w-full"
                       onClick={() => {
@@ -158,8 +158,8 @@ export default function Invites() {
                       }}
                     >
                       Decline
-                    </ReviewedButtonTemp>
-                    <ReviewedButtonTemp
+                    </Button>
+                    <Button
                       className="w-full"
                       onClick={() => {
                         acceptOrgInviteMutation.mutate(
@@ -173,7 +173,7 @@ export default function Invites() {
                       }}
                     >
                       Accept
-                    </ReviewedButtonTemp>
+                    </Button>
                   </div>
                 </div>
               );

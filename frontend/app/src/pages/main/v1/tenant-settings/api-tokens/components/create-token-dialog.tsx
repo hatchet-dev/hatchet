@@ -3,7 +3,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { z } from 'zod';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -127,10 +127,10 @@ export function CreateTokenDialog({
               }}
             />
 
-            <ReviewedButtonTemp disabled={props.isLoading}>
+            <Button disabled={props.isLoading}>
               {props.isLoading && <Spinner />}
               Generate token
-            </ReviewedButtonTemp>
+            </Button>
           </div>
         </form>
       </div>

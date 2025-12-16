@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
 import { Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
@@ -352,9 +352,9 @@ func main() {
       <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row items-center mb-4">
           <Link to={`/tenants/${tenantId}/managed-workers`} className="mr-4">
-            <ReviewedButtonTemp variant="ghost" size="icon">
+            <Button variant="ghost" size="icon">
               <ArrowLeftIcon className="size-4" />
-            </ReviewedButtonTemp>
+            </Button>
           </Link>
           <h2 className="text-2xl font-bold leading-tight text-foreground">
             Deploy Demo Template
@@ -453,13 +453,13 @@ func main() {
                                 View TypeScript source on GitHub
                                 <span className="ml-1">↗</span>
                               </a>
-                              <ReviewedButtonTemp
+                              <Button
                                 onClick={handleConfirmInfo}
                                 size="sm"
                                 className="px-4"
                               >
                                 Continue with TypeScript
-                              </ReviewedButtonTemp>
+                              </Button>
                             </div>
                           </div>
                         )}
@@ -511,13 +511,13 @@ func main() {
                                 View Python source on GitHub
                                 <span className="ml-1">↗</span>
                               </a>
-                              <ReviewedButtonTemp
+                              <Button
                                 onClick={handleConfirmInfo}
                                 size="sm"
                                 className="px-4"
                               >
                                 Continue with Python
-                              </ReviewedButtonTemp>
+                              </Button>
                             </div>
                           </div>
                         )}
@@ -566,13 +566,13 @@ func main() {
                                 View Go source on GitHub
                                 <span className="ml-1">↗</span>
                               </a>
-                              <ReviewedButtonTemp
+                              <Button
                                 onClick={handleConfirmInfo}
                                 size="sm"
                                 className="px-4"
                               >
                                 Continue with Go
-                              </ReviewedButtonTemp>
+                              </Button>
                             </div>
                           </div>
                         )}
@@ -581,12 +581,9 @@ func main() {
                   </RadioGroup>
                 </div>
 
-                <ReviewedButtonTemp
-                  onClick={handleConfirmInfo}
-                  className="w-fit mt-2"
-                >
+                <Button onClick={handleConfirmInfo} className="w-fit mt-2">
                   Continue
-                </ReviewedButtonTemp>
+                </Button>
               </div>
             </Step>
 
@@ -691,7 +688,7 @@ func main() {
                                 ? 'Ready to simulate deployment'
                                 : 'Ready to deploy'}
                           </div>
-                          <ReviewedButtonTemp
+                          <Button
                             onClick={handleDeploy}
                             disabled={deploying || (!isSimulation && isPending)}
                             className="min-w-32"
@@ -701,7 +698,7 @@ func main() {
                               : isSimulation
                                 ? 'Simulate Deploy'
                                 : 'Deploy Demo'}
-                          </ReviewedButtonTemp>
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -759,7 +756,7 @@ func main() {
                       </p>
 
                       {!apiToken ? (
-                        <ReviewedButtonTemp
+                        <Button
                           onClick={handleGenerateToken}
                           disabled={isGeneratingToken}
                           fullWidth
@@ -772,7 +769,7 @@ func main() {
                           ) : (
                             'Generate API Token'
                           )}
-                        </ReviewedButtonTemp>
+                        </Button>
                       ) : (
                         <>
                           <div className="bg-green-500/10 text-green-600 p-3 rounded mb-4 text-sm">
@@ -792,22 +789,22 @@ func main() {
                           />
 
                           <div className="flex space-x-2 mb-4">
-                            <ReviewedButtonTemp
+                            <Button
                               type="button"
                               variant="outline"
                               size="sm"
                               onClick={() => setTokenRevealed(!tokenRevealed)}
                             >
                               {tokenRevealed ? 'Hide Token' : 'Reveal Token'}
-                            </ReviewedButtonTemp>
-                            <ReviewedButtonTemp
+                            </Button>
+                            <Button
                               variant="outline"
                               size="sm"
                               onClick={handleGenerateToken}
                               disabled={isGeneratingToken}
                             >
                               Generate New Token
-                            </ReviewedButtonTemp>
+                            </Button>
                           </div>
                         </>
                       )}
@@ -891,23 +888,23 @@ func main() {
                     <Link
                       to={`/tenants/${tenantId}/managed-workers/${deployedWorkerId}`}
                     >
-                      <ReviewedButtonTemp variant="default" fullWidth>
+                      <Button variant="default" fullWidth>
                         View Your Service
-                      </ReviewedButtonTemp>
+                      </Button>
                     </Link>
                   )}
 
                   {/* Secondary action buttons */}
                   <div className="grid grid-cols-2 gap-3">
                     <Link to={`/tenants/${tenantId}/runs`}>
-                      <ReviewedButtonTemp variant="outline" fullWidth>
+                      <Button variant="outline" fullWidth>
                         View Runs
-                      </ReviewedButtonTemp>
+                      </Button>
                     </Link>
                     <Link to={`/tenants/${tenantId}/workflows`}>
-                      <ReviewedButtonTemp variant="outline" fullWidth>
+                      <Button variant="outline" fullWidth>
                         View RegisteredTasks
-                      </ReviewedButtonTemp>
+                      </Button>
                     </Link>
                   </div>
                 </div>

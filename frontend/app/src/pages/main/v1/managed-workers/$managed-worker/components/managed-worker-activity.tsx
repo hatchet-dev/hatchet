@@ -10,7 +10,7 @@ import {
 } from '@/components/v1/ui/card';
 import { Spinner } from '@/components/v1/ui/loading';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { ArrowRightIcon, ChevronLeftIcon } from '@radix-ui/react-icons';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -108,13 +108,13 @@ function Build({ buildId, back }: { buildId: string; back: () => void }) {
   return (
     <div className="flex flex-col justify-start items-start gap-4 mt-8">
       <div className="flex flex-row justify-start gap-4 items-center">
-        <ReviewedButtonTemp
+        <Button
           onClick={back}
           variant="link"
           leftIcon={<ChevronLeftIcon className="size-4" />}
         >
           Back
-        </ReviewedButtonTemp>
+        </Button>
       </div>
       <Separator />
       <ManagedWorkerBuild buildId={buildId} />
@@ -134,13 +134,13 @@ function IaCDebug({
   return (
     <div className="flex flex-col justify-start items-start gap-4 mt-8">
       <div className="flex flex-row justify-start gap-4 items-center">
-        <ReviewedButtonTemp
+        <Button
           onClick={back}
           variant="link"
           leftIcon={<ChevronLeftIcon className="size-4" />}
         >
           Back
-        </ReviewedButtonTemp>
+        </Button>
       </div>
       <Separator />
       <ManagedWorkerIaC
@@ -195,7 +195,7 @@ function renderCardFooter(
 
     if (data.build_id) {
       buttons.push(
-        <ReviewedButtonTemp
+        <Button
           variant="link"
           size="xs"
           onClick={() => {
@@ -204,13 +204,13 @@ function renderCardFooter(
           leftIcon={<ArrowRightIcon className="size-4" />}
         >
           View build info
-        </ReviewedButtonTemp>,
+        </Button>,
       );
     }
 
     if (data.deploy_key) {
       buttons.push(
-        <ReviewedButtonTemp
+        <Button
           variant="link"
           size="xs"
           onClick={() => {
@@ -219,7 +219,7 @@ function renderCardFooter(
           leftIcon={<ArrowRightIcon className="size-4" />}
         >
           View IaC debug info
-        </ReviewedButtonTemp>,
+        </Button>,
       );
     }
 

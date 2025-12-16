@@ -1,7 +1,7 @@
 import { DotsVerticalIcon } from '@radix-ui/react-icons';
 import { Row } from '@tanstack/react-table';
 
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,14 +37,14 @@ export function DataTableRowActions<TData extends IDGetter<TData>>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <ReviewedButtonTemp
+        <Button
           variant="ghost"
           size="sm"
           className="flex data-[state=open]:bg-muted"
         >
           <DotsVerticalIcon className="size-4" />
           <span className="sr-only">Open menu</span>
-        </ReviewedButtonTemp>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[160px]">
         {actions?.map((action) => (

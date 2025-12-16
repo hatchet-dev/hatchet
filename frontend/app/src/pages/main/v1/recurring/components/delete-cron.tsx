@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -68,15 +68,15 @@ function DeleteCronForm({ className, ...props }: DeleteCronFormProps) {
           the run from running in the future and cannot be undone.
         </div>
         <div className="flex flex-row gap-4 justify-end">
-          <ReviewedButtonTemp
+          <Button
             variant="ghost"
             onClick={() => {
               props.onCancel();
             }}
           >
             Cancel
-          </ReviewedButtonTemp>
-          <ReviewedButtonTemp
+          </Button>
+          <Button
             variant="destructive"
             onClick={() => {
               props.onSubmit();
@@ -84,7 +84,7 @@ function DeleteCronForm({ className, ...props }: DeleteCronFormProps) {
           >
             {props.isLoading && <Spinner />}
             Delete cron job
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       </div>
     </DialogContent>

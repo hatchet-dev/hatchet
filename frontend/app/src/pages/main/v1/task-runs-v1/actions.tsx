@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   DialogTitle,
   Dialog,
@@ -279,15 +279,15 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
           </div>
 
           <div className="flex flex-row items-center gap-3 justify-end pt-4 border-t">
-            <ReviewedButtonTemp
+            <Button
               onClick={() => {
                 setIsActionModalOpen(false);
               }}
               variant="outline"
             >
               Close
-            </ReviewedButtonTemp>
-            <ReviewedButtonTemp
+            </Button>
+            <Button
               onClick={() => {
                 handleTaskRunAction({
                   ...params,
@@ -297,7 +297,7 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
               }}
             >
               Confirm
-            </ReviewedButtonTemp>
+            </Button>
           </div>
         </div>
       </DialogContent>
@@ -330,7 +330,7 @@ const BaseActionButton = ({
   } = useRunsContext();
 
   return (
-    <ReviewedButtonTemp
+    <Button
       size={'sm'}
       className={cn('text-sm', className)}
       variant={'outline'}
@@ -349,7 +349,7 @@ const BaseActionButton = ({
       leftIcon={icon}
     >
       {label}
-    </ReviewedButtonTemp>
+    </Button>
   );
 };
 

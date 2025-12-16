@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { useToast } from '@/components/hooks/use-toast';
 import api, { V1WorkflowRunDetails, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
@@ -76,13 +76,13 @@ export const DefaultOnboardingWorkflow: React.FC<{
         terminal for log output.
       </p>
 
-      <ReviewedButtonTemp
+      <Button
         onClick={handleButtonClick}
         className={`mt-5 ${isButtonClicked ? 'animate-jiggle' : ''}`}
         variant={'outline'}
       >
         Trigger Run
-      </ReviewedButtonTemp>
+      </Button>
     </div>
   );
 };

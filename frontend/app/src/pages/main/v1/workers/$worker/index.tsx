@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import {
@@ -156,13 +156,13 @@ export default function ExpandedWorkflowRun() {
             <WorkerStatus status={worker.status} health={healthy} />
             <DropdownMenu>
               <DropdownMenuTrigger>
-                <ReviewedButtonTemp
+                <Button
                   aria-label="Workflow Actions"
                   size="icon"
                   variant="ghost"
                 >
                   <BiDotsVertical />
-                </ReviewedButtonTemp>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem
@@ -248,9 +248,7 @@ export default function ExpandedWorkflowRun() {
                 to={`/tenants/${tenantId}/workflows/${workflow.id}`}
                 key={workflow.id}
               >
-                <ReviewedButtonTemp variant="outline">
-                  {workflow.name}
-                </ReviewedButtonTemp>
+                <Button variant="outline">{workflow.name}</Button>
               </Link>
             );
           })}
@@ -258,12 +256,9 @@ export default function ExpandedWorkflowRun() {
         <div className="flex flex-row w-full items-center justify-center py-4">
           {!showAllActions &&
             registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
-              <ReviewedButtonTemp
-                variant="outline"
-                onClick={() => setShowAllActions(true)}
-              >
+              <Button variant="outline" onClick={() => setShowAllActions(true)}>
                 {`Show All (${registeredWorkflows.length - N_ACTIONS_TO_PREVIEW} more)`}
-              </ReviewedButtonTemp>
+              </Button>
             )}
         </div>
         {worker.webhookId && (

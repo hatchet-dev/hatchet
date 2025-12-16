@@ -339,10 +339,10 @@ export function OrganizationSelector({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full justify-center gap-2 h-8 text-sm hover:bg-accent"
+                      fullWidth
                       onClick={handleCreateOrgClick}
+                      leftIcon={<PlusIcon className="size-4" />}
                     >
-                      <PlusIcon className="size-4" />
                       Create Organization
                     </Button>
                   </div>

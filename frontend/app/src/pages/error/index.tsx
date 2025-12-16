@@ -1,4 +1,4 @@
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { PropsWithChildren } from 'react';
 import { ErrorResponse, useNavigate, useRouteError } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
@@ -34,12 +34,12 @@ export default function ErrorBoundary() {
         <h1 className="text-2xl font-semibold tracking-tight">
           A New App Version is Available!
         </h1>
-        <ReviewedButtonTemp onClick={() => window.location.reload()}>
+        <Button onClick={() => window.location.reload()}>
           Reload to Update
-        </ReviewedButtonTemp>
-        <ReviewedButtonTemp onClick={() => navigate('/')} variant="outline">
+        </Button>
+        <Button onClick={() => navigate('/')} variant="outline">
           Return to Dashboard
-        </ReviewedButtonTemp>
+        </Button>
       </Layout>
     );
   }
@@ -49,9 +49,7 @@ export default function ErrorBoundary() {
       <Layout>
         <h1 className="text-2xl font-semibold tracking-tight">404</h1>
         <h2 className="text-xl font-semibold tracking-tight">Page Not Found</h2>
-        <ReviewedButtonTemp onClick={() => navigate('/')}>
-          Return to Dashboard
-        </ReviewedButtonTemp>
+        <Button onClick={() => navigate('/')}>Return to Dashboard</Button>
       </Layout>
     );
   }
@@ -67,12 +65,10 @@ export default function ErrorBoundary() {
         {(error as ErrorResponse).statusText || 'Something went wrong'}
       </h2>
 
-      <ReviewedButtonTemp onClick={() => window.location.reload()}>
-        Try Again
-      </ReviewedButtonTemp>
-      <ReviewedButtonTemp onClick={() => navigate('/')} variant="outline">
+      <Button onClick={() => window.location.reload()}>Try Again</Button>
+      <Button onClick={() => navigate('/')} variant="outline">
         Return to Dashboard
-      </ReviewedButtonTemp>
+      </Button>
     </Layout>
   );
 }

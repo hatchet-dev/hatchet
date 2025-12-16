@@ -1,6 +1,6 @@
 import { queries } from '@/lib/api';
 import { useEffect, useMemo, useState } from 'react';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
 import {
@@ -1088,7 +1088,7 @@ export default function UpdateWorkerForm({
             </AccordionContent>
           </AccordionItem>
         </Accordion>
-        <ReviewedButtonTemp
+        <Button
           onClick={handleSubmit(onSubmit)}
           disabled={
             !managedWorker.canUpdate ||
@@ -1100,7 +1100,7 @@ export default function UpdateWorkerForm({
         >
           {isLoading && <PlusIcon className="size-4 animate-spin" />}
           Save changes
-        </ReviewedButtonTemp>
+        </Button>
       </div>
     </>
   );

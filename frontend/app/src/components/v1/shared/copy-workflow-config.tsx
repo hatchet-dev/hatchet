@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, ReviewedButtonTemp } from '../ui/button';
+import { Button } from '../ui/button';
 import { CheckIcon, CopyIcon } from 'lucide-react';
 
 export function CopyWorkflowConfigButton({
@@ -10,7 +10,7 @@ export function CopyWorkflowConfigButton({
   const [copySuccess, setCopySuccess] = useState(false);
 
   return (
-    <ReviewedButtonTemp
+    <Button
       variant="outline"
       size="sm"
       onClick={() => {
@@ -30,6 +30,6 @@ export function CopyWorkflowConfigButton({
           Copy Config
         </>
       )}
-    </ReviewedButtonTemp>
+    </Button>
   );
 }

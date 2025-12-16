@@ -3,7 +3,7 @@ import { VisibilityState } from '@tanstack/react-table';
 import { CronWorkflows } from '@/lib/api';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './components/recurring-columns';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { DeleteCron } from './components/delete-cron';
 import {
   ToolbarFilters,
@@ -84,13 +84,13 @@ export default function CronsTable() {
   ];
 
   const actions = [
-    <ReviewedButtonTemp
+    <Button
       key="create-cron"
       onClick={() => setTriggerWorkflow(true)}
       variant="cta"
     >
       Create Cron Job
-    </ReviewedButtonTemp>,
+    </Button>,
   ];
 
   return (

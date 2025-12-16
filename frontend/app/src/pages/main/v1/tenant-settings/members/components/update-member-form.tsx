@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Controller, useForm } from 'react-hook-form';
@@ -111,10 +111,10 @@ export function UpdateMemberForm({
                 <div className="text-sm text-red-500">{roleError}</div>
               )}
             </div>
-            <ReviewedButtonTemp disabled={props.isLoading}>
+            <Button disabled={props.isLoading}>
               {props.isLoading && <Spinner />}
               Update member
-            </ReviewedButtonTemp>
+            </Button>
           </div>
         </form>
       </div>

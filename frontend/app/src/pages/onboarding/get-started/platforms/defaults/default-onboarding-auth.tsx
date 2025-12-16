@@ -1,4 +1,4 @@
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import api, { CreateAPITokenRequest } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
@@ -48,7 +48,7 @@ export const DefaultOnboardingAuth: React.FC<{
           />
         </div>
 
-        <ReviewedButtonTemp
+        <Button
           onClick={() => {
             navigator.clipboard.writeText(token);
             tokenGenerated();
@@ -57,7 +57,7 @@ export const DefaultOnboardingAuth: React.FC<{
           className="mt-2"
         >
           Copy and Continue
-        </ReviewedButtonTemp>
+        </Button>
       </div>
     );
   }
@@ -67,13 +67,13 @@ export const DefaultOnboardingAuth: React.FC<{
       <p className="mb-4 text-muted-foreground">
         Before you can start your worker, you need to generate an auth token.
       </p>
-      <ReviewedButtonTemp
+      <Button
         onClick={() => createTokenMutation.mutate({ name: 'default' })}
         className="mr-2"
         variant="outline"
       >
         Generate Auth Token
-      </ReviewedButtonTemp>
+      </Button>
     </div>
   );
 };

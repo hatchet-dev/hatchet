@@ -1,7 +1,7 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardDescription,
@@ -231,7 +231,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                   per month billed {plan.period}*
                 </CardDescription>
                 <CardDescription>
-                  <ReviewedButtonTemp
+                  <Button
                     disabled={
                       !hasPaymentMethods ||
                       plan.plan_code === activePlanCode ||
@@ -251,7 +251,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     ) : (
                       'Downgrade'
                     )}
-                  </ReviewedButtonTemp>
+                  </Button>
                 </CardDescription>
               </CardHeader>
             </Card>

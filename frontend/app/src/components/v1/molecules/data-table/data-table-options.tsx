@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Cross2Icon, MixerHorizontalIcon } from '@radix-ui/react-icons';
 import { ColumnFiltersState, Table } from '@tanstack/react-table';
-import { ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,14 +79,14 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                 <span className="text-xs font-medium text-muted-foreground">
                   Custom Range
                 </span>
-                <ReviewedButtonTemp
+                <Button
                   onClick={config.onClearTimeRange}
                   variant="ghost"
                   size="sm"
                   leftIcon={<XCircleIcon className="size-4" />}
                 >
                   Clear
-                </ReviewedButtonTemp>
+                </Button>
               </div>
               <div className="space-y-2">
                 <div className="space-y-1 w-full">
@@ -195,7 +195,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                       <span className="text-muted-foreground">{separator}</span>
                       <span className="text-green-600">{value}</span>
                     </div>
-                    <ReviewedButtonTemp
+                    <Button
                       variant="icon"
                       size="xs"
                       onClick={() => {
@@ -208,7 +208,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                       }}
                     >
                       <Cross2Icon className="size-3" />
-                    </ReviewedButtonTemp>
+                    </Button>
                   </div>
                 );
               })}
@@ -254,7 +254,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                 />
               </div>
             </div>
-            <ReviewedButtonTemp
+            <Button
               variant="outline"
               size="sm"
               disabled={!newKey.trim() || !newValue.trim()}
@@ -262,7 +262,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
               className="w-full"
             >
               Add Filter
-            </ReviewedButtonTemp>
+            </Button>
           </div>
         </div>
       );
@@ -293,7 +293,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                     <div className="flex items-center gap-1 font-mono">
                       <span className="text-muted-foreground">{val}</span>
                     </div>
-                    <ReviewedButtonTemp
+                    <Button
                       variant="icon"
                       size="xs"
                       onClick={() => {
@@ -306,7 +306,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                       }}
                     >
                       <Cross2Icon className="size-3" />
-                    </ReviewedButtonTemp>
+                    </Button>
                   </div>
                 );
               })}
@@ -326,7 +326,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
               }}
               className="h-8 text-xs placeholder:text-muted-foreground/50 w-full"
             />
-            <ReviewedButtonTemp
+            <Button
               variant="outline"
               size="sm"
               disabled={!newArrayValue.trim()}
@@ -334,7 +334,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
               className="w-full"
             >
               Add Filter
-            </ReviewedButtonTemp>
+            </Button>
           </div>
         </div>
       );
@@ -515,11 +515,7 @@ export function DataTableOptions<TData>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <ReviewedButtonTemp
-          variant="outline"
-          size="sm"
-          className="flex-shrink-0"
-        >
+        <Button variant="outline" size="sm" className="flex-shrink-0">
           <MixerHorizontalIcon className="size-4" />
           <span className="cq-xl:inline hidden ml-2 text-sm">Filters</span>
           {activeFiltersCount > 0 && (
@@ -528,7 +524,7 @@ export function DataTableOptions<TData>({
             </Badge>
           )}
           <ChevronDownIcon className="size-4 ml-2 hidden cq-xl:inline" />
-        </ReviewedButtonTemp>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
@@ -584,7 +580,7 @@ function FiltersContent<TData>({
     <div className="space-y-0">
       {onResetFilters && activeFiltersCount > 0 && (
         <div className="p-3 border-b bg-muted/10">
-          <ReviewedButtonTemp
+          <Button
             variant="outline"
             size="sm"
             onClick={onResetFilters}
@@ -592,7 +588,7 @@ function FiltersContent<TData>({
           >
             <Cross2Icon className="size-3 mr-2" />
             Clear All Filters
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       )}
       <div className="max-h-96 overflow-y-auto">
@@ -612,7 +608,7 @@ function FiltersContent<TData>({
                     ToolbarType.TimeRange,
                     ToolbarType.Radio,
                   ].includes(filter.type) && (
-                    <ReviewedButtonTemp
+                    <Button
                       variant="icon"
                       size="xs"
                       onClick={() =>
@@ -622,7 +618,7 @@ function FiltersContent<TData>({
                       }
                     >
                       <Cross2Icon className="size-3" />
-                    </ReviewedButtonTemp>
+                    </Button>
                   )}
               </div>
               <FilterControl
@@ -690,22 +686,22 @@ function ColumnsContent<TData>({
       </div>
       <div className="p-3 border-t">
         <div className="flex gap-1 w-full">
-          <ReviewedButtonTemp
+          <Button
             variant="ghost"
             size="sm"
             onClick={() => table.toggleAllColumnsVisible(false)}
             className="flex-1"
           >
             Hide All
-          </ReviewedButtonTemp>
-          <ReviewedButtonTemp
+          </Button>
+          <Button
             variant="ghost"
             size="sm"
             onClick={() => table.toggleAllColumnsVisible(true)}
             className="flex-1"
           >
             Show All
-          </ReviewedButtonTemp>
+          </Button>
         </div>
       </div>
     </div>
