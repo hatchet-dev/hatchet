@@ -99,7 +99,6 @@ export default function Filters() {
             <DocsButton
               doc={docsPages.home['run-on-event']}
               scrollTo="event-filtering"
-              variant="outline"
               label="Learn about event filters"
             />
           </div>

@@ -8,7 +8,6 @@ export type DocPage = {
 
 type DocsButtonProps = {
   doc: DocPage;
-  variant: ButtonProps['variant'];
   label: string;
   queryParams?: Record<string, string>;
   scrollTo?: string;
@@ -16,7 +15,6 @@ type DocsButtonProps = {
 
 export const DocsButton = ({
   doc,
-  variant,
   label,
   queryParams,
   scrollTo,
@@ -35,10 +33,9 @@ export const DocsButton = ({
   return (
     <Button
       onClick={handleClick}
-      className="w-auto px-4 py-2 flex flex-row items-center gap-x-2"
-      variant={variant}
+      leftIcon={<BookOpenText className="size-4" />}
+      variant="outline"
     >
-      <BookOpenText className="size-4" />
       <span>{label}</span>
     </Button>
   );

@@ -89,7 +89,6 @@ export default function Workers() {
           <div className="w-fit">
             <DocsButton
               doc={docsPages.home.workers}
-              variant="outline"
               label="Learn about running workers"
             />
           </div>

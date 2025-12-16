@@ -62,7 +62,6 @@ export default function Webhooks() {
             <div className="w-fit">
               <DocsButton
                 doc={docsPages.home.webhooks}
-                variant="outline"
                 label="Learn about triggering runs from webhooks"
               />
             </div>
