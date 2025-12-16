@@ -9,7 +9,7 @@ import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { useApiError } from '@/lib/hooks';
 import {
   Tabs,
@@ -163,12 +163,12 @@ export default function ExpandedWorkflow() {
           </div>
           <WorkflowTags tags={workflow.tags || []} />
           <div className="flex flex-row gap-2">
-            <Button
+            <ReviewedButtonTemp
               className="text-sm"
               onClick={() => setTriggerWorkflow(true)}
             >
               Trigger Workflow
-            </Button>
+            </ReviewedButtonTemp>
           </div>
           <TriggerWorkflowForm
             show={triggerWorkflow}
@@ -230,7 +230,7 @@ export default function ExpandedWorkflow() {
                           This action cannot be undone.
                         </p>
                       </div>
-                      <Button
+                      <ReviewedButtonTemp
                         variant="destructive"
                         size="sm"
                         onClick={() => {
@@ -238,7 +238,7 @@ export default function ExpandedWorkflow() {
                         }}
                       >
                         Delete Workflow
-                      </Button>
+                      </ReviewedButtonTemp>
                     </div>
                   </div>
                 </div>

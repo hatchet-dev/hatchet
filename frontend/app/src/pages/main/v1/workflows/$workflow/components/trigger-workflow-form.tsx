@@ -12,7 +12,7 @@ import api, {
   Workflow,
 } from '@/lib/api';
 import { useCallback, useMemo, useState, useEffect } from 'react';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { debounce } from 'lodash';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -363,16 +363,16 @@ export function TriggerWorkflowForm({
                     setDate={setScheduleTime}
                     label="Trigger at"
                   />
-                  <Button
+                  <ReviewedButtonTemp
                     variant="outline"
                     size="sm"
                     onClick={() => setScheduleTime(new Date())}
                   >
                     Now
-                  </Button>
+                  </ReviewedButtonTemp>
                 </div>
                 <div className="flex gap-2 mt-2">
-                  <Button
+                  <ReviewedButtonTemp
                     variant="outline"
                     size="sm"
                     onClick={() => {
@@ -382,8 +382,8 @@ export function TriggerWorkflowForm({
                     }}
                   >
                     +15s
-                  </Button>
-                  <Button
+                  </ReviewedButtonTemp>
+                  <ReviewedButtonTemp
                     variant="outline"
                     size="sm"
                     onClick={() => {
@@ -393,8 +393,8 @@ export function TriggerWorkflowForm({
                     }}
                   >
                     +1m
-                  </Button>
-                  <Button
+                  </ReviewedButtonTemp>
+                  <ReviewedButtonTemp
                     variant="outline"
                     size="sm"
                     onClick={() => {
@@ -404,8 +404,8 @@ export function TriggerWorkflowForm({
                     }}
                   >
                     +5m
-                  </Button>
-                  <Button
+                  </ReviewedButtonTemp>
+                  <ReviewedButtonTemp
                     variant="outline"
                     size="sm"
                     onClick={() => {
@@ -415,8 +415,8 @@ export function TriggerWorkflowForm({
                     }}
                   >
                     +15m
-                  </Button>
-                  <Button
+                  </ReviewedButtonTemp>
+                  <ReviewedButtonTemp
                     variant="outline"
                     size="sm"
                     onClick={() => {
@@ -426,7 +426,7 @@ export function TriggerWorkflowForm({
                     }}
                   >
                     +60m
-                  </Button>
+                  </ReviewedButtonTemp>
                 </div>
               </div>
             </TabsContent>
@@ -457,8 +457,7 @@ export function TriggerWorkflowForm({
         </div>
 
         <div className="flex justify-end">
-          <Button
-            className="w-fit mt-6"
+          <ReviewedButtonTemp
             disabled={
               triggerNowMutation.isPending ||
               triggerScheduleMutation.isPending ||
@@ -468,7 +467,7 @@ export function TriggerWorkflowForm({
             onClick={handleSubmit}
           >
             Submit
-          </Button>
+          </ReviewedButtonTemp>
         </div>
         {(errors.length > 0 ||
           triggerNowMutation.error ||
