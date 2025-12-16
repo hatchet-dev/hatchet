@@ -1856,7 +1856,8 @@ WITH payloads AS (
         @lastInsertedAt::TIMESTAMPTZ,
         @nextTenantId::UUID,
         @nextExternalId::UUID,
-        @nextInsertedAt::TIMESTAMPTZ
+        @nextInsertedAt::TIMESTAMPTZ,
+        @batchSize::INTEGER
     ) p
 )
 SELECT

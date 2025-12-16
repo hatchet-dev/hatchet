@@ -229,7 +229,8 @@ WITH payloads AS (
         @nextTenantId::UUID,
         @nextInsertedAt::TIMESTAMPTZ,
         @nextId::BIGINT,
-        @nextType::v1_payload_type
+        @nextType::v1_payload_type,
+        @batchSize::INTEGER
     ) p
 )
 SELECT

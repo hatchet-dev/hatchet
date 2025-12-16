@@ -1335,7 +1335,8 @@ WITH payloads AS (
         $4::TIMESTAMPTZ,
         $5::UUID,
         $6::UUID,
-        $7::TIMESTAMPTZ
+        $7::TIMESTAMPTZ,
+        $8::INTEGER
     ) p
 )
 SELECT
@@ -1357,6 +1358,7 @@ type ListPaginatedOLAPPayloadsForOffloadParams struct {
 	Nexttenantid   pgtype.UUID        `json:"nexttenantid"`
 	Nextexternalid pgtype.UUID        `json:"nextexternalid"`
 	Nextinsertedat pgtype.Timestamptz `json:"nextinsertedat"`
+	Batchsize      int32              `json:"batchsize"`
 }
 
 type ListPaginatedOLAPPayloadsForOffloadRow struct {
@@ -1378,6 +1380,7 @@ func (q *Queries) ListPaginatedOLAPPayloadsForOffload(ctx context.Context, db DB
 		arg.Nexttenantid,
 		arg.Nextexternalid,
 		arg.Nextinsertedat,
+		arg.Batchsize,
 	)
 	if err != nil {
 		return nil, err
