@@ -313,7 +313,7 @@ export default function OrganizationPage() {
                       organization.metadata.id,
                   );
                 }}
-                leftIcon={<PlusIcon className="size-4 mr-2" />}
+                leftIcon={<PlusIcon className="size-4" />}
               >
                 Add Tenant
               </Button>
@@ -492,7 +492,7 @@ export default function OrganizationPage() {
                         organization.metadata.id,
                     );
                   }}
-                  leftIcon={<PlusIcon className="size-4 mr-2" />}
+                  leftIcon={<PlusIcon className="size-4" />}
                 >
                   Add Tenant
                 </Button>
@@ -673,7 +673,7 @@ export default function OrganizationPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowInviteMemberModal(true)}
-                leftIcon={<PlusIcon className="size-4 mr-2" />}
+                leftIcon={<PlusIcon className="size-4" />}
               >
                 Invite Member
               </Button>
@@ -858,7 +858,7 @@ export default function OrganizationPage() {
                 </p>
                 <Button
                   onClick={() => setShowInviteMemberModal(true)}
-                  leftIcon={<PlusIcon className="size-4 mr-2" />}
+                  leftIcon={<PlusIcon className="size-4" />}
                 >
                   Invite Member
                 </Button>
@@ -876,7 +876,7 @@ export default function OrganizationPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowCreateTokenModal(true)}
-                leftIcon={<PlusIcon className="size-4 mr-2" />}
+                leftIcon={<PlusIcon className="size-4" />}
               >
                 Create Token
               </Button>
@@ -1012,7 +1012,7 @@ export default function OrganizationPage() {
                 </p>
                 <Button
                   onClick={() => setShowCreateTokenModal(true)}
-                  leftIcon={<PlusIcon className="size-4 mr-2" />}
+                  leftIcon={<PlusIcon className="size-4" />}
                 >
                   Create Token
                 </Button>
