@@ -925,7 +925,8 @@ CREATE OR REPLACE FUNCTION list_paginated_olap_payloads_for_offload(
     last_inserted_at timestamptz,
     next_tenant_id uuid,
     next_external_id uuid,
-    next_inserted_at timestamptz
+    next_inserted_at timestamptz,
+    batch_size integer
 ) RETURNS TABLE (
     tenant_id UUID,
     external_id UUID,
@@ -954,15 +955,24 @@ BEGIN
     END IF;
 
     query := format('
+        WITH candidates AS (
+            SELECT tenant_id, external_id, location, external_location_key, inline_content, inserted_at, updated_at
+            FROM %I
+            WHERE
+                (tenant_id, external_id, inserted_at) >= ($1, $2, $3)
+            ORDER BY tenant_id, external_id, inserted_at
+            LIMIT $8 * 2
+        )
+
         SELECT tenant_id, external_id, location, external_location_key, inline_content, inserted_at, updated_at
-        FROM %I
+        FROM candidates
         WHERE
             (tenant_id, external_id, inserted_at) >= ($1, $2, $3)
             AND (tenant_id, external_id, inserted_at) <= ($4, $5, $6)
         ORDER BY tenant_id, external_id, inserted_at
     ', source_partition_name);
 
-    RETURN QUERY EXECUTE query USING last_tenant_id, last_external_id, last_inserted_at, next_tenant_id, next_external_id, next_inserted_at;
+    RETURN QUERY EXECUTE query USING last_tenant_id, last_external_id, last_inserted_at, next_tenant_id, next_external_id, next_inserted_at, batch_size;
 END;
 $$;
 
