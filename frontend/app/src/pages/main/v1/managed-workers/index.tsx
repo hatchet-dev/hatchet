@@ -1,7 +1,7 @@
 import { Separator } from '@/components/v1/ui/separator';
 import { Link } from 'react-router-dom';
 import { ManagedWorkersTable } from './components/managed-workers-table';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import { useEffect, useState } from 'react';
@@ -121,19 +121,18 @@ export default function ManagedWorkers() {
             create more services.
           </p>
           <div className="flex justify-end gap-3">
-            <Button
+            <ReviewedButtonTemp
               variant="outline"
               onClick={() => setShowUpgradeModal(false)}
             >
               Cancel
-            </Button>
+            </ReviewedButtonTemp>
             <Link
               to={`/tenants/${tenantId}/tenant-settings/billing-and-limits`}
             >
-              <Button>
-                <ArrowUpIcon className="size-4 mr-2" />
+              <ReviewedButtonTemp leftIcon={<ArrowUpIcon className="size-4" />}>
                 Upgrade Plan
-              </Button>
+              </ReviewedButtonTemp>
             </Link>
           </div>
         </div>
@@ -150,16 +149,17 @@ export default function ManagedWorkers() {
           </h2>
           {canCreateMoreWorkerPools ? (
             <Link to={`/tenants/${tenantId}/managed-workers/create`}>
-              <Button>
-                <PlusIcon className="size-4 mr-2" />
+              <ReviewedButtonTemp leftIcon={<PlusIcon className="size-4" />}>
                 Add Service
-              </Button>
+              </ReviewedButtonTemp>
             </Link>
           ) : (
-            <Button onClick={handleAddWorkerPool}>
-              <PlusIcon className="size-4 mr-2" />
+            <ReviewedButtonTemp
+              onClick={handleAddWorkerPool}
+              leftIcon={<PlusIcon className="size-4" />}
+            >
               Add Service ({workerPoolCount}/{getWorkerPoolLimit()})
-            </Button>
+            </ReviewedButtonTemp>
           )}
         </div>
         <Separator className="my-4" />
