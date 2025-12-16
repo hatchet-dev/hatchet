@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -90,15 +90,15 @@ function DeleteScheduledRunForm({
           )}
         </div>
         <div className="flex flex-row gap-4 justify-end">
-          <Button
+          <ReviewedButtonTemp
             variant="ghost"
             onClick={() => {
               props.onCancel();
             }}
           >
             Cancel
-          </Button>
-          <Button
+          </ReviewedButtonTemp>
+          <ReviewedButtonTemp
             variant="destructive"
             onClick={() => {
               props.onSubmit();
@@ -106,7 +106,7 @@ function DeleteScheduledRunForm({
           >
             {props.isLoading && <Spinner />}
             Delete scheduled run
-          </Button>
+          </ReviewedButtonTemp>
         </div>
       </div>
     </DialogContent>

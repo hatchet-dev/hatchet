@@ -6,7 +6,7 @@ import {
   ToolbarFilters,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { columns } from './components/scheduled-runs-columns';
 import { DeleteScheduledRun } from './components/delete-scheduled-runs';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
@@ -94,13 +94,14 @@ export default function ScheduledRunsTable({
   ].filter((filter) => filterVisibility[filter.columnId] != false);
 
   const actions = [
-    <Button
+    <ReviewedButtonTemp
       key="schedule-run"
       onClick={() => setTriggerWorkflow(true)}
-      className="h-8 border px-3"
+      size="sm"
+      className="text-sm"
     >
       Schedule Run
-    </Button>,
+    </ReviewedButtonTemp>,
   ];
 
   const [showScheduledRunRevoke, setShowScheduledRunRevoke] = useState<
