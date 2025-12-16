@@ -1924,6 +1924,12 @@ BEGIN
             WHERE
                 (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
             ORDER BY tenant_id, inserted_at, id, type
+
+            -- Multiplying by two here to handle an edge case. There is a small chance we miss a row
+            -- when a different row is inserted before it, in between us creating the chunks and selecting
+            -- them. By multiplying by two to create a "candidate" set, we significantly reduce the chance of us missing
+            -- rows in this way, since if a row is inserted before one of our last rows, we will still have
+            -- the next row after it in the candidate set.
             LIMIT $9 * 2
         )
 

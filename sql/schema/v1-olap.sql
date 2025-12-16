@@ -961,6 +961,12 @@ BEGIN
             WHERE
                 (tenant_id, external_id, inserted_at) >= ($1, $2, $3)
             ORDER BY tenant_id, external_id, inserted_at
+
+            -- Multiplying by two here to handle an edge case. There is a small chance we miss a row
+            -- when a different row is inserted before it, in between us creating the chunks and selecting
+            -- them. By multiplying by two to create a "candidate" set, we significantly reduce the chance of us missing
+            -- rows in this way, since if a row is inserted before one of our last rows, we will still have
+            -- the next row after it in the candidate set.
             LIMIT $7 * 2
         )
 
