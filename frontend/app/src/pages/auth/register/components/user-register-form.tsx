@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { useForm } from 'react-hook-form';
@@ -94,10 +94,10 @@ export function UserRegisterForm({
               <div className="text-sm text-red-500">{passwordError}</div>
             )}
           </div>
-          <Button disabled={props.isLoading}>
+          <ReviewedButtonTemp disabled={props.isLoading}>
             {props.isLoading && <Spinner />}
             Create Account
-          </Button>
+          </ReviewedButtonTemp>
         </div>
       </form>
     </div>
