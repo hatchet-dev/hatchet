@@ -19,7 +19,7 @@ export const WorkflowDefinitionLink = ({
       <ReviewedButtonTemp
         size="sm"
         variant="outline"
-        leftIcon={<Squares2X2Icon className="w-4 h-4" />}
+        leftIcon={<Squares2X2Icon className="size-4" />}
       >
         Workflow
       </ReviewedButtonTemp>

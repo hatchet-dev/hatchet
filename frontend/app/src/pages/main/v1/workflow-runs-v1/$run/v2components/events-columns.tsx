@@ -64,7 +64,7 @@ export const columns = ({
               variant="outline"
               onClick={() => onRowClick(row.original)}
             >
-              <ArrowLeftEndOnRectangleIcon className="w-4 h-4 mr-1" />
+              <ArrowLeftEndOnRectangleIcon className="size-4 mr-1" />
               <div className="truncate max-w-[150px]">
                 {row.original.taskDisplayName || fallbackTaskDisplayName}
               </div>

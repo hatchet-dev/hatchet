@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { ManagedWorkerBuildConfig } from '@/lib/api/generated/cloud/data-contracts';
 import { GitHubLogoIcon } from '@radix-ui/react-icons';
 
@@ -23,12 +23,15 @@ export default function GithubButton({
         target="_blank"
         rel="noreferrer"
       >
-        <Button variant="link" className="flex items-center gap-1" size={'xs'}>
-          <GitHubLogoIcon className="w-4 h-4" />
+        <ReviewedButtonTemp
+          variant="link"
+          size={'xs'}
+          leftIcon={<GitHubLogoIcon className="size-4" />}
+        >
           {commitSha
             ? commitSha.substring(0, 7)
             : `${buildConfig.githubRepository.repo_owner}/${buildConfig.githubRepository.repo_name}`}
-        </Button>
+        </ReviewedButtonTemp>
       </a>
     </div>
   );

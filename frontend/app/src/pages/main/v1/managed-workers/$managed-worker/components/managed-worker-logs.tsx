@@ -8,7 +8,7 @@ import LoggingComponent from '@/components/v1/cloud/logging/logs';
 import { useState, useEffect } from 'react';
 import { Input } from '@/components/v1/ui/input';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { ListCloudLogsQuery } from '@/lib/api/queries';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
@@ -139,7 +139,7 @@ export function ManagedWorkerLogs({
             setDate={setBeforeInput}
             label="Before"
           />
-          <Button
+          <ReviewedButtonTemp
             key="refresh"
             className="h-8 px-2 lg:px-3"
             size="sm"
@@ -150,7 +150,7 @@ export function ManagedWorkerLogs({
             <ArrowPathIcon
               className={`size-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
             />
-          </Button>
+          </ReviewedButtonTemp>
         </div>
       </div>
       <LoggingComponent

@@ -151,13 +151,13 @@ export default function ManagedWorkers() {
           {canCreateMoreWorkerPools ? (
             <Link to={`/tenants/${tenantId}/managed-workers/create`}>
               <Button>
-                <PlusIcon className="w-4 h-4 mr-2" />
+                <PlusIcon className="size-4 mr-2" />
                 Add Service
               </Button>
             </Link>
           ) : (
             <Button onClick={handleAddWorkerPool}>
-              <PlusIcon className="w-4 h-4 mr-2" />
+              <PlusIcon className="size-4 mr-2" />
               Add Service ({workerPoolCount}/{getWorkerPoolLimit()})
             </Button>
           )}

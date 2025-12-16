@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Link } from 'react-router-dom';
 import {
   CalendarIcon,
@@ -107,14 +107,14 @@ export function BillingRequired({
             </div>
 
             <div className="flex flex-col gap-4 w-full">
-              <Button
+              <ReviewedButtonTemp
                 onClick={manageClicked}
                 disabled={portalLoading}
                 className="min-w-40 py-6 px-8 text-base"
                 size="lg"
               >
                 {portalLoading ? 'Loading...' : 'Add Payment Method →'}
-              </Button>
+              </ReviewedButtonTemp>
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -131,13 +131,13 @@ export function BillingRequired({
                 to={`/tenants/${tenantId}/managed-workers/demo-template`}
                 className="w-full"
               >
-                <Button
+                <ReviewedButtonTemp
                   variant="outline"
                   className="min-w-40 py-6 px-8 text-base w-full"
                   size="lg"
                 >
                   Deploy a Demo Template for Free
-                </Button>
+                </ReviewedButtonTemp>
               </Link>
 
               <div className="relative mt-4">
@@ -157,14 +157,14 @@ export function BillingRequired({
                 rel="noopener noreferrer"
                 className="w-full"
               >
-                <Button
+                <ReviewedButtonTemp
                   variant="ghost"
                   className="min-w-40 py-6 px-8 text-base w-full flex items-center justify-center gap-2"
                   size="lg"
                 >
                   <CalendarIcon className="h-5 w-5" />
                   Book a Call with Our Team
-                </Button>
+                </ReviewedButtonTemp>
               </a>
             </div>
           </div>

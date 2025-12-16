@@ -1,6 +1,6 @@
 import { queries } from '@/lib/api';
 import { useEffect, useState, useMemo } from 'react';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { PlusIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import {
@@ -1173,15 +1173,15 @@ export default function CreateWorkerForm({
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <Button variant="outline" size="sm">
+                    <ReviewedButtonTemp variant="outline" size="sm">
                       <ArrowUpIcon className="size-4 mr-1" />
                       Upgrade Plan
-                    </Button>
+                    </ReviewedButtonTemp>
                   </a>
                 </div>
               </div>
             )}
-            <Button
+            <ReviewedButtonTemp
               onClick={handleSubmit(onSubmit)}
               disabled={
                 !installation ||
@@ -1195,7 +1195,7 @@ export default function CreateWorkerForm({
             >
               {isLoading && <PlusIcon className="size-4 animate-spin" />}
               Create service
-            </Button>
+            </ReviewedButtonTemp>
           </div>
         </Step>
       </Steps>
@@ -1245,14 +1245,14 @@ export const UpgradeMessage = ({ feature }: { feature: string }) => (
       </p>
     </div>
     <a href={getBillingPortalUrl()} target="_blank" rel="noopener noreferrer">
-      <Button
+      <ReviewedButtonTemp
         variant="outline"
         size="sm"
         className="text-xs border-yellow-400 dark:border-yellow-500 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/50"
       >
         <ArrowUpIcon className="h-3 w-3 mr-1" />
         Upgrade Plan
-      </Button>
+      </ReviewedButtonTemp>
     </a>
   </div>
 );

@@ -10,7 +10,7 @@ import {
 } from '@/components/v1/ui/card';
 import { Spinner } from '@/components/v1/ui/loading';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { ArrowRightIcon, ChevronLeftIcon } from '@radix-ui/react-icons';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -108,14 +108,13 @@ function Build({ buildId, back }: { buildId: string; back: () => void }) {
   return (
     <div className="flex flex-col justify-start items-start gap-4 mt-8">
       <div className="flex flex-row justify-start gap-4 items-center">
-        <Button
+        <ReviewedButtonTemp
           onClick={back}
           variant="link"
-          className="flex items-center gap-1"
+          leftIcon={<ChevronLeftIcon className="size-4" />}
         >
-          <ChevronLeftIcon className="w-4 h-4" />
           Back
-        </Button>
+        </ReviewedButtonTemp>
       </div>
       <Separator />
       <ManagedWorkerBuild buildId={buildId} />
@@ -135,14 +134,13 @@ function IaCDebug({
   return (
     <div className="flex flex-col justify-start items-start gap-4 mt-8">
       <div className="flex flex-row justify-start gap-4 items-center">
-        <Button
+        <ReviewedButtonTemp
           onClick={back}
           variant="link"
-          className="flex items-center gap-1"
+          leftIcon={<ChevronLeftIcon className="size-4" />}
         >
-          <ChevronLeftIcon className="w-4 h-4" />
           Back
-        </Button>
+        </ReviewedButtonTemp>
       </div>
       <Separator />
       <ManagedWorkerIaC
@@ -197,31 +195,31 @@ function renderCardFooter(
 
     if (data.build_id) {
       buttons.push(
-        <Button
+        <ReviewedButtonTemp
           variant="link"
           size="xs"
           onClick={() => {
             setBuildId(data.build_id);
           }}
+          leftIcon={<ArrowRightIcon className="size-4" />}
         >
-          <ArrowRightIcon className="w-4 h-4 mr-1" />
           View build info
-        </Button>,
+        </ReviewedButtonTemp>,
       );
     }
 
     if (data.deploy_key) {
       buttons.push(
-        <Button
+        <ReviewedButtonTemp
           variant="link"
           size="xs"
           onClick={() => {
             setDeployKey(data.deploy_key);
           }}
+          leftIcon={<ArrowRightIcon className="size-4" />}
         >
-          <ArrowRightIcon className="w-4 h-4 mr-1" />
           View IaC debug info
-        </Button>,
+        </ReviewedButtonTemp>,
       );
     }
 
