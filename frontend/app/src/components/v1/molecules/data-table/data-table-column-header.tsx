@@ -7,7 +7,7 @@ import {
 import { Column } from '@tanstack/react-table';
 
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,20 +35,22 @@ export function DataTableColumnHeader<TData, TValue>({
     <div className={cn('flex items-center space-x-2', className)}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
+          <ReviewedButtonTemp
             variant="ghost"
             size="sm"
-            className="-ml-3 h-8 data-[state=open]:bg-accent"
+            className="data-[state=open]:bg-accent"
+            rightIcon={
+              column.getIsSorted() === 'desc' ? (
+                <ArrowDownIcon className="size-4" />
+              ) : column.getIsSorted() === 'asc' ? (
+                <ArrowUpIcon className="size-4" />
+              ) : (
+                <CaretSortIcon className="size-4" />
+              )
+            }
           >
             <span>{title}</span>
-            {column.getIsSorted() === 'desc' ? (
-              <ArrowDownIcon className="ml-2 h-4 w-4" />
-            ) : column.getIsSorted() === 'asc' ? (
-              <ArrowUpIcon className="ml-2 h-4 w-4" />
-            ) : (
-              <CaretSortIcon className="ml-2 h-4 w-4" />
-            )}
-          </Button>
+          </ReviewedButtonTemp>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuItem onClick={() => column.toggleSorting(false)}>

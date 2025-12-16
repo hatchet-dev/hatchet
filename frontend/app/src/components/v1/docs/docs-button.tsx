@@ -1,4 +1,4 @@
-import { Button, ButtonProps } from '../ui/button';
+import { Button, ButtonProps, ReviewedButtonTemp } from '../ui/button';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { BookOpenText } from 'lucide-react';
 
@@ -31,12 +31,12 @@ export const DocsButton = ({
   };
 
   return (
-    <Button
+    <ReviewedButtonTemp
       onClick={handleClick}
       leftIcon={<BookOpenText className="size-4" />}
       variant="outline"
     >
       <span>{label}</span>
-    </Button>
+    </ReviewedButtonTemp>
   );
 };
