@@ -10,7 +10,7 @@ import {
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { cn, emptyGolangUUID } from '@/lib/utils';
 import { Link } from 'react-router-dom';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   Popover,
   PopoverContent,
@@ -128,14 +128,13 @@ export const columns = ({
               to={`/tenants/${tenantId}/workers/${event.workerId}`}
               key="worker"
             >
-              <Button
+              <ReviewedButtonTemp
                 variant="link"
                 size="xs"
-                className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
+                leftIcon={<ServerStackIcon className="size-4" />}
               >
-                <ServerStackIcon className="w-4 h-4 mr-1" />
                 View Worker
-              </Button>
+              </ReviewedButtonTemp>
             </Link>,
           );
         }
@@ -233,14 +232,13 @@ function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
   return (
     <Popover>
       <PopoverTrigger className="cursor-pointer">
-        <Button
+        <ReviewedButtonTemp
           variant="link"
           size="xs"
-          className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
+          leftIcon={<XCircleIcon className="size-4" />}
         >
-          <XCircleIcon className="w-4 h-4 mr-1" />
           View Error
-        </Button>
+        </ReviewedButtonTemp>
       </PopoverTrigger>
       <PopoverContent
         className="p-0 bg-popover border-border shadow-lg z-[80] w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]"
