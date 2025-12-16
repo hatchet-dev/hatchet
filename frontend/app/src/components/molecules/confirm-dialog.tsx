@@ -1,4 +1,8 @@
-import { Button, ButtonProps } from '@/components/v1/ui/button';
+import {
+  Button,
+  ButtonProps,
+  ReviewedButtonTemp,
+} from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   Dialog,
@@ -40,18 +44,21 @@ export function ConfirmDialog({
         <div>
           <div className="text-sm text-foreground mb-4">{description}</div>
           <div className="flex flex-row gap-4 justify-end">
-            <Button
+            <ReviewedButtonTemp
               variant="ghost"
               onClick={() => {
                 props.onCancel();
               }}
             >
               {cancelLabel}
-            </Button>
-            <Button variant={submitVariant} onClick={props.onSubmit}>
+            </ReviewedButtonTemp>
+            <ReviewedButtonTemp
+              variant={submitVariant}
+              onClick={props.onSubmit}
+            >
               {props.isLoading && <Spinner />}
               {submitLabel}
-            </Button>
+            </ReviewedButtonTemp>
           </div>
         </div>
       </DialogContent>

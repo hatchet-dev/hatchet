@@ -9,7 +9,7 @@ import {
 import { RefetchInterval, RefetchIntervalOption } from '@/lib/api/api';
 import { RefreshCw } from 'lucide-react';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { Button } from './v1/ui/button';
+import { Button, ReviewedButtonTemp } from './v1/ui/button';
 
 type RefetchIntervalDropdownProps = {
   isRefetching: boolean;
@@ -49,7 +49,7 @@ export const RefetchIntervalDropdown = ({
 
   return (
     <div className="flex flex-row items-center h-8">
-      <Button
+      <ReviewedButtonTemp
         className="h-full rounded-l-md rounded-r-none flex flex-row gap-x-2 pl-3"
         variant="outline"
         onClick={onRefetch}
@@ -59,7 +59,7 @@ export const RefetchIntervalDropdown = ({
           className="size-4 data-[is-refetching=true]:animate-spin"
         />
         <span className="hidden cq-xl:inline">Refresh</span>
-      </Button>
+      </ReviewedButtonTemp>
       <Select value={value} onValueChange={handleValueChange}>
         <SelectTrigger className="flex flex-row items-center gap-x-2 h-full rounded-r-md rounded-l-none border-l-0 hover:bg-accent">
           {value !== 'off' && <SelectValue />}

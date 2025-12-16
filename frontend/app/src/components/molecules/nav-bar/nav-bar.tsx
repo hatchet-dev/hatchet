@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,13 +60,9 @@ function HelpDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="relative h-10 w-10 rounded-full p-1"
-          aria-label="Help Menu"
-        >
+        <ReviewedButtonTemp variant="icon" aria-label="Help Menu">
           <BiHelpCircle className="h-6 w-6 text-foreground cursor-pointer" />
-        </Button>
+        </ReviewedButtonTemp>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         {hasPylon && (
@@ -138,16 +134,12 @@ function AccountDropdown({ user }: { user: User }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="relative h-10 w-10 rounded-full p-1"
-          aria-label="User Menu"
-        >
+        <ReviewedButtonTemp variant="icon" aria-label="User Menu">
           <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
           {(pendingInvitesQuery.data ?? 0) > 0 && (
             <div className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-blue-500 rounded-full border-2 border-background animate-pulse"></div>
           )}
-        </Button>
+        </ReviewedButtonTemp>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
@@ -202,14 +194,14 @@ export default function MainNav({ user }: MainNavProps) {
         <div className="flex h-16 items-center pr-4 pl-4">
           <div className="flex flex-row items-center gap-x-8">
             <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
+              <ReviewedButtonTemp
+                variant="icon"
                 onClick={() => toggleSidebarOpen()}
-                className="size-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
                 aria-label="Toggle sidebar"
+                size="icon"
               >
                 <Menu className="size-4" />
-              </Button>
+              </ReviewedButtonTemp>
               <img
                 src={theme == 'dark' ? hatchet : hatchetDark}
                 alt="Hatchet"

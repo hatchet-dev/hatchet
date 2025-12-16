@@ -5,7 +5,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from '@radix-ui/react-icons';
-import { Button } from './v1/ui/button';
+import { Button, ReviewedButtonTemp } from './v1/ui/button';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -103,7 +103,7 @@ export function SidePanel() {
 
           <div className="sticky top-0 z-20 flex flex-row w-full justify-between items-center bg-background px-4 pt-4 pb-2">
             <div className="flex flex-row gap-x-2 items-center">
-              <Button
+              <ReviewedButtonTemp
                 variant="ghost"
                 size="sm"
                 onClick={goBack}
@@ -112,8 +112,8 @@ export function SidePanel() {
               >
                 <ChevronLeftIcon className="h-4 w-4" />
                 <span className="sr-only">Go Back</span>
-              </Button>
-              <Button
+              </ReviewedButtonTemp>
+              <ReviewedButtonTemp
                 variant="ghost"
                 size="sm"
                 onClick={goForward}
@@ -122,17 +122,17 @@ export function SidePanel() {
               >
                 <ChevronRightIcon className="h-4 w-4" />
                 <span className="sr-only">Go Forward</span>
-              </Button>
+              </ReviewedButtonTemp>
             </div>
             <div>
-              <Button
+              <ReviewedButtonTemp
                 variant="ghost"
                 onClick={close}
                 className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
               >
                 <Cross2Icon className="h-4 w-4" />
                 <span className="sr-only">Close</span>
-              </Button>
+              </ReviewedButtonTemp>
             </div>
           </div>
 
