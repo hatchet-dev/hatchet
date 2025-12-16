@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   DialogContent,
@@ -28,15 +28,15 @@ export function DeleteSNSForm({ className, ...props }: DeleteSNSFormProps) {
           any SNS events from being sent to the Hatchet subscriber.
         </div>
         <div className="flex flex-row gap-4">
-          <Button
+          <ReviewedButtonTemp
             variant="ghost"
             onClick={() => {
               props.onCancel();
             }}
           >
             Cancel
-          </Button>
-          <Button
+          </ReviewedButtonTemp>
+          <ReviewedButtonTemp
             variant="destructive"
             onClick={() => {
               props.onSubmit(props.snsIntegration);
@@ -44,7 +44,7 @@ export function DeleteSNSForm({ className, ...props }: DeleteSNSFormProps) {
           >
             {props.isLoading && <Spinner />}
             Delete integration
-          </Button>
+          </ReviewedButtonTemp>
         </div>
       </div>
     </DialogContent>

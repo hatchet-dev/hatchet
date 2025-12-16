@@ -3,7 +3,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -88,10 +88,10 @@ export function CreateSNSDialog({
                 <div className="text-sm text-red-500">{topicArnError}</div>
               )}
             </div>
-            <Button disabled={props.isLoading}>
+            <ReviewedButtonTemp disabled={props.isLoading}>
               {props.isLoading && <Spinner />}
               Create integration
-            </Button>
+            </ReviewedButtonTemp>
           </div>
         </form>
       </div>

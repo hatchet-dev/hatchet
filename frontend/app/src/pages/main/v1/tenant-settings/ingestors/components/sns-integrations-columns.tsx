@@ -1,7 +1,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { SNSIntegration } from '@/lib/api';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { useState } from 'react';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { CopyIcon } from '@radix-ui/react-icons';
@@ -16,9 +16,8 @@ const CopyIngestURL: React.FC<Props> = ({ ingestUrl }: Props) => {
   const [successCopy, setSuccessCopy] = useState(false);
 
   return (
-    <Button
-      className="cursor-pointer flex flex-row gap-2 items-center mt-2 w-[200px]"
-      variant="ghost"
+    <ReviewedButtonTemp
+      variant="icon"
       onClick={() => {
         navigator.clipboard.writeText(ingestUrl);
         setSuccessCopy(true);
@@ -34,7 +33,7 @@ const CopyIngestURL: React.FC<Props> = ({ ingestUrl }: Props) => {
         <CopyIcon className="w-4 h-4" />
       )}
       {successCopy ? 'Copied' : 'Copy ingest URL'}
-    </Button>
+    </ReviewedButtonTemp>
   );
 };
 
