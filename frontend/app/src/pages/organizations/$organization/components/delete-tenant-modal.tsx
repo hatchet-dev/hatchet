@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Spinner } from '@/components/v1/ui/loading';
 
@@ -88,17 +88,20 @@ export function DeleteTenantModal({
             </div>
           </div>
           <div className="flex flex-row gap-4 justify-end">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            <ReviewedButtonTemp
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
-            </Button>
-            <Button
+            </ReviewedButtonTemp>
+            <ReviewedButtonTemp
               variant="destructive"
               onClick={handleSubmit}
               disabled={!isNameMatch || deleteTenantLoading}
             >
               {deleteTenantLoading && <Spinner />}
               Archive Tenant
-            </Button>
+            </ReviewedButtonTemp>
           </div>
         </div>
       </DialogContent>

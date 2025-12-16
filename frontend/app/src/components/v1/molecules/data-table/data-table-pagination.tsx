@@ -6,7 +6,7 @@ import {
 } from '@radix-ui/react-icons';
 import { Table } from '@tanstack/react-table';
 
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   Select,
   SelectContent,
@@ -77,43 +77,45 @@ export function DataTablePagination<TData>({
         <div className="flex w-[100px] items-center justify-center text-sm font-medium">
           Page {pagination.pageIndex + 1} of {table.getPageCount()}
         </div>
-        <div className="flex items-center space-x-2">
-          <Button
+        <div className="flex items-center space-x-1">
+          <ReviewedButtonTemp
             variant="outline"
-            className="hidden h-8 w-8 p-0 lg:flex"
+            size="sm"
+            className="hidden lg:flex"
             onClick={() => table.setPageIndex(0)}
             disabled={!table.getCanPreviousPage()}
           >
             <span className="sr-only">Go to first page</span>
-            <DoubleArrowLeftIcon className="h-4 w-4" />
-          </Button>
-          <Button
+            <DoubleArrowLeftIcon className="size-4" />
+          </ReviewedButtonTemp>
+          <ReviewedButtonTemp
             variant="outline"
-            className="h-8 w-8 p-0"
+            size="sm"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
           >
             <span className="sr-only">Go to previous page</span>
-            <ChevronLeftIcon className="h-4 w-4" />
-          </Button>
-          <Button
+            <ChevronLeftIcon className="size-4" />
+          </ReviewedButtonTemp>
+          <ReviewedButtonTemp
             variant="outline"
-            className="h-8 w-8 p-0"
+            size="sm"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
           >
             <span className="sr-only">Go to next page</span>
-            <ChevronRightIcon className="h-4 w-4" />
-          </Button>
-          <Button
+            <ChevronRightIcon className="size-4" />
+          </ReviewedButtonTemp>
+          <ReviewedButtonTemp
             variant="outline"
-            className="hidden h-8 w-8 p-0 lg:flex"
+            size="sm"
+            className="hidden lg:flex"
             onClick={() => table.setPageIndex(table.getPageCount() - 1)}
             disabled={!table.getCanNextPage()}
           >
             <span className="sr-only">Go to last page</span>
-            <DoubleArrowRightIcon className="h-4 w-4" />
-          </Button>
+            <DoubleArrowRightIcon className="size-4" />
+          </ReviewedButtonTemp>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -120,18 +120,21 @@ export function InviteMemberModal({
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-4">
-            <Button
+            <ReviewedButtonTemp
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
               Cancel
-            </Button>
-            <Button type="submit" disabled={inviteMemberMutation.isPending}>
+            </ReviewedButtonTemp>
+            <ReviewedButtonTemp
+              type="submit"
+              disabled={inviteMemberMutation.isPending}
+            >
               {inviteMemberMutation.isPending
                 ? 'Sending...'
                 : 'Send Invitation'}
-            </Button>
+            </ReviewedButtonTemp>
           </div>
         </form>
       </DialogContent>
