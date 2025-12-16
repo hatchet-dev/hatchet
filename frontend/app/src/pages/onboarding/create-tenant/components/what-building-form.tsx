@@ -1,6 +1,6 @@
 import { Label } from '@/components/v1/ui/label';
 import { Textarea } from '@/components/v1/ui/textarea';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Card, CardContent } from '@/components/v1/ui/card';
 import {
   Database,
@@ -116,13 +116,13 @@ export function WhatBuildingForm({
       )}
 
       <div className="mt-6">
-        <Button
+        <ReviewedButtonTemp
           onClick={onNext}
           className="w-full"
           disabled={selectedValues.length === 0}
         >
           Continue
-        </Button>
+        </ReviewedButtonTemp>
       </div>
     </div>
   );

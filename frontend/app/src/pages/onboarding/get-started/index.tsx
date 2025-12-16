@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Loading } from '@/components/v1/ui/loading';
 import {
@@ -46,7 +46,9 @@ export default function GetStarted() {
               Setup your {currTenant.environment} environment
             </h1>
             <a href="/">
-              <Button variant="outline">Skip Quickstart</Button>
+              <ReviewedButtonTemp variant="outline">
+                Skip Quickstart
+              </ReviewedButtonTemp>
             </a>
           </div>
 
@@ -152,7 +154,7 @@ export default function GetStarted() {
                     />
                   </TabsContent>
                 </Tabs>
-                <Button
+                <ReviewedButtonTemp
                   onClick={() => {
                     setQuickstartCloned(true);
                     setQuickstartClonedOpen(false);
@@ -162,7 +164,7 @@ export default function GetStarted() {
                   variant="outline"
                 >
                   Continue
-                </Button>
+                </ReviewedButtonTemp>
               </div>
             </Step>
             <Step
@@ -255,7 +257,7 @@ export default function GetStarted() {
                   }}
                 />
                 Waiting for worker to connect...
-                <Button
+                <ReviewedButtonTemp
                   onClick={() => {
                     setWorkerStartedOpen(false);
                     setWorkflowTriggeredOpen(true);
@@ -265,7 +267,7 @@ export default function GetStarted() {
                   disabled={!workerStarted}
                 >
                   Continue
-                </Button>
+                </ReviewedButtonTemp>
               </div>
             </Step>
             <Step
