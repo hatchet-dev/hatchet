@@ -834,9 +834,9 @@ const Tick = ({
                     }}
                   >
                     {task.isExpanded ? (
-                      <CircleMinus className="w-3 h-3" />
+                      <CircleMinus className="size-3" />
                     ) : (
-                      <CirclePlus className="w-3 h-3" />
+                      <CirclePlus className="size-3" />
                     )}
                   </ReviewedButtonTemp>
                 </TooltipTrigger>

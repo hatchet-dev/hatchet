@@ -274,7 +274,7 @@ export default function OrganizationPage() {
                   disabled={updateOrganizationLoading}
                   style={{ opacity: updateOrganizationLoading ? 0.3 : 1 }}
                 >
-                  <PencilIcon className="h-3 w-3" />
+                  <PencilIcon className="size-3" />
                 </Button>
               )}
             </div>

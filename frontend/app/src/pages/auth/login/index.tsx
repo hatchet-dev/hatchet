@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { UserLoginForm } from './components/user-login-form';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { useMutation } from '@tanstack/react-query';
 import api, { UserLoginRequest } from '@/lib/api';
 import { useState } from 'react';
@@ -148,10 +148,14 @@ function BasicLogin() {
 export function GoogleLogin() {
   return (
     <a href="/api/v1/users/google/start" className="w-full">
-      <Button variant="outline" type="button" className="w-full py-2">
-        <Icons.google className="mr-2 size-4" />
+      <ReviewedButtonTemp
+        variant="outline"
+        type="button"
+        fullWidth
+        leftIcon={<Icons.google className="size-4" />}
+      >
         Google
-      </Button>
+      </ReviewedButtonTemp>
     </a>
   );
 }
@@ -159,10 +163,14 @@ export function GoogleLogin() {
 export function GithubLogin() {
   return (
     <a href="/api/v1/users/github/start" className="w-full">
-      <Button variant="outline" type="button" className="w-full py-2">
-        <Icons.gitHub className="mr-2 size-4" />
+      <ReviewedButtonTemp
+        variant="outline"
+        type="button"
+        fullWidth
+        leftIcon={<Icons.gitHub className="size-4" />}
+      >
         Github
-      </Button>
+      </ReviewedButtonTemp>
     </a>
   );
 }

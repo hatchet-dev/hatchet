@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import {
   BuildingOffice2Icon,
@@ -47,17 +47,18 @@ export function TenantSwitcher({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
+        <ReviewedButtonTemp
           variant="outline"
           role="combobox"
           aria-expanded={open}
           aria-label="Select a team"
-          className={cn('w-full justify-between', className)}
+          className={cn('justify-between', className)}
+          fullWidth
         >
           <BuildingOffice2Icon className="mr-2 size-4" />
           {currTenant.name}
           <CaretSortIcon className="ml-auto size-4 shrink-0 opacity-50" />
-        </Button>
+        </ReviewedButtonTemp>
       </PopoverTrigger>
       <PopoverContent side="right" className="w-full p-0 mb-6 z-50">
         <Command className="min-w-[260px]" value={currTenant.slug}>

@@ -1250,7 +1250,7 @@ export const UpgradeMessage = ({ feature }: { feature: string }) => (
         size="sm"
         className="text-xs border-yellow-400 dark:border-yellow-500 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/50"
       >
-        <ArrowUpIcon className="h-3 w-3 mr-1" />
+        <ArrowUpIcon className="size-3 mr-1" />
         Upgrade Plan
       </ReviewedButtonTemp>
     </a>

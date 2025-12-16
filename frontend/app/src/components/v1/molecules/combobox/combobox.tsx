@@ -131,7 +131,7 @@ export function Combobox({
                         className="ml-2"
                         onClick={() => remove(option)}
                       >
-                        <BiX className="h-3 w-3" />
+                        <BiX className="size-3" />
                       </Button>
                     </Badge>
                   ))

@@ -86,9 +86,9 @@ function OrganizationGroup({
           <div className="flex items-start gap-2 flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-shrink-0">
               {isExpanded ? (
-                <ChevronDownIcon className="h-3 w-3" />
+                <ChevronDownIcon className="size-3" />
               ) : (
-                <ChevronRightIcon className="h-3 w-3" />
+                <ChevronRightIcon className="size-3" />
               )}
               <BuildingOffice2Icon className="size-4" />
             </div>
@@ -105,7 +105,7 @@ function OrganizationGroup({
                 onClick={handleNewTenantClick}
                 title="New Tenant"
               >
-                <PlusIcon className="h-3 w-3" />
+                <PlusIcon className="size-3" />
               </Button>
               <Button
                 variant="ghost"
@@ -114,7 +114,7 @@ function OrganizationGroup({
                 onClick={handleSettingsClick}
                 title="Settings"
               >
-                <Cog6ToothIcon className="h-3 w-3" />
+                <Cog6ToothIcon className="size-3" />
               </Button>
             </div>
           )}

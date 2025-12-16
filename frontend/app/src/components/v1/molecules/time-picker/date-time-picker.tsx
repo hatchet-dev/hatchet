@@ -1,6 +1,6 @@
 import { add, format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Calendar } from '@/components/v1/ui/calendar';
 import {
   Popover,
@@ -44,7 +44,7 @@ export function DateTimePicker({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button
+        <ReviewedButtonTemp
           variant={'outline'}
           className={cn(
             'w-fit justify-start text-left font-normal text-xs',
@@ -58,7 +58,7 @@ export function DateTimePicker({
           ) : (
             <span>{label}</span>
           )}
-        </Button>
+        </ReviewedButtonTemp>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0 z-[80]">
         <Calendar

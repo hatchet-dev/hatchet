@@ -305,7 +305,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                         );
                       }}
                     >
-                      <Cross2Icon className="h-3 w-3" />
+                      <Cross2Icon className="size-3" />
                     </ReviewedButtonTemp>
                   </div>
                 );
@@ -590,7 +590,7 @@ function FiltersContent<TData>({
             onClick={onResetFilters}
             className="w-full"
           >
-            <Cross2Icon className="h-3 w-3 mr-2" />
+            <Cross2Icon className="size-3 mr-2" />
             Clear All Filters
           </ReviewedButtonTemp>
         </div>
@@ -621,7 +621,7 @@ function FiltersContent<TData>({
                           ?.setFilterValue(undefined)
                       }
                     >
-                      <Cross2Icon className="h-3 w-3" />
+                      <Cross2Icon className="size-3" />
                     </ReviewedButtonTemp>
                   )}
               </div>
