@@ -131,7 +131,6 @@ export default function ScheduledRunsTable({
             <div className="w-fit">
               <DocsButton
                 doc={docsPages.home['scheduled-runs']}
-                size="full"
                 variant="outline"
                 label="Learn about scheduled runs"
               />

@@ -147,7 +147,6 @@ export default function CronsTable() {
             <div className="w-fit">
               <DocsButton
                 doc={docsPages.home['cron-runs']}
-                size="full"
                 variant="outline"
                 label="Learn about cron jobs in Hatchet"
               />

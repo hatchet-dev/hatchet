@@ -48,7 +48,6 @@ export default function WorkflowTable() {
           <div className="w-fit">
             <DocsButton
               doc={docsPages.home['your-first-task']}
-              size="full"
               variant="outline"
               label="Learn about creating workflows and tasks"
             />
