@@ -345,7 +345,7 @@ const CreateWebhookModal = () => {
       }}
     >
       <DialogTrigger asChild>
-        <Button>Create Webhook</Button>
+        <Button variant="cta">Create Webhook</Button>
       </DialogTrigger>
       <DialogContent className="max-w-[90%] md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%] max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
