@@ -9,37 +9,38 @@ import { Callout } from "nextra/components";
 
 Batch assignment lets Hatchet buffer individual task invocations and flush them
 as configurable batches for a worker to process together. This is ideal when
-workloads benefit from shared setup (e.g. vectorized work with shared memory, batched external API calls, or upstream rate limits
-that prefer grouped delivery). The scheduler tracks batches per task, worker, and
-batch key so that tasks are still isolated when necessary.
+workloads benefit from shared setup (e.g. vectorized work with shared memory,
+batched external API calls, or upstream rate limits that prefer grouped
+delivery). Hatchet batches per **step** and **batch key**, then assigns a flushed
+batch to a single worker.
 
 ## Configuring a batched task
 
-A step becomes batchable when you set one or more of the following properties in
-its definition (for example via workflow manifests or SDK helpers):
+To enable batching for a step, set its **batch configuration** (via workflow
+definitions/manifests or SDK helpers). The current fields are:
 
-// TODO should probably default to 2?
+- `batch_size` (required): the maximum number of items to flush at once. Must be
+  at least `1`.
+- `flush_interval_ms` (optional): the maximum time (in milliseconds) an item can
+  wait before a flush is triggered. **Defaults to `1000`.**
+- `batch_key` (optional): a CEL expression that groups tasks into logical
+  batches. Tasks with different keys are always processed separately. **Defaults
+  to `'default'`.**
+- `max_runs` (optional): the maximum number of concurrently running batches per
+  key. Additional batches wait for an earlier batch with the same key to finish.
+  **Defaults to `100`.**
 
-- `batch_size`: the maximum number of items to flush at once. Defaults to `1`
-  and is clamped to at least one.
-- `batch_flush_interval_ms` (optional): the longest time (in milliseconds) that the buffer
-  will wait before flushing even if the batch size has not been reached.
-- `batch_key_expression` (optional): a CEL expression that groups tasks into logical
-  batches. Tasks with different keys are always processed separately.
-- `batch_max_runs` (optional): the maximum number of active batches per key. Additional
-  tasks wait for a previous batch to complete before another begins.
-
-If you set only `batch_size`, the scheduler flushes as soon as the buffer fills
-up. Adding `batch_flush_interval_ms` guarantees bounded latency for sporadic
-traffic. The other options are optional but give you finer control over
-grouping and concurrency.
+`batch_size` controls throughput; `flush_interval_ms` bounds latency for
+sporadic traffic; `batch_key` controls partitioning; `max_runs` bounds batch
+concurrency per key.
 
 ## Supplying a batch key
 
-The batch key expression runs with the same context that powers other CEL-based
-features in Hatchet. It can reference `input`, `additionalMetadata`,
-`workflowRunId`, and parent trigger data. The expression must return a string
-after trimming whitespace. An empty result will group as a single batch.
+The batch key expression runs with the same CEL context used by other Hatchet
+features. It can reference `input`, `additionalMetadata`, `workflowRunId`, and
+parent trigger data. The expression must evaluate to a **string**; Hatchet
+trims whitespace. An empty/whitespace result falls back to the default key
+(`'default'`).
 
 ```cel
 // group by tenant and logical bucket
@@ -47,27 +48,25 @@ input.customerId + ":" + string(additionalMetadata.bucket)
 ```
 
 If the expression fails to evaluate or produces an unsupported type, Hatchet
-rejects the task creation to keep buffering logic predictable. Use CEL tooling
+rejects task creation to keep buffering logic predictable. Use CEL tooling
 locally to validate expressions before deploying.
 
 ## Worker execution model
 
 Workers that opt into batchable tasks receive an array of inputs instead of a
 single payload. SDKs expose this through dedicated helpers (for example,
-`hatchet.batchTask` in the TypeScript SDK) that pass the aggregated inputs to
-your handler. Each element in the array carries the original task metadata, and
-individual items continue to respect per-task retry policies.
-
-{/* TODO add snippet */}
+`hatchet.batchTask` in the TypeScript SDK) that pass the aggregated inputs (and
+per-item contexts) to your handler. Items continue to respect per-task retry
+policies; batching changes how tasks are *delivered*, not how they’re retried.
 
 ```ts
 const batch = hatchet.batchTask({
   name: "simple",
   batchSize: 2,
-  flushInterval: 1_000,
-  batchKey: "input.batchId",
-  maxRuns: 2,
-  fn: async (inputs) => {
+  flushInterval: 1_000, // defaults to 1000ms if omitted
+  batchKey: "input.batchId", // defaults to `'default'` if omitted
+  maxRuns: 100, // defaults to 100 if omitted
+  fn: async (inputs, ctxs) => {
     return inputs.map((input, index) => ({
       message: `${input.Message.toLowerCase()}#${index}`,
     }));
@@ -75,15 +74,16 @@ const batch = hatchet.batchTask({
 });
 ```
 
-When a batch flushes, Hatchet records the `batchId`, `batchSize`, and index for
-each task in its runtime metadata. This data becomes available via the API and
-analytics endpoints so you can trace which invocations ran together.
+When a batch flushes, Hatchet records `batchId`, `batchSize`, `batchIndex`, and
+`batchKey` on each task’s runtime metadata. This is available via the API (and
+SDK contexts) so you can trace which invocations ran together.
 
 ## Observability and lifecycle
 
 Hatchet emits dedicated events while tasks wait for a batch (`WAITING_FOR_BATCH`
 and `BATCH_BUFFERED`) and once a flush is triggered (`BATCH_FLUSHED`). These
-events surface in the run timeline on the dashboard.
+events surface in the run timeline on the dashboard. `BATCH_FLUSHED` includes a
+reason (for example `batch_size_reached` or `interval_elapsed`).
 
 Batch runs are reference counted inside the repository. When all tasks in a
 batch complete (successfully or by cancellation), Hatchet automatically releases
@@ -92,6 +92,7 @@ the next batch.
 
 ## Notes on evaluation order
 
-Concurrency, rate limiting, sticky assignment, manual slot releases, and other advanced features continue
-to work alongside batching; Hatchet will evaluate task configuration first and then when able to queue, simply batches
-the tasks per unique combination of worker, task, and batch key.
+Concurrency, rate limiting, sticky assignment, manual slot releases, and other
+advanced features continue to work alongside batching. Hatchet evaluates task
+configuration first; when tasks are eligible to be scheduled, they are buffered
+and flushed per **batch key**.
