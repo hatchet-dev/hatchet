@@ -1917,7 +1917,7 @@ BEGIN
     END IF;
 
     query := format('
-        WITH candidates AS (
+        WITH candidates AS MATERIALIZED (
             SELECT tenant_id, id, inserted_at, external_id, type, location,
                 external_location_key, inline_content, updated_at
             FROM %I
