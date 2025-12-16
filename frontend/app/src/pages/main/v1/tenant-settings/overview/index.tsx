@@ -1,4 +1,4 @@
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks';

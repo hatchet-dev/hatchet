@@ -78,7 +78,10 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         <Tooltip>
           <TooltipTrigger asChild>
             <Comp
-              className={cn(buttonVariants({ variant, size, className }), iconPaddingClasses)}
+              className={cn(
+                buttonVariants({ variant, size, className }),
+                iconPaddingClasses,
+              )}
               ref={ref}
               {...props}
             >

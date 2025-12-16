@@ -8,7 +8,7 @@ import api, {
   queries,
 } from '@/lib/api';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Dialog } from '@radix-ui/react-dialog';
 import { CreateSNSDialog } from './components/create-sns-dialog';
 import { DeleteSNSForm } from './components/delete-sns-form';

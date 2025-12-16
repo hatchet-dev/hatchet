@@ -7,7 +7,7 @@ import {
 import { Column } from '@tanstack/react-table';
 
 import { cn } from '@/lib/utils';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,

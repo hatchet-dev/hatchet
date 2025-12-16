@@ -5,7 +5,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from '@radix-ui/react-icons';
-import { Button, ReviewedButtonTemp } from './v1/ui/button';
+import { ReviewedButtonTemp } from './v1/ui/button';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 

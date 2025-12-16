@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Cross2Icon, MixerHorizontalIcon } from '@radix-ui/react-icons';
 import { ColumnFiltersState, Table } from '@tanstack/react-table';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,

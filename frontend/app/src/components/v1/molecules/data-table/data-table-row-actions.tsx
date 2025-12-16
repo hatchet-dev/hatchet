@@ -1,7 +1,7 @@
 import { DotsVerticalIcon } from '@radix-ui/react-icons';
 import { Row } from '@tanstack/react-table';
 
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,

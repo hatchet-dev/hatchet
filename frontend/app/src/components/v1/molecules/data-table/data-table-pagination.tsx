@@ -6,7 +6,7 @@ import {
 } from '@radix-ui/react-icons';
 import { Table } from '@tanstack/react-table';
 
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   Select,
   SelectContent,

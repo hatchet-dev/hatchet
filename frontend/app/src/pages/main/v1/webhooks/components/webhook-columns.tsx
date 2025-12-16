@@ -1,5 +1,5 @@
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,

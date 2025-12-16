@@ -7,7 +7,7 @@ import {
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Checkbox } from '@/components/v1/ui/checkbox';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';

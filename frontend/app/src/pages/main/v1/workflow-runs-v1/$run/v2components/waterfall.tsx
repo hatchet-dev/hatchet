@@ -13,7 +13,7 @@ import { CirclePlus, CircleMinus, Loader } from 'lucide-react';
 
 import { ChartContainer, ChartTooltipContent } from '@/components/v1/ui/chart';
 import { V1TaskStatus, V1TaskTiming, queries } from '@/lib/api';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
   TooltipProvider,

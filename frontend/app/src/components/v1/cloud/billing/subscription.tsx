@@ -1,7 +1,7 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   Card,
   CardDescription,

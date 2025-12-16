@@ -1,4 +1,4 @@
-import { Button, ButtonProps, ReviewedButtonTemp } from '../ui/button';
+import { ReviewedButtonTemp } from '../ui/button';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { BookOpenText } from 'lucide-react';
 

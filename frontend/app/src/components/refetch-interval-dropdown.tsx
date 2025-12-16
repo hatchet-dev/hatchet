@@ -9,7 +9,7 @@ import {
 import { RefetchInterval, RefetchIntervalOption } from '@/lib/api/api';
 import { RefreshCw } from 'lucide-react';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { Button, ReviewedButtonTemp } from './v1/ui/button';
+import { ReviewedButtonTemp } from './v1/ui/button';
 
 type RefetchIntervalDropdownProps = {
   isRefetching: boolean;

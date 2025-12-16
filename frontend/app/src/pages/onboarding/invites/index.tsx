@@ -8,7 +8,7 @@ import {
   useLoaderData,
   useNavigate,
 } from 'react-router-dom';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { useOrganizations } from '@/hooks/use-organizations';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import {

@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/v1/ui/card.tsx';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button.tsx';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button.tsx';
 import { useEffect, useState } from 'react';
 import { useApiError } from '@/lib/hooks.ts';
 import { Dialog } from '@/components/v1/ui/dialog.tsx';
@@ -45,7 +45,7 @@ export default function Webhooks() {
             onClick={() => setShowCreateTokenDialog(true)}
           >
             Create Webhook Endpoint
-          </Button>
+          </ReviewedButtonTemp>
         </div>
         <p className="text-gray-700 dark:text-gray-300 my-4">
           Assign task runs to a HTTP endpoint.{' '}

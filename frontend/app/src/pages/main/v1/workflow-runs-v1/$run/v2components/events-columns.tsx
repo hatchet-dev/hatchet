@@ -10,7 +10,7 @@ import {
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { cn, emptyGolangUUID } from '@/lib/utils';
 import { Link } from 'react-router-dom';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   Popover,
   PopoverContent,

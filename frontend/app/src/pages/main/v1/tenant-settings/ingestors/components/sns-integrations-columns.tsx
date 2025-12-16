@@ -1,7 +1,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { SNSIntegration } from '@/lib/api';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { useState } from 'react';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { CopyIcon } from '@radix-ui/react-icons';

@@ -9,7 +9,7 @@ import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { useApiError } from '@/lib/hooks';
 import {
   Tabs,
