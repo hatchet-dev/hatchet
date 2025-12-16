@@ -8,7 +8,7 @@ import LoggingComponent from '@/components/v1/cloud/logging/logs';
 import { useState, useEffect } from 'react';
 import { Input } from '@/components/v1/ui/input';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { ListCloudLogsQuery } from '@/lib/api/queries';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';

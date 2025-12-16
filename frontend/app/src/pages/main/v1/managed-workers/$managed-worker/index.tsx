@@ -7,7 +7,7 @@ import { relativeDate } from '@/lib/utils';
 import { CpuChipIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useState } from 'react';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   Tabs,
   TabsContent,

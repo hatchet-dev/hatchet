@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './managed-worker-columns';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   Card,
   CardHeader,

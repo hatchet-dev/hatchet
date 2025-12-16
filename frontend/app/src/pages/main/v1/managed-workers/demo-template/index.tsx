@@ -1,4 +1,4 @@
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
 import { Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';

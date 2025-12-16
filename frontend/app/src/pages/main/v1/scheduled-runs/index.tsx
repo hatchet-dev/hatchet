@@ -6,7 +6,7 @@ import {
   ToolbarFilters,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { columns } from './components/scheduled-runs-columns';
 import { DeleteScheduledRun } from './components/delete-scheduled-runs';
 import { useCurrentTenantId } from '@/hooks/use-tenant';

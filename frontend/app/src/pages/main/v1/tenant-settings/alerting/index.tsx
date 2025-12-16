@@ -16,7 +16,7 @@ import { columns as emailGroupsColumns } from './components/email-groups-columns
 
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { DeleteSlackForm } from './components/delete-slack-form';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Dialog } from '@radix-ui/react-dialog';
 import { CreateEmailGroupDialog } from './components/create-email-group-dialog';
 import { DeleteEmailGroupForm } from './components/delete-email-group-form';

@@ -1,4 +1,4 @@
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { ManagedWorkerBuildConfig } from '@/lib/api/generated/cloud/data-contracts';
 import { GitHubLogoIcon } from '@radix-ui/react-icons';
 

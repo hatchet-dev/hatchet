@@ -4,7 +4,7 @@ import { queries } from '@/lib/api';
 
 import { columns as githubInstallationsColumns } from './components/github-installations-columns';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import invariant from 'tiny-invariant';
 import { useState } from 'react';

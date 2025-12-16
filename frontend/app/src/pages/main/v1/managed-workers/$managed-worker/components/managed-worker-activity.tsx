@@ -10,7 +10,7 @@ import {
 } from '@/components/v1/ui/card';
 import { Spinner } from '@/components/v1/ui/loading';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { ArrowRightIcon, ChevronLeftIcon } from '@radix-ui/react-icons';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';

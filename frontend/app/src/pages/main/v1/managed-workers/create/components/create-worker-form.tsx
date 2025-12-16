@@ -1,6 +1,6 @@
 import { queries } from '@/lib/api';
 import { useEffect, useState, useMemo } from 'react';
-import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
+import { ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { PlusIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import {
