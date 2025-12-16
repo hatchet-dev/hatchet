@@ -4,7 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { z } from 'zod';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -77,10 +77,10 @@ export function CreateEmailGroupDialog({
                 <div className="text-sm text-red-500">{emailsError}</div>
               )}
             </div>
-            <Button disabled={props.isLoading}>
+            <ReviewedButtonTemp disabled={props.isLoading}>
               {props.isLoading && <Spinner />}
               Create email group
-            </Button>
+            </ReviewedButtonTemp>
           </div>
         </form>
       </div>

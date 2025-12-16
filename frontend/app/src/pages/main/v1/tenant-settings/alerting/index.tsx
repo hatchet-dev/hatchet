@@ -16,7 +16,7 @@ import { columns as emailGroupsColumns } from './components/email-groups-columns
 
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { DeleteSlackForm } from './components/delete-slack-form';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Dialog } from '@radix-ui/react-dialog';
 import { CreateEmailGroupDialog } from './components/create-email-group-dialog';
 import { DeleteEmailGroupForm } from './components/delete-email-group-form';
@@ -158,14 +158,14 @@ function EmailGroupsList() {
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Email Groups
         </h3>
-        <Button
+        <ReviewedButtonTemp
           key="create-slack-webhook"
           onClick={() => {
             setShowGroupsDialog(true);
           }}
         >
           Create new group
-        </Button>
+        </ReviewedButtonTemp>
       </div>
       <Separator className="my-4" />
       <DataTable
@@ -290,7 +290,9 @@ function SlackWebhooksList() {
           Slack Webhooks
         </h3>
         <a href={'/api/v1/tenants/' + tenantId + '/slack/start'}>
-          <Button key="create-slack-webhook">Add Slack Webhook</Button>
+          <ReviewedButtonTemp key="create-slack-webhook">
+            Add Slack Webhook
+          </ReviewedButtonTemp>
         </a>
       </div>
       <Separator className="my-4" />

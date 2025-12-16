@@ -4,7 +4,7 @@ import { queries } from '@/lib/api';
 
 import { columns as githubInstallationsColumns } from './components/github-installations-columns';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import invariant from 'tiny-invariant';
 import { useState } from 'react';
@@ -98,7 +98,9 @@ function GithubInstallationsList() {
         <a
           href={`/api/v1/cloud/users/github-app/start?redirect_to=${encodeURIComponent(currentPath)}&with_repo_installation=false`}
         >
-          <Button key="create-api-token">Link new account</Button>
+          <ReviewedButtonTemp key="create-api-token">
+            Link new account
+          </ReviewedButtonTemp>
         </a>
       </div>
       <Separator className="my-4" />

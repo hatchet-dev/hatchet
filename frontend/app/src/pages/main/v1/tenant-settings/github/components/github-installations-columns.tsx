@@ -37,25 +37,23 @@ export const columns = (
       cell: ({ row }) => {
         if (row.original.is_linked_to_tenant) {
           return (
-            <Button
+            <ReviewedButtonTemp
               variant="ghost"
               disabled
-              className="flex flex-row gap-2 px-2"
+              leftIcon={<CheckCircleIcon className="size-4" />}
             >
-              <CheckCircleIcon className="size-4" />
               Linked
-            </Button>
+            </ReviewedButtonTemp>
           );
         }
         return row.original.type == 'installation' ? (
-          <Button
+          <ReviewedButtonTemp
             variant="outline"
-            className="flex flex-row gap-2 px-2"
             onClick={() => linkToTenant(row.original.metadata.id)}
             leftIcon={<PlusCircleIcon className="size-4" />}
           >
             Link to tenant
-          </Button>
+          </ReviewedButtonTemp>
         ) : (
           <a
             href={

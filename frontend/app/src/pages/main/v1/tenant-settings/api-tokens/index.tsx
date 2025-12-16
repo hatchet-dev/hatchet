@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -34,12 +34,12 @@ export default function APITokens() {
             API Tokens
           </h2>
 
-          <Button
+          <ReviewedButtonTemp
             key="create-api-token"
             onClick={() => setShowTokenDialog(true)}
           >
             Create API Token
-          </Button>
+          </ReviewedButtonTemp>
         </div>
         <p className="text-gray-700 dark:text-gray-300 my-4">
           API tokens are used by workers to connect with the Hatchet API and

@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Label } from '@/components/v1/ui/label';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -143,10 +143,10 @@ export function UpdateTenantAlertingSettings({
               )}
             </div>
           )}
-          <Button disabled={props.isLoading}>
+          <ReviewedButtonTemp disabled={props.isLoading}>
             {props.isLoading && <Spinner />}
             Update
-          </Button>
+          </ReviewedButtonTemp>
         </div>
       </form>
     </div>
