@@ -3,7 +3,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -102,7 +102,7 @@ export function CreateWebhookWorkerDialog({
           will only be displayed once.
         </p>
 
-        <Button
+        <ReviewedButtonTemp
           onClick={() => {
             setWaitingForConnection(true);
           }}
@@ -110,7 +110,7 @@ export function CreateWebhookWorkerDialog({
         >
           {waitingForConnection && <Spinner />}
           Test Connection
-        </Button>
+        </ReviewedButtonTemp>
         {waitingForConnection && webhookId && (
           <RecentWebhookRequests
             webhookId={webhookId}
@@ -171,10 +171,10 @@ export function CreateWebhookWorkerDialog({
               )}
             </div>
 
-            <Button disabled={props.isLoading}>
+            <ReviewedButtonTemp disabled={props.isLoading}>
               {props.isLoading && <Spinner />}
               Continue
-            </Button>
+            </ReviewedButtonTemp>
           </div>
         </form>
       </div>
