@@ -3278,7 +3278,7 @@ type ClientInterface interface {
 	EventUpdateReplay(ctx context.Context, tenant openapi_types.UUID, body EventUpdateReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EventDataGetWithTenant request
-	EventDataGetWithTenant(ctx context.Context, tenant openapi_types.UUID, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	EventDataGetWithTenant(ctx context.Context, tenant openapi_types.UUID, eventWithTenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantInviteList request
 	TenantInviteList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4471,8 +4471,8 @@ func (c *Client) EventUpdateReplay(ctx context.Context, tenant openapi_types.UUI
 	return c.Client.Do(req)
 }
 
-func (c *Client) EventDataGetWithTenant(ctx context.Context, tenant openapi_types.UUID, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEventDataGetWithTenantRequest(c.Server, tenant, event)
+func (c *Client) EventDataGetWithTenant(ctx context.Context, tenant openapi_types.UUID, eventWithTenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventDataGetWithTenantRequest(c.Server, tenant, eventWithTenant)
 	if err != nil {
 		return nil, err
 	}
@@ -9153,7 +9153,7 @@ func NewEventUpdateReplayRequestWithBody(server string, tenant openapi_types.UUI
 }
 
 // NewEventDataGetWithTenantRequest generates requests for EventDataGetWithTenant
-func NewEventDataGetWithTenantRequest(server string, tenant openapi_types.UUID, event openapi_types.UUID) (*http.Request, error) {
+func NewEventDataGetWithTenantRequest(server string, tenant openapi_types.UUID, eventWithTenant openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -9165,7 +9165,7 @@ func NewEventDataGetWithTenantRequest(server string, tenant openapi_types.UUID, 
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "event", runtime.ParamLocationPath, event)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "event-with-tenant", runtime.ParamLocationPath, eventWithTenant)
 	if err != nil {
 		return nil, err
 	}
@@ -12981,7 +12981,7 @@ type ClientWithResponsesInterface interface {
 	EventUpdateReplayWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventUpdateReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*EventUpdateReplayResponse, error)
 
 	// EventDataGetWithTenantWithResponse request
-	EventDataGetWithTenantWithResponse(ctx context.Context, tenant openapi_types.UUID, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetWithTenantResponse, error)
+	EventDataGetWithTenantWithResponse(ctx context.Context, tenant openapi_types.UUID, eventWithTenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetWithTenantResponse, error)
 
 	// TenantInviteListWithResponse request
 	TenantInviteListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantInviteListResponse, error)
@@ -17101,8 +17101,8 @@ func (c *ClientWithResponses) EventUpdateReplayWithResponse(ctx context.Context,
 }
 
 // EventDataGetWithTenantWithResponse request returning *EventDataGetWithTenantResponse
-func (c *ClientWithResponses) EventDataGetWithTenantWithResponse(ctx context.Context, tenant openapi_types.UUID, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetWithTenantResponse, error) {
-	rsp, err := c.EventDataGetWithTenant(ctx, tenant, event, reqEditors...)
+func (c *ClientWithResponses) EventDataGetWithTenantWithResponse(ctx context.Context, tenant openapi_types.UUID, eventWithTenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetWithTenantResponse, error) {
+	rsp, err := c.EventDataGetWithTenant(ctx, tenant, eventWithTenant, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

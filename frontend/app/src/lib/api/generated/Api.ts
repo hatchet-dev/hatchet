@@ -2129,16 +2129,16 @@ export class Api<
    * @tags Event
    * @name EventDataGetWithTenant
    * @summary Get event data
-   * @request GET:/api/v1/tenants/{tenant}/events/{event}/data
+   * @request GET:/api/v1/tenants/{tenant}/events/{event-with-tenant}/data
    * @secure
    */
   eventDataGetWithTenant = (
-    event: string,
+    eventWithTenant: string,
     tenant: string,
     params: RequestParams = {},
   ) =>
     this.request<EventData, APIErrors>({
-      path: `/api/v1/tenants/${tenant}/events/${event}/data`,
+      path: `/api/v1/tenants/${tenant}/events/${eventWithTenant}/data`,
       method: "GET",
       secure: true,
       format: "json",

@@ -290,13 +290,13 @@ eventData:
 
 eventDataWithTenant:
   get:
-    x-resources: ["tenant", "event"]
+    x-resources: ["tenant", "event-with-tenant"]
     description: Get the data for an event.
     operationId: event-data:get-with-tenant
     parameters:
       - description: The event id
         in: path
-        name: event
+        name: event-with-tenant
         required: true
         schema:
           type: string

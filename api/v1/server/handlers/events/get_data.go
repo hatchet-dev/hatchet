@@ -8,7 +8,15 @@ import (
 )
 
 func (t *EventService) EventDataGet(ctx echo.Context, request gen.EventDataGetRequestObject) (gen.EventDataGetResponseObject, error) {
-	event := ctx.Get("event").(*dbsqlc.Event)
+	eventInterface := ctx.Get("event")
+	if eventInterface == nil {
+		return nil, echo.NewHTTPError(404, "event not found")
+	}
+
+	event, ok := eventInterface.(*dbsqlc.Event)
+	if !ok {
+		return nil, echo.NewHTTPError(500, "invalid event type in context")
+	}
 
 	var dataStr string
 
@@ -25,7 +33,16 @@ func (t *EventService) EventDataGet(ctx echo.Context, request gen.EventDataGetRe
 
 func (t *EventService) EventDataGetWithTenant(ctx echo.Context, request gen.EventDataGetWithTenantRequestObject) (gen.EventDataGetWithTenantResponseObject, error) {
 	// hack to use the tenant id to populate the event in the v1 case
-	event := ctx.Get("event-with-tenant").(*dbsqlc.Event)
+	eventInterface := ctx.Get("event-with-tenant")
+
+	if eventInterface == nil {
+		return nil, echo.NewHTTPError(404, "event not found")
+	}
+
+	event, ok := eventInterface.(*dbsqlc.Event)
+	if !ok {
+		return nil, echo.NewHTTPError(500, "invalid event type in context")
+	}
 
 	var dataStr string
 

@@ -447,6 +447,10 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			}
 		}
 
+		if event == nil {
+			return nil, "", fmt.Errorf("event not found")
+		}
+
 		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
 	})
 
