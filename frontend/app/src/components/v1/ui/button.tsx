@@ -47,6 +47,8 @@ export interface ButtonProps
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   hoverText?: string;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -57,20 +59,33 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       size,
       asChild = false,
       hoverText = undefined,
+      leftIcon,
+      rightIcon,
+      children,
       ...props
     },
     ref,
   ) => {
     const Comp = asChild ? Slot : 'button';
+
+    const iconPaddingClasses = cn(
+      leftIcon && size !== 'icon' && 'pl-3',
+      rightIcon && size !== 'icon' && 'pr-3',
+    );
+
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
             <Comp
-              className={cn(buttonVariants({ variant, size, className }))}
+              className={cn(buttonVariants({ variant, size, className }), iconPaddingClasses)}
               ref={ref}
               {...props}
-            />
+            >
+              {leftIcon && <span className="mr-2 -ml-1">{leftIcon}</span>}
+              {children}
+              {rightIcon && <span className="ml-2 -mr-1">{rightIcon}</span>}
+            </Comp>
           </TooltipTrigger>
           {hoverText && <TooltipContent>{hoverText}</TooltipContent>}
         </Tooltip>
