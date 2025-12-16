@@ -52,7 +52,7 @@ func up20251216160649(ctx context.Context, db *sql.DB) error {
 		)
 
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("create index concurrently on %s: %w", partition, err)
+			return fmt.Errorf("create index on partition %s: %w", partition, err)
 		}
 	}
 
@@ -63,7 +63,7 @@ func up20251216160649(ctx context.Context, db *sql.DB) error {
 	)
 
 	if _, err := db.ExecContext(ctx, stmt); err != nil {
-		return fmt.Errorf("create index concurrently on %s: %w", v1RunsOlapTable, err)
+		return fmt.Errorf("create index on %s: %w", v1RunsOlapTable, err)
 	}
 
 	return nil
@@ -84,6 +84,15 @@ func down20251216160649(ctx context.Context, db *sql.DB) error {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("drop index concurrently %s (partition %s): %w", idxName, partition, err)
 		}
+	}
+
+	stmt := fmt.Sprintf(
+		`DROP INDEX IF EXISTS %s`,
+		quoteIdent(idxName),
+	)
+
+	if _, err := db.ExecContext(ctx, stmt); err != nil {
+		return fmt.Errorf("drop index on %s: %w", v1RunsOlapTable, err)
 	}
 
 	return nil
