@@ -1885,7 +1885,8 @@ CREATE OR REPLACE FUNCTION list_paginated_payloads_for_offload(
     next_tenant_id uuid,
     next_inserted_at timestamptz,
     next_id bigint,
-    next_type v1_payload_type
+    next_type v1_payload_type,
+    batch_size integer
 ) RETURNS TABLE (
     tenant_id UUID,
     id BIGINT,
@@ -1916,16 +1917,26 @@ BEGIN
     END IF;
 
     query := format('
+        WITH candidates AS (
+            SELECT tenant_id, id, inserted_at, external_id, type, location,
+                external_location_key, inline_content, updated_at
+            FROM %I
+            WHERE
+                (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
+            ORDER BY tenant_id, inserted_at, id, type
+            LIMIT $9 * 2
+        )
+
         SELECT tenant_id, id, inserted_at, external_id, type, location,
                external_location_key, inline_content, updated_at
-        FROM %I
+        FROM candidates
         WHERE
             (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
             AND (tenant_id, inserted_at, id, type) <= ($5, $6, $7, $8)
         ORDER BY tenant_id, inserted_at, id, type
     ', source_partition_name);
 
-    RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, next_tenant_id, next_inserted_at, next_id, next_type;
+    RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, next_tenant_id, next_inserted_at, next_id, next_type, batch_size;
 END;
 $$;
 
