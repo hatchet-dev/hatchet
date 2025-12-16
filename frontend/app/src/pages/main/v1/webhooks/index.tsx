@@ -1,6 +1,6 @@
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -345,7 +345,7 @@ const CreateWebhookModal = () => {
       }}
     >
       <DialogTrigger asChild>
-        <Button className="h-8 border px-3">Create Webhook</Button>
+        <ReviewedButtonTemp>Create Webhook</ReviewedButtonTemp>
       </DialogTrigger>
       <DialogContent className="max-w-[90%] md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%] max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
@@ -383,12 +383,12 @@ const CreateWebhookModal = () => {
                 <code className="max-w-full font-mono bg-muted px-2 py-1 rounded text-xs">
                   {createWebhookURL(webhookName)}
                 </code>
-                <Button
+                <ReviewedButtonTemp
                   type="button"
-                  variant="ghost"
-                  size="sm"
+                  variant="icon"
+                  size="xs"
                   onClick={copyToClipboard}
-                  className="h-6 w-6 p-0 flex-shrink-0"
+                  className="flex-shrink-0"
                   disabled={!webhookName}
                 >
                   {copied ? (
@@ -396,7 +396,7 @@ const CreateWebhookModal = () => {
                   ) : (
                     <Copy className="size-4" />
                   )}
-                </Button>
+                </ReviewedButtonTemp>
               </div>
             </div>
           </div>
@@ -534,14 +534,14 @@ const CreateWebhookModal = () => {
 
           <div className="flex justify-end gap-3 pt-4">
             <DialogClose asChild>
-              <Button type="button" variant="outline">
+              <ReviewedButtonTemp type="button" variant="outline">
                 Cancel
-              </Button>
+              </ReviewedButtonTemp>
             </DialogClose>
-            <Button type="submit" disabled={isCreatePending}>
+            <ReviewedButtonTemp type="submit" disabled={isCreatePending}>
               {isCreatePending && <Spinner />}
               Create Webhook
-            </Button>
+            </ReviewedButtonTemp>
           </div>
         </form>
       </DialogContent>

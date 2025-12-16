@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button, ReviewedButtonTemp } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks';
@@ -128,9 +128,9 @@ const AnalyticsOptOut: React.FC = () => {
         (isLoading ? (
           <Spinner />
         ) : (
-          <Button onClick={save} className="mt-4">
+          <ReviewedButtonTemp onClick={save}>
             Save and Reload
-          </Button>
+          </ReviewedButtonTemp>
         ))}
     </>
   );
