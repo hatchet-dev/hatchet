@@ -60,7 +60,7 @@ export const AdditionalMetadata = memo(
           >
             <div className="p-3">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b">
-                <TagIcon className="h-4 w-4 text-muted-foreground" />
+                <TagIcon className="size-4 text-muted-foreground" />
                 <span className="font-medium text-sm">
                   {title} ({metadataCount}{' '}
                   {metadataCount === 1 ? 'item' : 'items'})

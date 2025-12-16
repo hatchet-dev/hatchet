@@ -131,7 +131,7 @@ export default function ManagedWorkers() {
               to={`/tenants/${tenantId}/tenant-settings/billing-and-limits`}
             >
               <Button>
-                <ArrowUpIcon className="h-4 w-4 mr-2" />
+                <ArrowUpIcon className="size-4 mr-2" />
                 Upgrade Plan
               </Button>
             </Link>

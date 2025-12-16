@@ -520,14 +520,14 @@ export function DataTableOptions<TData>({
           size="sm"
           className="flex-shrink-0"
         >
-          <MixerHorizontalIcon className="h-4 w-4" />
+          <MixerHorizontalIcon className="size-4" />
           <span className="cq-xl:inline hidden ml-2 text-sm">Filters</span>
           {activeFiltersCount > 0 && (
             <Badge variant="secondary" className="ml-2 px-1 py-0 text-xs">
               {activeFiltersCount}
             </Badge>
           )}
-          <ChevronDownIcon className="h-4 w-4 ml-2 hidden cq-xl:inline" />
+          <ChevronDownIcon className="size-4 ml-2 hidden cq-xl:inline" />
         </ReviewedButtonTemp>
       </DropdownMenuTrigger>
       <DropdownMenuContent

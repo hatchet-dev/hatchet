@@ -116,7 +116,7 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
     <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
       <DropdownMenuTrigger asChild>
         <ReviewedButtonTemp variant="icon" size="sm">
-          <DotsVerticalIcon className="h-4 w-4 text-muted-foreground cursor-pointer" />
+          <DotsVerticalIcon className="size-4 text-muted-foreground cursor-pointer" />
         </ReviewedButtonTemp>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -129,7 +129,7 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
           }}
         >
           {isCopied ? (
-            <Check className="h-4 w-4 text-green-600" />
+            <Check className="size-4 text-green-600" />
           ) : (
             <Copy className="size-4" />
           )}

@@ -148,7 +148,7 @@ export function ManagedWorkerLogs({
             aria-label="Refresh logs"
           >
             <ArrowPathIcon
-              className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+              className={`size-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
             />
           </Button>
         </div>

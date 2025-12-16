@@ -433,7 +433,7 @@ export default function CreateWorkerForm({
   // ) {
   //   return (
   //     <Alert>
-  //       <ExclamationTriangleIcon className="h-4 w-4" />
+  //       <ExclamationTriangleIcon className="size-4" />
   //       <AlertTitle className="font-semibold">Link a Github account</AlertTitle>
   //       <AlertDescription>
   //         You don't have any Github accounts linked. Please{' '}
@@ -1174,7 +1174,7 @@ export default function CreateWorkerForm({
                     rel="noopener noreferrer"
                   >
                     <Button variant="outline" size="sm">
-                      <ArrowUpIcon className="h-4 w-4 mr-1" />
+                      <ArrowUpIcon className="size-4 mr-1" />
                       Upgrade Plan
                     </Button>
                   </a>
@@ -1193,7 +1193,7 @@ export default function CreateWorkerForm({
               }
               className="w-fit px-8"
             >
-              {isLoading && <PlusIcon className="h-4 w-4 animate-spin" />}
+              {isLoading && <PlusIcon className="size-4 animate-spin" />}
               Create service
             </Button>
           </div>

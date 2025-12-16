@@ -42,7 +42,7 @@ export function DataTableRowActions<TData extends IDGetter<TData>>({
           size="sm"
           className="flex data-[state=open]:bg-muted"
         >
-          <DotsVerticalIcon className="h-4 w-4" />
+          <DotsVerticalIcon className="size-4" />
           <span className="sr-only">Open menu</span>
         </ReviewedButtonTemp>
       </DropdownMenuTrigger>

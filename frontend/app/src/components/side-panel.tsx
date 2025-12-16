@@ -110,7 +110,7 @@ export function SidePanel() {
                 disabled={!canGoBack}
                 className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0 border"
               >
-                <ChevronLeftIcon className="h-4 w-4" />
+                <ChevronLeftIcon className="size-4" />
                 <span className="sr-only">Go Back</span>
               </ReviewedButtonTemp>
               <ReviewedButtonTemp
@@ -120,7 +120,7 @@ export function SidePanel() {
                 disabled={!canGoForward}
                 className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0 border"
               >
-                <ChevronRightIcon className="h-4 w-4" />
+                <ChevronRightIcon className="size-4" />
                 <span className="sr-only">Go Forward</span>
               </ReviewedButtonTemp>
             </div>
@@ -130,7 +130,7 @@ export function SidePanel() {
                 onClick={close}
                 className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
               >
-                <Cross2Icon className="h-4 w-4" />
+                <Cross2Icon className="size-4" />
                 <span className="sr-only">Close</span>
               </ReviewedButtonTemp>
             </div>

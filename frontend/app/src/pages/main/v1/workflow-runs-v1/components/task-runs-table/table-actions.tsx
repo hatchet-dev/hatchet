@@ -42,9 +42,9 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
         >
           <DropdownMenuTrigger asChild>
             <ReviewedButtonTemp variant="outline" size="sm">
-              <Command className="h-4 w-4 cq-xl:hidden" />
+              <Command className="size-4 cq-xl:hidden" />
               <span className="cq-xl:inline hidden text-sm">Actions</span>
-              <ChevronDownIcon className="h-4 w-4 ml-2 hidden cq-xl:inline" />
+              <ChevronDownIcon className="size-4 ml-2 hidden cq-xl:inline" />
             </ReviewedButtonTemp>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="z-[70]">

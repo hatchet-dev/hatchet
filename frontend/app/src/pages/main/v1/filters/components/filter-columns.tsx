@@ -103,7 +103,7 @@ export const filterColumns = (
       ),
       cell: ({ row }) =>
         row.original.isDeclarative ? (
-          <CheckIcon className="h-4 w-4 text-green-600" />
+          <CheckIcon className="size-4 text-green-600" />
         ) : null,
       enableSorting: false,
       enableHiding: true,

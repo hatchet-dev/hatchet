@@ -149,7 +149,7 @@ export function GoogleLogin() {
   return (
     <a href="/api/v1/users/google/start" className="w-full">
       <Button variant="outline" type="button" className="w-full py-2">
-        <Icons.google className="mr-2 h-4 w-4" />
+        <Icons.google className="mr-2 size-4" />
         Google
       </Button>
     </a>
@@ -160,7 +160,7 @@ export function GithubLogin() {
   return (
     <a href="/api/v1/users/github/start" className="w-full">
       <Button variant="outline" type="button" className="w-full py-2">
-        <Icons.gitHub className="mr-2 h-4 w-4" />
+        <Icons.gitHub className="mr-2 size-4" />
         Github
       </Button>
     </a>

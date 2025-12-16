@@ -42,7 +42,7 @@ export const columns = (
               disabled
               className="flex flex-row gap-2 px-2"
             >
-              <CheckCircleIcon className="h-4 w-4" />
+              <CheckCircleIcon className="size-4" />
               Linked
             </Button>
           );
@@ -52,8 +52,8 @@ export const columns = (
             variant="outline"
             className="flex flex-row gap-2 px-2"
             onClick={() => linkToTenant(row.original.metadata.id)}
+            leftIcon={<PlusCircleIcon className="size-4" />}
           >
-            <PlusCircleIcon className="h-4 w-4" />
             Link to tenant
           </Button>
         ) : (
@@ -65,9 +65,9 @@ export const columns = (
             target="_blank"
             rel="noreferrer"
           >
-            <Button variant="outline" className="flex flex-row gap-2 px-2">
+            <ReviewedButtonTemp variant="outline">
               Finish Setup
-            </Button>
+            </ReviewedButtonTemp>
           </a>
         );
       },
