@@ -21,6 +21,11 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -33,6 +38,10 @@ jobs:
           node-version: 20
           cache: pnpm
           cache-dependency-path: frontend/app/pnpm-lock.yaml
+
+      - name: Generate docs snippets and examples
+        working-directory: frontend/app
+        run: pnpm run docs:gen
 
       - name: Start dependencies (postgres, rabbitmq)
         run: docker compose up -d
