@@ -14,6 +14,8 @@
     "prettier:check": "prettier \"src/**/*.{ts,tsx}\" --list-different",
     "prettier:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
     "preview": "vite preview",
+    "e2e:open": "cypress install && cypress open",
+    "e2e:run": "cypress install && cypress run",
     "docs:gen": "cd ../snippets && python3 generate.py"
   },
   "dependencies": {
@@ -98,6 +100,7 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.19",
     "eslint-plugin-unused-imports": "^3.2.0",
+    "cypress": "^13.17.0",
     "postcss": "^8.5.3",
     "prettier": "^3.5.3",
     "tailwindcss": "^3.4.17",
