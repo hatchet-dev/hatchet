@@ -12,7 +12,6 @@ export type TenantedPath =
   | '/tenants/:tenant/task-runs/:run'
   | '/tenants/:tenant/workers'
   | '/tenants/:tenant/workers/all'
-  | '/tenants/:tenant/workers/webhook'
   | '/tenants/:tenant/workers/:worker'
   | '/tenants/:tenant/managed-workers'
   | '/tenants/:tenant/managed-workers/create'
@@ -102,7 +101,7 @@ const createRouteLabel = (path: TenantedPath): string => {
       return '';
     default:
       // eslint-disable-next-line no-case-declarations
-      const exhaustiveCheck: never = path as never;
+      const exhaustiveCheck = path;
       throw new Error(`Unhandled tenanted path: ${exhaustiveCheck}`);
   }
 };
