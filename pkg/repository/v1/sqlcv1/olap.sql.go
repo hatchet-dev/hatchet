@@ -686,6 +686,37 @@ func (q *Queries) GetEventByExternalId(ctx context.Context, db DBTX, eventextern
 	return &i, err
 }
 
+const getEventByExternalIdUsingTenantId = `-- name: GetEventByExternalIdUsingTenantId :one
+SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
+FROM v1_event_lookup_table_olap elt
+JOIN v1_events_olap e ON (elt.event_id, elt.event_seen_at) = (e.id, e.seen_at)
+WHERE
+    elt.external_id = $1::uuid
+    AND elt.tenant_id = $2::uuid
+`
+
+type GetEventByExternalIdUsingTenantIdParams struct {
+	Eventexternalid pgtype.UUID `json:"eventexternalid"`
+	Tenantid        pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) GetEventByExternalIdUsingTenantId(ctx context.Context, db DBTX, arg GetEventByExternalIdUsingTenantIdParams) (*V1EventsOlap, error) {
+	row := db.QueryRow(ctx, getEventByExternalIdUsingTenantId, arg.Eventexternalid, arg.Tenantid)
+	var i V1EventsOlap
+	err := row.Scan(
+		&i.TenantID,
+		&i.ID,
+		&i.ExternalID,
+		&i.SeenAt,
+		&i.Key,
+		&i.Payload,
+		&i.AdditionalMetadata,
+		&i.Scope,
+		&i.TriggeringWebhookName,
+	)
+	return &i, err
+}
+
 const getRunsListRecursive = `-- name: GetRunsListRecursive :many
 WITH RECURSIVE all_runs AS (
   -- seed term
