@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
-import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
-import { useOrganizations } from '@/hooks/use-organizations';
+import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Spinner } from '@/components/v1/ui/loading';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
+import { useState, useEffect } from 'react';
 
 interface DeleteTenantModalProps {
   open: boolean;

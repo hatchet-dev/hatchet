@@ -1,7 +1,3 @@
-import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
-import { cn, formatDuration } from '@/lib/utils';
-import { memo } from 'react';
-import { Handle, Position } from 'reactflow';
 import { V1RunIndicator } from '../../components/run-statuses';
 import { TabOption } from './step-run-detail/step-run-detail';
 import {
@@ -10,6 +6,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { cn, formatDuration } from '@/lib/utils';
+import { memo } from 'react';
+import { Handle, Position } from 'reactflow';
 
 export type NodeData = {
   taskRun: V1TaskSummary | undefined;

@@ -1,21 +1,3 @@
-import { queries } from '@/lib/api';
-import { useEffect, useMemo, useState } from 'react';
-import { Button } from '@/components/v1/ui/button';
-import { useQuery } from '@tanstack/react-query';
-import { ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/v1/ui/select';
-import { z } from 'zod';
-import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Label } from '@/components/v1/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
-import { Input } from '@/components/v1/ui/input';
 import {
   getRepoName,
   getRepoOwner,
@@ -25,30 +7,48 @@ import {
   ScalingType,
   scalingTypes,
 } from '../../create/components/create-worker-form';
-import {
-  ManagedWorker,
-  ManagedWorkerRegion,
-} from '@/lib/api/generated/cloud/data-contracts';
+import { UpgradeMessage } from '../../create/components/create-worker-form';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/v1/ui/accordion';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
+import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/v1/ui/select';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { Checkbox } from '@/components/v1/ui/checkbox';
-import { UpgradeMessage } from '../../create/components/create-worker-form';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
+import {
+  ManagedWorker,
+  ManagedWorkerRegion,
+} from '@/lib/api/generated/cloud/data-contracts';
 import {
   ComputeType,
   managedCompute,
 } from '@/lib/can/features/managed-compute';
-import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 interface UpdateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof updateManagedWorkerSchema>) => void;

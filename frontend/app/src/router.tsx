@@ -1,4 +1,5 @@
-import { FC } from 'react';
+import ErrorBoundary from './pages/error/index.tsx';
+import Root from './pages/root.tsx';
 import {
   RouterProvider,
   createRootRoute,
@@ -8,8 +9,7 @@ import {
   redirect,
 } from '@tanstack/react-router';
 import { Outlet } from '@tanstack/react-router';
-import ErrorBoundary from './pages/error/index.tsx';
-import Root from './pages/root.tsx';
+import { FC } from 'react';
 
 const rootRoute = createRootRoute({
   component: Root,

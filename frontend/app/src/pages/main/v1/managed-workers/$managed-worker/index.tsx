@@ -1,31 +1,31 @@
-import { Separator } from '@/components/v1/ui/separator';
-import { queries } from '@/lib/api';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useParams } from '@tanstack/react-router';
-import { relativeDate } from '@/lib/utils';
-import { CpuChipIcon } from '@heroicons/react/24/outline';
-import { Loading } from '@/components/v1/ui/loading.tsx';
-import { useState } from 'react';
+import GithubButton from './components/github-button';
+import { ManagedWorkerActivity } from './components/managed-worker-activity';
+import { ManagedWorkerInstancesTable } from './components/managed-worker-instances-table';
+import { ManagedWorkerLogs } from './components/managed-worker-logs';
+import { ManagedWorkerMetrics } from './components/managed-worker-metrics';
+import UpdateWorkerForm from './components/update-form';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { Button } from '@/components/v1/ui/button';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { ManagedWorkerLogs } from './components/managed-worker-logs';
-import { ManagedWorkerMetrics } from './components/managed-worker-metrics';
-import { ManagedWorkerActivity } from './components/managed-worker-activity';
-import { UpdateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
-import { ManagedWorkerInstancesTable } from './components/managed-worker-instances-table';
-import UpdateWorkerForm from './components/update-form';
-import { cloudApi } from '@/lib/api/api';
-import { useApiError } from '@/lib/hooks';
-import GithubButton from './components/github-button';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
+import { UpdateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
+import { useApiError } from '@/lib/hooks';
+import { relativeDate } from '@/lib/utils';
 import { appRoutes } from '@/router';
+import { CpuChipIcon } from '@heroicons/react/24/outline';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { useState } from 'react';
 
 export default function ExpandedWorkflow() {
   const navigate = useNavigate();

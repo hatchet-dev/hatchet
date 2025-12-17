@@ -1,3 +1,16 @@
+import { Button } from '@/components/v1/ui/button';
+import { ChartContainer, ChartTooltipContent } from '@/components/v1/ui/chart';
+import { Skeleton } from '@/components/v1/ui/skeleton';
+import {
+  TooltipProvider,
+  Tooltip as BaseTooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { V1TaskStatus, V1TaskTiming, queries } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { CirclePlus, CircleMinus, Loader } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 import {
   Bar,
@@ -9,20 +22,6 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { CirclePlus, CircleMinus, Loader } from 'lucide-react';
-
-import { ChartContainer, ChartTooltipContent } from '@/components/v1/ui/chart';
-import { V1TaskStatus, V1TaskTiming, queries } from '@/lib/api';
-import { Button } from '@/components/v1/ui/button';
-import { Skeleton } from '@/components/v1/ui/skeleton';
-import {
-  TooltipProvider,
-  Tooltip as BaseTooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
-import { useQuery } from '@tanstack/react-query';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 // Helper function to check if a task is a descendant of another task
 function isDescendantOf(

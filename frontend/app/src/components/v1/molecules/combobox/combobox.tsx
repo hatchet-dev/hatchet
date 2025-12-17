@@ -1,7 +1,4 @@
-import * as React from 'react';
-import { CheckIcon, PlusCircledIcon } from '@radix-ui/react-icons';
-
-import { cn } from '@/lib/utils';
+import { ToolbarType } from '../data-table/data-table-toolbar';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -13,18 +10,20 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/v1/ui/command';
+import { Input } from '@/components/v1/ui/input';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
 import { Separator } from '@/components/v1/ui/separator';
-import { ToolbarType } from '../data-table/data-table-toolbar';
-import { Input } from '@/components/v1/ui/input';
-import { BiX } from 'react-icons/bi';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
+import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { CheckIcon, PlusCircledIcon } from '@radix-ui/react-icons';
+import * as React from 'react';
+import { useForm } from 'react-hook-form';
+import { BiX } from 'react-icons/bi';
+import { z } from 'zod';
 
 const keyValuePairSchema = z.object({
   key: z.string().min(1, 'Key is required'),

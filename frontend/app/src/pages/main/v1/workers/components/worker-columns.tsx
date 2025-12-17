@@ -1,13 +1,12 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { Worker } from '@/lib/api';
-import { Link } from '@tanstack/react-router';
-import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SdkInfo } from './sdk-info';
-
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
+import { Worker } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const WorkerColumn = {
   status: 'Status',

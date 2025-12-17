@@ -1,5 +1,5 @@
-import { useOutletContext } from '@/lib/router-helpers';
 import { TenantMember, User } from './api';
+import { useOutletContext } from '@/lib/router-helpers';
 
 export type UserContextType = { user: User };
 

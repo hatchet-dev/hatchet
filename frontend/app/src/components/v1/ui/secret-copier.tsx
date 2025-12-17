@@ -1,23 +1,23 @@
-import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
-import typescript from 'react-syntax-highlighter/dist/esm/languages/hljs/typescript';
-import yaml from 'react-syntax-highlighter/dist/esm/languages/hljs/yaml';
-import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
-import {
-  anOldHope,
-  atomOneLight,
-} from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import { Button } from './button';
 import CopyToClipboard from './copy-to-clipboard';
-import { useRef, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { useTheme } from '@/components/theme-provider';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { Button } from './button';
+import { cn } from '@/lib/utils';
 import { CaretSortIcon } from '@radix-ui/react-icons';
-import { useTheme } from '@/components/theme-provider';
+import { useRef, useState } from 'react';
+import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
+import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
+import typescript from 'react-syntax-highlighter/dist/esm/languages/hljs/typescript';
+import yaml from 'react-syntax-highlighter/dist/esm/languages/hljs/yaml';
+import {
+  anOldHope,
+  atomOneLight,
+} from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
 SyntaxHighlighter.registerLanguage('typescript', typescript);
 SyntaxHighlighter.registerLanguage('yaml', yaml);

@@ -1,19 +1,19 @@
-import { Link, useNavigate } from '@tanstack/react-router';
-import { appRoutes } from '@/router';
-import { UserRegisterForm } from './components/user-register-form';
-import { useMutation } from '@tanstack/react-query';
-import api, { UserRegisterRequest } from '@/lib/api';
-import { useEffect, useState } from 'react';
-import { useApiError } from '@/lib/hooks';
 import useApiMeta from '../hooks/use-api-meta';
-import { Loading } from '@/components/v1/ui/loading';
-import { GithubLogin, GoogleLogin, OrContinueWith } from '../login';
 import useErrorParam from '../hooks/use-error-param';
-import React from 'react';
+import { GithubLogin, GoogleLogin, OrContinueWith } from '../login';
+import { UserRegisterForm } from './components/user-register-form';
+import { Loading } from '@/components/v1/ui/loading';
 import {
   POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY,
   POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY,
 } from '@/hooks/use-analytics';
+import api, { UserRegisterRequest } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { appRoutes } from '@/router';
+import { useMutation } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
+import React from 'react';
 
 export default function Register() {
   useErrorParam();

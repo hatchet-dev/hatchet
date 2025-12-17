@@ -1,9 +1,9 @@
-import { V1TaskStatus } from '@/lib/api';
-import { Badge } from '@/components/v1/ui/badge';
 import { useRunsContext } from '../hooks/runs-provider';
+import { Badge } from '@/components/v1/ui/badge';
+import { V1TaskStatus } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { PlayIcon, X, Ban, ChartColumn } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useCallback, useMemo } from 'react';
 
 function statusToFriendlyName(status: V1TaskStatus) {

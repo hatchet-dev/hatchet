@@ -1,8 +1,8 @@
-import { redirect } from '@tanstack/react-router';
 import api from '@/lib/api';
 import queryClient from '@/query-client';
-import { AxiosError, isAxiosError } from 'axios';
 import { appRoutes } from '@/router';
+import { redirect } from '@tanstack/react-router';
+import { AxiosError, isAxiosError } from 'axios';
 
 const noAuthMiddleware = async () => {
   try {

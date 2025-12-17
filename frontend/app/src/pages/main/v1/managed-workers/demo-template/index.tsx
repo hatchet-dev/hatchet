@@ -1,36 +1,36 @@
 import { Button } from '@/components/v1/ui/button';
-import { Separator } from '@/components/v1/ui/separator';
-import { Link } from '@tanstack/react-router';
-import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeftIcon } from '@radix-ui/react-icons';
-import {
-  PlayIcon,
-  CheckCircleIcon,
-  ArrowPathIcon,
-  KeyIcon,
-} from '@heroicons/react/24/outline';
-import { Step, Steps } from '@/components/v1/ui/steps';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api/queries';
-import {
-  ManagedWorkerEventStatus,
-  TemplateOptions,
-} from '@/lib/api/generated/cloud/data-contracts';
-import { RadioGroup, RadioGroupItem } from '@/components/v1/ui/radio-group';
-import { Label } from '@/components/v1/ui/label';
 import { Card } from '@/components/v1/ui/card';
-import { cloudApi } from '@/lib/api/api';
-import api from '@/lib/api';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Label } from '@/components/v1/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/v1/ui/radio-group';
+import { Separator } from '@/components/v1/ui/separator';
+import { Step, Steps } from '@/components/v1/ui/steps';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { GitHubLogoIcon } from '@radix-ui/react-icons';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
+import {
+  ManagedWorkerEventStatus,
+  TemplateOptions,
+} from '@/lib/api/generated/cloud/data-contracts';
+import { queries } from '@/lib/api/queries';
 import { appRoutes } from '@/router';
+import {
+  PlayIcon,
+  CheckCircleIcon,
+  ArrowPathIcon,
+  KeyIcon,
+} from '@heroicons/react/24/outline';
+import { ArrowLeftIcon } from '@radix-ui/react-icons';
+import { GitHubLogoIcon } from '@radix-ui/react-icons';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function DemoTemplate() {
   const { tenantId } = useCurrentTenantId();

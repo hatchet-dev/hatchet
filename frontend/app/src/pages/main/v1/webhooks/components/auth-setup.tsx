@@ -1,3 +1,4 @@
+import { WebhookFormData } from '../hooks/use-webhooks';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import {
@@ -14,7 +15,6 @@ import {
   V1WebhookSourceName,
 } from '@/lib/api';
 import { useForm } from 'react-hook-form';
-import { WebhookFormData } from '../hooks/use-webhooks';
 
 type BaseAuthMethodProps = {
   register: ReturnType<typeof useForm<WebhookFormData>>['register'];

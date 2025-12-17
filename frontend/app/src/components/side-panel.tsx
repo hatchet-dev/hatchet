@@ -1,13 +1,13 @@
-import { useSidePanel } from '@/hooks/use-side-panel';
+import { Button } from './v1/ui/button';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
+import { useSidePanel } from '@/hooks/use-side-panel';
+import { cn } from '@/lib/utils';
 import {
   Cross2Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from '@radix-ui/react-icons';
-import { Button } from './v1/ui/button';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { cn } from '@/lib/utils';
 
 const DEFAULT_PANEL_WIDTH = 650;
 const MIN_PANEL_WIDTH = 350;

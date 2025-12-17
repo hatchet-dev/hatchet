@@ -1,18 +1,8 @@
-import { Button } from '@/components/v1/ui/button';
-import { cn } from '@/lib/utils';
-import {
-  CalendarDaysIcon,
-  CpuChipIcon,
-  PlayIcon,
-  ScaleIcon,
-  ServerStackIcon,
-  Squares2X2Icon,
-} from '@heroicons/react/24/outline';
-
 import { SidePanel } from '@/components/side-panel';
 import { useSidebar } from '@/components/sidebar-provider';
 import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
+import { Button } from '@/components/v1/ui/button';
 import {
   Collapsible,
   CollapsibleContent,
@@ -26,14 +16,23 @@ import {
   UserContextType,
   useContextFromParent,
 } from '@/lib/outlet';
+import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
+import { cn } from '@/lib/utils';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
+import { appRoutes } from '@/router';
+import {
+  CalendarDaysIcon,
+  CpuChipIcon,
+  PlayIcon,
+  ScaleIcon,
+  ServerStackIcon,
+  Squares2X2Icon,
+} from '@heroicons/react/24/outline';
 import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
+import { Link, useMatchRoute } from '@tanstack/react-router';
 import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
 import React, { useCallback } from 'react';
-import { Link, useMatchRoute } from '@tanstack/react-router';
-import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
-import { appRoutes } from '@/router';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();

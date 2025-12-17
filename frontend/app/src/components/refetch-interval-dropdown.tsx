@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { Button } from './v1/ui/button';
 import {
   Select,
   SelectContent,
@@ -6,13 +6,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import {
   RefetchInterval,
   RefetchIntervalOption,
 } from '@/lib/api/refetch-interval';
 import { RefreshCw } from 'lucide-react';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { Button } from './v1/ui/button';
+import { useMemo } from 'react';
 
 type RefetchIntervalDropdownProps = {
   isRefetching: boolean;

@@ -1,3 +1,10 @@
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from '@/components/v1/ui/chart';
+import { capitalize, cn } from '@/lib/utils';
 import { useState, useMemo, useRef } from 'react';
 import {
   CartesianGrid,
@@ -12,13 +19,6 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
-import {
-  ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/v1/ui/chart';
-import { capitalize, cn } from '@/lib/utils';
 
 export type DataPoint<T extends string> = Record<T, number> & {
   date: string;

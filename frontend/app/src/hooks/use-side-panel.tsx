@@ -1,3 +1,14 @@
+import { useTheme } from '@/components/theme-provider';
+import { DocPage } from '@/components/v1/docs/docs-button';
+import { V1Event, V1Filter, ScheduledWorkflows } from '@/lib/api';
+import { ExpandedEventContent } from '@/pages/main/v1/events';
+import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
+import { ExpandedScheduledRunContent } from '@/pages/main/v1/scheduled-runs/components/expanded-scheduled-run-content';
+import {
+  TaskRunDetail,
+  TabOption,
+} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
+import { useLocation } from '@tanstack/react-router';
 import {
   createContext,
   useCallback,
@@ -6,17 +17,6 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { useLocation } from '@tanstack/react-router';
-import {
-  TaskRunDetail,
-  TabOption,
-} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
-import { DocPage } from '@/components/v1/docs/docs-button';
-import { V1Event, V1Filter, ScheduledWorkflows } from '@/lib/api';
-import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
-import { ExpandedEventContent } from '@/pages/main/v1/events';
-import { ExpandedScheduledRunContent } from '@/pages/main/v1/scheduled-runs/components/expanded-scheduled-run-content';
-import { useTheme } from '@/components/theme-provider';
 
 type SidePanelContent =
   | {

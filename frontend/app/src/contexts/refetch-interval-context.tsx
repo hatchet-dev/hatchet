@@ -1,3 +1,9 @@
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
+import {
+  RefetchInterval,
+  RefetchIntervalOption,
+  LabeledRefetchInterval,
+} from '@/lib/api/refetch-interval';
 import {
   createContext,
   useCallback,
@@ -5,12 +11,6 @@ import {
   useMemo,
   ReactNode,
 } from 'react';
-import {
-  RefetchInterval,
-  RefetchIntervalOption,
-  LabeledRefetchInterval,
-} from '@/lib/api/refetch-interval';
-import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 
 interface RefetchIntervalContextType {
   isFrozen: boolean;

@@ -1,5 +1,5 @@
-import { useLocation, useParams } from '@tanstack/react-router';
 import { generateBreadcrumbs, BreadcrumbItem } from '@/lib/breadcrumbs';
+import { useLocation, useParams } from '@tanstack/react-router';
 
 export function useBreadcrumbs(): BreadcrumbItem[] {
   const location = useLocation();

@@ -1,18 +1,17 @@
-import { Button } from '@/components/v1/ui/button';
-import { Separator } from '@/components/v1/ui/separator';
-import { useState } from 'react';
-import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import api, { UpdateTenantRequest } from '@/lib/api';
-import { Switch } from '@/components/v1/ui/switch';
-import { Label } from '@radix-ui/react-label';
-import { Spinner } from '@/components/v1/ui/loading';
-import { capitalize } from '@/lib/utils';
 import { UpdateTenantForm } from './components/update-tenant-form';
-
 import { Alert, AlertDescription } from '@/components/v1/ui/alert';
+import { Button } from '@/components/v1/ui/button';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
+import { Switch } from '@/components/v1/ui/switch';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import api, { UpdateTenantRequest } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
+import { useApiError } from '@/lib/hooks';
+import { capitalize } from '@/lib/utils';
+import { Label } from '@radix-ui/react-label';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 
 export default function TenantSettings() {
   const { tenant } = useTenantDetails();

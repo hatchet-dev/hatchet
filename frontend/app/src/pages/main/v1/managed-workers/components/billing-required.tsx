@@ -1,14 +1,14 @@
 import { Button } from '@/components/v1/ui/button';
-import { Link } from '@tanstack/react-router';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api/queries';
+import { appRoutes } from '@/router';
 import {
   CalendarIcon,
   CpuChipIcon,
   CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api/queries';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
 
 interface BillingRequiredProps {
   tenant: any;

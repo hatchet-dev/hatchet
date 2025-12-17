@@ -1,5 +1,8 @@
-import { queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import GithubButton from './github-button';
+import { ManagedWorkerBuild } from './managed-worker-build';
+import { ManagedWorkerIaC } from './managed-worker-iac';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardContent,
@@ -9,21 +12,18 @@ import {
   CardTitle,
 } from '@/components/v1/ui/card';
 import { Spinner } from '@/components/v1/ui/loading';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Button } from '@/components/v1/ui/button';
-import { ArrowRightIcon, ChevronLeftIcon } from '@radix-ui/react-icons';
-import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { Separator } from '@/components/v1/ui/separator';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { queries } from '@/lib/api';
 import {
   ManagedWorker,
   ManagedWorkerEvent,
   ManagedWorkerEventStatus,
 } from '@/lib/api/generated/cloud/data-contracts';
-import { Separator } from '@/components/v1/ui/separator';
-import { ManagedWorkerBuild } from './managed-worker-build';
-import GithubButton from './github-button';
-import { ManagedWorkerIaC } from './managed-worker-iac';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { cn } from '@/lib/utils';
+import { ArrowRightIcon, ChevronLeftIcon } from '@radix-ui/react-icons';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 
 export function ManagedWorkerActivity({
   managedWorker,

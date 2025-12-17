@@ -1,5 +1,5 @@
-import type { AnyRouter } from '@tanstack/react-router';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import type { AnyRouter } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/router-devtools';
 
 export default function Devtools({ router }: { router: AnyRouter }) {

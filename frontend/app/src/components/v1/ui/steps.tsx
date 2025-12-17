@@ -1,12 +1,12 @@
-import * as React from 'react';
-import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from './accordion';
+import { cn } from '@/lib/utils';
+import { cva, type VariantProps } from 'class-variance-authority';
+import * as React from 'react';
 
 const stepsVariants = cva(
   'ml-4 mb-12 border-l border-border pl-6 dark:border-border [counter-reset:step] flex flex-col gap-4',

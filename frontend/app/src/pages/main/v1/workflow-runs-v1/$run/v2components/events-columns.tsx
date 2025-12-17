@@ -1,23 +1,23 @@
-import { createColumnHelper } from '@tanstack/react-table';
-import { V1TaskEventType, V1TaskEvent, StepRunEventSeverity } from '@/lib/api';
+import { EventWithMetadata } from './step-run-events-for-workflow-run';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
-import {
-  ArrowLeftEndOnRectangleIcon,
-  ServerStackIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { cn, emptyGolangUUID } from '@/lib/utils';
-import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/v1/ui/button';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
-import { EventWithMetadata } from './step-run-events-for-workflow-run';
+import { V1TaskEventType, V1TaskEvent, StepRunEventSeverity } from '@/lib/api';
+import { cn, emptyGolangUUID } from '@/lib/utils';
 import { appRoutes } from '@/router';
+import {
+  ArrowLeftEndOnRectangleIcon,
+  ServerStackIcon,
+  XCircleIcon,
+} from '@heroicons/react/24/outline';
+import { Link } from '@tanstack/react-router';
+import { createColumnHelper } from '@tanstack/react-table';
 
 function eventTypeToSeverity(
   eventType: V1TaskEventType | undefined,
