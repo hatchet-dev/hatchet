@@ -136,6 +136,13 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 name="Cron Jobs"
                 icon={<ClockIcon className="mr-2 h-4 w-4" />}
               />
+              <SidebarButtonPrimary
+                key="webhooks"
+                onNavLinkClick={onNavLinkClick}
+                to={`/tenants/${tenantId}/webhooks`}
+                name="Webhooks"
+                icon={<WebhookIcon className="mr-2 h-4 w-4" />}
+              />
             </div>
           </div>
           <div className="py-2">
@@ -156,13 +163,6 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 to={`/tenants/${tenantId}/workers`}
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
-              />
-              <SidebarButtonPrimary
-                key="webhooks"
-                onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/webhooks`}
-                name="Webhooks"
-                icon={<WebhookIcon className="mr-2 h-4 w-4" />}
               />
               {featureFlags?.data['managed-worker'] && (
                 <SidebarButtonPrimary
