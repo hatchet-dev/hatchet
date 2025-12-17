@@ -1,10 +1,5 @@
-import { columns, WebhookColumn } from './components/webhook-columns';
+import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import {
-  useWebhooks,
-  WebhookFormData,
-  webhookFormSchema,
-} from './hooks/use-webhooks';
 import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
@@ -16,6 +11,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
+import { Spinner } from '@/components/v1/ui/loading';
 import {
   Select,
   SelectContent,
@@ -23,23 +19,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { useCallback, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
-  V1WebhookSourceName,
-  V1WebhookAuthType,
   V1CreateWebhookRequest,
+  V1WebhookAuthType,
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
+  V1WebhookSourceName,
 } from '@/lib/api';
-import { Webhook, Copy, Check, AlertTriangle, Lightbulb } from 'lucide-react';
-import { Spinner } from '@/components/v1/ui/loading';
-import { SourceName } from './components/source-name';
+import { docsPages } from '@/lib/generated/docs';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { AlertTriangle, Check, Copy, Lightbulb, Webhook } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { AuthMethod } from './components/auth-method';
 import { AuthSetup } from './components/auth-setup';
-import { DocsButton } from '@/components/v1/docs/docs-button';
-import { docsPages } from '@/lib/generated/docs';
+import { SourceName } from './components/source-name';
+import { columns, WebhookColumn } from './components/webhook-columns';
+import {
+  useWebhooks,
+  WebhookFormData,
+  webhookFormSchema,
+} from './hooks/use-webhooks';
 
 export default function Webhooks() {
   const { data, isLoading, error } = useWebhooks();
@@ -61,8 +61,6 @@ export default function Webhooks() {
             <div className="w-fit">
               <DocsButton
                 doc={docsPages.home.webhooks}
-                size="full"
-                variant="outline"
                 label="Learn about triggering runs from webhooks"
               />
             </div>
@@ -293,6 +291,19 @@ const CreateWebhookModal = () => {
   const sourceName = watch('sourceName');
   const authType = watch('authType');
   const webhookName = watch('name');
+  const eventKeyExpression = watch('eventKeyExpression');
+
+  /* Update default event key expression when source changes */
+  useEffect(() => {
+    if (sourceName === V1WebhookSourceName.SLACK && !eventKeyExpression) {
+      setValue('eventKeyExpression', 'input.type');
+    } else if (
+      sourceName === V1WebhookSourceName.GENERIC &&
+      !eventKeyExpression
+    ) {
+      setValue('eventKeyExpression', 'input.id');
+    }
+  }, [sourceName, eventKeyExpression, setValue]);
 
   const copyToClipboard = useCallback(async () => {
     if (webhookName) {
@@ -333,14 +344,14 @@ const CreateWebhookModal = () => {
       }}
     >
       <DialogTrigger asChild>
-        <Button className="h-8 border px-3">Create Webhook</Button>
+        <Button variant="cta">Create Webhook</Button>
       </DialogTrigger>
       <DialogContent className="max-w-[90%] md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%] max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex flex-col items-start gap-y-4">
             <div className="flex flex-row items-center gap-x-3">
               <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-                <Webhook className="h-4 w-4 text-indigo-700" />
+                <Webhook className="size-4 text-indigo-700" />
               </div>
               Create a webhook
             </div>
@@ -373,10 +384,10 @@ const CreateWebhookModal = () => {
                 </code>
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="sm"
+                  variant="icon"
+                  size="xs"
                   onClick={copyToClipboard}
-                  className="h-6 w-6 p-0 flex-shrink-0"
+                  className="flex-shrink-0"
                   disabled={!webhookName}
                 >
                   {copied ? (
@@ -464,6 +475,18 @@ const CreateWebhookModal = () => {
                 <li>`input` refers to the payload</li>
                 <li>`headers` refers to the headers</li>
               </ul>
+              {sourceName === V1WebhookSourceName.SLACK && (
+                <div className="mt-2 p-3 bg-muted border border-border rounded-md">
+                  <p className="text-xs text-muted-foreground">
+                    For Slack webhooks, the event key expression{' '}
+                    <code className="bg-background px-1.5 py-0.5 rounded text-foreground">
+                      input.type
+                    </code>{' '}
+                    works well since Slack interactive payloads don't have a
+                    top-level `id` field.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

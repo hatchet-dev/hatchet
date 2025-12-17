@@ -132,8 +132,7 @@ export default function ManagedWorkers() {
               to={appRoutes.tenantSettingsBillingRoute.to}
               params={{ tenant: tenantId }}
             >
-              <Button>
-                <ArrowUpIcon className="h-4 w-4 mr-2" />
+              <Button leftIcon={<ArrowUpIcon className="size-4" />}>
                 Upgrade Plan
               </Button>
             </Link>
@@ -155,14 +154,15 @@ export default function ManagedWorkers() {
               to={appRoutes.tenantManagedWorkersCreateRoute.to}
               params={{ tenant: tenantId }}
             >
-              <Button>
-                <PlusIcon className="w-4 h-4 mr-2" />
+              <Button leftIcon={<PlusIcon className="size-4" />}>
                 Add Service
               </Button>
             </Link>
           ) : (
-            <Button onClick={handleAddWorkerPool}>
-              <PlusIcon className="w-4 h-4 mr-2" />
+            <Button
+              onClick={handleAddWorkerPool}
+              leftIcon={<PlusIcon className="size-4" />}
+            >
               Add Service ({workerPoolCount}/{getWorkerPoolLimit()})
             </Button>
           )}

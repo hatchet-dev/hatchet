@@ -89,23 +89,6 @@ function Sidebar({ className, memberships }: SidebarProps) {
     return null;
   }
 
-  const workers = [
-    <SidebarButtonSecondary
-      key="all-workers"
-      onNavLinkClick={onNavLinkClick}
-      to={appRoutes.tenantWorkersAllRoute.to}
-      params={{ tenant: tenantId }}
-      name="All Workers"
-    />,
-    <SidebarButtonSecondary
-      key="webhook-workers"
-      onNavLinkClick={onNavLinkClick}
-      to={appRoutes.tenantWorkersWebhookRoute.to}
-      params={{ tenant: tenantId }}
-      name="Webhook Workers"
-    />,
-  ];
-
   return (
     <div
       className={cn(
@@ -126,7 +109,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 to={appRoutes.tenantRunsRoute.to}
                 params={{ tenant: tenantId }}
                 name="Runs"
-                icon={<PlayIcon className="mr-2 h-4 w-4" />}
+                icon={<PlayIcon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="events"
@@ -134,7 +117,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 to={appRoutes.tenantEventsRoute.to}
                 params={{ tenant: tenantId }}
                 name="Events"
-                icon={<SquareActivityIcon className="mr-2 h-4 w-4" />}
+                icon={<SquareActivityIcon className="mr-2 size-4" />}
               />
             </div>
           </div>
@@ -149,7 +132,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 to={appRoutes.tenantScheduledRoute.to}
                 params={{ tenant: tenantId }}
                 name="Scheduled Runs"
-                icon={<CalendarDaysIcon className="mr-2 h-4 w-4" />}
+                icon={<CalendarDaysIcon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="crons"
@@ -157,7 +140,14 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 to={appRoutes.tenantCronJobsRoute.to}
                 params={{ tenant: tenantId }}
                 name="Cron Jobs"
-                icon={<ClockIcon className="mr-2 h-4 w-4" />}
+                icon={<ClockIcon className="mr-2 size-4" />}
+              />
+              <SidebarButtonPrimary
+                key="webhooks"
+                onNavLinkClick={onNavLinkClick}
+                to={`/tenants/${tenantId}/webhooks`}
+                name="Webhooks"
+                icon={<WebhookIcon className="mr-2 h-4 w-4" />}
               />
             </div>
           </div>
@@ -167,30 +157,19 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
+                key="workers"
+                onNavLinkClick={onNavLinkClick}
+                to={`/tenants/${tenantId}/workers`}
+                name="Workers"
+                icon={<ServerStackIcon className="mr-2 size-4" />}
+              />
+              <SidebarButtonPrimary
                 key="workflows"
                 onNavLinkClick={onNavLinkClick}
                 to={appRoutes.tenantWorkflowsRoute.to}
                 params={{ tenant: tenantId }}
                 name="Workflows"
-                icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
-              />
-              <SidebarButtonPrimary
-                key="workers"
-                onNavLinkClick={onNavLinkClick}
-                to={appRoutes.tenantWorkersRoute.to}
-                params={{ tenant: tenantId }}
-                name="Workers"
-                icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
-                prefix="/tenants/$tenant/workers"
-                collapsibleChildren={workers}
-              />
-              <SidebarButtonPrimary
-                key="webhooks"
-                onNavLinkClick={onNavLinkClick}
-                to={appRoutes.tenantWebhooksRoute.to}
-                params={{ tenant: tenantId }}
-                name="Webhooks"
-                icon={<WebhookIcon className="mr-2 h-4 w-4" />}
+                icon={<Squares2X2Icon className="mr-2 size-4" />}
               />
               {featureFlags?.data['managed-worker'] && (
                 <SidebarButtonPrimary
@@ -199,7 +178,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                   to={appRoutes.tenantManagedWorkersRoute.to}
                   params={{ tenant: tenantId }}
                   name="Managed Compute"
-                  icon={<CpuChipIcon className="mr-2 h-4 w-4" />}
+                  icon={<CpuChipIcon className="mr-2 size-4" />}
                 />
               )}
               <SidebarButtonPrimary
@@ -208,7 +187,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 to={appRoutes.tenantRateLimitsRoute.to}
                 params={{ tenant: tenantId }}
                 name="Rate Limits"
-                icon={<ScaleIcon className="mr-2 h-4 w-4" />}
+                icon={<ScaleIcon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="filters"
@@ -216,7 +195,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 to={appRoutes.tenantFiltersRoute.to}
                 params={{ tenant: tenantId }}
                 name="Filters"
-                icon={<Filter className="mr-2 h-4 w-4" />}
+                icon={<Filter className="mr-2 size-4" />}
               />
             </div>
           </div>
@@ -232,7 +211,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 params={{ tenant: tenantId }}
                 prefix="/tenants/$tenant/tenant-settings"
                 name="General"
-                icon={<GearIcon className="mr-2 h-4 w-4" />}
+                icon={<GearIcon className="mr-2 size-4" />}
                 collapsibleChildren={[
                   <SidebarButtonSecondary
                     key="tenant-settings-overview"

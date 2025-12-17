@@ -87,11 +87,11 @@ function OrganizationGroup({
           <div className="flex items-start gap-2 flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-shrink-0">
               {isExpanded ? (
-                <ChevronDownIcon className="h-3 w-3" />
+                <ChevronDownIcon className="size-3" />
               ) : (
-                <ChevronRightIcon className="h-3 w-3" />
+                <ChevronRightIcon className="size-3" />
               )}
-              <BuildingOffice2Icon className="h-4 w-4" />
+              <BuildingOffice2Icon className="size-4" />
             </div>
             <span className="font-medium leading-tight break-words">
               {organization.name}
@@ -106,7 +106,7 @@ function OrganizationGroup({
                 onClick={handleNewTenantClick}
                 title="New Tenant"
               >
-                <PlusIcon className="h-3 w-3" />
+                <PlusIcon className="size-3" />
               </Button>
               <Button
                 variant="ghost"
@@ -115,7 +115,7 @@ function OrganizationGroup({
                 onClick={handleSettingsClick}
                 title="Settings"
               >
-                <Cog6ToothIcon className="h-3 w-3" />
+                <Cog6ToothIcon className="size-3" />
               </Button>
             </div>
           )}
@@ -152,7 +152,7 @@ function OrganizationGroup({
                 </div>
                 <CheckIcon
                   className={cn(
-                    'h-4 w-4',
+                    'size-4',
                     currentTenant?.slug === membership.tenant?.slug
                       ? 'opacity-100'
                       : 'opacity-0',
@@ -305,10 +305,10 @@ export function OrganizationSelector({
             className={cn('w-full justify-between', className)}
           >
             <div className="flex items-center gap-2">
-              <BuildingOffice2Icon className="h-4 w-4" />
+              <BuildingOffice2Icon className="size-4" />
               <span className="truncate">{currTenant.name}</span>
             </div>
-            <CaretSortIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <CaretSortIcon className="ml-2 size-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent
@@ -343,10 +343,10 @@ export function OrganizationSelector({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full justify-center gap-2 h-8 text-sm hover:bg-accent"
+                      fullWidth
                       onClick={handleCreateOrgClick}
+                      leftIcon={<PlusIcon className="size-4" />}
                     >
-                      <PlusIcon className="h-4 w-4" />
                       Create Organization
                     </Button>
                   </div>
@@ -388,11 +388,11 @@ export function OrganizationSelector({
                       }}
                       className="text-sm cursor-pointer"
                     >
-                      <BuildingOffice2Icon className="mr-2 h-4 w-4" />
+                      <BuildingOffice2Icon className="mr-2 size-4" />
                       {membership.tenant?.name}
                       <CheckIcon
                         className={cn(
-                          'ml-auto h-4 w-4',
+                          'ml-auto size-4',
                           currTenant.slug === membership.tenant?.slug
                             ? 'opacity-100'
                             : 'opacity-0',

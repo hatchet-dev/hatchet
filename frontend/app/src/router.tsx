@@ -256,15 +256,6 @@ const tenantWorkersAllRoute = createRoute({
   },
 });
 
-const tenantWorkersWebhookRoute = createRoute({
-  getParentRoute: () => tenantRoute,
-  path: 'workers/webhook',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/workers/webhooks/index.tsx'),
-    'default',
-  ),
-});
-
 const tenantWorkerRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'workers/$worker',
@@ -442,7 +433,6 @@ const tenantRoutes = [
   tenantTaskRunsRoute,
   tenantWorkersRoute,
   tenantWorkersAllRoute,
-  tenantWorkersWebhookRoute,
   tenantWorkerRoute,
   tenantManagedWorkersRoute,
   tenantManagedWorkersTemplateRoute,
@@ -512,7 +502,6 @@ export const appRoutes = {
   tenantTaskRunsRoute,
   tenantWorkersRoute,
   tenantWorkersAllRoute,
-  tenantWorkersWebhookRoute,
   tenantWorkerRoute,
   tenantManagedWorkersRoute,
   tenantManagedWorkersTemplateRoute,

@@ -7,13 +7,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { useForm } from 'react-hook-form';
 import {
   V1WebhookAuthType,
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
   V1WebhookSourceName,
 } from '@/lib/api';
+import { useForm } from 'react-hook-form';
 import { WebhookFormData } from '../hooks/use-webhooks';
 
 type BaseAuthMethodProps = {
@@ -173,9 +173,13 @@ const PreconfiguredHMACAuth = ({
   register,
   secretLabel = 'Signing Secret',
   secretPlaceholder = 'super-secret',
+  helpText,
+  helpLink,
 }: BaseAuthMethodProps & {
   secretLabel?: string;
   secretPlaceholder?: string;
+  helpText?: string;
+  helpLink?: string;
 }) => (
   // Intended to be used for Stripe, Slack, Github, Linear, etc.
   <div className="space-y-4">
@@ -193,6 +197,27 @@ const PreconfiguredHMACAuth = ({
           className="h-10 pr-10"
         />
       </div>
+      {helpText && (
+        <div className="text-xs text-muted-foreground pl-1">
+          <p>
+            {helpText}
+            {helpLink && (
+              <>
+                {' '}
+                <a
+                  href={helpLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  Learn more
+                </a>
+                .
+              </>
+            )}
+          </p>
+        </div>
+      )}
     </div>
   </div>
 );
@@ -239,7 +264,13 @@ export const AuthSetup = ({
         />
       );
     case V1WebhookSourceName.SLACK:
-      return <PreconfiguredHMACAuth register={register} />;
+      return (
+        <PreconfiguredHMACAuth
+          register={register}
+          helpText="You can find your signing secret in the Basic Information panel of your Slack app settings."
+          helpLink="https://docs.slack.dev/authentication/verifying-requests-from-slack/#validating-a-request"
+        />
+      );
     default:
       const exhaustiveCheck: never = sourceName;
       throw new Error(`Unhandled source name: ${exhaustiveCheck}`);

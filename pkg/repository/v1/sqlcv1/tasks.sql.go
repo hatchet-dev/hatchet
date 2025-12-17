@@ -560,7 +560,8 @@ WITH queued_tasks AS (
     SELECT
         t.step_readable_id,
         t.queue,
-        COUNT(*) as count
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest
     FROM
         v1_queue_item qi
     JOIN
@@ -574,7 +575,8 @@ WITH queued_tasks AS (
     SELECT
         t.step_readable_id,
         t.queue,
-        COUNT(*) as count
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest
     FROM
         v1_retry_queue_item rqi
     JOIN
@@ -588,7 +590,8 @@ WITH queued_tasks AS (
     SELECT
         t.step_readable_id,
         t.queue,
-        COUNT(*) as count
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest
     FROM
         v1_rate_limited_queue_items rqi
     JOIN
@@ -605,7 +608,8 @@ WITH queued_tasks AS (
         sc.expression,
         sc.strategy,
         cs.key,
-        COUNT(*) as count
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest
     FROM
         v1_concurrency_slot cs
     JOIN
@@ -630,7 +634,8 @@ WITH queued_tasks AS (
         COALESCE(sc.expression, '') as expression,
         COALESCE(sc.strategy, 'NONE'::v1_concurrency_strategy) as strategy,
         COALESCE(cs.key, '') as key,
-        COUNT(*) as count
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest
     FROM
         v1_task_runtime tr
     JOIN
@@ -657,7 +662,8 @@ SELECT
     NULL::text as expression,
     NULL::text as strategy,
     NULL::text as key,
-    count
+    count,
+    oldest::TIMESTAMPTZ
 FROM queued_tasks
 
 UNION ALL
@@ -669,7 +675,8 @@ SELECT
     NULL::text as expression,
     NULL::text as strategy,
     NULL::text as key,
-    count
+    count,
+    oldest::TIMESTAMPTZ
 FROM retry_queued_tasks
 
 UNION ALL
@@ -681,7 +688,8 @@ SELECT
     NULL::text as expression,
     NULL::text as strategy,
     NULL::text as key,
-    count
+    count,
+    oldest::TIMESTAMPTZ
 FROM rate_limited_queued_tasks
 
 UNION ALL
@@ -693,7 +701,8 @@ SELECT
     expression,
     strategy::text,
     key,
-    count
+    count,
+    oldest::TIMESTAMPTZ
 FROM concurrency_queued_tasks
 
 UNION ALL
@@ -705,18 +714,20 @@ SELECT
     expression,
     strategy::text,
     key,
-    count
+    count,
+    oldest::TIMESTAMPTZ
 FROM running_tasks
 `
 
 type GetTenantTaskStatsRow struct {
-	TaskStatus     string      `json:"task_status"`
-	StepReadableID string      `json:"step_readable_id"`
-	Queue          string      `json:"queue"`
-	Expression     pgtype.Text `json:"expression"`
-	Strategy       pgtype.Text `json:"strategy"`
-	Key            pgtype.Text `json:"key"`
-	Count          int64       `json:"count"`
+	TaskStatus     string             `json:"task_status"`
+	StepReadableID string             `json:"step_readable_id"`
+	Queue          string             `json:"queue"`
+	Expression     pgtype.Text        `json:"expression"`
+	Strategy       pgtype.Text        `json:"strategy"`
+	Key            pgtype.Text        `json:"key"`
+	Count          int64              `json:"count"`
+	Oldest         pgtype.Timestamptz `json:"oldest"`
 }
 
 func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetTenantTaskStatsRow, error) {
@@ -736,6 +747,7 @@ func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid pgty
 			&i.Strategy,
 			&i.Key,
 			&i.Count,
+			&i.Oldest,
 		); err != nil {
 			return nil, err
 		}

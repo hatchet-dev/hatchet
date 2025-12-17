@@ -23,8 +23,11 @@ export default function GithubButton({
         target="_blank"
         rel="noreferrer"
       >
-        <Button variant="link" className="flex items-center gap-1" size={'xs'}>
-          <GitHubLogoIcon className="w-4 h-4" />
+        <Button
+          variant="link"
+          size={'xs'}
+          leftIcon={<GitHubLogoIcon className="size-4" />}
+        >
           {commitSha
             ? commitSha.substring(0, 7)
             : `${buildConfig.githubRepository.repo_owner}/${buildConfig.githubRepository.repo_name}`}

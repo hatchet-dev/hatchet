@@ -65,7 +65,7 @@ export const columns = ({
               variant="outline"
               onClick={() => onRowClick(row.original)}
             >
-              <ArrowLeftEndOnRectangleIcon className="w-4 h-4 mr-1" />
+              <ArrowLeftEndOnRectangleIcon className="size-4 mr-1" />
               <div className="truncate max-w-[150px]">
                 {row.original.taskDisplayName || fallbackTaskDisplayName}
               </div>
@@ -133,9 +133,8 @@ export const columns = ({
               <Button
                 variant="link"
                 size="xs"
-                className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
+                leftIcon={<ServerStackIcon className="size-4" />}
               >
-                <ServerStackIcon className="w-4 h-4 mr-1" />
                 View Worker
               </Button>
             </Link>,
@@ -238,9 +237,8 @@ function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
         <Button
           variant="link"
           size="xs"
-          className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
+          leftIcon={<XCircleIcon className="size-4" />}
         >
-          <XCircleIcon className="w-4 h-4 mr-1" />
           View Error
         </Button>
       </PopoverTrigger>

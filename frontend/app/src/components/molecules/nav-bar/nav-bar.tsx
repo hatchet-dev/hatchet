@@ -61,11 +61,7 @@ function HelpDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="relative h-10 w-10 rounded-full p-1"
-          aria-label="Help Menu"
-        >
+        <Button variant="icon" aria-label="Help Menu">
           <BiHelpCircle className="h-6 w-6 text-foreground cursor-pointer" />
         </Button>
       </DropdownMenuTrigger>
@@ -142,11 +138,7 @@ function AccountDropdown({ user }: { user: User }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="relative h-10 w-10 rounded-full p-1"
-          aria-label="User Menu"
-        >
+        <Button variant="icon" aria-label="User Menu">
           <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
           {(pendingInvitesQuery.data ?? 0) > 0 && (
             <div className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-blue-500 rounded-full border-2 border-background animate-pulse"></div>
@@ -211,10 +203,10 @@ export default function MainNav({ user }: MainNavProps) {
           <div className="flex flex-row items-center gap-x-8">
             <div className="flex items-center gap-3">
               <Button
-                variant="ghost"
+                variant="icon"
                 onClick={() => toggleSidebarOpen()}
-                className="size-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
                 aria-label="Toggle sidebar"
+                size="icon"
               >
                 <Menu className="size-4" />
               </Button>

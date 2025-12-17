@@ -174,7 +174,6 @@ export default function ExpandedWorkflow() {
             <Separator className="my-4" />
             <Button
               variant="destructive"
-              className="mt-2"
               onClick={() => {
                 setDeleteWorker(true);
               }}

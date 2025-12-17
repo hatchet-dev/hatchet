@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -65,7 +65,7 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -150,14 +150,14 @@ jobs:
 
       - name: Upload engine logs
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: $HATCHET_CLIENT_NAMESPACE-engine-logs
           path: $HATCHET_CLIENT_NAMESPACE-engine.log
 
       - name: Upload API logs
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: $HATCHET_CLIENT_NAMESPACE-api-logs
           path: $HATCHET_CLIENT_NAMESPACE-api.log
@@ -168,7 +168,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 

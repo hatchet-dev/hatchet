@@ -405,7 +405,7 @@ export default function UpdateWorkerForm({
   ) {
     return (
       <Alert>
-        <ExclamationTriangleIcon className="h-4 w-4" />
+        <ExclamationTriangleIcon className="size-4" />
         <AlertTitle className="font-semibold">Link a Github account</AlertTitle>
         <AlertDescription>
           You don't have any Github accounts linked. Please{' '}
@@ -445,7 +445,7 @@ export default function UpdateWorkerForm({
       </div>
       {!managedWorker.canUpdate && (
         <Alert className="mt-4" variant="warn">
-          <ExclamationTriangleIcon className="h-4 w-4" />
+          <ExclamationTriangleIcon className="size-4" />
           <AlertTitle className="font-semibold">
             You do not have permission to update this service.
           </AlertTitle>
@@ -1098,7 +1098,7 @@ export default function UpdateWorkerForm({
           }
           className="w-fit px-8"
         >
-          {isLoading && <PlusIcon className="h-4 w-4 animate-spin" />}
+          {isLoading && <PlusIcon className="size-4 animate-spin" />}
           Save changes
         </Button>
       </div>

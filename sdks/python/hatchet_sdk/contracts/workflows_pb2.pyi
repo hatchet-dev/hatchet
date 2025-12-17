@@ -1,9 +1,12 @@
+import datetime
+
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
+from collections.abc import Iterable as _Iterable, Mapping as _Mapping
+from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -104,7 +107,7 @@ class CreateWorkflowVersionOpts(_message.Message):
     sticky: StickyStrategy
     kind: WorkflowKind
     default_priority: int
-    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., scheduled_triggers: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., jobs: _Optional[_Iterable[_Union[CreateWorkflowJobOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[WorkflowConcurrencyOpts, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., cron_input: _Optional[str] = ..., on_failure_job: _Optional[_Union[CreateWorkflowJobOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., kind: _Optional[_Union[WorkflowKind, str]] = ..., default_priority: _Optional[int] = ...) -> None: ...
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., scheduled_triggers: _Optional[_Iterable[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]]] = ..., jobs: _Optional[_Iterable[_Union[CreateWorkflowJobOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[WorkflowConcurrencyOpts, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., cron_input: _Optional[str] = ..., on_failure_job: _Optional[_Union[CreateWorkflowJobOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., kind: _Optional[_Union[WorkflowKind, str]] = ..., default_priority: _Optional[int] = ...) -> None: ...
 
 class WorkflowConcurrencyOpts(_message.Message):
     __slots__ = ("action", "max_runs", "limit_strategy", "expression")
@@ -215,7 +218,7 @@ class ScheduleWorkflowRequest(_message.Message):
     child_key: str
     additional_metadata: str
     priority: int
-    def __init__(self, name: _Optional[str] = ..., schedules: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_step_run_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
+    def __init__(self, name: _Optional[str] = ..., schedules: _Optional[_Iterable[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]]] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_step_run_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
 
 class ScheduledWorkflow(_message.Message):
     __slots__ = ("id", "trigger_at")
@@ -223,7 +226,7 @@ class ScheduledWorkflow(_message.Message):
     TRIGGER_AT_FIELD_NUMBER: _ClassVar[int]
     id: str
     trigger_at: _timestamp_pb2.Timestamp
-    def __init__(self, id: _Optional[str] = ..., trigger_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., trigger_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class WorkflowVersion(_message.Message):
     __slots__ = ("id", "created_at", "updated_at", "version", "order", "workflow_id", "scheduled_workflows")
@@ -241,7 +244,7 @@ class WorkflowVersion(_message.Message):
     order: int
     workflow_id: str
     scheduled_workflows: _containers.RepeatedCompositeFieldContainer[ScheduledWorkflow]
-    def __init__(self, id: _Optional[str] = ..., created_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., version: _Optional[str] = ..., order: _Optional[int] = ..., workflow_id: _Optional[str] = ..., scheduled_workflows: _Optional[_Iterable[_Union[ScheduledWorkflow, _Mapping]]] = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., version: _Optional[str] = ..., order: _Optional[int] = ..., workflow_id: _Optional[str] = ..., scheduled_workflows: _Optional[_Iterable[_Union[ScheduledWorkflow, _Mapping]]] = ...) -> None: ...
 
 class WorkflowTriggerEventRef(_message.Message):
     __slots__ = ("parent_id", "event_key")

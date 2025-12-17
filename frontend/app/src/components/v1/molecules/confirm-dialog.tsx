@@ -1,4 +1,4 @@
-import { Button, ButtonProps } from '@/components/v1/ui/button';
+import { ButtonProps, Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   Dialog,

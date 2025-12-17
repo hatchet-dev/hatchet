@@ -112,7 +112,8 @@ func ToTaskStats(stats map[string]v1.TaskStat) gen.TaskStats {
 
 func toTaskStatusStat(stat v1.TaskStatusStat) *gen.TaskStatusStat {
 	result := &gen.TaskStatusStat{
-		Total: &stat.Total,
+		Total:  &stat.Total,
+		Oldest: stat.Oldest,
 	}
 
 	if len(stat.Concurrency) > 0 {

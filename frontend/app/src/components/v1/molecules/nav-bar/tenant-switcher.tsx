@@ -53,11 +53,12 @@ export function TenantSwitcher({
           role="combobox"
           aria-expanded={open}
           aria-label="Select a team"
-          className={cn('w-full justify-between', className)}
+          className={cn('justify-between', className)}
+          fullWidth
         >
-          <BuildingOffice2Icon className="mr-2 h-4 w-4" />
+          <BuildingOffice2Icon className="mr-2 size-4" />
           {currTenant.name}
-          <CaretSortIcon className="ml-auto h-4 w-4 shrink-0 opacity-50" />
+          <CaretSortIcon className="ml-auto size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent side="right" className="w-full p-0 mb-6 z-50">
@@ -75,11 +76,11 @@ export function TenantSwitcher({
                 value={membership.tenant?.slug}
                 className="text-sm cursor-pointer"
               >
-                <BuildingOffice2Icon className="mr-2 h-4 w-4" />
+                <BuildingOffice2Icon className="mr-2 size-4" />
                 {membership.tenant?.name}
                 <CheckIcon
                   className={cn(
-                    'ml-auto h-4 w-4',
+                    'ml-auto size-4',
                     currTenant.slug === membership.tenant?.slug
                       ? 'opacity-100'
                       : 'opacity-0',
@@ -94,7 +95,7 @@ export function TenantSwitcher({
               <CommandList>
                 <Link to={appRoutes.onboardingCreateTenantRoute.to}>
                   <CommandItem className="text-sm cursor-pointer">
-                    <PlusCircledIcon className="mr-2 h-4 w-4" />
+                    <PlusCircledIcon className="mr-2 size-4" />
                     New Tenant
                   </CommandItem>
                 </Link>
