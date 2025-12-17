@@ -16,7 +16,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
@@ -1709,47 +1708,16 @@ func (s *sharedRepository) listWorkflowRuns(ctx context.Context, tx dbsqlc.DBTX,
 	queryParams.Orderby = orderByField + " " + orderByDirection
 	countParams.Orderby = orderByField + " " + orderByDirection
 
-	var (
-		workflowRuns []*dbsqlc.ListWorkflowRunsRow
-		count        int64
-	)
+	workflowRuns, err := s.queries.ListWorkflowRuns(ctx, tx, queryParams)
 
-	// Only run these in parallel when we're using a pool (which is concurrency-safe).
-	// A pgx.Tx (and pgx.Conn) must not be used concurrently.
-	if _, ok := tx.(*pgxpool.Pool); ok {
-		g, gctx := errgroup.WithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-		g.Go(func() error {
-			var err error
-			workflowRuns, err = s.queries.ListWorkflowRuns(gctx, tx, queryParams)
-			return err
-		})
+	count, err := s.queries.CountWorkflowRuns(ctx, tx, countParams)
 
-		g.Go(func() error {
-			var err error
-			count, err = s.queries.CountWorkflowRuns(gctx, tx, countParams)
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				return err
-			}
-			return nil
-		})
-
-		if err := g.Wait(); err != nil {
-			return nil, err
-		}
-	} else {
-		var err error
-		workflowRuns, err = s.queries.ListWorkflowRuns(ctx, tx, queryParams)
-
-		if err != nil {
-			return nil, err
-		}
-
-		count, err = s.queries.CountWorkflowRuns(ctx, tx, countParams)
-
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return nil, err
-		}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
 	}
 
 	res.Rows = workflowRuns
