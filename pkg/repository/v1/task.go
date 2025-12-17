@@ -1115,7 +1115,11 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 
 	for _, event := range matchedEvents {
 		retrieveOpts := matchedEventToRetrieveOpts[event]
-		payload := payloads[retrieveOpts]
+		payload, ok := payloads[retrieveOpts]
+
+		if !ok {
+			payload = retrieveOptsToEventData[retrieveOpts]
+		}
 
 		o, err := newTaskEventFromBytes(payload)
 
@@ -2976,7 +2980,14 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		}
 
-		input := payloads[retrieveOpt]
+		input, ok := payloads[retrieveOpt]
+
+		if !ok {
+			// If the input wasn't found in the payload store,
+			// fall back to the input stored on the task itself.
+
+			input = task.Input
+		}
 
 		replayOpts = append(replayOpts, ReplayTaskOpts{
 			TaskId:             task.ID,
@@ -3502,7 +3513,11 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 
 	for retrieveOpts, workflowRunId := range retrieveOptsToWorkflowRunId {
 		wrId := sqlchelpers.UUIDToStr(workflowRunId)
-		payload := payloads[retrieveOpts]
+		payload, ok := payloads[retrieveOpts]
+
+		if !ok {
+			payload = retrieveOptToPayload[retrieveOpts]
+		}
 
 		e, err := newTaskEventFromBytes(payload)
 
@@ -3579,7 +3594,11 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		}
 
-		payload := payloads[retrieveOpt]
+		payload, ok := payloads[retrieveOpt]
+
+		if !ok {
+			payload = event.Data
+		}
 
 		res[i] = &V1TaskEventWithPayload{
 			V1TaskEvent: event,

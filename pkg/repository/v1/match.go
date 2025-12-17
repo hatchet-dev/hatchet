@@ -512,7 +512,11 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 			}
 
-			payload := payloads[retrieveOpts]
+			payload, ok := payloads[retrieveOpts]
+
+			if !ok {
+				payload = dagData.Input
+			}
 
 			dagIdsToInput[dagData.DagID] = payload
 			dagIdsToMetadata[dagData.DagID] = dagData.AdditionalMetadata
