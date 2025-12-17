@@ -28,6 +28,8 @@ import { AxiosError } from 'axios';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { useNavigate } from '@tanstack/react-router';
+import { appRoutes } from '@/router';
 
 // Simplified columns for owners (no role column, no actions)
 const ownersColumns: ColumnDef<TenantMember>[] = [
@@ -214,7 +216,7 @@ function UpdateMember({
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
-
+  const navigate = useNavigate();
   // Check if this is a cloud tenant and if we're trying to modify an OWNER
   const isOwnerRole = member.role === 'OWNER';
 
@@ -223,10 +225,13 @@ function UpdateMember({
   // If it's cloud-enabled and the member is an OWNER, redirect to org settings
   useEffect(() => {
     if (isCloudEnabled && isOwnerRole && organizationId) {
-      window.location.href = `/organizations/${organizationId}`;
+      navigate({
+        to: appRoutes.organizationsRoute.to,
+        params: { organization: organizationId },
+      });
       onClose();
     }
-  }, [isCloudEnabled, isOwnerRole, organizationId, onClose]);
+  }, [isCloudEnabled, isOwnerRole, organizationId, onClose, navigate]);
 
   const updateMutation = useMutation({
     mutationKey: ['tenant-member:update', tenantId, member.metadata.id],

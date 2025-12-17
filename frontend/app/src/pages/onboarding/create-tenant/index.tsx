@@ -19,6 +19,8 @@ import { StepProgress } from './components/step-progress';
 import { OnboardingStepConfig, OnboardingFormData } from './types';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
+import { appRoutes } from '@/router';
+import { useNavigate } from '@tanstack/react-router';
 
 const FINAL_STEP = 2;
 
@@ -86,7 +88,7 @@ export default function CreateTenant() {
     setFieldErrors: setFieldErrors,
   });
   const { capture } = useAnalytics();
-
+  const navigate = useNavigate();
   // Sync currentStep with URL parameter
   useEffect(() => {
     const stepFromUrl = getValidatedStep(searchParams.get('step'));
@@ -148,12 +150,18 @@ export default function CreateTenant() {
       setTimeout(() => {
         if (result.type === 'cloud') {
           const tenant = result.data as OrganizationTenant;
-          window.location.href = `/tenants/${tenant.id}/onboarding/get-started`;
+          navigate({
+            to: appRoutes.tenantOnboardingGetStartedRoute.to,
+            params: { tenant: tenant.id },
+          });
           return;
         }
 
         const tenant = result.data as Tenant;
-        window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
+        navigate({
+          to: appRoutes.tenantOnboardingGetStartedRoute.to,
+          params: { tenant: tenant.metadata.id },
+        });
       }, 0);
     },
     onError: handleApiError,
