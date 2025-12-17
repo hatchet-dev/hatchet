@@ -13,9 +13,12 @@ import { cloudApi } from '@/lib/api/api';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { appRoutes } from '@/router';
+import { useAtom } from 'jotai';
+import { lastTenantAtom } from '@/lib/atoms';
 
 export default function Authenticated() {
   const { tenant } = useTenantDetails();
+  const [lastTenant] = useAtom(lastTenantAtom);
 
   const { data: cloudMetadata } = useQuery({
     queryKey: ['metadata'],
@@ -119,11 +122,20 @@ export default function Authenticated() {
       listMembershipsQuery.data?.rows &&
       listMembershipsQuery.data.rows.length > 0
     ) {
-      const firstTenant = listMembershipsQuery.data.rows[0].tenant;
-      if (firstTenant) {
+      const memberships = listMembershipsQuery.data.rows;
+      const lastTenantId = lastTenant?.metadata.id;
+
+      const lastTenantInMemberships = lastTenantId
+        ? memberships.find((m) => m.tenant?.metadata.id === lastTenantId)
+            ?.tenant
+        : undefined;
+
+      const targetTenant = lastTenantInMemberships ?? memberships[0].tenant;
+
+      if (targetTenant) {
         navigate({
           to: appRoutes.tenantRunsRoute.to,
-          params: { tenant: firstTenant.metadata.id },
+          params: { tenant: targetTenant.metadata.id },
           replace: true,
         });
       }
@@ -136,6 +148,7 @@ export default function Authenticated() {
     tenant?.version,
     userQuery.error,
     navigate,
+    lastTenant,
   ]);
 
   if (
