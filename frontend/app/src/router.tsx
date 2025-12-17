@@ -22,7 +22,6 @@ const tenantedPaths = [
   '/tenants/:tenant/task-runs/:run',
   '/tenants/:tenant/workers',
   '/tenants/:tenant/workers/all',
-  '/tenants/:tenant/workers/webhook',
   '/tenants/:tenant/workers/:worker',
   '/tenants/:tenant/managed-workers',
   '/tenants/:tenant/managed-workers/demo-template',
@@ -179,16 +178,6 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
             },
           };
         },
-      };
-    case '/tenants/:tenant/workers/webhook':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/workers/webhooks/index.tsx').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
       };
     case '/tenants/:tenant/workers/:worker':
       return {

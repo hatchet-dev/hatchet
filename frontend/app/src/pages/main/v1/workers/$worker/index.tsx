@@ -23,7 +23,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
@@ -146,7 +145,6 @@ export default function ExpandedWorkflowRun() {
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center justify-between">
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
-            <Badge>{worker.type}</Badge>
             <h2 className="text-2xl font-bold leading-tight text-foreground">
               <Link to={`/tenants/${tenantId}/workers`}>Workers/</Link>
               {worker.webhookUrl || worker.name}
@@ -261,18 +259,6 @@ export default function ExpandedWorkflowRun() {
               </Button>
             )}
         </div>
-        {worker.webhookId && (
-          <>
-            <Separator className="my-4" />
-            <div className="flex flex-row justify-between items-center mb-4">
-              <h3 className="text-xl font-bold leading-tight text-foreground">
-                Recent HTTP Health Checks
-              </h3>
-            </div>
-            <RecentWebhookRequests webhookId={worker.webhookId} />
-          </>
-        )}
-
         {worker.labels && worker.labels.length > 0 && (
           <>
             <Separator className="my-4" />

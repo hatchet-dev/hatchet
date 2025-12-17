@@ -34,8 +34,6 @@ const createRouteLabel = (path: TenantedPath): string => {
       return 'Workers';
     case '/tenants/:tenant/workers/all':
       return 'All Workers';
-    case '/tenants/:tenant/workers/webhook':
-      return 'Webhook Workers';
     case '/tenants/:tenant/workers/:worker':
       return 'Worker Detail';
     case '/tenants/:tenant/managed-workers':

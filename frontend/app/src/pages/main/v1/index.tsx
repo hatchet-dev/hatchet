@@ -87,21 +87,6 @@ function Sidebar({ className, memberships }: SidebarProps) {
     return null;
   }
 
-  const workers = [
-    <SidebarButtonSecondary
-      key="all-workers"
-      onNavLinkClick={onNavLinkClick}
-      to={`/tenants/${tenantId}/workers/all`}
-      name="All Workers"
-    />,
-    <SidebarButtonSecondary
-      key="webhook-workers"
-      onNavLinkClick={onNavLinkClick}
-      to={`/tenants/${tenantId}/workers/webhook`}
-      name="Webhook Workers"
-    />,
-  ];
-
   return (
     <div
       className={cn(
@@ -151,6 +136,13 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 name="Cron Jobs"
                 icon={<ClockIcon className="mr-2 size-4" />}
               />
+              <SidebarButtonPrimary
+                key="webhooks"
+                onNavLinkClick={onNavLinkClick}
+                to={`/tenants/${tenantId}/webhooks`}
+                name="Webhooks"
+                icon={<WebhookIcon className="mr-2 h-4 w-4" />}
+              />
             </div>
           </div>
           <div className="py-2">
@@ -159,27 +151,18 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
+                key="workers"
+                onNavLinkClick={onNavLinkClick}
+                to={`/tenants/${tenantId}/workers`}
+                name="Workers"
+                icon={<ServerStackIcon className="mr-2 size-4" />}
+              />
+              <SidebarButtonPrimary
                 key="workflows"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/workflows`}
                 name="Workflows"
                 icon={<Squares2X2Icon className="mr-2 size-4" />}
-              />
-              <SidebarButtonPrimary
-                key="workers"
-                onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/workers/all`}
-                name="Workers"
-                icon={<ServerStackIcon className="mr-2 size-4" />}
-                prefix={`/tenants/${tenantId}/workers`}
-                collapsibleChildren={workers}
-              />
-              <SidebarButtonPrimary
-                key="webhooks"
-                onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/webhooks`}
-                name="Webhooks"
-                icon={<WebhookIcon className="mr-2 size-4" />}
               />
               {featureFlags?.data['managed-worker'] && (
                 <SidebarButtonPrimary

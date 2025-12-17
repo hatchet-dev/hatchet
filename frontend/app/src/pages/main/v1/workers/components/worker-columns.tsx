@@ -22,7 +22,6 @@ type WorkerColumnKeys = keyof typeof WorkerColumn;
 
 export const statusKey: WorkerColumnKeys = 'status';
 const nameKey: WorkerColumnKeys = 'name';
-const typeKey: WorkerColumnKeys = 'type';
 const startedAtKey: WorkerColumnKeys = 'startedAt';
 const slotsKey: WorkerColumnKeys = 'slots';
 const lastHeartbeatAtKey: WorkerColumnKeys = 'lastHeartbeatAt';
@@ -148,19 +147,6 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
           {row.original.webhookUrl || row.original.name}
         </div>
       </Link>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: typeKey,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={WorkerColumn.type} />
-    ),
-    cell: ({ row }) => (
-      <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-        {row.original.type.toLocaleLowerCase()}
-      </div>
     ),
     enableSorting: false,
     enableHiding: false,
