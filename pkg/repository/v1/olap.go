@@ -909,6 +909,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 		output, exists := payloads[task.OutputEventExternalID]
 
 		if !exists {
+			output = task.Output
 		}
 
 		result = append(result, &TaskWithPayloads{
