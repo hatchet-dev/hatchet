@@ -59,7 +59,7 @@ export default function CreateWorker() {
     onSuccess: (data) => {
       navigate({
         to: appRoutes.tenantManagedWorkerRoute.to,
-        params: { tenant: tenantId, 'managed-worker': data.metadata.id },
+        params: { tenant: tenantId, managedWorker: data.metadata.id },
       });
     },
     onError: handleApiError,

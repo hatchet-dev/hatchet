@@ -111,7 +111,7 @@ export function ManagedWorkersTable() {
           <div className="text-sm text-background-secondary">
             <Link
               to={appRoutes.tenantManagedWorkerRoute.to}
-              params={{ tenant: tenantId, 'managed-worker': data.metadata?.id }}
+              params={{ tenant: tenantId, managedWorker: data.metadata?.id }}
             >
               <Button>View Compute Instance</Button>
             </Link>

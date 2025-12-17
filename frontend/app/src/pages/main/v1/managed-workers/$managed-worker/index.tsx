@@ -35,10 +35,10 @@ export default function ExpandedWorkflow() {
   const { refetchInterval } = useRefetchInterval();
 
   const params = useParams({ from: appRoutes.tenantManagedWorkerRoute.to });
-  invariant(params['managed-worker']);
+  invariant(params.managedWorker);
 
   const managedWorkerQuery = useQuery({
-    ...queries.cloud.getManagedWorker(params['managed-worker']),
+    ...queries.cloud.getManagedWorker(params.managedWorker),
     refetchInterval,
   });
 
@@ -48,7 +48,7 @@ export default function ExpandedWorkflow() {
   });
 
   const updateManagedWorkerMutation = useMutation({
-    mutationKey: ['managed-worker:update', params['managed-worker']],
+    mutationKey: ['managed-worker:update', params.managedWorker],
     mutationFn: async (data: UpdateManagedWorkerRequest) => {
       invariant(managedWorker);
 
@@ -71,7 +71,7 @@ export default function ExpandedWorkflow() {
   });
 
   const deleteManagedWorkerMutation = useMutation({
-    mutationKey: ['managed-worker:delete', params['managed-worker']],
+    mutationKey: ['managed-worker:delete', params.managedWorker],
     mutationFn: async () => {
       invariant(managedWorker);
       const res = await cloudApi.managedWorkerDelete(managedWorker.metadata.id);

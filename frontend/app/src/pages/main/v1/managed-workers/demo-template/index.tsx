@@ -664,7 +664,7 @@ func main() {
                                 to={appRoutes.tenantManagedWorkerRoute.to}
                                 params={{
                                   tenant: tenantId,
-                                  'managed-worker': deployedWorkerId,
+                                  managedWorker: deployedWorkerId,
                                 }}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -898,7 +898,7 @@ func main() {
                       to={appRoutes.tenantManagedWorkerRoute.to}
                       params={{
                         tenant: tenantId,
-                        'managed-worker': deployedWorkerId,
+                        managedWorker: deployedWorkerId,
                       }}
                     >
                       <Button variant="default" fullWidth>

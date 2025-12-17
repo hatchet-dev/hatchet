@@ -103,7 +103,7 @@ async function fetchDAGRun(id: string) {
 }
 
 export default function Run() {
-  const { run } = useParams({ from: appRoutes.tenantTaskRunsRoute.to });
+  const { run } = useParams({ from: appRoutes.tenantRunRoute.to });
 
   invariant(run, 'Run ID is required');
 

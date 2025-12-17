@@ -294,7 +294,7 @@ const tenantManagedWorkersCreateRoute = createRoute({
 
 const tenantManagedWorkerRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: 'managed-workers/$managed-worker',
+  path: 'managed-workers/$managedWorker',
   component: lazyRouteComponent(
     () => import('./pages/main/v1/managed-workers/$managed-worker/index.tsx'),
     'default',
