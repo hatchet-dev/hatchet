@@ -21,12 +21,12 @@ export function CopyWorkflowConfigButton({
     >
       {copySuccess ? (
         <>
-          <CheckIcon className="size-3 mr-2" />
+          <CheckIcon className="mr-2 size-3" />
           Copied!
         </>
       ) : (
         <>
-          <CopyIcon className="size-3 mr-2" />
+          <CopyIcon className="mr-2 size-3" />
           Copy Config
         </>
       )}

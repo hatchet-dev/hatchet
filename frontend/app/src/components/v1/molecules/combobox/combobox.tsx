@@ -121,7 +121,7 @@ export function Combobox({
                     <Badge
                       key={index}
                       variant="secondary"
-                      className="rounded-sm px-1 font-normal flex items-center space-x-1"
+                      className="flex items-center space-x-1 rounded-sm px-1 font-normal"
                     >
                       {options?.find(({ value }) => value == option)?.label ||
                         option}
@@ -141,7 +141,7 @@ export function Combobox({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-2 z-[70]" align="start">
+      <PopoverContent className="z-[70] w-[300px] p-2" align="start">
         {[ToolbarType.Array, ToolbarType.KeyValue].includes(type) && (
           <div>
             <div className="">
@@ -149,7 +149,7 @@ export function Combobox({
                 <Badge
                   key={index}
                   variant="secondary"
-                  className="mr-2 mb-2 rounded-sm px-1 font-normal flex items-center space-x-1 pl-2"
+                  className="mb-2 mr-2 flex items-center space-x-1 rounded-sm px-1 pl-2 font-normal"
                 >
                   <span className="grow">{filter}</span>
                   <Button
@@ -165,7 +165,7 @@ export function Combobox({
             </div>
             <form onSubmit={handleSubmit(submit)}>
               {type === ToolbarType.KeyValue ? (
-                <div className="flex items-center space-x-2 mb-2">
+                <div className="mb-2 flex items-center space-x-2">
                   <Input
                     type="text"
                     placeholder="Key"
@@ -215,7 +215,7 @@ export function Combobox({
               onValueChange={onSearchChange}
             />
             <CommandList>
-              <CommandEmpty className="py-2 text-sm text-muted-foreground text-center">
+              <CommandEmpty className="py-2 text-center text-sm text-muted-foreground">
                 {emptyMessage || 'No results found.'}
               </CommandEmpty>
               <CommandGroup>

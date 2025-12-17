@@ -58,7 +58,7 @@ export function CreateInviteForm({
     errors.role?.message?.toString() || props.fieldErrors?.password;
 
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Invite new member</DialogTitle>
       </DialogHeader>

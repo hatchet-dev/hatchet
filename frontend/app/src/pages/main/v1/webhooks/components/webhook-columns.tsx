@@ -116,7 +116,7 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
     <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="icon" size="sm">
-          <DotsVerticalIcon className="size-4 text-muted-foreground cursor-pointer" />
+          <DotsVerticalIcon className="size-4 cursor-pointer text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -214,24 +214,24 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
               handleCancel();
             }
           }}
-          className={`bg-muted rounded px-2 py-3 font-mono text-xs w-full h-6 transition-colors ${
+          className={`h-6 w-full rounded bg-muted px-2 py-3 font-mono text-xs transition-colors ${
             isEditing || hasChanges
-              ? 'border-input focus:border-ring focus:ring-1 focus:ring-ring cursor-text'
-              : 'border-transparent cursor-text hover:bg-muted/80'
+              ? 'cursor-text border-input focus:border-ring focus:ring-1 focus:ring-ring'
+              : 'cursor-text border-transparent hover:bg-muted/80'
           }`}
           readOnly={!isEditing && !hasChanges}
           autoFocus={isEditing}
         />
       </div>
       {(isEditing || hasChanges) && (
-        <div className="flex flex-row items-center animate-in fade-in-0 slide-in-from-right-2 duration-200">
+        <div className="flex flex-row items-center duration-200 animate-in fade-in-0 slide-in-from-right-2">
           <Button
             variant="icon"
             size="icon"
             onClick={handleSave}
             className={`${
               hasChanges && !mutations.isUpdatePending
-                ? 'text-red-500/80 animate-pulse'
+                ? 'animate-pulse text-red-500/80'
                 : ''
             }`}
             disabled={!hasChanges || !value.trim() || mutations.isUpdatePending}

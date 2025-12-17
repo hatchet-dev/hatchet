@@ -196,7 +196,7 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
       <p className="text-md">
         Confirm to {label.toLowerCase()} the following runs:
       </p>
-      <ul className="list-disc pl-4 ml-4">
+      <ul className="ml-4 list-disc pl-4">
         {displayNames?.slice(0, 10).map((record) => (
           <li className="font-semibold" key={record.metadata.id}>
             {record.displayName}
@@ -258,9 +258,9 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
 
   return (
     <Dialog open={isActionModalOpen} onOpenChange={setIsActionModalOpen}>
-      <DialogContent className="sm:max-w-[700px] py-8 max-h-[90%] overflow-auto z-[70]">
+      <DialogContent className="z-[70] max-h-[90%] overflow-auto py-8 sm:max-w-[700px]">
         <DialogHeader className="gap-2">
-          <div className="flex flex-row justify-between items-center w-full">
+          <div className="flex w-full flex-row items-center justify-between">
             <DialogTitle>{label} runs</DialogTitle>
           </div>
         </DialogHeader>
@@ -278,7 +278,7 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
             />
           </div>
 
-          <div className="flex flex-row items-center gap-3 justify-end pt-4 border-t">
+          <div className="flex flex-row items-center justify-end gap-3 border-t pt-4">
             <Button
               onClick={() => {
                 setIsActionModalOpen(false);

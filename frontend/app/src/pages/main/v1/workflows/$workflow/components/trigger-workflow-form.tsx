@@ -306,7 +306,7 @@ export function TriggerWorkflowForm({
         }
       }}
     >
-      <DialogContent className="sm:max-w-[625px] py-12 max-h-[90%] overflow-auto">
+      <DialogContent className="max-h-[90%] overflow-auto py-12 sm:max-w-[625px]">
         <DialogHeader className="gap-2">
           <DialogTitle>Trigger Run</DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -326,7 +326,7 @@ export function TriggerWorkflowForm({
           }))}
           type={ToolbarType.Radio}
           icon={
-            <BiDownArrowCircle className="h-5 w-5 text-gray-700 dark:text-gray-300 mr-2" />
+            <BiDownArrowCircle className="mr-2 h-5 w-5 text-gray-700 dark:text-gray-300" />
           }
           searchValue={workflowSearch}
           onSearchChange={handleSearchChange}
@@ -351,7 +351,7 @@ export function TriggerWorkflowForm({
           language="json"
         />
         <div>
-          <div className="font-bold mb-2">Timing</div>
+          <div className="mb-2 font-bold">Timing</div>
           <Tabs
             defaultValue={timingOption}
             onValueChange={(value) =>
@@ -366,7 +366,7 @@ export function TriggerWorkflowForm({
             <TabsContent value="now"></TabsContent>
             <TabsContent value="schedule">
               <div className="mt-4">
-                <div className="font-bold mb-2">Select Date and Time</div>
+                <div className="mb-2 font-bold">Select Date and Time</div>
                 <div className="flex gap-2">
                   <DateTimePicker
                     date={scheduleTime}
@@ -381,7 +381,7 @@ export function TriggerWorkflowForm({
                     Now
                   </Button>
                 </div>
-                <div className="flex gap-2 mt-2">
+                <div className="mt-2 flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -442,15 +442,15 @@ export function TriggerWorkflowForm({
             </TabsContent>
             <TabsContent value="cron">
               <div className="mt-4">
-                <div className="font-bold mb-2">Cron Name</div>
+                <div className="mb-2 font-bold">Cron Name</div>
                 <Input
                   type="text"
                   value={cronName}
                   onChange={(e) => setCronName(e.target.value)}
                   placeholder="e.g., cron-name"
-                  className="w-full mb-2"
+                  className="mb-2 w-full"
                 />
-                <div className="font-bold mb-2">Cron Expression</div>
+                <div className="mb-2 font-bold">Cron Expression</div>
                 <Input
                   type="text"
                   value={cronExpression}
@@ -485,7 +485,7 @@ export function TriggerWorkflowForm({
           triggerCronMutation.error) && (
           <div className="mt-4">
             {errors.map((error, index) => (
-              <div key={index} className="text-red-500 text-sm">
+              <div key={index} className="text-sm text-red-500">
                 {error}
               </div>
             ))}

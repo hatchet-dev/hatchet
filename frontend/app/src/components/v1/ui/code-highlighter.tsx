@@ -42,7 +42,7 @@ export function CodeHighlighter({
   const { theme } = useTheme();
 
   return (
-    <div className={cn('w-full h-fit relative bg-muted rounded-lg', className)}>
+    <div className={cn('relative h-fit w-full rounded-lg bg-muted', className)}>
       <SyntaxHighlighter
         language={language}
         style={theme == 'dark' ? anOldHope : atomOneLight}
@@ -71,7 +71,7 @@ export function CodeHighlighter({
       </SyntaxHighlighter>
       {copy && (
         <CopyToClipboard
-          className="absolute top-2 right-2"
+          className="absolute right-2 top-2"
           text={(copyCode || code).trim()}
         />
       )}

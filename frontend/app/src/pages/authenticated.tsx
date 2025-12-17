@@ -219,12 +219,12 @@ export default function Authenticated() {
   return (
     <PostHogProvider user={userQuery.data}>
       <SupportChat user={userQuery.data}>
-        <div className="flex flex-row flex-1 w-full h-full">
+        <div className="flex h-full w-full flex-1 flex-row">
           <MainNav
             user={userQuery.data}
             tenantMemberships={listMembershipsQuery.data?.rows || []}
           />
-          <div className="pt-16 flex-grow overflow-y-auto overflow-x-hidden">
+          <div className="flex-grow overflow-y-auto overflow-x-hidden pt-16">
             <OutletWithContext context={ctx} />
           </div>
         </div>

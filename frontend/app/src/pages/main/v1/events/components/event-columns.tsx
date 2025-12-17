@@ -74,7 +74,7 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="w-full">
           <Button
-            className="pl-0 text-left h-auto whitespace-normal min-w-0 justify-start"
+            className="h-auto min-w-0 justify-start whitespace-normal pl-0 text-left"
             variant="link"
             onClick={() => {
               onRowClick?.(row.original);
@@ -221,7 +221,7 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
   ];
 
   return (
-    <div className="flex flex-row gap-2 items-center justify-start">
+    <div className="flex flex-row items-center justify-start gap-2">
       {badges.map(
         ({ variant, count, label }) =>
           count > 0 && (

@@ -63,7 +63,7 @@ const GetWorkflowChart = () => {
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
-    return <Skeleton className="w-full h-36" />;
+    return <Skeleton className="h-36 w-full" />;
   }
 
   return (
@@ -209,7 +209,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   const isFetching = !hasLoaded && (isRunsFetching || isStatusCountsFetching);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden gap-y-2">
+    <div className="flex h-full flex-col gap-y-2 overflow-hidden">
       <Toaster />
 
       <TriggerWorkflowForm
@@ -220,7 +220,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       {!hideMetrics && (
         <Dialog open={showQueueMetrics} onOpenChange={setShowQueueMetrics}>
-          <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+          <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
             <DialogHeader>
               <DialogTitle>Queue Metrics</DialogTitle>
             </DialogHeader>
@@ -240,10 +240,10 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       {!hideMetrics && <GetWorkflowChart />}
 
-      <div className="flex-1 min-h-0">
+      <div className="min-h-0 flex-1">
         <DataTable
           emptyState={
-            <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+            <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
               <p className="text-lg font-semibold">No runs found</p>
               <div className="w-fit">
                 <DocsButton
@@ -262,11 +262,11 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           leftActions={[
             ...(!hideCounts
               ? [
-                  <div key="metrics" className="flex justify-start mr-auto">
+                  <div key="metrics" className="mr-auto flex justify-start">
                     {runStatusCounts.length > 0 ? (
                       <V1WorkflowRunsMetricsView />
                     ) : (
-                      <Skeleton className="max-w-[800px] w-[40vw] h-8" />
+                      <Skeleton className="h-8 w-[40vw] max-w-[800px]" />
                     )}
                   </div>,
                 ]

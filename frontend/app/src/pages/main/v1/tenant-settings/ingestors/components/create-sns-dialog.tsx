@@ -63,7 +63,7 @@ export function CreateSNSDialog({
     errors.topicArn?.message?.toString() || props.fieldErrors?.name;
 
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Create a new SNS integration</DialogTitle>
       </DialogHeader>

@@ -58,7 +58,7 @@ export function ManagedWorkersTable() {
       <CardHeader>
         <CardTitle>No Managed Services</CardTitle>
         <CardDescription>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
+          <p className="mb-4 text-gray-700 dark:text-gray-300">
             There are no managed services created in this tenant.
           </p>
         </CardDescription>
@@ -84,11 +84,11 @@ export function ManagedWorkersTable() {
     return (
       <div
         key={data.metadata?.id}
-        className="border overflow-hidden shadow rounded-lg"
+        className="overflow-hidden rounded-lg border shadow"
       >
-        <div className="px-4 py-5 sm:p-6 gap-1 flex flex-col">
-          <div className="flex flex-row gap-2 items-center">
-            <CpuChipIcon className="h-6 w-6 text-foreground mt-1" />
+        <div className="flex flex-col gap-1 px-4 py-5 sm:p-6">
+          <div className="flex flex-row items-center gap-2">
+            <CpuChipIcon className="mt-1 h-6 w-6 text-foreground" />
             <h3 className="text-lg font-semibold leading-tight text-foreground">
               {data.name}
             </h3>
@@ -108,7 +108,7 @@ export function ManagedWorkersTable() {
           </p>
         </div>
         <div className="px-4 py-4 sm:px-6">
-          <div className="text-sm text-background-secondary">
+          <div className="text-background-secondary text-sm">
             <Link
               to={appRoutes.tenantManagedWorkerRoute.to}
               params={{ tenant: tenantId, managedWorker: data.metadata?.id }}
@@ -133,9 +133,9 @@ export function ManagedWorkersTable() {
       aria-label="Toggle card/table view"
     >
       {!cardToggle ? (
-        <BiCard className={`size-4 `} />
+        <BiCard className={`size-4`} />
       ) : (
-        <BiTable className={`size-4 `} />
+        <BiTable className={`size-4`} />
       )}
     </Button>,
     <Button

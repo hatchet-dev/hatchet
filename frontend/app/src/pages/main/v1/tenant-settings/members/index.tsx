@@ -64,8 +64,8 @@ export default function Members() {
   const meta = useApiMeta();
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-bold leading-tight text-foreground">
           Members and Invites
         </h2>
@@ -138,14 +138,14 @@ function MembersList() {
       {/* Owners Section - Only show in cloud mode */}
       {isCloudEnabled && (
         <>
-          <div className="flex flex-row justify-between items-center">
+          <div className="flex flex-row items-center justify-between">
             <h3 className="text-xl font-semibold leading-tight text-foreground">
               Owners
             </h3>
             {organizationId && isCurrentUserOwner && (
               <a
                 href={`/organizations/${organizationId}`}
-                className="text-primary hover:underline text-sm"
+                className="text-sm text-primary hover:underline"
               >
                 Manage in Organization →
               </a>
@@ -293,7 +293,7 @@ function InvitesList() {
 
   return (
     <div>
-      <div className="flex flex-row justify-between items-center">
+      <div className="flex flex-row items-center justify-between">
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Invites
         </h3>

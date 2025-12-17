@@ -18,8 +18,8 @@ export default function TenantSettings() {
   const { tenant } = useTenantDetails();
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-bold leading-tight text-foreground">
           {capitalize(tenant?.name || '')} Overview
         </h2>
@@ -108,7 +108,7 @@ const AnalyticsOptOut: React.FC = () => {
         Analytics Opt-Out
       </h2>
       <Separator className="my-4" />
-      <p className="text-gray-700 dark:text-gray-300 my-4">
+      <p className="my-4 text-gray-700 dark:text-gray-300">
         Choose whether to opt out of all analytics tracking.
       </p>
       <div className="flex items-center space-x-2">
@@ -174,7 +174,7 @@ const InactivityTimeout: React.FC = () => {
       <Separator className="my-4" />
       {isDisabled ? (
         <>
-          <p className="text-gray-700 dark:text-gray-300 my-4">
+          <p className="my-4 text-gray-700 dark:text-gray-300">
             Inactivity timeout is currently <strong>disabled</strong>. This
             feature automatically logs out users after a period of inactivity to
             enhance security.
@@ -188,7 +188,7 @@ const InactivityTimeout: React.FC = () => {
         </>
       ) : (
         <>
-          <p className="text-gray-700 dark:text-gray-300 my-4">
+          <p className="my-4 text-gray-700 dark:text-gray-300">
             Current inactivity logout timeout:{' '}
             <strong>
               {formatTimeoutMs(cloudMetadata?.inactivityLogoutMs)}

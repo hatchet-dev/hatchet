@@ -116,7 +116,7 @@ export const columns: (
             to={appRoutes.tenantRunRoute.to}
             params={{ tenant: tenantId, run: row.original.metadata.id }}
           >
-            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+            <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
               {row.original.displayName}
             </div>
           </Link>
@@ -124,7 +124,7 @@ export const columns: (
       } else {
         return (
           <div
-            className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
+            className="min-w-fit cursor-pointer whitespace-nowrap hover:underline"
             onClick={() => onTaskRunIdClick(row.original.metadata.id)}
           >
             {row.original.displayName}
@@ -142,7 +142,7 @@ export const columns: (
     ),
     cell: ({ row }) => (
       <V1RunStatus
-        className="text-center items-center justify-center px-2"
+        className="items-center justify-center px-2 text-center"
         status={row.original.status}
         errorMessage={row.original.errorMessage}
       />

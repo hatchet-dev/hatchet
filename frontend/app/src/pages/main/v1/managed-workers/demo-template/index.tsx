@@ -349,9 +349,9 @@ func main() {
   };
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row items-center mb-4">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-4 flex flex-row items-center">
           <Link
             to={appRoutes.tenantManagedWorkersRoute.to}
             params={{ tenant: tenantId }}
@@ -366,7 +366,7 @@ func main() {
           </h2>
         </div>
         <Separator className="my-4" />
-        <div className="max-w-3xl mx-auto">
+        <div className="mx-auto max-w-3xl">
           <Steps className="mt-6">
             <Step
               title="Select your template language"
@@ -374,29 +374,29 @@ func main() {
               setOpen={setOverviewOpen}
             >
               <div className="grid gap-6">
-                <div className="bg-muted/30 p-4 rounded-lg mb-2">
-                  <h4 className="font-medium mb-2">Demo Includes:</h4>
+                <div className="mb-2 rounded-lg bg-muted/30 p-4">
+                  <h4 className="mb-2 font-medium">Demo Includes:</h4>
                   <ul className="space-y-2">
                     <li className="flex items-start">
-                      <span className="text-primary mr-2 flex items-center">
+                      <span className="mr-2 flex items-center text-primary">
                         •
                       </span>
                       <span>Sample workflow with 3 steps</span>
                     </li>
                     <li className="flex items-start">
-                      <span className="text-primary mr-2 flex items-center">
+                      <span className="mr-2 flex items-center text-primary">
                         •
                       </span>
                       <span>1 managed service (limited resources)</span>
                     </li>
                     <li className="flex items-start">
-                      <span className="text-primary mr-2 flex items-center">
+                      <span className="mr-2 flex items-center text-primary">
                         •
                       </span>
                       <span>Active for 1 hour</span>
                     </li>
                     <li className="flex items-start">
-                      <span className="text-primary mr-2 flex items-center">
+                      <span className="mr-2 flex items-center text-primary">
                         •
                       </span>
                       <span>No payment method required</span>
@@ -405,7 +405,7 @@ func main() {
                 </div>
 
                 <div className="mb-4">
-                  <h3 className="text-lg font-medium mb-4">
+                  <h3 className="mb-4 text-lg font-medium">
                     Choose your programming language:
                   </h3>
                   <RadioGroup
@@ -423,7 +423,7 @@ func main() {
                       }
                     >
                       <Card
-                        className={`p-4 border-2 ${selectedTemplate === TemplateOptions.QUICKSTART_TYPESCRIPT ? 'border-primary' : 'border-border'}`}
+                        className={`border-2 p-4 ${selectedTemplate === TemplateOptions.QUICKSTART_TYPESCRIPT ? 'border-primary' : 'border-border'}`}
                       >
                         <div className="flex items-center space-x-3">
                           <RadioGroupItem
@@ -434,11 +434,11 @@ func main() {
                           <div className="grid gap-1">
                             <Label
                               htmlFor="typescript"
-                              className="font-medium text-lg cursor-pointer"
+                              className="cursor-pointer text-lg font-medium"
                             >
                               TypeScript
                             </Label>
-                            <p className="text-muted-foreground text-sm">
+                            <p className="text-sm text-muted-foreground">
                               Modern JavaScript with type safety.
                             </p>
                           </div>
@@ -454,7 +454,7 @@ func main() {
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center text-sm font-medium text-primary hover:underline"
                               >
-                                <GitHubLogoIcon className="size-4 mr-2" />
+                                <GitHubLogoIcon className="mr-2 size-4" />
                                 View TypeScript source on GitHub
                                 <span className="ml-1">↗</span>
                               </a>
@@ -481,7 +481,7 @@ func main() {
                       }
                     >
                       <Card
-                        className={`p-4 border-2 ${selectedTemplate === TemplateOptions.QUICKSTART_PYTHON ? 'border-primary' : 'border-border'}`}
+                        className={`border-2 p-4 ${selectedTemplate === TemplateOptions.QUICKSTART_PYTHON ? 'border-primary' : 'border-border'}`}
                       >
                         <div className="flex items-center space-x-3">
                           <RadioGroupItem
@@ -492,11 +492,11 @@ func main() {
                           <div className="grid gap-1">
                             <Label
                               htmlFor="python"
-                              className="font-medium text-lg cursor-pointer"
+                              className="cursor-pointer text-lg font-medium"
                             >
                               Python
                             </Label>
-                            <p className="text-muted-foreground text-sm">
+                            <p className="text-sm text-muted-foreground">
                               Simple, readable syntax for rapid development.
                             </p>
                           </div>
@@ -512,7 +512,7 @@ func main() {
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center text-sm font-medium text-primary hover:underline"
                               >
-                                <GitHubLogoIcon className="size-4 mr-2" />
+                                <GitHubLogoIcon className="mr-2 size-4" />
                                 View Python source on GitHub
                                 <span className="ml-1">↗</span>
                               </a>
@@ -537,7 +537,7 @@ func main() {
                       }
                     >
                       <Card
-                        className={`p-4 border-2 ${selectedTemplate === TemplateOptions.QUICKSTART_GO ? 'border-primary' : 'border-border'}`}
+                        className={`border-2 p-4 ${selectedTemplate === TemplateOptions.QUICKSTART_GO ? 'border-primary' : 'border-border'}`}
                       >
                         <div className="flex items-center space-x-3">
                           <RadioGroupItem
@@ -548,11 +548,11 @@ func main() {
                           <div className="grid gap-1">
                             <Label
                               htmlFor="go"
-                              className="font-medium text-lg cursor-pointer"
+                              className="cursor-pointer text-lg font-medium"
                             >
                               Go
                             </Label>
-                            <p className="text-muted-foreground text-sm">
+                            <p className="text-sm text-muted-foreground">
                               Efficient, concurrent programming language.
                             </p>
                           </div>
@@ -567,7 +567,7 @@ func main() {
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center text-sm font-medium text-primary hover:underline"
                               >
-                                <GitHubLogoIcon className="size-4 mr-2" />
+                                <GitHubLogoIcon className="mr-2 size-4" />
                                 View Go source on GitHub
                                 <span className="ml-1">↗</span>
                               </a>
@@ -586,7 +586,7 @@ func main() {
                   </RadioGroup>
                 </div>
 
-                <Button onClick={handleConfirmInfo} className="w-fit mt-2">
+                <Button onClick={handleConfirmInfo} className="mt-2 w-fit">
                   Continue
                 </Button>
               </div>
@@ -599,16 +599,16 @@ func main() {
               disabled={!infoConfirmed}
             >
               <div className="grid gap-4">
-                <div className="border rounded-lg bg-card p-6 shadow-sm">
+                <div className="rounded-lg border bg-card p-6 shadow-sm">
                   <div className="flex items-start space-x-4">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                       <PlayIcon className="h-5 w-5 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-xl font-medium mb-2">
+                      <h3 className="mb-2 text-xl font-medium">
                         Ready to Deploy
                       </h3>
-                      <p className="text-muted-foreground mb-4">
+                      <p className="mb-4 text-muted-foreground">
                         Click the button below to deploy your{' '}
                         {selectedTemplate
                           .replace('QUICKSTART_', '')
@@ -617,11 +617,11 @@ func main() {
                         workflow that you can use to explore the features.
                       </p>
 
-                      <div className="bg-muted/30 p-4 rounded-lg mb-6">
-                        <h4 className="font-medium mb-2">What happens next:</h4>
+                      <div className="mb-6 rounded-lg bg-muted/30 p-4">
+                        <h4 className="mb-2 font-medium">What happens next:</h4>
                         <ul className="space-y-2">
                           <li className="flex items-start">
-                            <span className="text-primary mr-2 flex items-center">
+                            <span className="mr-2 flex items-center text-primary">
                               •
                             </span>
                             <span>
@@ -630,7 +630,7 @@ func main() {
                             </span>
                           </li>
                           <li className="flex items-start">
-                            <span className="text-primary mr-2 flex items-center">
+                            <span className="mr-2 flex items-center text-primary">
                               •
                             </span>
                             <span>
@@ -638,7 +638,7 @@ func main() {
                             </span>
                           </li>
                           <li className="flex items-start">
-                            <span className="text-primary mr-2 flex items-center">
+                            <span className="mr-2 flex items-center text-primary">
                               •
                             </span>
                             <span>
@@ -650,14 +650,14 @@ func main() {
                       </div>
 
                       {deploying && (
-                        <div className="border rounded-lg p-4 mb-4 bg-muted/20">
-                          <div className="flex items-center mb-2">
-                            <ArrowPathIcon className="size-4 mr-2 animate-spin" />
+                        <div className="mb-4 rounded-lg border bg-muted/20 p-4">
+                          <div className="mb-2 flex items-center">
+                            <ArrowPathIcon className="mr-2 size-4 animate-spin" />
                             <h4 className="font-medium">
                               Deployment in progress...
                             </h4>
                           </div>
-                          <p className="text-sm text-muted-foreground flex justify-between items-center">
+                          <p className="flex items-center justify-between text-sm text-muted-foreground">
                             <span>{deploymentStatus}</span>
                             {deployedWorkerId && (
                               <Link
@@ -668,7 +668,7 @@ func main() {
                                 }}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-primary hover:underline ml-2"
+                                className="ml-2 text-primary hover:underline"
                               >
                                 View Logs
                               </Link>
@@ -678,8 +678,8 @@ func main() {
                       )}
 
                       {deploymentError && (
-                        <div className="border border-destructive rounded-lg p-4 mb-4 bg-destructive/10">
-                          <h4 className="font-medium text-destructive mb-1">
+                        <div className="mb-4 rounded-lg border border-destructive bg-destructive/10 p-4">
+                          <h4 className="mb-1 font-medium text-destructive">
                             Deployment failed
                           </h4>
                           <p className="text-sm text-muted-foreground">
@@ -689,7 +689,7 @@ func main() {
                       )}
 
                       <div className="border-t pt-4">
-                        <div className="flex justify-between items-center">
+                        <div className="flex items-center justify-between">
                           <div className="text-sm text-muted-foreground">
                             {deploying
                               ? 'Deploying demo template...'
@@ -724,15 +724,15 @@ func main() {
             >
               <div className="grid gap-6">
                 {/* Success header */}
-                <div className="border rounded-lg bg-card p-6 shadow-sm">
-                  <div className="flex items-center justify-center flex-col text-center py-4">
-                    <div className="h-16 w-16 rounded-full bg-green-500/10 flex items-center justify-center mb-4">
+                <div className="rounded-lg border bg-card p-6 shadow-sm">
+                  <div className="flex flex-col items-center justify-center py-4 text-center">
+                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10">
                       <CheckCircleIcon className="h-8 w-8 text-green-500" />
                     </div>
-                    <h3 className="text-xl font-medium mb-2">
+                    <h3 className="mb-2 text-xl font-medium">
                       Demo Template Deployed!
                     </h3>
-                    <p className="text-muted-foreground mb-4 max-w-md">
+                    <p className="mb-4 max-w-md text-muted-foreground">
                       Your{' '}
                       {selectedTemplate
                         .replace('QUICKSTART_', '')
@@ -740,7 +740,7 @@ func main() {
                       demo template has been successfully deployed. You can now
                       explore the managed service features.
                       {isSimulation && (
-                        <span className="block mt-2 text-amber-500 font-medium">
+                        <span className="mt-2 block font-medium text-amber-500">
                           Note: This was a simulated deployment. No actual
                           resources were created.
                         </span>
@@ -750,16 +750,16 @@ func main() {
                 </div>
 
                 {/* Trigger Run Programmatically section */}
-                <div className="border rounded-lg bg-card p-6 shadow-sm">
-                  <div className="flex items-start mb-4">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                <div className="rounded-lg border bg-card p-6 shadow-sm">
+                  <div className="mb-4 flex items-start">
+                    <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
                       <KeyIcon className="size-4 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-medium mb-1">
+                      <h4 className="mb-1 font-medium">
                         Trigger a Remote Run Programmatically
                       </h4>
-                      <p className="text-sm text-muted-foreground mb-4">
+                      <p className="mb-4 text-sm text-muted-foreground">
                         Run the following code locally to execute a task on the
                         deployed service.
                       </p>
@@ -772,7 +772,7 @@ func main() {
                         >
                           {isGeneratingToken ? (
                             <>
-                              <ArrowPathIcon className="size-4 mr-2 animate-spin" />
+                              <ArrowPathIcon className="mr-2 size-4 animate-spin" />
                               Generating Token...
                             </>
                           ) : (
@@ -781,11 +781,11 @@ func main() {
                         </Button>
                       ) : (
                         <>
-                          <div className="bg-green-500/10 text-green-600 p-3 rounded mb-4 text-sm">
+                          <div className="mb-4 rounded bg-green-500/10 p-3 text-sm text-green-600">
                             API token successfully generated!
                           </div>
 
-                          <p className="text-sm text-muted-foreground mb-2">
+                          <p className="mb-2 text-sm text-muted-foreground">
                             This is the only time we will show you this auth
                             token. Make sure to copy it now.
                           </p>
@@ -797,7 +797,7 @@ func main() {
                             className="mb-3"
                           />
 
-                          <div className="flex space-x-2 mb-4">
+                          <div className="mb-4 flex space-x-2">
                             <Button
                               type="button"
                               variant="outline"
@@ -817,8 +817,8 @@ func main() {
                           </div>
                         </>
                       )}
-                      <div className="border-t pt-4 mt-2">
-                        <h5 className="font-medium mb-2">Example Code</h5>
+                      <div className="mt-2 border-t pt-4">
+                        <h5 className="mb-2 font-medium">Example Code</h5>
                         <Tabs
                           value={selectedCodeTab}
                           onValueChange={setSelectedCodeTab}
@@ -859,11 +859,11 @@ func main() {
                 </div>
 
                 {/* What's next section */}
-                <div className="border rounded-lg bg-card p-6 shadow-sm">
-                  <h4 className="font-medium mb-3">What's next?</h4>
-                  <ul className="space-y-3 mb-4">
+                <div className="rounded-lg border bg-card p-6 shadow-sm">
+                  <h4 className="mb-3 font-medium">What's next?</h4>
+                  <ul className="mb-4 space-y-3">
                     <li className="flex items-start">
-                      <span className="text-primary mr-2 flex items-center mt-0.5">
+                      <span className="mr-2 mt-0.5 flex items-center text-primary">
                         •
                       </span>
                       <span>
@@ -871,7 +871,7 @@ func main() {
                       </span>
                     </li>
                     <li className="flex items-start">
-                      <span className="text-primary mr-2 flex items-center mt-0.5">
+                      <span className="mr-2 mt-0.5 flex items-center text-primary">
                         •
                       </span>
                       <span>
@@ -879,13 +879,13 @@ func main() {
                       </span>
                     </li>
                     <li className="flex items-start">
-                      <span className="text-primary mr-2 flex items-center mt-0.5">
+                      <span className="mr-2 mt-0.5 flex items-center text-primary">
                         •
                       </span>
                       <span>Use the API to trigger additional task runs</span>
                     </li>
                     <li className="flex items-start">
-                      <span className="text-primary mr-2 flex items-center mt-0.5">
+                      <span className="mr-2 mt-0.5 flex items-center text-primary">
                         •
                       </span>
                       <span>Monitor task runs in the dashboard</span>

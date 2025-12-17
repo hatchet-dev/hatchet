@@ -148,7 +148,7 @@ const WorkflowRunVisualizer = ({
   }
 
   return (
-    <div className="w-full h-[300px]">
+    <div className="h-[300px] w-full">
       <ReactFlow
         nodes={layoutedNodes}
         edges={layoutedEdges}

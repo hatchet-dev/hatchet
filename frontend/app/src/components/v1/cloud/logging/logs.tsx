@@ -161,12 +161,12 @@ const LoggingComponent: React.FC<LogProps> = ({
 
   return (
     <div
-      className="w-full mx-auto overflow-y-auto p-6 text-indigo-300 font-mono text-xs rounded-md max-h-[25rem] min-h-[25rem] bg-muted scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground"
+      className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground mx-auto max-h-[25rem] min-h-[25rem] w-full overflow-y-auto rounded-md bg-muted p-6 font-mono text-xs text-indigo-300"
       ref={containerRef}
       onScroll={handleScroll}
     >
       {refreshing && (
-        <div className="absolute top-0 left-0 right-0 bg-gray-800 text-white p-2 text-center">
+        <div className="absolute left-0 right-0 top-0 bg-gray-800 p-2 text-center text-white">
           Refreshing...
         </div>
       )}
@@ -183,12 +183,12 @@ const LoggingComponent: React.FC<LogProps> = ({
         return (
           <p
             key={logHash}
-            className="pb-2 break-all overflow-x-hidden whitespace-pre-wrap"
+            className="overflow-x-hidden whitespace-pre-wrap break-all pb-2"
             id={'log' + i}
           >
             {log.badge}
             {log.timestamp && (
-              <span className="text-gray-500 mr-2 ml--2">
+              <span className="ml--2 mr-2 text-gray-500">
                 {new Date(log.timestamp)
                   .toLocaleString('sv', options)
                   .replace(',', '.')
@@ -196,7 +196,7 @@ const LoggingComponent: React.FC<LogProps> = ({
               </span>
             )}
             {log.instance && (
-              <span className="text-foreground dark:text-white mr-2 ml--2">
+              <span className="ml--2 mr-2 text-foreground dark:text-white">
                 {log.instance}
               </span>
             )}

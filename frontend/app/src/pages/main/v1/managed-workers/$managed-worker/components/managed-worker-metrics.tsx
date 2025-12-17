@@ -122,11 +122,11 @@ export function ManagedWorkerMetrics({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-row justify-between items-center mt-4">
+      <div className="mt-4 flex flex-row items-center justify-between">
         <h3 className="text-xl font-bold leading-tight text-foreground">
           Metrics
         </h3>
-        <div className="flex flex-row justify-end items-center my-4 gap-2">
+        <div className="my-4 flex flex-row items-center justify-end gap-2">
           {customTimeRange && [
             <Button
               key="clear"
@@ -135,9 +135,9 @@ export function ManagedWorkerMetrics({
               }}
               variant="outline"
               size="sm"
-              className="text-xs h-9 py-2"
+              className="h-9 py-2 text-xs"
             >
-              <XCircleIcon className="h-[18px] w-[18px] mr-2" />
+              <XCircleIcon className="mr-2 h-[18px] w-[18px]" />
               Clear
             </Button>,
             <DateTimePicker
@@ -186,7 +186,7 @@ export function ManagedWorkerMetrics({
         </div>
       </div>
       <Separator />
-      <h4 className="text-lg font-bold leading-tight text-foreground mt-2 ml-4">
+      <h4 className="ml-4 mt-2 text-lg font-bold leading-tight text-foreground">
         CPU
       </h4>
       <Separator />
@@ -201,7 +201,7 @@ export function ManagedWorkerMetrics({
           showYAxis={true}
         />
       }
-      <h4 className="text-lg font-bold leading-tight text-foreground mt-16 ml-4">
+      <h4 className="ml-4 mt-16 text-lg font-bold leading-tight text-foreground">
         Memory
       </h4>
       <Separator />
@@ -218,7 +218,7 @@ export function ManagedWorkerMetrics({
           showYAxis={true}
         />
       }
-      <h4 className="text-lg font-bold leading-tight text-foreground mt-16 ml-4">
+      <h4 className="ml-4 mt-16 text-lg font-bold leading-tight text-foreground">
         Disk
       </h4>
       <Separator />

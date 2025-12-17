@@ -412,7 +412,7 @@ export default function CreateTenant() {
             >
               {createMutation.isPending ? (
                 <div className="flex items-center gap-2">
-                  <div className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   Creating...
                 </div>
               ) : (
@@ -426,7 +426,7 @@ export default function CreateTenant() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full w-full p-4">
+    <div className="flex min-h-full w-full flex-col items-center justify-center p-4">
       <div className="w-full max-w-[450px] space-y-6">
         {renderCurrentStep()}
       </div>

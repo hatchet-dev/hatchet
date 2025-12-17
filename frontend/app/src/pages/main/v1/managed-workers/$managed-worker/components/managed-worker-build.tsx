@@ -16,7 +16,7 @@ export function ManagedWorkerBuild({ buildId }: { buildId: string }) {
   const build = getBuildQuery.data;
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex w-full flex-col gap-4">
       <h4 className="text-lg font-semibold text-foreground">Build Overview</h4>
       <div className="flex flex-row gap-4">
         <div className="flex flex-col gap-2">
