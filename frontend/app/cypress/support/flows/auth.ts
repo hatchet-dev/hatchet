@@ -42,24 +42,3 @@ export function loginSession(
     },
   );
 }
-
-/**
- * Logs out via the UI (user menu).
- */
-export function logout(): Cypress.Chainable<void> {
-  cy.intercept('POST', '/api/v1/users/logout').as('logout');
-
-  cy.get('button[aria-label="User Menu"]').should('be.visible').click();
-  cy.contains('[role="menuitem"]', 'Log out').click();
-
-  return cy
-    .wait('@logout')
-    .its('response.statusCode')
-    .should('eq', 200)
-    .then(() => {
-      cy.location('pathname', { timeout: 30000 }).should(
-        'include',
-        '/auth/login',
-      );
-    });
-}

@@ -30,3 +30,4 @@ src/lib/generated
 # Cypress
 cypress/screenshots
 cypress/videos
+cypress/support/seeded-users.generated.ts

@@ -133,7 +133,7 @@ tasks:
         task write-e2e-env
         task generate-local-encryption-keys
         task migrate
-        task seed-dev
+        task seed-cypress
 
         bash ./hack/ci/start-api.sh &
         bash ./hack/ci/start-engine.sh &

@@ -1,4 +1,37 @@
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { defineConfig } from 'cypress';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const thisDir = path.dirname(fileURLToPath(import.meta.url));
+
+const seededUsersGeneratedPath = path.resolve(
+  thisDir,
+  'cypress',
+  'support',
+  'seeded-users.generated.ts',
+);
+
+if (!fs.existsSync(seededUsersGeneratedPath)) {
+  // eslint-disable-next-line no-console
+  console.error(
+    [
+      '',
+      '[cypress] Missing generated seed users file:',
+      `  ${seededUsersGeneratedPath}`,
+      '',
+      'Run the seed task to generate it before running Cypress:',
+      '  task seed-cypress',
+      '',
+      'Alternatively:',
+      '  SEED_DEVELOPMENT=true bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed-cypress',
+      '',
+    ].join('\n'),
+  );
+
+  throw new Error('Missing cypress/support/seeded-users.generated.ts');
+}
 
 export default defineConfig({
   e2e: {

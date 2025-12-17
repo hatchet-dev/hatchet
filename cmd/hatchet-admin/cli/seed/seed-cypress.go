@@ -18,12 +18,13 @@ import (
 )
 
 type User struct {
-	key      string
-	name     string
-	email    string
-	password string
-	role     string
-	id       string
+	key         string
+	name        string
+	email       string
+	password    string
+	role        string
+	tenantSlugs []string
+	id          string
 }
 
 type Tenant struct {
@@ -31,6 +32,11 @@ type Tenant struct {
 	slug string
 	id   string
 }
+
+const (
+	tenant1Slug = "tenant1"
+	tenant2Slug = "tenant2"
+)
 
 func SeedDatabaseForCypress(dc *database.Layer) error {
 	ctx := context.Background()
@@ -40,36 +46,39 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 	// Use slices (not maps) so ordering is deterministic and we can persist IDs on the structs.
 	users := []User{
 		{
-			key:      "owner",
-			name:     "Owner Owen",
-			email:    "owner@example.com",
-			password: "OwnerPassword123!",
-			role:     "OWNER",
+			key:         "owner",
+			name:        "Owner Owen",
+			email:       "owner@example.com",
+			password:    "OwnerPassword123!",
+			role:        "OWNER",
+			tenantSlugs: []string{tenant1Slug, tenant2Slug},
 		},
 		{
-			key:      "admin",
-			name:     "Admin Adam",
-			email:    "admin@example.com",
-			password: "AdminPassword123!",
-			role:     "ADMIN",
+			key:         "admin",
+			name:        "Admin Adam",
+			email:       "admin@example.com",
+			password:    "AdminPassword123!",
+			role:        "ADMIN",
+			tenantSlugs: []string{tenant1Slug},
 		},
 		{
-			key:      "member",
-			name:     "Member Mike",
-			email:    "member@example.com",
-			password: "MemberPassword123!",
-			role:     "MEMBER",
+			key:         "member",
+			name:        "Member Mike",
+			email:       "member@example.com",
+			password:    "MemberPassword123!",
+			role:        "MEMBER",
+			tenantSlugs: []string{tenant1Slug},
 		},
 	}
 
 	tenants := []Tenant{
 		{
 			name: "Tenant 1",
-			slug: "tenant1",
+			slug: tenant1Slug,
 		},
 		{
 			name: "Tenant 2",
-			slug: "tenant2",
+			slug: tenant2Slug,
 		},
 	}
 
@@ -145,14 +154,43 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 	}
 
 	var createdMembers, existingMembers int
+	var deletedDisallowedMembers int
 	for i := range tenants {
 		tenant := &tenants[i]
 		for j := range users {
 			user := &users[j]
 
+			allowed := userHasTenantSlug(*user, tenant.slug)
+
 			// Idempotent: check membership first so reruns are clean.
 			member, err := dc.APIRepository.Tenant().GetTenantMemberByUserID(ctx, tenant.id, user.id)
 			if err == nil {
+				if !allowed {
+					if err := dc.APIRepository.Tenant().DeleteTenantMember(ctx, sqlchelpers.UUIDToStr(member.ID)); err != nil {
+						return fmt.Errorf(
+							"deleting disallowed tenant member (tenant_slug=%s tenant_id=%s user_email=%s user_id=%s member_id=%s): %w",
+							tenant.slug,
+							tenant.id,
+							user.email,
+							user.id,
+							sqlchelpers.UUIDToStr(member.ID),
+							err,
+						)
+					}
+
+					deletedDisallowedMembers++
+					logger.Printf(
+						"tenant_member deleted (disallowed): tenant_slug=%q tenant_id=%s user_email=%q user_id=%s role=%s member_id=%s",
+						tenant.slug,
+						tenant.id,
+						user.email,
+						user.id,
+						user.role,
+						sqlchelpers.UUIDToStr(member.ID),
+					)
+					continue
+				}
+
 				existingMembers++
 				logger.Printf(
 					"tenant_member exists: tenant_slug=%q tenant_id=%s user_email=%q user_id=%s role=%s member_id=%s",
@@ -175,6 +213,12 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 					user.id,
 					err,
 				)
+			}
+
+			// No row exists.
+			if !allowed {
+				// Intentionally skip creating disallowed memberships.
+				continue
 			}
 
 			createdMember, err := dc.APIRepository.Tenant().CreateTenantMember(ctx, tenant.id, &repository.CreateTenantMemberOpts{
@@ -213,7 +257,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 	}
 
 	logger.Printf(
-		"seed complete in %s (users created=%d exists=%d; tenants created=%d exists=%d; tenant_members created=%d exists=%d)",
+		"seed complete in %s (users created=%d exists=%d; tenants created=%d exists=%d; tenant_members created=%d exists=%d deleted_disallowed=%d)",
 		time.Since(start).Truncate(time.Millisecond),
 		createdUsers,
 		existingUsers,
@@ -221,9 +265,20 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 		existingTenants,
 		createdMembers,
 		existingMembers,
+		deletedDisallowedMembers,
 	)
 
 	return nil
+}
+
+func userHasTenantSlug(u User, tenantSlug string) bool {
+	for _, slug := range u.tenantSlugs {
+		if slug == tenantSlug {
+			return true
+		}
+	}
+
+	return false
 }
 
 type cypressSeededUser struct {
