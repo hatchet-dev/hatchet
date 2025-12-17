@@ -25,5 +25,5 @@ export function V1RunIndicator({
 }) {
   const indicator = createV2IndicatorVariant(status);
 
-  return <div className={cn(indicator, 'rounded-full h-[6px] w-[6px]')} />;
+  return <div className={cn(indicator, 'h-[6px] w-[6px] rounded-full')} />;
 }

@@ -1,26 +1,26 @@
+import useCloudApiMeta from '../../auth/hooks/use-cloud-api-meta';
+import { HearAboutUsForm } from './components/hear-about-us-form';
+import { StepProgress } from './components/step-progress';
+import { TenantCreateForm } from './components/tenant-create-form';
+import { WhatBuildingForm } from './components/what-building-form';
+import { OnboardingStepConfig, OnboardingFormData } from './types';
+import { Button } from '@/components/v1/ui/button';
+import { useAnalytics } from '@/hooks/use-analytics';
+import { useOrganizations } from '@/hooks/use-organizations';
 import api, {
   CreateTenantRequest,
   queries,
   Tenant,
   TenantEnvironment,
 } from '@/lib/api';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { useApiError } from '@/lib/hooks';
 import { cloudApi } from '@/lib/api/api';
-import useCloudApiMeta from '../../auth/hooks/use-cloud-api-meta';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
-import { useSearchParams } from '@/lib/router-helpers';
-import { TenantCreateForm } from './components/tenant-create-form';
-import { Button } from '@/components/v1/ui/button';
-import { HearAboutUsForm } from './components/hear-about-us-form';
-import { WhatBuildingForm } from './components/what-building-form';
-import { StepProgress } from './components/step-progress';
-import { OnboardingStepConfig, OnboardingFormData } from './types';
-import { useAnalytics } from '@/hooks/use-analytics';
 import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
+import { useApiError } from '@/lib/hooks';
+import { useSearchParams } from '@/lib/router-helpers';
 import { appRoutes } from '@/router';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
 
 const FINAL_STEP = 2;
 
@@ -412,7 +412,7 @@ export default function CreateTenant() {
             >
               {createMutation.isPending ? (
                 <div className="flex items-center gap-2">
-                  <div className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   Creating...
                 </div>
               ) : (
@@ -426,7 +426,7 @@ export default function CreateTenant() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full w-full p-4">
+    <div className="flex min-h-full w-full flex-col items-center justify-center p-4">
       <div className="w-full max-w-[450px] space-y-6">
         {renderCurrentStep()}
       </div>

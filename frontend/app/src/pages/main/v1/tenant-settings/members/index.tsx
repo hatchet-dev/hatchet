@@ -1,9 +1,18 @@
-import { Button } from '@/components/v1/ui/button';
-import { Separator } from '@/components/v1/ui/separator';
-import { useState, useEffect, useMemo } from 'react';
+import { ChangePasswordDialog } from './components/change-password-dialog';
 import { CreateInviteForm } from './components/create-invite-form';
-import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { DeleteInviteForm } from './components/delete-invite-form';
+import { columns } from './components/invites-columns';
+import { columns as membersColumns } from './components/members-columns';
+import { UpdateInviteForm } from './components/update-invite-form';
+import { UpdateMemberForm } from './components/update-member-form';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Button } from '@/components/v1/ui/button';
+import { Dialog } from '@/components/v1/ui/dialog';
+import { Separator } from '@/components/v1/ui/separator';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   CreateTenantInviteRequest,
   TenantInvite,
@@ -13,23 +22,14 @@ import api, {
   UserChangePasswordRequest,
   queries,
 } from '@/lib/api';
-import { Dialog } from '@/components/v1/ui/dialog';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { columns } from './components/invites-columns';
-import { columns as membersColumns } from './components/members-columns';
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { UpdateInviteForm } from './components/update-invite-form';
-import { UpdateMemberForm } from './components/update-member-form';
-import { DeleteInviteForm } from './components/delete-invite-form';
-import { ChangePasswordDialog } from './components/change-password-dialog';
-import { AxiosError } from 'axios';
+import { useApiError } from '@/lib/hooks';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { useNavigate } from '@tanstack/react-router';
 import { appRoutes } from '@/router';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
+import { AxiosError } from 'axios';
+import { useState, useEffect, useMemo } from 'react';
 
 // Simplified columns for owners (no role column, no actions)
 const ownersColumns: ColumnDef<TenantMember>[] = [
@@ -64,8 +64,8 @@ export default function Members() {
   const meta = useApiMeta();
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-bold leading-tight text-foreground">
           Members and Invites
         </h2>
@@ -138,14 +138,14 @@ function MembersList() {
       {/* Owners Section - Only show in cloud mode */}
       {isCloudEnabled && (
         <>
-          <div className="flex flex-row justify-between items-center">
+          <div className="flex flex-row items-center justify-between">
             <h3 className="text-xl font-semibold leading-tight text-foreground">
               Owners
             </h3>
             {organizationId && isCurrentUserOwner && (
               <a
                 href={`/organizations/${organizationId}`}
-                className="text-primary hover:underline text-sm"
+                className="text-sm text-primary hover:underline"
               >
                 Manage in Organization →
               </a>
@@ -293,7 +293,7 @@ function InvitesList() {
 
   return (
     <div>
-      <div className="flex flex-row justify-between items-center">
+      <div className="flex flex-row items-center justify-between">
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Invites
         </h3>

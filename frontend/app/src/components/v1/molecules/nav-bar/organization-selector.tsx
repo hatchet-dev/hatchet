@@ -1,13 +1,4 @@
 import { Button } from '@/components/v1/ui/button';
-import { cn } from '@/lib/utils';
-import {
-  BuildingOffice2Icon,
-  Cog6ToothIcon,
-  PlusIcon,
-  CheckIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-} from '@heroicons/react/24/outline';
 import {
   Command,
   CommandEmpty,
@@ -15,14 +6,6 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/v1/ui/command';
-import { Tenant, TenantMember } from '@/lib/api';
-import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
-import { CaretSortIcon } from '@radix-ui/react-icons';
-import {
-  PopoverTrigger,
-  Popover,
-  PopoverContent,
-} from '@radix-ui/react-popover';
 import {
   Dialog,
   DialogContent,
@@ -32,12 +15,29 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { TooltipProvider } from '@/components/v1/ui/tooltip';
-import { useState, useMemo } from 'react';
-import { useLocation, useNavigate } from '@tanstack/react-router';
-import { useTenantDetails } from '@/hooks/use-tenant';
 import { useOrganizations } from '@/hooks/use-organizations';
-import invariant from 'tiny-invariant';
+import { useTenantDetails } from '@/hooks/use-tenant';
+import { Tenant, TenantMember } from '@/lib/api';
+import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
+import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
+import {
+  BuildingOffice2Icon,
+  Cog6ToothIcon,
+  PlusIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from '@heroicons/react/24/outline';
+import { CaretSortIcon } from '@radix-ui/react-icons';
+import {
+  PopoverTrigger,
+  Popover,
+  PopoverContent,
+} from '@radix-ui/react-popover';
+import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useState, useMemo } from 'react';
+import invariant from 'tiny-invariant';
 
 interface OrganizationGroupProps {
   organization: OrganizationForUser;
@@ -89,11 +89,11 @@ function OrganizationGroup({
       <CommandItem
         onSelect={onToggleExpand}
         value={`org-${organization.metadata.id}`}
-        className="text-sm cursor-pointer hover:bg-accent focus:bg-accent"
+        className="cursor-pointer text-sm hover:bg-accent focus:bg-accent"
       >
-        <div className="flex items-start justify-between w-full">
-          <div className="flex items-start gap-2 flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex w-full items-start justify-between">
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            <div className="flex flex-shrink-0 items-center gap-2">
               {isExpanded ? (
                 <ChevronDownIcon className="size-3" />
               ) : (
@@ -101,12 +101,12 @@ function OrganizationGroup({
               )}
               <BuildingOffice2Icon className="size-4" />
             </div>
-            <span className="font-medium leading-tight break-words">
+            <span className="break-words font-medium leading-tight">
               {organization.name}
             </span>
           </div>
           {organization.isOwner && (
-            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+            <div className="ml-2 flex flex-shrink-0 items-center gap-1">
               <Button
                 variant="ghost"
                 size="sm"
@@ -147,12 +147,12 @@ function OrganizationGroup({
                 onTenantSelect(membership.tenant);
                 onClose();
               }}
-              className="text-sm cursor-pointer pl-6 hover:bg-accent focus:bg-accent"
+              className="cursor-pointer pl-6 text-sm hover:bg-accent focus:bg-accent"
             >
-              <div className="flex items-center justify-between w-full">
+              <div className="flex w-full items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <div className="flex h-5 w-5 items-center justify-center">
+                    <div className="h-2 w-2 rounded-full bg-green-500" />
                   </div>
                   <span className="text-muted-foreground">
                     {membership.tenant?.name}
@@ -331,7 +331,7 @@ export function OrganizationSelector({
           side="top"
           align="start"
           sideOffset={20}
-          className="w-[287px] p-0 z-50 border border-border shadow-md rounded-md"
+          className="z-50 w-[287px] rounded-md border border-border p-0 shadow-md"
         >
           <Command className="border-0">
             <CommandList>
@@ -402,7 +402,7 @@ export function OrganizationSelector({
                         handleTenantSelect(membership.tenant);
                         handleClose();
                       }}
-                      className="text-sm cursor-pointer"
+                      className="cursor-pointer text-sm"
                     >
                       <BuildingOffice2Icon className="mr-2 size-4" />
                       {membership.tenant?.name}

@@ -1,15 +1,15 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { CronWorkflows } from '@/lib/api';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Link } from '@tanstack/react-router';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
-import { Badge } from '@/components/v1/ui/badge';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { extractCronTz, formatCron } from '@/lib/cron';
-import { Check, X } from 'lucide-react';
+import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge } from '@/components/v1/ui/badge';
 import { Spinner } from '@/components/v1/ui/loading';
+import { CronWorkflows } from '@/lib/api';
+import { extractCronTz, formatCron } from '@/lib/cron';
 import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
+import { Check, X } from 'lucide-react';
 
 export const CronColumn = {
   expression: 'Expression',
@@ -111,7 +111,7 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
-          <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+          <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
             <Link
               to={appRoutes.tenantWorkflowRoute.to}
               params={{ tenant: tenantId, workflow: row.original.workflowId }}

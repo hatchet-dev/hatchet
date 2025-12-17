@@ -1,4 +1,15 @@
-import React from 'react';
+import hatchet from '@/assets/hatchet_logo.png';
+import hatchetDark from '@/assets/hatchet_logo_dark.png';
+import { useSidebar } from '@/components/sidebar-provider';
+import { useTheme } from '@/components/theme-provider';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/v1/ui/breadcrumb';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -9,14 +20,19 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-
-import { useNavigate } from '@tanstack/react-router';
+import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { TenantMember, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { VersionInfo } from '@/pages/main/info/components/version-info';
+import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
-import hatchet from '@/assets/hatchet_logo.png';
-import hatchetDark from '@/assets/hatchet_logo_dark.png';
-import { useSidebar } from '@/components/sidebar-provider';
+import { useNavigate } from '@tanstack/react-router';
+import { Menu } from 'lucide-react';
+import React from 'react';
+import { useMemo } from 'react';
 import {
   BiBook,
   BiCalendar,
@@ -27,23 +43,6 @@ import {
   BiUserCircle,
   BiEnvelope,
 } from 'react-icons/bi';
-import { Menu } from 'lucide-react';
-import { useTheme } from '@/components/theme-provider';
-import { useMemo } from 'react';
-import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { VersionInfo } from '@/pages/main/info/components/version-info';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/v1/ui/breadcrumb';
-import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
-import { usePendingInvites } from '@/hooks/use-pending-invites';
-import { useTenantDetails } from '@/hooks/use-tenant';
-import { appRoutes } from '@/router';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -62,7 +61,7 @@ function HelpDropdown() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="icon" aria-label="Help Menu">
-          <BiHelpCircle className="h-6 w-6 text-foreground cursor-pointer" />
+          <BiHelpCircle className="h-6 w-6 cursor-pointer text-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -139,9 +138,9 @@ function AccountDropdown({ user }: { user: User }) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="icon" aria-label="User Menu">
-          <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
+          <BiUserCircle className="h-6 w-6 cursor-pointer text-foreground" />
           {(pendingInvitesQuery.data ?? 0) > 0 && (
-            <div className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-blue-500 rounded-full border-2 border-background animate-pulse"></div>
+            <div className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full border-2 border-background bg-blue-500"></div>
           )}
         </Button>
       </DropdownMenuTrigger>
@@ -197,9 +196,9 @@ export default function MainNav({ user }: MainNavProps) {
   const breadcrumbs = useBreadcrumbs();
 
   return (
-    <div className="fixed top-0 w-screen z-50">
+    <div className="fixed top-0 z-50 w-screen">
       <div className="h-16 border-b bg-background">
-        <div className="flex h-16 items-center pr-4 pl-4">
+        <div className="flex h-16 items-center pl-4 pr-4">
           <div className="flex flex-row items-center gap-x-8">
             <div className="flex items-center gap-3">
               <Button

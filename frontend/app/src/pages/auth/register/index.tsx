@@ -1,19 +1,19 @@
-import { Link, useNavigate } from '@tanstack/react-router';
-import { appRoutes } from '@/router';
-import { UserRegisterForm } from './components/user-register-form';
-import { useMutation } from '@tanstack/react-query';
-import api, { UserRegisterRequest } from '@/lib/api';
-import { useEffect, useState } from 'react';
-import { useApiError } from '@/lib/hooks';
 import useApiMeta from '../hooks/use-api-meta';
-import { Loading } from '@/components/v1/ui/loading';
-import { GithubLogin, GoogleLogin, OrContinueWith } from '../login';
 import useErrorParam from '../hooks/use-error-param';
-import React from 'react';
+import { GithubLogin, GoogleLogin, OrContinueWith } from '../login';
+import { UserRegisterForm } from './components/user-register-form';
+import { Loading } from '@/components/v1/ui/loading';
 import {
   POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY,
   POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY,
 } from '@/hooks/use-analytics';
+import api, { UserRegisterRequest } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { appRoutes } from '@/router';
+import { useMutation } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
+import React from 'react';
 
 export default function Register() {
   useErrorParam();
@@ -67,8 +67,8 @@ export default function Register() {
   ].filter(Boolean);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center w-full h-full lg:flex-row">
-      <div className="container relative flex-col items-center justify-center w-full lg:px-0">
+    <div className="flex h-full w-full flex-1 flex-col items-center justify-center lg:flex-row">
+      <div className="container relative w-full flex-col items-center justify-center lg:px-0">
         <div className="mx-auto flex w-full max-w-md lg:p-8">
           <div className="flex w-full flex-col justify-center space-y-6">
             <div className="flex flex-col space-y-2 text-center">
@@ -96,7 +96,7 @@ export default function Register() {
                 </Link>
               </p>
             </div>
-            <p className="text-left text-sm text-gray-700 dark:text-gray-300 w-full">
+            <p className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
               By clicking continue, you agree to our{' '}
               <a
                 href="https://hatchet.run/policies/terms"

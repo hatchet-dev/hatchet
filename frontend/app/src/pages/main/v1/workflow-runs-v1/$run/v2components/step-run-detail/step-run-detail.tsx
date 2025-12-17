@@ -1,6 +1,16 @@
-import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { V1RunIndicator } from '../../../components/run-statuses';
+import { RunsTable } from '../../../components/runs-table';
+import { RunsProvider } from '../../../hooks/runs-provider';
+import { isTerminalState } from '../../../hooks/use-workflow-details';
+import { TaskRunMiniMap } from '../mini-map';
+import { StepRunEvents } from '../step-run-events-for-workflow-run';
+import { Waterfall } from '../waterfall';
+import { StepRunLogs } from './step-run-logs';
+import { V1StepRunOutput } from './step-run-output';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Loading } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import {
@@ -10,26 +20,16 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { StepRunEvents } from '../step-run-events-for-workflow-run';
-import { Link } from '@tanstack/react-router';
-import { RunsTable } from '../../../components/runs-table';
-import { RunsProvider } from '../../../hooks/runs-provider';
-import { V1RunIndicator } from '../../../components/run-statuses';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { emptyGolangUUID, formatDuration } from '@/lib/utils';
-import { V1StepRunOutput } from './step-run-output';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
-import { TaskRunMiniMap } from '../mini-map';
-import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
-import { StepRunLogs } from './step-run-logs';
-import { isTerminalState } from '../../../hooks/use-workflow-details';
-import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { Waterfall } from '../waterfall';
-import { useCallback, useState } from 'react';
-import { FullscreenIcon } from 'lucide-react';
+import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
+import { emptyGolangUUID, formatDuration } from '@/lib/utils';
+import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
+import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+import { FullscreenIcon } from 'lucide-react';
+import { useCallback, useState } from 'react';
 
 export enum TabOption {
   Output = 'output',
@@ -148,12 +148,12 @@ export const TaskRunDetail = ({
     taskRun.workflowRunExternalId === taskRun.metadata.id;
 
   return (
-    <div className="w-full flex flex-col gap-4">
-      <div className="flex flex-row justify-between items-center">
-        <div className="flex flex-row justify-between items-center w-full">
-          <div className="flex flex-row gap-4 items-center">
+    <div className="flex w-full flex-col gap-4">
+      <div className="flex flex-row items-center justify-between">
+        <div className="flex w-full flex-row items-center justify-between">
+          <div className="flex flex-row items-center gap-4">
             {taskRun.status && <V1RunIndicator status={taskRun.status} />}
-            <h3 className="text-lg font-mono font-semibold leading-tight tracking-tight text-foreground flex flex-row gap-4 items-center">
+            <h3 className="flex flex-row items-center gap-4 font-mono text-lg font-semibold leading-tight tracking-tight text-foreground">
               {taskRun.displayName || 'Task Run Detail'}
             </h3>
           </div>
@@ -166,9 +166,9 @@ export const TaskRunDetail = ({
           parentTaskExternalId={taskRun.parentTaskExternalId}
         />
       )}
-      <div className="flex flex-col gap-2 items-start justify-start side-responsive-layout">
-        <div className="flex flex-col gap-2 items-start w-full side-responsive-inner">
-          <div className="flex flex-row gap-2 items-center">
+      <div className="side-responsive-layout flex flex-col items-start justify-start gap-2">
+        <div className="side-responsive-inner flex w-full flex-col items-start gap-2">
+          <div className="flex flex-row items-center gap-2">
             <RunsProvider tableKey="task-run-detail">
               <TaskRunActionButton
                 actionType="replay"
@@ -184,7 +184,7 @@ export const TaskRunDetail = ({
               />
             </RunsProvider>
           </div>
-          <div className="flex flex-row gap-2 items-center">
+          <div className="flex flex-row items-center gap-2">
             <TaskRunPermalinkOrBacklink
               taskRun={taskRun}
               showViewTaskRunButton={showViewTaskRunButton || false}
@@ -194,10 +194,10 @@ export const TaskRunDetail = ({
           </div>
         </div>
       </div>
-      <div className="flex flex-row gap-2 items-center">
+      <div className="flex flex-row items-center gap-2">
         <V1StepRunSummary taskRunId={taskRunId} />
       </div>
-      <Tabs defaultValue="overview" className="flex flex-col h-full">
+      <Tabs defaultValue="overview" className="flex h-full flex-col">
         <TabsList layout="underlined" className="mb-4">
           <TabsTrigger variant="underlined" value="overview">
             Overview
@@ -208,8 +208,8 @@ export const TaskRunDetail = ({
             </TabsTrigger>
           )}
         </TabsList>
-        <TabsContent value="overview" className="flex-1 min-h-0">
-          <div className="w-full flex relative bg-slate-100 dark:bg-slate-900">
+        <TabsContent value="overview" className="min-h-0 flex-1">
+          <div className="relative flex w-full bg-slate-100 dark:bg-slate-900">
             <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
           </div>
           <div className="h-4" />
@@ -245,9 +245,9 @@ export const TaskRunDetail = ({
                 value={TabOption.AdditionalMetadata}
                 className="side-responsive-layout"
               >
-                <span className="flex side-responsive-inner">
-                  <span className="block side-sm:hidden">Metadata</span>
-                  <span className="hidden side-sm:block">
+                <span className="side-responsive-inner flex">
+                  <span className="side-sm:hidden block">Metadata</span>
+                  <span className="side-sm:block hidden">
                     Additional Metadata
                   </span>
                 </span>
@@ -257,7 +257,7 @@ export const TaskRunDetail = ({
               <V1StepRunOutput taskRunId={taskRunId} />
             </TabsContent>
             <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
-              <div className="h-[600px] flex flex-col">
+              <div className="flex h-[600px] flex-col">
                 <RunsProvider
                   tableKey={`child-runs-${taskRunId}`}
                   display={{
@@ -300,7 +300,7 @@ export const TaskRunDetail = ({
           </Tabs>
         </TabsContent>
         {isStandaloneTaskRun && (
-          <TabsContent value="waterfall" className="flex-1 min-h-0">
+          <TabsContent value="waterfall" className="min-h-0 flex-1">
             <Waterfall
               workflowRunId={taskRunId}
               selectedTaskId={undefined}
@@ -311,7 +311,7 @@ export const TaskRunDetail = ({
       </Tabs>
       <Separator className="my-4" />
       <div className="mb-8">
-        <h3 className="text-lg font-semibold leading-tight text-foreground flex flex-row gap-4 items-center">
+        <h3 className="flex flex-row items-center gap-4 text-lg font-semibold leading-tight text-foreground">
           Events
         </h3>
         {/* TODO: Real onclick callback here */}
@@ -388,7 +388,7 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   });
 
   return (
-    <div className="flex flex-row gap-4 items-center">{interleavedTimings}</div>
+    <div className="flex flex-row items-center gap-4">{interleavedTimings}</div>
   );
 };
 
@@ -423,7 +423,7 @@ function TriggeringParentWorkflowRunSection({
   const parentWorkflowRun = taskRunQuery.data;
 
   return (
-    <div className="text-sm text-gray-700 dark:text-gray-300 flex flex-row gap-1">
+    <div className="flex flex-row gap-1 text-sm text-gray-700 dark:text-gray-300">
       Triggered by
       <Link
         to={appRoutes.tenantRunRoute.to}
@@ -431,7 +431,7 @@ function TriggeringParentWorkflowRunSection({
           tenant: tenantId,
           run: parentWorkflowRun.workflowRunExternalId,
         }}
-        className="font-semibold hover:underline text-indigo-500 dark:text-indigo-200"
+        className="font-semibold text-indigo-500 hover:underline dark:text-indigo-200"
       >
         {parentWorkflowRun.displayName} ➶
       </Link>

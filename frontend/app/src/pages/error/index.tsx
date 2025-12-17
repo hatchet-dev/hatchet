@@ -1,11 +1,11 @@
 import { Button } from '@/components/v1/ui/button';
-import { PropsWithChildren } from 'react';
+import { appRoutes } from '@/router';
 import {
   ErrorComponentProps,
   useLocation,
   useNavigate,
 } from '@tanstack/react-router';
-import { appRoutes } from '@/router';
+import { PropsWithChildren } from 'react';
 
 export default function ErrorBoundary({ error }: ErrorComponentProps) {
   const navigate = useNavigate();
@@ -14,7 +14,7 @@ export default function ErrorBoundary({ error }: ErrorComponentProps) {
   console.error(error);
 
   const Layout: React.FC<PropsWithChildren> = ({ children }) => (
-    <div className="flex flex-row justify-center items-center flex-1 w-full h-full">
+    <div className="flex h-full w-full flex-1 flex-row items-center justify-center">
       <div className="flex flex-col space-y-2 text-center">{children}</div>
     </div>
   );

@@ -1,36 +1,36 @@
-import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useParams } from '@tanstack/react-router';
-import invariant from 'tiny-invariant';
+import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
+import { workflowKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
+import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { WorkflowTags } from '../components/workflow-tags';
-import { Badge } from '@/components/v1/ui/badge';
-import { relativeDate } from '@/lib/utils';
-import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
-import { Loading } from '@/components/v1/ui/loading.tsx';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
-import { useState } from 'react';
-import { Button } from '@/components/v1/ui/button';
-import { useApiError } from '@/lib/hooks';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/v1/ui/tabs';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { Badge } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
-import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { workflowKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { relativeDate } from '@/lib/utils';
 import { appRoutes } from '@/router';
+import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { useState } from 'react';
+import invariant from 'tiny-invariant';
 
 export default function ExpandedWorkflow() {
   // TODO list previous versions and make selectable
@@ -100,16 +100,16 @@ export default function ExpandedWorkflow() {
   const currVersion = workflow.versions && workflow.versions[0].version;
 
   return (
-    <div className="flex-grow h-full w-full flex flex-col overflow-hidden gap-y-4">
+    <div className="flex h-full w-full flex-grow flex-col gap-y-4 overflow-hidden">
       <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
-          <div className="flex flex-row gap-4 items-center">
-            <Square3Stack3DIcon className="h-6 w-6 text-foreground mt-1" />
+        <div className="flex flex-row items-center justify-between">
+          <div className="flex flex-row items-center gap-4">
+            <Square3Stack3DIcon className="mt-1 h-6 w-6 text-foreground" />
             <h2 className="text-2xl font-bold leading-tight text-foreground">
               {workflow.name}
             </h2>
             {currVersion && (
-              <Badge className="text-sm mt-1" variant="outline">
+              <Badge className="mt-1 text-sm" variant="outline">
                 {currVersion}
               </Badge>
             )}
@@ -179,7 +179,7 @@ export default function ExpandedWorkflow() {
             onClose={() => setTriggerWorkflow(false)}
           />
         </div>
-        <div className="flex flex-row justify-start items-center mt-4">
+        <div className="mt-4 flex flex-row items-center justify-start">
           <div className="text-sm text-gray-700 dark:text-gray-300">
             Updated{' '}
             {relativeDate(
@@ -188,13 +188,13 @@ export default function ExpandedWorkflow() {
           </div>
         </div>
         {workflow.description && (
-          <div className="text-sm text-gray-700 dark:text-gray-300 mt-4">
+          <div className="mt-4 text-sm text-gray-700 dark:text-gray-300">
             {workflow.description}
           </div>
         )}
       </div>
-      <div className="flex-1 min-h-0 px-4 sm:px-6 lg:px-8">
-        <Tabs defaultValue="runs" className="flex flex-col h-full">
+      <div className="min-h-0 flex-1 px-4 sm:px-6 lg:px-8">
+        <Tabs defaultValue="runs" className="flex h-full flex-col">
           <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="runs">
               Runs
@@ -203,12 +203,12 @@ export default function ExpandedWorkflow() {
               Settings
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="runs" className="flex-1 min-h-0">
+          <TabsContent value="runs" className="min-h-0 flex-1">
             <RecentRunsList />
           </TabsContent>
           <TabsContent
             value="settings"
-            className="flex-1 min-h-0 overflow-y-auto pt-4"
+            className="min-h-0 flex-1 overflow-y-auto pt-4"
           >
             {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
               <Loading />
@@ -218,17 +218,17 @@ export default function ExpandedWorkflow() {
 
             <div className="mt-8">
               <div className="space-y-3">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2">
+                <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
                   Danger Zone
                 </h3>
                 <div className="pl-1">
-                  <div className="border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-gray-50 dark:bg-gray-800/50 max-w-xl">
+                  <div className="max-w-xl rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
                     <div className="space-y-3">
                       <div>
                         <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           Delete Workflow
                         </h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                           Permanently delete this workflow and all its data.
                           This action cannot be undone.
                         </p>

@@ -1,12 +1,12 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { ScheduledWorkflows } from '@/lib/api';
-import RelativeDate from '@/components/v1/molecules/relative-date';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { Link } from '@tanstack/react-router';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { ScheduledWorkflows } from '@/lib/api';
 import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const ScheduledRunColumn = {
   id: 'ID',
@@ -51,7 +51,7 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div
-          className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
+          className="min-w-fit cursor-pointer whitespace-nowrap hover:underline"
           onClick={() => onRowClick?.(row.original)}
         >
           {row.original.metadata.id}
@@ -74,7 +74,7 @@ export const columns = ({
             to={appRoutes.tenantRunRoute.to}
             params={{ tenant: tenantId, run: row.original.workflowRunId }}
           >
-            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+            <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
               {row.original.workflowRunName}
             </div>
           </Link>
@@ -111,7 +111,7 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div
-          className="flex flex-row items-center gap-4 cursor-pointer"
+          className="flex cursor-pointer flex-row items-center gap-4"
           onClick={() => onRowClick?.(row.original)}
         >
           <RelativeDate date={row.original.triggerAt} />
@@ -130,7 +130,7 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
-          <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+          <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
             <Link
               to={appRoutes.tenantWorkflowRoute.to}
               params={{ tenant: tenantId, workflow: row.original.workflowId }}
