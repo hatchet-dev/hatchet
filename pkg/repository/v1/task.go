@@ -1115,12 +1115,7 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 
 	for _, event := range matchedEvents {
 		retrieveOpts := matchedEventToRetrieveOpts[event]
-		payload, ok := payloads[retrieveOpts]
-
-		if !ok {
-			r.l.Error().Msgf("ListenForDurableEvent: matched event %s with created at %s and id %d has empty payload, falling back to input", event.ExternalID, event.CreatedAt.Time, event.ID)
-			payload = retrieveOptsToEventData[retrieveOpts]
-		}
+		payload := payloads[retrieveOpts]
 
 		o, err := newTaskEventFromBytes(payload)
 
@@ -2981,15 +2976,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		}
 
-		input, ok := payloads[retrieveOpt]
-
-		if !ok {
-			// If the input wasn't found in the payload store,
-			// fall back to the input stored on the task itself.
-			r.l.Error().Msgf("ReplayTasks: task %s with ID %d and inserted_at %s has empty payload, falling back to input", task.ExternalID.String(), task.ID, task.InsertedAt.Time)
-
-			input = task.Input
-		}
+		input := payloads[retrieveOpt]
 
 		replayOpts = append(replayOpts, ReplayTaskOpts{
 			TaskId:             task.ID,
@@ -3515,12 +3502,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 
 	for retrieveOpts, workflowRunId := range retrieveOptsToWorkflowRunId {
 		wrId := sqlchelpers.UUIDToStr(workflowRunId)
-		payload, ok := payloads[retrieveOpts]
-
-		if !ok {
-			r.l.Error().Msgf("ListTaskParentOutputs: task %s with ID %d and inserted_at %s has empty payload, falling back to input", wrId, retrieveOpts.Id, retrieveOpts.InsertedAt.Time)
-			payload = retrieveOptToPayload[retrieveOpts]
-		}
+		payload := payloads[retrieveOpts]
 
 		e, err := newTaskEventFromBytes(payload)
 
@@ -3597,12 +3579,7 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		}
 
-		payload, ok := payloads[retrieveOpt]
-
-		if !ok {
-			r.l.Error().Msgf("ListenForDurableEvent: task %s with ID %d and inserted_at %s has empty payload, falling back to input", event.ExternalID, event.ID, event.InsertedAt.Time)
-			payload = event.Data
-		}
+		payload := payloads[retrieveOpt]
 
 		res[i] = &V1TaskEventWithPayload{
 			V1TaskEvent: event,

@@ -512,12 +512,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 			}
 
-			payload, ok := payloads[retrieveOpts]
-
-			if !ok {
-				m.l.Error().Msgf("dag %d with inserted at %s has empty payload, falling back to input", dagData.DagID, dagData.DagInsertedAt.Time)
-				payload = dagData.Input
-			}
+			payload := payloads[retrieveOpts]
 
 			dagIdsToInput[dagData.DagID] = payload
 			dagIdsToMetadata[dagData.DagID] = dagData.AdditionalMetadata
