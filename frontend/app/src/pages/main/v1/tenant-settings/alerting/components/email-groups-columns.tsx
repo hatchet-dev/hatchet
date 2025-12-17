@@ -53,7 +53,7 @@ export const columns = ({
     {
       id: 'enabled',
       cell: ({ row }) => (
-        <div className="flex items-center space-x-2 justify-end">
+        <div className="flex items-center justify-end space-x-2">
           {row.original.metadata.id != 'default' || alertTenantEmailsSet ? (
             <Badge variant="successful">Enabled</Badge>
           ) : (
@@ -65,7 +65,7 @@ export const columns = ({
     {
       id: 'actions',
       cell: ({ row }) => (
-        <div className="flex items-center space-x-2 justify-end mr-4">
+        <div className="mr-4 flex items-center justify-end space-x-2">
           <DataTableRowActions
             row={row}
             actions={[

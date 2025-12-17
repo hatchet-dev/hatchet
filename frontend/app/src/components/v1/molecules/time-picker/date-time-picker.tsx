@@ -47,7 +47,7 @@ export function DateTimePicker({
         <Button
           variant={'outline'}
           className={cn(
-            'w-fit justify-start text-left font-normal text-xs',
+            'w-fit justify-start text-left text-xs font-normal',
             !date && 'text-muted-foreground',
             triggerClassName,
           )}
@@ -60,14 +60,14 @@ export function DateTimePicker({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 z-[80]">
+      <PopoverContent className="z-[80] w-auto p-0">
         <Calendar
           mode="single"
           selected={date}
           onSelect={(d) => handleSelect(d)}
           initialFocus
         />
-        <div className="p-3 border-t border-border">
+        <div className="border-t border-border p-3">
           <TimePicker setDate={setDate} date={date} />
         </div>
       </PopoverContent>

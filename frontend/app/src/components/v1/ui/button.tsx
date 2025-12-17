@@ -91,9 +91,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
               ref={ref}
               {...props}
             >
-              {leftIcon && <span className="mr-2 -ml-1">{leftIcon}</span>}
+              {leftIcon && <span className="-ml-1 mr-2">{leftIcon}</span>}
               {children}
-              {rightIcon && <span className="ml-2 -mr-1">{rightIcon}</span>}
+              {rightIcon && <span className="-mr-1 ml-2">{rightIcon}</span>}
             </Comp>
           </TooltipTrigger>
           {hoverText && <TooltipContent>{hoverText}</TooltipContent>}

@@ -198,7 +198,7 @@ const PreconfiguredHMACAuth = ({
         />
       </div>
       {helpText && (
-        <div className="text-xs text-muted-foreground pl-1">
+        <div className="pl-1 text-xs text-muted-foreground">
           <p>
             {helpText}
             {helpLink && (

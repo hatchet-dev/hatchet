@@ -228,7 +228,7 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
                 id="expression"
                 value={filter.expression}
                 disabled
-                className="bg-muted min-h-[100px] font-mono disabled:cursor-text"
+                className="min-h-[100px] bg-muted font-mono disabled:cursor-text"
               />
             )}
           </div>
@@ -256,7 +256,7 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
                 id="payload"
                 value={JSON.stringify(filter.payload || {}, null, 2)}
                 disabled
-                className="bg-muted min-h-[120px] font-mono text-sm disabled:cursor-text"
+                className="min-h-[120px] bg-muted font-mono text-sm disabled:cursor-text"
               />
             )}
           </div>

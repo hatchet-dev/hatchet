@@ -78,11 +78,11 @@ export default function CreateWorker() {
   }
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
-          <div className="flex flex-row gap-4 items-center justify-between">
-            <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
+          <div className="flex flex-row items-center justify-between gap-4">
+            <ServerStackIcon className="mt-1 h-6 w-6 text-foreground" />
             <h2 className="text-2xl font-bold leading-tight text-foreground">
               New Service
             </h2>

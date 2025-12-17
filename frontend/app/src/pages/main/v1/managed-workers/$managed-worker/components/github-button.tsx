@@ -16,7 +16,7 @@ export default function GithubButton({
   }
 
   return (
-    <div className="text-sm w-fit flex flex-row items-center gap-2 text-gray-700 dark:text-gray-300">
+    <div className="flex w-fit flex-row items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
       {prefix}
       <a
         href={getHref(buildConfig, commitSha)}

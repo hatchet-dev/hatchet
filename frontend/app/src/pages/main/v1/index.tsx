@@ -50,10 +50,10 @@ function Main() {
 
   return (
     <SidePanelProvider>
-      <div className="flex flex-row flex-1 w-full h-full">
+      <div className="flex h-full w-full flex-1 flex-row">
         <Sidebar memberships={memberships} />
         <div
-          className="px-8 py-4 flex-grow overflow-y-auto overflow-x-hidden"
+          className="flex-grow overflow-y-auto overflow-x-hidden px-8 py-4"
           style={{ containerType: 'inline-size' }}
         >
           <OutletWithContext context={childCtx} />
@@ -92,12 +92,12 @@ function Sidebar({ className, memberships }: SidebarProps) {
   return (
     <div
       className={cn(
-        'h-full border-r overflow-y-auto w-full md:min-w-64 md:w-64 top-16 absolute z-[100] md:relative md:top-0 md:bg-[unset] md:dark:bg-[unset] bg-slate-100 dark:bg-slate-900',
+        'absolute top-16 z-[100] h-full w-full overflow-y-auto border-r bg-slate-100 dark:bg-slate-900 md:relative md:top-0 md:w-64 md:min-w-64 md:bg-[unset] md:dark:bg-[unset]',
         className,
       )}
     >
-      <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full pb-16 md:pb-4">
-        <div className="grow w-full">
+      <div className="flex h-full flex-col items-start justify-between space-y-4 px-4 py-4 pb-16 md:pb-4">
+        <div className="w-full grow">
           <div className="py-2">
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
               Activity
@@ -345,7 +345,7 @@ function SidebarButtonPrimary({
       className="w-full"
     >
       {primaryLink}
-      <CollapsibleContent className={'space-y-2 ml-4 border-l border-muted'}>
+      <CollapsibleContent className={'ml-4 space-y-2 border-l border-muted'}>
         {collapsibleChildren}
       </CollapsibleContent>
     </Collapsible>
@@ -377,7 +377,7 @@ function SidebarButtonSecondary({
         variant="ghost"
         size="sm"
         className={cn(
-          'w-[calc(100%-3px)] justify-start pl-3 pr-0 ml-1 mr-3 my-[1px]',
+          'my-[1px] ml-1 mr-3 w-[calc(100%-3px)] justify-start pl-3 pr-0',
           selected && 'bg-slate-200 dark:bg-slate-800',
         )}
       >

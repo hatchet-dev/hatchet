@@ -110,7 +110,7 @@ function WorkerStatusBadge({
       className={cn(
         'px-3 py-1',
         finalConfig.colors,
-        'text-xs font-medium rounded-md border-transparent',
+        'rounded-md border-transparent text-xs font-medium',
         className,
       )}
       variant={variant}
@@ -150,7 +150,7 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
         to={appRoutes.tenantWorkerRoute.to}
         params={{ tenant: tenantId, worker: row.original.metadata.id }}
       >
-        <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+        <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
           {row.original.webhookUrl || row.original.name}
         </div>
       </Link>

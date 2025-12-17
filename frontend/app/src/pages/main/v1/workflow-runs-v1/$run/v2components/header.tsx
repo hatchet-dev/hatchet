@@ -55,15 +55,15 @@ export const V1RunDetailHeader = () => {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <div className="flex flex-row justify-between items-center">
-        <div className="flex flex-row justify-between items-center w-full">
+      <div className="flex flex-row items-center justify-between">
+        <div className="flex w-full flex-row items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold leading-tight text-foreground flex flex-row gap-4 items-center">
-              <AdjustmentsHorizontalIcon className="w-5 h-5 mt-1" />
+            <h2 className="flex flex-row items-center gap-4 text-2xl font-bold leading-tight text-foreground">
+              <AdjustmentsHorizontalIcon className="mt-1 h-5 w-5" />
               {workflowRun.displayName}
             </h2>
           </div>
-          <div className="flex flex-row gap-2 items-center">
+          <div className="flex flex-row items-center gap-2">
             <CopyWorkflowConfigButton workflowConfig={workflowConfig} />
             <WorkflowDefinitionLink workflowId={workflowRun.workflowId} />
             <TaskRunActionButton
@@ -95,7 +95,7 @@ export const V1RunDetailHeader = () => {
       {/* {data.triggeredBy?.cronSchedule && (
         <TriggeringCronSection cron={data.triggeredBy.cronSchedule} />
       )} */}
-      <div className="flex flex-row gap-2 items-center">
+      <div className="flex flex-row items-center gap-2">
         <V1RunSummary />
       </div>
     </div>
@@ -183,7 +183,7 @@ const V1RunSummary = () => {
   });
 
   return (
-    <div className="flex flex-row gap-4 items-center">{interleavedTimings}</div>
+    <div className="flex flex-row items-center gap-4">{interleavedTimings}</div>
   );
 };
 
@@ -220,12 +220,12 @@ function TriggeringParentWorkflowRunSection({
   const parentWorkflowRun = parentWorkflowRunQuery.data.run;
 
   return (
-    <div className="text-sm text-gray-700 dark:text-gray-300 flex flex-row gap-1">
+    <div className="flex flex-row gap-1 text-sm text-gray-700 dark:text-gray-300">
       Triggered by
       <Link
         to={appRoutes.tenantRunRoute.to}
         params={{ tenant: tenantId, run: parentWorkflowRunId }}
-        className="font-semibold hover:underline text-indigo-500 dark:text-indigo-200"
+        className="font-semibold text-indigo-500 hover:underline dark:text-indigo-200"
       >
         {parentWorkflowRun.displayName} ➶
       </Link>

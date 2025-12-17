@@ -89,17 +89,17 @@ export default function ExpandedWorkflow() {
   const managedWorker = managedWorkerQuery.data;
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
-          <div className="flex flex-row gap-4 items-center">
-            <CpuChipIcon className="h-6 w-6 text-foreground mt-1" />
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
+          <div className="flex flex-row items-center gap-4">
+            <CpuChipIcon className="mt-1 h-6 w-6 text-foreground" />
             <h2 className="text-2xl font-bold leading-tight text-foreground">
               {managedWorker.name}
             </h2>
           </div>
         </div>
-        <div className="flex flex-row justify-start items-center mt-4 gap-6">
+        <div className="mt-4 flex flex-row items-center justify-start gap-6">
           <div className="text-sm text-gray-700 dark:text-gray-300">
             Created {relativeDate(managedWorker.metadata.createdAt)}
           </div>
@@ -110,7 +110,7 @@ export default function ExpandedWorkflow() {
             />
           )}
         </div>
-        <div className="flex flex-row justify-start items-center mt-4"></div>
+        <div className="mt-4 flex flex-row items-center justify-start"></div>
         <Tabs defaultValue="activity">
           <TabsList layout="underlined">
             <TabsTrigger variant="underlined" value="activity">
@@ -133,7 +133,7 @@ export default function ExpandedWorkflow() {
             <ManagedWorkerActivity managedWorker={managedWorker} />
           </TabsContent>
           <TabsContent value="instances">
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
+            <h3 className="mt-4 text-xl font-bold leading-tight text-foreground">
               Instances
             </h3>
             <Separator className="my-4" />
@@ -142,7 +142,7 @@ export default function ExpandedWorkflow() {
             />
           </TabsContent>
           <TabsContent value="logs">
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
+            <h3 className="mt-4 text-xl font-bold leading-tight text-foreground">
               Logs
             </h3>
             <Separator className="my-4" />
@@ -152,7 +152,7 @@ export default function ExpandedWorkflow() {
             <ManagedWorkerMetrics managedWorker={managedWorker} />
           </TabsContent>
           <TabsContent value="configuration">
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
+            <h3 className="mt-4 text-xl font-bold leading-tight text-foreground">
               Configuration
             </h3>
             <Separator className="my-4" />
@@ -163,7 +163,7 @@ export default function ExpandedWorkflow() {
               fieldErrors={fieldErrors}
             />
             <Separator className="my-4" />
-            <h4 className="text-lg font-bold leading-tight text-foreground mt-8">
+            <h4 className="mt-8 text-lg font-bold leading-tight text-foreground">
               Danger Zone
             </h4>
             <Separator className="my-4" />

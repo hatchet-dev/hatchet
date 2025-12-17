@@ -232,7 +232,7 @@ export function TenantCreateForm({
           <div className="text-sm text-gray-700 dark:text-gray-300">
             You can add new tenants for different environments later.
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {environmentOptions.map((option) => {
               const Icon = option.icon;
               const isSelected =
@@ -248,12 +248,12 @@ export function TenantCreateForm({
                       : 'hover:border-gray-300 dark:hover:border-gray-600'
                   }`}
                 >
-                  <CardContent className="p-4 flex flex-col items-center text-center space-y-2">
+                  <CardContent className="flex flex-col items-center space-y-2 p-4 text-center">
                     <Icon
-                      className={`w-6 h-6 ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}
+                      className={`h-6 w-6 ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}
                     />
                     <div className="space-y-1">
-                      <div className="font-medium text-sm">{option.label}</div>
+                      <div className="text-sm font-medium">{option.label}</div>
                       <div className="text-xs text-gray-600 dark:text-gray-400">
                         {option.description}
                       </div>
@@ -292,13 +292,13 @@ export function TenantCreateForm({
 
         {/* Summary Section */}
         {isCloudEnabled && selectedOrganizationId && organizationList?.rows && (
-          <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/20">
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center mt-0.5">
+              <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-500">
                 <CheckIcon className="size-3 text-white" />
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                <h4 className="mb-1 text-sm font-medium text-blue-900 dark:text-blue-100">
                   Tenant Creation Summary
                 </h4>
                 <p className="text-sm text-blue-700 dark:text-blue-300">

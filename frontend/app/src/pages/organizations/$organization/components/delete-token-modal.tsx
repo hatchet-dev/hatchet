@@ -38,8 +38,8 @@ export function DeleteTokenModal({
             this token will immediately lose access and may break functionality.
           </p>
           <div className="text-sm text-muted-foreground">
-            <p className="font-medium mb-1">Potential consequences:</p>
-            <ul className="list-disc list-inside space-y-1 text-xs">
+            <p className="mb-1 font-medium">Potential consequences:</p>
+            <ul className="list-inside list-disc space-y-1 text-xs">
               <li>API integrations may fail</li>
               <li>Automated deployments could break</li>
               <li>CI/CD pipelines might stop working</li>

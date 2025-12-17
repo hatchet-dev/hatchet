@@ -111,9 +111,9 @@ export default function ManagedWorkers() {
 
     return (
       // TODO use correct modal component
-      <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50">
-        <div className="bg-background border border-border rounded-lg shadow-lg max-w-md w-full p-6">
-          <h3 className="text-lg font-medium mb-4 text-foreground">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
+        <div className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg">
+          <h3 className="mb-4 text-lg font-medium text-foreground">
             Plan Upgrade Required
           </h3>
           <p className="mb-4 text-muted-foreground">
@@ -143,9 +143,9 @@ export default function ManagedWorkers() {
   };
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
           <h2 className="text-2xl font-bold leading-tight text-foreground">
             Managed Compute
           </h2>
@@ -173,7 +173,7 @@ export default function ManagedWorkers() {
         ) : (
           <ManagedWorkersTable />
         )}
-        <div className="mt-6 mb-6">
+        <div className="mb-6 mt-6">
           <MonthlyUsageCard
             computeCost={computeCostQuery.data}
             isLoading={computeCostQuery.isLoading}

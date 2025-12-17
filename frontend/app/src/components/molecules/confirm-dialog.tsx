@@ -33,13 +33,13 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Dialog open={isOpen}>
-      <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+      <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div>
-          <div className="text-sm text-foreground mb-4">{description}</div>
-          <div className="flex flex-row gap-4 justify-end">
+          <div className="mb-4 text-sm text-foreground">{description}</div>
+          <div className="flex flex-row justify-end gap-4">
             <Button
               variant="ghost"
               onClick={() => {

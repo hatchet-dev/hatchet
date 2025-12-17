@@ -59,8 +59,8 @@ export function PaymentMethods({
 
   return (
     <>
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
           <h3 className="text-xl font-semibold leading-tight text-foreground">
             Payment Methods
           </h3>
@@ -73,9 +73,9 @@ export function PaymentMethods({
                   ? ccIcons[method.brand]
                   : ccIcons.generic;
               return (
-                <div key={i} className="flex flex-row items-center gap-4 mb-4">
-                  <div className="flex flex-col mt-4 text-sm">
-                    <div className="flex flex-row gap-2 items-center">
+                <div key={i} className="mb-4 flex flex-row items-center gap-4">
+                  <div className="mt-4 flex flex-col text-sm">
+                    <div className="flex flex-row items-center gap-2">
                       <Icon size={24} />
                       {method.brand.toUpperCase()}
                       {method.last4 && ` *** *** ${method.last4} `}

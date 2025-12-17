@@ -220,18 +220,18 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
   const additionalMetadata = workflowRun.additionalMetadata;
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto pt-2 px-4 sm:px-6 lg:px-8">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 pt-2 sm:px-6 lg:px-8">
         <V1RunDetailHeader />
         <Separator className="my-4" />
-        <div className="flex flex-row gap-x-4 mb-4">
+        <div className="mb-4 flex flex-row gap-x-4">
           <p className="font-semibold">Status</p>
           <Badge variant={statusToBadgeVariant(workflowRun.status)}>
             {workflowRun.status}
           </Badge>
         </div>
         <div className="h-4" />
-        <Tabs defaultValue="overview" className="flex flex-col h-full">
+        <Tabs defaultValue="overview" className="flex h-full flex-col">
           <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="overview">
               Overview
@@ -240,8 +240,8 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               Waterfall
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="overview" className="flex-1 min-h-0">
-            <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
+          <TabsContent value="overview" className="min-h-0 flex-1">
+            <div className="relative flex h-fit w-full overflow-auto bg-slate-100 dark:bg-slate-900">
               <GraphView
                 shape={shape}
                 handleTaskRunExpand={handleTaskRunExpand}
@@ -282,7 +282,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               </TabsContent>
             </Tabs>
           </TabsContent>
-          <TabsContent value="waterfall" className="flex-1 min-h-0">
+          <TabsContent value="waterfall" className="min-h-0 flex-1">
             <Waterfall
               workflowRunId={id}
               selectedTaskId={undefined}

@@ -67,8 +67,8 @@ export default function Register() {
   ].filter(Boolean);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center w-full h-full lg:flex-row">
-      <div className="container relative flex-col items-center justify-center w-full lg:px-0">
+    <div className="flex h-full w-full flex-1 flex-col items-center justify-center lg:flex-row">
+      <div className="container relative w-full flex-col items-center justify-center lg:px-0">
         <div className="mx-auto flex w-full max-w-md lg:p-8">
           <div className="flex w-full flex-col justify-center space-y-6">
             <div className="flex flex-col space-y-2 text-center">
@@ -96,7 +96,7 @@ export default function Register() {
                 </Link>
               </p>
             </div>
-            <p className="text-left text-sm text-gray-700 dark:text-gray-300 w-full">
+            <p className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
               By clicking continue, you agree to our{' '}
               <a
                 href="https://hatchet.run/policies/terms"

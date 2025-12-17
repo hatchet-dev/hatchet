@@ -35,7 +35,7 @@ export const ViewToggle = () => {
   }
 
   return (
-    <div className="sticky ml-auto mt-auto bottom-2 right-2 z-20">
+    <div className="sticky bottom-2 right-2 z-20 ml-auto mt-auto">
       <Button variant="outline" size="icon" onClick={() => setView(otherView)}>
         <ToggleIcon view={view} />
       </Button>

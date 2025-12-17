@@ -15,7 +15,7 @@ export const columns: ColumnDef<InstanceWithMetadata>[] = [
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => (
-      <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap text-md p-2">
+      <div className="text-md min-w-fit cursor-pointer whitespace-nowrap p-2 hover:underline">
         {row.original.name}
       </div>
     ),

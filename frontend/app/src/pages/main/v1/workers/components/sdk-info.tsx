@@ -23,7 +23,7 @@ export const SdkInfo: React.FC<{
     : undefined;
 
   return (
-    <div className="flex flex-row gap-2 items-center">
+    <div className="flex flex-row items-center gap-2">
       {Icon && React.createElement(Icon)}
       {!iconOnly && runtimeInfo.sdkVersion}
     </div>

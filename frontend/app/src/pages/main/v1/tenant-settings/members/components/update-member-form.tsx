@@ -51,7 +51,7 @@ export function UpdateMemberForm({
   const roleError = errors.role?.message?.toString() || props.fieldErrors?.role;
 
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Update member role</DialogTitle>
       </DialogHeader>
