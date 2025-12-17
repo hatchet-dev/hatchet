@@ -30,7 +30,7 @@ import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-too
 import { BiDownArrowCircle } from 'react-icons/bi';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { formatCron } from '@/lib/utils';
+import { formatCron } from '@/lib/cron';
 import { appRoutes } from '@/router';
 
 type TimingOption = 'now' | 'schedule' | 'cron';

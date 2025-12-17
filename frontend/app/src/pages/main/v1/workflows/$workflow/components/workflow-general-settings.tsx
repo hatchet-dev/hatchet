@@ -3,7 +3,7 @@ import { Badge } from '@/components/v1/ui/badge';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { WorkflowVersion } from '@/lib/api';
-import { formatCron } from '@/lib/utils';
+import { formatCron } from '@/lib/cron';
 
 export default function WorkflowGeneralSettings({
   workflow,

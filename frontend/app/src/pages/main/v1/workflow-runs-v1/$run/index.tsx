@@ -33,7 +33,6 @@ import {
   useWorkflowDetails,
 } from '../hooks/use-workflow-details';
 import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Waterfall } from './v2components/waterfall';
 import { RunsProvider } from '../hooks/runs-provider';
@@ -104,8 +103,6 @@ async function fetchDAGRun(id: string) {
 
 export default function Run() {
   const { run } = useParams({ from: appRoutes.tenantRunRoute.to });
-
-  invariant(run, 'Run ID is required');
 
   const taskRunQuery = useQuery({
     queryKey: ['workflow-run', run],

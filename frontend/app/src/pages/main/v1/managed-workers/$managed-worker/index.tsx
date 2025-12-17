@@ -2,7 +2,6 @@ import { Separator } from '@/components/v1/ui/separator';
 import { queries } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
-import invariant from 'tiny-invariant';
 import { relativeDate } from '@/lib/utils';
 import { CpuChipIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -49,8 +48,6 @@ export default function ExpandedWorkflow() {
   const updateManagedWorkerMutation = useMutation({
     mutationKey: ['managed-worker:update', params.managedWorker],
     mutationFn: async (data: UpdateManagedWorkerRequest) => {
-      invariant(managedWorker);
-
       const dataCopy = { ...data };
 
       if (dataCopy.isIac) {
@@ -72,7 +69,6 @@ export default function ExpandedWorkflow() {
   const deleteManagedWorkerMutation = useMutation({
     mutationKey: ['managed-worker:delete', params.managedWorker],
     mutationFn: async () => {
-      invariant(managedWorker);
       const res = await cloudApi.managedWorkerDelete(managedWorker.metadata.id);
       return res.data;
     },

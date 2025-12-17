@@ -7,7 +7,6 @@ import api, {
 } from '@/lib/api';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { Evaluate } from '@/lib/can/shared/permission.base';
@@ -19,8 +18,6 @@ type Plan = 'free' | 'starter' | 'growth';
 export function useCurrentTenantId() {
   const params = useParams({ from: appRoutes.tenantRoute.to });
   const tenantId = params.tenant;
-
-  invariant(tenantId, 'Tenant ID is required');
 
   return { tenantId };
 }

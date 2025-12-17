@@ -101,7 +101,7 @@ const createRouteLabel = (path: TenantedPath): string => {
       return '';
     default:
       // eslint-disable-next-line no-case-declarations
-      const exhaustiveCheck = path;
+      const exhaustiveCheck: never = path;
       throw new Error(`Unhandled tenanted path: ${exhaustiveCheck}`);
   }
 };

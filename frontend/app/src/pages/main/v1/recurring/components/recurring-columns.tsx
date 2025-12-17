@@ -6,7 +6,7 @@ import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-t
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { Badge } from '@/components/v1/ui/badge';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { extractCronTz, formatCron } from '@/lib/utils';
+import { extractCronTz, formatCron } from '@/lib/cron';
 import { Check, X } from 'lucide-react';
 import { Spinner } from '@/components/v1/ui/loading';
 import { appRoutes } from '@/router';
