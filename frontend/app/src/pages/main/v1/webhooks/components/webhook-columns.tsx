@@ -115,8 +115,8 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
   return (
     <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-muted/50">
-          <DotsVerticalIcon className="h-4 w-4 text-muted-foreground cursor-pointer" />
+        <Button variant="icon" size="sm">
+          <DotsVerticalIcon className="size-4 text-muted-foreground cursor-pointer" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -129,7 +129,7 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
           }}
         >
           {isCopied ? (
-            <Check className="h-4 w-4 text-green-600" />
+            <Check className="size-4 text-green-600" />
           ) : (
             <Copy className="size-4" />
           )}
@@ -224,12 +224,12 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
         />
       </div>
       {(isEditing || hasChanges) && (
-        <div className="flex flex-row items-center gap-x-2 animate-in fade-in-0 slide-in-from-right-2 duration-200">
+        <div className="flex flex-row items-center animate-in fade-in-0 slide-in-from-right-2 duration-200">
           <Button
-            variant="ghost"
+            variant="icon"
             size="icon"
             onClick={handleSave}
-            className={`h-7 w-7 ${
+            className={`${
               hasChanges && !mutations.isUpdatePending
                 ? 'text-red-500/80 animate-pulse'
                 : ''
@@ -243,10 +243,9 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
             )}
           </Button>
           <Button
-            variant="ghost"
+            variant="icon"
             size="icon"
             onClick={handleCancel}
-            className="h-7 w-7"
             disabled={mutations.isUpdatePending}
           >
             <X className="size-3" />

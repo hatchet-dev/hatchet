@@ -97,7 +97,7 @@ export default function ScheduledRunsTable({
     <Button
       key="schedule-run"
       onClick={() => setTriggerWorkflow(true)}
-      className="h-8 border px-3"
+      variant="cta"
     >
       Schedule Run
     </Button>,
@@ -131,8 +131,6 @@ export default function ScheduledRunsTable({
             <div className="w-fit">
               <DocsButton
                 doc={docsPages.home['scheduled-runs']}
-                size="full"
-                variant="outline"
                 label="Learn about scheduled runs"
               />
             </div>

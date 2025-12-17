@@ -144,8 +144,6 @@ export default function Events() {
             <div className="w-fit">
               <DocsButton
                 doc={docsPages.home['run-on-event']}
-                size="full"
-                variant="outline"
                 label="Learn about pushing events to Hatchet"
               />
             </div>

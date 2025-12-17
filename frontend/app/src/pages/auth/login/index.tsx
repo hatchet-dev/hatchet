@@ -148,8 +148,12 @@ function BasicLogin() {
 export function GoogleLogin() {
   return (
     <a href="/api/v1/users/google/start" className="w-full">
-      <Button variant="outline" type="button" className="w-full py-2">
-        <Icons.google className="mr-2 h-4 w-4" />
+      <Button
+        variant="outline"
+        type="button"
+        fullWidth
+        leftIcon={<Icons.google className="size-4" />}
+      >
         Google
       </Button>
     </a>
@@ -159,8 +163,12 @@ export function GoogleLogin() {
 export function GithubLogin() {
   return (
     <a href="/api/v1/users/github/start" className="w-full">
-      <Button variant="outline" type="button" className="w-full py-2">
-        <Icons.gitHub className="mr-2 h-4 w-4" />
+      <Button
+        variant="outline"
+        type="button"
+        fullWidth
+        leftIcon={<Icons.gitHub className="size-4" />}
+      >
         Github
       </Button>
     </a>

@@ -63,8 +63,11 @@ const TaskRunPermalinkOrBacklink = ({
   if (showViewTaskRunButton) {
     return (
       <Link to={`/tenants/${tenantId}/runs/${taskRun.metadata.id}`}>
-        <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
-          <FullscreenIcon className="w-4 h-4" />
+        <Button
+          size={'sm'}
+          variant={'outline'}
+          leftIcon={<FullscreenIcon className="size-4" />}
+        >
           Expand
         </Button>
       </Link>
@@ -76,8 +79,11 @@ const TaskRunPermalinkOrBacklink = ({
   ) {
     return (
       <Link to={`/tenants/${tenantId}/runs/${taskRun.workflowRunExternalId}`}>
-        <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
-          <FullscreenIcon className="w-4 h-4" />
+        <Button
+          size={'sm'}
+          variant={'outline'}
+          leftIcon={<FullscreenIcon className="size-4" />}
+        >
           View DAG Run
         </Button>
       </Link>

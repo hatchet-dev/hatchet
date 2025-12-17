@@ -111,9 +111,8 @@ function Build({ buildId, back }: { buildId: string; back: () => void }) {
         <Button
           onClick={back}
           variant="link"
-          className="flex items-center gap-1"
+          leftIcon={<ChevronLeftIcon className="size-4" />}
         >
-          <ChevronLeftIcon className="w-4 h-4" />
           Back
         </Button>
       </div>
@@ -138,9 +137,8 @@ function IaCDebug({
         <Button
           onClick={back}
           variant="link"
-          className="flex items-center gap-1"
+          leftIcon={<ChevronLeftIcon className="size-4" />}
         >
-          <ChevronLeftIcon className="w-4 h-4" />
           Back
         </Button>
       </div>
@@ -203,8 +201,8 @@ function renderCardFooter(
           onClick={() => {
             setBuildId(data.build_id);
           }}
+          leftIcon={<ArrowRightIcon className="size-4" />}
         >
-          <ArrowRightIcon className="w-4 h-4 mr-1" />
           View build info
         </Button>,
       );
@@ -218,8 +216,8 @@ function renderCardFooter(
           onClick={() => {
             setDeployKey(data.deploy_key);
           }}
+          leftIcon={<ArrowRightIcon className="size-4" />}
         >
-          <ArrowRightIcon className="w-4 h-4 mr-1" />
           View IaC debug info
         </Button>,
       );

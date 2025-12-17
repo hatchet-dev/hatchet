@@ -17,8 +17,7 @@ const CopyIngestURL: React.FC<Props> = ({ ingestUrl }: Props) => {
 
   return (
     <Button
-      className="cursor-pointer flex flex-row gap-2 items-center mt-2 w-[200px]"
-      variant="ghost"
+      variant="icon"
       onClick={() => {
         navigator.clipboard.writeText(ingestUrl);
         setSuccessCopy(true);
@@ -29,9 +28,9 @@ const CopyIngestURL: React.FC<Props> = ({ ingestUrl }: Props) => {
       }}
     >
       {successCopy ? (
-        <CheckIcon className="w-4 h-4" />
+        <CheckIcon className="size-4" />
       ) : (
-        <CopyIcon className="w-4 h-4" />
+        <CopyIcon className="size-4" />
       )}
       {successCopy ? 'Copied' : 'Copy ingest URL'}
     </Button>

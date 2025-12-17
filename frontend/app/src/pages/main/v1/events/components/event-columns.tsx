@@ -53,7 +53,7 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="w-full">
           <Button
-            className="w-fit cursor-pointer pl-0"
+            className="w-fit pl-0"
             variant="link"
             onClick={() => {
               onRowClick?.(row.original);
@@ -74,7 +74,7 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="w-full">
           <Button
-            className="cursor-pointer pl-0 text-left h-auto whitespace-normal min-w-0 justify-start"
+            className="pl-0 text-left h-auto whitespace-normal min-w-0 justify-start"
             variant="link"
             onClick={() => {
               onRowClick?.(row.original);

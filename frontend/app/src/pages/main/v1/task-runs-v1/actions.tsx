@@ -332,7 +332,7 @@ const BaseActionButton = ({
   return (
     <Button
       size={'sm'}
-      className={cn('text-sm px-2 py-2 gap-2', className)}
+      className={cn('text-sm', className)}
       variant={'outline'}
       disabled={disabled}
       onClick={() => {
@@ -346,8 +346,8 @@ const BaseActionButton = ({
 
         setIsActionModalOpen(true);
       }}
+      leftIcon={icon}
     >
-      {icon}
       {label}
     </Button>
   );
@@ -375,7 +375,7 @@ export const TaskRunActionButton = ({
         <BaseActionButton
           disabled={disabled}
           params={{ ...params, actionType: 'cancel' }}
-          icon={<XCircleIcon className="w-4 h-4" />}
+          icon={<XCircleIcon className="size-4" />}
           label={'Cancel'}
           showModal={showModal}
           className={className}
@@ -386,7 +386,7 @@ export const TaskRunActionButton = ({
         <BaseActionButton
           disabled={disabled}
           params={{ ...params, actionType: 'replay' }}
-          icon={<Repeat1 className="w-4 h-4" />}
+          icon={<Repeat1 className="size-4" />}
           label={'Replay'}
           showModal={showModal}
           className={className}

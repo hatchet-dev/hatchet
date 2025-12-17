@@ -191,7 +191,7 @@ export function FilterCreateButton({
 
   return (
     <>
-      <Button onClick={() => setIsOpen(true)} className="h-8 border px-3">
+      <Button onClick={() => setIsOpen(true)} variant="cta">
         Create Filter
       </Button>
       <FilterCreateForm

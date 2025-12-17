@@ -87,7 +87,7 @@ export default function CronsTable() {
     <Button
       key="create-cron"
       onClick={() => setTriggerWorkflow(true)}
-      className="h-8 border px-3"
+      variant="cta"
     >
       Create Cron Job
     </Button>,
@@ -147,8 +147,6 @@ export default function CronsTable() {
             <div className="w-fit">
               <DocsButton
                 doc={docsPages.home['cron-runs']}
-                size="full"
-                variant="outline"
                 label="Learn about cron jobs in Hatchet"
               />
             </div>

@@ -87,8 +87,8 @@ export const columns: (
         {row.getCanExpand() && (
           <Button
             onClick={() => row.toggleExpanded()}
-            variant="ghost"
-            className="cursor-pointer px-2"
+            variant="icon"
+            className="px-2"
             hoverText="Show tasks"
           >
             {row.getIsExpanded() ? (

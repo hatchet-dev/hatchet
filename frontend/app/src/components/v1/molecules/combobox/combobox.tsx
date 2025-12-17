@@ -93,7 +93,7 @@ export function Combobox({
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 border-dashed">
-          {icon || <PlusCircledIcon className="mr-2 h-4 w-4" />}
+          {icon || <PlusCircledIcon className="mr-2 size-4" />}
           {title}
           {values.length > 0 && (
             <>
@@ -131,7 +131,7 @@ export function Combobox({
                         className="ml-2"
                         onClick={() => remove(option)}
                       >
-                        <BiX className="h-3 w-3" />
+                        <BiX className="size-3" />
                       </Button>
                     </Badge>
                   ))
@@ -158,7 +158,7 @@ export function Combobox({
                     className="ml-2 shrink-0"
                     onClick={() => remove(filter)}
                   >
-                    <BiX className="h-4 w-4" />
+                    <BiX className="size-4" />
                   </Button>
                 </Badge>
               ))}
@@ -189,15 +189,16 @@ export function Combobox({
                   />
                 </div>
               )}
-              <Button type="submit" className="w-full" size="sm">
+              <Button type="submit" fullWidth size="sm">
                 Add {title} Filter
               </Button>
               {values.length > 0 && (
                 <Button
                   onClick={() => setValues([])}
-                  className="w-full mt-2"
+                  className="mt-2"
                   size="sm"
                   variant={'ghost'}
+                  fullWidth
                 >
                   Reset
                 </Button>
@@ -239,16 +240,16 @@ export function Combobox({
                     >
                       <div
                         className={cn(
-                          'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
+                          'mr-2 flex size-4 items-center justify-center rounded-sm border border-primary',
                           isSelected
                             ? 'bg-primary text-primary-foreground'
                             : 'opacity-50 [&_svg]:invisible',
                         )}
                       >
-                        <CheckIcon className={cn('h-4 w-4')} />
+                        <CheckIcon className={cn('size-4')} />
                       </div>
                       {option.icon && (
-                        <option.icon className="mr-2 h-4 w-4 text-gray-700 dark:text-gray-300" />
+                        <option.icon className="mr-2 size-4 text-gray-700 dark:text-gray-300" />
                       )}
                       <span>{option.label}</span>
                     </CommandItem>

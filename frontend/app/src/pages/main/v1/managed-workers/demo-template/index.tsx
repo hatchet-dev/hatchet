@@ -353,7 +353,7 @@ func main() {
         <div className="flex flex-row items-center mb-4">
           <Link to={`/tenants/${tenantId}/managed-workers`} className="mr-4">
             <Button variant="ghost" size="icon">
-              <ArrowLeftIcon className="h-4 w-4" />
+              <ArrowLeftIcon className="size-4" />
             </Button>
           </Link>
           <h2 className="text-2xl font-bold leading-tight text-foreground">
@@ -449,7 +449,7 @@ func main() {
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center text-sm font-medium text-primary hover:underline"
                               >
-                                <GitHubLogoIcon className="h-4 w-4 mr-2" />
+                                <GitHubLogoIcon className="size-4 mr-2" />
                                 View TypeScript source on GitHub
                                 <span className="ml-1">↗</span>
                               </a>
@@ -507,7 +507,7 @@ func main() {
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center text-sm font-medium text-primary hover:underline"
                               >
-                                <GitHubLogoIcon className="h-4 w-4 mr-2" />
+                                <GitHubLogoIcon className="size-4 mr-2" />
                                 View Python source on GitHub
                                 <span className="ml-1">↗</span>
                               </a>
@@ -562,7 +562,7 @@ func main() {
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center text-sm font-medium text-primary hover:underline"
                               >
-                                <GitHubLogoIcon className="h-4 w-4 mr-2" />
+                                <GitHubLogoIcon className="size-4 mr-2" />
                                 View Go source on GitHub
                                 <span className="ml-1">↗</span>
                               </a>
@@ -647,7 +647,7 @@ func main() {
                       {deploying && (
                         <div className="border rounded-lg p-4 mb-4 bg-muted/20">
                           <div className="flex items-center mb-2">
-                            <ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" />
+                            <ArrowPathIcon className="size-4 mr-2 animate-spin" />
                             <h4 className="font-medium">
                               Deployment in progress...
                             </h4>
@@ -744,7 +744,7 @@ func main() {
                 <div className="border rounded-lg bg-card p-6 shadow-sm">
                   <div className="flex items-start mb-4">
                     <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-                      <KeyIcon className="h-4 w-4 text-primary" />
+                      <KeyIcon className="size-4 text-primary" />
                     </div>
                     <div className="flex-1">
                       <h4 className="font-medium mb-1">
@@ -759,11 +759,11 @@ func main() {
                         <Button
                           onClick={handleGenerateToken}
                           disabled={isGeneratingToken}
-                          className="w-full mb-2"
+                          fullWidth
                         >
                           {isGeneratingToken ? (
                             <>
-                              <ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" />
+                              <ArrowPathIcon className="size-4 mr-2 animate-spin" />
                               Generating Token...
                             </>
                           ) : (
@@ -793,7 +793,6 @@ func main() {
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="flex items-center"
                               onClick={() => setTokenRevealed(!tokenRevealed)}
                             >
                               {tokenRevealed ? 'Hide Token' : 'Reveal Token'}
@@ -889,7 +888,7 @@ func main() {
                     <Link
                       to={`/tenants/${tenantId}/managed-workers/${deployedWorkerId}`}
                     >
-                      <Button variant="default" className="w-full mb-4">
+                      <Button variant="default" fullWidth>
                         View Your Service
                       </Button>
                     </Link>
@@ -898,12 +897,12 @@ func main() {
                   {/* Secondary action buttons */}
                   <div className="grid grid-cols-2 gap-3">
                     <Link to={`/tenants/${tenantId}/runs`}>
-                      <Button variant="outline" className="w-full">
+                      <Button variant="outline" fullWidth>
                         View Runs
                       </Button>
                     </Link>
                     <Link to={`/tenants/${tenantId}/workflows`}>
-                      <Button variant="outline" className="w-full">
+                      <Button variant="outline" fullWidth>
                         View RegisteredTasks
                       </Button>
                     </Link>

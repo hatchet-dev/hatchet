@@ -38,16 +38,18 @@ export function DataTableColumnHeader<TData, TValue>({
           <Button
             variant="ghost"
             size="sm"
-            className="-ml-3 h-8 data-[state=open]:bg-accent"
+            className="data-[state=open]:bg-accent"
+            rightIcon={
+              column.getIsSorted() === 'desc' ? (
+                <ArrowDownIcon className="size-4" />
+              ) : column.getIsSorted() === 'asc' ? (
+                <ArrowUpIcon className="size-4" />
+              ) : (
+                <CaretSortIcon className="size-4" />
+              )
+            }
           >
             <span>{title}</span>
-            {column.getIsSorted() === 'desc' ? (
-              <ArrowDownIcon className="ml-2 h-4 w-4" />
-            ) : column.getIsSorted() === 'asc' ? (
-              <ArrowUpIcon className="ml-2 h-4 w-4" />
-            ) : (
-              <CaretSortIcon className="ml-2 h-4 w-4" />
-            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
