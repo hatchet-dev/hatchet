@@ -31,7 +31,7 @@ import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
 import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
 import React, { useCallback } from 'react';
-import { Link, useLocation, useMatchRoute } from '@tanstack/react-router';
+import { Link, useMatchRoute } from '@tanstack/react-router';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
 import { appRoutes } from '@/router';
 
@@ -145,7 +145,8 @@ function Sidebar({ className, memberships }: SidebarProps) {
               <SidebarButtonPrimary
                 key="webhooks"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/webhooks`}
+                to={appRoutes.tenantWebhooksRoute.to}
+                params={{ tenant: tenantId }}
                 name="Webhooks"
                 icon={<WebhookIcon className="mr-2 h-4 w-4" />}
               />
@@ -159,7 +160,8 @@ function Sidebar({ className, memberships }: SidebarProps) {
               <SidebarButtonPrimary
                 key="workers"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/workers`}
+                to={appRoutes.tenantWorkersRoute.to}
+                params={{ tenant: tenantId }}
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 size-4" />}
               />
@@ -305,7 +307,6 @@ function SidebarButtonPrimary({
   prefix?: string;
   collapsibleChildren?: React.ReactNode[];
 }) {
-  const location = useLocation();
   const matchRoute = useMatchRoute();
 
   // `to` (and `prefix`) are TanStack route templates (e.g. `/tenants/$tenant/...`).
@@ -313,17 +314,12 @@ function SidebarButtonPrimary({
   const open =
     collapsibleChildren.length > 0
       ? prefix
-        ? Boolean(matchRoute({ to: prefix, params, fuzzy: true })) ||
-          location.pathname.startsWith(prefix)
+        ? Boolean(matchRoute({ to: prefix, params, fuzzy: true }))
         : Boolean(matchRoute({ to, params, fuzzy: true }))
       : false;
 
   const selected =
-    collapsibleChildren.length > 0
-      ? open
-      : Boolean(matchRoute({ to, params })) ||
-        // Fallback for any `to` values that aren't registered router paths
-        location.pathname === to;
+    collapsibleChildren.length > 0 ? open : Boolean(matchRoute({ to, params }));
 
   const primaryLink = (
     <Link to={to} params={params} onClick={onNavLinkClick}>
@@ -369,17 +365,11 @@ function SidebarButtonSecondary({
   name: string;
   prefix?: string;
 }) {
-  const location = useLocation();
   const matchRoute = useMatchRoute();
   const hasPrefix = prefix
-    ? Boolean(matchRoute({ to: prefix, params, fuzzy: true })) ||
-      location.pathname.startsWith(prefix)
+    ? Boolean(matchRoute({ to: prefix, params, fuzzy: true }))
     : false;
-  const selected =
-    Boolean(matchRoute({ to, params })) ||
-    // Fallback for any `to` values that aren't registered router paths
-    location.pathname === to ||
-    hasPrefix;
+  const selected = Boolean(matchRoute({ to, params })) || hasPrefix;
 
   return (
     <Link to={to} params={params} onClick={onNavLinkClick}>

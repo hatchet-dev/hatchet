@@ -1,5 +1,9 @@
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
-import { useNavigate } from '@tanstack/react-router';
+import {
+  useLocation,
+  useMatchRoute,
+  useNavigate,
+} from '@tanstack/react-router';
 import api, { queries, User } from '@/lib/api';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -29,6 +33,32 @@ export default function Authenticated() {
   });
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const pathname = location.pathname;
+  const matchRoute = useMatchRoute();
+  const isAuthPage =
+    Boolean(matchRoute({ to: appRoutes.authLoginRoute.to })) ||
+    Boolean(matchRoute({ to: appRoutes.authRegisterRoute.to }));
+  const isOrganizationsPage = Boolean(
+    matchRoute({ to: appRoutes.organizationsRoute.to, fuzzy: true }),
+  );
+  const isOnboardingVerifyEmailPage = Boolean(
+    matchRoute({ to: appRoutes.onboardingVerifyRoute.to }),
+  );
+  const isOnboardingInvitesPage = Boolean(
+    matchRoute({ to: appRoutes.onboardingInvitesRoute.to }),
+  );
+  const isOnboardingCreateTenantPage = Boolean(
+    matchRoute({ to: appRoutes.onboardingCreateTenantRoute.to }),
+  );
+  const isOnboardingGetStartedPage =
+    Boolean(matchRoute({ to: appRoutes.onboardingGetStartedRoute.to })) ||
+    Boolean(matchRoute({ to: appRoutes.tenantOnboardingGetStartedRoute.to }));
+  const isOnboardingPage =
+    isOnboardingVerifyEmailPage ||
+    isOnboardingInvitesPage ||
+    isOnboardingCreateTenantPage ||
+    isOnboardingGetStartedPage;
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -77,48 +107,44 @@ export default function Authenticated() {
   });
 
   useEffect(() => {
-    const currentUrl = window.location.pathname;
     const userQueryError = userQuery.error as AxiosError<User> | null;
 
     // Skip all redirects for organization pages
-    if (currentUrl.startsWith('/organizations')) {
+    if (isOrganizationsPage) {
       return;
     }
 
     if (userQueryError?.status === 401 || userQueryError?.status === 403) {
-      window.location.href = '/auth/login';
+      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
 
     if (
       userQuery.data &&
       !userQuery.data.emailVerified &&
-      !currentUrl.includes('/onboarding/verify-email')
+      !isOnboardingVerifyEmailPage
     ) {
-      window.location.href = '/onboarding/verify-email';
+      navigate({ to: appRoutes.onboardingVerifyRoute.to, replace: true });
       return;
     }
 
     if (
       invitesQuery.data?.length &&
       invitesQuery.data.length > 0 &&
-      !currentUrl.includes('/onboarding/invites')
+      !isOnboardingInvitesPage
     ) {
-      window.location.href = '/onboarding/invites';
+      navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
       return;
     }
 
-    if (
-      listMembershipsQuery.data?.rows?.length === 0 &&
-      !currentUrl.includes('/onboarding')
-    ) {
-      window.location.href = '/onboarding/create-tenant';
+    if (listMembershipsQuery.data?.rows?.length === 0 && !isOnboardingPage) {
+      navigate({ to: appRoutes.onboardingCreateTenantRoute.to, replace: true });
       return;
     }
 
     // If user has memberships and we're at the bare root, go to their first tenant
     if (
-      currentUrl === '/' &&
+      pathname === '/' &&
       listMembershipsQuery.data?.rows &&
       listMembershipsQuery.data.rows.length > 0
     ) {
@@ -149,7 +175,18 @@ export default function Authenticated() {
     userQuery.error,
     navigate,
     lastTenant,
+    pathname,
+    isOrganizationsPage,
+    isOnboardingVerifyEmailPage,
+    isOnboardingInvitesPage,
+    isOnboardingPage,
   ]);
+
+  useEffect(() => {
+    if (userQuery.error && !isAuthPage) {
+      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
+    }
+  }, [isAuthPage, navigate, userQuery.error]);
 
   if (
     userQuery.isLoading ||
@@ -159,15 +196,8 @@ export default function Authenticated() {
     return <Loading />;
   }
 
-  if (userQuery.error) {
-    const currentUrl = window.location.pathname;
-    if (
-      !currentUrl.includes('/auth/login') &&
-      !currentUrl.includes('/auth/register')
-    ) {
-      window.location.href = '/auth/login';
-      return null;
-    }
+  if (userQuery.error && !isAuthPage) {
+    return null;
   }
 
   if (!userQuery.data) {
@@ -175,8 +205,7 @@ export default function Authenticated() {
   }
 
   // Allow organization pages even without tenant memberships
-  const isOrgPage = window.location.pathname.includes('/organizations');
-  if (!isOrgPage && !listMembershipsQuery.data?.rows) {
+  if (!isOrganizationsPage && !listMembershipsQuery.data?.rows) {
     return <Loading />;
   }
 

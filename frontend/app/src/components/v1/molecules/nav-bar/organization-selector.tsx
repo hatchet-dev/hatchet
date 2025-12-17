@@ -33,7 +33,7 @@ import {
 import { Input } from '@/components/v1/ui/input';
 import { TooltipProvider } from '@/components/v1/ui/tooltip';
 import { useState, useMemo } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useOrganizations } from '@/hooks/use-organizations';
 import invariant from 'tiny-invariant';
@@ -183,6 +183,7 @@ export function OrganizationSelector({
   memberships,
 }: OrganizationSelectorProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { tenant: currTenant, setTenant: setCurrTenant } = useTenantDetails();
   const [open, setOpen] = useState(false);
   const [expandedOrgs, setExpandedOrgs] = useState<string[]>([]);
@@ -206,7 +207,7 @@ export function OrganizationSelector({
     }
 
     // Store the current path before navigating to org settings
-    sessionStorage.setItem('orgSettingsPreviousPath', window.location.pathname);
+    sessionStorage.setItem('orgSettingsPreviousPath', location.pathname);
     navigate({ to: nav.to, params: nav.params, replace: false });
   };
 
