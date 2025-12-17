@@ -9,7 +9,7 @@ import {
   RefetchInterval,
   RefetchIntervalOption,
   LabeledRefetchInterval,
-} from '@/lib/api/api';
+} from '@/lib/api/refetch-interval';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 
 interface RefetchIntervalContextType {

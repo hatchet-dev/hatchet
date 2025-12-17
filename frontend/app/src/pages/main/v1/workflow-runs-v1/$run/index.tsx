@@ -4,7 +4,7 @@ import api, {
   V1WorkflowRunDetails,
   WorkflowRunShapeForWorkflowRunDetails,
 } from '@/lib/api';
-import { useParams } from 'react-router-dom';
+import { useParams } from '@tanstack/react-router';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import {
   Tabs,
@@ -33,10 +33,10 @@ import {
   useWorkflowDetails,
 } from '../hooks/use-workflow-details';
 import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Waterfall } from './v2components/waterfall';
 import { RunsProvider } from '../hooks/runs-provider';
+import { appRoutes } from '@/router';
 
 function statusToBadgeVariant(status: V1TaskStatus) {
   switch (status) {
@@ -102,9 +102,7 @@ async function fetchDAGRun(id: string) {
 }
 
 export default function Run() {
-  const { run } = useParams();
-
-  invariant(run, 'Run ID is required');
+  const { run } = useParams({ from: appRoutes.tenantRunRoute.to });
 
   const taskRunQuery = useQuery({
     queryKey: ['workflow-run', run],

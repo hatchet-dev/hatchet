@@ -1,5 +1,5 @@
 import { Separator } from '@/components/v1/ui/separator';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
 import CreateWorkerForm from './components/create-worker-form';
 import { useMutation } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
 import { BillingRequired } from '../components/billing-required';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { appRoutes } from '@/router';
 
 export default function CreateWorker() {
   const navigate = useNavigate();
@@ -56,7 +57,10 @@ export default function CreateWorker() {
       return res.data;
     },
     onSuccess: (data) => {
-      navigate(`/tenants/${tenantId}/managed-workers/${data.metadata.id}`);
+      navigate({
+        to: appRoutes.tenantManagedWorkerRoute.to,
+        params: { tenant: tenantId, managedWorker: data.metadata.id },
+      });
     },
     onError: handleApiError,
   });

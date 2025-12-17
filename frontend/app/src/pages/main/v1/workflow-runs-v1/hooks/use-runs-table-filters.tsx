@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from '@/lib/router-helpers';
 import { V1TaskStatus } from '@/lib/api';
 import { ColumnFiltersState } from '@tanstack/react-table';
 import {

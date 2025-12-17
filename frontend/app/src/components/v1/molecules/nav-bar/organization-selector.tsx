@@ -33,10 +33,11 @@ import {
 import { Input } from '@/components/v1/ui/input';
 import { TooltipProvider } from '@/components/v1/ui/tooltip';
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useOrganizations } from '@/hooks/use-organizations';
 import invariant from 'tiny-invariant';
+import { appRoutes } from '@/router';
 
 interface OrganizationGroupProps {
   organization: OrganizationForUser;
@@ -46,7 +47,7 @@ interface OrganizationGroupProps {
   onToggleExpand: () => void;
   onTenantSelect: (tenant: Tenant) => void;
   onClose: () => void;
-  onNavigate: (path: string) => void;
+  onNavigate: (nav: { to: string; params?: Record<string, string> }) => void;
 }
 
 function OrganizationGroup({
@@ -63,16 +64,24 @@ function OrganizationGroup({
     e.preventDefault();
     e.stopPropagation();
     onClose();
-    onNavigate(`/organizations/${organization.metadata.id}`);
+    onNavigate({
+      to: appRoutes.organizationsRoute.to,
+      params: {
+        organization: organization.metadata.id,
+      },
+    });
   };
 
   const handleNewTenantClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onClose();
-    onNavigate(
-      '/onboarding/create-tenant?organizationId=' + organization.metadata.id,
-    );
+    onNavigate({
+      to: appRoutes.onboardingCreateTenantRoute.to,
+      params: {
+        organizationId: organization.metadata.id,
+      },
+    });
   };
 
   return (
@@ -174,6 +183,7 @@ export function OrganizationSelector({
   memberships,
 }: OrganizationSelectorProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { tenant: currTenant, setTenant: setCurrTenant } = useTenantDetails();
   const [open, setOpen] = useState(false);
   const [expandedOrgs, setExpandedOrgs] = useState<string[]>([]);
@@ -188,10 +198,17 @@ export function OrganizationSelector({
   } = useOrganizations();
 
   const handleClose = () => setOpen(false);
-  const handleNavigate = (path: string) => {
+  const handleNavigate = (nav: {
+    to: string;
+    params?: Record<string, string>;
+  }) => {
+    if (!nav.to) {
+      return;
+    }
+
     // Store the current path before navigating to org settings
-    sessionStorage.setItem('orgSettingsPreviousPath', window.location.pathname);
-    navigate(path, { replace: false });
+    sessionStorage.setItem('orgSettingsPreviousPath', location.pathname);
+    navigate({ to: nav.to, params: nav.params, replace: false });
   };
 
   const handleTenantSelect = (tenant: Tenant) => {
@@ -219,7 +236,10 @@ export function OrganizationSelector({
     handleCreateOrganization(orgName.trim(), (organizationId) => {
       setShowCreateModal(false);
       setOrgName('');
-      navigate(`/organizations/${organizationId}`);
+      navigate({
+        to: appRoutes.organizationsRoute.to,
+        params: { organization: organizationId },
+      });
     });
   };
 

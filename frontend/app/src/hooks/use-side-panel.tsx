@@ -6,7 +6,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from '@tanstack/react-router';
 import {
   TaskRunDetail,
   TabOption,

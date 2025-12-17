@@ -16,7 +16,7 @@ import { Button } from '@/components/v1/ui/button';
 import { debounce } from 'lodash';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import { CodeEditor } from '@/components/v1/ui/code-editor';
 import { Input } from '@/components/v1/ui/input';
 import {
@@ -30,7 +30,8 @@ import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-too
 import { BiDownArrowCircle } from 'react-icons/bi';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { formatCron } from '@/lib/utils';
+import { formatCron } from '@/lib/cron';
+import { appRoutes } from '@/router';
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 
@@ -164,7 +165,10 @@ export function TriggerWorkflowForm({
         return;
       }
 
-      navigate(`/tenants/${tenantId}/runs/${workflowRun.run.metadata.id}`);
+      navigate({
+        to: appRoutes.tenantRunRoute.to,
+        params: { tenant: tenantId, run: workflowRun.run.metadata.id },
+      });
     },
     onError: handleApiError,
   });
@@ -203,7 +207,10 @@ export function TriggerWorkflowForm({
       await queryClient.invalidateQueries({
         queryKey: ['scheduledRuns', 'list'],
       });
-      navigate(`/tenants/${tenantId}/scheduled`);
+      navigate({
+        to: appRoutes.tenantScheduledRoute.to,
+        params: { tenant: tenantId },
+      });
     },
     onError: handleApiError,
   });
@@ -244,7 +251,10 @@ export function TriggerWorkflowForm({
       await queryClient.invalidateQueries({
         queryKey: ['cronJobs', 'list'],
       });
-      navigate(`/tenants/${tenantId}/cron-jobs`);
+      navigate({
+        to: appRoutes.tenantCronJobsRoute.to,
+        params: { tenant: tenantId },
+      });
     },
     onError: handleApiError,
   });

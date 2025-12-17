@@ -1,6 +1,6 @@
 import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import invariant from 'tiny-invariant';
 import { WorkflowTags } from '../components/workflow-tags';
 import { Badge } from '@/components/v1/ui/badge';
@@ -30,6 +30,7 @@ import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { workflowKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
+import { appRoutes } from '@/router';
 
 export default function ExpandedWorkflow() {
   // TODO list previous versions and make selectable
@@ -41,8 +42,7 @@ export default function ExpandedWorkflow() {
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
   const { refetchInterval } = useRefetchInterval();
 
-  const params = useParams();
-  invariant(params.workflow);
+  const params = useParams({ from: appRoutes.tenantWorkflowRoute.to });
 
   const workflowQuery = useQuery({
     ...queries.workflows.get(params.workflow),
@@ -84,7 +84,10 @@ export default function ExpandedWorkflow() {
       return res.data;
     },
     onSuccess: () => {
-      navigate(`/tenants/${tenantId}/workflows`);
+      navigate({
+        to: appRoutes.tenantWorkflowsRoute.to,
+        params: { tenant: tenantId },
+      });
     },
   });
 
@@ -266,8 +269,7 @@ export default function ExpandedWorkflow() {
 }
 
 function RecentRunsList() {
-  const params = useParams();
-  invariant(params.workflow);
+  const params = useParams({ from: appRoutes.tenantWorkflowRoute.to });
 
   return (
     <RunsProvider

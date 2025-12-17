@@ -1,8 +1,7 @@
 import { Separator } from '@/components/v1/ui/separator';
 import { queries } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
-import invariant from 'tiny-invariant';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { relativeDate } from '@/lib/utils';
 import { CpuChipIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -26,6 +25,7 @@ import { useApiError } from '@/lib/hooks';
 import GithubButton from './components/github-button';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { appRoutes } from '@/router';
 
 export default function ExpandedWorkflow() {
   const navigate = useNavigate();
@@ -33,11 +33,10 @@ export default function ExpandedWorkflow() {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
 
-  const params = useParams();
-  invariant(params['managed-worker']);
+  const params = useParams({ from: appRoutes.tenantManagedWorkerRoute.to });
 
   const managedWorkerQuery = useQuery({
-    ...queries.cloud.getManagedWorker(params['managed-worker']),
+    ...queries.cloud.getManagedWorker(params.managedWorker),
     refetchInterval,
   });
 
@@ -47,10 +46,8 @@ export default function ExpandedWorkflow() {
   });
 
   const updateManagedWorkerMutation = useMutation({
-    mutationKey: ['managed-worker:update', params['managed-worker']],
+    mutationKey: ['managed-worker:update', params.managedWorker],
     mutationFn: async (data: UpdateManagedWorkerRequest) => {
-      invariant(managedWorker);
-
       const dataCopy = { ...data };
 
       if (dataCopy.isIac) {
@@ -70,15 +67,17 @@ export default function ExpandedWorkflow() {
   });
 
   const deleteManagedWorkerMutation = useMutation({
-    mutationKey: ['managed-worker:delete', params['managed-worker']],
+    mutationKey: ['managed-worker:delete', params.managedWorker],
     mutationFn: async () => {
-      invariant(managedWorker);
       const res = await cloudApi.managedWorkerDelete(managedWorker.metadata.id);
       return res.data;
     },
     onSuccess: () => {
       setDeleteWorker(false);
-      navigate(`/tenants/${tenantId}/managed-workers`);
+      navigate({
+        to: appRoutes.tenantManagedWorkersRoute.to,
+        params: { tenant: tenantId },
+      });
     },
     onError: handleApiError,
   });

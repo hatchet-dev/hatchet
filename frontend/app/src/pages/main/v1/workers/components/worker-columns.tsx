@@ -1,12 +1,13 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { Worker } from '@/lib/api';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SdkInfo } from './sdk-info';
 
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import { cn } from '@/lib/utils';
+import { appRoutes } from '@/router';
 
 export const WorkerColumn = {
   status: 'Status',
@@ -129,7 +130,10 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
       <DataTableColumnHeader column={column} title={WorkerColumn.status} />
     ),
     cell: ({ row }) => (
-      <Link to={`/tenants/${tenantId}/workers/${row.original.metadata.id}`}>
+      <Link
+        to={appRoutes.tenantWorkerRoute.to}
+        params={{ tenant: tenantId, worker: row.original.metadata.id }}
+      >
         <WorkerStatusBadge status={row.original.status} />
       </Link>
     ),
@@ -142,7 +146,10 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
       <DataTableColumnHeader column={column} title={WorkerColumn.name} />
     ),
     cell: ({ row }) => (
-      <Link to={`/tenants/${tenantId}/workers/${row.original.metadata.id}`}>
+      <Link
+        to={appRoutes.tenantWorkerRoute.to}
+        params={{ tenant: tenantId, worker: row.original.metadata.id }}
+      >
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
           {row.original.webhookUrl || row.original.name}
         </div>

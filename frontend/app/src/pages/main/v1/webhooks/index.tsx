@@ -31,7 +31,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertTriangle, Check, Copy, Lightbulb, Webhook } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link } from 'react-router-dom';
 import { AuthMethod } from './components/auth-method';
 import { AuthSetup } from './components/auth-setup';
 import { SourceName } from './components/source-name';
@@ -462,14 +461,14 @@ const CreateWebhookModal = () => {
               <p>
                 CEL expression to extract the event key from the webhook
                 payload. See{' '}
-                <Link
-                  to="https://cel.dev/"
+                <a
+                  href="https://cel.dev/"
                   className="text-blue-600"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   the docs
-                </Link>{' '}
+                </a>{' '}
                 for details.
               </p>
               <ul className="list-disc pl-4">

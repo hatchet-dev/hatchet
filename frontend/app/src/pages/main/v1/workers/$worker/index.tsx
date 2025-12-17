@@ -1,8 +1,7 @@
 import { Separator } from '@/components/v1/ui/separator';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
-import invariant from 'tiny-invariant';
+import { Link, useParams } from '@tanstack/react-router';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -30,6 +29,7 @@ import { capitalize } from '@/lib/utils';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { flattenDAGsKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
 import { useMemo, useState } from 'react';
+import { appRoutes } from '@/router';
 const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -98,8 +98,7 @@ export default function ExpandedWorkflowRun() {
   const { refetchInterval } = useRefetchInterval();
   const [showAllActions, setShowAllActions] = useState(false);
 
-  const params = useParams();
-  invariant(params.worker);
+  const params = useParams({ from: appRoutes.tenantWorkerRoute.to });
 
   const workerQuery = useQuery({
     ...queries.workers.get(params.worker),
@@ -146,7 +145,12 @@ export default function ExpandedWorkflowRun() {
           <div className="flex flex-row gap-4 items-center justify-between">
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
             <h2 className="text-2xl font-bold leading-tight text-foreground">
-              <Link to={`/tenants/${tenantId}/workers`}>Workers/</Link>
+              <Link
+                to={appRoutes.tenantWorkersRoute.to}
+                params={{ tenant: tenantId }}
+              >
+                Workers/
+              </Link>
               {worker.webhookUrl || worker.name}
             </h2>
           </div>
@@ -243,7 +247,8 @@ export default function ExpandedWorkflowRun() {
           {filteredWorkflows.map((workflow) => {
             return (
               <Link
-                to={`/tenants/${tenantId}/workflows/${workflow.id}`}
+                to={appRoutes.tenantWorkflowRoute.to}
+                params={{ tenant: tenantId, workflow: workflow.id }}
                 key={workflow.id}
               >
                 <Button variant="outline">{workflow.name}</Button>

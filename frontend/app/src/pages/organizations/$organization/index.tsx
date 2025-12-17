@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import { cloudApi } from '@/lib/api/api';
 import api from '@/lib/api';
@@ -63,9 +63,12 @@ import {
 } from '@/components/v1/ui/tooltip';
 import { EllipsisVerticalIcon, TrashIcon } from '@heroicons/react/24/outline';
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
+import { appRoutes } from '@/router';
 
 export default function OrganizationPage() {
-  const { organization: orgId } = useParams<{ organization: string }>();
+  const { organization: orgId } = useParams({
+    from: appRoutes.organizationsRoute.to,
+  });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { handleUpdateOrganization, updateOrganizationLoading } =
@@ -288,9 +291,9 @@ export default function OrganizationPage() {
               );
               if (previousPath) {
                 sessionStorage.removeItem('orgSettingsPreviousPath');
-                navigate(previousPath, { replace: false });
+                navigate({ to: previousPath, replace: false });
               } else {
-                navigate(-1);
+                window.history.back();
               }
             }}
             className="h-8 w-8 p-0"
@@ -308,10 +311,10 @@ export default function OrganizationPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  navigate(
-                    '/onboarding/create-tenant?organizationId=' +
-                      organization.metadata.id,
-                  );
+                  navigate({
+                    to: appRoutes.onboardingCreateTenantRoute.to,
+                    search: { organizationId: organization.metadata.id },
+                  });
                 }}
                 leftIcon={<PlusIcon className="size-4" />}
               >
@@ -378,7 +381,10 @@ export default function OrganizationPage() {
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuItem
                                       onClick={() => {
-                                        navigate(`/tenants/${orgTenant.id}`);
+                                        navigate({
+                                          to: appRoutes.tenantRoute.to,
+                                          params: { tenant: orgTenant.id },
+                                        });
                                       }}
                                     >
                                       <ArrowRightIcon className="size-4 mr-2" />
@@ -458,7 +464,10 @@ export default function OrganizationPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem
                                   onClick={() => {
-                                    navigate(`/tenants/${orgTenant.id}`);
+                                    navigate({
+                                      to: appRoutes.tenantRoute.to,
+                                      params: { tenant: orgTenant.id },
+                                    });
                                   }}
                                 >
                                   <ArrowRightIcon className="size-4 mr-2" />
@@ -487,10 +496,10 @@ export default function OrganizationPage() {
                 </p>
                 <Button
                   onClick={() => {
-                    navigate(
-                      '/onboarding/create-tenant?organizationId=' +
-                        organization.metadata.id,
-                    );
+                    navigate({
+                      to: appRoutes.onboardingCreateTenantRoute.to,
+                      search: { organizationId: organization.metadata.id },
+                    });
                   }}
                   leftIcon={<PlusIcon className="size-4" />}
                 >

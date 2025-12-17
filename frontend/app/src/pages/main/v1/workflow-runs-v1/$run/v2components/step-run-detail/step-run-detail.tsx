@@ -11,7 +11,7 @@ import {
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { RunsTable } from '../../../components/runs-table';
 import { RunsProvider } from '../../../hooks/runs-provider';
 import { V1RunIndicator } from '../../../components/run-statuses';
@@ -29,6 +29,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
 import { useCallback, useState } from 'react';
 import { FullscreenIcon } from 'lucide-react';
+import { appRoutes } from '@/router';
 
 export enum TabOption {
   Output = 'output',
@@ -62,7 +63,10 @@ const TaskRunPermalinkOrBacklink = ({
 
   if (showViewTaskRunButton) {
     return (
-      <Link to={`/tenants/${tenantId}/runs/${taskRun.metadata.id}`}>
+      <Link
+        to={appRoutes.tenantRunRoute.to}
+        params={{ tenant: tenantId, run: taskRun.metadata.id }}
+      >
         <Button
           size={'sm'}
           variant={'outline'}
@@ -78,7 +82,10 @@ const TaskRunPermalinkOrBacklink = ({
     taskRun.workflowRunExternalId !== taskRun.metadata.id
   ) {
     return (
-      <Link to={`/tenants/${tenantId}/runs/${taskRun.workflowRunExternalId}`}>
+      <Link
+        to={appRoutes.tenantRunRoute.to}
+        params={{ tenant: tenantId, run: taskRun.workflowRunExternalId }}
+      >
         <Button
           size={'sm'}
           variant={'outline'}
@@ -419,7 +426,11 @@ function TriggeringParentWorkflowRunSection({
     <div className="text-sm text-gray-700 dark:text-gray-300 flex flex-row gap-1">
       Triggered by
       <Link
-        to={`/tenants/${tenantId}/runs/${parentWorkflowRun.workflowRunExternalId}`}
+        to={appRoutes.tenantRunRoute.to}
+        params={{
+          tenant: tenantId,
+          run: parentWorkflowRun.workflowRunExternalId,
+        }}
         className="font-semibold hover:underline text-indigo-500 dark:text-indigo-200"
       >
         {parentWorkflowRun.displayName} ➶

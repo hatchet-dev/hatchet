@@ -31,7 +31,9 @@ import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
 import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
 import React, { useCallback } from 'react';
-import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
+import { Link, useMatchRoute } from '@tanstack/react-router';
+import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
+import { appRoutes } from '@/router';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -54,7 +56,7 @@ function Main() {
           className="px-8 py-4 flex-grow overflow-y-auto overflow-x-hidden"
           style={{ containerType: 'inline-size' }}
         >
-          <Outlet context={childCtx} />
+          <OutletWithContext context={childCtx} />
         </div>
         <SidePanel />
       </div>
@@ -104,14 +106,16 @@ function Sidebar({ className, memberships }: SidebarProps) {
               <SidebarButtonPrimary
                 key="runs"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/runs`}
+                to={appRoutes.tenantRunsRoute.to}
+                params={{ tenant: tenantId }}
                 name="Runs"
                 icon={<PlayIcon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="events"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/events`}
+                to={appRoutes.tenantEventsRoute.to}
+                params={{ tenant: tenantId }}
                 name="Events"
                 icon={<SquareActivityIcon className="mr-2 size-4" />}
               />
@@ -125,21 +129,24 @@ function Sidebar({ className, memberships }: SidebarProps) {
               <SidebarButtonPrimary
                 key="scheduled"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/scheduled`}
+                to={appRoutes.tenantScheduledRoute.to}
+                params={{ tenant: tenantId }}
                 name="Scheduled Runs"
                 icon={<CalendarDaysIcon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="crons"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/cron-jobs`}
+                to={appRoutes.tenantCronJobsRoute.to}
+                params={{ tenant: tenantId }}
                 name="Cron Jobs"
                 icon={<ClockIcon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="webhooks"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/webhooks`}
+                to={appRoutes.tenantWebhooksRoute.to}
+                params={{ tenant: tenantId }}
                 name="Webhooks"
                 icon={<WebhookIcon className="mr-2 h-4 w-4" />}
               />
@@ -153,14 +160,16 @@ function Sidebar({ className, memberships }: SidebarProps) {
               <SidebarButtonPrimary
                 key="workers"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/workers`}
+                to={appRoutes.tenantWorkersRoute.to}
+                params={{ tenant: tenantId }}
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="workflows"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/workflows`}
+                to={appRoutes.tenantWorkflowsRoute.to}
+                params={{ tenant: tenantId }}
                 name="Workflows"
                 icon={<Squares2X2Icon className="mr-2 size-4" />}
               />
@@ -168,7 +177,8 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 <SidebarButtonPrimary
                   key="managed-compute"
                   onNavLinkClick={onNavLinkClick}
-                  to={`/tenants/${tenantId}/managed-workers`}
+                  to={appRoutes.tenantManagedWorkersRoute.to}
+                  params={{ tenant: tenantId }}
                   name="Managed Compute"
                   icon={<CpuChipIcon className="mr-2 size-4" />}
                 />
@@ -176,14 +186,16 @@ function Sidebar({ className, memberships }: SidebarProps) {
               <SidebarButtonPrimary
                 key="rate-limits"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/rate-limits`}
+                to={appRoutes.tenantRateLimitsRoute.to}
+                params={{ tenant: tenantId }}
                 name="Rate Limits"
                 icon={<ScaleIcon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="filters"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/filters`}
+                to={appRoutes.tenantFiltersRoute.to}
+                params={{ tenant: tenantId }}
                 name="Filters"
                 icon={<Filter className="mr-2 size-4" />}
               />
@@ -197,39 +209,45 @@ function Sidebar({ className, memberships }: SidebarProps) {
               <SidebarButtonPrimary
                 key="tenant-settings"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/tenant-settings/overview`}
-                prefix={`/tenants/${tenantId}/tenant-settings`}
+                to={appRoutes.tenantSettingsOverviewRoute.to}
+                params={{ tenant: tenantId }}
+                prefix={appRoutes.tenantSettingsIndexRoute.to}
                 name="General"
                 icon={<GearIcon className="mr-2 size-4" />}
                 collapsibleChildren={[
                   <SidebarButtonSecondary
                     key="tenant-settings-overview"
                     onNavLinkClick={onNavLinkClick}
-                    to={`/tenants/${tenantId}/tenant-settings/overview`}
+                    to={appRoutes.tenantSettingsOverviewRoute.to}
+                    params={{ tenant: tenantId }}
                     name="Overview"
                   />,
                   <SidebarButtonSecondary
                     key="tenant-settings-api-tokens"
                     onNavLinkClick={onNavLinkClick}
-                    to={`/tenants/${tenantId}/tenant-settings/api-tokens`}
+                    to={appRoutes.tenantSettingsApiTokensRoute.to}
+                    params={{ tenant: tenantId }}
                     name="API Tokens"
                   />,
                   <SidebarButtonSecondary
                     key="tenant-settings-github"
                     onNavLinkClick={onNavLinkClick}
-                    to={`/tenants/${tenantId}/tenant-settings/github`}
+                    to={appRoutes.tenantSettingsGithubRoute.to}
+                    params={{ tenant: tenantId }}
                     name="Github"
                   />,
                   <SidebarButtonSecondary
                     key="tenant-settings-members"
                     onNavLinkClick={onNavLinkClick}
-                    to={`/tenants/${tenantId}/tenant-settings/members`}
+                    to={appRoutes.tenantSettingsMembersRoute.to}
+                    params={{ tenant: tenantId }}
                     name="Members"
                   />,
                   <SidebarButtonSecondary
                     key="tenant-settings-billing-and-limits"
                     onNavLinkClick={onNavLinkClick}
-                    to={`/tenants/${tenantId}/tenant-settings/billing-and-limits`}
+                    to={appRoutes.tenantSettingsBillingRoute.to}
+                    params={{ tenant: tenantId }}
                     name={
                       cloudMeta?.data.canBill
                         ? 'Billing & Limits'
@@ -239,19 +257,22 @@ function Sidebar({ className, memberships }: SidebarProps) {
                   <SidebarButtonSecondary
                     key="tenant-settings-alerting"
                     onNavLinkClick={onNavLinkClick}
-                    to={`/tenants/${tenantId}/tenant-settings/alerting`}
+                    to={appRoutes.tenantSettingsAlertingRoute.to}
+                    params={{ tenant: tenantId }}
                     name="Alerting"
                   />,
                   <SidebarButtonSecondary
                     key="tenant-settings-ingestors"
                     onNavLinkClick={onNavLinkClick}
-                    to={`/tenants/${tenantId}/tenant-settings/ingestors`}
+                    to={appRoutes.tenantSettingsIngestorsRoute.to}
+                    params={{ tenant: tenantId }}
                     name="Ingestors"
                   />,
                   <SidebarButtonSecondary
                     key="quickstart"
                     onNavLinkClick={onNavLinkClick}
-                    to={`/tenants/${tenantId}/onboarding/get-started`}
+                    to={appRoutes.tenantOnboardingGetStartedRoute.to}
+                    params={{ tenant: tenantId }}
                     name="Quickstart"
                   />,
                 ]}
@@ -272,6 +293,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
 function SidebarButtonPrimary({
   onNavLinkClick,
   to,
+  params,
   name,
   icon,
   prefix,
@@ -279,17 +301,28 @@ function SidebarButtonPrimary({
 }: {
   onNavLinkClick: () => void;
   to: string;
+  params?: Record<string, string>;
   name: string;
   icon: React.ReactNode;
   prefix?: string;
   collapsibleChildren?: React.ReactNode[];
 }) {
-  const location = useLocation();
-  const open = location.pathname.startsWith(prefix || to);
-  const selected = !prefix && location.pathname === to;
+  const matchRoute = useMatchRoute();
+
+  // `to` (and `prefix`) are TanStack route templates (e.g. `/tenants/$tenant/...`).
+  // Use the router matcher instead of raw string comparisons against `location.pathname`.
+  const open =
+    collapsibleChildren.length > 0
+      ? prefix
+        ? Boolean(matchRoute({ to: prefix, params, fuzzy: true }))
+        : Boolean(matchRoute({ to, params, fuzzy: true }))
+      : false;
+
+  const selected =
+    collapsibleChildren.length > 0 ? open : Boolean(matchRoute({ to, params }));
 
   const primaryLink = (
-    <Link to={to} onClick={onNavLinkClick}>
+    <Link to={to} params={params} onClick={onNavLinkClick}>
       <Button
         variant="ghost"
         className={cn(
@@ -322,20 +355,24 @@ function SidebarButtonPrimary({
 function SidebarButtonSecondary({
   onNavLinkClick,
   to,
+  params,
   name,
   prefix,
 }: {
   onNavLinkClick: () => void;
   to: string;
+  params?: Record<string, string>;
   name: string;
   prefix?: string;
 }) {
-  const location = useLocation();
-  const hasPrefix = prefix && location.pathname.startsWith(prefix);
-  const selected = hasPrefix || location.pathname === to;
+  const matchRoute = useMatchRoute();
+  const hasPrefix = prefix
+    ? Boolean(matchRoute({ to: prefix, params, fuzzy: true }))
+    : false;
+  const selected = Boolean(matchRoute({ to, params })) || hasPrefix;
 
   return (
-    <Link to={to} onClick={onNavLinkClick}>
+    <Link to={to} params={params} onClick={onNavLinkClick}>
       <Button
         variant="ghost"
         size="sm"

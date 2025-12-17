@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import api, { TenantMember, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
@@ -43,6 +43,7 @@ import {
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { appRoutes } from '@/router';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -99,7 +100,10 @@ function HelpDropdown() {
               return;
             }
 
-            navigate(`/tenants/${tenant.metadata.id}/onboarding/get-started`);
+            navigate({
+              to: appRoutes.tenantOnboardingGetStartedRoute.to,
+              params: { tenant: tenant.metadata.id },
+            });
           }}
         >
           <BiSolidGraduation className="mr-2" />
@@ -126,7 +130,7 @@ function AccountDropdown({ user }: { user: User }) {
       await api.userUpdateLogout();
     },
     onSuccess: () => {
-      navigate('/auth/login');
+      navigate({ to: appRoutes.authLoginRoute.to });
     },
     onError: handleApiError,
   });
@@ -155,7 +159,11 @@ function AccountDropdown({ user }: { user: User }) {
         <DropdownMenuSeparator />
         {(pendingInvitesQuery.data ?? 0) > 0 && (
           <>
-            <DropdownMenuItem onClick={() => navigate('/onboarding/invites')}>
+            <DropdownMenuItem
+              onClick={() =>
+                navigate({ to: appRoutes.onboardingInvitesRoute.to })
+              }
+            >
               <BiEnvelope className="mr-2" />
               Invites ({pendingInvitesQuery.data})
             </DropdownMenuItem>

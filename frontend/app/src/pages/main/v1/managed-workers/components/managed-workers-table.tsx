@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './managed-worker-columns';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -21,6 +21,7 @@ import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
 import GithubButton from '../$managed-worker/components/github-button';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { appRoutes } from '@/router';
 
 export function ManagedWorkersTable() {
   const { tenantId } = useCurrentTenantId();
@@ -109,7 +110,8 @@ export function ManagedWorkersTable() {
         <div className="px-4 py-4 sm:px-6">
           <div className="text-sm text-background-secondary">
             <Link
-              to={`/tenants/${tenantId}/managed-workers/${data.metadata?.id}`}
+              to={appRoutes.tenantManagedWorkerRoute.to}
+              params={{ tenant: tenantId, managedWorker: data.metadata?.id }}
             >
               <Button>View Compute Instance</Button>
             </Link>
