@@ -1650,6 +1650,12 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 	for _, task := range tasks {
 		payload := task.Payload
 
+		// todo: remove this when we remove dual writes
+		payloadToWriteToTask := payload
+		if !r.payloadStore.OLAPDualWritesEnabled() {
+			payloadToWriteToTask = []byte("{}")
+		}
+
 		params = append(params, sqlcv1.CreateTasksOLAPParams{
 			TenantID:             task.TenantID,
 			ID:                   task.ID,
@@ -1671,7 +1677,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 			DagInsertedAt:        task.DagInsertedAt,
 			ParentTaskExternalID: task.ParentTaskExternalID,
 			WorkflowRunID:        task.WorkflowRunID,
-			Input:                []byte("{}"),
+			Input:                payloadToWriteToTask,
 		})
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
