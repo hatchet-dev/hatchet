@@ -35,7 +35,6 @@ export default function ExpandedWorkflow() {
   const { refetchInterval } = useRefetchInterval();
 
   const params = useParams({ from: appRoutes.tenantManagedWorkerRoute.to });
-  invariant(params.managedWorker);
 
   const managedWorkerQuery = useQuery({
     ...queries.cloud.getManagedWorker(params.managedWorker),

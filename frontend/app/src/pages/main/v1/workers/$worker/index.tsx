@@ -2,7 +2,6 @@ import { Separator } from '@/components/v1/ui/separator';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
-import invariant from 'tiny-invariant';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -100,7 +99,6 @@ export default function ExpandedWorkflowRun() {
   const [showAllActions, setShowAllActions] = useState(false);
 
   const params = useParams({ from: appRoutes.tenantWorkerRoute.to });
-  invariant(params.worker);
 
   const workerQuery = useQuery({
     ...queries.workers.get(params.worker),
