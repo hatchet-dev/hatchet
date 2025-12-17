@@ -31,7 +31,7 @@ import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
 import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
 import React, { useCallback } from 'react';
-import { Link, useLocation } from '@tanstack/react-router';
+import { Link, useLocation, useMatchRoute } from '@tanstack/react-router';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
 import { appRoutes } from '@/router';
 
@@ -209,7 +209,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 onNavLinkClick={onNavLinkClick}
                 to={appRoutes.tenantSettingsOverviewRoute.to}
                 params={{ tenant: tenantId }}
-                prefix="/tenants/$tenant/tenant-settings"
+                prefix={appRoutes.tenantSettingsIndexRoute.to}
                 name="General"
                 icon={<GearIcon className="mr-2 size-4" />}
                 collapsibleChildren={[
@@ -306,8 +306,24 @@ function SidebarButtonPrimary({
   collapsibleChildren?: React.ReactNode[];
 }) {
   const location = useLocation();
-  const open = location.pathname.startsWith(prefix || to);
-  const selected = !prefix && location.pathname === to;
+  const matchRoute = useMatchRoute();
+
+  // `to` (and `prefix`) are TanStack route templates (e.g. `/tenants/$tenant/...`).
+  // Use the router matcher instead of raw string comparisons against `location.pathname`.
+  const open =
+    collapsibleChildren.length > 0
+      ? prefix
+        ? Boolean(matchRoute({ to: prefix, params, fuzzy: true })) ||
+          location.pathname.startsWith(prefix)
+        : Boolean(matchRoute({ to, params, fuzzy: true }))
+      : false;
+
+  const selected =
+    collapsibleChildren.length > 0
+      ? open
+      : Boolean(matchRoute({ to, params })) ||
+        // Fallback for any `to` values that aren't registered router paths
+        location.pathname === to;
 
   const primaryLink = (
     <Link to={to} params={params} onClick={onNavLinkClick}>
@@ -354,8 +370,16 @@ function SidebarButtonSecondary({
   prefix?: string;
 }) {
   const location = useLocation();
-  const hasPrefix = prefix && location.pathname.startsWith(prefix);
-  const selected = hasPrefix || location.pathname === to;
+  const matchRoute = useMatchRoute();
+  const hasPrefix = prefix
+    ? Boolean(matchRoute({ to: prefix, params, fuzzy: true })) ||
+      location.pathname.startsWith(prefix)
+    : false;
+  const selected =
+    Boolean(matchRoute({ to, params })) ||
+    // Fallback for any `to` values that aren't registered router paths
+    location.pathname === to ||
+    hasPrefix;
 
   return (
     <Link to={to} params={params} onClick={onNavLinkClick}>

@@ -5,7 +5,7 @@ import api, {
   CreateTenantRequest,
   queries,
 } from '@/lib/api';
-import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
+import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
@@ -42,21 +42,28 @@ export function useTenantDetails() {
   );
 
   const queryClient = useQueryClient();
-  const location = useLocation();
+  const matchRoute = useMatchRoute();
   const navigate = useNavigate();
+  const tenantParamInPath = params.tenant;
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
       setLastTenant(tenant);
       queryClient.clear();
 
-      // Prefer a relative typed navigation: stay on the current route, but swap the `tenant` param.
-      // When we're not currently on a tenant route, fall back to the tenant runs page.
-      const parts = location.pathname.split('/').filter(Boolean);
-      const tenantRootPath = appRoutes.tenantRoute.to.split('/')[1];
-      const isTenantedPath = parts[0] === tenantRootPath && parts[1];
+      const isOnTenantRoute = Boolean(
+        matchRoute({
+          to: appRoutes.tenantRoute.to,
+          params: tenantParamInPath
+            ? {
+                tenant: tenantParamInPath,
+              }
+            : undefined,
+          fuzzy: true,
+        }),
+      );
 
-      if (!isTenantedPath) {
+      if (!isOnTenantRoute) {
         navigate({
           to: appRoutes.tenantRunsRoute.to,
           params: { tenant: tenant.metadata.id },
@@ -65,11 +72,11 @@ export function useTenantDetails() {
       }
 
       navigate({
-        to: '.',
+        to: '.', // stay on the current route
         params: { tenant: tenant.metadata.id },
       });
     },
-    [navigate, location.pathname, setLastTenant, queryClient],
+    [matchRoute, navigate, setLastTenant, queryClient, tenantParamInPath],
   );
 
   const membership = useMemo(() => {

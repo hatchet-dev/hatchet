@@ -47,7 +47,7 @@ interface OrganizationGroupProps {
   onToggleExpand: () => void;
   onTenantSelect: (tenant: Tenant) => void;
   onClose: () => void;
-  onNavigate: (path: string) => void;
+  onNavigate: (nav: { to: string; params?: Record<string, string> }) => void;
 }
 
 function OrganizationGroup({
@@ -64,16 +64,24 @@ function OrganizationGroup({
     e.preventDefault();
     e.stopPropagation();
     onClose();
-    onNavigate(`/organizations/${organization.metadata.id}`);
+    onNavigate({
+      to: appRoutes.organizationsRoute.to,
+      params: {
+        organization: organization.metadata.id,
+      },
+    });
   };
 
   const handleNewTenantClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onClose();
-    onNavigate(
-      '/onboarding/create-tenant?organizationId=' + organization.metadata.id,
-    );
+    onNavigate({
+      to: appRoutes.onboardingCreateTenantRoute.to,
+      params: {
+        organizationId: organization.metadata.id,
+      },
+    });
   };
 
   return (
@@ -189,10 +197,17 @@ export function OrganizationSelector({
   } = useOrganizations();
 
   const handleClose = () => setOpen(false);
-  const handleNavigate = (path: string) => {
+  const handleNavigate = (nav: {
+    to: string;
+    params?: Record<string, string>;
+  }) => {
+    if (!nav.to) {
+      return;
+    }
+
     // Store the current path before navigating to org settings
     sessionStorage.setItem('orgSettingsPreviousPath', window.location.pathname);
-    navigate({ to: path, replace: false });
+    navigate({ to: nav.to, params: nav.params, replace: false });
   };
 
   const handleTenantSelect = (tenant: Tenant) => {
