@@ -151,18 +151,18 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
-                key="workflows"
-                onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/workflows`}
-                name="Workflows"
-                icon={<Squares2X2Icon className="mr-2 size-4" />}
-              />
-              <SidebarButtonPrimary
                 key="workers"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/workers`}
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 size-4" />}
+              />
+              <SidebarButtonPrimary
+                key="workflows"
+                onNavLinkClick={onNavLinkClick}
+                to={`/tenants/${tenantId}/workflows`}
+                name="Workflows"
+                icon={<Squares2X2Icon className="mr-2 size-4" />}
               />
               {featureFlags?.data['managed-worker'] && (
                 <SidebarButtonPrimary
