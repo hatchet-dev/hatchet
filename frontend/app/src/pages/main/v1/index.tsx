@@ -87,21 +87,6 @@ function Sidebar({ className, memberships }: SidebarProps) {
     return null;
   }
 
-  const workers = [
-    <SidebarButtonSecondary
-      key="all-workers"
-      onNavLinkClick={onNavLinkClick}
-      to={`/tenants/${tenantId}/workers/all`}
-      name="All Workers"
-    />,
-    <SidebarButtonSecondary
-      key="webhook-workers"
-      onNavLinkClick={onNavLinkClick}
-      to={`/tenants/${tenantId}/workers/webhook`}
-      name="Webhook Workers"
-    />,
-  ];
-
   return (
     <div
       className={cn(
@@ -168,11 +153,9 @@ function Sidebar({ className, memberships }: SidebarProps) {
               <SidebarButtonPrimary
                 key="workers"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/workers/all`}
+                to={`/tenants/${tenantId}/workers`}
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
-                prefix={`/tenants/${tenantId}/workers`}
-                collapsibleChildren={workers}
               />
               <SidebarButtonPrimary
                 key="webhooks"
