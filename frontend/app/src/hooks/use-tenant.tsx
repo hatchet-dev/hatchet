@@ -47,16 +47,27 @@ export function useTenantDetails() {
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
-      const currentPath = location.pathname;
-
-      const newPath = currentPath.replace(
-        /\/tenants\/([^/]+)/,
-        `/tenants/${tenant.metadata.id}`,
-      );
-
       setLastTenant(tenant);
       queryClient.clear();
-      navigate({ to: newPath });
+
+      // Prefer a relative typed navigation: stay on the current route, but swap the `tenant` param.
+      // When we're not currently on a tenant route, fall back to the tenant runs page.
+      const parts = location.pathname.split('/').filter(Boolean);
+      const tenantRootPath = appRoutes.tenantRoute.to.split('/')[1];
+      const isTenantedPath = parts[0] === tenantRootPath && parts[1];
+
+      if (!isTenantedPath) {
+        navigate({
+          to: appRoutes.tenantRunsRoute.to,
+          params: { tenant: tenant.metadata.id },
+        });
+        return;
+      }
+
+      navigate({
+        to: '.',
+        params: { tenant: tenant.metadata.id },
+      });
     },
     [navigate, location.pathname, setLastTenant, queryClient],
   );

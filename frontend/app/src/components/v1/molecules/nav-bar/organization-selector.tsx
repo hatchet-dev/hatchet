@@ -192,7 +192,7 @@ export function OrganizationSelector({
   const handleNavigate = (path: string) => {
     // Store the current path before navigating to org settings
     sessionStorage.setItem('orgSettingsPreviousPath', window.location.pathname);
-    navigate({ to: path as string, replace: false });
+    navigate({ to: path, replace: false });
   };
 
   const handleTenantSelect = (tenant: Tenant) => {
