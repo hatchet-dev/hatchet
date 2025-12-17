@@ -128,9 +128,8 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
                 variant="outline"
                 size="sm"
                 onClick={handleEdit}
-                className="flex items-center gap-2"
+                leftIcon={<EditIcon className="size-4" />}
               >
-                <EditIcon className="h-4 w-4" />
                 Edit
               </Button>
             ) : (
@@ -139,18 +138,16 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
                   variant="outline"
                   size="sm"
                   onClick={handleCancel}
-                  className="flex items-center gap-2"
+                  leftIcon={<XIcon className="size-4" />}
                 >
-                  <XIcon className="h-4 w-4" />
                   Cancel
                 </Button>
                 <Button
                   size="sm"
                   onClick={handleSubmit(onSubmit)}
                   disabled={mutations.update.isPending}
-                  className="flex items-center gap-2"
+                  leftIcon={<SaveIcon className="size-4" />}
                 >
-                  <SaveIcon className="h-4 w-4" />
                   {mutations.update.isPending ? 'Saving...' : 'Save'}
                 </Button>
               </>
@@ -159,9 +156,8 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
               variant="destructive"
               size="sm"
               onClick={() => setShowDeleteDialog(true)}
-              className="flex items-center gap-2"
+              leftIcon={<Trash2Icon className="size-4" />}
             >
-              <Trash2Icon className="h-4 w-4" />
               Delete
             </Button>
           </div>

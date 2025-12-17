@@ -83,9 +83,8 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                   onClick={config.onClearTimeRange}
                   variant="ghost"
                   size="sm"
-                  className="h-6 px-2 text-xs"
+                  leftIcon={<XCircleIcon className="size-4" />}
                 >
-                  <XCircleIcon className="h-3 w-3 mr-1" />
                   Clear
                 </Button>
               </div>
@@ -197,8 +196,8 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                       <span className="text-green-600">{value}</span>
                     </div>
                     <Button
-                      variant="ghost"
-                      size="sm"
+                      variant="icon"
+                      size="xs"
                       onClick={() => {
                         const newValues = currentKVPairs.filter(
                           (_, i) => i !== index,
@@ -207,9 +206,8 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                           newValues.length > 0 ? newValues : undefined,
                         );
                       }}
-                      className="h-5 w-5 p-0 hover:bg-destructive/10 hover:text-destructive"
                     >
-                      <Cross2Icon className="h-3 w-3" />
+                      <Cross2Icon className="size-3" />
                     </Button>
                   </div>
                 );
@@ -261,7 +259,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
               size="sm"
               disabled={!newKey.trim() || !newValue.trim()}
               onClick={addKeyValue}
-              className="w-full h-8 text-xs"
+              className="w-full"
             >
               Add Filter
             </Button>
@@ -296,8 +294,8 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                       <span className="text-muted-foreground">{val}</span>
                     </div>
                     <Button
-                      variant="ghost"
-                      size="sm"
+                      variant="icon"
+                      size="xs"
                       onClick={() => {
                         const newValues = currentArrayValues.filter(
                           (_, i) => i !== index,
@@ -306,9 +304,8 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                           newValues.length > 0 ? newValues : undefined,
                         );
                       }}
-                      className="h-5 w-5 p-0 hover:bg-destructive/10 hover:text-destructive"
                     >
-                      <Cross2Icon className="h-3 w-3" />
+                      <Cross2Icon className="size-3" />
                     </Button>
                   </div>
                 );
@@ -334,7 +331,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
               size="sm"
               disabled={!newArrayValue.trim()}
               onClick={addArrayValue}
-              className="w-full h-8 text-xs"
+              className="w-full"
             >
               Add Filter
             </Button>
@@ -518,15 +515,15 @@ export function DataTableOptions<TData>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 flex-shrink-0">
-          <MixerHorizontalIcon className="h-4 w-4" />
+        <Button variant="outline" size="sm" className="flex-shrink-0">
+          <MixerHorizontalIcon className="size-4" />
           <span className="cq-xl:inline hidden ml-2 text-sm">Filters</span>
           {activeFiltersCount > 0 && (
             <Badge variant="secondary" className="ml-2 px-1 py-0 text-xs">
               {activeFiltersCount}
             </Badge>
           )}
-          <ChevronDownIcon className="h-4 w-4 ml-2 hidden cq-xl:inline" />
+          <ChevronDownIcon className="size-4 ml-2 hidden cq-xl:inline" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -587,9 +584,9 @@ function FiltersContent<TData>({
             variant="outline"
             size="sm"
             onClick={onResetFilters}
-            className="w-full h-8 text-xs"
+            className="w-full"
           >
-            <Cross2Icon className="h-3 w-3 mr-2" />
+            <Cross2Icon className="size-3 mr-2" />
             Clear All Filters
           </Button>
         </div>
@@ -612,16 +609,15 @@ function FiltersContent<TData>({
                     ToolbarType.Radio,
                   ].includes(filter.type) && (
                     <Button
-                      variant="ghost"
-                      size="sm"
+                      variant="icon"
+                      size="xs"
                       onClick={() =>
                         table
                           .getColumn(filter.columnId)
                           ?.setFilterValue(undefined)
                       }
-                      className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
                     >
-                      <Cross2Icon className="h-3 w-3" />
+                      <Cross2Icon className="size-3" />
                     </Button>
                   )}
               </div>
@@ -694,7 +690,7 @@ function ColumnsContent<TData>({
             variant="ghost"
             size="sm"
             onClick={() => table.toggleAllColumnsVisible(false)}
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex-1"
+            className="flex-1"
           >
             Hide All
           </Button>
@@ -702,7 +698,7 @@ function ColumnsContent<TData>({
             variant="ghost"
             size="sm"
             onClick={() => table.toggleAllColumnsVisible(true)}
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex-1"
+            className="flex-1"
           >
             Show All
           </Button>

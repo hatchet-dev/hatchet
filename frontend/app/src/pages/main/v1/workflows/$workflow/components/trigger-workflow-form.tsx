@@ -458,7 +458,6 @@ export function TriggerWorkflowForm({
 
         <div className="flex justify-end">
           <Button
-            className="w-fit mt-6"
             disabled={
               triggerNowMutation.isPending ||
               triggerScheduleMutation.isPending ||

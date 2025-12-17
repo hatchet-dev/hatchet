@@ -200,7 +200,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         </p>
         {!hasPaymentMethods && (
           <Alert variant="warn" className="mb-4">
-            <ExclamationTriangleIcon className="h-4 w-4" />
+            <ExclamationTriangleIcon className="size-4" />
             <AlertTitle className="font-semibold">
               No Payment Method.
             </AlertTitle>

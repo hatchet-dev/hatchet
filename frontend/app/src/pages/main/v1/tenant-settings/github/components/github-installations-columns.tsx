@@ -40,9 +40,8 @@ export const columns = (
             <Button
               variant="ghost"
               disabled
-              className="flex flex-row gap-2 px-2"
+              leftIcon={<CheckCircleIcon className="size-4" />}
             >
-              <CheckCircleIcon className="h-4 w-4" />
               Linked
             </Button>
           );
@@ -50,10 +49,9 @@ export const columns = (
         return row.original.type == 'installation' ? (
           <Button
             variant="outline"
-            className="flex flex-row gap-2 px-2"
             onClick={() => linkToTenant(row.original.metadata.id)}
+            leftIcon={<PlusCircleIcon className="size-4" />}
           >
-            <PlusCircleIcon className="h-4 w-4" />
             Link to tenant
           </Button>
         ) : (
@@ -65,9 +63,7 @@ export const columns = (
             target="_blank"
             rel="noreferrer"
           >
-            <Button variant="outline" className="flex flex-row gap-2 px-2">
-              Finish Setup
-            </Button>
+            <Button variant="outline">Finish Setup</Button>
           </a>
         );
       },
@@ -89,8 +85,7 @@ export const columns = (
             target="_blank"
             rel="noreferrer"
           >
-            <Button variant="ghost" className="flex flex-row gap-2 px-2">
-              <GearIcon className="h-4 w-4" />
+            <Button variant="ghost" leftIcon={<GearIcon className="size-4" />}>
               Configure
             </Button>
           </a>

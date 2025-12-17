@@ -249,7 +249,7 @@ export default function OrganizationPage() {
                     onClick={handleSaveEdit}
                     disabled={updateOrganizationLoading || !editedName.trim()}
                   >
-                    <CheckIcon className="h-4 w-4" />
+                    <CheckIcon className="size-4" />
                   </Button>
                   <Button
                     size="sm"
@@ -257,7 +257,7 @@ export default function OrganizationPage() {
                     onClick={handleCancelEdit}
                     disabled={updateOrganizationLoading}
                   >
-                    <XMarkIcon className="h-4 w-4" />
+                    <XMarkIcon className="size-4" />
                   </Button>
                 </>
               ) : (
@@ -274,7 +274,7 @@ export default function OrganizationPage() {
                   disabled={updateOrganizationLoading}
                   style={{ opacity: updateOrganizationLoading ? 0.3 : 1 }}
                 >
-                  <PencilIcon className="h-3 w-3" />
+                  <PencilIcon className="size-3" />
                 </Button>
               )}
             </div>
@@ -295,7 +295,7 @@ export default function OrganizationPage() {
             }}
             className="h-8 w-8 p-0"
           >
-            <XMarkIcon className="h-4 w-4" />
+            <XMarkIcon className="size-4" />
           </Button>
         </div>
 
@@ -313,8 +313,8 @@ export default function OrganizationPage() {
                       organization.metadata.id,
                   );
                 }}
+                leftIcon={<PlusIcon className="size-4" />}
               >
-                <PlusIcon className="h-4 w-4 mr-2" />
                 Add Tenant
               </Button>
             </CardTitle>
@@ -372,7 +372,7 @@ export default function OrganizationPage() {
                                       size="sm"
                                       className="h-8 w-8 p-0"
                                     >
-                                      <EllipsisVerticalIcon className="h-4 w-4" />
+                                      <EllipsisVerticalIcon className="size-4" />
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
@@ -381,7 +381,7 @@ export default function OrganizationPage() {
                                         navigate(`/tenants/${orgTenant.id}`);
                                       }}
                                     >
-                                      <ArrowRightIcon className="h-4 w-4 mr-2" />
+                                      <ArrowRightIcon className="size-4 mr-2" />
                                       View Tenant
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
@@ -389,7 +389,7 @@ export default function OrganizationPage() {
                                         setTenantToArchive(orgTenant)
                                       }
                                     >
-                                      <TrashIcon className="h-4 w-4 mr-2" />
+                                      <TrashIcon className="size-4 mr-2" />
                                       Archive Tenant
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
@@ -452,7 +452,7 @@ export default function OrganizationPage() {
                                   size="sm"
                                   className="h-8 w-8 p-0"
                                 >
-                                  <EllipsisVerticalIcon className="h-4 w-4" />
+                                  <EllipsisVerticalIcon className="size-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
@@ -461,13 +461,13 @@ export default function OrganizationPage() {
                                     navigate(`/tenants/${orgTenant.id}`);
                                   }}
                                 >
-                                  <ArrowRightIcon className="h-4 w-4 mr-2" />
+                                  <ArrowRightIcon className="size-4 mr-2" />
                                   View Tenant
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => setTenantToArchive(orgTenant)}
                                 >
-                                  <TrashIcon className="h-4 w-4 mr-2" />
+                                  <TrashIcon className="size-4 mr-2" />
                                   Archive Tenant
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -492,8 +492,8 @@ export default function OrganizationPage() {
                         organization.metadata.id,
                     );
                   }}
+                  leftIcon={<PlusIcon className="size-4" />}
                 >
-                  <PlusIcon className="h-4 w-4 mr-2" />
                   Add Tenant
                 </Button>
               </div>
@@ -550,7 +550,7 @@ export default function OrganizationPage() {
                                   size="sm"
                                   className="h-8 w-8 p-0"
                                 >
-                                  <EllipsisVerticalIcon className="h-4 w-4" />
+                                  <EllipsisVerticalIcon className="size-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
@@ -563,7 +563,7 @@ export default function OrganizationPage() {
                                           disabled
                                           className="text-gray-400 cursor-not-allowed"
                                         >
-                                          <TrashIcon className="h-4 w-4 mr-2" />
+                                          <TrashIcon className="size-4 mr-2" />
                                           Remove Member
                                         </DropdownMenuItem>
                                       </TooltipTrigger>
@@ -576,7 +576,7 @@ export default function OrganizationPage() {
                                   <DropdownMenuItem
                                     onClick={() => setMemberToDelete(member)}
                                   >
-                                    <TrashIcon className="h-4 w-4 mr-2" />
+                                    <TrashIcon className="size-4 mr-2" />
                                     Remove Member
                                   </DropdownMenuItem>
                                 )}
@@ -611,14 +611,14 @@ export default function OrganizationPage() {
                                 size="sm"
                                 className="h-8 w-8 p-0"
                               >
-                                <EllipsisVerticalIcon className="h-4 w-4" />
+                                <EllipsisVerticalIcon className="size-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
                                 onClick={() => setMemberToDelete(member)}
                               >
-                                <TrashIcon className="h-4 w-4 mr-2" />
+                                <TrashIcon className="size-4 mr-2" />
                                 Remove Member
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -673,8 +673,8 @@ export default function OrganizationPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowInviteMemberModal(true)}
+                leftIcon={<PlusIcon className="size-4" />}
               >
-                <PlusIcon className="h-4 w-4 mr-2" />
                 Invite Member
               </Button>
             </CardTitle>
@@ -747,14 +747,14 @@ export default function OrganizationPage() {
                                       size="sm"
                                       className="h-8 w-8 p-0"
                                     >
-                                      <EllipsisVerticalIcon className="h-4 w-4" />
+                                      <EllipsisVerticalIcon className="size-4" />
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuItem
                                       onClick={() => setInviteToCancel(invite)}
                                     >
-                                      <TrashIcon className="h-4 w-4 mr-2" />
+                                      <TrashIcon className="size-4 mr-2" />
                                       Cancel Invitation
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
@@ -803,14 +803,14 @@ export default function OrganizationPage() {
                                   size="sm"
                                   className="h-8 w-8 p-0"
                                 >
-                                  <EllipsisVerticalIcon className="h-4 w-4" />
+                                  <EllipsisVerticalIcon className="size-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem
                                   onClick={() => setInviteToCancel(invite)}
                                 >
-                                  <TrashIcon className="h-4 w-4 mr-2" />
+                                  <TrashIcon className="size-4 mr-2" />
                                   Cancel Invitation
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -856,8 +856,10 @@ export default function OrganizationPage() {
                 <p className="text-muted-foreground mb-4">
                   Invite members to join this organization.
                 </p>
-                <Button onClick={() => setShowInviteMemberModal(true)}>
-                  <PlusIcon className="h-4 w-4 mr-2" />
+                <Button
+                  onClick={() => setShowInviteMemberModal(true)}
+                  leftIcon={<PlusIcon className="size-4" />}
+                >
                   Invite Member
                 </Button>
               </div>
@@ -874,8 +876,8 @@ export default function OrganizationPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowCreateTokenModal(true)}
+                leftIcon={<PlusIcon className="size-4" />}
               >
-                <PlusIcon className="h-4 w-4 mr-2" />
                 Create Token
               </Button>
             </CardTitle>
@@ -928,14 +930,14 @@ export default function OrganizationPage() {
                                   size="sm"
                                   className="h-8 w-8 p-0"
                                 >
-                                  <EllipsisVerticalIcon className="h-4 w-4" />
+                                  <EllipsisVerticalIcon className="size-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem
                                   onClick={() => setTokenToDelete(token)}
                                 >
-                                  <TrashIcon className="mr-2 h-4 w-4" />
+                                  <TrashIcon className="mr-2 size-4" />
                                   Delete
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -967,14 +969,14 @@ export default function OrganizationPage() {
                                 size="sm"
                                 className="h-8 w-8 p-0"
                               >
-                                <EllipsisVerticalIcon className="h-4 w-4" />
+                                <EllipsisVerticalIcon className="size-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
                                 onClick={() => setTokenToDelete(token)}
                               >
-                                <TrashIcon className="mr-2 h-4 w-4" />
+                                <TrashIcon className="mr-2 size-4" />
                                 Delete
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -1008,8 +1010,10 @@ export default function OrganizationPage() {
                   Create API tokens to manage this organization
                   programmatically.
                 </p>
-                <Button onClick={() => setShowCreateTokenModal(true)}>
-                  <PlusIcon className="h-4 w-4 mr-2" />
+                <Button
+                  onClick={() => setShowCreateTokenModal(true)}
+                  leftIcon={<PlusIcon className="size-4" />}
+                >
                   Create Token
                 </Button>
               </div>

@@ -128,9 +128,7 @@ const AnalyticsOptOut: React.FC = () => {
         (isLoading ? (
           <Spinner />
         ) : (
-          <Button onClick={save} className="mt-4">
-            Save and Reload
-          </Button>
+          <Button onClick={save}>Save and Reload</Button>
         ))}
     </>
   );

@@ -62,8 +62,6 @@ export default function Webhooks() {
             <div className="w-fit">
               <DocsButton
                 doc={docsPages.home.webhooks}
-                size="full"
-                variant="outline"
                 label="Learn about triggering runs from webhooks"
               />
             </div>
@@ -347,14 +345,14 @@ const CreateWebhookModal = () => {
       }}
     >
       <DialogTrigger asChild>
-        <Button className="h-8 border px-3">Create Webhook</Button>
+        <Button variant="cta">Create Webhook</Button>
       </DialogTrigger>
       <DialogContent className="max-w-[90%] md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%] max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex flex-col items-start gap-y-4">
             <div className="flex flex-row items-center gap-x-3">
               <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-                <Webhook className="h-4 w-4 text-indigo-700" />
+                <Webhook className="size-4 text-indigo-700" />
               </div>
               Create a webhook
             </div>
@@ -387,10 +385,10 @@ const CreateWebhookModal = () => {
                 </code>
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="sm"
+                  variant="icon"
+                  size="xs"
                   onClick={copyToClipboard}
-                  className="h-6 w-6 p-0 flex-shrink-0"
+                  className="flex-shrink-0"
                   disabled={!webhookName}
                 >
                   {copied ? (

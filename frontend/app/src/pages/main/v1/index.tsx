@@ -106,14 +106,14 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/runs`}
                 name="Runs"
-                icon={<PlayIcon className="mr-2 h-4 w-4" />}
+                icon={<PlayIcon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="events"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/events`}
                 name="Events"
-                icon={<SquareActivityIcon className="mr-2 h-4 w-4" />}
+                icon={<SquareActivityIcon className="mr-2 size-4" />}
               />
             </div>
           </div>
@@ -127,14 +127,14 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/scheduled`}
                 name="Scheduled Runs"
-                icon={<CalendarDaysIcon className="mr-2 h-4 w-4" />}
+                icon={<CalendarDaysIcon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="crons"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/cron-jobs`}
                 name="Cron Jobs"
-                icon={<ClockIcon className="mr-2 h-4 w-4" />}
+                icon={<ClockIcon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="webhooks"
@@ -155,14 +155,14 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/workflows`}
                 name="Workflows"
-                icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
+                icon={<Squares2X2Icon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="workers"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/workers`}
                 name="Workers"
-                icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
+                icon={<ServerStackIcon className="mr-2 size-4" />}
               />
               {featureFlags?.data['managed-worker'] && (
                 <SidebarButtonPrimary
@@ -170,7 +170,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                   onNavLinkClick={onNavLinkClick}
                   to={`/tenants/${tenantId}/managed-workers`}
                   name="Managed Compute"
-                  icon={<CpuChipIcon className="mr-2 h-4 w-4" />}
+                  icon={<CpuChipIcon className="mr-2 size-4" />}
                 />
               )}
               <SidebarButtonPrimary
@@ -178,14 +178,14 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/rate-limits`}
                 name="Rate Limits"
-                icon={<ScaleIcon className="mr-2 h-4 w-4" />}
+                icon={<ScaleIcon className="mr-2 size-4" />}
               />
               <SidebarButtonPrimary
                 key="filters"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/filters`}
                 name="Filters"
-                icon={<Filter className="mr-2 h-4 w-4" />}
+                icon={<Filter className="mr-2 size-4" />}
               />
             </div>
           </div>
@@ -200,7 +200,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 to={`/tenants/${tenantId}/tenant-settings/overview`}
                 prefix={`/tenants/${tenantId}/tenant-settings`}
                 name="General"
-                icon={<GearIcon className="mr-2 h-4 w-4" />}
+                icon={<GearIcon className="mr-2 size-4" />}
                 collapsibleChildren={[
                   <SidebarButtonSecondary
                     key="tenant-settings-overview"
