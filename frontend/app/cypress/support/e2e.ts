@@ -1,3 +1,4 @@
-// Cypress support file. Import custom commands here if/when needed.
+// Cypress support file. Load custom commands here.
+import './commands';
 
 export {};

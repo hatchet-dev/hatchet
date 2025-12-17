@@ -91,6 +91,9 @@ tasks:
   seed-dev:
     cmds:
       - SEED_DEVELOPMENT=true bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
+  seed-cypress:
+    cmds:
+      - SEED_DEVELOPMENT=true bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed-cypress
   start-dev:
     deps:
       - task: start-db
