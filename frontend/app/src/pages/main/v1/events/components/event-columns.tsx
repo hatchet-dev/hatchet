@@ -1,11 +1,10 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { Badge } from '@/components/v1/ui/badge';
-import { V1Event } from '@/lib/api';
-import { Button } from '@/components/v1/ui/button';
-
 import { AdditionalMetadata } from './additional-metadata';
-import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
+import { V1Event } from '@/lib/api';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const EventColumn = {
   id: 'Event ID',

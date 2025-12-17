@@ -1,11 +1,11 @@
 import { Button } from '@/components/v1/ui/button';
-import { PropsWithChildren } from 'react';
+import { appRoutes } from '@/router';
 import {
   ErrorComponentProps,
   useLocation,
   useNavigate,
 } from '@tanstack/react-router';
-import { appRoutes } from '@/router';
+import { PropsWithChildren } from 'react';
 
 export default function ErrorBoundary({ error }: ErrorComponentProps) {
   const navigate = useNavigate();

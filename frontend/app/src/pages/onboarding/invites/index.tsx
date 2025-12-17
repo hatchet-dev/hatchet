@@ -1,11 +1,11 @@
+import { Button } from '@/components/v1/ui/button';
+import { useOrganizations } from '@/hooks/use-organizations';
 import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
+import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
 import { redirect, useLoaderData, useNavigate } from '@tanstack/react-router';
-import { Button } from '@/components/v1/ui/button';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { appRoutes } from '@/router';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function loader(_args: { request: Request }) {

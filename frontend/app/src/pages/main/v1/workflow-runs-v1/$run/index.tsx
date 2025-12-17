@@ -1,42 +1,42 @@
-import api, {
-  V1TaskStatus,
-  V1TaskSummary,
-  V1WorkflowRunDetails,
-  WorkflowRunShapeForWorkflowRunDetails,
-} from '@/lib/api';
-import { useParams } from '@tanstack/react-router';
+import { RunsProvider } from '../hooks/runs-provider';
+import {
+  isTerminalState,
+  useWorkflowDetails,
+} from '../hooks/use-workflow-details';
+import { V1RunDetailHeader } from './v2components/header';
+import { JobMiniMap } from './v2components/mini-map';
+import {
+  TabOption,
+  TaskRunDetail,
+} from './v2components/step-run-detail/step-run-detail';
+import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
+import { ViewToggle } from './v2components/view-toggle';
+import { Waterfall } from './v2components/waterfall';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
+import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
+import { Badge } from '@/components/v1/ui/badge';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
-import { useCallback, useRef } from 'react';
-import {
-  TabOption,
-  TaskRunDetail,
-} from './v2components/step-run-detail/step-run-detail';
-import { Separator } from '@/components/v1/ui/separator';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { V1RunDetailHeader } from './v2components/header';
-import { Badge } from '@/components/v1/ui/badge';
-import { ViewToggle } from './v2components/view-toggle';
-import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
-import { useAtom } from 'jotai';
+import api, {
+  V1TaskStatus,
+  V1TaskSummary,
+  V1WorkflowRunDetails,
+  WorkflowRunShapeForWorkflowRunDetails,
+} from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
-import { JobMiniMap } from './v2components/mini-map';
-import {
-  isTerminalState,
-  useWorkflowDetails,
-} from '../hooks/use-workflow-details';
-import { useQuery } from '@tanstack/react-query';
-import { Spinner } from '@/components/v1/ui/loading';
-import { Waterfall } from './v2components/waterfall';
-import { RunsProvider } from '../hooks/runs-provider';
 import { appRoutes } from '@/router';
+import { useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
+import { useAtom } from 'jotai';
+import { useCallback, useRef } from 'react';
 
 function statusToBadgeVariant(status: V1TaskStatus) {
   switch (status) {

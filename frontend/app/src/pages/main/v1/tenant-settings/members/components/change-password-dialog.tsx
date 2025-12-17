@@ -1,16 +1,16 @@
+import { Button } from '@/components/v1/ui/button';
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { Button } from '@/components/v1/ui/button';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Label } from '@/components/v1/ui/label';
 import { Input } from '@/components/v1/ui/input';
-import { cn } from '@/lib/utils';
+import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
+import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 const passwordSchema = z
   .string()

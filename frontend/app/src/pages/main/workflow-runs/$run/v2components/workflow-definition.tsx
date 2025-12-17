@@ -1,8 +1,8 @@
 import { Button } from '@/components/v1/ui/button';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { appRoutes } from '@/router';
 import { Squares2X2Icon } from '@heroicons/react/24/outline';
 import { Link } from '@tanstack/react-router';
-import { appRoutes } from '@/router';
 
 export const WorkflowDefinitionLink = ({
   workflowId,

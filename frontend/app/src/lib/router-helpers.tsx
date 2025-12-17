@@ -1,4 +1,3 @@
-import { createContext, useContext, useMemo } from 'react';
 import {
   Outlet as TanStackOutlet,
   useLocation,
@@ -6,6 +5,7 @@ import {
   useRouter,
 } from '@tanstack/react-router';
 import type { NavigateOptions } from '@tanstack/react-router';
+import { createContext, useContext, useMemo } from 'react';
 
 type SearchNavigateOptions = Pick<NavigateOptions, 'replace' | 'state'>;
 

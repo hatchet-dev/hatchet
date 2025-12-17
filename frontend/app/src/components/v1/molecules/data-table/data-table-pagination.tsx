@@ -1,11 +1,3 @@
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  DoubleArrowLeftIcon,
-  DoubleArrowRightIcon,
-} from '@radix-ui/react-icons';
-import { Table } from '@tanstack/react-table';
-
 import { Button } from '@/components/v1/ui/button';
 import {
   Select,
@@ -14,7 +6,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  DoubleArrowLeftIcon,
+  DoubleArrowRightIcon,
+} from '@radix-ui/react-icons';
 import { Label } from '@radix-ui/react-label';
+import { Table } from '@tanstack/react-table';
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;

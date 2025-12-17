@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
 import AnsiToHtml from 'ansi-to-html';
 import DOMPurify from 'dompurify';
+import React, { useEffect, useRef, useState } from 'react';
 
 const convert = new AnsiToHtml({
   newline: true,

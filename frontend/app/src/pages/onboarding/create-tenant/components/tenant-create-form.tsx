@@ -1,17 +1,7 @@
-import { cn } from '@/lib/utils';
+import { OnboardingStepProps } from '../types';
+import { Card, CardContent } from '@/components/v1/ui/card';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
-import { Card, CardContent } from '@/components/v1/ui/card';
-import { Monitor, Settings, Rocket } from 'lucide-react';
-import { CheckIcon } from '@heroicons/react/24/outline';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useEffect, useMemo, useRef } from 'react';
-import { OnboardingStepProps } from '../types';
-import { useQuery } from '@tanstack/react-query';
-import api, { TenantEnvironment } from '@/lib/api';
-import freeEmailDomains from '@/lib/free-email-domains.json';
 import {
   Select,
   SelectContent,
@@ -19,7 +9,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import api, { TenantEnvironment } from '@/lib/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
+import freeEmailDomains from '@/lib/free-email-domains.json';
+import { cn } from '@/lib/utils';
+import { CheckIcon } from '@heroicons/react/24/outline';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
+import { Monitor, Settings, Rocket } from 'lucide-react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 const schema = z.object({
   name: z.string().min(4).max(32),

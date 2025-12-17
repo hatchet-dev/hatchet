@@ -1,8 +1,3 @@
-import * as React from 'react';
-import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
-import { intervalToDuration } from 'date-fns';
-import { Clock } from 'lucide-react';
 import {
   PortalTooltip,
   PortalTooltipTrigger,
@@ -10,7 +5,12 @@ import {
   PortalTooltipProvider,
 } from '@/components/v1/ui/portal-tooltip';
 import { V1TaskStatus } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { intervalToDuration } from 'date-fns';
 import { Duration as DateFnsDuration } from 'date-fns';
+import { Clock } from 'lucide-react';
+import * as React from 'react';
 
 function formatDuration(duration: DateFnsDuration, rawTimeMs: number): string {
   const parts = [];

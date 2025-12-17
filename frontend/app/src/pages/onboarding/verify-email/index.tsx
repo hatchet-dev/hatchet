@@ -1,9 +1,9 @@
-import api from '@/lib/api';
-import { redirect, useLoaderData } from '@tanstack/react-router';
-import queryClient from '@/query-client';
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
 import { Loading } from '@/components/v1/ui/loading';
+import api from '@/lib/api';
+import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
+import { redirect, useLoaderData } from '@tanstack/react-router';
 
 export async function loader({ request }: { request: Request }) {
   try {

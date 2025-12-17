@@ -1,10 +1,10 @@
-import ReactDOM from 'react-dom/client';
-import { lazy, Suspense } from 'react';
 import './index.css';
-import { QueryClientProvider } from '@tanstack/react-query';
 import queryClient from './query-client.tsx';
 import Router, { router } from './router.tsx';
 import * as Sentry from '@sentry/react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { lazy, Suspense } from 'react';
+import ReactDOM from 'react-dom/client';
 
 const Devtools = import.meta.env.DEV
   ? lazy(() => import('./devtools.tsx'))

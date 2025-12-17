@@ -1,19 +1,19 @@
+import { CreateSNSDialog } from './components/create-sns-dialog';
+import { DeleteSNSForm } from './components/delete-sns-form';
+import { columns as snsIntegrationsColumns } from './components/sns-integrations-columns';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
-import { useState } from 'react';
-import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   CreateSNSIntegrationRequest,
   SNSIntegration,
   queries,
 } from '@/lib/api';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { Button } from '@/components/v1/ui/button';
+import { useApiError } from '@/lib/hooks';
 import { Dialog } from '@radix-ui/react-dialog';
-import { CreateSNSDialog } from './components/create-sns-dialog';
-import { DeleteSNSForm } from './components/delete-sns-form';
-import { columns as snsIntegrationsColumns } from './components/sns-integrations-columns';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 
 export default function Ingestors() {
   return (

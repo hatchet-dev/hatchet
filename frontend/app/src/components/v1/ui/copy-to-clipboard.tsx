@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
 import { Button } from './button';
-import { CopyIcon } from '@radix-ui/react-icons';
-import { CheckIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
+import { CheckIcon } from '@heroicons/react/24/outline';
+import { CopyIcon } from '@radix-ui/react-icons';
+import React, { useState } from 'react';
 
 type Props = {
   text: string;

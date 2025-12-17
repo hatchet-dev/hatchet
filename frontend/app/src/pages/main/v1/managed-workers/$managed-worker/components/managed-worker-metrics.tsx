@@ -1,22 +1,10 @@
-import { queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
-import {
-  ManagedWorker,
-  Matrix,
-} from '@/lib/api/generated/cloud/data-contracts';
-import { Loading } from '@/components/v1/ui/loading';
-import { useEffect, useMemo, useState } from 'react';
-import { Separator } from '@/components/v1/ui/separator';
-import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
-import { Button } from '@/components/v1/ui/button';
-import { XCircleIcon } from '@heroicons/react/24/outline';
 import {
   DataPoint,
   ZoomableChart,
 } from '@/components/v1/molecules/charts/zoomable';
-import { useAtom } from 'jotai';
-import { lastWorkerMetricsTimeRangeAtom } from '@/lib/atoms';
-import { getCreatedAfterFromTimeRange } from '@/pages/main/workflow-runs/components/workflow-runs-table';
+import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+import { Button } from '@/components/v1/ui/button';
+import { Loading } from '@/components/v1/ui/loading';
 import {
   Select,
   SelectContent,
@@ -24,7 +12,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { Separator } from '@/components/v1/ui/separator';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { queries } from '@/lib/api';
+import {
+  ManagedWorker,
+  Matrix,
+} from '@/lib/api/generated/cloud/data-contracts';
+import { lastWorkerMetricsTimeRangeAtom } from '@/lib/atoms';
+import { getCreatedAfterFromTimeRange } from '@/pages/main/workflow-runs/components/workflow-runs-table';
+import { XCircleIcon } from '@heroicons/react/24/outline';
+import { useQuery } from '@tanstack/react-query';
+import { useAtom } from 'jotai';
+import { useEffect, useMemo, useState } from 'react';
 
 export function ManagedWorkerMetrics({
   managedWorker,

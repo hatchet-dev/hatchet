@@ -1,13 +1,4 @@
 import { Button } from '@/components/v1/ui/button';
-import { cn } from '@/lib/utils';
-import {
-  BuildingOffice2Icon,
-  Cog6ToothIcon,
-  PlusIcon,
-  CheckIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-} from '@heroicons/react/24/outline';
 import {
   Command,
   CommandEmpty,
@@ -15,14 +6,6 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/v1/ui/command';
-import { Tenant, TenantMember } from '@/lib/api';
-import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
-import { CaretSortIcon } from '@radix-ui/react-icons';
-import {
-  PopoverTrigger,
-  Popover,
-  PopoverContent,
-} from '@radix-ui/react-popover';
 import {
   Dialog,
   DialogContent,
@@ -32,12 +15,29 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { TooltipProvider } from '@/components/v1/ui/tooltip';
-import { useState, useMemo } from 'react';
-import { useLocation, useNavigate } from '@tanstack/react-router';
-import { useTenantDetails } from '@/hooks/use-tenant';
 import { useOrganizations } from '@/hooks/use-organizations';
-import invariant from 'tiny-invariant';
+import { useTenantDetails } from '@/hooks/use-tenant';
+import { Tenant, TenantMember } from '@/lib/api';
+import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
+import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
+import {
+  BuildingOffice2Icon,
+  Cog6ToothIcon,
+  PlusIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from '@heroicons/react/24/outline';
+import { CaretSortIcon } from '@radix-ui/react-icons';
+import {
+  PopoverTrigger,
+  Popover,
+  PopoverContent,
+} from '@radix-ui/react-popover';
+import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useState, useMemo } from 'react';
+import invariant from 'tiny-invariant';
 
 interface OrganizationGroupProps {
   organization: OrganizationForUser;

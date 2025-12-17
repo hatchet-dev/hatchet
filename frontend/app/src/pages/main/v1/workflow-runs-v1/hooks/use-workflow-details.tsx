@@ -1,8 +1,8 @@
 import { queries, V1TaskStatus } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
-import { AxiosError, isAxiosError } from 'axios';
-import { useParams } from '@tanstack/react-router';
 import { appRoutes } from '@/router';
+import { useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
+import { AxiosError, isAxiosError } from 'axios';
 
 export function isTerminalState(status: V1TaskStatus | undefined) {
   if (!status) {

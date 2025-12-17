@@ -1,8 +1,8 @@
 import { V1WebhookSourceName } from '@/lib/api';
 import { GitHubLogoIcon } from '@radix-ui/react-icons';
 import { Webhook } from 'lucide-react';
-import { FaSlack, FaStripeS } from 'react-icons/fa';
 import { CgLinear } from 'react-icons/cg';
+import { FaSlack, FaStripeS } from 'react-icons/fa';
 
 export const SourceName = ({
   sourceName,

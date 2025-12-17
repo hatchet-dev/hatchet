@@ -1,8 +1,7 @@
 import { WorkerRuntimeSDKs } from '@/lib/api';
-
-import { BiLogoGoLang, BiLogoPython, BiLogoTypescript } from 'react-icons/bi';
-import { IconType } from 'react-icons';
 import React from 'react';
+import { IconType } from 'react-icons';
+import { BiLogoGoLang, BiLogoPython, BiLogoTypescript } from 'react-icons/bi';
 
 export const SdkInfo: React.FC<{
   runtimeInfo?: { language?: WorkerRuntimeSDKs; sdkVersion?: string };

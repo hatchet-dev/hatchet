@@ -1,8 +1,14 @@
-import { queries } from '@/lib/api';
-import { useEffect, useState, useMemo } from 'react';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/v1/ui/accordion';
 import { Button } from '@/components/v1/ui/button';
-import { useQuery } from '@tanstack/react-query';
-import { PlusIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
+import { Checkbox } from '@/components/v1/ui/checkbox';
+import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
 import {
   Select,
   SelectContent,
@@ -10,32 +16,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { z } from 'zod';
-import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Label } from '@/components/v1/ui/label';
-import { Input } from '@/components/v1/ui/input';
 import { Step, Steps } from '@/components/v1/ui/steps';
-import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
-import { ManagedWorkerRegion } from '@/lib/api/generated/cloud/data-contracts';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { Checkbox } from '@/components/v1/ui/checkbox';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/v1/ui/accordion';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
+import { ManagedWorkerRegion } from '@/lib/api/generated/cloud/data-contracts';
 import {
   managedCompute,
   ComputeType,
 } from '@/lib/can/features/managed-compute';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { PlusIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState, useMemo } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 export const machineTypes = [
   {

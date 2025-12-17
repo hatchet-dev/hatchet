@@ -1,6 +1,6 @@
+import type { APIErrors } from './api/generated/data-contracts';
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { APIErrors } from './api/generated/data-contracts';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

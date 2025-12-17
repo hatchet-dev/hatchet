@@ -1,20 +1,20 @@
+import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-auth';
+import { DefaultOnboardingWorkflow } from './platforms/defaults/default-onboarding-workflow';
+import { WorkerListener } from './platforms/defaults/default-worker-listener';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Loading } from '@/components/v1/ui/loading';
+import { Step, Steps } from '@/components/v1/ui/steps';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { Step, Steps } from '@/components/v1/ui/steps';
-import { MembershipsContextType, UserContextType } from '@/lib/outlet';
-import { useState } from 'react';
-import { useOutletContext } from '@/lib/router-helpers';
-import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-auth';
-import { DefaultOnboardingWorkflow } from './platforms/defaults/default-onboarding-workflow';
-import { WorkerListener } from './platforms/defaults/default-worker-listener';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { MembershipsContextType, UserContextType } from '@/lib/outlet';
+import { useOutletContext } from '@/lib/router-helpers';
+import { useState } from 'react';
 
 export default function GetStarted() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();

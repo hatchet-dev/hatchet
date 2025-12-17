@@ -1,11 +1,11 @@
-import { ScheduledWorkflows } from '@/lib/api';
-import { Separator } from '@/components/v1/ui/separator';
+import { RunStatus } from '../../workflow-runs/components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { Link } from '@tanstack/react-router';
+import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { RunStatus } from '../../workflow-runs/components/run-statuses';
+import { ScheduledWorkflows } from '@/lib/api';
 import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
 
 export function ExpandedScheduledRunContent({
   scheduledRun,

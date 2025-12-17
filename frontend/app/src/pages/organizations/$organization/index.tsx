@@ -1,12 +1,53 @@
-import { useParams, useNavigate } from '@tanstack/react-router';
-import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
-import { cloudApi } from '@/lib/api/api';
-import api from '@/lib/api';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { Loading } from '@/components/v1/ui/loading';
+import { CancelInviteModal } from './components/cancel-invite-modal';
+import { CreateTokenModal } from './components/create-token-modal';
+import { DeleteMemberModal } from './components/delete-member-modal';
+import { DeleteTenantModal } from './components/delete-tenant-modal';
+import { DeleteTokenModal } from './components/delete-token-modal';
+import { InviteMemberModal } from './components/invite-member-modal';
+import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/v1/ui/card';
+import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/v1/ui/dropdown-menu';
 import { Input } from '@/components/v1/ui/input';
-import { formatDistanceToNow } from 'date-fns';
+import { Loading } from '@/components/v1/ui/loading';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/v1/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
+import { useOrganizations } from '@/hooks/use-organizations';
+import api from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
+import {
+  OrganizationMember,
+  ManagementToken,
+  OrganizationInvite,
+  OrganizationInviteStatus,
+  TenantStatusType,
+  OrganizationTenant,
+} from '@/lib/api/generated/cloud/data-contracts';
+import { appRoutes } from '@/router';
 import {
   PlusIcon,
   BuildingOffice2Icon,
@@ -18,52 +59,11 @@ import {
   XMarkIcon,
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/v1/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/v1/ui/table';
-import { Badge } from '@/components/v1/ui/badge';
-import { useState } from 'react';
-import { InviteMemberModal } from './components/invite-member-modal';
-import { DeleteMemberModal } from './components/delete-member-modal';
-import { CreateTokenModal } from './components/create-token-modal';
-import { DeleteTokenModal } from './components/delete-token-modal';
-import { CancelInviteModal } from './components/cancel-invite-modal';
-import { DeleteTenantModal } from './components/delete-tenant-modal';
-import {
-  OrganizationMember,
-  ManagementToken,
-  OrganizationInvite,
-  OrganizationInviteStatus,
-  TenantStatusType,
-  OrganizationTenant,
-} from '@/lib/api/generated/cloud/data-contracts';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
 import { EllipsisVerticalIcon, TrashIcon } from '@heroicons/react/24/outline';
-import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
-import { appRoutes } from '@/router';
+import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useParams, useNavigate } from '@tanstack/react-router';
+import { formatDistanceToNow } from 'date-fns';
+import { useState } from 'react';
 
 export default function OrganizationPage() {
   const { organization: orgId } = useParams({

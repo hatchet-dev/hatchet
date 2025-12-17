@@ -1,6 +1,16 @@
-import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { V1RunIndicator } from '../../../components/run-statuses';
+import { RunsTable } from '../../../components/runs-table';
+import { RunsProvider } from '../../../hooks/runs-provider';
+import { isTerminalState } from '../../../hooks/use-workflow-details';
+import { TaskRunMiniMap } from '../mini-map';
+import { StepRunEvents } from '../step-run-events-for-workflow-run';
+import { Waterfall } from '../waterfall';
+import { StepRunLogs } from './step-run-logs';
+import { V1StepRunOutput } from './step-run-output';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Loading } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import {
@@ -10,26 +20,16 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { StepRunEvents } from '../step-run-events-for-workflow-run';
-import { Link } from '@tanstack/react-router';
-import { RunsTable } from '../../../components/runs-table';
-import { RunsProvider } from '../../../hooks/runs-provider';
-import { V1RunIndicator } from '../../../components/run-statuses';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { emptyGolangUUID, formatDuration } from '@/lib/utils';
-import { V1StepRunOutput } from './step-run-output';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
-import { TaskRunMiniMap } from '../mini-map';
-import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
-import { StepRunLogs } from './step-run-logs';
-import { isTerminalState } from '../../../hooks/use-workflow-details';
-import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { Waterfall } from '../waterfall';
-import { useCallback, useState } from 'react';
-import { FullscreenIcon } from 'lucide-react';
+import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
+import { emptyGolangUUID, formatDuration } from '@/lib/utils';
+import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
+import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+import { FullscreenIcon } from 'lucide-react';
+import { useCallback, useState } from 'react';
 
 export enum TabOption {
   Output = 'output',
