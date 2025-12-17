@@ -22,7 +22,7 @@ import { lastTenantAtom } from '@/lib/atoms';
 
 export default function Authenticated() {
   const { tenant } = useTenantDetails();
-  const [lastTenant] = useAtom(lastTenantAtom);
+  const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
 
   const { data: cloudMetadata } = useQuery({
     queryKey: ['metadata'],
@@ -156,6 +156,12 @@ export default function Authenticated() {
             ?.tenant
         : undefined;
 
+      // If the cached tenant isn't in the current user's memberships (e.g. user switched),
+      // clear it so we don't keep trying to use a stale tenant.
+      if (lastTenantId && !lastTenantInMemberships) {
+        setLastTenant(undefined);
+      }
+
       const targetTenant = lastTenantInMemberships ?? memberships[0].tenant;
 
       if (targetTenant) {
@@ -180,6 +186,7 @@ export default function Authenticated() {
     isOnboardingVerifyEmailPage,
     isOnboardingInvitesPage,
     isOnboardingPage,
+    setLastTenant,
   ]);
 
   useEffect(() => {

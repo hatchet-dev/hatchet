@@ -32,8 +32,14 @@ const lastTenantAtomInit = atom(getInitialValue<Tenant>(lastTenantKey));
 
 export const lastTenantAtom = atom(
   (get) => get(lastTenantAtomInit),
-  (_get, set, newVal: Tenant) => {
+  (_get, set, newVal: Tenant | undefined) => {
     set(lastTenantAtomInit, newVal);
+
+    if (newVal === undefined) {
+      localStorage.removeItem(lastTenantKey);
+      return;
+    }
+
     localStorage.setItem(lastTenantKey, JSON.stringify(newVal));
   },
 );
