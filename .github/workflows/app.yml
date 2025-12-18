@@ -103,7 +103,7 @@ jobs:
         run: bash ./hack/dev/migrate.sh
 
       - name: Seed
-        run: SEED_DEVELOPMENT=true bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
+        run: SEED_DEVELOPMENT=true bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed-cypress
 
       - name: Install frontend deps
         working-directory: frontend/app

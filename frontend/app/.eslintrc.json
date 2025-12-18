@@ -46,7 +46,11 @@
     "import/no-extraneous-dependencies": [
       "error",
       {
-        "devDependencies": ["vite.config.ts"]
+        "devDependencies": [
+          "vite.config.ts",
+          "cypress.config.ts",
+          "cypress/**/*.{ts,tsx}"
+        ]
       }
     ],
     "react-hooks/exhaustive-deps": "error"

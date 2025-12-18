@@ -1,4 +1,4 @@
-import { seededUsers } from 'cypress/support/seeded-users.generated';
+import { seededUsers } from '../../support/seeded-users.generated';
 
 describe('auth: login', () => {
   it('should login a user with username and password', () => {
