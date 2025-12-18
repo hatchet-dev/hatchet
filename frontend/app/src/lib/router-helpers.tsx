@@ -97,7 +97,7 @@ export function useSearchParams(): [
     }
 
     navigate({
-      to: '.',
+      to: location.pathname,
       search: searchObject,
       replace: options?.replace,
       state: options?.state,
