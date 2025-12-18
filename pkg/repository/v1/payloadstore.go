@@ -482,11 +482,15 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		eg.Go(func() error {
 			payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedPayloadsForOffloadParams{
 				Partitiondate:  pgtype.Date(partitionDate),
-				Limitparam:     p.externalCutoverBatchSize,
-				Lasttenantid:   pr.TenantID,
-				Lastinsertedat: pr.InsertedAt,
-				Lastid:         pr.ID,
-				Lasttype:       pr.Type,
+				Lasttenantid:   pr.LowerTenantID,
+				Lastinsertedat: pr.LowerInsertedAt,
+				Lastid:         pr.LowerID,
+				Lasttype:       pr.LowerType,
+				Nexttenantid:   pr.UpperTenantID,
+				Nextinsertedat: pr.UpperInsertedAt,
+				Nextid:         pr.UpperID,
+				Nexttype:       pr.UpperType,
+				Batchsize:      p.externalCutoverBatchSize,
 			})
 
 			if err != nil {

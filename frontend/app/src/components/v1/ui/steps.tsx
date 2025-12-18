@@ -1,12 +1,12 @@
-import * as React from 'react';
-import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from './accordion';
+import { cn } from '@/lib/utils';
+import { cva, type VariantProps } from 'class-variance-authority';
+import * as React from 'react';
 
 const stepsVariants = cva(
   'ml-4 mb-12 border-l border-border pl-6 dark:border-border [counter-reset:step] flex flex-col gap-4',
@@ -33,7 +33,7 @@ const Step = ({
     <Accordion
       type="single"
       collapsible={true}
-      className="w-full relative"
+      className="relative w-full"
       value={open ? 'open' : 'closed'}
       disabled={disabled}
       onValueChange={(value) => setOpen(value === 'open')}
@@ -41,9 +41,9 @@ const Step = ({
       <AccordionItem value="open" className="border-none">
         <AccordionTrigger
           hideChevron={disabled}
-          className={disabled ? 'hover:no-underline cursor-default' : ''}
+          className={disabled ? 'cursor-default hover:no-underline' : ''}
         >
-          <div className="absolute w-[33px] h-[33px] border-4 border-muted bg-muted rounded-full text-foreground text-base font-normal text-center mt-[3px] ml-[-41px]">
+          <div className="absolute ml-[-41px] mt-[3px] h-[33px] w-[33px] rounded-full border-4 border-muted bg-muted text-center text-base font-normal text-foreground">
             {stepNumber}
           </div>
           {title && (

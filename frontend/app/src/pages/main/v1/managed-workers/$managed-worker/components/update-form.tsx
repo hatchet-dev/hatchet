@@ -1,21 +1,3 @@
-import { queries } from '@/lib/api';
-import { useEffect, useMemo, useState } from 'react';
-import { Button } from '@/components/v1/ui/button';
-import { useQuery } from '@tanstack/react-query';
-import { ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/v1/ui/select';
-import { z } from 'zod';
-import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Label } from '@/components/v1/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
-import { Input } from '@/components/v1/ui/input';
 import {
   getRepoName,
   getRepoOwner,
@@ -25,30 +7,48 @@ import {
   ScalingType,
   scalingTypes,
 } from '../../create/components/create-worker-form';
-import {
-  ManagedWorker,
-  ManagedWorkerRegion,
-} from '@/lib/api/generated/cloud/data-contracts';
+import { UpgradeMessage } from '../../create/components/create-worker-form';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/v1/ui/accordion';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
+import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/v1/ui/select';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { Checkbox } from '@/components/v1/ui/checkbox';
-import { UpgradeMessage } from '../../create/components/create-worker-form';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
+import {
+  ManagedWorker,
+  ManagedWorkerRegion,
+} from '@/lib/api/generated/cloud/data-contracts';
 import {
   ComputeType,
   managedCompute,
 } from '@/lib/can/features/managed-compute';
-import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 interface UpdateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof updateManagedWorkerSchema>) => void;
@@ -405,7 +405,7 @@ export default function UpdateWorkerForm({
   ) {
     return (
       <Alert>
-        <ExclamationTriangleIcon className="h-4 w-4" />
+        <ExclamationTriangleIcon className="size-4" />
         <AlertTitle className="font-semibold">Link a Github account</AlertTitle>
         <AlertDescription>
           You don't have any Github accounts linked. Please{' '}
@@ -445,7 +445,7 @@ export default function UpdateWorkerForm({
       </div>
       {!managedWorker.canUpdate && (
         <Alert className="mt-4" variant="warn">
-          <ExclamationTriangleIcon className="h-4 w-4" />
+          <ExclamationTriangleIcon className="size-4" />
           <AlertTitle className="font-semibold">
             You do not have permission to update this service.
           </AlertTitle>
@@ -488,7 +488,7 @@ export default function UpdateWorkerForm({
             <AccordionTrigger className="text-lg font-semibold text-foreground">
               Build configuration
             </AccordionTrigger>
-            <AccordionContent className="max-w-3xl grid gap-4">
+            <AccordionContent className="grid max-w-3xl gap-4">
               <Label htmlFor="role">Github account</Label>
               <Controller
                 control={control}
@@ -689,7 +689,7 @@ export default function UpdateWorkerForm({
                     Infra-As-Code
                   </TabsTrigger>
                 </TabsList>
-                <TabsContent value="iac" className="pt-4 grid gap-4">
+                <TabsContent value="iac" className="grid gap-4 pt-4">
                   <a
                     href="https://docs.hatchet.run/compute/cpu"
                     className="underline"
@@ -697,7 +697,7 @@ export default function UpdateWorkerForm({
                     Learn how to configure infra-as-code.
                   </a>
                 </TabsContent>
-                <TabsContent value="ui" className="pt-4 grid gap-4">
+                <TabsContent value="ui" className="grid gap-4 pt-4">
                   <Label htmlFor="region">Region</Label>
                   <Select
                     value={region?.toString()}
@@ -819,7 +819,7 @@ export default function UpdateWorkerForm({
                         </TabsTrigger>
                       ))}
                     </TabsList>
-                    <TabsContent value="Static" className="pt-4 grid gap-4">
+                    <TabsContent value="Static" className="grid gap-4 pt-4">
                       <Label htmlFor="numReplicas">Number of replicas</Label>
                       <Controller
                         control={control}
@@ -852,7 +852,7 @@ export default function UpdateWorkerForm({
                     </TabsContent>
                     <TabsContent
                       value="Autoscaling"
-                      className="pt-4 grid gap-4"
+                      className="grid gap-4 pt-4"
                     >
                       <Label htmlFor="minAwakeReplicas">Min Replicas</Label>
                       <Controller
@@ -908,7 +908,7 @@ export default function UpdateWorkerForm({
                         name="runtimeConfig.autoscaling.scaleToZero"
                         render={({ field }) => {
                           return (
-                            <div className="flex flex-row gap-4 items-center">
+                            <div className="flex flex-row items-center gap-4">
                               <Label htmlFor="scaleToZero">
                                 Scale to zero during periods of inactivity?
                               </Label>
@@ -1098,7 +1098,7 @@ export default function UpdateWorkerForm({
           }
           className="w-fit px-8"
         >
-          {isLoading && <PlusIcon className="h-4 w-4 animate-spin" />}
+          {isLoading && <PlusIcon className="size-4 animate-spin" />}
           Save changes
         </Button>
       </div>

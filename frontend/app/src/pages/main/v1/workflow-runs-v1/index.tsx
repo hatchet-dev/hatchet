@@ -3,7 +3,7 @@ import { RunsProvider } from './hooks/runs-provider';
 
 export default function Tasks() {
   return (
-    <div className="flex-grow size-full">
+    <div className="size-full flex-grow">
       <RunsProvider tableKey="workflow-runs-main">
         <RunsTable />
       </RunsProvider>

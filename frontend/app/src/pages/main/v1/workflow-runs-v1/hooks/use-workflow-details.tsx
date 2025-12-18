@@ -1,8 +1,8 @@
 import { queries, V1TaskStatus } from '@/lib/api';
+import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
 import { AxiosError, isAxiosError } from 'axios';
-import { useParams } from 'react-router-dom';
-import invariant from 'tiny-invariant';
 
 export function isTerminalState(status: V1TaskStatus | undefined) {
   if (!status) {
@@ -17,9 +17,7 @@ export function isTerminalState(status: V1TaskStatus | undefined) {
 }
 
 export const useWorkflowDetails = () => {
-  const params = useParams();
-
-  invariant(params.run);
+  const params = useParams({ from: appRoutes.tenantRunRoute.to });
 
   const { data, isLoading, isError, error } = useQuery({
     retry: (_f, error: AxiosError) => {

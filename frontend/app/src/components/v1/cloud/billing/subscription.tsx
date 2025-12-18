@@ -201,9 +201,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         onCancel={() => setChangeConfirmOpen(undefined)}
         isLoading={!!loading}
       />
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
-          <h3 className="text-xl font-semibold leading-tight text-foreground flex flex-row gap-2">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
+          <h3 className="flex flex-row gap-2 text-xl font-semibold leading-tight text-foreground">
             Subscription
             {coupons?.map((coupon, i) => (
               <Badge key={`c${i}`} variant="successful">
@@ -331,7 +331,6 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             </Label>
           </div>
         </div>
-
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sortedPlans
             ?.filter(

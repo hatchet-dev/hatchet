@@ -1,6 +1,6 @@
+import { useSearchParams } from '@/lib/router-helpers';
 import { PaginationState, Updater } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
 
 type PaginationQueryShape = {
   i: number; // index

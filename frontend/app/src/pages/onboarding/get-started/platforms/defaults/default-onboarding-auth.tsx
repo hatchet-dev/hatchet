@@ -38,7 +38,7 @@ export const DefaultOnboardingAuth: React.FC<{
           copy it somewhere safe and do not share it with others. You can manage
           your auth tokens from the settings page.
         </p>
-        <div className="rounded-lg mb-6">
+        <div className="mb-6 rounded-lg">
           <CodeHighlighter
             language="plaintext"
             className="text-sm"

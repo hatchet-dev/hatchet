@@ -1,20 +1,20 @@
+import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-auth';
+import { DefaultOnboardingWorkflow } from './platforms/defaults/default-onboarding-workflow';
+import { WorkerListener } from './platforms/defaults/default-worker-listener';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Loading } from '@/components/v1/ui/loading';
+import { Step, Steps } from '@/components/v1/ui/steps';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { Step, Steps } from '@/components/v1/ui/steps';
-import { MembershipsContextType, UserContextType } from '@/lib/outlet';
-import { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-auth';
-import { DefaultOnboardingWorkflow } from './platforms/defaults/default-onboarding-workflow';
-import { WorkerListener } from './platforms/defaults/default-worker-listener';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { MembershipsContextType, UserContextType } from '@/lib/outlet';
+import { useOutletContext } from '@/lib/router-helpers';
+import { useState } from 'react';
 
 export default function GetStarted() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -37,10 +37,10 @@ export default function GetStarted() {
   }
 
   return (
-    <div className="flex flex-col items-center w-full h-full overflow-auto">
-      <div className="container mx-auto px-4 lg:px-8 max-w-4xl">
+    <div className="flex h-full w-full flex-col items-center overflow-auto">
+      <div className="container mx-auto max-w-4xl px-4 lg:px-8">
         <div className="flex flex-col justify-center space-y-4">
-          <div className="flex flex-row justify-between mt-10">
+          <div className="mt-10 flex flex-row justify-between">
             <h1 className="text-3xl font-bold">
               {/* TODO: we should give the production environment a different treatment */}
               Setup your {currTenant.environment} environment
@@ -50,7 +50,7 @@ export default function GetStarted() {
             </a>
           </div>
 
-          <p className="text-gray-600 dark:text-gray-300 text-sm">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
             Get started by running your first worker on your local machine.
           </p>
 
@@ -85,7 +85,7 @@ export default function GetStarted() {
                     <TabsTrigger value="go">Go</TabsTrigger>
                   </TabsList>
                   <TabsContent value="python" className="mt-4 space-y-3">
-                    <div className="text-sm text-muted-foreground mb-4">
+                    <div className="mb-4 text-sm text-muted-foreground">
                       Clone the repository and install dependencies:
                     </div>
                     <CodeHighlighter
@@ -96,7 +96,7 @@ export default function GetStarted() {
                     />
                   </TabsContent>
                   <TabsContent value="typescript" className="mt-4 space-y-3">
-                    <div className="text-sm text-muted-foreground mb-4">
+                    <div className="mb-4 text-sm text-muted-foreground">
                       Clone the repository and install dependencies:
                     </div>
                     <CodeHighlighter
@@ -141,7 +141,7 @@ export default function GetStarted() {
                     </Tabs>
                   </TabsContent>
                   <TabsContent value="go" className="mt-4 space-y-3">
-                    <div className="text-sm text-muted-foreground mb-4">
+                    <div className="mb-4 text-sm text-muted-foreground">
                       Clone the repository and install dependencies:
                     </div>
                     <CodeHighlighter

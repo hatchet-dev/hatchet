@@ -1,6 +1,6 @@
-import { useCallback } from 'react';
-import { usePostHog } from 'posthog-js/react';
 import { useTenantDetails } from './use-tenant';
+import { usePostHog } from 'posthog-js/react';
+import { useCallback } from 'react';
 
 interface AnalyticsEvent {
   [key: string]: unknown;

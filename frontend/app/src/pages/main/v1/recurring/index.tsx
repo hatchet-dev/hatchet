@@ -1,24 +1,24 @@
-import { useState } from 'react';
-import { VisibilityState } from '@tanstack/react-table';
-import { CronWorkflows } from '@/lib/api';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { columns } from './components/recurring-columns';
-import { Button } from '@/components/v1/ui/button';
+import { TriggerWorkflowForm } from '../workflows/$workflow/components/trigger-workflow-form';
 import { DeleteCron } from './components/delete-cron';
-import {
-  ToolbarFilters,
-  ToolbarType,
-} from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { DocsButton } from '@/components/v1/docs/docs-button';
-import { docsPages } from '@/lib/generated/docs';
-import { useCrons } from './hooks/use-crons';
+import { columns } from './components/recurring-columns';
 import {
   CronColumn,
   workflowKey,
   metadataKey,
 } from './components/recurring-columns';
-import { TriggerWorkflowForm } from '../workflows/$workflow/components/trigger-workflow-form';
+import { useCrons } from './hooks/use-crons';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import {
+  ToolbarFilters,
+  ToolbarType,
+} from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { Button } from '@/components/v1/ui/button';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { CronWorkflows } from '@/lib/api';
+import { docsPages } from '@/lib/generated/docs';
+import { VisibilityState } from '@tanstack/react-table';
+import { useState } from 'react';
 
 export default function CronsTable() {
   const { tenantId } = useCurrentTenantId();
@@ -87,7 +87,7 @@ export default function CronsTable() {
     <Button
       key="create-cron"
       onClick={() => setTriggerWorkflow(true)}
-      className="h-8 border px-3"
+      variant="cta"
     >
       Create Cron Job
     </Button>,
@@ -142,13 +142,11 @@ export default function CronsTable() {
         onResetFilters={resetFilters}
         showSelectedRows={false}
         emptyState={
-          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
             <p className="text-lg font-semibold">No crons found</p>
             <div className="w-fit">
               <DocsButton
                 doc={docsPages.home['cron-runs']}
-                size="full"
-                variant="outline"
                 label="Learn about cron jobs in Hatchet"
               />
             </div>

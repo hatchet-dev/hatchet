@@ -1,3 +1,16 @@
+import { Button } from '@/components/v1/ui/button';
+import { ChartContainer, ChartTooltipContent } from '@/components/v1/ui/chart';
+import { Skeleton } from '@/components/v1/ui/skeleton';
+import {
+  TooltipProvider,
+  Tooltip as BaseTooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { V1TaskStatus, V1TaskTiming, queries } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { CirclePlus, CircleMinus, Loader } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 import {
   Bar,
@@ -9,20 +22,6 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { CirclePlus, CircleMinus, Loader } from 'lucide-react';
-
-import { ChartContainer, ChartTooltipContent } from '@/components/v1/ui/chart';
-import { V1TaskStatus, V1TaskTiming, queries } from '@/lib/api';
-import { Button } from '@/components/v1/ui/button';
-import { Skeleton } from '@/components/v1/ui/skeleton';
-import {
-  TooltipProvider,
-  Tooltip as BaseTooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
-import { useQuery } from '@tanstack/react-query';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 // Helper function to check if a task is a descendant of another task
 function isDescendantOf(
@@ -171,7 +170,7 @@ const CustomTooltip = (props: {
       return (
         <ChartTooltipContent
           {...modifiedProps}
-          className="w-[150px] sm:w-[200px] font-mono text-xs sm:text-xs cursor-pointer"
+          className="w-[150px] cursor-pointer font-mono text-xs sm:w-[200px] sm:text-xs"
         />
       );
     }
@@ -802,15 +801,15 @@ const Tick = ({
     <g transform={`translate(${x},${y})`}>
       <foreignObject x={-160} y={-10} width={180} height={20}>
         <div
-          className={`group flex flex-row items-center size-full`}
+          className={`group flex size-full flex-row items-center`}
           style={{ paddingLeft: `${task.depth * 12}px` }}
         >
           <div
-            className={`${task.id === workflowRunId ? 'cursor-default' : 'cursor-pointer'} flex flex-row justify-between w-full grow text-left text-xs gap-2 items-center min-w-0`}
+            className={`${task.id === workflowRunId ? 'cursor-default' : 'cursor-pointer'} flex w-full min-w-0 grow flex-row items-center justify-between gap-2 text-left text-xs`}
             onClick={() => handleBarClick(task)}
           >
             <span
-              className={`text-xs ${task.id === selectedTaskId ? 'underline' : ''} ${task.isShowMoreEntry ? 'text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer' : ''} truncate`}
+              className={`text-xs ${task.id === selectedTaskId ? 'underline' : ''} ${task.isShowMoreEntry ? 'cursor-pointer text-indigo-600 hover:underline dark:text-indigo-400' : ''} truncate`}
               style={{ maxWidth: `${180 - task.depth * 12}px` }}
               title={task.taskDisplayName}
               onClick={() => handleBarClick(task)}
@@ -825,7 +824,7 @@ const Tick = ({
                   <Button
                     variant="link"
                     size="icon"
-                    className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+                    className="opacity-0 transition-opacity duration-200 group-hover:opacity-100"
                     onClick={(e) => {
                       e.stopPropagation();
                       if (task.hasChildren) {
@@ -834,9 +833,9 @@ const Tick = ({
                     }}
                   >
                     {task.isExpanded ? (
-                      <CircleMinus className="w-3 h-3" />
+                      <CircleMinus className="size-3" />
                     ) : (
-                      <CirclePlus className="w-3 h-3" />
+                      <CirclePlus className="size-3" />
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -850,7 +849,7 @@ const Tick = ({
             <TooltipProvider>
               <BaseTooltip>
                 <TooltipTrigger>
-                  <Loader className="animate-[spin_3s_linear_infinite] h-4" />
+                  <Loader className="h-4 animate-[spin_3s_linear_infinite]" />
                 </TooltipTrigger>
                 <TooltipContent>This task has not started</TooltipContent>
               </BaseTooltip>

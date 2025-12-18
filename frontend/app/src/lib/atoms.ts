@@ -1,7 +1,6 @@
-import { atom } from 'jotai';
 import { Tenant } from './api';
-
 import { TenantBillingState } from './api/generated/cloud/data-contracts';
+import { atom } from 'jotai';
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   const item = localStorage.getItem(key);
@@ -33,8 +32,14 @@ const lastTenantAtomInit = atom(getInitialValue<Tenant>(lastTenantKey));
 
 export const lastTenantAtom = atom(
   (get) => get(lastTenantAtomInit),
-  (_get, set, newVal: Tenant) => {
+  (_get, set, newVal: Tenant | undefined) => {
     set(lastTenantAtomInit, newVal);
+
+    if (newVal === undefined) {
+      localStorage.removeItem(lastTenantKey);
+      return;
+    }
+
     localStorage.setItem(lastTenantKey, JSON.stringify(newVal));
   },
 );

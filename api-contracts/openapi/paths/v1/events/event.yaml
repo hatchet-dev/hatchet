@@ -1,3 +1,50 @@
+V1EventGet:
+  get:
+    x-resources: ["tenant", "v1-event"]
+    description: Get an event by its id
+    operationId: v1-event:get
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The event id
+        in: path
+        name: v1-event
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1Event"
+        description: Successfully listed the events
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get events
+    tags:
+      - Event
+
 V1EventList:
   get:
     x-resources: ["tenant"]

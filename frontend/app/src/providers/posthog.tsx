@@ -1,10 +1,10 @@
+import { useTenantDetails } from '@/hooks/use-tenant';
+import type { User } from '@/lib/api';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { useLocation } from '@tanstack/react-router';
 import posthog from 'posthog-js';
 import { PostHogProvider as PhProvider, usePostHog } from 'posthog-js/react';
 import { useEffect, useRef, useMemo, createContext } from 'react';
-import { useLocation } from 'react-router-dom';
-import type { User } from '@/lib/api';
-import { useTenantDetails } from '@/hooks/use-tenant';
 
 const CROSS_DOMAIN_SESSION_ID_KEY = 'session_id';
 const CROSS_DOMAIN_DISTINCT_ID_KEY = 'distinct_id';
@@ -150,8 +150,8 @@ function PostHogPageView() {
     }
 
     let url = window.origin + location.pathname;
-    if (location.search) {
-      url = `${url}${location.search}`;
+    if (location.searchStr) {
+      url = `${url}?${location.searchStr}`;
     }
 
     posthogClient.capture('$pageview', { $current_url: url });

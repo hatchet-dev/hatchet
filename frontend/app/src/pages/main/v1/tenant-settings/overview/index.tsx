@@ -1,25 +1,24 @@
-import { Button } from '@/components/v1/ui/button';
-import { Separator } from '@/components/v1/ui/separator';
-import { useState } from 'react';
-import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import api, { UpdateTenantRequest } from '@/lib/api';
-import { Switch } from '@/components/v1/ui/switch';
-import { Label } from '@radix-ui/react-label';
-import { Spinner } from '@/components/v1/ui/loading';
-import { capitalize } from '@/lib/utils';
 import { UpdateTenantForm } from './components/update-tenant-form';
-
 import { Alert, AlertDescription } from '@/components/v1/ui/alert';
+import { Button } from '@/components/v1/ui/button';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
+import { Switch } from '@/components/v1/ui/switch';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import api, { UpdateTenantRequest } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
+import { useApiError } from '@/lib/hooks';
+import { capitalize } from '@/lib/utils';
+import { Label } from '@radix-ui/react-label';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 
 export default function TenantSettings() {
   const { tenant } = useTenantDetails();
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-bold leading-tight text-foreground">
           {capitalize(tenant?.name || '')} Overview
         </h2>
@@ -108,7 +107,7 @@ const AnalyticsOptOut: React.FC = () => {
         Analytics Opt-Out
       </h2>
       <Separator className="my-4" />
-      <p className="text-gray-700 dark:text-gray-300 my-4">
+      <p className="my-4 text-gray-700 dark:text-gray-300">
         Choose whether to opt out of all analytics tracking.
       </p>
       <div className="flex items-center space-x-2">
@@ -128,9 +127,7 @@ const AnalyticsOptOut: React.FC = () => {
         (isLoading ? (
           <Spinner />
         ) : (
-          <Button onClick={save} className="mt-4">
-            Save and Reload
-          </Button>
+          <Button onClick={save}>Save and Reload</Button>
         ))}
     </>
   );
@@ -176,7 +173,7 @@ const InactivityTimeout: React.FC = () => {
       <Separator className="my-4" />
       {isDisabled ? (
         <>
-          <p className="text-gray-700 dark:text-gray-300 my-4">
+          <p className="my-4 text-gray-700 dark:text-gray-300">
             Inactivity timeout is currently <strong>disabled</strong>. This
             feature automatically logs out users after a period of inactivity to
             enhance security.
@@ -190,7 +187,7 @@ const InactivityTimeout: React.FC = () => {
         </>
       ) : (
         <>
-          <p className="text-gray-700 dark:text-gray-300 my-4">
+          <p className="my-4 text-gray-700 dark:text-gray-300">
             Current inactivity logout timeout:{' '}
             <strong>
               {formatTimeoutMs(cloudMetadata?.inactivityLogoutMs)}

@@ -1,9 +1,9 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { TenantAlertEmailGroup } from '@/lib/api';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { Badge } from '@/components/v1/ui/badge';
-import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge } from '@/components/v1/ui/badge';
+import { TenantAlertEmailGroup } from '@/lib/api';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const columns = ({
   alertTenantEmailsSet,
@@ -53,7 +53,7 @@ export const columns = ({
     {
       id: 'enabled',
       cell: ({ row }) => (
-        <div className="flex items-center space-x-2 justify-end">
+        <div className="flex items-center justify-end space-x-2">
           {row.original.metadata.id != 'default' || alertTenantEmailsSet ? (
             <Badge variant="successful">Enabled</Badge>
           ) : (
@@ -65,7 +65,7 @@ export const columns = ({
     {
       id: 'actions',
       cell: ({ row }) => (
-        <div className="flex items-center space-x-2 justify-end mr-4">
+        <div className="mr-4 flex items-center justify-end space-x-2">
           <DataTableRowActions
             row={row}
             actions={[

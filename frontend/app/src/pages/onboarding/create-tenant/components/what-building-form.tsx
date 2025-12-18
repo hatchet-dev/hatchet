@@ -1,7 +1,14 @@
-import { Label } from '@/components/v1/ui/label';
-import { Textarea } from '@/components/v1/ui/textarea';
+import { OnboardingStepProps } from '../types';
+import {
+  extractOtherSelection,
+  toggleOtherOption,
+  toggleRegularOption,
+  updateOtherText,
+} from '../utils/other-selection';
 import { Button } from '@/components/v1/ui/button';
 import { Card, CardContent } from '@/components/v1/ui/card';
+import { Label } from '@/components/v1/ui/label';
+import { Textarea } from '@/components/v1/ui/textarea';
 import {
   Database,
   Workflow,
@@ -10,13 +17,6 @@ import {
   FileText,
   Webhook,
 } from 'lucide-react';
-import { OnboardingStepProps } from '../types';
-import {
-  extractOtherSelection,
-  toggleOtherOption,
-  toggleRegularOption,
-  updateOtherText,
-} from '../utils/other-selection';
 
 interface WhatBuildingFormProps
   extends OnboardingStepProps<string | string[]> {}
@@ -91,8 +91,8 @@ export function WhatBuildingForm({
             >
               <CardContent className="p-4">
                 <div className="flex items-center space-x-3">
-                  <Icon className="w-5 h-5 text-gray-600 dark:text-gray-400 flex-shrink-0" />
-                  <span className="font-medium text-sm">{option.label}</span>
+                  <Icon className="h-5 w-5 flex-shrink-0 text-gray-600 dark:text-gray-400" />
+                  <span className="text-sm font-medium">{option.label}</span>
                 </div>
               </CardContent>
             </Card>
