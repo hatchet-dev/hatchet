@@ -147,7 +147,7 @@ function AccountDropdown({ user }: { user: User }) {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">
+            <p className="text-sm font-medium leading-none" data-cy="user-name">
               {user.name || user.email}
             </p>
             <p className="text-xs leading-none text-gray-700 dark:text-gray-300">
