@@ -1,5 +1,5 @@
 import { columns } from './components/resource-limit-columns';
-import { PaymentMethods, Subscription } from '@/components/v1/cloud/billing';
+import { Subscription } from '@/components/v1/cloud/billing';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
@@ -19,15 +19,13 @@ export default function ResourceLimits() {
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenantId),
-    enabled: !!cloudMeta?.data.canBill,
+    enabled: !!tenantId && !!cloudMeta?.data.canBill,
+    retry: false,
   });
 
   const cols = columns();
 
   const billingEnabled = cloudMeta?.data.canBill;
-
-  const hasPaymentMethods =
-    (billingState.data?.paymentMethods?.length || 0) > 0;
 
   if (resourcePolicyQuery.isLoading || billingState.isLoading) {
     return (
@@ -41,22 +39,9 @@ export default function ResourceLimits() {
     <div className="h-full w-full flex-grow">
       {billingEnabled && (
         <>
-          <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-            <div className="flex flex-row items-center justify-between">
-              <h2 className="text-2xl font-semibold leading-tight text-foreground">
-                Billing and Limits
-              </h2>
-            </div>
-          </div>
-          <Separator className="my-4" />
-          <PaymentMethods
-            hasMethods={hasPaymentMethods}
-            methods={billingState.data?.paymentMethods}
-          />
-          <Separator className="my-4" />
           <Subscription
-            hasPaymentMethods={hasPaymentMethods}
-            active={billingState.data?.subscription}
+            active={billingState.data?.currentSubscription}
+            upcoming={billingState.data?.upcomingSubscription}
             plans={billingState.data?.plans}
             coupons={billingState.data?.coupons}
           />

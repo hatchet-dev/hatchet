@@ -472,7 +472,7 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 		tenantIds = append(tenantIds, payload.TenantID)
 		insertedAts = append(insertedAts, payload.InsertedAt)
 		locations = append(locations, string(V1PayloadLocationOlapEXTERNAL))
-		externalLocationKeys = append(externalLocationKeys, string(payload.ExternalLocationKey))
+		externalLocationKeys = append(externalLocationKeys, payload.ExternalLocationKey)
 	}
 
 	row := tx.QueryRow(

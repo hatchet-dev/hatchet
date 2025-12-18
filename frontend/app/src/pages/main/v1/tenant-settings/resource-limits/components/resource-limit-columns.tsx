@@ -8,7 +8,6 @@ const resources: Record<TenantResource, string> = {
   [TenantResource.WORKER]: 'Total Workers',
   [TenantResource.WORKER_SLOT]: 'Concurrency Slots',
   [TenantResource.EVENT]: 'Events',
-  [TenantResource.WORKFLOW_RUN]: 'Workflow Runs',
   [TenantResource.TASK_RUN]: 'Task Runs',
   [TenantResource.CRON]: 'Cron Triggers',
   [TenantResource.SCHEDULE]: 'Schedule Triggers',
@@ -96,7 +95,7 @@ export const columns = (): ColumnDef<TenantResourceLimit>[] => {
         <div>
           {row.original.alarmValue
             ? row.original.alarmValue.toLocaleString()
-            : 'N/A'}
+            : ''}
         </div>
       ),
       enableSorting: false,
@@ -125,7 +124,7 @@ export const columns = (): ColumnDef<TenantResourceLimit>[] => {
       cell: ({ row }) => (
         <div>
           {!row.original.window
-            ? 'N/A'
+            ? ''
             : row.original.lastRefill && (
                 <RelativeDate date={row.original.lastRefill} />
               )}

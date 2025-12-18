@@ -23,6 +23,7 @@ export type BillingContext = {
   setPollBilling: (pollBilling: boolean) => void;
   plan: Plan;
   hasPaymentMethods: boolean;
+  isLoading: boolean;
 };
 
 const lastTenantKey = 'lastTenant';

@@ -16,6 +16,7 @@ import {
   APIError,
   APIErrors,
   APITokenList,
+  AutumnWebhookEvent,
   Build,
   CreateManagedWorkerFromTemplateRequest,
   CreateManagedWorkerRequest,
@@ -48,10 +49,12 @@ import {
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
   TenantBillingState,
-  TenantSubscription,
+  TenantPaymentMethodList,
   UpdateManagedWorkerRequest,
   UpdateOrganizationRequest,
-  UpdateTenantSubscription,
+  UpdateOrganizationTenantRequest,
+  UpdateTenantSubscriptionRequest,
+  UpdateTenantSubscriptionResponse,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
 } from "./data-contracts";
@@ -736,17 +739,19 @@ export class Api<
       ...params,
     });
   /**
-   * @description Receive a webhook message from Lago
+   * @description Receive a webhook message from Autumn
    *
    * @tags Billing
-   * @name LagoMessageCreate
-   * @summary Receive a webhook message from Lago
-   * @request POST:/api/v1/billing/lago/webhook
+   * @name AutumnEventCreate
+   * @summary Receive a webhook message from Autumn
+   * @request POST:/api/v1/billing/autumn/webhook
    */
-  lagoMessageCreate = (params: RequestParams = {}) =>
+  autumnEventCreate = (data: AutumnWebhookEvent, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
-      path: `/api/v1/billing/lago/webhook`,
+      path: `/api/v1/billing/autumn/webhook`,
       method: "POST",
+      body: data,
+      type: ContentType.Json,
       ...params,
     });
   /**
@@ -770,17 +775,17 @@ export class Api<
    * @description Update a subscription
    *
    * @tags Billing
-   * @name SubscriptionUpsert
+   * @name TenantSubscriptionUpdate
    * @summary Create a new subscription
    * @request PATCH:/api/v1/billing/tenants/{tenant}/subscription
    * @secure
    */
-  subscriptionUpsert = (
+  tenantSubscriptionUpdate = (
     tenant: string,
-    data: UpdateTenantSubscription,
+    data: UpdateTenantSubscriptionRequest,
     params: RequestParams = {},
   ) =>
-    this.request<TenantSubscription, APIErrors>({
+    this.request<UpdateTenantSubscriptionResponse, APIErrors>({
       path: `/api/v1/billing/tenants/${tenant}/subscription`,
       method: "PATCH",
       body: data,
@@ -807,6 +812,23 @@ export class Api<
       APIErrors
     >({
       path: `/api/v1/billing/tenants/${tenant}/billing-portal-link`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the payment methods for a tenant
+   *
+   * @tags Billing
+   * @name TenantPaymentMethodsGet
+   * @summary Get the payment methods for a tenant
+   * @request GET:/api/v1/billing/tenants/{tenant}/payment-methods
+   * @secure
+   */
+  tenantPaymentMethodsGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantPaymentMethodList, APIErrors>({
+      path: `/api/v1/billing/tenants/${tenant}/payment-methods`,
       method: "GET",
       secure: true,
       format: "json",
@@ -944,6 +966,29 @@ export class Api<
     this.request<OrganizationTenant, APIError>({
       path: `/api/v1/management/organizations/${organization}/tenants`,
       method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a tenant in the organization
+   *
+   * @tags Management
+   * @name OrganizationTenantUpdate
+   * @summary Update Tenant in Organization
+   * @request PATCH:/api/v1/management/organization-tenants/{organization-tenant}
+   * @secure
+   */
+  organizationTenantUpdate = (
+    organizationTenant: string,
+    data: UpdateOrganizationTenantRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationTenant, APIError>({
+      path: `/api/v1/management/organization-tenants/${organizationTenant}`,
+      method: "PATCH",
       body: data,
       secure: true,
       type: ContentType.Json,

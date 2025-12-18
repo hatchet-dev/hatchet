@@ -146,7 +146,6 @@ TenantResource:
     - "WORKER"
     - "WORKER_SLOT"
     - "EVENT"
-    - "WORKFLOW_RUN"
     - "TASK_RUN"
     - "CRON"
     - "SCHEDULE"

@@ -278,7 +278,6 @@ func (ns NullLeaseKind) Value() (driver.Value, error) {
 type LimitResource string
 
 const (
-	LimitResourceWORKFLOWRUN     LimitResource = "WORKFLOW_RUN"
 	LimitResourceTASKRUN         LimitResource = "TASK_RUN"
 	LimitResourceEVENT           LimitResource = "EVENT"
 	LimitResourceWORKER          LimitResource = "WORKER"
