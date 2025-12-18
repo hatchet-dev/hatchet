@@ -104,8 +104,9 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 		sqlchelpers.UUIDToStr(user.ID),
 		nil,
 		map[string]interface{}{
-			"email": request.Body.Email,
-			"name":  request.Body.Name,
+			"email":    request.Body.Email,
+			"name":     request.Body.Name,
+			"provider": "basic",
 		},
 		nil,
 	)

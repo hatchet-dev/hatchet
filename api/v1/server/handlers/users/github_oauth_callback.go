@@ -126,6 +126,18 @@ func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *ser
 		if err != nil {
 			return nil, fmt.Errorf("failed to create user: %s", err.Error())
 		}
+
+		config.Analytics.Enqueue(
+			"user:create",
+			sqlchelpers.UUIDToStr(user.ID),
+			nil,
+			map[string]interface{}{
+				"email":    gInfo.Email,
+				"name":     gInfo.Name,
+				"provider": "github",
+			},
+			nil,
+		)
 	default:
 		return nil, fmt.Errorf("failed to get user: %s", err.Error())
 	}
