@@ -136,7 +136,7 @@ export const useRunsTableFilters = (
       const updatedState = { ...zodState, ...newState };
       setSearchParams((prev) => ({
         ...Object.fromEntries(prev.entries()),
-        [paramKey]: JSON.stringify(updatedState),
+        [paramKey]: updatedState,
       }));
     },
     [zodState, setSearchParams, paramKey],
