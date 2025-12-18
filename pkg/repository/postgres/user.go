@@ -15,7 +15,7 @@ import (
 type userRepository struct {
 	*sharedRepository
 
-	createCallbacks []repository.UnscopedCallback[*dbsqlc.User]
+	createCallbacks []repository.UserCreateCallback
 }
 
 func NewUserRepository(shared *sharedRepository) repository.UserRepository {
@@ -24,9 +24,9 @@ func NewUserRepository(shared *sharedRepository) repository.UserRepository {
 	}
 }
 
-func (w *userRepository) RegisterCreateCallback(callback repository.UnscopedCallback[*dbsqlc.User]) {
+func (w *userRepository) RegisterCreateCallback(callback repository.UserCreateCallback) {
 	if w.createCallbacks == nil {
-		w.createCallbacks = make([]repository.UnscopedCallback[*dbsqlc.User], 0)
+		w.createCallbacks = make([]repository.UserCreateCallback, 0)
 	}
 
 	w.createCallbacks = append(w.createCallbacks, callback)
@@ -112,7 +112,16 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *repository.Create
 	}
 
 	for _, cb := range r.createCallbacks {
-		cb.Do(r.l, user)
+		go func(callback repository.UserCreateCallback) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					r.l.Error().Interface("panic", rec).Msg("panic in user create callback")
+				}
+			}()
+			if err := callback(opts, user); err != nil {
+				r.l.Error().Err(err).Msg("user create callback failed")
+			}
+		}(cb)
 	}
 
 	return user, nil

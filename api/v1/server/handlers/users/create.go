@@ -10,7 +10,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 )
@@ -98,18 +97,6 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 			apierrors.NewAPIErrors(ErrRegistrationFailed),
 		), nil
 	}
-
-	u.config.Analytics.Enqueue(
-		"user:create",
-		sqlchelpers.UUIDToStr(user.ID),
-		nil,
-		map[string]interface{}{
-			"email":    request.Body.Email,
-			"name":     request.Body.Name,
-			"provider": "basic",
-		},
-		nil,
-	)
 
 	return gen.UserCreate200JSONResponse(
 		*transformers.ToUser(user, false, nil),

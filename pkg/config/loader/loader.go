@@ -46,6 +46,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
@@ -553,6 +555,51 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	} else {
 		analyticsEmitter = analytics.NoOpAnalytics{}
 	}
+
+	// Register analytics callbacks for user and tenant creation
+	dc.APIRepository.User().RegisterCreateCallback(func(opts *repository.CreateUserOpts, user *dbsqlc.User) error {
+		// Determine provider from opts
+		provider := "basic"
+		if opts.OAuth != nil {
+			provider = opts.OAuth.Provider
+		}
+
+		analyticsEmitter.Enqueue(
+			"user:create",
+			sqlchelpers.UUIDToStr(user.ID),
+			nil,
+			map[string]interface{}{
+				"email":    user.Email,
+				"name":     user.Name.String,
+				"provider": provider,
+			},
+			nil,
+		)
+		return nil
+	})
+
+	dc.APIRepository.Tenant().RegisterCreateCallback(func(tenant *dbsqlc.Tenant) error {
+		tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+		analyticsEmitter.Tenant(tenantId, map[string]interface{}{
+			"name": tenant.Name,
+			"slug": tenant.Slug,
+		})
+
+		analyticsEmitter.Enqueue(
+			"tenant:create",
+			"system",
+			&tenantId,
+			map[string]interface{}{
+				"tenant_created": true,
+			},
+			map[string]interface{}{
+				"name": tenant.Name,
+				"slug": tenant.Slug,
+			},
+		)
+		return nil
+	})
 
 	var pylon server.PylonConfig
 
