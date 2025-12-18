@@ -27,5 +27,3 @@ fi
 
 sleep 1
 done
-
-

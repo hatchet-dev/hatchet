@@ -53,5 +53,3 @@ SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
 EOF
 
 echo "Wrote $ROOT_DIR/.env"
-
-

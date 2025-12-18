@@ -12,5 +12,3 @@ set -a
 set +a
 
 exec go run ./cmd/hatchet-engine --no-graceful-shutdown
-
-
