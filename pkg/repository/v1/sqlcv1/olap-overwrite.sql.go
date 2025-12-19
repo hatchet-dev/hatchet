@@ -523,7 +523,7 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 	return &insertRow, err
 }
 
-func CompareOLAPPartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionName, sourcePartitionName string) (bool, error) {
+func CompareOLAPPartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionName, sourcePartitionName string) (*PartitionRowCounts, error) {
 	row := tx.QueryRow(
 		ctx,
 		fmt.Sprintf(
@@ -543,10 +543,13 @@ func CompareOLAPPartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionNa
 	err := row.Scan(&tempPartitionCount, &sourcePartitionCount)
 
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	return tempPartitionCount == sourcePartitionCount, nil
+	return &PartitionRowCounts{
+		SourcePartitionCount: sourcePartitionCount,
+		TempPartitionCount:   tempPartitionCount,
+	}, nil
 }
 
 const findV1OLAPPayloadPartitionsBeforeDate = `-- name: findV1OLAPPayloadPartitionsBeforeDate :many

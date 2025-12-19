@@ -2111,7 +2111,4 @@ WHERE key NOT IN (@keysToKeep::DATE[])
 
 
 -- name: DiffOLAPPayloadSourceAndTargetPartitions :many
-SELECT diff_olap_payload_source_and_target_partitions(
-    @partitionDate::DATE,
-    @maxRows::INTEGER
-);
+SELECT diff_olap_payload_source_and_target_partitions(@partitionDate::DATE);

@@ -469,19 +469,11 @@ func (q *Queries) CreateV1PayloadOLAPCutoverTemporaryTable(ctx context.Context, 
 }
 
 const diffOLAPPayloadSourceAndTargetPartitions = `-- name: DiffOLAPPayloadSourceAndTargetPartitions :many
-SELECT diff_olap_payload_source_and_target_partitions(
-    $1::DATE,
-    $2::INTEGER
-)
+SELECT diff_olap_payload_source_and_target_partitions($1::DATE)
 `
 
-type DiffOLAPPayloadSourceAndTargetPartitionsParams struct {
-	Partitiondate pgtype.Date `json:"partitiondate"`
-	Maxrows       int32       `json:"maxrows"`
-}
-
-func (q *Queries) DiffOLAPPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, arg DiffOLAPPayloadSourceAndTargetPartitionsParams) ([]interface{}, error) {
-	rows, err := db.Query(ctx, diffOLAPPayloadSourceAndTargetPartitions, arg.Partitiondate, arg.Maxrows)
+func (q *Queries) DiffOLAPPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, partitiondate pgtype.Date) ([]interface{}, error) {
+	rows, err := db.Query(ctx, diffOLAPPayloadSourceAndTargetPartitions, partitiondate)
 	if err != nil {
 		return nil, err
 	}

@@ -1,8 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE OR REPLACE FUNCTION diff_payload_source_and_target_partitions(
-    partition_date date,
-    max_rows int
+    partition_date date
 ) RETURNS TABLE (
     tenant_id UUID,
     id BIGINT,
@@ -46,16 +45,14 @@ BEGIN
                 AND source.id = target.id
                 AND source.type = target.type
         )
-        LIMIT $1
     ', source_partition_name, temp_partition_name);
 
-    RETURN QUERY EXECUTE query USING max_rows;
+    RETURN QUERY EXECUTE query;
 END;
 $$;
 
 CREATE OR REPLACE FUNCTION diff_olap_payload_source_and_target_partitions(
-    partition_date date,
-    max_rows int
+    partition_date date
 ) RETURNS TABLE (
     tenant_id UUID,
     external_id UUID,
@@ -96,16 +93,15 @@ BEGIN
                 AND source.external_id = target.external_id
                 AND source.inserted_at = target.inserted_at
         )
-        LIMIT $1
     ', source_partition_name, temp_partition_name);
 
-    RETURN QUERY EXECUTE query USING max_rows;
+    RETURN QUERY EXECUTE query;
 END;
 $$;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DROP FUNCTION diff_payload_source_and_target_partitions(date, int);
-DROP FUNCTION diff_olap_payload_source_and_target_partitions(date, int);
+DROP FUNCTION diff_payload_source_and_target_partitions(date);
+DROP FUNCTION diff_olap_payload_source_and_target_partitions(date);
 -- +goose StatementEnd

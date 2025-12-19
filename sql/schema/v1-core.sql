@@ -1937,8 +1937,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION diff_payload_source_and_target_partitions(
-    partition_date date,
-    max_rows int
+    partition_date date
 ) RETURNS TABLE (
     tenant_id UUID,
     id BIGINT,
@@ -1982,10 +1981,9 @@ BEGIN
                 AND source.id = target.id
                 AND source.type = target.type
         )
-        LIMIT $1
     ', source_partition_name, temp_partition_name);
 
-    RETURN QUERY EXECUTE query USING max_rows;
+    RETURN QUERY EXECUTE query;
 END;
 $$;
 

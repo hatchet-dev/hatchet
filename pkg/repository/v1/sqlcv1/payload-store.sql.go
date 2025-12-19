@@ -212,19 +212,11 @@ func (q *Queries) CreateV1PayloadCutoverTemporaryTable(ctx context.Context, db D
 }
 
 const diffPayloadSourceAndTargetPartitions = `-- name: DiffPayloadSourceAndTargetPartitions :many
-SELECT diff_payload_source_and_target_partitions(
-    $1::DATE,
-    $2::INTEGER
-)
+SELECT diff_payload_source_and_target_partitions($1::DATE)
 `
 
-type DiffPayloadSourceAndTargetPartitionsParams struct {
-	Partitiondate pgtype.Date `json:"partitiondate"`
-	Maxrows       int32       `json:"maxrows"`
-}
-
-func (q *Queries) DiffPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, arg DiffPayloadSourceAndTargetPartitionsParams) ([]interface{}, error) {
-	rows, err := db.Query(ctx, diffPayloadSourceAndTargetPartitions, arg.Partitiondate, arg.Maxrows)
+func (q *Queries) DiffPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, partitiondate pgtype.Date) ([]interface{}, error) {
+	rows, err := db.Query(ctx, diffPayloadSourceAndTargetPartitions, partitiondate)
 	if err != nil {
 		return nil, err
 	}

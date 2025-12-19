@@ -102,7 +102,12 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 	return &insertRow, err
 }
 
-func ComparePartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionName, sourcePartitionName string) (bool, error) {
+type PartitionRowCounts struct {
+	SourcePartitionCount int64
+	TempPartitionCount   int64
+}
+
+func ComparePartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionName, sourcePartitionName string) (*PartitionRowCounts, error) {
 	row := tx.QueryRow(
 		ctx,
 		fmt.Sprintf(
@@ -122,10 +127,13 @@ func ComparePartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionName, 
 	err := row.Scan(&tempPartitionCount, &sourcePartitionCount)
 
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	return tempPartitionCount == sourcePartitionCount, nil
+	return &PartitionRowCounts{
+		SourcePartitionCount: sourcePartitionCount,
+		TempPartitionCount:   tempPartitionCount,
+	}, nil
 }
 
 const findV1PayloadPartitionsBeforeDate = `-- name: findV1PayloadPartitionsBeforeDate :many

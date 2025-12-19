@@ -188,7 +188,4 @@ WHERE key NOT IN (@keysToKeep::DATE[])
 ;
 
 -- name: DiffPayloadSourceAndTargetPartitions :many
-SELECT diff_payload_source_and_target_partitions(
-    @partitionDate::DATE,
-    @maxRows::INTEGER
-);
+SELECT diff_payload_source_and_target_partitions(@partitionDate::DATE);
