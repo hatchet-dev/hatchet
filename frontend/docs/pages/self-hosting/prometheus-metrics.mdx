@@ -8,36 +8,43 @@ This document provides an overview of the Prometheus metrics exposed by Hatchet,
 
 ### Setup
 
-To enable and configure the Prometheus metrics endpoint in your Hatchet server, set the following environment variables (bound to Viper keys as shown):
+To enable Prometheus metrics for your Hatchet instance, you can set the following environment variables. The corresponding configuration YAML values are mentioned in parantheses. If you are deploying [Hatchet in HA mode](/self-hosting/high-availability), these should be set on both the `controllers` as well as `scheduler` deployments.
 
-- **`SERVER_PROMETHEUS_ENABLED`** (`prometheus.enabled`)
-  - Type: boolean
-  - Default: `false`
-  - Description: Enables or disables the Prometheus metrics HTTP server.
+- Required
+  - **`SERVER_PROMETHEUS_ENABLED`** (`prometheus.enabled`)
+    - Default: `false`
+    - Description: Enables or disables the Prometheus metrics HTTP server.
 
-- **`SERVER_PROMETHEUS_ADDRESS`** (`prometheus.address`)
-  - Type: string
-  - Default: `":9090"`
-  - Description: The network address and port to bind the Prometheus metrics server to.
+- Optional
+  - **`SERVER_PROMETHEUS_ADDRESS`** (`prometheus.address`)
+    - Default: `":9090"`
+    - Description: The network address and port to bind the Prometheus metrics server to.
 
-- **`SERVER_PROMETHEUS_PATH`** (`prometheus.path`)
-  - Type: string
-  - Default: `"/metrics"`
-  - Description: The HTTP path at which metrics will be exposed.
+  - **`SERVER_PROMETHEUS_PATH`** (`prometheus.path`)
+    - Default: `"/metrics"`
+    - Description: The HTTP path at which metrics will be exposed.
 
-If you have set up a Prometheus instance to scrape Hatchet metrics, you can enable the [tenant API endpoint](/home/prometheus-metrics) by setting the following variables:
+Once enabled, you can setup any scraper that supports ingesting Prometheus metrics.
 
-- **`SERVER_PROMETHEUS_SERVER_URL`** (`prometheus.prometheusServerURL`)
-  - Type: string
-  - Description: The Prometheus server URL.
+#### Tenant metrics endpoint
 
-- **`SERVER_PROMETHEUS_SERVER_USERNAME`** (`prometheus.prometheusServerUsername`)
-  - Type: string
-  - Description: The username to access the Prometheus instance via HTTP basic auth.
+<Callout type="info">
+  This step requires communication with a service that scrapes Hatchet
+  Prometheus metrics.
+</Callout>
 
-- **`SERVER_PROMETHEUS_SERVER_PASSWORD`** (`prometheus.prometheusServerPassword`)
-  - Type: string
-  - Description: The password to access the Prometheus instance via HTTP basic auth.
+To enable the [tenant API endpoint](/home/prometheus-metrics) you can set the following environment variables:
+
+- Required
+  - **`SERVER_PROMETHEUS_SERVER_URL`** (`prometheus.prometheusServerURL`)
+    - Description: The Prometheus server URL.
+
+- Optional
+  - **`SERVER_PROMETHEUS_SERVER_USERNAME`** (`prometheus.prometheusServerUsername`)
+    - Description: The username to access the Prometheus instance via HTTP basic auth.
+
+  - **`SERVER_PROMETHEUS_SERVER_PASSWORD`** (`prometheus.prometheusServerPassword`)
+    - Description: The password to access the Prometheus instance via HTTP basic auth.
 
 **Example environment setup:**
 
