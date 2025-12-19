@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-router';
 import { Outlet } from '@tanstack/react-router';
 import { FC } from 'react';
+import { validate } from 'uuid';
 
 const rootRoute = createRootRoute({
   component: Root,
@@ -426,12 +427,12 @@ const workflowRunRedirectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'workflow-runs/$run',
   loader: ({ location, params }) => {
-    const tenantId =
+    const tenantId: string | null | undefined =
       (location.search as any)?.tenantId || (location.search as any)?.tenant;
 
-    const run = (params as any)?.run;
+    const run: string | null | undefined = (params as any)?.run;
 
-    if (!tenantId || !run) {
+    if (!tenantId || !run || !validate(run)) {
       throw redirect({ to: appRoutes.authenticatedRoute.to });
     }
 
@@ -446,7 +447,7 @@ const tenantSettingsRedirect = createRoute({
   getParentRoute: () => rootRoute,
   path: 'tenant-settings',
   loader: ({ location }) => {
-    const tenantId =
+    const tenantId: string | null | undefined =
       (location.search as any)?.tenantId || (location.search as any)?.tenant;
 
     if (!tenantId) {
@@ -464,12 +465,21 @@ const tenantSettingsSubpathRedirect = createRoute({
   getParentRoute: () => rootRoute,
   path: 'tenant-settings/$',
   loader: ({ params, location }) => {
-    const tenantId =
+    const tenantId: string | null | undefined =
       (location.search as any)?.tenantId || (location.search as any)?.tenant;
 
-    const subpath = (params as any)?._splat || '';
+    const subpath: string | null | undefined = (params as any)?._splat || '';
+    const allowedSubpaths = [
+      tenantSettingsAlertingRoute.path,
+      tenantSettingsApiTokensRoute.path,
+      tenantSettingsBillingRoute.path,
+      tenantSettingsGithubRoute.path,
+      tenantSettingsIngestorsRoute.path,
+      tenantSettingsMembersRoute.path,
+      tenantSettingsOverviewRoute.path,
+    ].map((p) => p.split('/').pop());
 
-    if (!tenantId || !subpath) {
+    if (!tenantId || !subpath || !allowedSubpaths.includes(subpath)) {
       throw redirect({ to: appRoutes.authenticatedRoute.to });
     }
 
