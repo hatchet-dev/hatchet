@@ -22,7 +22,6 @@ export const ScheduledRunColumn = {
 type ScheduledRunColumnKeys = keyof typeof ScheduledRunColumn;
 
 const idKey: ScheduledRunColumnKeys = 'id';
-const runIdKey: ScheduledRunColumnKeys = 'runId';
 export const statusKey: ScheduledRunColumnKeys = 'status';
 const triggerAtKey: ScheduledRunColumnKeys = 'triggerAt';
 export const workflowKey: ScheduledRunColumnKeys = 'workflow';
