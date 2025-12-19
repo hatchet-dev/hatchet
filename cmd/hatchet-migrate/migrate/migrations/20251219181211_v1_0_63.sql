@@ -57,7 +57,7 @@ CREATE OR REPLACE FUNCTION diff_olap_payload_source_and_target_partitions(
     tenant_id UUID,
     external_id UUID,
     inserted_at TIMESTAMPTZ,
-    location v1_payload_location,
+    location v1_payload_location_olap,
     external_location_key TEXT,
     inline_content JSONB,
     updated_at TIMESTAMPTZ

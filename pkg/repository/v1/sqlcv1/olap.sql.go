@@ -479,7 +479,7 @@ SELECT
     tenant_id::UUID,
     inserted_at::TIMESTAMPTZ,
     external_id::UUID,
-    location::v1_payload_location,
+    location::v1_payload_location_olap,
     COALESCE(external_location_key, '')::TEXT AS external_location_key,
     inline_content::JSONB AS inline_content,
     updated_at::TIMESTAMPTZ
@@ -487,13 +487,13 @@ FROM payloads
 `
 
 type DiffOLAPPayloadSourceAndTargetPartitionsRow struct {
-	TenantID            pgtype.UUID        `json:"tenant_id"`
-	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID          pgtype.UUID        `json:"external_id"`
-	Location            V1PayloadLocation  `json:"location"`
-	ExternalLocationKey string             `json:"external_location_key"`
-	InlineContent       []byte             `json:"inline_content"`
-	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	TenantID            pgtype.UUID           `json:"tenant_id"`
+	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
+	ExternalID          pgtype.UUID           `json:"external_id"`
+	Location            V1PayloadLocationOlap `json:"location"`
+	ExternalLocationKey string                `json:"external_location_key"`
+	InlineContent       []byte                `json:"inline_content"`
+	UpdatedAt           pgtype.Timestamptz    `json:"updated_at"`
 }
 
 func (q *Queries) DiffOLAPPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, partitiondate pgtype.Date) ([]*DiffOLAPPayloadSourceAndTargetPartitionsRow, error) {

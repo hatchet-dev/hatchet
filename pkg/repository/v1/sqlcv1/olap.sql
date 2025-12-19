@@ -2122,7 +2122,7 @@ SELECT
     tenant_id::UUID,
     inserted_at::TIMESTAMPTZ,
     external_id::UUID,
-    location::v1_payload_location,
+    location::v1_payload_location_olap,
     COALESCE(external_location_key, '')::TEXT AS external_location_key,
     inline_content::JSONB AS inline_content,
     updated_at::TIMESTAMPTZ
