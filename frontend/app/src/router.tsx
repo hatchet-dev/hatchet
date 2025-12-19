@@ -467,7 +467,7 @@ const tenantSettingsSubpathRedirect = createRoute({
     const tenantId =
       (location.search as any)?.tenantId || (location.search as any)?.tenant;
 
-    const subpath = (params as any)?.['_splat'] || '';
+    const subpath = (params as any)?._splat || '';
 
     if (!tenantId || !subpath) {
       throw redirect({ to: appRoutes.authenticatedRoute.to });
