@@ -188,4 +188,21 @@ WHERE key NOT IN (@keysToKeep::DATE[])
 ;
 
 -- name: DiffPayloadSourceAndTargetPartitions :many
-SELECT diff_payload_source_and_target_partitions(@partitionDate::DATE);
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM diff_payload_source_and_target_partitions(@partitionDate::DATE) p
+)
+
+SELECT
+    tenant_id::UUID,
+    id::BIGINT,
+    inserted_at::TIMESTAMPTZ,
+    external_id::UUID,
+    type::v1_payload_type,
+    location::v1_payload_location,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
+    updated_at::TIMESTAMPTZ
+FROM payloads
+;

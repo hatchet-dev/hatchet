@@ -3066,14 +3066,50 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	tempPartitionName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
 	sourcePartitionName := fmt.Sprintf("v1_payloads_olap_%s", partitionDate.String())
 
-	countsEqual, err := sqlcv1.CompareOLAPPartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
 
 	if err != nil {
 		return fmt.Errorf("failed to compare partition row counts: %w", err)
 	}
 
-	if !countsEqual {
-		return fmt.Errorf("row counts do not match between temp and source partitions for date %s", partitionDate.String())
+	const maxCountDiff = 5000
+
+	if rowCounts.SourcePartitionCount-rowCounts.TempPartitionCount > maxCountDiff {
+		return fmt.Errorf("row counts do not match between temp and source partitions for date %s. off by more than %d", partitionDate.String(), maxCountDiff)
+	} else if rowCounts.SourcePartitionCount > rowCounts.TempPartitionCount {
+		missingRows, err := p.queries.DiffOLAPPayloadSourceAndTargetPartitions(ctx, p.pool, pgtype.Date(partitionDate))
+
+		if err != nil {
+			return fmt.Errorf("failed to diff source and target partitions: %w", err)
+		}
+
+		missingPayloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, len(missingRows))
+
+		for i, p := range missingRows {
+			missingPayloadsToInsert[i] = sqlcv1.CutoverOLAPPayloadToInsert{
+				TenantID:            p.TenantID,
+				InsertedAt:          p.InsertedAt,
+				ExternalID:          p.ExternalID,
+				ExternalLocationKey: p.ExternalLocationKey,
+				InlineContent:       p.InlineContent,
+			}
+		}
+
+		_, err = sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, p.pool, tempPartitionName, missingPayloadsToInsert)
+
+		if err != nil {
+			return fmt.Errorf("failed to insert missing payloads into temp partition: %w", err)
+		}
+
+		rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+
+		if err != nil {
+			return fmt.Errorf("failed to compare partition row counts: %w", err)
+		}
+
+		if rowCounts.SourcePartitionCount != rowCounts.TempPartitionCount {
+			return fmt.Errorf("row counts still do not match between temp and source partitions for date %s after inserting missing rows", partitionDate.String())
+		}
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)

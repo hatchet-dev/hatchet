@@ -212,22 +212,60 @@ func (q *Queries) CreateV1PayloadCutoverTemporaryTable(ctx context.Context, db D
 }
 
 const diffPayloadSourceAndTargetPartitions = `-- name: DiffPayloadSourceAndTargetPartitions :many
-SELECT diff_payload_source_and_target_partitions($1::DATE)
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM diff_payload_source_and_target_partitions($1::DATE) p
+)
+
+SELECT
+    tenant_id::UUID,
+    id::BIGINT,
+    inserted_at::TIMESTAMPTZ,
+    external_id::UUID,
+    type::v1_payload_type,
+    location::v1_payload_location,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
+    updated_at::TIMESTAMPTZ
+FROM payloads
 `
 
-func (q *Queries) DiffPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, partitiondate pgtype.Date) ([]interface{}, error) {
+type DiffPayloadSourceAndTargetPartitionsRow struct {
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	ID                  int64              `json:"id"`
+	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID          pgtype.UUID        `json:"external_id"`
+	Type                V1PayloadType      `json:"type"`
+	Location            V1PayloadLocation  `json:"location"`
+	ExternalLocationKey string             `json:"external_location_key"`
+	InlineContent       []byte             `json:"inline_content"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) DiffPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, partitiondate pgtype.Date) ([]*DiffPayloadSourceAndTargetPartitionsRow, error) {
 	rows, err := db.Query(ctx, diffPayloadSourceAndTargetPartitions, partitiondate)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []interface{}
+	var items []*DiffPayloadSourceAndTargetPartitionsRow
 	for rows.Next() {
-		var diff_payload_source_and_target_partitions interface{}
-		if err := rows.Scan(&diff_payload_source_and_target_partitions); err != nil {
+		var i DiffPayloadSourceAndTargetPartitionsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.Type,
+			&i.Location,
+			&i.ExternalLocationKey,
+			&i.InlineContent,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, diff_payload_source_and_target_partitions)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

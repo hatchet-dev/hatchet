@@ -2111,4 +2111,20 @@ WHERE key NOT IN (@keysToKeep::DATE[])
 
 
 -- name: DiffOLAPPayloadSourceAndTargetPartitions :many
-SELECT diff_olap_payload_source_and_target_partitions(@partitionDate::DATE);
+-- name: DiffPayloadSourceAndTargetPartitions :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM diff_olap_payload_source_and_target_partitions(@partitionDate::DATE) p
+)
+
+SELECT
+    tenant_id::UUID,
+    inserted_at::TIMESTAMPTZ,
+    external_id::UUID,
+    location::v1_payload_location,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
+    updated_at::TIMESTAMPTZ
+FROM payloads
+;
