@@ -7,6 +7,8 @@ from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.schedule_workflow_run_request import (
     ScheduleWorkflowRunRequest,
 )
+from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
+from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflows
 from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_filter import (
     ScheduledWorkflowsBulkDeleteFilter,
 )
@@ -16,8 +18,6 @@ from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_request imp
 from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_response import (
     ScheduledWorkflowsBulkDeleteResponse,
 )
-from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
-from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflows
 from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_item import (
     ScheduledWorkflowsBulkUpdateItem,
 )
@@ -194,7 +194,14 @@ class ScheduledClient(BaseRestClient):
         - one or more filter fields (`workflow_id`, `parent_workflow_run_id`, `parent_step_run_id`,
           `statuses`, `additional_metadata`)
 
+        :param scheduled_ids: Explicit list of scheduled workflow run IDs to delete.
+        :param workflow_id: Filter by workflow ID.
+        :param parent_workflow_run_id: Filter by parent workflow run ID.
+        :param parent_step_run_id: Filter by parent step run ID.
+        :param statuses: Filter by scheduled run statuses.
+        :param additional_metadata: Filter by additional metadata key/value pairs.
         :return: The bulk delete response containing deleted IDs and per-item errors.
+        :raises ValueError: If neither `scheduled_ids` nor any filter field is provided.
         """
         has_filter = any(
             v is not None
@@ -218,7 +225,9 @@ class ScheduledClient(BaseRestClient):
                 workflow_id=workflow_id,
                 parent_workflow_run_id=parent_workflow_run_id,
                 parent_step_run_id=parent_step_run_id,
-                additional_metadata=maybe_additional_metadata_to_kv(additional_metadata),
+                additional_metadata=maybe_additional_metadata_to_kv(
+                    additional_metadata
+                ),
                 statuses=statuses,
             )
 
@@ -244,8 +253,31 @@ class ScheduledClient(BaseRestClient):
         """
         Bulk delete scheduled workflow runs.
 
-        See `bulk_delete` for parameter details.
+        :param scheduled_ids: Explicit list of scheduled workflow run IDs to delete.
+        :param workflow_id: Filter by workflow ID.
+        :param parent_workflow_run_id: Filter by parent workflow run ID.
+        :param parent_step_run_id: Filter by parent step run ID.
+        :param statuses: Filter by scheduled run statuses.
+        :param additional_metadata: Filter by additional metadata key/value pairs.
+        :return: The bulk delete response containing deleted IDs and per-item errors.
+        :raises ValueError: If neither `scheduled_ids` nor any filter field is provided.
         """
+        has_filter = any(
+            v is not None
+            for v in (
+                workflow_id,
+                parent_workflow_run_id,
+                parent_step_run_id,
+                statuses,
+                additional_metadata,
+            )
+        )
+
+        if not scheduled_ids and not has_filter:
+            raise ValueError(
+                "bulk_delete requires either scheduled_ids or at least one filter field."
+            )
+
         return await asyncio.to_thread(
             self.bulk_delete,
             scheduled_ids=scheduled_ids,
@@ -258,8 +290,9 @@ class ScheduledClient(BaseRestClient):
 
     def bulk_update(
         self,
-        updates: list[ScheduledWorkflowsBulkUpdateItem]
-        | list[tuple[str, datetime.datetime]],
+        updates: (
+            list[ScheduledWorkflowsBulkUpdateItem] | list[tuple[str, datetime.datetime]]
+        ),
     ) -> ScheduledWorkflowsBulkUpdateResponse:
         """
         Bulk reschedule scheduled workflow runs.
@@ -276,7 +309,9 @@ class ScheduledClient(BaseRestClient):
             else:
                 scheduled_id, trigger_at = u
                 update_items.append(
-                    ScheduledWorkflowsBulkUpdateItem(id=scheduled_id, trigger_at=trigger_at)
+                    ScheduledWorkflowsBulkUpdateItem(
+                        id=scheduled_id, trigger_at=trigger_at
+                    )
                 )
 
         with self.client() as client:
@@ -289,8 +324,9 @@ class ScheduledClient(BaseRestClient):
 
     async def aio_bulk_update(
         self,
-        updates: list[ScheduledWorkflowsBulkUpdateItem]
-        | list[tuple[str, datetime.datetime]],
+        updates: (
+            list[ScheduledWorkflowsBulkUpdateItem] | list[tuple[str, datetime.datetime]]
+        ),
     ) -> ScheduledWorkflowsBulkUpdateResponse:
         """
         Bulk reschedule scheduled workflow runs.
