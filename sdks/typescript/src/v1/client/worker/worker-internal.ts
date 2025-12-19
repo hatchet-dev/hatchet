@@ -550,10 +550,13 @@ export class V1Worker {
       };
 
       const success = async (result: any) => {
+        if (context.cancelled) {
+          return;
+        }
+
         this.logger.info(`Step run ${action.stepRunId} succeeded`);
 
         try {
-          // Send the action event to the dispatcher
           const event = this.getStepActionEvent(
             action,
             StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
@@ -595,6 +598,10 @@ export class V1Worker {
       };
 
       const failure = async (error: any) => {
+        if (context.cancelled) {
+          return;
+        }
+
         this.logger.error(`Step run ${action.stepRunId} failed: ${error.message}`);
 
         if (error.stack) {
@@ -604,7 +611,6 @@ export class V1Worker {
         const shouldNotRetry = error instanceof NonRetryableError;
 
         try {
-          // Send the action event to the dispatcher
           const event = this.getStepActionEvent(
             action,
             StepActionEventType.STEP_EVENT_TYPE_FAILED,
