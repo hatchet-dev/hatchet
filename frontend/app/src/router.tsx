@@ -305,7 +305,6 @@ const tenantSettingsIndexRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'tenant-settings',
   loader: ({ params }) => {
-    console.log('landed here');
     throw redirect({
       to: appRoutes.tenantSettingsOverviewRoute.to,
       params,
