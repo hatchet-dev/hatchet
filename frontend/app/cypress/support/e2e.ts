@@ -5,7 +5,10 @@ import './commands';
 // are handled by the app's error UI, but Cypress can still treat them as uncaught.
 // Ignore ONLY this specific case so real application errors still fail tests.
 Cypress.on('uncaught:exception', (err) => {
-  if (typeof err?.message === 'string' && err.message.includes('[object Response]')) {
+  if (
+    typeof err?.message === 'string' &&
+    err.message.includes('[object Response]')
+  ) {
     return false;
   }
 

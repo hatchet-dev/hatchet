@@ -27,7 +27,8 @@ export function ResourceNotFound({
       icon={<FileQuestion className="h-5 w-5" />}
       title={`${resource} not found`}
       description={
-        description ?? `The ${resource.toLowerCase()} you're looking for doesn’t exist.`
+        description ??
+        `The ${resource.toLowerCase()} you're looking for doesn’t exist.`
       }
       actions={
         <>
@@ -40,7 +41,10 @@ export function ResourceNotFound({
                     params: primaryAction.params as never,
                     replace: true,
                   })
-                : navigate({ to: appRoutes.authenticatedRoute.to, replace: true })
+                : navigate({
+                    to: appRoutes.authenticatedRoute.to,
+                    replace: true,
+                  })
             }
           >
             {primaryAction?.label ?? 'Dashboard'}
@@ -69,5 +73,3 @@ export function ResourceNotFound({
     </ErrorPageLayout>
   );
 }
-
-

@@ -107,7 +107,10 @@ export default function ExpandedWorkflow() {
   }
 
   if (workflowQuery.isError) {
-    if (isAxiosError(workflowQuery.error) && workflowQuery.error.response?.status === 404) {
+    if (
+      isAxiosError(workflowQuery.error) &&
+      workflowQuery.error.response?.status === 404
+    ) {
       return (
         <ResourceNotFound
           resource="Workflow"

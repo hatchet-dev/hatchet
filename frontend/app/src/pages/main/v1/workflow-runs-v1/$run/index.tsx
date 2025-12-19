@@ -31,8 +31,8 @@ import api, {
   V1WorkflowRunDetails,
   WorkflowRunShapeForWorkflowRunDetails,
 } from '@/lib/api';
-import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
