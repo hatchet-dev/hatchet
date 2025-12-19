@@ -25,10 +25,12 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { relativeDate } from '@/lib/utils';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
 import { useState } from 'react';
 import invariant from 'tiny-invariant';
 
@@ -47,6 +49,13 @@ export default function ExpandedWorkflow() {
   const workflowQuery = useQuery({
     ...queries.workflows.get(params.workflow),
     refetchInterval,
+    retry: (_failureCount, error) => {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        return false;
+      }
+
+      return true;
+    },
   });
 
   const workflowVersionQuery = useQuery({
@@ -93,7 +102,28 @@ export default function ExpandedWorkflow() {
 
   const workflow = workflowQuery.data;
 
-  if (workflowQuery.isLoading || !workflow) {
+  if (workflowQuery.isLoading) {
+    return <Loading />;
+  }
+
+  if (workflowQuery.isError) {
+    if (isAxiosError(workflowQuery.error) && workflowQuery.error.response?.status === 404) {
+      return (
+        <ResourceNotFound
+          resource="Workflow"
+          primaryAction={{
+            label: 'Back to Workflows',
+            to: appRoutes.tenantWorkflowsRoute.to,
+            params: { tenant: tenantId },
+          }}
+        />
+      );
+    }
+
+    throw workflowQuery.error;
+  }
+
+  if (!workflow) {
     return <Loading />;
   }
 

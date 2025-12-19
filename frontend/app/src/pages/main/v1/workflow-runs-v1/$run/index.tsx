@@ -31,10 +31,12 @@ import api, {
   V1WorkflowRunDetails,
   WorkflowRunShapeForWorkflowRunDetails,
 } from '@/lib/api';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
 import { useAtom } from 'jotai';
 import { useCallback, useRef } from 'react';
 
@@ -89,7 +91,11 @@ async function fetchTaskRun(id: string) {
   try {
     return await api.v1TaskGet(id);
   } catch (error) {
-    return undefined;
+    if (isAxiosError(error) && error.response?.status === 404) {
+      return undefined;
+    }
+
+    throw error;
   }
 }
 
@@ -97,12 +103,17 @@ async function fetchDAGRun(id: string) {
   try {
     return await api.v1WorkflowRunGet(id);
   } catch (error) {
-    return undefined;
+    if (isAxiosError(error) && error.response?.status === 404) {
+      return undefined;
+    }
+
+    throw error;
   }
 }
 
 export default function Run() {
-  const { run } = useParams({ from: appRoutes.tenantRunRoute.to });
+  const params = useParams({ from: appRoutes.tenantRunRoute.to });
+  const { run } = params;
 
   const taskRunQuery = useQuery({
     queryKey: ['workflow-run', run],
@@ -113,7 +124,11 @@ export default function Run() {
       ]);
 
       if (!task && !dag) {
-        throw new Error(`Task or Workflow Run with ID ${run} not found`);
+        const notFoundError = new Error(
+          `Task or Workflow Run with ID ${run} not found`,
+        ) as Error & { status?: number };
+        notFoundError.status = 404;
+        throw notFoundError;
       }
 
       if (task?.data) {
@@ -147,10 +162,46 @@ export default function Run() {
 
       return 1000;
     },
+    retry: (_failureCount, error) => {
+      const status =
+        (error as { status?: number })?.status ??
+        (isAxiosError(error) ? error.response?.status : undefined);
+
+      // Treat malformed IDs (often 400) and missing resources (404) as not found.
+      if (status === 400 || status === 404) {
+        return false;
+      }
+
+      return true;
+    },
   });
 
   if (taskRunQuery.isLoading) {
     return <Spinner />;
+  }
+
+  if (taskRunQuery.isError) {
+    const status =
+      (taskRunQuery.error as { status?: number })?.status ??
+      (isAxiosError(taskRunQuery.error)
+        ? taskRunQuery.error.response?.status
+        : undefined);
+
+    // Treat malformed IDs (often 400) and missing resources (404) as not found.
+    if (status === 400 || status === 404) {
+      return (
+        <ResourceNotFound
+          resource="Run"
+          primaryAction={{
+            label: 'Back to Runs',
+            to: appRoutes.tenantRunsRoute.to,
+            params: { tenant: params.tenant },
+          }}
+        />
+      );
+    }
+
+    throw taskRunQuery.error;
   }
 
   const runData = taskRunQuery.data;

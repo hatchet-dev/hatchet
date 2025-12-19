@@ -47,6 +47,7 @@ import {
   TenantStatusType,
   OrganizationTenant,
 } from '@/lib/api/generated/cloud/data-contracts';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import {
   PlusIcon,
@@ -62,6 +63,7 @@ import {
 import { EllipsisVerticalIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useState } from 'react';
 
@@ -212,20 +214,29 @@ export default function OrganizationPage() {
     return <Loading />;
   }
 
-  if (organizationQuery.error || !organizationQuery.data) {
-    return (
-      <div className="flex h-96 items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-            Organization not found
-          </h2>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            The organization you're looking for doesn't exist or you don't have
-            access to it.
-          </p>
-        </div>
-      </div>
-    );
+  if (organizationQuery.isError) {
+    const status = isAxiosError(organizationQuery.error)
+      ? organizationQuery.error.response?.status
+      : undefined;
+
+    if (status === 404 || status === 403) {
+      return (
+        <ResourceNotFound
+          resource="Organization"
+          description="The organization you’re looking for doesn’t exist or you don’t have access to it."
+          primaryAction={{
+            label: 'Dashboard',
+            to: appRoutes.authenticatedRoute.to,
+          }}
+        />
+      );
+    }
+
+    throw organizationQuery.error;
+  }
+
+  if (!organizationQuery.data) {
+    return <Loading />;
   }
 
   const organization = organizationQuery.data;

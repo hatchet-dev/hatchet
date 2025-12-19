@@ -21,10 +21,12 @@ import { cloudApi } from '@/lib/api/api';
 import { UpdateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { relativeDate } from '@/lib/utils';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { CpuChipIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
 import { useState } from 'react';
 
 export default function ExpandedWorkflow() {
@@ -38,6 +40,13 @@ export default function ExpandedWorkflow() {
   const managedWorkerQuery = useQuery({
     ...queries.cloud.getManagedWorker(params.managedWorker),
     refetchInterval,
+    retry: (_failureCount, error) => {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        return false;
+      }
+
+      return true;
+    },
   });
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -82,7 +91,31 @@ export default function ExpandedWorkflow() {
     onError: handleApiError,
   });
 
-  if (managedWorkerQuery.isLoading || !managedWorkerQuery.data) {
+  if (managedWorkerQuery.isLoading) {
+    return <Loading />;
+  }
+
+  if (managedWorkerQuery.isError) {
+    if (
+      isAxiosError(managedWorkerQuery.error) &&
+      managedWorkerQuery.error.response?.status === 404
+    ) {
+      return (
+        <ResourceNotFound
+          resource="Managed worker"
+          primaryAction={{
+            label: 'Back to Managed Workers',
+            to: appRoutes.tenantManagedWorkersRoute.to,
+            params: { tenant: tenantId },
+          }}
+        />
+      );
+    }
+
+    throw managedWorkerQuery.error;
+  }
+
+  if (!managedWorkerQuery.data) {
     return <Loading />;
   }
 
