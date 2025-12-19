@@ -1,87 +1,72 @@
-import { Button } from '@/components/v1/ui/button';
+import { GenericError } from './components/generic-error';
+import { NewVersionAvailable } from './components/new-version-available';
+import { NotFound } from './components/not-found';
+import { TenantForbidden } from './components/tenant-forbidden';
 import { appRoutes } from '@/router';
 import {
   ErrorComponentProps,
-  useLocation,
-  useNavigate,
+  useMatchRoute,
+  useParams,
 } from '@tanstack/react-router';
-import { PropsWithChildren } from 'react';
+import { isAxiosError } from 'axios';
+
+function getErrorStatus(error: unknown): number | undefined {
+  if (!error) {
+    return;
+  }
+
+  // TanStack Router can throw objects like { status, statusText }
+  const maybeStatus = (error as { status?: unknown }).status;
+  if (typeof maybeStatus === 'number') {
+    return maybeStatus;
+  }
+
+  // Axios errors
+  if (isAxiosError(error)) {
+    const axiosStatus =
+      (error as { status?: unknown }).status ?? error.response?.status;
+    if (typeof axiosStatus === 'number') {
+      return axiosStatus;
+    }
+  }
+
+  return;
+}
 
 export default function ErrorBoundary({ error }: ErrorComponentProps) {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const matchRoute = useMatchRoute();
+  const params = useParams({ strict: false }) as { tenant?: string };
+  const status = getErrorStatus(error);
 
   console.error(error);
-
-  const Layout: React.FC<PropsWithChildren> = ({ children }) => (
-    <div className="flex h-full w-full flex-1 flex-row items-center justify-center">
-      <div className="flex flex-col space-y-2 text-center">{children}</div>
-    </div>
-  );
 
   if (
     error instanceof TypeError &&
     error.message.includes('Failed to fetch dynamically imported module:')
   ) {
-    const queryParams = new URLSearchParams(location.search);
+    return <NewVersionAvailable />;
+  }
 
-    if (!queryParams.has('updated')) {
-      queryParams.set('updated', 'true');
-      const updatedUrl = `${location.pathname}?${queryParams.toString()}`;
-      window.location.href = updatedUrl;
-    }
+  const isTenantRoute = Boolean(
+    matchRoute({
+      to: appRoutes.tenantRoute.to,
+      params: params.tenant ? { tenant: params.tenant } : undefined,
+      fuzzy: true,
+    }),
+  );
 
-    return (
-      <Layout>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          A New App Version is Available!
-        </h1>
-        <Button onClick={() => window.location.reload()}>
-          Reload to Update
-        </Button>
-        <Button
-          onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
-          variant="outline"
-        >
-          Return to Dashboard
-        </Button>
-      </Layout>
-    );
+  if (status === 403 && isTenantRoute) {
+    return <TenantForbidden />;
   }
 
   if ((error as { status?: number }).status === 404) {
-    return (
-      <Layout>
-        <h1 className="text-2xl font-semibold tracking-tight">404</h1>
-        <h2 className="text-xl font-semibold tracking-tight">Page Not Found</h2>
-        <Button
-          onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
-        >
-          Return to Dashboard
-        </Button>
-      </Layout>
-    );
+    return <NotFound />;
   }
 
   return (
-    <Layout>
-      {(error as { status?: number }).status && (
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {(error as { status?: number }).status}
-        </h1>
-      )}
-      <h2 className="text-xl font-semibold tracking-tight">
-        {(error as { statusText?: string }).statusText ||
-          'Something went wrong'}
-      </h2>
-
-      <Button onClick={() => window.location.reload()}>Try Again</Button>
-      <Button
-        onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
-        variant="outline"
-      >
-        Return to Dashboard
-      </Button>
-    </Layout>
+    <GenericError
+      status={status}
+      statusText={(error as { statusText?: string }).statusText}
+    />
   );
 }
