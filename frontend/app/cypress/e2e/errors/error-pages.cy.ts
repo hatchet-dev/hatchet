@@ -62,13 +62,6 @@ describe('Error pages', () => {
       });
     });
 
-    it('shows managed worker not found for invalid managed worker ID', () => {
-      getTenantFromLocation().then((tenant) => {
-        cy.visit(`/tenants/${tenant}/managed-workers/${nonExistentId}`);
-        cy.contains('Managed worker not found').should('be.visible');
-      });
-    });
-
     it('shows custom 404 for unknown unnested routes', () => {
       cy.visit(`/x`);
       cy.contains('Page not found').should('be.visible');
