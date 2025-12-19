@@ -2111,7 +2111,6 @@ WHERE NOT key = ANY(@keysToKeep::DATE[])
 
 
 -- name: DiffOLAPPayloadSourceAndTargetPartitions :many
--- name: DiffPayloadSourceAndTargetPartitions :many
 WITH payloads AS (
     SELECT
         (p).*
