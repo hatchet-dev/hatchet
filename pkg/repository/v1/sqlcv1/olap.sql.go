@@ -160,7 +160,7 @@ type BulkCreateEventTriggersParams struct {
 
 const cleanUpOLAPCutoverJobOffsets = `-- name: CleanUpOLAPCutoverJobOffsets :exec
 DELETE FROM v1_payload_cutover_job_offset
-WHERE key NOT IN ($1::DATE[])
+WHERE NOT key = ANY($1::DATE[])
 `
 
 func (q *Queries) CleanUpOLAPCutoverJobOffsets(ctx context.Context, db DBTX, keystokeep []pgtype.Date) error {
@@ -477,8 +477,8 @@ WITH payloads AS (
 
 SELECT
     tenant_id::UUID,
-    inserted_at::TIMESTAMPTZ,
     external_id::UUID,
+    inserted_at::TIMESTAMPTZ,
     location::v1_payload_location_olap,
     COALESCE(external_location_key, '')::TEXT AS external_location_key,
     inline_content::JSONB AS inline_content,
@@ -488,8 +488,8 @@ FROM payloads
 
 type DiffOLAPPayloadSourceAndTargetPartitionsRow struct {
 	TenantID            pgtype.UUID           `json:"tenant_id"`
-	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
 	ExternalID          pgtype.UUID           `json:"external_id"`
+	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
 	Location            V1PayloadLocationOlap `json:"location"`
 	ExternalLocationKey string                `json:"external_location_key"`
 	InlineContent       []byte                `json:"inline_content"`
@@ -507,8 +507,8 @@ func (q *Queries) DiffOLAPPayloadSourceAndTargetPartitions(ctx context.Context, 
 		var i DiffOLAPPayloadSourceAndTargetPartitionsRow
 		if err := rows.Scan(
 			&i.TenantID,
-			&i.InsertedAt,
 			&i.ExternalID,
+			&i.InsertedAt,
 			&i.Location,
 			&i.ExternalLocationKey,
 			&i.InlineContent,

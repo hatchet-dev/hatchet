@@ -109,7 +109,7 @@ func (q *Queries) AnalyzeV1Payload(ctx context.Context, db DBTX) error {
 
 const cleanUpCutoverJobOffsets = `-- name: CleanUpCutoverJobOffsets :exec
 DELETE FROM v1_payload_cutover_job_offset
-WHERE key NOT IN ($1::DATE[])
+WHERE NOT key = ANY($1::DATE[])
 `
 
 func (q *Queries) CleanUpCutoverJobOffsets(ctx context.Context, db DBTX, keystokeep []pgtype.Date) error {

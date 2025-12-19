@@ -2106,7 +2106,7 @@ WHERE key = @key::DATE
 
 -- name: CleanUpOLAPCutoverJobOffsets :exec
 DELETE FROM v1_payload_cutover_job_offset
-WHERE key NOT IN (@keysToKeep::DATE[])
+WHERE NOT key = ANY(@keysToKeep::DATE[])
 ;
 
 
@@ -2120,8 +2120,8 @@ WITH payloads AS (
 
 SELECT
     tenant_id::UUID,
-    inserted_at::TIMESTAMPTZ,
     external_id::UUID,
+    inserted_at::TIMESTAMPTZ,
     location::v1_payload_location_olap,
     COALESCE(external_location_key, '')::TEXT AS external_location_key,
     inline_content::JSONB AS inline_content,
