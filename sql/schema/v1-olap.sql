@@ -1111,7 +1111,7 @@ CREATE OR REPLACE FUNCTION diff_olap_payload_source_and_target_partitions(
     tenant_id UUID,
     external_id UUID,
     inserted_at TIMESTAMPTZ,
-    location v1_payload_location,
+    location v1_payload_location_olap,
     external_location_key TEXT,
     inline_content JSONB,
     updated_at TIMESTAMPTZ
@@ -1137,7 +1137,7 @@ BEGIN
     END IF;
 
     query := format('
-        SELECT *
+        SELECT tenant_id, external_id, inserted_at, location, external_location_key, inline_content, updated_at
         FROM %I source
         WHERE NOT EXISTS (
             SELECT 1

@@ -1970,7 +1970,7 @@ BEGIN
     END IF;
 
     query := format('
-        SELECT *
+        SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
         FROM %I source
         WHERE NOT EXISTS (
             SELECT 1
