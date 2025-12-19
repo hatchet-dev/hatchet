@@ -1627,6 +1627,87 @@ export interface ScheduledWorkflowsList {
   pagination?: PaginationResponse;
 }
 
+export interface UpdateScheduledWorkflowRunRequest {
+  /** @format date-time */
+  triggerAt: string;
+}
+
+export interface ScheduledWorkflowsBulkDeleteFilter {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId?: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentWorkflowRunId?: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentStepRunId?: string;
+  /**
+   * A list of metadata key value pairs to filter by
+   * @example ["key1:value1","key2:value2"]
+   */
+  additionalMetadata?: string[];
+  /** A list of scheduled run statuses to filter by */
+  statuses?: ScheduledRunStatus[];
+}
+
+export interface ScheduledWorkflowsBulkDeleteRequest {
+  /**
+   * @maxItems 500
+   * @minItems 1
+   */
+  scheduledWorkflowRunIds?: string[];
+  filter?: ScheduledWorkflowsBulkDeleteFilter;
+}
+
+export interface ScheduledWorkflowsBulkError {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  id?: string;
+  error: string;
+}
+
+export interface ScheduledWorkflowsBulkDeleteResponse {
+  deletedIds: string[];
+  errors: ScheduledWorkflowsBulkError[];
+}
+
+export interface ScheduledWorkflowsBulkUpdateItem {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  id: string;
+  /** @format date-time */
+  triggerAt: string;
+}
+
+export interface ScheduledWorkflowsBulkUpdateRequest {
+  /**
+   * @maxItems 500
+   * @minItems 1
+   */
+  updates: ScheduledWorkflowsBulkUpdateItem[];
+}
+
+export interface ScheduledWorkflowsBulkUpdateResponse {
+  updatedIds: string[];
+  errors: ScheduledWorkflowsBulkError[];
+}
+
 export interface CreateCronWorkflowTriggerRequest {
   input: object;
   additionalMetadata: object;

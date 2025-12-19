@@ -86,6 +86,7 @@ export class ScheduleClient {
       }
 
       if (err instanceof AxiosError) {
+        console.log(err);
         throw new Error(JSON.stringify(err.response?.data.errors));
       }
 
