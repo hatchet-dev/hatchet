@@ -160,11 +160,11 @@ type BulkCreateEventTriggersParams struct {
 
 const cleanUpOLAPCutoverJobOffsets = `-- name: CleanUpOLAPCutoverJobOffsets :exec
 DELETE FROM v1_payload_cutover_job_offset
-WHERE key IN ($1::DATE[])
+WHERE key NOT IN ($1::DATE[])
 `
 
-func (q *Queries) CleanUpOLAPCutoverJobOffsets(ctx context.Context, db DBTX, keys []pgtype.Date) error {
-	_, err := db.Exec(ctx, cleanUpOLAPCutoverJobOffsets, keys)
+func (q *Queries) CleanUpOLAPCutoverJobOffsets(ctx context.Context, db DBTX, keystokeep []pgtype.Date) error {
+	_, err := db.Exec(ctx, cleanUpOLAPCutoverJobOffsets, keystokeep)
 	return err
 }
 

@@ -184,5 +184,5 @@ WHERE key = @key::DATE
 
 -- name: CleanUpCutoverJobOffsets :exec
 DELETE FROM v1_payload_cutover_job_offset
-WHERE key IN (@keys::DATE[])
+WHERE key NOT IN (@keysToKeep::DATE[])
 ;

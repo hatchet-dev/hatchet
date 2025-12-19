@@ -3126,6 +3126,18 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
 	}
 
+	partitionDatesToKeep := make([]pgtype.Date, len(partitions))
+
+	for i, partition := range partitions {
+		partitionDatesToKeep[i] = pgtype.Date{
+			Time:  partition.PartitionDate.Time,
+			Valid: true,
+		}
+	}
+
+	// don't need a tx for this since we're just doing cleanup
+	err = p.queries.CleanUpOLAPCutoverJobOffsets(ctx, p.pool, partitionDatesToKeep)
+
 	processId := sqlchelpers.UUIDFromStr(uuid.NewString())
 
 	for _, partition := range partitions {
