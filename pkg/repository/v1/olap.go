@@ -3174,6 +3174,10 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 	// don't need a tx for this since we're just doing cleanup
 	err = p.queries.CleanUpOLAPCutoverJobOffsets(ctx, p.pool, partitionDatesToKeep)
 
+	if err != nil {
+		return fmt.Errorf("failed to clean up olap cutover job offsets: %w", err)
+	}
+
 	processId := sqlchelpers.UUIDFromStr(uuid.NewString())
 
 	for _, partition := range partitions {
