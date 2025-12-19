@@ -468,6 +468,38 @@ func (q *Queries) CreateV1PayloadOLAPCutoverTemporaryTable(ctx context.Context, 
 	return err
 }
 
+const diffOLAPPayloadSourceAndTargetPartitions = `-- name: DiffOLAPPayloadSourceAndTargetPartitions :many
+SELECT diff_olap_payload_source_and_target_partitions(
+    $1::DATE,
+    $2::INTEGER
+)
+`
+
+type DiffOLAPPayloadSourceAndTargetPartitionsParams struct {
+	Partitiondate pgtype.Date `json:"partitiondate"`
+	Maxrows       int32       `json:"maxrows"`
+}
+
+func (q *Queries) DiffOLAPPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, arg DiffOLAPPayloadSourceAndTargetPartitionsParams) ([]interface{}, error) {
+	rows, err := db.Query(ctx, diffOLAPPayloadSourceAndTargetPartitions, arg.Partitiondate, arg.Maxrows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []interface{}
+	for rows.Next() {
+		var diff_olap_payload_source_and_target_partitions interface{}
+		if err := rows.Scan(&diff_olap_payload_source_and_target_partitions); err != nil {
+			return nil, err
+		}
+		items = append(items, diff_olap_payload_source_and_target_partitions)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findMinInsertedAtForDAGStatusUpdates = `-- name: FindMinInsertedAtForDAGStatusUpdates :one
 WITH tenants AS (
     SELECT UNNEST(

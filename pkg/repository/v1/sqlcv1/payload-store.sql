@@ -186,3 +186,9 @@ WHERE key = @key::DATE
 DELETE FROM v1_payload_cutover_job_offset
 WHERE key NOT IN (@keysToKeep::DATE[])
 ;
+
+-- name: DiffPayloadSourceAndTargetPartitions :many
+SELECT diff_payload_source_and_target_partitions(
+    @partitionDate::DATE,
+    @maxRows::INTEGER
+);

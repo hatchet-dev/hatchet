@@ -53,7 +53,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION diff_payloads_olap_source_and_target_partitions(
+CREATE OR REPLACE FUNCTION diff_olap_payload_source_and_target_partitions(
     partition_date date,
     max_rows int
 ) RETURNS TABLE (
@@ -107,5 +107,5 @@ $$;
 -- +goose Down
 -- +goose StatementBegin
 DROP FUNCTION diff_payload_source_and_target_partitions(date, int);
-DROP FUNCTION diff_payloads_olap_source_and_target_partitions(date, int);
+DROP FUNCTION diff_olap_payload_source_and_target_partitions(date, int);
 -- +goose StatementEnd
