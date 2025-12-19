@@ -107,6 +107,16 @@ func (q *Queries) AnalyzeV1Payload(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const cleanUpCutoverJobOffsets = `-- name: CleanUpCutoverJobOffsets :exec
+DELETE FROM v1_payload_cutover_job_offset
+WHERE key IN ($1::DATE[])
+`
+
+func (q *Queries) CleanUpCutoverJobOffsets(ctx context.Context, db DBTX, keys []pgtype.Date) error {
+	_, err := db.Exec(ctx, cleanUpCutoverJobOffsets, keys)
+	return err
+}
+
 const createPayloadRangeChunks = `-- name: CreatePayloadRangeChunks :many
 WITH chunks AS (
     SELECT

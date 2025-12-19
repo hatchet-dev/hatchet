@@ -181,3 +181,8 @@ UPDATE v1_payload_cutover_job_offset
 SET is_completed = TRUE
 WHERE key = @key::DATE
 ;
+
+-- name: CleanUpCutoverJobOffsets :exec
+DELETE FROM v1_payload_cutover_job_offset
+WHERE key IN (@keys::DATE[])
+;

@@ -158,6 +158,16 @@ type BulkCreateEventTriggersParams struct {
 	FilterID      pgtype.UUID        `json:"filter_id"`
 }
 
+const cleanUpOLAPCutoverJobOffsets = `-- name: CleanUpOLAPCutoverJobOffsets :exec
+DELETE FROM v1_payload_cutover_job_offset
+WHERE key IN ($1::DATE[])
+`
+
+func (q *Queries) CleanUpOLAPCutoverJobOffsets(ctx context.Context, db DBTX, keys []pgtype.Date) error {
+	_, err := db.Exec(ctx, cleanUpOLAPCutoverJobOffsets, keys)
+	return err
+}
+
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
     SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
