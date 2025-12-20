@@ -1,0 +1,263 @@
+package cli
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/hatchet-dev/hatchet/pkg/config/cli"
+	"github.com/spf13/viper"
+)
+
+// GetProfiles returns all profiles from the config
+func GetProfiles() map[string]cli.Profile {
+	profiles := make(map[string]cli.Profile)
+
+	if ProfilesViperConfig == nil {
+		return profiles
+	}
+
+	profilesMap := ProfilesViperConfig.GetStringMap("profiles")
+	for name := range profilesMap {
+		profile := cli.Profile{
+			TenantId:     ProfilesViperConfig.GetString(fmt.Sprintf("profiles.%s.tenantId", name)),
+			Name:         ProfilesViperConfig.GetString(fmt.Sprintf("profiles.%s.name", name)),
+			Token:        ProfilesViperConfig.GetString(fmt.Sprintf("profiles.%s.token", name)),
+			ExpiresAt:    ProfilesViperConfig.GetTime(fmt.Sprintf("profiles.%s.expiresAt", name)),
+			ApiServerURL: ProfilesViperConfig.GetString(fmt.Sprintf("profiles.%s.apiServerURL", name)),
+			GrpcHostPort: ProfilesViperConfig.GetString(fmt.Sprintf("profiles.%s.grpcHostPort", name)),
+		}
+		profiles[name] = profile
+	}
+
+	return profiles
+}
+
+// GetProfile returns a specific profile by name
+func GetProfile(name string) (*cli.Profile, error) {
+	if ProfilesViperConfig == nil {
+		return nil, fmt.Errorf("config not initialized")
+	}
+
+	key := fmt.Sprintf("profiles.%s", name)
+	if !ProfilesViperConfig.IsSet(key) {
+		return nil, fmt.Errorf("profile '%s' not found", name)
+	}
+
+	profile := &cli.Profile{
+		TenantId:     ProfilesViperConfig.GetString(fmt.Sprintf("%s.tenantId", key)),
+		Name:         ProfilesViperConfig.GetString(fmt.Sprintf("%s.name", key)),
+		Token:        ProfilesViperConfig.GetString(fmt.Sprintf("%s.token", key)),
+		ExpiresAt:    ProfilesViperConfig.GetTime(fmt.Sprintf("%s.expiresAt", key)),
+		ApiServerURL: ProfilesViperConfig.GetString(fmt.Sprintf("%s.apiServerURL", key)),
+		GrpcHostPort: ProfilesViperConfig.GetString(fmt.Sprintf("%s.grpcHostPort", key)),
+	}
+
+	return profile, nil
+}
+
+// AddProfile adds a new profile to the config
+func AddProfile(name string, profile *cli.Profile) error {
+	if ProfilesViperConfig == nil {
+		return fmt.Errorf("config not initialized")
+	}
+
+	// Validate required fields
+	if profile.TenantId == "" {
+		return fmt.Errorf("tenantId is required")
+	}
+	if profile.Name == "" {
+		return fmt.Errorf("profile name is required")
+	}
+	if profile.Token == "" {
+		return fmt.Errorf("token is required")
+	}
+	if profile.ExpiresAt.IsZero() {
+		return fmt.Errorf("expiresAt is required")
+	}
+	if profile.ApiServerURL == "" {
+		return fmt.Errorf("apiServerURL is required")
+	}
+	if profile.GrpcHostPort == "" {
+		return fmt.Errorf("grpcHostPort is required")
+	}
+
+	unlock, err := acquireLock()
+	if err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer unlock()
+
+	// Reload config to get latest state
+	if err := reloadConfig(); err != nil {
+		return fmt.Errorf("failed to reload config: %w", err)
+	}
+
+	ProfilesViperConfig.Set(fmt.Sprintf("profiles.%s.tenantId", name), profile.TenantId)
+	ProfilesViperConfig.Set(fmt.Sprintf("profiles.%s.name", name), profile.Name)
+	ProfilesViperConfig.Set(fmt.Sprintf("profiles.%s.token", name), profile.Token)
+	ProfilesViperConfig.Set(fmt.Sprintf("profiles.%s.expiresAt", name), profile.ExpiresAt)
+	ProfilesViperConfig.Set(fmt.Sprintf("profiles.%s.apiServerURL", name), profile.ApiServerURL)
+	ProfilesViperConfig.Set(fmt.Sprintf("profiles.%s.grpcHostPort", name), profile.GrpcHostPort)
+
+	return saveConfig()
+}
+
+// RemoveProfile removes a profile from the config
+func RemoveProfile(name string) error {
+	if ProfilesViperConfig == nil {
+		return fmt.Errorf("config not initialized")
+	}
+
+	unlock, err := acquireLock()
+	if err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer unlock()
+
+	// Reload config to get latest state
+	if err := reloadConfig(); err != nil {
+		return fmt.Errorf("failed to reload config: %w", err)
+	}
+
+	key := fmt.Sprintf("profiles.%s", name)
+	if !ProfilesViperConfig.IsSet(key) {
+		return fmt.Errorf("profile '%s' not found", name)
+	}
+
+	// Get all current settings
+	allSettings := ProfilesViperConfig.AllSettings()
+
+	// Remove the profile from the profiles map
+	if profiles, ok := allSettings["profiles"].(map[string]any); ok {
+		delete(profiles, name)
+		allSettings["profiles"] = profiles
+	}
+
+	// Create a fresh Viper instance to avoid cached key issues
+	newViper := viper.New()
+	newViper.SetConfigType("yaml")
+
+	// Set the cleaned settings
+	for k, v := range allSettings {
+		newViper.Set(k, v)
+	}
+
+	// Save the config
+	profilesFilePath := getProfilesFilePath()
+
+	if err := newViper.WriteConfigAs(profilesFilePath); err != nil {
+		return err
+	}
+
+	// Replace the global with the new instance
+	newViper.SetConfigFile(profilesFilePath)
+	ProfilesViperConfig = newViper
+
+	return nil
+}
+
+// UpdateProfile updates an existing profile with new values
+// Only non-empty fields will be updated
+func UpdateProfile(name string, profile *cli.Profile) error {
+	if ProfilesViperConfig == nil {
+		return fmt.Errorf("config not initialized")
+	}
+
+	unlock, err := acquireLock()
+	if err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer unlock()
+
+	// Reload config to get latest state
+	if err := reloadConfig(); err != nil {
+		return fmt.Errorf("failed to reload config: %w", err)
+	}
+
+	key := fmt.Sprintf("profiles.%s", name)
+	if !ProfilesViperConfig.IsSet(key) {
+		return fmt.Errorf("profile '%s' not found", name)
+	}
+
+	if profile.TenantId != "" {
+		ProfilesViperConfig.Set(fmt.Sprintf("%s.tenantId", key), profile.TenantId)
+	}
+	if profile.Name != "" {
+		ProfilesViperConfig.Set(fmt.Sprintf("%s.name", key), profile.Name)
+	}
+	if profile.Token != "" {
+		ProfilesViperConfig.Set(fmt.Sprintf("%s.token", key), profile.Token)
+	}
+	if !profile.ExpiresAt.IsZero() {
+		ProfilesViperConfig.Set(fmt.Sprintf("%s.expiresAt", key), profile.ExpiresAt)
+	}
+	if profile.ApiServerURL != "" {
+		ProfilesViperConfig.Set(fmt.Sprintf("%s.apiServerURL", key), profile.ApiServerURL)
+	}
+	if profile.GrpcHostPort != "" {
+		ProfilesViperConfig.Set(fmt.Sprintf("%s.grpcHostPort", key), profile.GrpcHostPort)
+	}
+
+	return saveConfig()
+}
+
+// ListProfiles returns a list of all profile names
+func ListProfiles() []string {
+	profiles := GetProfiles()
+	names := make([]string, 0, len(profiles))
+	for name := range profiles {
+		names = append(names, name)
+	}
+	return names
+}
+
+// getProfilesFilePath returns the path to the profiles config file
+func getProfilesFilePath() string {
+	hatchetDir := filepath.Join(HomeDir, ".hatchet")
+
+	// Get the profile filename from CLIConfig, default to "profiles.yaml"
+	profileFileName := "profiles.yaml"
+	if CLIConfig != nil && CLIConfig.ProfileFileName != "" {
+		profileFileName = CLIConfig.ProfileFileName
+	}
+
+	return filepath.Join(hatchetDir, profileFileName)
+}
+
+// reloadConfig reloads the config from disk to get latest state
+func reloadConfig() error {
+	profilesFilePath := getProfilesFilePath()
+
+	// Check if config file exists
+	if _, err := os.Stat(profilesFilePath); os.IsNotExist(err) {
+		// Config doesn't exist yet, nothing to reload
+		return nil
+	}
+
+	// Viper caches values set via Set(), so we need to merge file values
+	// The safest way is to read the file directly and reset all values
+	data, err := os.ReadFile(profilesFilePath)
+	if err != nil {
+		return err
+	}
+
+	// If file is empty, reset to empty profiles
+	if len(data) == 0 {
+		ProfilesViperConfig.Set("profiles", make(map[string]any))
+		return nil
+	}
+
+	// Read the config to merge it properly
+	if err := ProfilesViperConfig.ReadInConfig(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// saveConfig writes the current config to the config file
+func saveConfig() error {
+	profilesFilePath := getProfilesFilePath()
+	return ProfilesViperConfig.WriteConfigAs(profilesFilePath)
+}
