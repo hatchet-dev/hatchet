@@ -252,7 +252,7 @@ type msgIdBuffer struct {
 	disableImmediateFlush bool
 
 	semaphore        chan struct{}
-	semaphoreRelease chan time.Duration // channel to queue delayed semaphore releases
+	semaphoreRelease chan time.Duration
 
 	dst DstFunc
 
@@ -298,8 +298,6 @@ func (m *msgIdBuffer) startFlusher(ctx context.Context) {
 	}()
 }
 
-// startSemaphoreReleaser runs a single goroutine that handles delayed semaphore releases
-// This prevents spawning a new goroutine for each flush's deferred release
 func (m *msgIdBuffer) startSemaphoreReleaser(ctx context.Context) {
 	go func() {
 		timer := time.NewTimer(0)
