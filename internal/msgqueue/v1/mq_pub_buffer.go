@@ -154,9 +154,8 @@ func newMsgIDPubBuffer(ctx context.Context, tenantID, msgID string, pub PubFunc)
 }
 
 func (m *msgIdPubBuffer) startFlusher(ctx context.Context) {
-	ticker := time.NewTicker(PUB_FLUSH_INTERVAL)
-
 	go func() {
+		ticker := time.NewTicker(PUB_FLUSH_INTERVAL)
 		defer ticker.Stop()
 
 		for {
@@ -178,12 +177,11 @@ func (m *msgIdPubBuffer) startFlusher(ctx context.Context) {
 func (m *msgIdPubBuffer) startSemaphoreReleaser(ctx context.Context) {
 	go func() {
 		timer := time.NewTimer(0)
-		timer.Stop()
+		defer timer.Stop()
 
 		for {
 			select {
 			case <-ctx.Done():
-				timer.Stop()
 				return
 			case delay := <-m.semaphoreRelease:
 				if delay > 0 {
@@ -206,8 +204,10 @@ func (m *msgIdPubBuffer) flush() {
 	startedFlush := time.Now()
 
 	defer func() {
-		delay := PUB_FLUSH_INTERVAL - time.Since(startedFlush)
-		m.semaphoreRelease <- delay
+		go func() {
+			delay := PUB_FLUSH_INTERVAL - time.Since(startedFlush)
+			m.semaphoreRelease <- delay
+		}()
 	}()
 
 	msgsWithErrCh := make([]*msgWithErrCh, 0)

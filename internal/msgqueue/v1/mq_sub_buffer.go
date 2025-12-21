@@ -279,9 +279,8 @@ func newMsgIDBuffer(ctx context.Context, tenantID, msgID string, dst DstFunc, fl
 }
 
 func (m *msgIdBuffer) startFlusher(ctx context.Context) {
-	ticker := time.NewTicker(m.flushInterval)
-
 	go func() {
+		ticker := time.NewTicker(m.flushInterval)
 		defer ticker.Stop()
 
 		for {
@@ -304,12 +303,11 @@ func (m *msgIdBuffer) startFlusher(ctx context.Context) {
 func (m *msgIdBuffer) startSemaphoreReleaser(ctx context.Context) {
 	go func() {
 		timer := time.NewTimer(0)
-		timer.Stop()
+		defer timer.Stop()
 
 		for {
 			select {
 			case <-ctx.Done():
-				timer.Stop()
 				return
 			case delay := <-m.semaphoreRelease:
 				if delay > 0 {
@@ -332,8 +330,10 @@ func (m *msgIdBuffer) flush() {
 	startedFlush := time.Now()
 
 	defer func() {
-		delay := m.flushInterval - time.Since(startedFlush)
-		m.semaphoreRelease <- delay
+		go func() {
+			delay := m.flushInterval - time.Since(startedFlush)
+			m.semaphoreRelease <- delay
+		}()
 	}()
 
 	msgsWithResultCh := make([]*msgWithResultCh, 0)
