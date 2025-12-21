@@ -321,7 +321,7 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		}
 	}()
 
-	if task.ID == "check-tenant-queue" {
+	if task.ID == msgqueue.MsgIDCheckTenantQueue {
 		return s.handleCheckQueue(ctx, task)
 	}
 
@@ -702,7 +702,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 func taskBulkAssignedTask(tenantId string, workerIdsToTaskIds map[string][]int64) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"task-assigned-bulk",
+		msgqueue.MsgIDTaskAssignedBulk,
 		false,
 		true,
 		tasktypes.TaskAssignedBulkTaskPayload{
@@ -726,9 +726,9 @@ func (s *Scheduler) handleDeadLetteredMessages(msg *msgqueue.Message) (err error
 	defer cancel()
 
 	switch msg.ID {
-	case "task-assigned-bulk":
+	case msgqueue.MsgIDTaskAssignedBulk:
 		err = s.handleDeadLetteredTaskBulkAssigned(ctx, msg)
-	case "task-cancelled":
+	case msgqueue.MsgIDTaskCancelled:
 		err = s.handleDeadLetteredTaskCancelled(ctx, msg)
 	default:
 		err = fmt.Errorf("unknown task: %s", msg.ID)
@@ -831,7 +831,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	for dispatcherId, payloads := range dispatcherIdsToPayloads {
 		msg, err := msgqueue.NewTenantMessage(
 			msg.TenantID,
-			"task-cancelled",
+			msgqueue.MsgIDTaskCancelled,
 			false,
 			true,
 			payloads...,

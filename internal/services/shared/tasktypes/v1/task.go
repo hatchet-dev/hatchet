@@ -11,7 +11,7 @@ import (
 func TriggerTaskMessage(tenantId string, payloads ...*v1.WorkflowNameTriggerOpts) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"task-trigger",
+		msgqueue.MsgIDTaskTrigger,
 		false,
 		true,
 		payloads...,
@@ -49,7 +49,7 @@ func CompletedTaskMessage(
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"task-completed",
+		msgqueue.MsgIDTaskCompleted,
 		false,
 		true,
 		CompletedTaskPayload{
@@ -102,7 +102,7 @@ func FailedTaskMessage(
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"task-failed",
+		msgqueue.MsgIDTaskFailed,
 		false,
 		true,
 		FailedTaskPayload{
@@ -157,7 +157,7 @@ func CancelledTaskMessage(
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"task-cancelled",
+		msgqueue.MsgIDTaskCancelled,
 		false,
 		true,
 		CancelledTaskPayload{

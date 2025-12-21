@@ -19,7 +19,7 @@ type CELEvaluationFailures struct {
 func CELEvaluationFailureMessage(tenantId string, failures []v1.CELEvaluationFailure) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"cel-evaluation-failure",
+		msgqueue.MsgIDCELEvaluationFailure,
 		false,
 		true,
 		CELEvaluationFailures{
@@ -35,7 +35,7 @@ type CreatedTaskPayload struct {
 func CreatedTaskMessage(tenantId string, task *v1.V1TaskWithPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"created-task",
+		msgqueue.MsgIDCreatedTask,
 		false,
 		true,
 		CreatedTaskPayload{
@@ -51,7 +51,7 @@ type CreatedDAGPayload struct {
 func CreatedDAGMessage(tenantId string, dag *v1.DAGWithData) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"created-dag",
+		msgqueue.MsgIDCreatedDAG,
 		false,
 		true,
 		CreatedDAGPayload{
@@ -80,7 +80,7 @@ type CreatedEventTriggerPayload struct {
 func CreatedEventTriggerMessage(tenantId string, eventTriggers CreatedEventTriggerPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"created-event-trigger",
+		msgqueue.MsgIDCreatedEventTrigger,
 		false,
 		true,
 		eventTriggers,
@@ -129,7 +129,7 @@ func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryC
 
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"create-monitoring-event",
+		msgqueue.MsgIDCreateMonitoringEvent,
 		false,
 		true,
 		payload,
@@ -139,7 +139,7 @@ func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryC
 func MonitoringEventMessageFromInternal(tenantId string, payload CreateMonitoringEventPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"create-monitoring-event",
+		msgqueue.MsgIDCreateMonitoringEvent,
 		false,
 		true,
 		payload,

@@ -17,7 +17,7 @@ type OLAPPayloadsToOffload struct {
 func OLAPPayloadOffloadMessage(tenantId string, payloads []OLAPPayloadToOffload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"offload-payload",
+		msgqueue.MsgIDOffloadPayload,
 		false,
 		true,
 		OLAPPayloadsToOffload{
