@@ -129,7 +129,8 @@ type msgIdPubBuffer struct {
 
 	pub PubFunc
 
-	semaphore chan struct{}
+	semaphore        chan struct{}
+	semaphoreRelease chan time.Duration // channel to queue delayed semaphore releases
 
 	serialize func(t any) ([]byte, error)
 }
@@ -143,9 +144,11 @@ func newMsgIDPubBuffer(ctx context.Context, tenantID, msgID string, pub PubFunc)
 		pub:              pub,
 		serialize:        json.Marshal,
 		semaphore:        make(chan struct{}, PUB_MAX_CONCURRENCY),
+		semaphoreRelease: make(chan time.Duration, PUB_MAX_CONCURRENCY),
 	}
 
 	b.startFlusher(ctx)
+	b.startSemaphoreReleaser(ctx)
 
 	return b
 }
@@ -154,6 +157,8 @@ func (m *msgIdPubBuffer) startFlusher(ctx context.Context) {
 	ticker := time.NewTicker(PUB_FLUSH_INTERVAL)
 
 	go func() {
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -163,6 +168,29 @@ func (m *msgIdPubBuffer) startFlusher(ctx context.Context) {
 				go m.flush()
 			case <-m.notifier:
 				go m.flush()
+			}
+		}
+	}()
+}
+
+// startSemaphoreReleaser runs a single goroutine that handles delayed semaphore releases
+// This prevents spawning a new goroutine for each flush's deferred release
+func (m *msgIdPubBuffer) startSemaphoreReleaser(ctx context.Context) {
+	go func() {
+		timer := time.NewTimer(0)
+		timer.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case delay := <-m.semaphoreRelease:
+				if delay > 0 {
+					timer.Reset(delay)
+					<-timer.C
+				}
+				<-m.semaphore
 			}
 		}
 	}()
@@ -178,10 +206,8 @@ func (m *msgIdPubBuffer) flush() {
 	startedFlush := time.Now()
 
 	defer func() {
-		go func() {
-			<-time.After(PUB_FLUSH_INTERVAL - time.Since(startedFlush))
-			<-m.semaphore
-		}()
+		delay := PUB_FLUSH_INTERVAL - time.Since(startedFlush)
+		m.semaphoreRelease <- delay
 	}()
 
 	msgsWithErrCh := make([]*msgWithErrCh, 0)
