@@ -143,7 +143,6 @@ export default function ScheduledRunsTable({
   const actionFilter: ScheduledWorkflowsBulkDeleteFilter = hasActiveFilters
     ? {
         workflowId: effectiveWorkflowId,
-        statuses: selectedStatuses.length > 0 ? selectedStatuses : undefined,
         additionalMetadata:
           selectedMetadata.length > 0 ? selectedMetadata : undefined,
         parentWorkflowRunId,
