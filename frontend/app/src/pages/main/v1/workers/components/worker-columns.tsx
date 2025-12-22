@@ -1,12 +1,31 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { Worker } from '@/lib/api';
-import { Link } from 'react-router-dom';
-import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SdkInfo } from './sdk-info';
-
-import { Badge, BadgeProps } from '@/components/ui/badge';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge, BadgeProps } from '@/components/v1/ui/badge';
+import { Worker } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
+
+export const WorkerColumn = {
+  status: 'Status',
+  name: 'Name',
+  type: 'Type',
+  startedAt: 'Started at',
+  slots: 'Available Slots',
+  lastHeartbeatAt: 'Last seen',
+  runtime: 'SDK Version',
+} as const;
+
+type WorkerColumnKeys = keyof typeof WorkerColumn;
+
+export const statusKey: WorkerColumnKeys = 'status';
+const nameKey: WorkerColumnKeys = 'name';
+const startedAtKey: WorkerColumnKeys = 'startedAt';
+const slotsKey: WorkerColumnKeys = 'slots';
+const lastHeartbeatAtKey: WorkerColumnKeys = 'lastHeartbeatAt';
+const runtimeKey: WorkerColumnKeys = 'runtime';
 
 interface WorkerStatusBadgeProps extends BadgeProps {
   status?: string;
@@ -22,7 +41,7 @@ type StatusConfig = {
   label: string;
 };
 
-export const WorkerStatusConfigs: Record<string, StatusConfig> = {
+const WorkerStatusConfigs: Record<string, StatusConfig> = {
   ACTIVE: {
     colors:
       'text-green-800 dark:text-green-300 bg-green-500/20 ring-green-500/30',
@@ -45,7 +64,7 @@ export const WorkerStatusConfigs: Record<string, StatusConfig> = {
   },
 };
 
-export function WorkerStatusBadge({
+function WorkerStatusBadge({
   status,
   count,
   variant,
@@ -90,7 +109,7 @@ export function WorkerStatusBadge({
       className={cn(
         'px-3 py-1',
         finalConfig.colors,
-        'text-xs font-medium rounded-md border-transparent',
+        'rounded-md border-transparent text-xs font-medium',
         className,
       )}
       variant={variant}
@@ -105,12 +124,15 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
   tenantId,
 ) => [
   {
-    accessorKey: 'status',
+    accessorKey: statusKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Status" />
+      <DataTableColumnHeader column={column} title={WorkerColumn.status} />
     ),
     cell: ({ row }) => (
-      <Link to={`/tenants/${tenantId}/workers/${row.original.metadata.id}`}>
+      <Link
+        to={appRoutes.tenantWorkerRoute.to}
+        params={{ tenant: tenantId, worker: row.original.metadata.id }}
+      >
         <WorkerStatusBadge status={row.original.status} />
       </Link>
     ),
@@ -118,13 +140,16 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     enableHiding: false,
   },
   {
-    accessorKey: 'name',
+    accessorKey: nameKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Name" />
+      <DataTableColumnHeader column={column} title={WorkerColumn.name} />
     ),
     cell: ({ row }) => (
-      <Link to={`/tenants/${tenantId}/workers/${row.original.metadata.id}`}>
-        <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+      <Link
+        to={appRoutes.tenantWorkerRoute.to}
+        params={{ tenant: tenantId, worker: row.original.metadata.id }}
+      >
+        <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
           {row.original.webhookUrl || row.original.name}
         </div>
       </Link>
@@ -133,24 +158,11 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     enableHiding: false,
   },
   {
-    accessorKey: 'type',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Type" />
-    ),
-    cell: ({ row }) => (
-      <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-        {row.original.type.toLocaleLowerCase()}
-      </div>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'startedAt',
+    accessorKey: startedAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title="Started at"
+        title={WorkerColumn.startedAt}
         className="whitespace-nowrap"
       />
     ),
@@ -165,9 +177,9 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     enableHiding: true,
   },
   {
-    accessorKey: 'slots',
+    accessorKey: slotsKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Available Slots" />
+      <DataTableColumnHeader column={column} title={WorkerColumn.slots} />
     ),
     cell: ({ row }) => (
       <div>
@@ -178,11 +190,11 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     enableHiding: true,
   },
   {
-    accessorKey: 'lastHeartbeatAt',
+    accessorKey: lastHeartbeatAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title="Last seen"
+        title={WorkerColumn.lastHeartbeatAt}
         className="whitespace-nowrap"
       />
     ),
@@ -199,9 +211,9 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     enableHiding: true,
   },
   {
-    accessorKey: 'runtime',
+    accessorKey: runtimeKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="SDK Version" />
+      <DataTableColumnHeader column={column} title={WorkerColumn.runtime} />
     ),
     cell: ({ row }) => <SdkInfo runtimeInfo={row.original.runtimeInfo} />,
     enableSorting: false,

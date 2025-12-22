@@ -386,3 +386,91 @@ pre.shiki > code > span::before {
   background-color: #fbbf24;
   color: #000;
 }
+
+@container (min-width: 768px) {
+  .cq-lg\:block {
+    display: block;
+  }
+
+  .cq-lg\:flex {
+    display: flex;
+  }
+
+  .cq-lg\:inline {
+    display: inline;
+  }
+
+  .cq-lg\:hidden {
+    display: none;
+  }
+}
+
+@container (min-width: 1024px) {
+  .cq-lg\:block {
+    display: block;
+  }
+
+  .cq-lg\:flex {
+    display: flex;
+  }
+
+  .cq-lg\:inline {
+    display: inline;
+  }
+
+  .cq-lg\:hidden {
+    display: none;
+  }
+
+  .cq-xl\:block {
+    display: block;
+  }
+
+  .cq-xl\:inline {
+    display: inline;
+  }
+
+  .cq-xl\:hidden {
+    display: none;
+  }
+}
+
+/* Side panel container query breakpoints */
+.side-panel-content {
+  container-type: inline-size;
+}
+
+@container (min-width: 600px) {
+  .side-responsive-layout {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .side-responsive-inner {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+  }
+
+  .side-sm\:hidden {
+    display: none;
+  }
+
+  .side-sm\:block {
+    display: block;
+  }
+}
+
+/* Subtle border pulse animation for unsaved changes */
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    border-color: rgba(239, 68, 68, 0.7);
+  }
+}
+
+.animate-pulse-border {
+  animation: pulse-border 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

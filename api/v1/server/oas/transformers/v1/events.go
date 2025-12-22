@@ -49,7 +49,41 @@ func parseTriggeredRuns(triggeredRuns []byte) ([]gen.V1EventTriggeredRun, error)
 	return result, nil
 }
 
-func ToV1EventList(events []*v1.ListEventsRow, limit, offset, total int64) gen.V1EventList {
+func ToV1Event(event *v1.EventWithPayload) gen.V1Event {
+	additionalMetadata := jsonToMap(event.EventAdditionalMetadata)
+
+	payload := jsonToMap(event.Payload)
+
+	triggeredRuns, err := parseTriggeredRuns(event.TriggeredRuns)
+
+	if err != nil {
+		triggeredRuns = []gen.V1EventTriggeredRun{}
+	}
+
+	return gen.V1Event{
+		AdditionalMetadata: &additionalMetadata,
+		Key:                event.EventKey,
+		Metadata: gen.APIResourceMeta{
+			CreatedAt: event.EventSeenAt.Time,
+			UpdatedAt: event.EventSeenAt.Time,
+			Id:        event.EventExternalID.String(),
+		},
+		WorkflowRunSummary: gen.V1EventWorkflowRunSummary{
+			Cancelled: event.CancelledCount,
+			Succeeded: event.CompletedCount,
+			Queued:    event.QueuedCount,
+			Failed:    event.FailedCount,
+			Running:   event.RunningCount,
+		},
+		Payload:               &payload,
+		SeenAt:                &event.EventSeenAt.Time,
+		Scope:                 &event.EventScope,
+		TriggeredRuns:         &triggeredRuns,
+		TriggeringWebhookName: event.TriggeringWebhookName,
+	}
+}
+
+func ToV1EventList(events []*v1.EventWithPayload, limit, offset, total int64) gen.V1EventList {
 	rows := make([]gen.V1Event, len(events))
 
 	numPages := int64(math.Ceil(float64(total) / float64(limit)))
@@ -69,35 +103,7 @@ func ToV1EventList(events []*v1.ListEventsRow, limit, offset, total int64) gen.V
 	}
 
 	for i, row := range events {
-		additionalMetadata := jsonToMap(row.EventAdditionalMetadata)
-		payload := jsonToMap(row.EventPayload)
-		triggeredRuns, err := parseTriggeredRuns(row.TriggeredRuns)
-
-		if err != nil {
-			triggeredRuns = []gen.V1EventTriggeredRun{}
-		}
-
-		rows[i] = gen.V1Event{
-			AdditionalMetadata: &additionalMetadata,
-			Key:                row.EventKey,
-			Metadata: gen.APIResourceMeta{
-				CreatedAt: row.EventSeenAt.Time,
-				UpdatedAt: row.EventSeenAt.Time,
-				Id:        row.EventExternalID.String(),
-			},
-			WorkflowRunSummary: gen.V1EventWorkflowRunSummary{
-				Cancelled: row.CancelledCount,
-				Succeeded: row.CompletedCount,
-				Queued:    row.QueuedCount,
-				Failed:    row.FailedCount,
-				Running:   row.RunningCount,
-			},
-			Payload:               &payload,
-			SeenAt:                &row.EventSeenAt.Time,
-			Scope:                 &row.EventScope,
-			TriggeredRuns:         &triggeredRuns,
-			TriggeringWebhookName: row.TriggeringWebhookName,
-		}
+		rows[i] = ToV1Event(row)
 	}
 
 	return gen.V1EventList{

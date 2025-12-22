@@ -8,8 +8,18 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const analyzeV1Dag = `-- name: AnalyzeV1Dag :exec
+ANALYZE v1_dag
+`
+
+func (q *Queries) AnalyzeV1Dag(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1Dag)
+	return err
+}
 
 const analyzeV1Task = `-- name: AnalyzeV1Task :exec
 ANALYZE v1_task
@@ -27,6 +37,56 @@ ANALYZE v1_task_event
 func (q *Queries) AnalyzeV1TaskEvent(ctx context.Context, db DBTX) error {
 	_, err := db.Exec(ctx, analyzeV1TaskEvent)
 	return err
+}
+
+const cleanupV1ConcurrencySlot = `-- name: CleanupV1ConcurrencySlot :execresult
+WITH locked_cs AS (
+    SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
+    FROM v1_concurrency_slot cs
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE cs.task_id = vt.id
+            AND cs.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id
+    LIMIT $1::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_concurrency_slot
+WHERE (task_id, task_inserted_at, task_retry_count) IN (
+    SELECT task_id, task_inserted_at, task_retry_count
+    FROM locked_cs
+)
+`
+
+func (q *Queries) CleanupV1ConcurrencySlot(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1ConcurrencySlot, batchsize)
+}
+
+const cleanupV1TaskRuntime = `-- name: CleanupV1TaskRuntime :execresult
+WITH locked_trs AS (
+    SELECT vtr.task_id, vtr.task_inserted_at, vtr.retry_count
+    FROM v1_task_runtime vtr
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE vtr.task_id = vt.id
+            AND vtr.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY vtr.task_id ASC
+    LIMIT $1::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_task_runtime
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_trs
+)
+`
+
+func (q *Queries) CleanupV1TaskRuntime(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1TaskRuntime, batchsize)
 }
 
 const cleanupWorkflowConcurrencySlotsAfterInsert = `-- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
@@ -65,12 +125,35 @@ SELECT
     create_v1_range_partition('v1_task', $1::date),
     create_v1_range_partition('v1_dag', $1::date),
     create_v1_range_partition('v1_task_event', $1::date),
-    create_v1_range_partition('v1_log_line', $1::date)
+    create_v1_range_partition('v1_log_line', $1::date),
+    create_v1_range_partition('v1_payload', $1::date)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
 	_, err := db.Exec(ctx, createPartitions, date)
 	return err
+}
+
+const defaultTaskActivityGauge = `-- name: DefaultTaskActivityGauge :one
+SELECT
+    COUNT(*)
+FROM
+    v1_queue
+WHERE
+    tenant_id = $1::uuid
+    AND last_active > $2::timestamptz
+`
+
+type DefaultTaskActivityGaugeParams struct {
+	Tenantid    pgtype.UUID        `json:"tenantid"`
+	Activesince pgtype.Timestamptz `json:"activesince"`
+}
+
+func (q *Queries) DefaultTaskActivityGauge(ctx context.Context, db DBTX, arg DefaultTaskActivityGaugeParams) (int64, error) {
+	row := db.QueryRow(ctx, defaultTaskActivityGauge, arg.Tenantid, arg.Activesince)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const deleteMatchingSignalEvents = `-- name: DeleteMatchingSignalEvents :exec
@@ -472,6 +555,210 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 	return items, nil
 }
 
+const getTenantTaskStats = `-- name: GetTenantTaskStats :many
+WITH queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest
+    FROM
+        v1_queue_item qi
+    JOIN
+        v1_task t ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
+    WHERE
+        qi.tenant_id = $1::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
+), retry_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest
+    FROM
+        v1_retry_queue_item rqi
+    JOIN
+        v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
+    WHERE
+        rqi.tenant_id = $1::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
+), rate_limited_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest
+    FROM
+        v1_rate_limited_queue_items rqi
+    JOIN
+        v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at
+    WHERE
+        rqi.tenant_id = $1::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
+), concurrency_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        sc.expression,
+        sc.strategy,
+        cs.key,
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest
+    FROM
+        v1_concurrency_slot cs
+    JOIN
+        v1_task t ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
+    JOIN
+        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id AND cs.strategy_id = sc.id
+    WHERE
+        cs.tenant_id = $1::uuid
+        AND cs.is_filled = FALSE
+        AND sc.tenant_id = $1::uuid
+        AND sc.is_active = TRUE
+        AND sc.id = ANY(t.concurrency_strategy_ids)
+    GROUP BY
+        t.step_readable_id,
+        t.queue,
+        sc.expression,
+        sc.strategy,
+        cs.key
+), running_tasks AS (
+    SELECT
+        t.step_readable_id,
+        COALESCE(sc.expression, '') as expression,
+        COALESCE(sc.strategy, 'NONE'::v1_concurrency_strategy) as strategy,
+        COALESCE(cs.key, '') as key,
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest
+    FROM
+        v1_task_runtime tr
+    JOIN
+        v1_task t ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+    LEFT JOIN
+        v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
+    LEFT JOIN
+        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id
+    WHERE
+        t.tenant_id = $1::uuid
+        AND tr.tenant_id = $1::uuid
+        AND tr.worker_id IS NOT NULL
+        AND (t.concurrency_strategy_ids IS NULL OR array_length(t.concurrency_strategy_ids, 1) IS NULL OR sc.id = ANY(t.concurrency_strategy_ids))
+    GROUP BY
+        t.step_readable_id,
+        sc.expression,
+        sc.strategy,
+        cs.key
+)
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count,
+    oldest::TIMESTAMPTZ
+FROM queued_tasks
+
+UNION ALL
+
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count,
+    oldest::TIMESTAMPTZ
+FROM retry_queued_tasks
+
+UNION ALL
+
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count,
+    oldest::TIMESTAMPTZ
+FROM rate_limited_queued_tasks
+
+UNION ALL
+
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    expression,
+    strategy::text,
+    key,
+    count,
+    oldest::TIMESTAMPTZ
+FROM concurrency_queued_tasks
+
+UNION ALL
+
+SELECT
+    'running' as task_status,
+    step_readable_id,
+    ''::text as queue,
+    expression,
+    strategy::text,
+    key,
+    count,
+    oldest::TIMESTAMPTZ
+FROM running_tasks
+`
+
+type GetTenantTaskStatsRow struct {
+	TaskStatus     string             `json:"task_status"`
+	StepReadableID string             `json:"step_readable_id"`
+	Queue          string             `json:"queue"`
+	Expression     pgtype.Text        `json:"expression"`
+	Strategy       pgtype.Text        `json:"strategy"`
+	Key            pgtype.Text        `json:"key"`
+	Count          int64              `json:"count"`
+	Oldest         pgtype.Timestamptz `json:"oldest"`
+}
+
+func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetTenantTaskStatsRow, error) {
+	rows, err := db.Query(ctx, getTenantTaskStats, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetTenantTaskStatsRow
+	for rows.Next() {
+		var i GetTenantTaskStatsRow
+		if err := rows.Scan(
+			&i.TaskStatus,
+			&i.StepReadableID,
+			&i.Queue,
+			&i.Expression,
+			&i.Strategy,
+			&i.Key,
+			&i.Count,
+			&i.Oldest,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAllTasksInDags = `-- name: ListAllTasksInDags :many
 SELECT
     t.id,
@@ -552,7 +839,7 @@ WITH input AS (
         ) AS subquery
 )
 SELECT
-    e.id, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data
+    e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id
 FROM
     v1_task_event e
 JOIN
@@ -587,6 +874,7 @@ func (q *Queries) ListMatchingSignalEvents(ctx context.Context, db DBTX, arg Lis
 		var i V1TaskEvent
 		if err := rows.Scan(
 			&i.ID,
+			&i.InsertedAt,
 			&i.TenantID,
 			&i.TaskID,
 			&i.TaskInsertedAt,
@@ -595,6 +883,7 @@ func (q *Queries) ListMatchingSignalEvents(ctx context.Context, db DBTX, arg Lis
 			&i.EventKey,
 			&i.CreatedAt,
 			&i.Data,
+			&i.ExternalID,
 		); err != nil {
 			return nil, err
 		}
@@ -620,7 +909,7 @@ WITH input AS (
 )
 SELECT
     t.external_id,
-    e.id, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data
+    e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id
 FROM
     v1_lookup_table l
 JOIN
@@ -644,6 +933,7 @@ type ListMatchingTaskEventsParams struct {
 type ListMatchingTaskEventsRow struct {
 	ExternalID     pgtype.UUID        `json:"external_id"`
 	ID             int64              `json:"id"`
+	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
@@ -652,6 +942,7 @@ type ListMatchingTaskEventsRow struct {
 	EventKey       pgtype.Text        `json:"event_key"`
 	CreatedAt      pgtype.Timestamp   `json:"created_at"`
 	Data           []byte             `json:"data"`
+	ExternalID_2   pgtype.UUID        `json:"external_id_2"`
 }
 
 // Lists the task events for the **latest** retry of a task, or task events which intentionally
@@ -668,6 +959,7 @@ func (q *Queries) ListMatchingTaskEvents(ctx context.Context, db DBTX, arg ListM
 		if err := rows.Scan(
 			&i.ExternalID,
 			&i.ID,
+			&i.InsertedAt,
 			&i.TenantID,
 			&i.TaskID,
 			&i.TaskInsertedAt,
@@ -676,6 +968,7 @@ func (q *Queries) ListMatchingTaskEvents(ctx context.Context, db DBTX, arg ListM
 			&i.EventKey,
 			&i.CreatedAt,
 			&i.Data,
+			&i.ExternalID_2,
 		); err != nil {
 			return nil, err
 		}
@@ -696,7 +989,10 @@ WITH task_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', $1::date) AS p
 ), log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', $1::date) AS p
+), payload_partitions AS (
+    SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', $1::date) AS p
 )
+
 SELECT
     parent_table, partition_name
 FROM
@@ -722,6 +1018,13 @@ SELECT
     parent_table, partition_name
 FROM
     log_line_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    payload_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {
@@ -865,13 +1168,8 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 const listTaskParentOutputs = `-- name: ListTaskParentOutputs :many
 WITH input AS (
     SELECT
-        task_id, task_inserted_at
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at
-        ) AS subquery
+        UNNEST($1::BIGINT[]) AS task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at
 ), task_outputs AS (
     SELECT
         t.id,
@@ -884,6 +1182,8 @@ WITH input AS (
         t.workflow_run_id,
         t.step_id,
         t.workflow_id,
+        e.id AS task_event_id,
+        e.inserted_at AS task_event_inserted_at,
         e.data AS output
     FROM
         v1_task t1
@@ -915,7 +1215,10 @@ WITH input AS (
 )
 SELECT
     DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
-    task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count, task_outputs.tenant_id, task_outputs.dag_id, task_outputs.dag_inserted_at, task_outputs.step_readable_id, task_outputs.workflow_run_id, task_outputs.step_id, task_outputs.workflow_id, task_outputs.output
+    task_outputs.task_event_id,
+    task_outputs.task_event_inserted_at,
+    task_outputs.workflow_run_id,
+    task_outputs.output
 FROM
     task_outputs
 JOIN
@@ -935,17 +1238,10 @@ type ListTaskParentOutputsParams struct {
 }
 
 type ListTaskParentOutputsRow struct {
-	ID             int64              `json:"id"`
-	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
-	RetryCount     int32              `json:"retry_count"`
-	TenantID       pgtype.UUID        `json:"tenant_id"`
-	DagID          pgtype.Int8        `json:"dag_id"`
-	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
-	StepReadableID string             `json:"step_readable_id"`
-	WorkflowRunID  pgtype.UUID        `json:"workflow_run_id"`
-	StepID         pgtype.UUID        `json:"step_id"`
-	WorkflowID     pgtype.UUID        `json:"workflow_id"`
-	Output         []byte             `json:"output"`
+	TaskEventID         int64              `json:"task_event_id"`
+	TaskEventInsertedAt pgtype.Timestamptz `json:"task_event_inserted_at"`
+	WorkflowRunID       pgtype.UUID        `json:"workflow_run_id"`
+	Output              []byte             `json:"output"`
 }
 
 // Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
@@ -960,16 +1256,9 @@ func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTa
 	for rows.Next() {
 		var i ListTaskParentOutputsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.InsertedAt,
-			&i.RetryCount,
-			&i.TenantID,
-			&i.DagID,
-			&i.DagInsertedAt,
-			&i.StepReadableID,
+			&i.TaskEventID,
+			&i.TaskEventInsertedAt,
 			&i.WorkflowRunID,
-			&i.StepID,
-			&i.WorkflowID,
 			&i.Output,
 		); err != nil {
 			return nil, err
@@ -983,8 +1272,7 @@ func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTa
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
+SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
 FROM
     v1_task
 WHERE
@@ -1429,28 +1717,22 @@ func (q *Queries) LockDAGsForReplay(ctx context.Context, db DBTX, arg LockDAGsFo
 const lockSignalCreatedEvents = `-- name: LockSignalCreatedEvents :many
 WITH input AS (
     SELECT
-        task_id, task_inserted_at, event_key
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::text[]) AS event_key
-        ) AS subquery
-),
-distinct_events AS (
+        UNNEST($1::BIGINT[]) AS task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($3::TEXT[]) AS event_key
+), distinct_events AS (
     SELECT DISTINCT
         task_id, task_inserted_at
     FROM
         input
-),
-events_to_lock AS (
+), events_to_lock AS (
     SELECT
         e.id,
         e.event_key,
         e.data,
 		e.task_id,
-		e.task_inserted_at
+		e.task_inserted_at,
+        e.inserted_at
     FROM
         v1_task_event e
     JOIN
@@ -1463,6 +1745,7 @@ events_to_lock AS (
 )
 SELECT
 	e.id,
+    e.inserted_at,
 	e.event_key,
 	e.data
 FROM
@@ -1479,9 +1762,10 @@ type LockSignalCreatedEventsParams struct {
 }
 
 type LockSignalCreatedEventsRow struct {
-	ID       int64       `json:"id"`
-	EventKey pgtype.Text `json:"event_key"`
-	Data     []byte      `json:"data"`
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	EventKey   pgtype.Text        `json:"event_key"`
+	Data       []byte             `json:"data"`
 }
 
 // Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
@@ -1500,7 +1784,12 @@ func (q *Queries) LockSignalCreatedEvents(ctx context.Context, db DBTX, arg Lock
 	var items []*LockSignalCreatedEventsRow
 	for rows.Next() {
 		var i LockSignalCreatedEventsRow
-		if err := rows.Scan(&i.ID, &i.EventKey, &i.Data); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.EventKey,
+			&i.Data,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

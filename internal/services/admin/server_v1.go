@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -15,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -183,6 +186,15 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	tenantId string,
 	req *contracts.TriggerWorkflowRequest,
 ) (*v1.WorkflowNameTriggerOpts, error) {
+	ctx, span := telemetry.NewSpan(ctx, "admin_service.new_trigger_opt")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("admin_service.new_trigger_opt.workflow_name", req.Name),
+		attribute.Int("admin_service.new_trigger_opt.payload_size", len(req.Input)),
+		attribute.Bool("admin_service.new_trigger_opt.is_child_workflow", req.ParentStepRunId != nil),
+	)
+
 	additionalMeta := ""
 
 	if req.AdditionalMetadata != nil {

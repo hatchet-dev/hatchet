@@ -10,11 +10,11 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling/v0/randomticker"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 const rateLimitedRequeueAfterThreshold = 2 * time.Second
@@ -380,11 +380,13 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			err := s.replenish(ctx, true)
+			innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			err := s.replenish(innerCtx, true)
 
 			if err != nil {
 				s.l.Error().Err(err).Msg("error replenishing slots")
 			}
+			cancel()
 		}
 	}
 }
@@ -410,6 +412,8 @@ func (s *Scheduler) loopSnapshot(ctx context.Context) {
 			}
 
 			s.exts.ReportSnapshot(sqlchelpers.UUIDToStr(s.tenantId), in)
+
+			count++
 		}
 	}
 }
@@ -470,6 +474,13 @@ func (s *Scheduler) tryAssignBatch(
 
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-batch")
 	defer span.End()
+
+	if len(qis) > 0 {
+		uniqueTenantIds := telemetry.CollectUniqueTenantIDs(qis, func(qi *sqlcv1.V1QueueItem) string {
+			return qi.TenantID.String()
+		})
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: uniqueTenantIds})
+	}
 
 	res = make([]*assignSingleResult, len(qis))
 
@@ -631,6 +642,8 @@ func (s *Scheduler) tryAssignSingleton(
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: qi.TenantID.String()})
+
 	ringOffset = ringOffset % len(candidateSlots)
 
 	if (qi.Sticky != sqlcv1.V1StickyStrategyNONE) || len(labels) > 0 {
@@ -686,6 +699,13 @@ func (s *Scheduler) tryAssign(
 	taskIdsToRateLimits map[int64]map[string]int32,
 ) <-chan *assignResults {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
+
+	if len(qis) > 0 {
+		uniqueTenantIds := telemetry.CollectUniqueTenantIDs(qis, func(qi *sqlcv1.V1QueueItem) string {
+			return qi.TenantID.String()
+		})
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: uniqueTenantIds})
+	}
 
 	// split into groups based on action ids, and process each action id in parallel
 	actionIdToQueueItems := make(map[string][]*sqlcv1.V1QueueItem)

@@ -1,22 +1,23 @@
-import { createColumnHelper } from '@tanstack/react-table';
-import { V1TaskEventType, V1TaskEvent, StepRunEventSeverity } from '@/lib/api';
+import { EventWithMetadata } from './step-run-events-for-workflow-run';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
-import {
-  ArrowLeftEndOnRectangleIcon,
-  ServerStackIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { cn, emptyGolangUUID } from '@/lib/utils';
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
-import { useRef, useState } from 'react';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
+import { V1TaskEventType, V1TaskEvent, StepRunEventSeverity } from '@/lib/api';
+import { cn, emptyGolangUUID } from '@/lib/utils';
+import { appRoutes } from '@/router';
+import {
+  ArrowLeftEndOnRectangleIcon,
+  ServerStackIcon,
+  XCircleIcon,
+} from '@heroicons/react/24/outline';
+import { Link } from '@tanstack/react-router';
+import { createColumnHelper } from '@tanstack/react-table';
 
 function eventTypeToSeverity(
   eventType: V1TaskEventType | undefined,
@@ -39,7 +40,7 @@ function eventTypeToSeverity(
   }
 }
 
-const columnHelper = createColumnHelper<V1TaskEvent>();
+const columnHelper = createColumnHelper<EventWithMetadata>();
 
 export const columns = ({
   tenantId,
@@ -47,7 +48,7 @@ export const columns = ({
   fallbackTaskDisplayName,
 }: {
   tenantId: string;
-  onRowClick: (row: V1TaskEvent) => void;
+  onRowClick: (row: EventWithMetadata) => void;
   fallbackTaskDisplayName: string;
 }) => {
   return [
@@ -60,12 +61,12 @@ export const columns = ({
         return (
           <div className="min-w-[120px] max-w-[180px]">
             <Badge
-              className="cursor-pointer text-xs font-mono py-1 bg-[#ffffff] dark:bg-[#050c1c] border-[#050c1c] dark:border-gray-400"
+              className="cursor-pointer border-[#050c1c] bg-[#ffffff] py-1 font-mono text-xs dark:border-gray-400 dark:bg-[#050c1c]"
               variant="outline"
               onClick={() => onRowClick(row.original)}
             >
-              <ArrowLeftEndOnRectangleIcon className="w-4 h-4 mr-1" />
-              <div className="truncate max-w-[150px]">
+              <ArrowLeftEndOnRectangleIcon className="mr-1 size-4" />
+              <div className="max-w-[150px] truncate">
                 {row.original.taskDisplayName || fallbackTaskDisplayName}
               </div>
             </Badge>
@@ -100,7 +101,7 @@ export const columns = ({
         return (
           <div className="flex flex-row items-center gap-2">
             <EventIndicator severity={severity} />
-            <div className="tracking-wide text-sm flex flex-row gap-4">
+            <div className="flex flex-row gap-4 text-sm tracking-wide">
               {mapEventTypeToTitle(event.eventType)}
             </div>
           </div>
@@ -125,15 +126,15 @@ export const columns = ({
         if (event.workerId && event.workerId !== emptyGolangUUID) {
           items.push(
             <Link
-              to={`/tenants/${tenantId}/workers/${event.workerId}`}
+              to={appRoutes.tenantWorkerRoute.to}
+              params={{ tenant: tenantId, worker: event.workerId }}
               key="worker"
             >
               <Button
                 variant="link"
                 size="xs"
-                className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
+                leftIcon={<ServerStackIcon className="size-4" />}
               >
-                <ServerStackIcon className="w-4 h-4 mr-1" />
                 View Worker
               </Button>
             </Link>,
@@ -144,12 +145,12 @@ export const columns = ({
           <div>
             <div
               key="message"
-              className="text-xs text-muted-foreground font-mono tracking-tight"
+              className="font-mono text-xs tracking-tight text-muted-foreground"
             >
               {event.message}
             </div>
             {items.length > 0 && (
-              <div key="items" className="flex flex-col gap-2 mt-2">
+              <div key="items" className="mt-2 flex flex-col items-start gap-2">
                 {items}
               </div>
             )}
@@ -207,7 +208,6 @@ function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
     case undefined:
       return 'Unknown';
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = eventType;
       throw new Error(`Unhandled case: ${exhaustiveCheck}`);
   }
@@ -224,58 +224,33 @@ function EventIndicator({ severity }: { severity: StepRunEventSeverity }) {
     <div
       className={cn(
         RUN_STATUS_VARIANTS[severity],
-        'rounded-full h-[6px] w-[6px]',
+        'h-[6px] w-[6px] rounded-full',
       )}
     />
   );
 }
 
 function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
-  const [popoverOpen, setPopoverOpen] = useState(false);
-
-  // containerRef needed due to https://github.com/radix-ui/primitives/issues/1159#issuecomment-2105108943
-  const containerRef = useRef<HTMLDivElement>(null);
-
   return (
-    <div ref={containerRef}>
-      <Popover
-        open={popoverOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPopoverOpen(false);
-          }
-        }}
+    <Popover>
+      <PopoverTrigger className="cursor-pointer">
+        <Button
+          variant="link"
+          size="xs"
+          leftIcon={<XCircleIcon className="size-4" />}
+        >
+          View Error
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="z-[80] w-[300px] max-w-[90vw] border-border bg-popover p-0 shadow-lg sm:w-[400px] md:w-[500px] lg:w-[600px]"
+        align="start"
       >
-        <PopoverTrigger
-          onClick={() => {
-            if (popoverOpen) {
-              return;
-            }
-
-            setPopoverOpen(true);
-          }}
-          className="cursor-pointer"
-        >
-          <Button
-            variant="link"
-            size="xs"
-            className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
-          >
-            <XCircleIcon className="w-4 h-4 mr-1" />
-            View Error
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          className="p-0 bg-popover border-border shadow-lg z-[80] w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]"
-          align="start"
-          container={containerRef.current}
-        >
-          <div className="p-4 w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]">
-            <ErrorHoverContents event={event} />
-          </div>
-        </PopoverContent>
-      </Popover>
-    </div>
+        <div className="w-[300px] max-w-[90vw] p-4 sm:w-[400px] md:w-[500px] lg:w-[600px]">
+          <ErrorHoverContents event={event} />
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -284,13 +259,13 @@ function ErrorHoverContents({ event }: { event: V1TaskEvent }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 pb-2 border-b border-border">
-        <XCircleIcon className="w-5 h-5 text-destructive" />
+      <div className="flex items-center gap-2 border-b border-border pb-2">
+        <XCircleIcon className="h-5 w-5 text-destructive" />
         <h3 className="font-medium text-foreground">Error Details</h3>
       </div>
-      <div className="rounded-md h-[400px] bg-muted/50 border border-border overflow-hidden">
-        <div className="h-full overflow-y-scroll overflow-x-hidden p-4 text-sm font-mono text-foreground scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground">
-          <pre className="whitespace-pre-wrap break-words min-h-[500px]">
+      <div className="h-[400px] overflow-hidden rounded-md border border-border bg-muted/50">
+        <div className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground h-full overflow-x-hidden overflow-y-scroll p-4 font-mono text-sm text-foreground">
+          <pre className="min-h-[500px] whitespace-pre-wrap break-words">
             {errorText || 'No error message found'}
           </pre>
         </div>

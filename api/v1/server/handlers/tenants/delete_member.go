@@ -14,17 +14,12 @@ func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantM
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
+	memberToDelete := ctx.Get("member").(*dbsqlc.PopulateTenantMembersRow)
 
 	if tenantMember.Role != dbsqlc.TenantMemberRoleOWNER {
 		return gen.TenantMemberDelete403JSONResponse(
 			apierrors.NewAPIErrors("Only owners can delete members"),
 		), nil
-	}
-
-	memberToDelete, err := t.config.APIRepository.Tenant().GetTenantMemberByID(ctx.Request().Context(), request.Member.String())
-
-	if err != nil {
-		return nil, err
 	}
 
 	if sqlchelpers.UUIDToStr(tenantMember.UserId) == sqlchelpers.UUIDToStr(memberToDelete.UserId) {
@@ -39,7 +34,7 @@ func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantM
 		), nil
 	}
 
-	err = t.config.APIRepository.Tenant().DeleteTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(memberToDelete.ID))
+	err := t.config.APIRepository.Tenant().DeleteTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(memberToDelete.ID))
 
 	if err != nil {
 		return nil, err

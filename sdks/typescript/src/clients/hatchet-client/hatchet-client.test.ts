@@ -25,6 +25,10 @@ describe('Client', () => {
           server_name: 'TLS_SERVER_NAME',
           tls_strategy: 'tls',
         },
+        healthcheck: {
+          enabled: true,
+          port: 8002,
+        },
       },
       {
         credentials: ChannelCredentials.createInsecure(),
@@ -46,6 +50,10 @@ describe('Client', () => {
           key_file: 'TLS_KEY_FILE',
           ca_file: 'TLS_ROOT_CA_FILE',
           server_name: 'TLS_SERVER_NAME',
+        },
+        healthcheck: {
+          enabled: true,
+          port: 8002,
         },
       })
     );
@@ -78,6 +86,10 @@ describe('Client', () => {
           server_name: 'TLS_SERVER_NAME',
           tls_strategy: 'tls',
         },
+        healthcheck: {
+          enabled: false,
+          port: 8003,
+        },
       },
       {
         config_path: './fixtures/.hatchet.yaml',
@@ -100,6 +112,10 @@ describe('Client', () => {
           key_file: 'TLS_KEY_FILE',
           ca_file: 'TLS_ROOT_CA_FILE',
           server_name: 'TLS_SERVER_NAME',
+        },
+        healthcheck: {
+          enabled: false,
+          port: 8003,
         },
       })
     );

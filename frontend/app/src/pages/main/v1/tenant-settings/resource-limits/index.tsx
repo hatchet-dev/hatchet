@@ -1,12 +1,12 @@
-import { Separator } from '@/components/v1/ui/separator';
-import { useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './components/resource-limit-columns';
 import { PaymentMethods, Subscription } from '@/components/v1/cloud/billing';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { Spinner } from '@/components/v1/ui/loading';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { useQuery } from '@tanstack/react-query';
 
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
@@ -31,18 +31,18 @@ export default function ResourceLimits() {
 
   if (resourcePolicyQuery.isLoading || billingState.isLoading) {
     return (
-      <div className="flex-grow h-full w-full px-4 sm:px-6 lg:px-8">
+      <div className="h-full w-full flex-grow px-4 sm:px-6 lg:px-8">
         <Spinner />
       </div>
     );
   }
 
   return (
-    <div className="flex-grow h-full w-full">
+    <div className="h-full w-full flex-grow">
       {billingEnabled && (
         <>
-          <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-row justify-between items-center">
+          <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+            <div className="flex flex-row items-center justify-between">
               <h2 className="text-2xl font-semibold leading-tight text-foreground">
                 Billing and Limits
               </h2>
@@ -64,13 +64,13 @@ export default function ResourceLimits() {
         </>
       )}
 
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
           <h3 className="text-xl font-semibold leading-tight text-foreground">
             Resource Limits
           </h3>
         </div>
-        <p className="text-gray-700 dark:text-gray-300 my-4">
+        <p className="my-4 text-gray-700 dark:text-gray-300">
           Resource limits are used to control the usage of resources within a
           tenant. When a limit is reached, the system will take action based on
           the limit type. Please upgrade your plan, or{' '}
@@ -84,7 +84,6 @@ export default function ResourceLimits() {
           isLoading={resourcePolicyQuery.isLoading}
           columns={cols}
           data={resourcePolicyQuery.data?.limits || []}
-          filters={[]}
           getRowId={(row) => row.metadata.id}
         />
       </div>

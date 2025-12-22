@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
@@ -90,6 +91,8 @@ type ClientOpts struct {
 	filesLoader        filesLoaderFunc
 	initWorkflows      bool
 	presetWorkerLabels map[string]string
+
+	disableGzipCompression bool
 }
 
 func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
@@ -121,20 +124,21 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 	logger := logger.NewDefaultLogger("client")
 
 	return &ClientOpts{
-		tenantId:           clientConfig.TenantId,
-		token:              clientConfig.Token,
-		l:                  &logger,
-		v:                  validator.NewDefaultValidator(),
-		tls:                clientConfig.TLSConfig,
-		hostPort:           clientConfig.GRPCBroadcastAddress,
-		serverURL:          clientConfig.ServerURL,
-		filesLoader:        types.DefaultLoader,
-		namespace:          clientConfig.Namespace,
-		cloudRegisterID:    clientConfig.CloudRegisterID,
-		runnableActions:    clientConfig.RunnableActions,
-		noGrpcRetry:        clientConfig.NoGrpcRetry,
-		sharedMeta:         make(map[string]string),
-		presetWorkerLabels: clientConfig.PresetWorkerLabels,
+		tenantId:               clientConfig.TenantId,
+		token:                  clientConfig.Token,
+		l:                      &logger,
+		v:                      validator.NewDefaultValidator(),
+		tls:                    clientConfig.TLSConfig,
+		hostPort:               clientConfig.GRPCBroadcastAddress,
+		serverURL:              clientConfig.ServerURL,
+		filesLoader:            types.DefaultLoader,
+		namespace:              clientConfig.Namespace,
+		cloudRegisterID:        clientConfig.CloudRegisterID,
+		runnableActions:        clientConfig.RunnableActions,
+		noGrpcRetry:            clientConfig.NoGrpcRetry,
+		sharedMeta:             make(map[string]string),
+		presetWorkerLabels:     clientConfig.PresetWorkerLabels,
+		disableGzipCompression: clientConfig.DisableGzipCompression,
 	}
 }
 
@@ -265,6 +269,13 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	grpcOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(transportCreds),
 		grpc.WithKeepaliveParams(keepAliveParams),
+	}
+
+	if !opts.disableGzipCompression {
+		grpcOpts = append(grpcOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor("gzip")))
+		opts.l.Info().Msg("gzip compression enabled for gRPC client")
+	} else {
+		opts.l.Info().Msg("gzip compression disabled for gRPC client")
 	}
 
 	if !opts.noGrpcRetry {

@@ -1,9 +1,8 @@
-import { createQueryKeyStore } from '@lukemorales/query-key-factory';
-
-import api, { cloudApi } from './api';
-import invariant from 'tiny-invariant';
 import { WebhookWorkerCreateRequest } from '.';
+import api, { cloudApi } from './api';
 import { TemplateOptions } from './generated/cloud/data-contracts';
+import { createQueryKeyStore } from '@lukemorales/query-key-factory';
+import invariant from 'tiny-invariant';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
@@ -11,7 +10,7 @@ type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
-export type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
+type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
 type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
 type WorkflowRunEventsMetrics = Parameters<
   typeof cloudApi.workflowRunEventsGetMetrics
@@ -20,6 +19,7 @@ type WorkflowScheduledQuery = Parameters<typeof api.workflowScheduledList>[1];
 type CronWorkflowsQuery = Parameters<typeof api.cronWorkflowList>[1];
 type V2ListWorkflowRunsQuery = Parameters<typeof api.v1WorkflowRunList>[1];
 type V1EventListQuery = Parameters<typeof api.v1EventList>[1];
+export type V1LogLineListQuery = Parameters<typeof api.v1LogLineList>[1];
 type V2TaskGetPointMetricsQuery = Parameters<
   typeof api.v1TaskGetPointMetrics
 >[1];
@@ -184,7 +184,7 @@ export const queries = createQueryKeyStore({
   },
   workflows: {
     list: (tenant: string, query?: ListWorkflowsQuery) => ({
-      queryKey: ['workflow:list', tenant],
+      queryKey: ['workflow:list', tenant, query],
       queryFn: async () => (await api.workflowList(tenant, query)).data,
     }),
     get: (workflow: string) => ({
@@ -317,9 +317,9 @@ export const queries = createQueryKeyStore({
           })
         ).data,
     }),
-    getLogs: (task: string) => ({
-      queryKey: ['v1-log-line:list', task],
-      queryFn: async () => (await api.v1LogLineList(task)).data,
+    getLogs: (task: string, query?: V1LogLineListQuery) => ({
+      queryKey: ['v1-log-line:list', task, query],
+      queryFn: async () => (await api.v1LogLineList(task, query)).data,
     }),
   },
   v1TaskEvents: {

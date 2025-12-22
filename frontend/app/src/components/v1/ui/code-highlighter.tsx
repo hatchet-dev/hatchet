@@ -1,16 +1,14 @@
+import CopyToClipboard from './copy-to-clipboard';
+import { useTheme } from '@/components/theme-provider';
+import { cn } from '@/lib/utils';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
-
+import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
 import typescript from 'react-syntax-highlighter/dist/esm/languages/hljs/typescript';
 import yaml from 'react-syntax-highlighter/dist/esm/languages/hljs/yaml';
-import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
-
 import {
   anOldHope,
   atomOneLight,
 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import CopyToClipboard from './copy-to-clipboard';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/theme-provider';
 
 SyntaxHighlighter.registerLanguage('typescript', typescript);
 SyntaxHighlighter.registerLanguage('yaml', yaml);
@@ -24,6 +22,7 @@ export function CodeHighlighter({
   maxHeight,
   minHeight,
   maxWidth,
+  minWidth,
   copy = true,
   wrapLines = true,
 }: {
@@ -34,13 +33,14 @@ export function CodeHighlighter({
   maxHeight?: string;
   minHeight?: string;
   maxWidth?: string;
+  minWidth?: string;
   copy?: boolean;
   wrapLines?: boolean;
 }) {
   const { theme } = useTheme();
 
   return (
-    <div className={cn('w-full h-fit relative bg-muted rounded-lg', className)}>
+    <div className={cn('relative h-fit w-full rounded-lg bg-muted', className)}>
       <SyntaxHighlighter
         language={language}
         style={theme == 'dark' ? anOldHope : atomOneLight}
@@ -51,9 +51,10 @@ export function CodeHighlighter({
         customStyle={{
           cursor: 'default',
           borderRadius: '0.5rem',
-          maxHeight: maxHeight,
-          minHeight: minHeight,
-          maxWidth: maxWidth,
+          maxHeight,
+          minHeight,
+          maxWidth,
+          minWidth,
           fontFamily:
             "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
           fontSize: '0.75rem',
@@ -68,7 +69,7 @@ export function CodeHighlighter({
       </SyntaxHighlighter>
       {copy && (
         <CopyToClipboard
-          className="absolute top-2 right-2"
+          className="absolute right-2 top-2"
           text={(copyCode || code).trim()}
         />
       )}

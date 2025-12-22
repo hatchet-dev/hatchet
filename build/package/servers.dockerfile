@@ -1,6 +1,6 @@
 # Base Go environment
 # -------------------
-FROM golang:1.24-alpine as base
+FROM golang:1.25-alpine as base
 WORKDIR /hatchet
 
 RUN apk update && apk add --no-cache gcc musl-dev git protoc protobuf-dev
@@ -27,11 +27,21 @@ RUN go generate ./...
 FROM node:18-alpine as build-openapi
 WORKDIR /openapi
 
-RUN npm install -g npm@8.1 @redocly/cli@latest
-
 COPY /api-contracts/openapi ./openapi
 
-RUN npx @redocly/cli bundle ./openapi/openapi.yaml --output ./bin/oas/openapi.yaml --ext yaml
+RUN echo '{ \
+    "name": "hack-for-redocly-cli-bug", \
+    "version": "1.0.0", \
+    "dependencies": { \
+    "@redocly/cli": "latest" \
+    }, \
+    "overrides": { \
+    "mobx-react": "9.2.0" \
+    } \
+    }' > package.json && \
+    npm install -g npm@8.1 @redocly/cli@latest && \
+    npx @redocly/cli@latest bundle ./openapi/openapi.yaml --output ./bin/oas/openapi.yaml --ext yaml && \
+    rm package.json
 
 # Go build environment
 # --------------------

@@ -1,8 +1,8 @@
-import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { TenantResource, TenantResourceLimit } from '@/lib/api';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { TenantResource, TenantResourceLimit } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { ColumnDef } from '@tanstack/react-table';
 
 const resources: Record<TenantResource, string> = {
   [TenantResource.WORKER]: 'Total Workers',
@@ -12,6 +12,7 @@ const resources: Record<TenantResource, string> = {
   [TenantResource.TASK_RUN]: 'Task Runs',
   [TenantResource.CRON]: 'Cron Triggers',
   [TenantResource.SCHEDULE]: 'Schedule Triggers',
+  [TenantResource.INCOMING_WEBHOOK]: 'Incoming Webhooks',
 };
 
 const indicatorVariants = {
@@ -39,7 +40,7 @@ export function LimitIndicator({
     variant = indicatorVariants.exhausted;
   }
 
-  return <div className={cn(variant, 'rounded-full h-[6px] w-[6px]')} />;
+  return <div className={cn(variant, 'h-[6px] w-[6px] rounded-full')} />;
 }
 
 const durationMap: Record<string, string> = {

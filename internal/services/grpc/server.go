@@ -35,6 +35,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 )
 
 type Server struct {
@@ -211,6 +214,7 @@ func (s *Server) Start() (func() error, error) {
 
 func (s *Server) startGRPC() (func() error, error) {
 	s.l.Debug().Msgf("starting grpc server on %s:%d", s.bindAddress, s.port)
+	s.l.Info().Msg("gzip compression enabled for gRPC server")
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.bindAddress, s.port))
 
@@ -309,6 +313,10 @@ func (s *Server) startGRPC() (func() error, error) {
 
 	serverOpts = append(serverOpts, grpc.StaticStreamWindowSize(
 		s.config.Runtime.GRPCStaticStreamWindowSize,
+	))
+
+	serverOpts = append(serverOpts, grpc.StatsHandler(
+		otelgrpc.NewServerHandler(),
 	))
 
 	grpcServer := grpc.NewServer(serverOpts...)

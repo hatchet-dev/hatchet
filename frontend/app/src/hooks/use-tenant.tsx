@@ -1,46 +1,31 @@
-import { useCallback, useMemo, useState } from 'react';
 import api, {
   UpdateTenantRequest,
   Tenant,
   CreateTenantRequest,
   queries,
 } from '@/lib/api';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { Evaluate } from '@/lib/can/shared/permission.base';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { appRoutes } from '@/router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { useAtom } from 'jotai';
+import { useCallback, useMemo, useState } from 'react';
 
-export type Plan = 'free' | 'starter' | 'growth';
-
-export type EvaluateResult = {
-  allowed: boolean;
-  rejectReason?: RejectReason;
-  message?: string;
-};
-
-export type PermissionSet<K = any> = Record<string, (resource?: K) => Evaluate>;
-
-export enum RejectReason {
-  BILLING_REQUIRED = 'BILLING_REQUIRED',
-  UPGRADE_REQUIRED = 'UPGRADE_REQUIRED',
-  ROLE_REQUIRED = 'ROLE_REQUIRED',
-  CLOUD_ONLY = 'CLOUD_ONLY',
-}
+type Plan = 'free' | 'starter' | 'growth';
 
 export function useCurrentTenantId() {
-  const params = useParams();
+  const params = useParams({ from: appRoutes.tenantRoute.to });
   const tenantId = params.tenant;
-
-  invariant(tenantId, 'Tenant ID is required');
 
   return { tenantId };
 }
 
 export function useTenantDetails() {
-  const params = useParams();
+  // Allow calling this hook even when not currently on a tenant route
+  // (e.g., onboarding pages). When not matched, params will be empty.
+  const params = useParams({ strict: false });
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const tenantId = params.tenant || lastTenant?.metadata.id;
 
@@ -54,23 +39,41 @@ export function useTenantDetails() {
   );
 
   const queryClient = useQueryClient();
-  const location = useLocation();
+  const matchRoute = useMatchRoute();
   const navigate = useNavigate();
+  const tenantParamInPath = params.tenant;
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
-      const currentPath = location.pathname;
-
-      const newPath = currentPath.replace(
-        /\/tenants\/([^/]+)/,
-        `/tenants/${tenant.metadata.id}`,
-      );
-
       setLastTenant(tenant);
       queryClient.clear();
-      navigate(newPath);
+
+      const isOnTenantRoute = Boolean(
+        matchRoute({
+          to: appRoutes.tenantRoute.to,
+          params: tenantParamInPath
+            ? {
+                tenant: tenantParamInPath,
+              }
+            : undefined,
+          fuzzy: true,
+        }),
+      );
+
+      if (!isOnTenantRoute) {
+        navigate({
+          to: appRoutes.tenantRunsRoute.to,
+          params: { tenant: tenant.metadata.id },
+        });
+        return;
+      }
+
+      navigate({
+        to: '.', // stay on the current route
+        params: { tenant: tenant.metadata.id },
+      });
     },
-    [navigate, location.pathname, setLastTenant, queryClient],
+    [matchRoute, navigate, setLastTenant, queryClient, tenantParamInPath],
   );
 
   const membership = useMemo(() => {

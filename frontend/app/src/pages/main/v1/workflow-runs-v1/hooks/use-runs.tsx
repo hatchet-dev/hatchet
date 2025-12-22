@@ -1,12 +1,14 @@
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { usePagination } from '@/hooks/use-pagination';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, V1TaskSummary, V1TaskStatus } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
+import { RowSelectionState } from '@tanstack/react-table';
 import { useCallback, useMemo, useState } from 'react';
-import { RowSelectionState, PaginationState } from '@tanstack/react-table';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 type UseRunsProps = {
+  key: string;
   rowSelection: RowSelectionState;
-  pagination: PaginationState;
   createdAfter?: string;
   finishedBefore?: string;
   statuses?: V1TaskStatus[];
@@ -17,12 +19,11 @@ type UseRunsProps = {
   triggeringEventExternalId?: string | undefined;
   onlyTasks: boolean;
   disablePagination?: boolean;
-  pauseRefetch?: boolean;
 };
 
 export const useRuns = ({
+  key,
   rowSelection,
-  pagination,
   createdAfter,
   finishedBefore,
   statuses,
@@ -33,10 +34,12 @@ export const useRuns = ({
   triggeringEventExternalId,
   onlyTasks,
   disablePagination = false,
-  pauseRefetch = false,
 }: UseRunsProps) => {
   const { tenantId } = useCurrentTenantId();
-  const offset = pagination.pageIndex * pagination.pageSize;
+  const { refetchInterval } = useRefetchInterval();
+  const { offset, pagination, setPageSize, setPagination } = usePagination({
+    key: 'runs-table-' + key,
+  });
 
   const [initialRenderTime] = useState(
     new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -64,10 +67,11 @@ export const useRuns = ({
       worker_id: workerId,
       only_tasks: onlyTasks,
       triggering_event_external_id: triggeringEventExternalId,
+      include_payloads: false,
     }),
     placeholderData: (prev) => prev,
     refetchInterval:
-      Object.keys(rowSelection).length > 0 || pauseRefetch ? false : 5000,
+      Object.keys(rowSelection).length > 0 ? false : refetchInterval,
   });
 
   const tasks = listTasksQuery.data;
@@ -112,5 +116,9 @@ export const useRuns = ({
     isError: listTasksQuery.isError,
     isFetching: listTasksQuery.isFetching,
     getRowId,
+    isRefetching: listTasksQuery.isRefetching,
+    pagination,
+    setPagination,
+    setPageSize,
   };
 };

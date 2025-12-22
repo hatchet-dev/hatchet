@@ -1,10 +1,10 @@
-import { ColumnDef } from '@tanstack/react-table';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/v1/ui/avatar';
 import { Button } from '@/components/v1/ui/button';
-import { GearIcon } from '@radix-ui/react-icons';
 import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { CheckCircleIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
+import { GearIcon } from '@radix-ui/react-icons';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const columns = (
   linkToTenant: (installationId: string) => void,
@@ -17,8 +17,8 @@ export const columns = (
       ),
       cell: ({ row }) => {
         return (
-          <div className="flex flex-row gap-4 items-center">
-            <Avatar className="w-6 h-6">
+          <div className="flex flex-row items-center gap-4">
+            <Avatar className="h-6 w-6">
               <AvatarImage src={row.original.account_avatar_url} />
               <AvatarFallback />
             </Avatar>
@@ -40,9 +40,8 @@ export const columns = (
             <Button
               variant="ghost"
               disabled
-              className="flex flex-row gap-2 px-2"
+              leftIcon={<CheckCircleIcon className="size-4" />}
             >
-              <CheckCircleIcon className="h-4 w-4" />
               Linked
             </Button>
           );
@@ -50,10 +49,9 @@ export const columns = (
         return row.original.type == 'installation' ? (
           <Button
             variant="outline"
-            className="flex flex-row gap-2 px-2"
             onClick={() => linkToTenant(row.original.metadata.id)}
+            leftIcon={<PlusCircleIcon className="size-4" />}
           >
-            <PlusCircleIcon className="h-4 w-4" />
             Link to tenant
           </Button>
         ) : (
@@ -65,9 +63,7 @@ export const columns = (
             target="_blank"
             rel="noreferrer"
           >
-            <Button variant="outline" className="flex flex-row gap-2 px-2">
-              Finish Setup
-            </Button>
+            <Button variant="outline">Finish Setup</Button>
           </a>
         );
       },
@@ -89,8 +85,7 @@ export const columns = (
             target="_blank"
             rel="noreferrer"
           >
-            <Button variant="ghost" className="flex flex-row gap-2 px-2">
-              <GearIcon className="h-4 w-4" />
+            <Button variant="ghost" leftIcon={<GearIcon className="size-4" />}>
               Configure
             </Button>
           </a>

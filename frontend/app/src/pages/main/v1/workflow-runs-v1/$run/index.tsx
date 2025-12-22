@@ -1,57 +1,53 @@
-import api, {
-  V1TaskStatus,
-  V1TaskSummary,
-  V1WorkflowRunDetails,
-  WorkflowRunShapeForWorkflowRunDetails,
-  WorkflowRunStatus,
-} from '@/lib/api';
-import { useParams } from 'react-router-dom';
+import { RunsProvider } from '../hooks/runs-provider';
+import {
+  isTerminalState,
+  useWorkflowDetails,
+} from '../hooks/use-workflow-details';
+import { V1RunDetailHeader } from './v2components/header';
+import { JobMiniMap } from './v2components/mini-map';
+import {
+  TabOption,
+  TaskRunDetail,
+} from './v2components/step-run-detail/step-run-detail';
+import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
+import { ViewToggle } from './v2components/view-toggle';
+import { Waterfall } from './v2components/waterfall';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
+import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
+import { Badge } from '@/components/v1/ui/badge';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
-import { useCallback } from 'react';
-import {
-  TabOption,
-  TaskRunDetail,
-} from './v2components/step-run-detail/step-run-detail';
-import { Separator } from '@/components/v1/ui/separator';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { V1RunDetailHeader } from './v2components/header';
-import { Badge } from '@/components/v1/ui/badge';
-import { ViewToggle } from './v2components/view-toggle';
-import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
-import { useAtom } from 'jotai';
+import api, {
+  V1TaskStatus,
+  V1TaskSummary,
+  V1WorkflowRunDetails,
+  WorkflowRunShapeForWorkflowRunDetails,
+} from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
-import { JobMiniMap } from './v2components/mini-map';
-import {
-  isTerminalState,
-  useWorkflowDetails,
-} from '../hooks/use-workflow-details';
+import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
-import { Spinner } from '@/components/v1/ui/loading';
-import { Waterfall } from './v2components/waterfall';
-import { RunsProvider } from '../hooks/runs-provider';
-
-export const WORKFLOW_RUN_TERMINAL_STATUSES = [
-  WorkflowRunStatus.CANCELLED,
-  WorkflowRunStatus.FAILED,
-  WorkflowRunStatus.SUCCEEDED,
-];
+import { useParams } from '@tanstack/react-router';
+import { useAtom } from 'jotai';
+import { useCallback, useRef } from 'react';
 
 function statusToBadgeVariant(status: V1TaskStatus) {
   switch (status) {
     case V1TaskStatus.COMPLETED:
       return 'successful';
     case V1TaskStatus.FAILED:
-    case V1TaskStatus.CANCELLED:
       return 'failed';
+    case V1TaskStatus.CANCELLED:
+      return 'cancelled';
+    case V1TaskStatus.QUEUED:
+      return 'queued';
     default:
       return 'inProgress';
   }
@@ -106,9 +102,7 @@ async function fetchDAGRun(id: string) {
 }
 
 export default function Run() {
-  const { run } = useParams();
-
-  invariant(run, 'Run ID is required');
+  const { run } = useParams({ from: appRoutes.tenantRunRoute.to });
 
   const taskRunQuery = useQuery({
     queryKey: ['workflow-run', run],
@@ -188,9 +182,18 @@ function ExpandedTaskRun({ id }: { id: string }) {
 
 function ExpandedWorkflowRun({ id }: { id: string }) {
   const { open } = useSidePanel();
+  const executingRef = useRef(false);
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
+      // hack to prevent click handler from firing multiple times,
+      // causing index offset issues
+      if (executingRef.current) {
+        return;
+      }
+
+      executingRef.current = true;
+
       open({
         type: 'task-run-details',
         content: {
@@ -199,6 +202,10 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
           showViewTaskRunButton: true,
         },
       });
+
+      setTimeout(() => {
+        executingRef.current = false;
+      }, 100);
     },
     [open],
   );
@@ -213,18 +220,18 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
   const additionalMetadata = workflowRun.additionalMetadata;
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto pt-2 px-4 sm:px-6 lg:px-8">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 pt-2 sm:px-6 lg:px-8">
         <V1RunDetailHeader />
         <Separator className="my-4" />
-        <div className="flex flex-row gap-x-4 mb-4">
+        <div className="mb-4 flex flex-row gap-x-4">
           <p className="font-semibold">Status</p>
           <Badge variant={statusToBadgeVariant(workflowRun.status)}>
             {workflowRun.status}
           </Badge>
         </div>
         <div className="h-4" />
-        <Tabs defaultValue="overview" className="flex flex-col h-full">
+        <Tabs defaultValue="overview" className="flex h-full flex-col">
           <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="overview">
               Overview
@@ -233,8 +240,8 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               Waterfall
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="overview" className="flex-1 min-h-0">
-            <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
+          <TabsContent value="overview" className="min-h-0 flex-1">
+            <div className="relative flex h-fit w-full overflow-auto bg-slate-100 dark:bg-slate-900">
               <GraphView
                 shape={shape}
                 handleTaskRunExpand={handleTaskRunExpand}
@@ -275,7 +282,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               </TabsContent>
             </Tabs>
           </TabsContent>
-          <TabsContent value="waterfall" className="flex-1 min-h-0">
+          <TabsContent value="waterfall" className="min-h-0 flex-1">
             <Waterfall
               workflowRunId={id}
               selectedTaskId={undefined}

@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -49,6 +50,81 @@ func (q *Queries) BulkQueueItems(ctx context.Context, db DBTX, ids []int64) ([]i
 		return nil, err
 	}
 	return items, nil
+}
+
+const cleanupV1QueueItem = `-- name: CleanupV1QueueItem :execresult
+WITH locked_qis as (
+    SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
+    FROM v1_queue_item qi
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE qi.task_id = vt.id
+            AND qi.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY qi.id ASC
+    LIMIT $1::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_queue_item
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_qis
+)
+`
+
+func (q *Queries) CleanupV1QueueItem(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1QueueItem, batchsize)
+}
+
+const cleanupV1RateLimitedQueueItem = `-- name: CleanupV1RateLimitedQueueItem :execresult
+WITH locked_qis as (
+    SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
+    FROM v1_rate_limited_queue_items qi
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE qi.task_id = vt.id
+        AND qi.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY qi.task_id, qi.task_inserted_at, qi.retry_count
+    LIMIT $1::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_rate_limited_queue_items
+WHERE (task_id, task_inserted_at) IN (
+    SELECT task_id, task_inserted_at
+    FROM locked_qis
+)
+`
+
+func (q *Queries) CleanupV1RateLimitedQueueItem(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1RateLimitedQueueItem, batchsize)
+}
+
+const cleanupV1RetryQueueItem = `-- name: CleanupV1RetryQueueItem :execresult
+WITH locked_qis as (
+    SELECT qi.task_id, qi.task_inserted_at, qi.task_retry_count
+    FROM v1_retry_queue_item qi
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE qi.task_id = vt.id
+        AND qi.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY qi.task_id, qi.task_inserted_at, qi.task_retry_count
+    LIMIT $1::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_retry_queue_item
+WHERE (task_id, task_inserted_at) IN (
+    SELECT task_id, task_inserted_at
+    FROM locked_qis
+)
+`
+
+func (q *Queries) CleanupV1RetryQueueItem(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1RetryQueueItem, batchsize)
 }
 
 const deleteTasksFromQueue = `-- name: DeleteTasksFromQueue :exec
@@ -795,22 +871,35 @@ func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg Update
 const upsertQueues = `-- name: UpsertQueues :exec
 WITH ordered_names AS (
     SELECT unnest($2::text[]) AS name
-    ORDER BY name
+    ORDER BY name ASC
+), existing_queues AS (
+    SELECT tenant_id, name, last_active
+    FROM v1_queue
+    WHERE tenant_id = $1
+      AND name = ANY($2::text[])
+), locked_existing_queues AS (
+    SELECT tenant_id, name, last_active
+    FROM v1_queue
+    WHERE
+        tenant_id = $1
+        AND name IN (SELECT name FROM existing_queues)
+    ORDER BY name ASC
+    FOR UPDATE SKIP LOCKED
+), names_to_insert AS (
+    SELECT on1.name
+    FROM ordered_names on1
+    LEFT JOIN existing_queues eq ON eq.name = on1.name
+    WHERE eq.name IS NULL
+), updated_queues AS (
+    UPDATE v1_queue
+    SET last_active = NOW()
+    WHERE tenant_id = $1
+      AND name IN (SELECT name FROM locked_existing_queues)
 )
-INSERT INTO
-    v1_queue (
-        tenant_id,
-        name,
-        last_active
-    )
-SELECT
-    $1,
-    name,
-    NOW()
-FROM ordered_names
-ON CONFLICT (tenant_id, name) DO UPDATE
-SET
-    last_active = NOW()
+INSERT INTO v1_queue (tenant_id, name, last_active)
+SELECT $1, name, NOW()
+FROM names_to_insert
+ON CONFLICT (tenant_id, name) DO NOTHING
 `
 
 type UpsertQueuesParams struct {
@@ -818,6 +907,7 @@ type UpsertQueuesParams struct {
 	Names    []string    `json:"names"`
 }
 
+// Insert new queues
 func (q *Queries) UpsertQueues(ctx context.Context, db DBTX, arg UpsertQueuesParams) error {
 	_, err := db.Exec(ctx, upsertQueues, arg.TenantID, arg.Names)
 	return err

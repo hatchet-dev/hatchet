@@ -44,7 +44,7 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 
 	if request.Params.AdditionalMetadata != nil {
 		for _, v := range *request.Params.AdditionalMetadata {
-			kv_pairs := strings.Split(v, ":")
+			kv_pairs := strings.SplitN(v, ":", 2)
 			if len(kv_pairs) == 2 {
 				additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
 			}

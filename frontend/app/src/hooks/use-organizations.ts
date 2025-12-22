@@ -1,14 +1,14 @@
-import { useMemo, useCallback } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
 import { cloudApi } from '@/lib/api/api';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
-import { useApiError } from '@/lib/hooks';
 import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
   OrganizationMember,
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
+import { useApiError } from '@/lib/hooks';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMemo, useCallback } from 'react';
 
 export function useOrganizations() {
   const { isCloudEnabled } = useCloudApiMeta();
@@ -162,6 +162,13 @@ export function useOrganizations() {
     onError: handleApiError,
   });
 
+  const deleteTenantMutation = useMutation({
+    mutationFn: async (data: { tenantId: string }) => {
+      await cloudApi.organizationTenantDelete(data.tenantId);
+    },
+    onError: handleApiError,
+  });
+
   const updateOrganizationMutation = useMutation({
     mutationFn: async (data: { organizationId: string; name: string }) => {
       const result = await cloudApi.organizationUpdate(data.organizationId, {
@@ -170,6 +177,19 @@ export function useOrganizations() {
       return result.data;
     },
     onError: handleApiError,
+  });
+
+  const createOrganizationMutation = useMutation({
+    mutationFn: async (data: { name: string }) => {
+      const result = await cloudApi.organizationCreate({
+        name: data.name,
+      });
+      return result.data;
+    },
+    onError: handleApiError,
+    onSuccess: () => {
+      organizationListQuery.refetch();
+    },
   });
 
   const handleCreateToken = useCallback(
@@ -240,6 +260,28 @@ export function useOrganizations() {
     [deleteTokenMutation],
   );
 
+  const handleDeleteTenant = useCallback(
+    (
+      tenantId: string,
+      onSuccess: () => void,
+      onOpenChange: (open: boolean) => void,
+    ) => {
+      deleteTenantMutation.mutate(
+        { tenantId: tenantId },
+        {
+          onSuccess: () => {
+            onSuccess();
+            onOpenChange(false);
+          },
+          onError: () => {
+            onOpenChange(false);
+          },
+        },
+      );
+    },
+    [deleteTenantMutation],
+  );
+
   const handleUpdateOrganization = useCallback(
     (organizationId: string, name: string, onSuccess: () => void) => {
       updateOrganizationMutation.mutate(
@@ -257,6 +299,23 @@ export function useOrganizations() {
     [updateOrganizationMutation],
   );
 
+  const handleCreateOrganization = useCallback(
+    (name: string, onSuccess: (organizationId: string) => void) => {
+      createOrganizationMutation.mutate(
+        { name },
+        {
+          onSuccess: (data) => {
+            onSuccess(data.metadata.id);
+          },
+          onError: () => {
+            // Error handling is done by the mutation itself via handleApiError
+          },
+        },
+      );
+    },
+    [createOrganizationMutation],
+  );
+
   return {
     organizations,
     organizationData: organizationListQuery.data,
@@ -272,13 +331,17 @@ export function useOrganizations() {
     handleCreateToken,
     handleDeleteMember,
     handleDeleteToken,
+    handleDeleteTenant,
     handleUpdateOrganization,
+    handleCreateOrganization,
     // Loading states for mutations
     cancelInviteLoading: cancelInviteMutation.isPending,
     createTokenLoading: createTokenMutation.isPending,
     deleteMemberLoading: deleteMemberMutation.isPending,
     deleteTokenLoading: deleteTokenMutation.isPending,
+    deleteTenantLoading: deleteTenantMutation.isPending,
     updateOrganizationLoading: updateOrganizationMutation.isPending,
+    createOrganizationLoading: createOrganizationMutation.isPending,
     isLoading: organizationListQuery.isLoading,
     error: organizationListQuery.error,
   };

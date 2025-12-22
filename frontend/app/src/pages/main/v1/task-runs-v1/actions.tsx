@@ -1,3 +1,10 @@
+import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
+import { useToast } from '@/components/v1/hooks/use-toast';
+import { IDGetter } from '@/components/v1/molecules/data-table/data-table';
+import {
+  DataTableOptionsContent,
+  DataTableOptionsContentProps,
+} from '@/components/v1/molecules/data-table/data-table-options';
 import { Button } from '@/components/v1/ui/button';
 import {
   DialogTitle,
@@ -5,35 +12,19 @@ import {
   DialogContent,
   DialogHeader,
 } from '@/components/v1/ui/dialog';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   queries,
   V1CancelTaskRequest,
   V1ReplayTaskRequest,
-  V1TaskStatus,
 } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
+import { cn } from '@/lib/utils';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useCallback } from 'react';
-import { Combobox } from '@/components/v1/molecules/combobox/combobox';
-import {
-  additionalMetadataKey,
-  statusKey,
-  workflowKey,
-} from '../workflow-runs-v1/components/v1/task-runs-columns';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
-import { TimeFilter } from '../workflow-runs-v1/components/task-runs-table/time-filter';
-import { cn } from '@/lib/utils';
-import { Repeat1 } from 'lucide-react';
-import { useToast } from '@/components/v1/hooks/use-toast';
 import { capitalize } from 'lodash';
-
-export const TASK_RUN_TERMINAL_STATUSES = [
-  V1TaskStatus.CANCELLED,
-  V1TaskStatus.FAILED,
-  V1TaskStatus.COMPLETED,
-];
+import { Repeat1 } from 'lucide-react';
+import { useCallback } from 'react';
 
 export type ActionType = 'cancel' | 'replay';
 
@@ -51,7 +42,7 @@ export type BaseTaskRunActionParams =
       externalIds?: never;
     };
 
-export type TaskRunActionsParams =
+type TaskRunActionsParams =
   | {
       actionType: 'cancel';
       filter?: never;
@@ -73,7 +64,7 @@ export type TaskRunActionsParams =
       externalIds?: never;
     };
 
-export const useTaskRunActions = () => {
+const useTaskRunActions = () => {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
@@ -117,7 +108,6 @@ export const useTaskRunActions = () => {
         case 'replay':
           return api.v1TaskReplay(tenantId, params);
         default:
-          // eslint-disable-next-line no-case-declarations
           const exhaustiveCheck: never = actionType;
           throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
       }
@@ -174,7 +164,6 @@ const actionTypeToLabel = (actionType: ActionType) => {
     case 'replay':
       return 'Replay';
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = actionType;
       throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
   }
@@ -207,7 +196,7 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
       <p className="text-md">
         Confirm to {label.toLowerCase()} the following runs:
       </p>
-      <ul className="list-disc pl-4 ml-4">
+      <ul className="ml-4 list-disc pl-4">
         {displayNames?.slice(0, 10).map((record) => (
           <li className="font-semibold" key={record.metadata.id}>
             {record.displayName}
@@ -221,109 +210,45 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
   );
 };
 
-const ModalContent = ({ label, params }: ModalContentProps) => {
-  const { filters, toolbarFilters: tf } = useRunsContext();
-
+function ModalContent<TData extends IDGetter<TData>>({
+  label,
+  params,
+  table,
+  columnKeyToName,
+  filters,
+  hiddenFilters,
+}: ModalContentProps & DataTableOptionsContentProps<TData>) {
   if (params.externalIds?.length) {
     return <CancelByExternalIdsContent label={label} params={params} />;
   } else if (params.filter) {
-    const statusToolbarFilter = tf.find((f) => f.columnId === statusKey);
-    const additionalMetaToolbarFilter = tf.find(
-      (f) => f.columnId === additionalMetadataKey,
-    );
-    const workflowToolbarFilter = tf.find((f) => f.columnId === workflowKey);
-
-    const hasFilters =
-      statusToolbarFilter ||
-      additionalMetaToolbarFilter ||
-      workflowToolbarFilter;
-
     return (
       <div className="space-y-6">
         <p className="text-sm text-muted-foreground">
           Confirm to {label.toLowerCase()} all runs matching the following
           filters:
         </p>
-
-        {hasFilters && (
-          <div className="space-y-4">
-            <h4 className="text-sm font-medium text-foreground">
-              Applied Filters
-            </h4>
-            <div className="space-y-3">
-              {statusToolbarFilter && (
-                <div className="flex flex-row items-center gap-x-2">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {statusToolbarFilter.title}
-                  </label>
-                  <Combobox
-                    values={params.filter.statuses}
-                    title={statusToolbarFilter.title}
-                    type={statusToolbarFilter.type}
-                    options={statusToolbarFilter.options}
-                    setValues={(values) =>
-                      filters.setStatuses(values as V1TaskStatus[])
-                    }
-                  />
-                </div>
-              )}
-              {additionalMetaToolbarFilter && (
-                <div className="gap-x-2 flex flex-row items-center">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {additionalMetaToolbarFilter.title}
-                  </label>
-                  <Combobox
-                    values={params.filter.additionalMetadata}
-                    title={additionalMetaToolbarFilter.title}
-                    type={additionalMetaToolbarFilter.type}
-                    options={additionalMetaToolbarFilter.options}
-                    setValues={(values) => {
-                      const kvPairs = values.map((v) => {
-                        const [key, value] = v.split(':');
-                        return { key, value };
-                      });
-
-                      filters.setAllAdditionalMetadata(kvPairs);
-                    }}
-                  />
-                </div>
-              )}
-              {workflowToolbarFilter && (
-                <div className="flex flex-row items-center gap-x-2">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {workflowToolbarFilter.title}
-                  </label>
-                  <Combobox
-                    values={params.filter.workflowIds}
-                    title={workflowToolbarFilter.title}
-                    type={workflowToolbarFilter.type}
-                    options={workflowToolbarFilter.options}
-                    setValues={(values) =>
-                      filters.setWorkflowIds(values as string[])
-                    }
-                  />
-                </div>
-              )}
-              <div className="flex flex-row items-center gap-x-2">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Time Range
-                </label>
-                <TimeFilter className="flex flex-row items-start gap-3 mb-0" />
-              </div>
-            </div>
-          </div>
-        )}
+        <DataTableOptionsContent
+          table={table}
+          filters={filters}
+          columnKeyToName={columnKeyToName}
+          hiddenFilters={hiddenFilters}
+          showColumnVisibility={false}
+        />
       </div>
     );
   } else {
     throw new Error(`Unhandled case: ${params}`);
   }
-};
+}
 
-export const ConfirmActionModal = ({
+export function ConfirmActionModal<TData extends IDGetter<TData>>({
   actionType,
   params,
-}: ConfirmActionModalProps) => {
+  table,
+  columnKeyToName,
+  filters,
+  hiddenFilters,
+}: ConfirmActionModalProps & DataTableOptionsContentProps<TData>) {
   const label = actionTypeToLabel(actionType);
   const { handleTaskRunAction } = useTaskRunActions();
   const {
@@ -333,26 +258,34 @@ export const ConfirmActionModal = ({
 
   return (
     <Dialog open={isActionModalOpen} onOpenChange={setIsActionModalOpen}>
-      <DialogContent className="sm:max-w-[700px] py-8 max-h-screen overflow-auto z-[70]">
+      <DialogContent className="z-[70] max-h-[90%] overflow-auto py-8 sm:max-w-[700px]">
         <DialogHeader className="gap-2">
-          <div className="flex flex-row justify-between items-center w-full">
+          <div className="flex w-full flex-row items-center justify-between">
             <DialogTitle>{label} runs</DialogTitle>
           </div>
         </DialogHeader>
 
         <div className="flex flex-col space-y-4">
           <div className="text-sm text-muted-foreground">
-            <ModalContent label={label} params={params} />
+            <ModalContent
+              label={label}
+              params={params}
+              table={table}
+              filters={filters}
+              columnKeyToName={columnKeyToName}
+              hiddenFilters={hiddenFilters}
+              showColumnVisibility={false}
+            />
           </div>
 
-          <div className="flex flex-row items-center gap-3 justify-end pt-4 border-t">
+          <div className="flex flex-row items-center justify-end gap-3 border-t pt-4">
             <Button
               onClick={() => {
                 setIsActionModalOpen(false);
               }}
               variant="outline"
             >
-              Cancel
+              Close
             </Button>
             <Button
               onClick={() => {
@@ -370,7 +303,7 @@ export const ConfirmActionModal = ({
       </DialogContent>
     </Dialog>
   );
-};
+}
 
 const BaseActionButton = ({
   disabled,
@@ -399,7 +332,7 @@ const BaseActionButton = ({
   return (
     <Button
       size={'sm'}
-      className={cn('text-sm px-2 py-2 gap-2', className)}
+      className={cn('text-sm', className)}
       variant={'outline'}
       disabled={disabled}
       onClick={() => {
@@ -413,8 +346,8 @@ const BaseActionButton = ({
 
         setIsActionModalOpen(true);
       }}
+      leftIcon={icon}
     >
-      {icon}
       {label}
     </Button>
   );
@@ -442,7 +375,7 @@ export const TaskRunActionButton = ({
         <BaseActionButton
           disabled={disabled}
           params={{ ...params, actionType: 'cancel' }}
-          icon={<XCircleIcon className="w-4 h-4" />}
+          icon={<XCircleIcon className="size-4" />}
           label={'Cancel'}
           showModal={showModal}
           className={className}
@@ -453,14 +386,13 @@ export const TaskRunActionButton = ({
         <BaseActionButton
           disabled={disabled}
           params={{ ...params, actionType: 'replay' }}
-          icon={<Repeat1 className="w-4 h-4" />}
+          icon={<Repeat1 className="size-4" />}
           label={'Replay'}
           showModal={showModal}
           className={className}
         />
       );
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = actionType;
       throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
   }

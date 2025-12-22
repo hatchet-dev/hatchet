@@ -1,4 +1,21 @@
-import * as React from 'react';
+import { DataTablePagination } from './data-table-pagination';
+import {
+  DataTableToolbar,
+  ShowTableActionsProps,
+  ToolbarFilters,
+} from './data-table-toolbar';
+import { Skeleton } from '@/components/v1/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/v1/ui/table';
+import { cn } from '@/lib/utils';
+import { ConfirmActionModal } from '@/pages/main/v1/task-runs-v1/actions';
+import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -18,20 +35,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/v1/ui/table';
-
-import { DataTablePagination } from './data-table-pagination';
-import { DataTableToolbar, ToolbarFilters } from './data-table-toolbar';
-import { Skeleton } from '@/components/v1/ui/skeleton';
-import { cn } from '@/lib/utils';
+import * as React from 'react';
 
 export interface IDGetter<T> {
   metadata: {
@@ -47,8 +51,9 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   error?: Error | null;
-  filters: ToolbarFilters;
-  actions?: JSX.Element[];
+  filters?: ToolbarFilters;
+  leftActions?: JSX.Element[];
+  rightActions?: JSX.Element[];
   sorting?: SortingState;
   setSorting?: OnChangeFn<SortingState>;
   setSearch?: (search: string) => void;
@@ -78,8 +83,14 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   manualFiltering?: boolean;
   getSubRows?: (row: TData) => TData[];
   headerClassName?: string;
-  hideFlatten?: boolean;
+  hiddenFilters?: string[];
+  onResetFilters?: () => void;
 }
+
+type RefetchProps = {
+  isRefetching: boolean;
+  onRefetch: () => void;
+};
 
 interface ExtraDataTableProps {
   emptyState?: JSX.Element;
@@ -87,19 +98,20 @@ interface ExtraDataTableProps {
     containerStyle?: string;
     component: React.FC<any> | ((data: any) => JSX.Element);
   };
-  onToolbarReset?: () => void;
+  columnKeyToName?: Record<string, string>;
+  refetchProps?: RefetchProps;
+  tableActions?: ShowTableActionsProps;
 }
 
 export function DataTable<TData extends IDGetter<TData>, TValue>({
   columns,
   error,
   data,
-  filters,
-  actions = [],
+  filters = [],
+  leftActions = [],
+  rightActions = [],
   sorting,
   setSorting,
-  setSearch,
-  search,
   columnFilters,
   setColumnFilters,
   pagination,
@@ -119,9 +131,12 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   manualSorting = true,
   manualFiltering = true,
   getSubRows,
-  onToolbarReset,
   headerClassName,
-  hideFlatten,
+  hiddenFilters = [],
+  onResetFilters,
+  columnKeyToName,
+  refetchProps,
+  tableActions,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -210,7 +225,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
                 <TableHead
                   key={header.id}
                   colSpan={header.colSpan}
-                  className={cn('bg-background border-b', headerClassName)}
+                  className={cn('border-b bg-background', headerClassName)}
                 >
                   {header.isPlaceholder
                     ? null
@@ -271,22 +286,35 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   );
 
   return (
-    <div className="flex flex-col max-h-full space-y-4">
-      {(setSearch || actions || (filters && filters.length > 0)) && (
+    <div className="flex max-h-full flex-col space-y-4">
+      {tableActions?.selectedActionType && (
+        <ConfirmActionModal
+          actionType={tableActions.selectedActionType}
+          params={tableActions.actionModalParams}
+          table={table}
+          columnKeyToName={columnKeyToName}
+          filters={filters}
+          hiddenFilters={[flattenDAGsKey]}
+          showColumnVisibility={false}
+        />
+      )}
+      {(leftActions || rightActions || filters.length > 0) && (
         <DataTableToolbar
           table={table}
           filters={filters}
           isLoading={isLoading}
-          actions={actions}
-          search={search}
-          setSearch={setSearch}
+          leftActions={leftActions}
+          rightActions={rightActions}
           showColumnToggle={showColumnToggle}
-          onReset={onToolbarReset}
-          hideFlatten={hideFlatten}
+          hiddenFilters={hiddenFilters}
+          columnKeyToName={columnKeyToName}
+          refetchProps={refetchProps}
+          tableActions={tableActions}
+          onResetFilters={onResetFilters}
         />
       )}
       <div
-        className={`flex-1 min-h-0 rounded-md ${!card && 'border'} ${!card && 'overflow-auto'}`}
+        className={`min-h-0 flex-1 rounded-md ${!card && 'border'} ${!card && 'overflow-auto'}`}
       >
         {!card ? getTable() : getCards()}
       </div>

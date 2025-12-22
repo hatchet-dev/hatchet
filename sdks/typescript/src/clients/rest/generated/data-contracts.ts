@@ -220,6 +220,8 @@ export interface Tenant {
   version: 'V0' | 'V1';
   /** The UI of the tenant. */
   uiVersion?: 'V0' | 'V1';
+  /** The environment type of the tenant. */
+  environment?: TenantEnvironment;
 }
 
 export interface TenantMember {
@@ -237,6 +239,12 @@ export interface TenantMemberList {
   rows?: TenantMember[];
 }
 
+export enum TenantEnvironment {
+  Local = 'local',
+  Development = 'development',
+  Production = 'production',
+}
+
 export enum TenantMemberRole {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',
@@ -251,6 +259,7 @@ export enum TenantResource {
   TASK_RUN = 'TASK_RUN',
   CRON = 'CRON',
   SCHEDULE = 'SCHEDULE',
+  INCOMING_WEBHOOK = 'INCOMING_WEBHOOK',
 }
 
 export interface TenantResourceLimit {
@@ -285,6 +294,11 @@ export interface CreateTenantInviteRequest {
 }
 
 export interface UpdateTenantInviteRequest {
+  /** The role of the user in the tenant. */
+  role: TenantMemberRole;
+}
+
+export interface UpdateTenantMemberRequest {
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
 }
@@ -346,6 +360,26 @@ export interface TenantInvite {
   expires: string;
 }
 
+export type TaskStats = Record<string, TaskStat>;
+
+export interface TaskStat {
+  queued?: TaskStatusStat;
+  running?: TaskStatusStat;
+}
+
+export interface TaskStatusStat {
+  /** @format int64 */
+  total?: number;
+  queues?: Record<string, number>;
+  concurrency?: ConcurrencyStat[];
+}
+
+export interface ConcurrencyStat {
+  expression?: string;
+  type?: string;
+  keys?: Record<string, number>;
+}
+
 export interface TenantInviteList {
   pagination?: PaginationResponse;
   rows?: TenantInvite[];
@@ -403,6 +437,10 @@ export interface CreateTenantRequest {
   uiVersion?: any;
   /** The engine version of the tenant. Defaults to V0. */
   engineVersion?: any;
+  /** The environment type of the tenant. */
+  environment?: TenantEnvironment;
+  /** Additional onboarding data to store with the tenant. */
+  onboardingData?: Record<string, any>;
 }
 
 export interface UpdateTenantRequest {
@@ -622,6 +660,8 @@ export interface V1Filter {
   expression: string;
   /** Additional payload data associated with the filter */
   payload: object;
+  /** Whether the filter is declarative (true) or programmatic (false) */
+  isDeclarative?: boolean;
 }
 
 export interface V1WebhookList {
@@ -647,6 +687,8 @@ export enum V1WebhookSourceName {
   GENERIC = 'GENERIC',
   GITHUB = 'GITHUB',
   STRIPE = 'STRIPE',
+  SLACK = 'SLACK',
+  LINEAR = 'LINEAR',
 }
 
 export enum V1WebhookAuthType {
@@ -1284,6 +1326,16 @@ export interface Worker {
   lastListenerEstablished?: string;
   /** The actions this worker can perform. */
   actions?: string[];
+  /** The workflow ids registered on this worker. */
+  registeredWorkflows?: {
+    /**
+     * The workflow id registered on this worker.
+     * @format uuid
+     */
+    id: string;
+    /** The name of the workflow registered on this worker. */
+    name: string;
+  }[];
   /** The semaphore slot state for the worker. */
   slots?: SemaphoreSlots[];
   /** The recent step runs for the worker. */
@@ -1394,6 +1446,10 @@ export interface CreateCronWorkflowTriggerRequest {
    * @max 3
    */
   priority?: number;
+}
+
+export interface UpdateCronWorkflowTriggerRequest {
+  enabled?: boolean;
 }
 
 export interface CreatePullRequestFromStepRun {
@@ -1595,6 +1651,9 @@ export interface V1WorkflowRunDisplayNameList {
     displayName: string;
   }[];
 }
+
+/** The list of external IDs */
+export type V1WorkflowRunExternalIdList = string[];
 
 export interface V1TaskSummary {
   metadata: APIResourceMeta;
@@ -2042,6 +2101,11 @@ export type V1CreateWebhookRequest =
         signingSecret: string;
       };
     };
+
+export interface V1UpdateWebhookRequest {
+  /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
+  eventKeyExpression: string;
+}
 
 export interface V1UpdateFilterRequest {
   /** The expression for the filter */

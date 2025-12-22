@@ -63,6 +63,7 @@ type TriggerTaskData struct {
 	// (optional) the child key
 	ChildKey *string `json:"child_key"`
 
+	// (optional) the priority of the task
 	Priority *int32 `json:"priority"`
 }
 
@@ -94,7 +95,7 @@ type createDAGOpts struct {
 type TriggerRepository interface {
 	TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error)
 
-	TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error)
+	TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error)
 
 	PopulateExternalIdsForWorkflow(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error
 
@@ -118,7 +119,7 @@ type Run struct {
 }
 
 type TriggerFromEventsResult struct {
-	Tasks                 []*sqlcv1.V1Task
+	Tasks                 []*V1TaskWithPayload
 	Dags                  []*DAGWithData
 	EventExternalIdToRuns map[string][]*Run
 	CELEvaluationFailures []CELEvaluationFailure
@@ -141,7 +142,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 	// Case 1 - no filters exist for the workflow
 	if !hasAnyFilters {
 		return []TriggerDecision{
-			TriggerDecision{
+			{
 				ShouldTrigger: true,
 				FilterPayload: nil,
 				FilterId:      nil,
@@ -153,7 +154,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 	// so we should not trigger the workflow
 	if len(filters) == 0 {
 		return []TriggerDecision{
-			TriggerDecision{
+			{
 				ShouldTrigger: false,
 				FilterPayload: nil,
 				FilterId:      nil,
@@ -261,12 +262,19 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 	workflowIdScopePairs := make(map[WorkflowAndScope]bool)
 
+	// important: need to include all workflow ids here, regardless of whether or
+	// not the corresponding event was pushed with a scope, so we can correctly
+	// tell if there are any filters for the workflows with these events registered
+	workflowIdsForFilterCounts := make([]pgtype.UUID, 0, len(workflowVersionIdsAndEventKeys))
+
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
 
 		if !ok {
 			continue
 		}
+
+		workflowIdsForFilterCounts = append(workflowIdsForFilterCounts, workflow.WorkflowId)
 
 		for _, opt := range opts {
 			if opt.Scope == nil {
@@ -280,8 +288,8 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 	}
 
-	workflowIds := make([]pgtype.UUID, 0)
-	scopes := make([]string, 0)
+	workflowIds := make([]pgtype.UUID, 0, len(workflowIdScopePairs))
+	scopes := make([]string, 0, len(workflowIdScopePairs))
 
 	for pair := range workflowIdScopePairs {
 		workflowIds = append(workflowIds, pair.WorkflowId)
@@ -311,7 +319,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 	filterCounts, err := r.queries.ListFilterCountsForWorkflows(ctx, r.pool, sqlcv1.ListFilterCountsForWorkflowsParams{
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
-		Workflowids: workflowIds,
+		Workflowids: workflowIdsForFilterCounts,
 	})
 
 	if err != nil {
@@ -436,12 +444,17 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}, nil
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error) {
+func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
 	workflowNames := make([]string, 0, len(opts))
 	uniqueNames := make(map[string]struct{})
 	namesToOpts := make(map[string][]*WorkflowNameTriggerOpts)
+	idempotencyKeyToExternalIds := make(map[IdempotencyKey]pgtype.UUID)
 
 	for _, opt := range opts {
+		if opt.IdempotencyKey != nil {
+			idempotencyKeyToExternalIds[*opt.IdempotencyKey] = sqlchelpers.UUIDFromStr(opt.ExternalId)
+		}
+
 		namesToOpts[opt.WorkflowName] = append(namesToOpts[opt.WorkflowName], opt)
 
 		if _, ok := uniqueNames[opt.WorkflowName]; ok {
@@ -450,6 +463,21 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 		uniqueNames[opt.WorkflowName] = struct{}{}
 		workflowNames = append(workflowNames, opt.WorkflowName)
+	}
+
+	keyClaimantPairs := make([]KeyClaimantPair, 0, len(idempotencyKeyToExternalIds))
+
+	for idempotencyKey, runExternalId := range idempotencyKeyToExternalIds {
+		keyClaimantPairs = append(keyClaimantPairs, KeyClaimantPair{
+			IdempotencyKey:      idempotencyKey,
+			ClaimedByExternalId: runExternalId,
+		})
+	}
+
+	keyClaimantPairToWasClaimed, err := claimIdempotencyKeys(ctx, r.queries, r.pool, tenantId, keyClaimantPairs)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
 	}
 
 	// we don't run this in a transaction because workflow versions won't change during the course of this operation
@@ -473,6 +501,20 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 		}
 
 		for _, opt := range opts {
+			if opt.IdempotencyKey != nil {
+				keyClaimantPair := KeyClaimantPair{
+					IdempotencyKey:      *opt.IdempotencyKey,
+					ClaimedByExternalId: sqlchelpers.UUIDFromStr(opt.ExternalId),
+				}
+
+				wasSuccessfullyClaimed := keyClaimantPairToWasClaimed[keyClaimantPair]
+
+				// if we did not successfully claim the idempotency key, we should not trigger the workflow
+				if !wasSuccessfullyClaimed {
+					continue
+				}
+			}
+
 			triggerOpts = append(triggerOpts, triggerTuple{
 				workflowVersionId:    sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersionId),
 				workflowId:           sqlchelpers.UUIDToStr(workflowVersion.WorkflowId),
@@ -638,7 +680,7 @@ type triggerTuple struct {
 	childKey             *string
 }
 
-func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId string, tuples []triggerTuple) ([]*sqlcv1.V1Task, []*DAGWithData, error) {
+func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId string, tuples []triggerTuple) ([]*V1TaskWithPayload, []*DAGWithData, error) {
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[string]struct{})
 
@@ -1209,6 +1251,36 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		return nil, nil, fmt.Errorf("failed to create event matches: %w", err)
 	}
 
+	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks))
+
+	for _, task := range tasks {
+		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			ExternalId: task.ExternalID,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			Payload:    task.Payload,
+			TenantId:   tenantId,
+		})
+	}
+
+	for _, dag := range dags {
+		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+			Id:         dag.ID,
+			InsertedAt: dag.InsertedAt,
+			ExternalId: dag.ExternalID,
+			Type:       sqlcv1.V1PayloadTypeDAGINPUT,
+			Payload:    dag.Input,
+			TenantId:   tenantId,
+		})
+	}
+
+	err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to store payloads: %w", err)
+	}
+
 	// commit
 	if err := commit(ctx); err != nil {
 		return nil, nil, err
@@ -1230,6 +1302,16 @@ type DAGWithData struct {
 	ParentTaskExternalID *pgtype.UUID
 
 	TotalTasks int
+}
+
+type V1TaskWithPayload struct {
+	*sqlcv1.V1Task
+	Payload []byte `json:"payload"`
+}
+
+type V1TaskEventWithPayload struct {
+	*sqlcv1.V1TaskEvent
+	Payload []byte `json:"payload"`
 }
 
 func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts []createDAGOpts) ([]*DAGWithData, error) {
@@ -1294,6 +1376,14 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 			input = []byte("{}")
 		}
 
+		// todo: remove this logic when we remove the need for dual writes
+		// in the meantime, basically just passes the dag data through this function
+		// back to the caller without writing it
+		inputToWrite := input
+		if !r.payloadStore.DagDataDualWritesEnabled() {
+			inputToWrite = []byte("{}")
+		}
+
 		additionalMeta := opt.AdditionalMetadata
 
 		if len(additionalMeta) == 0 {
@@ -1303,7 +1393,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 		dagDataParams = append(dagDataParams, sqlcv1.CreateDAGDataParams{
 			DagID:              dag.ID,
 			DagInsertedAt:      dag.InsertedAt,
-			Input:              input,
+			Input:              inputToWrite,
 			AdditionalMetadata: additionalMeta,
 		})
 
@@ -1411,12 +1501,41 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		return nil, err
 	}
 
+	retrievePayloadOpts := make([]RetrievePayloadOpts, len(matchingEvents))
+
+	for i, event := range matchingEvents {
+		retrievePayloadOpts[i] = RetrievePayloadOpts{
+			Id:         event.ID,
+			InsertedAt: event.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+	}
+
+	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
+	}
+
 	// parse the event match data, and determine whether the child external ID has already been written
 	// we're safe to do this read since we've acquired a lock on the relevant rows
 	rootExternalIdsToLookup := make([]pgtype.UUID, 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
-		c, err := newChildWorkflowSignalCreatedDataFromBytes(event.Data)
+		payload, ok := payloads[RetrievePayloadOpts{
+			Id:         event.ID,
+			InsertedAt: event.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}]
+
+		if !ok {
+			r.l.Error().Msgf("registerChildWorkflows: event with inserted at %s and id %d has empty payload, falling back to input", event.InsertedAt.Time, event.ID)
+			payload = event.Data
+		}
+
+		c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
 
 		if err != nil {
 			r.l.Error().Msgf("failed to unmarshal child workflow signal created data: %s", err)

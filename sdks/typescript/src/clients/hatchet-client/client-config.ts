@@ -10,9 +10,15 @@ const ClientTLSConfigSchema = z.object({
   server_name: z.string().optional(),
 });
 
+const HealthcheckConfigSchema = z.object({
+  enabled: z.boolean().optional().default(false),
+  port: z.number().optional().default(8001),
+});
+
 export const ClientConfigSchema = z.object({
   token: z.string(),
   tls_config: ClientTLSConfigSchema,
+  healthcheck: HealthcheckConfigSchema.optional(),
   host_port: z.string(),
   api_url: z.string(),
   log_level: z.enum(['OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR']).optional(),

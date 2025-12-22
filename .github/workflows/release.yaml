@@ -18,7 +18,7 @@ jobs:
         pg-version: ["15-alpine", "16-alpine", "17-alpine"]
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -28,12 +28,12 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: "1.25"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.15.4
+          version: 10.16.1
           run_install: false
 
       - name: Go deps

@@ -1,107 +1,10 @@
-import React from 'react';
-
-import {
-  V1TaskRunMetrics,
-  V1TaskStatus,
-  WorkflowRunStatus,
-  WorkflowRunsMetrics,
-} from '@/lib/api';
-import { Badge, badgeVariants } from '@/components/v1/ui/badge';
-import { VariantProps } from 'class-variance-authority';
 import { useRunsContext } from '../hooks/runs-provider';
-import { getStatusesFromFilters } from '../hooks/use-runs-table-state';
-
-interface WorkflowRunsMetricsProps {
-  metrics: WorkflowRunsMetrics;
-  onClick?: (status?: WorkflowRunStatus) => void;
-  onViewQueueMetricsClick?: () => void;
-  showQueueMetrics?: boolean;
-}
-
-const calculatePercentage = (value: number, total: number): number => {
-  const res = Math.round((value / total) * 100);
-
-  if (isNaN(res)) {
-    return 0;
-  }
-
-  return res;
-};
-
-export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
-  metrics: { counts },
-  showQueueMetrics = false,
-  onClick = () => {},
-  onViewQueueMetricsClick = () => {},
-}) => {
-  const total =
-    (counts?.PENDING ?? 0) +
-    (counts?.RUNNING ?? 0) +
-    (counts?.SUCCEEDED ?? 0) +
-    (counts?.QUEUED ?? 0) +
-    (counts?.FAILED ?? 0);
-
-  const succeededPercentage = calculatePercentage(
-    counts?.SUCCEEDED ?? 0,
-    total,
-  );
-  const runningPercentage = calculatePercentage(counts?.RUNNING ?? 0, total);
-  const failedPercentage = calculatePercentage(counts?.FAILED ?? 0, total);
-  const pendingPercentage = calculatePercentage(counts?.PENDING ?? 0, total);
-  const queuedPercentage = calculatePercentage(counts?.QUEUED ?? 0, total);
-
-  return (
-    <dl className="flex flex-row justify-start gap-6">
-      <Badge
-        variant="successful"
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
-        onClick={() => onClick(WorkflowRunStatus.SUCCEEDED)}
-      >
-        {counts?.SUCCEEDED?.toLocaleString('en-US')} Succeeded (
-        {succeededPercentage}%)
-      </Badge>
-      <Badge
-        variant="inProgress"
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
-        onClick={() => onClick(WorkflowRunStatus.RUNNING)}
-      >
-        {counts?.RUNNING?.toLocaleString('en-US')} Running ({runningPercentage}
-        %)
-      </Badge>
-      <Badge
-        variant="failed"
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
-        onClick={() => onClick(WorkflowRunStatus.FAILED)}
-      >
-        {counts?.FAILED?.toLocaleString('en-US')} Failed ({failedPercentage}%)
-      </Badge>
-      <Badge
-        variant="outline"
-        className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
-        onClick={() => onClick(WorkflowRunStatus.PENDING)}
-      >
-        {counts?.PENDING?.toLocaleString('en-US')} Pending ({pendingPercentage}
-        %)
-      </Badge>
-      <Badge
-        variant="outline"
-        className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
-        onClick={() => onClick(WorkflowRunStatus.QUEUED)}
-      >
-        {counts?.QUEUED?.toLocaleString('en-US')} Queued ({queuedPercentage}%)
-      </Badge>
-      {showQueueMetrics && (
-        <Badge
-          variant="outline"
-          className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
-          onClick={() => onViewQueueMetricsClick()}
-        >
-          Queue metrics
-        </Badge>
-      )}
-    </dl>
-  );
-};
+import { Badge } from '@/components/v1/ui/badge';
+import { V1TaskStatus } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { PlayIcon, X, Ban, ChartColumn } from 'lucide-react';
+import { useCallback, useMemo } from 'react';
 
 function statusToFriendlyName(status: V1TaskStatus) {
   switch (status) {
@@ -116,131 +19,147 @@ function statusToFriendlyName(status: V1TaskStatus) {
     case V1TaskStatus.RUNNING:
       return 'Running';
     default:
-      // eslint-disable-next-line no-case-declarations
+      const exhaustivenessCheck: never = status;
+      throw new Error(`Unknown status: ${exhaustivenessCheck}`);
+  }
+}
+
+function statusToIcon(status: V1TaskStatus) {
+  switch (status) {
+    case V1TaskStatus.COMPLETED:
+      return CheckCircleIcon;
+    case V1TaskStatus.FAILED:
+      return X;
+    case V1TaskStatus.CANCELLED:
+      return Ban;
+    case V1TaskStatus.RUNNING:
+      return PlayIcon;
+    case V1TaskStatus.QUEUED:
+      return ClockIcon;
+    default:
       const exhaustivenessCheck: never = status;
       throw new Error(`Unknown status: ${exhaustivenessCheck}`);
   }
 }
 
 function MetricBadge({
-  metrics,
   status,
-  total,
-  onClick,
-  variant,
   className,
 }: {
-  metrics: V1TaskRunMetrics;
   status: V1TaskStatus;
-  total: number;
-  onClick?: (status: V1TaskStatus) => void;
-  variant: VariantProps<typeof badgeVariants>['variant'];
-  className: string;
+  className?: string;
 }) {
-  const metric = metrics.find((m) => m.status === status);
+  const { filters, runStatusCounts } = useRunsContext();
+  const currentStatuses = useMemo(
+    () => filters.apiFilters.statuses || [],
+    [filters.apiFilters.statuses],
+  );
+  const isSelected = currentStatuses.includes(status);
+  const { setStatuses } = filters;
+
+  const handleStatusClick = useCallback(
+    (status: V1TaskStatus) => {
+      const isSelected = currentStatuses.includes(status);
+
+      const allStatuses = Object.values(V1TaskStatus);
+
+      const isAllSelected =
+        currentStatuses.length === allStatuses.length &&
+        allStatuses.every((s) => currentStatuses.includes(s));
+
+      if (isSelected) {
+        if (isAllSelected) {
+          setStatuses([status]);
+        } else {
+          const newStatuses = currentStatuses.filter((s) => s !== status);
+
+          if (newStatuses.length === 0) {
+            setStatuses(allStatuses);
+          } else {
+            setStatuses(newStatuses);
+          }
+        }
+      } else {
+        setStatuses([...currentStatuses, status]);
+      }
+    },
+    [currentStatuses, setStatuses],
+  );
+
+  const metric = runStatusCounts.find((m) => m.status === status);
 
   if (!metric) {
     return null;
   }
 
-  const percentage = calculatePercentage(metric.count, total);
+  const IconComponent = statusToIcon(status);
+  const friendlyName = statusToFriendlyName(status);
+  const formattedCount = metric.count.toLocaleString('en-US');
 
   return (
     <Badge
-      variant={variant}
-      className={className}
-      onClick={() => onClick?.(status)}
+      data-is-selected={isSelected}
+      variant={isSelected ? 'default' : 'outline'}
+      className={cn(
+        'h-8 w-fit cursor-pointer px-3 py-1 text-sm data-[is-selected=false]:font-light',
+        className,
+      )}
+      onClick={() => handleStatusClick(status)}
     >
-      {metric.count.toLocaleString('en-US')} {statusToFriendlyName(status)} (
-      {percentage}%)
+      <span className="flex items-center gap-1">
+        <span>{formattedCount}</span>
+        <span className="cq-xl:inline hidden">{friendlyName}</span>
+        <IconComponent className="cq-xl:hidden size-4" />
+      </span>
     </Badge>
   );
 }
 
 export const V1WorkflowRunsMetricsView = () => {
   const {
-    metrics,
-    state,
     display: { hideMetrics },
-    filters: { setStatuses },
-    actions: { updateUIState },
+    actions: { setShowQueueMetrics },
   } = useRunsContext();
 
-  const onViewQueueMetricsClick = () => {
-    updateUIState({ viewQueueMetrics: true });
-  };
-
-  const handleStatusClick = (status: V1TaskStatus) => {
-    const currentStatuses = getStatusesFromFilters(state.columnFilters);
-    const isSelected = currentStatuses.includes(status);
-
-    if (isSelected) {
-      setStatuses(currentStatuses.filter((s) => s !== status));
-    } else {
-      setStatuses([...currentStatuses, status]);
-    }
-  };
-
-  const total = metrics
-    .map((m) => m.count)
-    .reduce((acc, curr) => acc + curr, 0);
-
+  // format of className strings is:
+  // default, then unselected, then selected, then hover+selected, then hover+unselected
   return (
-    <dl className="flex flex-row justify-start gap-6">
+    <div className="flex flex-row justify-start gap-2">
       <MetricBadge
-        metrics={metrics}
         status={V1TaskStatus.COMPLETED}
-        total={total}
-        onClick={handleStatusClick}
-        variant="successful"
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
+        className={`text-green-800 data-[is-selected=false]:border data-[is-selected=false]:border-green-500/20 data-[is-selected=true]:bg-green-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-green-500/20 hover:data-[is-selected=true]:bg-green-500/20 dark:text-green-300`}
       />
 
       <MetricBadge
-        metrics={metrics}
         status={V1TaskStatus.RUNNING}
-        total={total}
-        onClick={handleStatusClick}
-        variant="inProgress"
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
+        className={`text-yellow-800 data-[is-selected=false]:border data-[is-selected=false]:border-yellow-500/20 data-[is-selected=true]:bg-yellow-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-yellow-500/20 hover:data-[is-selected=true]:bg-yellow-500/20 dark:text-yellow-300`}
       />
 
       <MetricBadge
-        metrics={metrics}
         status={V1TaskStatus.FAILED}
-        total={total}
-        onClick={handleStatusClick}
-        variant="failed"
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
+        className={`text-red-800 data-[is-selected=false]:border data-[is-selected=false]:border-red-500/20 data-[is-selected=true]:bg-red-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-red-500/20 hover:data-[is-selected=true]:bg-red-500/20 dark:text-red-300`}
       />
 
       <MetricBadge
-        metrics={metrics}
         status={V1TaskStatus.CANCELLED}
-        total={total}
-        onClick={handleStatusClick}
-        variant="outlineDestructive"
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
+        className={`text-orange-800 data-[is-selected=false]:border data-[is-selected=false]:border-orange-500/20 data-[is-selected=true]:bg-orange-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-orange-500/20 hover:data-[is-selected=true]:bg-orange-500/20 dark:text-orange-300`}
       />
 
       <MetricBadge
-        metrics={metrics}
         status={V1TaskStatus.QUEUED}
-        total={total}
-        onClick={handleStatusClick}
-        variant="outline"
-        className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
+        className={`text-slate-800 data-[is-selected=false]:border data-[is-selected=false]:border-slate-500/20 data-[is-selected=true]:bg-slate-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-slate-500/20 hover:data-[is-selected=true]:bg-slate-500/20 dark:text-slate-300`}
       />
 
       {!hideMetrics && (
         <Badge
           variant="outline"
-          className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
-          onClick={() => onViewQueueMetricsClick()}
+          className="h-8 w-fit cursor-pointer rounded-sm px-3 py-1 text-sm font-normal"
+          onClick={() => setShowQueueMetrics(true)}
         >
-          Queue metrics
+          <span className="cq-xl:inline hidden">Queue metrics</span>
+          <ChartColumn className="cq-xl:hidden size-4" />
         </Badge>
       )}
-    </dl>
+    </div>
   );
 };

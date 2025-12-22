@@ -1,29 +1,62 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { CronWorkflows } from '@/lib/api';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Link } from 'react-router-dom';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
-import { Badge } from '@/components/v1/ui/badge';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { extractCronTz, formatCron } from '@/lib/utils';
+import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge } from '@/components/v1/ui/badge';
+import { Spinner } from '@/components/v1/ui/loading';
+import { CronWorkflows } from '@/lib/api';
+import { extractCronTz, formatCron } from '@/lib/cron';
+import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
+import { Check, X } from 'lucide-react';
+
+export const CronColumn = {
+  expression: 'Expression',
+  description: 'Description',
+  timezone: 'Timezone',
+  name: 'Name',
+  workflow: 'Workflow',
+  metadata: 'Metadata',
+  createdAt: 'Created At',
+  actions: 'Actions',
+  enabled: 'Enabled',
+};
+
+type CronColumnKeys = keyof typeof CronColumn;
+
+const enabledKey: CronColumnKeys = 'enabled';
+const expressionKey: CronColumnKeys = 'expression';
+const descriptionKey: CronColumnKeys = 'description';
+const timezoneKey: CronColumnKeys = 'timezone';
+const nameKey: CronColumnKeys = 'name';
+export const workflowKey: CronColumnKeys = 'workflow';
+export const metadataKey: CronColumnKeys = 'metadata';
+const createdAtKey: CronColumnKeys = 'createdAt';
+const actionsKey: CronColumnKeys = 'actions';
 
 export const columns = ({
   tenantId,
   onDeleteClick,
+  onEnableClick,
   selectedJobId,
   setSelectedJobId,
+  isUpdatePending,
+  updatingCronId,
 }: {
   tenantId: string;
   onDeleteClick: (row: CronWorkflows) => void;
+  onEnableClick: (row: CronWorkflows) => void;
   selectedJobId: string | null;
   setSelectedJobId: (jobId: string | null) => void;
+  isUpdatePending: boolean;
+  updatingCronId: string | undefined;
 }): ColumnDef<CronWorkflows>[] => {
   return [
     {
-      accessorKey: 'crons',
+      accessorKey: expressionKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Cron" />
+        <DataTableColumnHeader column={column} title={CronColumn.expression} />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4 whitespace-nowrap">
@@ -33,9 +66,9 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'description',
+      accessorKey: descriptionKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Description" />
+        <DataTableColumnHeader column={column} title={CronColumn.description} />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -45,9 +78,9 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'timezone',
+      accessorKey: timezoneKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Timezone" />
+        <DataTableColumnHeader column={column} title={CronColumn.timezone} />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -57,9 +90,9 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'name',
+      accessorKey: nameKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Name" />
+        <DataTableColumnHeader column={column} title={CronColumn.name} />
       ),
       cell: ({ row }) => (
         <div>
@@ -72,15 +105,16 @@ export const columns = ({
       ),
     },
     {
-      accessorKey: 'Workflow',
+      accessorKey: workflowKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Workflow" />
+        <DataTableColumnHeader column={column} title={CronColumn.workflow} />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
-          <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+          <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
             <Link
-              to={`/tenants/${tenantId}/workflows/${row.original.workflowId}`}
+              to={appRoutes.tenantWorkflowRoute.to}
+              params={{ tenant: tenantId, workflow: row.original.workflowId }}
             >
               {row.original.workflowName}
             </Link>
@@ -91,9 +125,9 @@ export const columns = ({
       enableHiding: true,
     },
     {
-      accessorKey: 'Metadata',
+      accessorKey: metadataKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Metadata" />
+        <DataTableColumnHeader column={column} title={CronColumn.metadata} />
       ),
       cell: ({ row }) => {
         if (!row.original.additionalMetadata) {
@@ -117,9 +151,9 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'createdAt',
+      accessorKey: createdAtKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Created At" />
+        <DataTableColumnHeader column={column} title={CronColumn.createdAt} />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -129,24 +163,27 @@ export const columns = ({
       enableSorting: true,
       enableHiding: true,
     },
-    // {
-    //   accessorKey: 'method',
-    //   header: ({ column }) => (
-    //     <DataTableColumnHeader column={column} title="Create Method" />
-    //   ),
-    //   cell: ({ row }) => <div>{row.original.method}</div>,
-    // },
-    // {
-    //   accessorKey: 'enabled',
-    //   header: ({ column }) => (
-    //     <DataTableColumnHeader column={column} title="Enabled" />
-    //   ),
-    //   cell: ({ row }) => <div>{row.original.enabled ? 'Yes' : 'No'}</div>,
-    // },
     {
-      accessorKey: 'actions',
+      accessorKey: enabledKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Actions" />
+        <DataTableColumnHeader column={column} title={CronColumn.enabled} />
+      ),
+      cell: ({ row }) => (
+        <div>
+          {isUpdatePending && updatingCronId === row.original.metadata.id ? (
+            <Spinner />
+          ) : row.original.enabled ? (
+            <Check className="size-4 text-emerald-500" />
+          ) : (
+            <X className="size-4 text-red-500" />
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: actionsKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={CronColumn.actions} />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row justify-center">
@@ -159,6 +196,14 @@ export const columns = ({
                 disabled:
                   row.original.method !== 'API'
                     ? 'This cron was created via a code definition. Delete it from the code definition instead.'
+                    : undefined,
+              },
+              {
+                label: row.original.enabled ? 'Disable' : 'Enable',
+                onClick: () => onEnableClick(row.original),
+                disabled:
+                  isUpdatePending && updatingCronId === row.original.metadata.id
+                    ? 'Update in progress'
                     : undefined,
               },
             ]}

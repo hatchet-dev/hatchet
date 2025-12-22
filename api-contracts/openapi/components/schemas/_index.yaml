@@ -62,6 +62,14 @@ UpdateTenantAlertEmailGroupRequest:
   $ref: "./tenant.yaml#/UpdateTenantAlertEmailGroupRequest"
 TenantInvite:
   $ref: "./tenant.yaml#/TenantInvite"
+TaskStats:
+  $ref: "./tenant.yaml#/TaskStats"
+TaskStat:
+  $ref: "./tenant.yaml#/TaskStat"
+TaskStatusStat:
+  $ref: "./tenant.yaml#/TaskStatusStat"
+ConcurrencyStat:
+  $ref: "./tenant.yaml#/ConcurrencyStat"
 TenantInviteList:
   $ref: "./tenant.yaml#/TenantInviteList"
 QueueMetrics:
@@ -106,6 +114,8 @@ WorkflowID:
   $ref: "./event.yaml#/WorkflowID"
 EventList:
   $ref: "./event.yaml#/EventList"
+V1Event:
+  $ref: "./v1/event.yaml#/V1Event"
 V1EventList:
   $ref: "./v1/event.yaml#/V1EventList"
 V1FilterList:
@@ -256,6 +266,8 @@ ScheduleWorkflowRunRequest:
   $ref: "./workflow_run.yaml#/ScheduleWorkflowRunRequest"
 CreateCronWorkflowTriggerRequest:
   $ref: "./workflow_run.yaml#/CreateCronWorkflowTriggerRequest"
+UpdateCronWorkflowTriggerRequest:
+  $ref: "./workflow_run.yaml#/UpdateCronWorkflowTriggerRequest"
 CreatePullRequestFromStepRun:
   $ref: "./workflow_run.yaml#/CreatePullRequestFromStepRun"
 GetStepRunDiffResponse:
@@ -314,6 +326,8 @@ V1TaskSummaryList:
   $ref: "./v1/task.yaml#/V1TaskSummaryList"
 V1WorkflowRunDisplayNameList:
   $ref: "./v1/task.yaml#/V1WorkflowRunDisplayNameList"
+V1WorkflowRunExternalIdList:
+  $ref: "./v1/task.yaml#/V1WorkflowRunExternalIdList"
 V1TaskSummary:
   $ref: "./v1/task.yaml#/V1TaskSummary"
 V1DagChildren:

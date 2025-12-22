@@ -67,12 +67,21 @@ def hatchet_worker(
     children = parent.children(recursive=True)
 
     for child in children:
-        child.terminate()
+        try:
+            child.terminate()
+        except psutil.NoSuchProcess:
+            pass
 
-    parent.terminate()
+    try:
+        parent.terminate()
+    except psutil.NoSuchProcess:
+        pass
 
     _, alive = psutil.wait_procs([parent] + children, timeout=5)
 
     for p in alive:
         logging.warning(f"Force killing process {p.pid}")
-        p.kill()
+        try:
+            p.kill()
+        except psutil.NoSuchProcess:
+            pass

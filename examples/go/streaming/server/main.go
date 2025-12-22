@@ -8,17 +8,17 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/examples/go/streaming/shared"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 // > Server
 func main() {
-	hatchet, err := v1.NewHatchetClient()
+	client, err := hatchet.NewClient()
 	if err != nil {
 		log.Fatalf("Failed to create Hatchet client: %v", err)
 	}
 
-	streamingWorkflow := shared.StreamingWorkflow(hatchet)
+	streamingWorkflow := shared.StreamingWorkflow(client)
 
 	http.HandleFunc("/stream", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
@@ -33,11 +33,7 @@ func main() {
 			return
 		}
 
-		stream, err := hatchet.Runs().SubscribeToStream(ctx, workflowRun.RunId())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		stream := client.Runs().SubscribeToStream(ctx, workflowRun.RunId)
 
 		flusher, _ := w.(http.Flusher)
 		for content := range stream {

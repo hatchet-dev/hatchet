@@ -1,4 +1,4 @@
-import { Badge } from '@/components/v1/ui/badge';
+import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import { HoverCard, HoverCardTrigger } from '@/components/v1/ui/hover-card';
 import {
   Tooltip,
@@ -20,52 +20,48 @@ type RunStatusType =
 
 type RunStatusVariant = {
   text: string;
-  variant: 'inProgress' | 'successful' | 'failed' | 'outline';
+  variant: BadgeProps['variant'];
 };
 
-export function createRunStatusVariant(
-  status: RunStatusType,
-): RunStatusVariant {
+function createRunStatusVariant(status: RunStatusType): RunStatusVariant {
   switch (status) {
     case 'SUCCEEDED':
       return { text: 'Succeeded', variant: 'successful' };
     case 'FAILED':
       return { text: 'Failed', variant: 'failed' };
     case 'CANCELLED':
-      return { text: 'Cancelled', variant: 'failed' };
+      return { text: 'Cancelled', variant: 'cancelled' };
     case 'CANCELLING':
-      return { text: 'Cancelling', variant: 'inProgress' };
+      return { text: 'Cancelling', variant: 'cancelled' };
     case 'RUNNING':
       return { text: 'Running', variant: 'inProgress' };
     case 'QUEUED':
-      return { text: 'Queued', variant: 'outline' };
+      return { text: 'Queued', variant: 'queued' };
     case 'PENDING':
-      return { text: 'Pending', variant: 'outline' };
+      return { text: 'Pending', variant: 'queued' };
     case 'PENDING_ASSIGNMENT':
-      return { text: 'Pending', variant: 'outline' };
+      return { text: 'Pending', variant: 'queued' };
     case 'ASSIGNED':
       return { text: 'Assigned', variant: 'inProgress' };
     case 'SCHEDULED':
-      return { text: 'Scheduled', variant: 'outline' };
+      return { text: 'Scheduled', variant: 'queued' };
     default:
       return { text: 'Unknown', variant: 'outline' };
   }
 }
 
-export function createV1RunStatusVariant(
-  status: V1TaskStatus,
-): RunStatusVariant {
+function createV1RunStatusVariant(status: V1TaskStatus): RunStatusVariant {
   switch (status) {
     case V1TaskStatus.COMPLETED:
       return { text: 'Succeeded', variant: 'successful' };
     case V1TaskStatus.FAILED:
       return { text: 'Failed', variant: 'failed' };
     case V1TaskStatus.CANCELLED:
-      return { text: 'Cancelled', variant: 'failed' };
+      return { text: 'Cancelled', variant: 'cancelled' };
     case V1TaskStatus.RUNNING:
       return { text: 'Running', variant: 'inProgress' };
     case V1TaskStatus.QUEUED:
-      return { text: 'Queued', variant: 'outline' };
+      return { text: 'Queued', variant: 'queued' };
     default:
       return { text: 'Unknown', variant: 'outline' };
   }
@@ -154,7 +150,7 @@ export function V1RunStatus({
       <HoverCardTrigger className="hover:cursor-help">
         <StatusBadge />
       </HoverCardTrigger>
-      <HoverCardContent className="bg-card max-w-96 lg:max-w-[500px] overflow-auto z-10 shadow-xl p-4 rounded-md border border-gray-600 border-opacity-50 max-h-96">
+      <HoverCardContent className="z-10 max-h-96 max-w-96 overflow-auto rounded-md border border-gray-600 border-opacity-50 bg-card p-4 shadow-xl lg:max-w-[500px]">
         <p className="text-xs">{errorMessage}</p>
       </HoverCardContent>
     </HoverCard>

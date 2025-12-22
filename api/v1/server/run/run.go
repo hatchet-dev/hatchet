@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
@@ -39,10 +42,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/headers"
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/ratelimit"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	"golang.org/x/time/rate"
 )
 
 type apiService struct {
@@ -179,6 +184,29 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
+	e.IPExtractor = func(r *http.Request) string {
+		// Cloudflare sets CF-Connecting-IP header with the original client IP
+		if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
+			return ip
+		}
+
+		// Fallback to X-Forwarded-For
+		if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+			// X-Forwarded-For can contain multiple IPs, we only want the first one
+			ips := strings.Split(ip, ",")
+			if len(ips) > 0 {
+				return ips[0]
+			}
+		}
+
+		// Additional fallback to X-Real-IP used by certain proxies
+		if ip := r.Header.Get("X-Real-IP"); ip != "" {
+			return ip
+		}
+
+		// Final fallback to remote address
+		return r.RemoteAddr
+	}
 
 	g := e.Group("")
 
@@ -210,6 +238,19 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		return tenant, "", nil
+	})
+
+	populatorMW.RegisterGetter("member", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		member, err := config.APIRepository.Tenant().GetTenantMemberByID(ctxTimeout, id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return member, sqlchelpers.UUIDToStr(member.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("api-token", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -352,8 +393,62 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 		event, err := config.APIRepository.Event().GetEventById(timeoutCtx, id)
 
-		if err != nil {
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, "", err
+		} else if errors.Is(err, pgx.ErrNoRows) {
+			v1Event, err := t.config.V1.OLAP().GetEvent(timeoutCtx, id)
+
+			if err != nil {
+				return nil, "", err
+			}
+
+			payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID.String(), v1Event.ExternalID)
+
+			if err != nil {
+				return nil, "", err
+			}
+
+			event = &dbsqlc.Event{
+				ID:                 v1Event.ExternalID,
+				TenantId:           v1Event.TenantID,
+				Data:               payload,
+				CreatedAt:          pgtype.Timestamp(v1Event.SeenAt),
+				AdditionalMetadata: v1Event.AdditionalMetadata,
+				Key:                v1Event.Key,
+			}
+		}
+
+		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
+	})
+
+	// note: this is a hack to allow for the v0 event getter to use the pk on the v1 event lookup table
+	populatorMW.RegisterGetter("event-with-tenant", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		event, err := config.APIRepository.Event().GetEventById(timeoutCtx, id)
+
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, "", err
+		} else if errors.Is(err, pgx.ErrNoRows) {
+			v1Event, err := t.config.V1.OLAP().GetEventWithPayload(timeoutCtx, id, parentId)
+
+			if err != nil {
+				return nil, "", err
+			}
+
+			event = &dbsqlc.Event{
+				ID:                 v1Event.EventExternalID,
+				TenantId:           v1Event.TenantID,
+				Data:               v1Event.Payload,
+				CreatedAt:          pgtype.Timestamp(v1Event.EventSeenAt),
+				AdditionalMetadata: v1Event.EventAdditionalMetadata,
+				Key:                v1Event.EventKey,
+			}
+		}
+
+		if event == nil {
+			return nil, "", fmt.Errorf("event not found")
 		}
 
 		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
@@ -407,6 +502,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantID), nil
 	})
+
 	populatorMW.RegisterGetter("v1-filter", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		filter, err := t.config.V1.Filters().GetFilter(
 			context.Background(),
@@ -419,6 +515,20 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		return filter, sqlchelpers.UUIDToStr(filter.TenantID), nil
+	})
+
+	populatorMW.RegisterGetter("v1-event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		event, err := t.config.V1.OLAP().GetEventWithPayload(
+			context.Background(),
+			id,
+			parentId,
+		)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return event, sqlchelpers.UUIDToStr(event.TenantID), nil
 	})
 
 	populatorMW.RegisterGetter("v1-webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -501,16 +611,16 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		},
 	})
 
+	rateLimitMW := ratelimit.NewRateLimitMiddleware(t.config, spec)
+	otelMW := telemetry.NewOTelMiddleware(t.config)
+
 	// register echo middleware
 	g.Use(
 		loggerMiddleware,
 		middleware.Recover(),
+		rateLimitMW.Middleware(),
+		otelMW.Middleware(),
 		allHatchetMiddleware,
-		hatchetmiddleware.WebhookRateLimitMiddleware(
-			rate.Limit(t.config.Runtime.WebhookRateLimit),
-			t.config.Runtime.WebhookRateLimitBurst,
-			t.config.Logger,
-		),
 	)
 
 	return populatorMW, nil

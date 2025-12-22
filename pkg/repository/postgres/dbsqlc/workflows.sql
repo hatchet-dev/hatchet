@@ -1,14 +1,12 @@
 -- name: CountWorkflows :one
-SELECT
-    count(workflows) OVER() AS total
-FROM
-    "Workflow" as workflows
+SELECT COUNT(w.*)
+FROM "Workflow" w
 WHERE
-    workflows."tenantId" = $1 AND
-    workflows."deletedAt" IS NULL AND
-    (
-        sqlc.narg('eventKey')::text IS NULL OR
-        workflows."id" IN (
+    w."tenantId" = $1
+    AND w."deletedAt" IS NULL
+    AND (
+        sqlc.narg('eventKey')::TEXT IS NULL OR
+        w."id" IN (
             SELECT
                 DISTINCT ON(t1."workflowId") t1."workflowId"
             FROM
@@ -31,7 +29,12 @@ WHERE
             ORDER BY
                 t1."workflowId" DESC, t1."order" DESC
         )
-    );
+    )
+    AND (
+        sqlc.narg('search')::TEXT IS NULL
+        OR w.name ILIKE CONCAT('%', sqlc.narg('search')::TEXT, '%')
+    )
+;
 
 -- name: ListWorkflowsLatestRuns :many
 SELECT
@@ -152,6 +155,13 @@ WITH triggersToUpdate AS (
 UPDATE "WorkflowTriggerCronRef"
 SET "parentId" = @newWorkflowTriggerId::uuid
 WHERE "id" IN (SELECT "id" FROM triggersToUpdate);
+
+-- name: UpdateCronTrigger :exec
+UPDATE "WorkflowTriggerCronRef"
+SET
+    "enabled" = COALESCE(sqlc.narg('enabled')::BOOLEAN, "enabled")
+WHERE "id" = @cronTriggerId::uuid
+;
 
 -- name: MoveScheduledTriggerToNewWorkflowTriggers :exec
 WITH triggersToUpdate AS (
@@ -507,33 +517,18 @@ WHERE
     workflowVersions."deletedAt" IS NULL;
 
 -- name: GetLatestWorkflowVersionForWorkflows :many
-WITH latest_versions AS (
-    SELECT DISTINCT ON (workflowVersions."workflowId")
-        workflowVersions."id" AS workflowVersionId,
-        workflowVersions."workflowId",
-        workflowVersions."order"
-    FROM
-        "WorkflowVersion" as workflowVersions
-    WHERE
-        workflowVersions."workflowId" = ANY(@workflowIds::uuid[]) AND
-        workflowVersions."deletedAt" IS NULL
-    ORDER BY
-        workflowVersions."workflowId", workflowVersions."order" DESC
-)
-SELECT
-    workflowVersions."id"
-FROM
-    latest_versions
-JOIN
-    "WorkflowVersion" as workflowVersions ON workflowVersions."id" = latest_versions.workflowVersionId
-JOIN
-    "Workflow" as w ON w."id" = workflowVersions."workflowId"
-LEFT JOIN
-    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
+SELECT DISTINCT ON (wv."workflowId")
+    wv."id"
+FROM "WorkflowVersion" wv
+INNER JOIN "Workflow" w ON w."id" = wv."workflowId"
 WHERE
     w."tenantId" = @tenantId::uuid AND
+    wv."workflowId" = ANY(@workflowIds::uuid[]) AND
     w."deletedAt" IS NULL AND
-    workflowVersions."deletedAt" IS NULL;
+    wv."deletedAt" IS NULL
+ORDER BY
+    wv."workflowId",
+    wv."order" DESC;
 
 -- name: GetWorkflowByName :one
 SELECT

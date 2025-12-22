@@ -23,6 +23,7 @@ import {
   CreateManagementTokenResponse,
   CreateNewTenantForOrganizationRequest,
   CreateOrganizationInviteRequest,
+  CreateOrganizationRequest,
   CreateOrUpdateAutoscalingRequest,
   CreateTenantAPITokenRequest,
   CreateTenantAPITokenResponse,
@@ -863,6 +864,27 @@ export class Api<
       path: `/api/v1/management/organizations`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new organization
+   *
+   * @name OrganizationCreate
+   * @summary Create Organization
+   * @request POST:/api/v1/management/organizations
+   * @secure
+   */
+  organizationCreate = (
+    data: CreateOrganizationRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<Organization, APIError>({
+      path: `/api/v1/management/organizations`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });

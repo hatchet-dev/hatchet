@@ -1,18 +1,31 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { Workflow } from '@/lib/api';
-import { Link } from 'react-router-dom';
-import { ChevronRightIcon } from '@radix-ui/react-icons';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { Workflow } from '@/lib/api';
+import { appRoutes } from '@/router';
+import { ChevronRightIcon } from '@radix-ui/react-icons';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
+
+export const WorkflowColumn = {
+  status: 'Status',
+  name: 'Name',
+  createdAt: 'Created at',
+} as const;
+
+type WorkflowColumnKeys = keyof typeof WorkflowColumn;
+
+const statusKey: WorkflowColumnKeys = 'status';
+export const nameKey: WorkflowColumnKeys = 'name';
+const createdAtKey: WorkflowColumnKeys = 'createdAt';
 
 export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
   tenantId,
 ) => [
   {
-    accessorKey: 'Status',
+    accessorKey: statusKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Status" />
+      <DataTableColumnHeader column={column} title={WorkflowColumn.status} />
     ),
     cell: ({ row }) => (
       <>
@@ -27,26 +40,29 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
     enableHiding: false,
   },
   {
-    accessorKey: 'name',
+    accessorKey: nameKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Name" />
+      <DataTableColumnHeader column={column} title={WorkflowColumn.name} />
     ),
     cell: ({ row }) => (
-      <Link to={`/tenants/${tenantId}/workflows/${row.original.metadata.id}`}>
-        <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap text-md p-2">
+      <Link
+        to={appRoutes.tenantWorkflowRoute.to}
+        params={{ tenant: tenantId, workflow: row.original.metadata.id }}
+      >
+        <div className="text-md min-w-fit cursor-pointer whitespace-nowrap p-2 hover:underline">
           {row.original.name}
         </div>
       </Link>
     ),
-    enableSorting: true,
+    enableSorting: false,
     enableHiding: false,
   },
   {
-    accessorKey: 'createdAt',
+    accessorKey: createdAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title="Created at"
+        title={WorkflowColumn.createdAt}
         className="whitespace-nowrap"
       />
     ),
@@ -63,7 +79,7 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
         </div>
       );
     },
-    enableSorting: true,
+    enableSorting: false,
     enableHiding: true,
   },
   {
@@ -71,11 +87,12 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
     accessorKey: 'chevron',
     cell: ({ row }) => {
       return (
-        <div className="flex gap-2 justify-end">
+        <div className="flex justify-end gap-2">
           <Link
-            to={`/tenants/${tenantId}/workflows/${row.original.metadata.id}`}
+            to={appRoutes.tenantWorkflowRoute.to}
+            params={{ tenant: tenantId, workflow: row.original.metadata.id }}
           >
-            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap text-md p-2">
+            <div className="text-md min-w-fit cursor-pointer whitespace-nowrap p-2 hover:underline">
               <ChevronRightIcon
                 className="h-5 w-5 flex-none text-gray-700 dark:text-gray-300"
                 aria-hidden="true"

@@ -27,6 +27,9 @@ type WorkflowNameTriggerOpts struct {
 
 	ExternalId string
 
+	// (optional) The idempotency key to use for debouncing this task
+	IdempotencyKey *IdempotencyKey
+
 	// Whether to skip the creation of the child workflow
 	ShouldSkip bool
 }
@@ -166,11 +169,39 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		return err
 	}
 
+	retrievePayloadOpts := make([]RetrievePayloadOpts, len(lockedEvents))
+
+	for i, lockedEvent := range lockedEvents {
+		retrievePayloadOpts[i] = RetrievePayloadOpts{
+			Id:         lockedEvent.ID,
+			InsertedAt: lockedEvent.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+	}
+
+	payloads, err := s.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+
+	if err != nil {
+		return err
+	}
+
 	// for each locked event, write the correct external id to the opt
 	for _, lockedEvent := range lockedEvents {
 		opt := spawnKeyToOpt[lockedEvent.EventKey.String]
+		payload, ok := payloads[RetrievePayloadOpts{
+			Id:         lockedEvent.ID,
+			InsertedAt: lockedEvent.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}]
 
-		c, err := newChildWorkflowSignalCreatedDataFromBytes(lockedEvent.Data)
+		if !ok {
+			s.l.Error().Msgf("generateExternalIdsForChildWorkflows: task has empty payload, falling back to input")
+			payload = lockedEvent.Data
+		}
+
+		c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
 
 		if err != nil {
 			return err

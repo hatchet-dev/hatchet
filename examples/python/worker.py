@@ -1,4 +1,7 @@
 from examples.affinity_workers.worker import affinity_worker_workflow
+from examples.bug_tests.payload_bug_on_replay.worker import (
+    payload_initial_cancel_bug_workflow,
+)
 from examples.bulk_fanout.worker import bulk_child_wf, bulk_parent_wf
 from examples.bulk_operations.worker import (
     bulk_replay_test_1,
@@ -18,6 +21,7 @@ from examples.concurrency_workflow_level.worker import (
 )
 from examples.conditions.worker import task_condition_workflow
 from examples.dag.worker import dag_workflow
+from examples.dataclasses.worker import say_hello
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
 from examples.dependency_injection.worker import (
     async_task_with_dependencies,
@@ -75,6 +79,7 @@ def main() -> None:
             concurrency_cancel_newest_workflow,
             concurrency_cancel_in_progress_workflow,
             di_workflow,
+            payload_initial_cancel_bug_workflow,
             lifespan_task,
             simple,
             simple_durable,
@@ -88,6 +93,7 @@ def main() -> None:
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
             durable_sync_task_with_dependencies,
+            say_hello,
         ],
         lifespan=lifespan,
     )

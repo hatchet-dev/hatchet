@@ -1,22 +1,36 @@
 -- name: UpsertQueues :exec
 WITH ordered_names AS (
     SELECT unnest(@names::text[]) AS name
-    ORDER BY name
+    ORDER BY name ASC
+), existing_queues AS (
+    SELECT tenant_id, name, last_active
+    FROM v1_queue
+    WHERE tenant_id = $1
+      AND name = ANY(@names::text[])
+), locked_existing_queues AS (
+    SELECT *
+    FROM v1_queue
+    WHERE
+        tenant_id = $1
+        AND name IN (SELECT name FROM existing_queues)
+    ORDER BY name ASC
+    FOR UPDATE SKIP LOCKED
+), names_to_insert AS (
+    SELECT on1.name
+    FROM ordered_names on1
+    LEFT JOIN existing_queues eq ON eq.name = on1.name
+    WHERE eq.name IS NULL
+), updated_queues AS (
+    UPDATE v1_queue
+    SET last_active = NOW()
+    WHERE tenant_id = $1
+      AND name IN (SELECT name FROM locked_existing_queues)
 )
-INSERT INTO
-    v1_queue (
-        tenant_id,
-        name,
-        last_active
-    )
-SELECT
-    $1,
-    name,
-    NOW()
-FROM ordered_names
-ON CONFLICT (tenant_id, name) DO UPDATE
-SET
-    last_active = NOW();
+-- Insert new queues
+INSERT INTO v1_queue (tenant_id, name, last_active)
+SELECT $1, name, NOW()
+FROM names_to_insert
+ON CONFLICT (tenant_id, name) DO NOTHING;
 
 -- name: ListActionsForWorkers :many
 SELECT
@@ -437,3 +451,63 @@ SELECT
     retry_count
 FROM ready_items
 RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;
+
+-- name: CleanupV1QueueItem :execresult
+WITH locked_qis as (
+    SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
+    FROM v1_queue_item qi
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE qi.task_id = vt.id
+            AND qi.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY qi.id ASC
+    LIMIT @batchSize::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_queue_item
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_qis
+);
+
+-- name: CleanupV1RetryQueueItem :execresult
+WITH locked_qis as (
+    SELECT qi.task_id, qi.task_inserted_at, qi.task_retry_count
+    FROM v1_retry_queue_item qi
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE qi.task_id = vt.id
+        AND qi.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY qi.task_id, qi.task_inserted_at, qi.task_retry_count
+    LIMIT @batchSize::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_retry_queue_item
+WHERE (task_id, task_inserted_at) IN (
+    SELECT task_id, task_inserted_at
+    FROM locked_qis
+);
+
+-- name: CleanupV1RateLimitedQueueItem :execresult
+WITH locked_qis as (
+    SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
+    FROM v1_rate_limited_queue_items qi
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE qi.task_id = vt.id
+        AND qi.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY qi.task_id, qi.task_inserted_at, qi.retry_count
+    LIMIT @batchSize::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_rate_limited_queue_items
+WHERE (task_id, task_inserted_at) IN (
+    SELECT task_id, task_inserted_at
+    FROM locked_qis
+);

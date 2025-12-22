@@ -31,7 +31,7 @@ To run a task on an event, you need to declare the event that will trigger the t
     />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-    <Snippet src={snippets.go.workflows.on_event.run_workflow_on_event} />
+    <Snippet src={snippets.go.on_event.main.run_workflow_on_event} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -58,7 +58,7 @@ You can push an event to the event queue by calling the `push` method on the Hat
     <Snippet src={snippets.typescript.on_event.event.pushing_an_event} />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-    <Snippet src={snippets.go.run.event.pushing_an_event} />
+    <Snippet src={snippets.go.on_event.main.pushing_an_event} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -82,7 +82,7 @@ The simplest way to create a filter is to register it declaratively with your wo
     <Snippet src={snippets.typescript.on_event.workflow.workflow_with_filter} />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-    <Snippet src={snippets.go.workflows.on_event.declare_with_filter} />
+    <Snippet src={snippets.go.on_event.main.declare_with_filter} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -100,7 +100,7 @@ You also can create event filters by using the `filters` clients on the SDKs:
     <Snippet src={snippets.typescript.on_event.filter.create_a_filter} />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-    <Snippet src={snippets.go.run.event.create_a_filter} />
+    <Snippet src={snippets.go.on_event.main.create_a_filter} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -122,7 +122,7 @@ Then, push an event that uses the filter to determine whether or not to run. For
     <Snippet src={snippets.typescript.on_event.filter.skip_a_run} />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-    <Snippet src={snippets.go.run.event.skip_a_run} />
+    <Snippet src={snippets.go.on_event.main.skip_a_run} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -136,7 +136,7 @@ But this one will be triggered since the payload _does_ match the expression:
     <Snippet src={snippets.typescript.on_event.filter.trigger_a_run} />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-    <Snippet src={snippets.go.run.event.trigger_a_run} />
+    <Snippet src={snippets.go.on_event.main.trigger_a_run} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -159,9 +159,7 @@ You can access the filter payload by using the `Context` in the task that was tr
     />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-    <Snippet
-      src={snippets.go.workflows.on_event.accessing_the_filter_payload}
-    />
+    <Snippet src={snippets.go.on_event.main.accessing_the_filter_payload} />
   </Tabs.Tab>
 </UniversalTabs>
 

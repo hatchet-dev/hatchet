@@ -4,7 +4,8 @@ SELECT
     create_v1_hash_partitions('v1_task_status_updates_tmp'::text, @partitions::int),
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, @date::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, @date::date),
-    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date)
+    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date),
+    create_v1_range_partition('v1_payloads_olap'::text, @date::date)
 ;
 
 -- name: CreateOLAPEventPartitions :exec
@@ -25,6 +26,15 @@ ANALYZE v1_tasks_olap;
 -- name: AnalyzeV1DAGsOLAP :exec
 ANALYZE v1_dags_olap;
 
+-- name: AnalyzeV1DAGToTaskOLAP :exec
+ANALYZE v1_dag_to_task_olap;
+
+-- name: AnalyzeV1PayloadsOLAP :exec
+ANALYZE v1_payloads_olap;
+
+-- name: AnalyzeV1LookupTableOLAP :exec
+ANALYZE v1_lookup_table_olap;
+
 -- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, @date::date) AS p
@@ -42,6 +52,8 @@ WITH task_partitions AS (
     SELECT 'v1_incoming_webhook_validation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_incoming_webhook_validation_failures_olap', @date::date) AS p
 ), cel_evaluation_failures_partitions AS (
     SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', @date::date) AS p
+), payloads_partitions AS (
+    SELECT 'v1_payloads_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -96,6 +108,13 @@ WITH task_partitions AS (
         *
     FROM
         cel_evaluation_failures_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        payloads_partitions
 )
 
 SELECT *
@@ -103,6 +122,8 @@ FROM candidates
 WHERE
     CASE
         WHEN @shouldPartitionEventsTables::BOOLEAN THEN TRUE
+        -- this is a list of all of the tables which are hypertables in timescale, so we should not manually drop their
+        -- partitions if @shouldPartitionEventsTables is false
         ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap')
     END
 ;
@@ -214,7 +235,8 @@ INSERT INTO v1_task_events_olap (
     output,
     worker_id,
     additional__event_data,
-    additional__event_message
+    additional__event_message,
+    external_id
 ) VALUES (
     $1,
     $2,
@@ -228,7 +250,8 @@ INSERT INTO v1_task_events_olap (
     $10,
     $11,
     $12,
-    $13
+    $13,
+    $14
 );
 
 -- name: ReadTaskByExternalID :one
@@ -245,6 +268,7 @@ WITH lookup_task AS (
 SELECT
     t.*,
     e.output,
+    e.external_id AS event_external_id,
     e.error_message
 FROM
     v1_tasks_olap t
@@ -333,6 +357,7 @@ SELECT
   t.readable_status,
   t.error_message,
   t.output,
+  t.external_id AS event_external_id,
   t.worker_id,
   t.additional__event_data,
   t.additional__event_message
@@ -383,6 +408,7 @@ SELECT
   t.readable_status,
   t.error_message,
   t.output,
+  t.external_id AS event_external_id,
   t.worker_id,
   t.additional__event_data,
   t.additional__event_message,
@@ -436,8 +462,16 @@ WITH selected_retry_count AS (
         relevant_events
     WHERE
         event_type = 'STARTED'
+), queued_at AS (
+    SELECT
+        MAX(event_timestamp) AS queued_at
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'QUEUED'
 ), task_output AS (
     SELECT
+        external_id,
         output
     FROM
         relevant_events
@@ -480,7 +514,9 @@ SELECT
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
-    o.output::jsonb as output,
+    q.queued_at::timestamptz as queued_at,
+    o.external_id::UUID AS output_event_external_id,
+    o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
     (SELECT retry_count FROM selected_retry_count) as retry_count
@@ -490,6 +526,8 @@ LEFT JOIN
     finished_at f ON true
 LEFT JOIN
     started_at s ON true
+LEFT JOIN
+    queued_at q ON true
 LEFT JOIN
     task_output o ON true
 LEFT JOIN
@@ -501,31 +539,131 @@ LEFT JOIN
 WHERE
     (t.tenant_id, t.id, t.inserted_at) = (@tenantId::uuid, @taskId::bigint, @taskInsertedAt::timestamptz);
 
--- name: PopulateTaskRunData :one
-WITH metadata AS (
+-- name: PopulateTaskRunData :many
+WITH input AS (
     SELECT
-        MAX(event_timestamp) FILTER (WHERE event_type = 'QUEUED')::TIMESTAMPTZ AS queued_at,
-        MAX(event_timestamp) FILTER (WHERE event_type = 'STARTED')::TIMESTAMPTZ AS started_at,
-        MAX(event_timestamp) FILTER (WHERE readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[]))::TIMESTAMPTZ AS finished_at,
-        MAX(output::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::JSONB AS output,
-        MAX(error_message) FILTER (WHERE readable_status = 'FAILED')::TEXT AS error_message
+        UNNEST(@taskIds::bigint[]) AS id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS inserted_at
+), tasks AS (
+    SELECT
+        DISTINCT ON(t.tenant_id, t.id, t.inserted_at)
+        t.tenant_id,
+        t.id,
+        t.inserted_at,
+        t.queue,
+        t.action_id,
+        t.step_id,
+        t.workflow_id,
+        t.workflow_version_id,
+        t.schedule_timeout,
+        t.step_timeout,
+        t.priority,
+        t.sticky,
+        t.desired_worker_id,
+        t.external_id,
+        t.display_name,
+        t.input,
+        t.additional_metadata,
+        t.readable_status,
+        t.parent_task_external_id,
+        t.workflow_run_id,
+        t.latest_retry_count
     FROM
-        v1_task_events_olap
+        v1_tasks_olap t
+    JOIN
+        input i ON i.id = t.id AND i.inserted_at = t.inserted_at
     WHERE
-        tenant_id = @tenantId::UUID
-        AND task_id = @taskId::BIGINT
-        AND task_inserted_at = @taskInsertedAt::TIMESTAMPTZ
-        AND retry_count = (
-            SELECT MAX(retry_count) AS ct
-            FROM
-                v1_task_events_olap
-            WHERE
-                tenant_id = @tenantId::UUID
-                AND task_id = @taskId::BIGINT
-                AND task_inserted_at = @taskInsertedAt::TIMESTAMPTZ
-        )
+        t.tenant_id = @tenantId::uuid
+), relevant_events AS (
+    SELECT
+        e.*
+    FROM
+        v1_task_events_olap e
+    JOIN
+        tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at
+), max_retry_counts AS (
+    SELECT
+        e.tenant_id,
+        e.task_id,
+        e.task_inserted_at,
+        MAX(e.retry_count) AS max_retry_count
+    FROM
+        relevant_events e
+    GROUP BY
+        e.tenant_id, e.task_id, e.task_inserted_at
+), queued_ats AS (
+    SELECT
+        e.task_id::bigint,
+        MAX(e.event_timestamp) AS queued_at
+    FROM
+        relevant_events e
+    JOIN
+        max_retry_counts mrc ON
+            e.tenant_id = mrc.tenant_id
+            AND e.task_id = mrc.task_id
+            AND e.task_inserted_at = mrc.task_inserted_at
+            AND e.retry_count = mrc.max_retry_count
+    WHERE
+        e.event_type = 'QUEUED'
+    GROUP BY e.task_id
+), started_ats AS (
+    SELECT
+        e.task_id::bigint,
+        MAX(e.event_timestamp) AS started_at
+    FROM
+        relevant_events e
+    JOIN
+        max_retry_counts mrc ON
+            e.tenant_id = mrc.tenant_id
+            AND e.task_id = mrc.task_id
+            AND e.task_inserted_at = mrc.task_inserted_at
+            AND e.retry_count = mrc.max_retry_count
+    WHERE
+        e.event_type = 'STARTED'
+    GROUP BY e.task_id
+), finished_ats AS (
+    SELECT
+        e.task_id::bigint,
+        MAX(e.event_timestamp) AS finished_at
+    FROM
+        relevant_events e
+    JOIN
+        max_retry_counts mrc ON
+            e.tenant_id = mrc.tenant_id
+            AND e.task_id = mrc.task_id
+            AND e.task_inserted_at = mrc.task_inserted_at
+            AND e.retry_count = mrc.max_retry_count
+    WHERE
+        e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+    GROUP BY e.task_id
+), error_message AS (
+    SELECT
+        DISTINCT ON (e.task_id) e.task_id::bigint,
+        e.error_message
+    FROM
+        relevant_events e
+    JOIN
+        max_retry_counts mrc ON
+            e.tenant_id = mrc.tenant_id
+            AND e.task_id = mrc.task_id
+            AND e.task_inserted_at = mrc.task_inserted_at
+            AND e.retry_count = mrc.max_retry_count
+    WHERE
+        e.readable_status = 'FAILED'
+    ORDER BY
+        e.task_id, e.retry_count DESC
+), task_output AS (
+    SELECT
+        task_id,
+        MAX(output::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::JSONB AS output,
+        MAX(external_id::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::UUID AS output_event_external_id
+    FROM
+        relevant_events
+    WHERE
+        readable_status = 'COMPLETED'
+    GROUP BY
+        task_id
 )
-
 SELECT
     t.tenant_id,
     t.id,
@@ -547,26 +685,31 @@ SELECT
         WHEN @includePayloads::BOOLEAN THEN t.input
         ELSE '{}'::JSONB
     END::JSONB AS input,
-    t.readable_status::v1_readable_status_olap AS status,
+    t.readable_status::v1_readable_status_olap as status,
     t.workflow_run_id,
-    m.finished_at AS finished_at,
-    m.started_at AS started_at,
-    m.queued_at AS queued_at,
-    -- Casting to an empty string since sqlc can't figure out that
-    -- this should be pgtype.Text
-    COALESCE(m.error_message, '')::TEXT AS error_message,
-    COALESCE(t.latest_retry_count, 0) AS retry_count,
+    f.finished_at::timestamptz as finished_at,
+    s.started_at::timestamptz as started_at,
+    q.queued_at::timestamptz as queued_at,
+    e.error_message as error_message,
+    COALESCE(t.latest_retry_count, 0)::int as retry_count,
     CASE
-        WHEN @includePayloads::BOOLEAN THEN m.output::JSONB
+        WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
-    END::JSONB AS output
+    END::JSONB as output,
+    o.output_event_external_id::UUID AS output_event_external_id
 FROM
-    v1_tasks_olap t, metadata m
-WHERE
-    t.tenant_id = @tenantId::UUID
-    AND t.id = @taskId::BIGINT
-    AND t.inserted_at = @taskInsertedAt::TIMESTAMPTZ
-;
+    tasks t
+LEFT JOIN
+    finished_ats f ON f.task_id = t.id
+LEFT JOIN
+    started_ats s ON s.task_id = t.id
+LEFT JOIN
+    queued_ats q ON q.task_id = t.id
+LEFT JOIN
+    error_message e ON e.task_id = t.id
+LEFT JOIN
+    task_output o ON o.task_id = t.id
+ORDER BY t.inserted_at DESC, t.id DESC;
 
 -- name: FindMinInsertedAtForTaskStatusUpdates :one
 WITH tenants AS (
@@ -650,6 +793,7 @@ WITH tenants AS (
         t.tenant_id,
         t.id,
         t.inserted_at,
+        t.readable_status,
         e.retry_count,
         e.max_readable_status
     FROM
@@ -661,35 +805,93 @@ WITH tenants AS (
     ORDER BY
         t.inserted_at, t.id
     FOR UPDATE
+), already_in_target_partition AS (
+    -- Check if rows already exist in the target partition (with the new readable_status)
+    -- This is to avoid rare cases of duplicates writes causing unique constraint violations,
+    -- when i.e. we write to one partition of QUEUED, that gets moved from QUEUED -> COMPLETED,
+    -- and we later insert into QUEUED again but try to update to COMPLETED again.
+    SELECT
+        lt.tenant_id,
+        lt.id,
+        lt.inserted_at,
+        lt.readable_status AS old_readable_status,
+        lt.retry_count,
+        lt.max_readable_status,
+        t.external_id,
+        t.latest_worker_id,
+        t.workflow_id,
+        (t.dag_id IS NOT NULL)::boolean AS is_dag_task
+    FROM
+        locked_tasks lt
+    JOIN
+        v1_tasks_olap t ON
+            t.inserted_at = lt.inserted_at
+            AND t.id = lt.id
+            AND t.readable_status = lt.max_readable_status
+    WHERE
+        -- Only consider rows where we would actually change the status
+        lt.readable_status != lt.max_readable_status
+), deleted_duplicate_tasks AS (
+    -- Delete the old rows that already have a copy in the target partition
+    DELETE FROM
+        v1_tasks_olap t
+    USING
+        already_in_target_partition ap
+    WHERE
+        (t.inserted_at, t.id, t.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
+), tasks_to_update AS (
+    -- Tasks that need updating and don't already exist in target partition
+    SELECT
+        lt.tenant_id,
+        lt.id,
+        lt.inserted_at,
+        lt.readable_status,
+        lt.retry_count,
+        lt.max_readable_status
+    FROM
+        locked_tasks lt
+    WHERE
+        NOT EXISTS (
+            SELECT 1
+            FROM already_in_target_partition ap
+            WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
+        )
 ), updated_tasks AS (
     UPDATE
         v1_tasks_olap t
     SET
-        readable_status = e.max_readable_status,
-        latest_retry_count = e.retry_count,
+        readable_status = tu.max_readable_status,
+        latest_retry_count = tu.retry_count,
         latest_worker_id = CASE WHEN lw.worker_id::uuid IS NOT NULL THEN lw.worker_id::uuid ELSE t.latest_worker_id END
     FROM
-        updatable_events e
+        tasks_to_update tu
     LEFT JOIN
         latest_worker_id lw ON
-            (e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count) = (lw.tenant_id, lw.task_id, lw.task_inserted_at, lw.retry_count)
+            (tu.tenant_id, tu.id, tu.inserted_at, tu.retry_count) = (lw.tenant_id, lw.task_id, lw.task_inserted_at, lw.retry_count)
     WHERE
-        (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
+        (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
         AND
             (
                 -- if the retry count is greater than the latest retry count, update the status
                 (
-                    e.retry_count > t.latest_retry_count
-                    AND e.max_readable_status != t.readable_status
+                    tu.retry_count > t.latest_retry_count
+                    AND tu.max_readable_status != t.readable_status
                 ) OR
                 -- if the retry count is equal to the latest retry count, update the status if the status is greater
                 (
-                    e.retry_count = t.latest_retry_count
-                    AND e.max_readable_status > t.readable_status
+                    tu.retry_count = t.latest_retry_count
+                    AND tu.max_readable_status > t.readable_status
                 )
             )
     RETURNING
         t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
+), all_result_tasks AS (
+    -- Combine actually updated tasks with those already in target partition
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, latest_worker_id, workflow_id, is_dag_task
+    FROM updated_tasks
+    UNION ALL
+    SELECT tenant_id, id, inserted_at, max_readable_status AS readable_status, external_id, latest_worker_id, workflow_id, is_dag_task
+    FROM already_in_target_partition
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -753,8 +955,7 @@ SELECT
     (SELECT count FROM event_count) AS count,
     t.*
 FROM
-    updated_tasks t;
-
+    all_result_tasks t;
 
 -- name: FindMinInsertedAtForDAGStatusUpdates :one
 WITH tenants AS (
@@ -821,10 +1022,34 @@ WITH tenants AS (
     ORDER BY
         d.inserted_at, d.id
     FOR UPDATE
+), relevant_tasks AS (
+    SELECT
+        t.tenant_id,
+        t.id,
+        d.id AS dag_id,
+        d.inserted_at AS dag_inserted_at,
+        t.readable_status
+    FROM
+        locked_dags d
+    JOIN
+        v1_dag_to_task_olap dt ON
+            (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+    JOIN
+        v1_tasks_olap t ON
+            (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE
+        t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    -- Note that the ORDER BY seems to help the query planner by pruning partitions earlier. We
+    -- have previously seen Postgres use an index-only scan on partitions older than the minInsertedAt,
+    -- each of which can take a long time to scan. This can be very pathological since we partition on
+    -- both the status and the date, so 14 days of data with 5 statuses is 70 partitions to index scan.
+    ORDER BY t.inserted_at DESC
 ), dag_task_counts AS (
     SELECT
         d.id,
         d.inserted_at,
+        d.readable_status,
+        d.tenant_id,
         d.total_tasks,
         COUNT(t.id) AS task_count,
         COUNT(t.id) FILTER (WHERE t.readable_status = 'COMPLETED') AS completed_count,
@@ -835,21 +1060,18 @@ WITH tenants AS (
     FROM
         locked_dags d
     LEFT JOIN
-        v1_dag_to_task_olap dt ON
-            (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
-    LEFT JOIN
-        v1_tasks_olap t ON
-            (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
-    WHERE t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        relevant_tasks t ON (d.tenant_id, d.id, d.inserted_at) = (t.tenant_id, t.dag_id, t.dag_inserted_at)
     GROUP BY
-        d.id, d.inserted_at, d.total_tasks
-), updated_dags AS (
-    UPDATE
-        v1_dags_olap d
-    SET
-        readable_status = CASE
+        d.id, d.inserted_at, d.readable_status, d.tenant_id, d.total_tasks
+), dag_new_statuses AS (
+    SELECT
+        dtc.id,
+        dtc.inserted_at,
+        dtc.readable_status AS old_readable_status,
+        dtc.tenant_id,
+        CASE
             -- If we only have queued events, we should keep the status as is
-            WHEN dtc.queued_count = dtc.task_count THEN d.readable_status
+            WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
             -- If the task count is not equal to the total tasks, we should set the status to running
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
@@ -858,15 +1080,88 @@ WITH tenants AS (
             WHEN dtc.cancelled_count > 0 THEN 'CANCELLED'
             WHEN dtc.completed_count = dtc.task_count THEN 'COMPLETED'
             ELSE 'RUNNING'
-        END
+        END::v1_readable_status_olap AS new_readable_status
     FROM
         dag_task_counts dtc
+), already_in_target_partition AS (
+    -- Check if rows already exist in the target partition (with the new readable_status)
+    -- This is to avoid rare cases of duplicates writes causing unique constraint violations,
+    -- when i.e. we write to one partition of QUEUED, that gets moved from QUEUED -> COMPLETED,
+    -- and we later insert into QUEUED again but try to update to COMPLETED again.
+    SELECT
+        dns.tenant_id,
+        dns.id,
+        dns.inserted_at,
+        dns.old_readable_status,
+        dns.new_readable_status
+    FROM
+        dag_new_statuses dns
+    JOIN
+        v1_dags_olap d ON
+            d.inserted_at = dns.inserted_at
+            AND d.id = dns.id
+            AND d.readable_status = dns.new_readable_status
     WHERE
-        (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
+        -- Only consider rows where we would actually change the status
+        dns.old_readable_status != dns.new_readable_status
+), updated_target_partition_dags AS (
+    -- Update the existing rows in the target partition
+    UPDATE
+        v1_dags_olap d
+    SET
+        -- Touch the row to ensure it's returned (no-op update)
+        readable_status = d.readable_status
+    FROM
+        already_in_target_partition ap
+    WHERE
+        (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.new_readable_status)
     RETURNING
         d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+), deleted_duplicate_dags AS (
+    -- Delete the old rows that already have a copy in the target partition
+    DELETE FROM
+        v1_dags_olap d
+    USING
+        already_in_target_partition ap
+    WHERE
+        (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
+), dags_to_update AS (
+    -- DAGs that need updating and don't already exist in target partition
+    SELECT
+        dns.tenant_id,
+        dns.id,
+        dns.inserted_at,
+        dns.old_readable_status,
+        dns.new_readable_status
+    FROM
+        dag_new_statuses dns
+    WHERE
+        NOT EXISTS (
+            SELECT 1
+            FROM already_in_target_partition ap
+            WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (dns.tenant_id, dns.id, dns.inserted_at)
+        )
+), updated_dags AS (
+    UPDATE
+        v1_dags_olap d
+    SET
+        readable_status = dtu.new_readable_status
+    FROM
+        dags_to_update dtu
+    WHERE
+        (d.inserted_at, d.id, d.readable_status) = (dtu.inserted_at, dtu.id, dtu.old_readable_status)
+        AND dtu.old_readable_status != dtu.new_readable_status
+    RETURNING
+        d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+), all_result_dags AS (
+    -- Combine updated dags from both paths
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, workflow_id
+    FROM updated_dags
+    UNION ALL
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, workflow_id
+    FROM updated_target_partition_dags
 ), events_to_requeue AS (
-    -- Get events which don't have a corresponding locked_task
+    -- Get events which don't have a corresponding locked_dag
     SELECT
         e.tenant_id,
         e.requeue_retries,
@@ -919,10 +1214,14 @@ SELECT
     (SELECT count FROM event_count) AS count,
     d.*
 FROM
-    updated_dags d;
+    all_result_dags d;
 
--- name: PopulateDAGMetadata :one
-WITH run AS (
+-- name: PopulateDAGMetadata :many
+WITH input AS (
+    SELECT
+        UNNEST(@ids::bigint[]) AS id,
+        UNNEST(@insertedAts::timestamptz[]) AS inserted_at
+), runs AS (
     SELECT
         d.id AS dag_id,
         r.id AS run_id,
@@ -940,48 +1239,69 @@ WITH run AS (
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id
-    FROM v1_runs_olap r
+    FROM input i
+    JOIN v1_runs_olap r ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
-    WHERE
-        r.id = @id::BIGINT
-        AND r.inserted_at = @insertedAt::TIMESTAMPTZ
-        -- hack to make sure PG correctly prunes partitions
-        AND d.id = @id::BIGINT
-        AND d.inserted_at = @insertedAt::TIMESTAMPTZ
-        AND r.tenant_id = @tenantId::UUID
-        AND r.kind = 'DAG'
+    WHERE r.tenant_id = @tenantId::uuid AND r.kind = 'DAG'
 ), relevant_events AS (
-    SELECT e.*
-    FROM run r
+    SELECT r.run_id, e.*
+    FROM runs r
     JOIN v1_dag_to_task_olap dt ON (r.dag_id, r.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
+    WHERE e.tenant_id = @tenantId::uuid
+), max_retry_count AS (
+    SELECT run_id, MAX(retry_count) AS max_retry_count
+    FROM relevant_events
+    GROUP BY run_id
 ), metadata AS (
     SELECT
-        MIN(e.event_timestamp)::timestamptz AS created_at,
-        MIN(e.event_timestamp) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
-        MAX(e.event_timestamp) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at,
-        MAX(e.error_message) FILTER (WHERE e.readable_status = 'FAILED') AS error_message,
-        MAX(e.output::TEXT) FILTER (WHERE e.event_type = 'FINISHED')::JSONB AS output,
-        MAX(e.retry_count) AS max_retry_count
-    FROM relevant_events e
-    WHERE e.retry_count = (
-        SELECT MAX(retry_count)
-        FROM relevant_events
-    )
+        e.run_id,
+        MIN(e.inserted_at)::timestamptz AS created_at,
+        MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
+        MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at
+    FROM
+        relevant_events e
+    JOIN max_retry_count mrc ON (e.run_id, e.retry_count) = (mrc.run_id, mrc.max_retry_count)
+    GROUP BY e.run_id
+), error_message AS (
+    SELECT
+        DISTINCT ON (e.run_id) e.run_id::bigint,
+        e.error_message
+    FROM
+        relevant_events e
+    WHERE
+        e.readable_status = 'FAILED'
+    ORDER BY
+        e.run_id, e.retry_count DESC
+), task_output AS (
+    SELECT
+        run_id,
+        output,
+        external_id
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
 )
 
 SELECT
     r.*,
-    m.created_at::TIMESTAMPTZ AS created_at,
-    m.started_at::TIMESTAMPTZ AS started_at,
-    m.finished_at::TIMESTAMPTZ AS finished_at,
-    -- hack to force this to string since sqlc can't figure out that this should be pgtype.Text
-    COALESCE(m.error_message, '')::TEXT AS error_message,
-    m.output::JSONB AS output,
-    COALESCE(m.max_retry_count, 0)::int as retry_count
-FROM run r, metadata m
-;
-
+    m.created_at,
+    m.started_at,
+    m.finished_at,
+    e.error_message,
+    CASE
+        WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
+        ELSE '{}'::JSONB
+    END::JSONB AS output,
+    o.external_id AS output_event_external_id,
+    COALESCE(mrc.max_retry_count, 0)::int as retry_count
+FROM runs r
+LEFT JOIN metadata m ON r.run_id = m.run_id
+LEFT JOIN error_message e ON r.run_id = e.run_id
+LEFT JOIN task_output o ON r.run_id = o.run_id
+LEFT JOIN max_retry_count mrc ON r.run_id = mrc.run_id
+ORDER BY r.inserted_at DESC, r.run_id DESC;
 
 -- name: GetTaskPointMetrics :many
 SELECT
@@ -1341,6 +1661,22 @@ WHERE
 GROUP BY elt.external_id
 ;
 
+-- name: GetEventByExternalId :one
+SELECT e.*
+FROM v1_event_lookup_table_olap elt
+JOIN v1_events_olap e ON (elt.event_id, elt.event_seen_at) = (e.id, e.seen_at)
+WHERE elt.external_id = @eventExternalId::uuid
+;
+
+-- name: GetEventByExternalIdUsingTenantId :one
+SELECT e.*
+FROM v1_event_lookup_table_olap elt
+JOIN v1_events_olap e ON (elt.event_id, elt.event_seen_at) = (e.id, e.seen_at)
+WHERE
+    elt.external_id = @eventExternalId::uuid
+    AND elt.tenant_id = @tenantId::uuid
+;
+
 -- name: ListEvents :many
 SELECT e.*
 FROM v1_event_lookup_table_olap elt
@@ -1553,4 +1889,217 @@ INSERT INTO v1_cel_evaluation_failures_olap (
 )
 SELECT @tenantId::UUID, source, error
 FROM inputs
+;
+
+-- name: PutPayloads :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(@payloads::JSONB[]) AS payload,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(CAST(@locations::TEXT[] AS v1_payload_location_olap[])) AS location,
+        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key
+)
+
+INSERT INTO v1_payloads_olap (
+    tenant_id,
+    external_id,
+    inserted_at,
+    location,
+    external_location_key,
+    inline_content
+)
+
+SELECT
+    i.tenant_id,
+    i.external_id,
+    i.inserted_at,
+    i.location,
+    CASE
+        WHEN i.location = 'EXTERNAL' THEN i.external_location_key
+        ELSE NULL
+    END,
+    CASE
+        WHEN i.location = 'INLINE' THEN i.payload
+        ELSE NULL
+    END AS inline_content
+FROM inputs i
+ON CONFLICT (tenant_id, external_id, inserted_at) DO UPDATE
+SET
+    location = EXCLUDED.location,
+    external_location_key = EXCLUDED.external_location_key,
+    inline_content = EXCLUDED.inline_content,
+    updated_at = NOW()
+;
+
+-- name: OffloadPayloads :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key
+)
+
+UPDATE v1_payloads_olap
+SET
+    location = 'EXTERNAL',
+    external_location_key = i.external_location_key,
+    inline_content = NULL,
+    updated_at = NOW()
+FROM inputs i
+WHERE
+    (v1_payloads_olap.tenant_id, v1_payloads_olap.external_id) = (i.tenant_id, i.external_id)
+    AND v1_payloads_olap.location = 'INLINE'
+    AND v1_payloads_olap.external_location_key IS NULL
+;
+
+-- name: ReadPayloadsOLAP :many
+SELECT *
+FROM v1_payloads_olap
+WHERE
+    tenant_id = @tenantId::UUID
+    AND external_id = ANY(@externalIds::UUID[])
+;
+
+-- name: ListWorkflowRunExternalIds :many
+SELECT external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = @tenantId::UUID
+    AND inserted_at > @since::TIMESTAMPTZ
+    AND (
+        sqlc.narg('until')::TIMESTAMPTZ IS NULL
+        OR inserted_at <= sqlc.narg('until')::TIMESTAMPTZ
+    )
+    AND readable_status = ANY(CAST(@statuses::TEXT[] AS v1_readable_status_olap[]))
+    AND (
+        sqlc.narg('additionalMetaKeys')::text[] IS NULL
+        OR sqlc.narg('additionalMetaValues')::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest(sqlc.narg('additionalMetaKeys')::text[]) AS k,
+                    unnest(sqlc.narg('additionalMetaValues')::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND (
+        sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+    )
+;
+
+-- name: ListPaginatedOLAPPayloadsForOffload :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM list_paginated_olap_payloads_for_offload(
+        @partitionDate::DATE,
+        @lastTenantId::UUID,
+        @lastExternalId::UUID,
+        @lastInsertedAt::TIMESTAMPTZ,
+        @nextTenantId::UUID,
+        @nextExternalId::UUID,
+        @nextInsertedAt::TIMESTAMPTZ,
+        @batchSize::INTEGER
+    ) p
+)
+SELECT
+    tenant_id::UUID,
+    external_id::UUID,
+    location::v1_payload_location_olap,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
+    inserted_at::TIMESTAMPTZ,
+    updated_at::TIMESTAMPTZ
+FROM payloads;
+
+-- name: CreateOLAPPayloadRangeChunks :many
+WITH chunks AS (
+    SELECT
+        (p).*
+    FROM create_olap_payload_offload_range_chunks(
+        @partitionDate::DATE,
+        @windowSize::INTEGER,
+        @chunkSize::INTEGER,
+        @lastTenantId::UUID,
+        @lastExternalId::UUID,
+        @lastInsertedAt::TIMESTAMPTZ
+    ) p
+)
+
+SELECT
+    lower_tenant_id::UUID,
+    lower_external_id::UUID,
+    lower_inserted_at::TIMESTAMPTZ,
+    upper_tenant_id::UUID,
+    upper_external_id::UUID,
+    upper_inserted_at::TIMESTAMPTZ
+FROM chunks
+;
+
+-- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
+SELECT copy_v1_payloads_olap_partition_structure(@date::DATE);
+
+-- name: SwapV1PayloadOLAPPartitionWithTemp :exec
+SELECT swap_v1_payloads_olap_partition_with_temp(@date::DATE);
+
+-- name: AcquireOrExtendOLAPCutoverJobLease :one
+WITH inputs AS (
+    SELECT
+        @key::DATE AS key,
+        @leaseProcessId::UUID AS lease_process_id,
+        @leaseExpiresAt::TIMESTAMPTZ AS lease_expires_at,
+        @lastTenantId::UUID AS last_tenant_id,
+        @lastExternalId::UUID AS last_external_id,
+        @lastInsertedAt::TIMESTAMPTZ AS last_inserted_at
+), any_lease_held_by_other_process AS (
+    -- need coalesce here in case there are no rows that don't belong to this process
+    SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
+    FROM v1_payloads_olap_cutover_job_offset
+    WHERE lease_process_id != @leaseProcessId::UUID
+), to_insert AS (
+    SELECT *
+    FROM inputs
+    -- if a lease is held by another process, we shouldn't try to insert a new row regardless
+    -- of which key we're trying to acquire a lease on
+    WHERE NOT (SELECT lease_exists FROM any_lease_held_by_other_process)
+)
+
+INSERT INTO v1_payloads_olap_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at)
+SELECT
+    ti.key,
+    ti.lease_process_id,
+    ti.lease_expires_at,
+    ti.last_tenant_id,
+    ti.last_external_id,
+    ti.last_inserted_at
+FROM to_insert ti
+ON CONFLICT (key)
+DO UPDATE SET
+    -- if the lease is held by this process, then we extend the offset to the new value
+    -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
+    last_tenant_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_tenant_id
+        ELSE v1_payloads_olap_cutover_job_offset.last_tenant_id
+    END,
+    last_external_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_external_id
+        ELSE v1_payloads_olap_cutover_job_offset.last_external_id
+    END,
+    last_inserted_at = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_inserted_at
+        ELSE v1_payloads_olap_cutover_job_offset.last_inserted_at
+    END,
+
+    lease_process_id = EXCLUDED.lease_process_id,
+    lease_expires_at = EXCLUDED.lease_expires_at
+WHERE v1_payloads_olap_cutover_job_offset.lease_expires_at < NOW() OR v1_payloads_olap_cutover_job_offset.lease_process_id = @leaseProcessId::UUID
+RETURNING *
+;
+
+-- name: MarkOLAPCutoverJobAsCompleted :exec
+UPDATE v1_payloads_olap_cutover_job_offset
+SET is_completed = TRUE
+WHERE key = @key::DATE
 ;

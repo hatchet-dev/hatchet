@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button';
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import api, { CreateAPITokenRequest } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
@@ -38,7 +38,7 @@ export const DefaultOnboardingAuth: React.FC<{
           copy it somewhere safe and do not share it with others. You can manage
           your auth tokens from the settings page.
         </p>
-        <div className="rounded-lg mb-6">
+        <div className="mb-6 rounded-lg">
           <CodeHighlighter
             language="plaintext"
             className="text-sm"

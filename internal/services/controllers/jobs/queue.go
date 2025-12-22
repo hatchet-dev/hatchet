@@ -15,11 +15,11 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type queue struct {
@@ -34,10 +34,10 @@ type queue struct {
 	// a custom queue logger
 	ql *zerolog.Logger
 
-	updateStepRunOperations   *queueutils.OperationPool
-	updateStepRunV2Operations *queueutils.OperationPool
-	timeoutStepRunOperations  *queueutils.OperationPool
-	retryStepRunOperations    *queueutils.OperationPool
+	updateStepRunOperations   *queueutils.OperationPool[string]
+	updateStepRunV2Operations *queueutils.OperationPool[string]
+	timeoutStepRunOperations  *queueutils.OperationPool[string]
+	retryStepRunOperations    *queueutils.OperationPool[string]
 }
 
 func newQueue(
@@ -192,7 +192,9 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 
 	err := q.dv.DecodeAndValidate(task.Metadata, &metadata)
 
-	if err != nil {
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: metadata.TenantId})
+	} else {
 		return fmt.Errorf("could not decode check queue metadata: %w", err)
 	}
 
@@ -232,6 +234,8 @@ func (q *queue) runTenantUpdateStepRunsV2(ctx context.Context) func() {
 func (q *queue) processStepRunUpdatesV2(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-step-run-updates-v2")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
@@ -351,6 +355,8 @@ func (q *queue) processStepRunTimeouts(ctx context.Context, tenantId string) (bo
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timeout")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
+
 	shouldContinue, stepRuns, err := q.repo.StepRun().ListStepRunsToTimeout(ctx, tenantId)
 
 	if err != nil {
@@ -369,6 +375,8 @@ func (q *queue) processStepRunTimeouts(ctx context.Context, tenantId string) (bo
 
 		scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-timeout-step-run")
 		defer span.End()
+
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 		for i := range group {
 			stepRunCp := group[i]
@@ -399,6 +407,8 @@ func (q *queue) processStepRunTimeouts(ctx context.Context, tenantId string) (bo
 func (q *queue) processStepRunRetries(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timeout")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	shouldContinue, err := q.repo.StepRun().RetryStepRuns(ctx, tenantId)
 

@@ -5,6 +5,103 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.7] - 2025-12-15
+
+### Added
+
+- Adds a `get` method to the event client
+
+## [1.21.6] - 2025-12-11
+
+### Added
+
+- Adds `get_task_stats` and `aio_get_task_stats` methods to the `metrics` feature client.
+
+### Changed
+
+- Regenerates the REST and gRPC clients to pick up latest API changes.
+
+## [1.21.5] - 2025-12-06
+
+### Changed
+
+- Task outputs that fail to serialize to JSON will now raise an `IllegalTaskOutputError` instead of being stringified. This pulls errors from the engine upstream to the SDK, and will allow users to catch and handle these errors more easily.
+
+## [1.21.4] - 2025-12-05
+
+### Added
+
+- Adds support for dynamic rate limits using CEL expressions (strings) for the `limit` parameter.
+
+### Changed
+
+- Fixes a serialization error caused by Pydantic sometimes being unable to encode bytes, reported here: https://github.com/hatchet-dev/hatchet/issues/2601
+- Fixes a bug where string-based CEL expressions for `limit` were rejected due to the validation logic.
+
+## [1.21.3] - 2025-11-26
+
+### Added
+
+- Adds GZIP compression for gRPC communication between the SDK and the Hatchet engine to reduce bandwidth usage.
+
+## [1.21.2] - 2025-11-13
+
+### Added
+
+- Adds an OTel option to allow you to include the action name in the root span name for task runs.
+
+### Changed
+
+- Span kinds (e.g. producer, consumer) have been added to OpenTelemetry spans created by the SDK to better reflect their roles.
+
+## [1.21.1] - 2025-11-08
+
+### Changed
+
+- The `list` methods for the logs client now allow for pagination via the `limit`, `since`, and `until` params.
+
+## [1.21.0] - 2025-10-31
+
+### Added
+
+- Adds support for dataclasses as input validators for workflows (and tasks), and also as output validators for tasks.
+
+### Changed
+
+- Fixes a bug where an exception in a lifespan would cause the lifespan to hang indefinitely.
+
+## [1.20.2] - 2025-10-15
+
+### Added
+
+- Adds a `include_payloads` parameter to the `list` methods on the runs client (defaults to true, so no change in behavior).
+
+## [1.20.1] - 2025-10-14
+
+### Added
+
+- Adds wrapper methods for bulk cancelling / replaying large numbers of runs with pagination.
+
+## [1.20.0] - 2025-10-3
+
+### Removed
+
+- Removes all references to `get_group_key_*` which is no longer available in V1
+- Removes all checks + references to V0
+
+## [1.19.0] - 2025-09-24
+
+### Removed
+
+- Removed the deprecated `v0` client and all related code.
+- Removed unused dependencies.
+
+## [1.18.1] - 2025-08-26
+
+### Changed
+
+- Fixes an install issue caused by a misnamed optional dependency.
+
 ## [1.18.0] - 2025-08-26
 
 ### Added

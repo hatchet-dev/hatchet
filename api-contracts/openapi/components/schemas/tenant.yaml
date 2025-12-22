@@ -150,6 +150,7 @@ TenantResource:
     - "TASK_RUN"
     - "CRON"
     - "SCHEDULE"
+    - 'INCOMING_WEBHOOK'
   type: string
 
 TenantResourceLimit:
@@ -402,3 +403,48 @@ TenantStepRunQueueMetrics:
   properties:
     queues:
       type: object
+
+TaskStats:
+  type: object
+  additionalProperties:
+    $ref: "#/TaskStat"
+
+TaskStat:
+  properties:
+    queued:
+      $ref: "#/TaskStatusStat"
+    running:
+      $ref: "#/TaskStatusStat"
+  type: object
+
+TaskStatusStat:
+  properties:
+    total:
+      type: integer
+      format: int64
+    queues:
+      type: object
+      additionalProperties:
+        type: integer
+        format: int64
+    concurrency:
+      type: array
+      items:
+        $ref: "#/ConcurrencyStat"
+    oldest:
+      type: string
+      format: date-time
+  type: object
+
+ConcurrencyStat:
+  properties:
+    expression:
+      type: string
+    type:
+      type: string
+    keys:
+      type: object
+      additionalProperties:
+        type: integer
+        format: int64
+  type: object

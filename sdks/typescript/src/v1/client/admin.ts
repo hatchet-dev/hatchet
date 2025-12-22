@@ -12,6 +12,7 @@ import {
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
 import { Logger } from '@hatchet/util/logger';
+import { retrier } from '@hatchet/util/retrier';
 import { batch } from '@hatchet/util/batch';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 
@@ -71,7 +72,7 @@ export class AdminClient {
 
       const inputStr = JSON.stringify(input);
 
-      const resp = await this.grpc.triggerWorkflow({
+      const request = {
         name: computedName,
         input: inputStr,
         ...options,
@@ -79,7 +80,9 @@ export class AdminClient {
           ? JSON.stringify(options?.additionalMetadata)
           : undefined,
         priority: options?.priority,
-      });
+      };
+
+      const resp = await retrier(async () => this.grpc.triggerWorkflow(request), this.logger);
 
       const id = resp.workflowRunId;
 
@@ -147,11 +150,14 @@ export class AdminClient {
 
       // for loop to ensure serial execution of batches
       for (const { payloads, originalIndices, batchIndex } of batches) {
+        const request = BulkTriggerWorkflowRequest.create({
+          workflows: payloads,
+        });
+
         // Call the bulk trigger workflow method for this batch
-        const bulkTriggerWorkflowResponse = await this.grpc.bulkTriggerWorkflow(
-          BulkTriggerWorkflowRequest.create({
-            workflows: payloads,
-          })
+        const bulkTriggerWorkflowResponse = await retrier(
+          async () => this.grpc.bulkTriggerWorkflow(request),
+          this.logger
         );
 
         this.logger.debug(`batch ${batchIndex + 1} of ${batches.length}`);
@@ -179,10 +185,12 @@ export class AdminClient {
   }
 
   async putRateLimit(key: string, limit: number, duration?: RateLimitDuration) {
-    await this.grpc.putRateLimit({
+    const request = {
       key,
       limit,
       duration,
-    });
+    };
+
+    await retrier(async () => this.grpc.putRateLimit(request), this.logger);
   }
 }

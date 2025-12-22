@@ -1,15 +1,15 @@
-import { Button } from '@/components/v1/ui/button';
-import { Separator } from '@/components/v1/ui/separator';
-import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns as apiTokensColumns } from './components/api-tokens-columns';
 import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { Button } from '@/components/v1/ui/button';
 import { Dialog } from '@/components/v1/ui/dialog';
-import { useApiError } from '@/lib/hooks';
+import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 
 export default function APITokens() {
   const { tenantId } = useCurrentTenantId();
@@ -27,9 +27,9 @@ export default function APITokens() {
   });
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
           <h2 className="text-2xl font-semibold leading-tight text-foreground">
             API Tokens
           </h2>
@@ -41,7 +41,7 @@ export default function APITokens() {
             Create API Token
           </Button>
         </div>
-        <p className="text-gray-700 dark:text-gray-300 my-4">
+        <p className="my-4 text-gray-700 dark:text-gray-300">
           API tokens are used by workers to connect with the Hatchet API and
           engine.
         </p>
@@ -50,7 +50,6 @@ export default function APITokens() {
           isLoading={listTokensQuery.isLoading}
           columns={cols}
           data={listTokensQuery.data?.rows || []}
-          filters={[]}
           getRowId={(row) => row.metadata.id}
         />
 

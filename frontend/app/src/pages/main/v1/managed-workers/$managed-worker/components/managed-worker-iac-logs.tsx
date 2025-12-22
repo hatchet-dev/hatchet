@@ -1,6 +1,7 @@
+import LoggingComponent from '@/components/v1/cloud/logging/logs';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import LoggingComponent from '@/components/v1/cloud/logging/logs';
 
 export function ManagedWorkerIaCLogs({
   managedWorkerId,
@@ -9,9 +10,11 @@ export function ManagedWorkerIaCLogs({
   managedWorkerId: string;
   deployKey: string;
 }) {
+  const { refetchInterval } = useRefetchInterval();
+
   const getBuildLogsQuery = useQuery({
     ...queries.cloud.getIacLogs(managedWorkerId, deployKey),
-    refetchInterval: 5000,
+    refetchInterval,
   });
 
   const logs = getBuildLogsQuery.data?.rows || [

@@ -107,6 +107,8 @@ type Worker struct {
 	labels map[string]interface{}
 
 	id *string
+
+	panicHandler func(ctx HatchetContext, recovered any)
 }
 
 type WorkerOpt func(*WorkerOpts)
@@ -267,6 +269,10 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 
 func (w *Worker) Use(mws ...MiddlewareFunc) {
 	w.middlewares.add(mws...)
+}
+
+func (w *Worker) SetPanicHandler(panicHandler func(ctx HatchetContext, recovered any)) {
+	w.panicHandler = panicHandler
 }
 
 func (w *Worker) NewService(name string) *Service {
@@ -527,14 +533,22 @@ func (w *Worker) executeAction(ctx context.Context, assignedAction *client.Actio
 
 func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action) error {
 	// send a message that the step run started
-	_, err := w.client.Dispatcher().SendStepActionEvent(
-		ctx,
-		w.getActionEvent(assignedAction, client.ActionEventTypeStarted),
-	)
+	actionEvent := w.getActionEvent(assignedAction, client.ActionEventTypeStarted)
 
-	if err != nil {
-		return fmt.Errorf("could not send action event: %w", err)
-	}
+	go func() {
+		eventCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+
+		defer cancel()
+
+		_, err := w.client.Dispatcher().SendStepActionEvent(
+			eventCtx,
+			actionEvent,
+		)
+
+		if err != nil {
+			w.l.Error().Err(err).Msgf("could not send action event")
+		}
+	}()
 
 	action, ok := w.actions[assignedAction.ActionId]
 

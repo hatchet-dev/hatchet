@@ -181,16 +181,14 @@ func (q *Queries) CountWorkflowRunsRoundRobin(ctx context.Context, db DBTX, arg 
 }
 
 const countWorkflows = `-- name: CountWorkflows :one
-SELECT
-    count(workflows) OVER() AS total
-FROM
-    "Workflow" as workflows
+SELECT COUNT(w.*)
+FROM "Workflow" w
 WHERE
-    workflows."tenantId" = $1 AND
-    workflows."deletedAt" IS NULL AND
-    (
-        $2::text IS NULL OR
-        workflows."id" IN (
+    w."tenantId" = $1
+    AND w."deletedAt" IS NULL
+    AND (
+        $2::TEXT IS NULL OR
+        w."id" IN (
             SELECT
                 DISTINCT ON(t1."workflowId") t1."workflowId"
             FROM
@@ -214,18 +212,23 @@ WHERE
                 t1."workflowId" DESC, t1."order" DESC
         )
     )
+    AND (
+        $3::TEXT IS NULL
+        OR w.name ILIKE CONCAT('%', $3::TEXT, '%')
+    )
 `
 
 type CountWorkflowsParams struct {
 	TenantId pgtype.UUID `json:"tenantId"`
 	EventKey pgtype.Text `json:"eventKey"`
+	Search   pgtype.Text `json:"search"`
 }
 
 func (q *Queries) CountWorkflows(ctx context.Context, db DBTX, arg CountWorkflowsParams) (int64, error) {
-	row := db.QueryRow(ctx, countWorkflows, arg.TenantId, arg.EventKey)
-	var total int64
-	err := row.Scan(&total)
-	return total, err
+	row := db.QueryRow(ctx, countWorkflows, arg.TenantId, arg.EventKey, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const createJob = `-- name: CreateJob :one
@@ -1046,33 +1049,18 @@ func (q *Queries) DeleteWorkflowTriggerCronRef(ctx context.Context, db DBTX, id 
 }
 
 const getLatestWorkflowVersionForWorkflows = `-- name: GetLatestWorkflowVersionForWorkflows :many
-WITH latest_versions AS (
-    SELECT DISTINCT ON (workflowVersions."workflowId")
-        workflowVersions."id" AS workflowVersionId,
-        workflowVersions."workflowId",
-        workflowVersions."order"
-    FROM
-        "WorkflowVersion" as workflowVersions
-    WHERE
-        workflowVersions."workflowId" = ANY($2::uuid[]) AND
-        workflowVersions."deletedAt" IS NULL
-    ORDER BY
-        workflowVersions."workflowId", workflowVersions."order" DESC
-)
-SELECT
-    workflowVersions."id"
-FROM
-    latest_versions
-JOIN
-    "WorkflowVersion" as workflowVersions ON workflowVersions."id" = latest_versions.workflowVersionId
-JOIN
-    "Workflow" as w ON w."id" = workflowVersions."workflowId"
-LEFT JOIN
-    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
+SELECT DISTINCT ON (wv."workflowId")
+    wv."id"
+FROM "WorkflowVersion" wv
+INNER JOIN "Workflow" w ON w."id" = wv."workflowId"
 WHERE
     w."tenantId" = $1::uuid AND
+    wv."workflowId" = ANY($2::uuid[]) AND
     w."deletedAt" IS NULL AND
-    workflowVersions."deletedAt" IS NULL
+    wv."deletedAt" IS NULL
+ORDER BY
+    wv."workflowId",
+    wv."order" DESC
 `
 
 type GetLatestWorkflowVersionForWorkflowsParams struct {
@@ -2102,6 +2090,23 @@ func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id pgtype.UUI
 		&i.IsPaused,
 	)
 	return &i, err
+}
+
+const updateCronTrigger = `-- name: UpdateCronTrigger :exec
+UPDATE "WorkflowTriggerCronRef"
+SET
+    "enabled" = COALESCE($1::BOOLEAN, "enabled")
+WHERE "id" = $2::uuid
+`
+
+type UpdateCronTriggerParams struct {
+	Enabled       pgtype.Bool `json:"enabled"`
+	Crontriggerid pgtype.UUID `json:"crontriggerid"`
+}
+
+func (q *Queries) UpdateCronTrigger(ctx context.Context, db DBTX, arg UpdateCronTriggerParams) error {
+	_, err := db.Exec(ctx, updateCronTrigger, arg.Enabled, arg.Crontriggerid)
+	return err
 }
 
 const updateWorkflow = `-- name: UpdateWorkflow :one

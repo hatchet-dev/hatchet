@@ -1,5 +1,4 @@
-import { add, format } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { TimePicker } from './time-picker';
 import { Button } from '@/components/v1/ui/button';
 import { Calendar } from '@/components/v1/ui/calendar';
 import {
@@ -7,16 +6,23 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
-import { TimePicker } from './time-picker';
+import { cn } from '@/lib/utils';
 import { CalendarIcon } from '@radix-ui/react-icons';
+import { add, format } from 'date-fns';
 
 type DateTimePickerProps = {
   date: Date | undefined;
   setDate: (date: Date | undefined) => void;
   label: string;
+  triggerClassName?: string;
 };
 
-export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
+export function DateTimePicker({
+  date,
+  setDate,
+  label,
+  triggerClassName,
+}: DateTimePickerProps) {
   /**
    * carry over the current time when a user clicks a new day
    * instead of resetting to 00:00
@@ -41,11 +47,12 @@ export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
         <Button
           variant={'outline'}
           className={cn(
-            'w-fit justify-start text-left font-normal text-xs',
+            'w-fit justify-start text-left text-xs font-normal',
             !date && 'text-muted-foreground',
+            triggerClassName,
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
+          <CalendarIcon className="mr-2 size-4" />
           {date ? (
             label + ':  ' + format(date, 'PPP HH:mm:ss')
           ) : (
@@ -53,14 +60,14 @@ export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0">
+      <PopoverContent className="z-[80] w-auto p-0">
         <Calendar
           mode="single"
           selected={date}
           onSelect={(d) => handleSelect(d)}
           initialFocus
         />
-        <div className="p-3 border-t border-border">
+        <div className="border-t border-border p-3">
           <TimePicker setDate={setDate} date={date} />
         </div>
       </PopoverContent>

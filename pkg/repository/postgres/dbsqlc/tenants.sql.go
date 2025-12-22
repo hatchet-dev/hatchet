@@ -545,6 +545,7 @@ FROM
     "Tenant" as tenants
 WHERE
     "id" = $1::uuid
+    AND "deletedAt" IS NULL
 `
 
 func (q *Queries) GetTenantByID(ctx context.Context, db DBTX, id pgtype.UUID) (*Tenant, error) {
@@ -579,6 +580,7 @@ FROM
     "Tenant" as tenants
 WHERE
     "slug" = $1::text
+    AND "deletedAt" IS NULL
 `
 
 func (q *Queries) GetTenantBySlug(ctx context.Context, db DBTX, slug string) (*Tenant, error) {
@@ -902,6 +904,8 @@ SELECT
     id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 FROM
     "Tenant" as tenants
+WHERE
+    "deletedAt" IS NULL
 `
 
 func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
@@ -950,6 +954,7 @@ FROM
 WHERE
     "controllerPartitionId" = $1::text
     AND "version" = $2::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL
 `
 
 type ListTenantsByControllerPartitionIdParams struct {
@@ -1003,6 +1008,7 @@ FROM
 WHERE
     "schedulerPartitionId" = $1::text
     AND "version" = $2::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL
 `
 
 type ListTenantsBySchedulerPartitionIdParams struct {
@@ -1056,6 +1062,7 @@ FROM
 WHERE
     "workerPartitionId" = $1::text
     AND "version" = $2::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL
 `
 
 type ListTenantsByTenantWorkerPartitionIdParams struct {

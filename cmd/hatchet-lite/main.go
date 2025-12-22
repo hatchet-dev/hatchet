@@ -14,7 +14,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-api/api"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-lite/staticfileserver"
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-staticfileserver/staticfileserver"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
@@ -85,17 +85,24 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		runtimePort = "8082"
 	}
 
-	// we hard code the msg queue kind to postgres
-	err := os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
-
-	if err != nil {
-		return fmt.Errorf("error setting SERVER_MSGQUEUE_KIND to postgres: %w", err)
-	}
-
 	feURL, err := url.Parse(fmt.Sprintf("http://localhost:%s", frontendPort))
 
 	if err != nil {
 		return fmt.Errorf("error parsing frontend URL: %w", err)
+	}
+
+	_, msgQueueKindSet := os.LookupEnv("SERVER_MSGQUEUE_KIND")
+	_, msgQueueRabbitMQURLSet := os.LookupEnv("SERVER_MSGQUEUE_RABBITMQ_URL")
+	// for legacy reasons let us also check for these two variables
+	_, taskQueueKindSet := os.LookupEnv("SERVER_TASKQUEUE_KIND")
+	_, taskQueueRabbitMQURLSet := os.LookupEnv("SERVER_TASKQUEUE_RABBITMQ_URL")
+
+	if !msgQueueKindSet && !msgQueueRabbitMQURLSet && !taskQueueKindSet && !taskQueueRabbitMQURLSet {
+		err := os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
+
+		if err != nil {
+			return fmt.Errorf("error setting SERVER_MSGQUEUE_KIND to postgres: %w", err)
+		}
 	}
 
 	_, sc, err := cf.CreateServerFromConfig(version)

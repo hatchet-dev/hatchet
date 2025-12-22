@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
 import AnsiToHtml from 'ansi-to-html';
 import DOMPurify from 'dompurify';
+import React, { useEffect, useRef, useState } from 'react';
 
 const convert = new AnsiToHtml({
   newline: true,
@@ -19,6 +19,11 @@ type LogProps = {
   logs: ExtendedLogLine[];
   onTopReached: () => void;
   onBottomReached: () => void;
+  onInfiniteScroll?: (scrollMetrics: {
+    scrollTop: number;
+    scrollHeight: number;
+    clientHeight: number;
+  }) => void;
   autoScroll?: boolean;
 };
 
@@ -35,6 +40,7 @@ const LoggingComponent: React.FC<LogProps> = ({
   logs,
   onTopReached,
   onBottomReached,
+  onInfiniteScroll,
   autoScroll = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -43,7 +49,8 @@ const LoggingComponent: React.FC<LogProps> = ({
   const [lastBottomCall, setLastBottomCall] = useState<number>(0);
   const [firstMount, setFirstMount] = useState<boolean>(true);
   const previousScrollHeightRef = useRef<number>(0);
-
+  const [lastInfiniteScrollCall, setLastInfiniteScrollCall] =
+    useState<number>(0);
   const handleScroll = () => {
     if (!containerRef.current) {
       return;
@@ -51,6 +58,20 @@ const LoggingComponent: React.FC<LogProps> = ({
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     previousScrollHeightRef.current = scrollHeight;
     const now = Date.now();
+
+    if (
+      onInfiniteScroll &&
+      logs.length > 0 &&
+      now - lastInfiniteScrollCall >= 100
+    ) {
+      onInfiniteScroll({
+        scrollTop,
+        scrollHeight,
+        clientHeight,
+      });
+      setLastInfiniteScrollCall(now);
+      return;
+    }
 
     if (scrollTop === 0 && now - lastTopCall >= 1000) {
       if (logs.length > 0) {
@@ -140,12 +161,12 @@ const LoggingComponent: React.FC<LogProps> = ({
 
   return (
     <div
-      className="w-full mx-auto overflow-y-auto p-6 text-indigo-300 font-mono text-xs rounded-md max-h-[25rem] min-h-[25rem] bg-muted scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground"
+      className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground mx-auto max-h-[25rem] min-h-[25rem] w-full overflow-y-auto rounded-md bg-muted p-6 font-mono text-xs text-indigo-300"
       ref={containerRef}
       onScroll={handleScroll}
     >
       {refreshing && (
-        <div className="absolute top-0 left-0 right-0 bg-gray-800 text-white p-2 text-center">
+        <div className="absolute left-0 right-0 top-0 bg-gray-800 p-2 text-center text-white">
           Refreshing...
         </div>
       )}
@@ -162,12 +183,12 @@ const LoggingComponent: React.FC<LogProps> = ({
         return (
           <p
             key={logHash}
-            className="pb-2 break-all overflow-x-hidden"
+            className="overflow-x-hidden whitespace-pre-wrap break-all pb-2"
             id={'log' + i}
           >
             {log.badge}
             {log.timestamp && (
-              <span className="text-gray-500 mr-2 ml--2">
+              <span className="ml--2 mr-2 text-gray-500">
                 {new Date(log.timestamp)
                   .toLocaleString('sv', options)
                   .replace(',', '.')
@@ -175,7 +196,7 @@ const LoggingComponent: React.FC<LogProps> = ({
               </span>
             )}
             {log.instance && (
-              <span className="text-foreground dark:text-white mr-2 ml--2">
+              <span className="ml--2 mr-2 text-foreground dark:text-white">
                 {log.instance}
               </span>
             )}

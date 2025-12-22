@@ -596,6 +596,17 @@ func (q *Queries) CreateWorkflowConcurrencyV1(ctx context.Context, db DBTX, arg 
 }
 
 const createWorkflowTriggerCronRef = `-- name: CreateWorkflowTriggerCronRef :one
+WITH previous_trigger AS (
+    SELECT "enabled"
+    FROM "WorkflowTriggerCronRef" c
+    JOIN "WorkflowTriggers" t ON t."id" = c."parentId"
+    JOIN "WorkflowVersion" wv ON wv."id" = t."workflowVersionId"
+    WHERE
+        wv."id" = $8::uuid
+        AND "cron" = $2::text
+        AND "name" = $3::text
+)
+
 INSERT INTO "WorkflowTriggerCronRef" (
     "parentId",
     "cron",
@@ -604,27 +615,31 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "additionalMetadata",
     "id",
     "method",
-    "priority"
-) VALUES (
-    $1::uuid,
-    $2::text,
-    $3::text,
-    $4::jsonb,
-    $5::jsonb,
-    gen_random_uuid(),
-    COALESCE($6::"WorkflowTriggerCronRefMethods", 'DEFAULT'),
-    COALESCE($7::integer, 1)
-) RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt", name, id, method, priority
+    "priority",
+    "enabled"
+)
+SELECT
+    $1::uuid AS "parentId",
+    $2::text AS "cron",
+    $3::text AS "name",
+    $4::jsonb AS "input",
+    $5::jsonb AS "additionalMetadata",
+    gen_random_uuid() AS "id",
+    COALESCE($6::"WorkflowTriggerCronRefMethods", 'DEFAULT') AS "method",
+    COALESCE($7::integer, 1) AS "priority",
+    COALESCE((SELECT "enabled" FROM previous_trigger), true) AS "enabled"
+RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt", name, id, method, priority
 `
 
 type CreateWorkflowTriggerCronRefParams struct {
-	Workflowtriggersid pgtype.UUID                       `json:"workflowtriggersid"`
-	Crontrigger        string                            `json:"crontrigger"`
-	Name               pgtype.Text                       `json:"name"`
-	Input              []byte                            `json:"input"`
-	AdditionalMetadata []byte                            `json:"additionalMetadata"`
-	Method             NullWorkflowTriggerCronRefMethods `json:"method"`
-	Priority           pgtype.Int4                       `json:"priority"`
+	Workflowtriggersid   pgtype.UUID                       `json:"workflowtriggersid"`
+	Crontrigger          string                            `json:"crontrigger"`
+	Name                 pgtype.Text                       `json:"name"`
+	Input                []byte                            `json:"input"`
+	AdditionalMetadata   []byte                            `json:"additionalMetadata"`
+	Method               NullWorkflowTriggerCronRefMethods `json:"method"`
+	Priority             pgtype.Int4                       `json:"priority"`
+	OldWorkflowVersionId pgtype.UUID                       `json:"oldWorkflowVersionId"`
 }
 
 func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefParams) (*WorkflowTriggerCronRef, error) {
@@ -636,6 +651,7 @@ func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg
 		arg.AdditionalMetadata,
 		arg.Method,
 		arg.Priority,
+		arg.OldWorkflowVersionId,
 	)
 	var i WorkflowTriggerCronRef
 	err := row.Scan(
@@ -796,33 +812,18 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 }
 
 const getLatestWorkflowVersionForWorkflows = `-- name: GetLatestWorkflowVersionForWorkflows :many
-WITH latest_versions AS (
-    SELECT DISTINCT ON (workflowVersions."workflowId")
-        workflowVersions."id" AS workflowVersionId,
-        workflowVersions."workflowId",
-        workflowVersions."order"
-    FROM
-        "WorkflowVersion" as workflowVersions
-    WHERE
-        workflowVersions."workflowId" = ANY($2::uuid[]) AND
-        workflowVersions."deletedAt" IS NULL
-    ORDER BY
-        workflowVersions."workflowId", workflowVersions."order" DESC
-)
-SELECT
-    workflowVersions."id"
-FROM
-    latest_versions
-JOIN
-    "WorkflowVersion" as workflowVersions ON workflowVersions."id" = latest_versions.workflowVersionId
-JOIN
-    "Workflow" as w ON w."id" = workflowVersions."workflowId"
-LEFT JOIN
-    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
+SELECT DISTINCT ON (wv."workflowId")
+    wv."id"
+FROM "WorkflowVersion" wv
+INNER JOIN "Workflow" w ON w."id" = wv."workflowId"
 WHERE
     w."tenantId" = $1::uuid AND
+    wv."workflowId" = ANY($2::uuid[]) AND
     w."deletedAt" IS NULL AND
-    workflowVersions."deletedAt" IS NULL
+    wv."deletedAt" IS NULL
+ORDER BY
+    wv."workflowId",
+    wv."order" DESC
 `
 
 type GetLatestWorkflowVersionForWorkflowsParams struct {
@@ -1343,14 +1344,20 @@ func (q *Queries) LockWorkflowVersion(ctx context.Context, db DBTX, workflowid p
 
 const moveCronTriggerToNewWorkflowTriggers = `-- name: MoveCronTriggerToNewWorkflowTriggers :exec
 WITH triggersToUpdate AS (
-    SELECT cronTrigger."id" FROM "WorkflowTriggerCronRef" cronTrigger
+    SELECT
+        cronTrigger."id",
+        cronTrigger."enabled"
+    FROM "WorkflowTriggerCronRef" cronTrigger
     JOIN "WorkflowTriggers" triggers ON triggers."id" = cronTrigger."parentId"
     WHERE triggers."workflowVersionId" = $2::uuid
     AND cronTrigger."method" = 'API'
 )
 UPDATE "WorkflowTriggerCronRef"
-SET "parentId" = $1::uuid
-WHERE "id" IN (SELECT "id" FROM triggersToUpdate)
+SET
+    "parentId" = $1::uuid,
+    "enabled" = triggersToUpdate."enabled"
+FROM triggersToUpdate
+WHERE "WorkflowTriggerCronRef"."id" = triggersToUpdate."id"
 `
 
 type MoveCronTriggerToNewWorkflowTriggersParams struct {

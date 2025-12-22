@@ -14,12 +14,12 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type workflowAPIRepository struct {
@@ -62,7 +62,9 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 	}
 
 	if opts.Name != nil {
-		queryParams.Search = pgtype.Text{String: *opts.Name, Valid: true}
+		search := pgtype.Text{String: *opts.Name, Valid: true}
+		queryParams.Search = search
+		countParams.Search = search
 	}
 
 	orderByField := "createdAt"
@@ -378,6 +380,18 @@ func (w *workflowAPIRepository) GetCronWorkflow(ctx context.Context, tenantId, c
 
 func (w *workflowAPIRepository) DeleteCronWorkflow(ctx context.Context, tenantId, id string) error {
 	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, sqlchelpers.UUIDFromStr(id))
+}
+
+func (w *workflowAPIRepository) UpdateCronWorkflow(ctx context.Context, tenantId, id string, opts *repository.UpdateCronOpts) error {
+	params := dbsqlc.UpdateCronTriggerParams{
+		Crontriggerid: sqlchelpers.UUIDFromStr(id),
+	}
+
+	if opts.Enabled != nil {
+		params.Enabled = sqlchelpers.BoolFromBoolean(*opts.Enabled)
+	}
+
+	return w.queries.UpdateCronTrigger(ctx, w.pool, params)
 }
 
 func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId string, opts *repository.CreateCronWorkflowTriggerOpts) (*dbsqlc.ListCronWorkflowsRow, error) {

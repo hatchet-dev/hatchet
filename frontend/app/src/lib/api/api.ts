@@ -8,8 +8,6 @@ const api = new Api({
 
 export default api;
 
-const cloudApi = new CloudApi({
+export const cloudApi = new CloudApi({
   paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
 });
-
-export { cloudApi };

@@ -19,9 +19,12 @@ List log lines for a given task run.
 
 Parameters:
 
-| Name          | Type  | Description                              | Default    |
-| ------------- | ----- | ---------------------------------------- | ---------- |
-| `task_run_id` | `str` | The ID of the task run to list logs for. | _required_ |
+| Name          | Type               | Description                                            | Default    |
+| ------------- | ------------------ | ------------------------------------------------------ | ---------- |
+| `task_run_id` | `str`              | The ID of the task run to list logs for.               | _required_ |
+| `limit`       | `int`              | Maximum number of log lines to return (default: 1000). | `1000`     |
+| `since`       | `datetime \| None` | The start time to get logs for.                        | `None`     |
+| `until`       | `datetime \| None` | The end time to get logs for.                          | `None`     |
 
 Returns:
 
@@ -35,9 +38,12 @@ List log lines for a given task run.
 
 Parameters:
 
-| Name          | Type  | Description                              | Default    |
-| ------------- | ----- | ---------------------------------------- | ---------- |
-| `task_run_id` | `str` | The ID of the task run to list logs for. | _required_ |
+| Name          | Type               | Description                                            | Default    |
+| ------------- | ------------------ | ------------------------------------------------------ | ---------- |
+| `task_run_id` | `str`              | The ID of the task run to list logs for.               | _required_ |
+| `limit`       | `int`              | Maximum number of log lines to return (default: 1000). | `1000`     |
+| `since`       | `datetime \| None` | The start time to get logs for.                        | `None`     |
+| `until`       | `datetime \| None` | The end time to get logs for.                          | `None`     |
 
 Returns:
 

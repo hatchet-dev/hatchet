@@ -3,7 +3,7 @@ import { Badge } from '@/components/v1/ui/badge';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { WorkflowVersion } from '@/lib/api';
-import { formatCron } from '@/lib/utils';
+import { formatCron } from '@/lib/cron';
 
 export default function WorkflowGeneralSettings({
   workflow,
@@ -38,7 +38,7 @@ function SettingsSection({
 }) {
   return (
     <div className="space-y-3">
-      <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2">
+      <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
         {title}
       </h3>
       <div className="pl-1">{children}</div>
@@ -48,7 +48,7 @@ function SettingsSection({
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <p className="text-sm text-gray-500 dark:text-gray-400 italic">{message}</p>
+    <p className="text-sm italic text-gray-500 dark:text-gray-400">{message}</p>
   );
 }
 
@@ -134,7 +134,7 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
                   {cronTrigger.cron}
                 </Badge>
                 {cronTrigger.cron && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Runs {formatCron(cronTrigger.cron)}
                   </p>
                 )}
@@ -163,7 +163,7 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
         <Input
           disabled
           value={workflow.concurrency.maxRuns}
-          className="font-mono h-8"
+          className="h-8 font-mono"
         />
       </FieldGroup>
 
@@ -174,7 +174,7 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
         <Input
           disabled
           value={workflow.concurrency.limitStrategy}
-          className="font-mono h-8"
+          className="h-8 font-mono"
         />
       </FieldGroup>
     </div>

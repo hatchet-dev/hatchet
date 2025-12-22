@@ -1,5 +1,16 @@
-import React from 'react';
-import { Button } from '@/components/ui/button';
+import hatchet from '@/assets/hatchet_logo.png';
+import hatchetDark from '@/assets/hatchet_logo_dark.png';
+import { useSidebar } from '@/components/sidebar-provider';
+import { useTheme } from '@/components/theme-provider';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/v1/ui/breadcrumb';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,15 +19,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-
-import { useLocation, useNavigate } from 'react-router-dom';
-import api, { TenantMember, TenantVersion, User } from '@/lib/api';
+} from '@/components/v1/ui/dropdown-menu';
+import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
+import { useTenantDetails } from '@/hooks/use-tenant';
+import api, { TenantMember, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { VersionInfo } from '@/pages/main/info/components/version-info';
+import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
-import hatchet from '@/assets/hatchet_logo.png';
-import hatchetDark from '@/assets/hatchet_logo_dark.png';
-import { useSidebar } from '@/components/sidebar-provider';
+import { useNavigate } from '@tanstack/react-router';
+import { Menu } from 'lucide-react';
+import React from 'react';
+import { useMemo } from 'react';
 import {
   BiBook,
   BiCalendar,
@@ -27,29 +43,11 @@ import {
   BiUserCircle,
   BiEnvelope,
 } from 'react-icons/bi';
-import { Menu } from 'lucide-react';
-import { useTheme } from '@/components/theme-provider';
-import { useEffect, useMemo } from 'react';
-import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { VersionInfo } from '@/pages/main/info/components/version-info';
-import { useTenant } from '@/lib/atoms';
-import { routes } from '@/router';
-import { Banner, BannerProps } from './banner';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/v1/ui/breadcrumb';
-import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
-import { usePendingInvites } from '@/hooks/use-pending-invites';
 
 function HelpDropdown() {
   const meta = useApiMeta();
   const navigate = useNavigate();
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
 
   const hasPylon = useMemo(() => {
     if (!meta.data?.pylonAppId) {
@@ -62,12 +60,8 @@ function HelpDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="relative h-10 w-10 rounded-full p-1"
-          aria-label="Help Menu"
-        >
-          <BiHelpCircle className="h-6 w-6 text-foreground cursor-pointer" />
+        <Button variant="icon" aria-label="Help Menu">
+          <BiHelpCircle className="h-6 w-6 cursor-pointer text-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -101,11 +95,14 @@ function HelpDropdown() {
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
-            if (tenant?.version === TenantVersion.V1) {
-              navigate(`/tenants/${tenant.metadata.id}/onboarding/get-started`);
-            } else {
-              navigate('/onboarding/get-started');
+            if (!tenant) {
+              return;
             }
+
+            navigate({
+              to: appRoutes.tenantOnboardingGetStartedRoute.to,
+              params: { tenant: tenant.metadata.id },
+            });
           }}
         >
           <BiSolidGraduation className="mr-2" />
@@ -118,7 +115,6 @@ function HelpDropdown() {
 
 function AccountDropdown({ user }: { user: User }) {
   const navigate = useNavigate();
-  const { tenant } = useTenant();
 
   const { handleApiError } = useApiError({});
 
@@ -133,7 +129,7 @@ function AccountDropdown({ user }: { user: User }) {
       await api.userUpdateLogout();
     },
     onSuccess: () => {
-      navigate('/auth/login');
+      navigate({ to: appRoutes.authLoginRoute.to });
     },
     onError: handleApiError,
   });
@@ -141,21 +137,17 @@ function AccountDropdown({ user }: { user: User }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="relative h-10 w-10 rounded-full p-1"
-          aria-label="User Menu"
-        >
-          <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
+        <Button variant="icon" aria-label="User Menu">
+          <BiUserCircle className="h-6 w-6 cursor-pointer text-foreground" />
           {(pendingInvitesQuery.data ?? 0) > 0 && (
-            <div className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-blue-500 rounded-full border-2 border-background animate-pulse"></div>
+            <div className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full border-2 border-background bg-blue-500"></div>
           )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">
+            <p className="text-sm font-medium leading-none" data-cy="user-name">
               {user.name || user.email}
             </p>
             <p className="text-xs leading-none text-gray-700 dark:text-gray-300">
@@ -166,7 +158,11 @@ function AccountDropdown({ user }: { user: User }) {
         <DropdownMenuSeparator />
         {(pendingInvitesQuery.data ?? 0) > 0 && (
           <>
-            <DropdownMenuItem onClick={() => navigate('/onboarding/invites')}>
+            <DropdownMenuItem
+              onClick={() =>
+                navigate({ to: appRoutes.onboardingInvitesRoute.to })
+              }
+            >
               <BiEnvelope className="mr-2" />
               Invites ({pendingInvitesQuery.data})
             </DropdownMenuItem>
@@ -176,14 +172,6 @@ function AccountDropdown({ user }: { user: User }) {
         <DropdownMenuItem>
           <VersionInfo />
         </DropdownMenuItem>
-        {tenant?.version == TenantVersion.V1 &&
-          location.pathname.includes('v1') && (
-            <DropdownMenuItem
-              onClick={() => navigate('/workflow-runs?previewV0=true')}
-            >
-              View Legacy V0 Data
-            </DropdownMenuItem>
-          )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => toggleTheme()}>
           Toggle Theme
@@ -200,85 +188,24 @@ function AccountDropdown({ user }: { user: User }) {
 interface MainNavProps {
   user: User;
   tenantMemberships: TenantMember[];
-  setHasBanner?: (state: boolean) => void;
 }
 
-export default function MainNav({ user, setHasBanner }: MainNavProps) {
+export default function MainNav({ user }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
   const { theme } = useTheme();
-  const { tenant } = useTenant();
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
   const breadcrumbs = useBreadcrumbs();
 
-  const tenantedRoutes = useMemo(
-    () =>
-      routes
-        .at(0)
-        ?.children?.find((r) => r.path?.startsWith('/tenants/'))
-        ?.children?.find(
-          (r) => r.path?.startsWith('/tenants/') && r.children?.length,
-        )
-        ?.children?.map((c) => c.path)
-        ?.map((p) => p?.replace('/tenants/:tenant', '')) || [],
-    [],
-  );
-
-  const tenantVersion = tenant?.version || TenantVersion.V0;
-
-  const banner: BannerProps | undefined = useMemo(() => {
-    const pathnameWithoutTenant = pathname.replace(
-      `/tenants/${tenant?.metadata.id}`,
-      '',
-    );
-
-    const shouldShowVersionUpgradeButton =
-      tenantedRoutes.includes(pathnameWithoutTenant) && // It is a versioned route
-      !pathname.startsWith('/tenants') && // The user is not already on the v1 version
-      tenantVersion === TenantVersion.V1; // The tenant is on the v1 version
-
-    if (shouldShowVersionUpgradeButton) {
-      return {
-        message: (
-          <>
-            You are viewing legacy V0 data for a tenant that was upgraded to V1
-            runtime.
-          </>
-        ),
-        type: 'warning',
-        actionText: 'View V1',
-        onAction: () => {
-          navigate({
-            pathname: `/tenants/${tenant?.metadata.id}${pathname}`,
-            search: '?previewV0=false',
-          });
-        },
-      };
-    }
-
-    return;
-  }, [navigate, pathname, tenantVersion, tenantedRoutes, tenant?.metadata.id]);
-
-  useEffect(() => {
-    if (!setHasBanner) {
-      return;
-    }
-    setHasBanner(!!banner);
-  }, [setHasBanner, banner]);
-
   return (
-    <div className="fixed top-0 w-screen z-50">
-      {banner && <Banner {...banner} />}
-
+    <div className="fixed top-0 z-50 w-screen">
       <div className="h-16 border-b bg-background">
-        <div className="flex h-16 items-center pr-4 pl-4">
+        <div className="flex h-16 items-center pl-4 pr-4">
           <div className="flex flex-row items-center gap-x-8">
             <div className="flex items-center gap-3">
               <Button
-                variant="ghost"
+                variant="icon"
                 onClick={() => toggleSidebarOpen()}
-                className="size-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
                 aria-label="Toggle sidebar"
+                size="icon"
               >
                 <Menu className="size-4" />
               </Button>

@@ -13,7 +13,6 @@
 export enum OrganizationInviteStatus {
   PENDING = "PENDING",
   ACCEPTED = "ACCEPTED",
-  REJECTED = "REJECTED",
   EXPIRED = "EXPIRED",
 }
 
@@ -24,7 +23,6 @@ export enum ManagementTokenDuration {
 }
 
 export enum TenantStatusType {
-  ACTIVE = "ACTIVE",
   ARCHIVED = "ARCHIVED",
 }
 
@@ -38,17 +36,17 @@ export enum TemplateOptions {
   QUICKSTART_GO = "QUICKSTART_GO",
 }
 
-export enum AutoscalingTargetKind {
+enum AutoscalingTargetKind {
   PORTER = "PORTER",
   FLY = "FLY",
 }
 
-export enum CouponFrequency {
+enum CouponFrequency {
   Once = "once",
   Recurring = "recurring",
 }
 
-export enum TenantSubscriptionStatus {
+enum TenantSubscriptionStatus {
   Active = "active",
   Pending = "pending",
   Terminated = "terminated",
@@ -58,37 +56,21 @@ export enum TenantSubscriptionStatus {
 export enum ManagedWorkerRegion {
   Ams = "ams",
   Arn = "arn",
-  Atl = "atl",
-  Bog = "bog",
-  Bos = "bos",
+  Bom = "bom",
   Cdg = "cdg",
-  Den = "den",
   Dfw = "dfw",
   Ewr = "ewr",
-  Eze = "eze",
   Fra = "fra",
-  Gdl = "gdl",
-  Gig = "gig",
   Gru = "gru",
-  Hkg = "hkg",
   Iad = "iad",
   Jnb = "jnb",
   Lax = "lax",
   Lhr = "lhr",
-  Mad = "mad",
-  Mia = "mia",
   Nrt = "nrt",
   Ord = "ord",
-  Otp = "otp",
-  Phx = "phx",
-  Qro = "qro",
-  Scl = "scl",
-  Sea = "sea",
   Sin = "sin",
   Sjc = "sjc",
   Syd = "syd",
-  Waw = "waw",
-  Yul = "yul",
   Yyz = "yyz",
 }
 
@@ -133,16 +115,16 @@ export type APIErrors = any;
 
 export type APIError = any;
 
-export type PaginationResponse = any;
+type PaginationResponse = any;
 
-export type APIResourceMeta = any;
+type APIResourceMeta = any;
 
-export interface GithubBranch {
+interface GithubBranch {
   branch_name: string;
   is_default: boolean;
 }
 
-export interface GithubRepo {
+interface GithubRepo {
   repo_owner: string;
   repo_name: string;
 }
@@ -194,13 +176,13 @@ export interface ManagedWorkerBuildConfig {
   steps?: BuildStep[];
 }
 
-export interface ManagedWorkerSecret {
+interface ManagedWorkerSecret {
   key: string;
   id: string;
   hint: string;
 }
 
-export interface CreateManagedWorkerSecretRequest {
+interface CreateManagedWorkerSecretRequest {
   /** array of secret keys and values to add to the worker */
   add?: {
     key: string;
@@ -210,7 +192,7 @@ export interface CreateManagedWorkerSecretRequest {
   addGlobal?: string[];
 }
 
-export interface UpdateManagedWorkerSecretRequest {
+interface UpdateManagedWorkerSecretRequest {
   /** array of secret keys and values to add to the worker */
   add?: {
     key: string;
@@ -234,7 +216,7 @@ export interface UpdateManagedWorkerSecretRequest {
   }[];
 }
 
-export interface BuildStep {
+interface BuildStep {
   metadata: APIResourceMeta;
   /** The relative path to the build directory */
   buildDir: string;
@@ -242,7 +224,7 @@ export interface BuildStep {
   dockerfilePath: string;
 }
 
-export interface ManagedWorkerRuntimeConfig {
+interface ManagedWorkerRuntimeConfig {
   metadata: APIResourceMeta;
   numReplicas: number;
   autoscaling?: AutoscalingConfig;
@@ -299,7 +281,7 @@ export interface RuntimeConfigActionsResponse {
   actions: string[];
 }
 
-export interface CreateManagedWorkerBuildConfigRequest {
+interface CreateManagedWorkerBuildConfigRequest {
   /**
    * @format uuid
    * @minLength 36
@@ -312,14 +294,14 @@ export interface CreateManagedWorkerBuildConfigRequest {
   steps: CreateBuildStepRequest[];
 }
 
-export interface CreateBuildStepRequest {
+interface CreateBuildStepRequest {
   /** The relative path to the build directory */
   buildDir: string;
   /** The relative path from the build dir to the Dockerfile */
   dockerfilePath: string;
 }
 
-export interface CreateManagedWorkerRuntimeConfigRequest {
+interface CreateManagedWorkerRuntimeConfigRequest {
   /**
    * @min 0
    * @max 1000
@@ -431,7 +413,7 @@ export interface Coupon {
 
 export type VectorPushRequest = EventObject[];
 
-export interface EventObject {
+interface EventObject {
   event?: {
     provider?: string;
   };
@@ -468,34 +450,34 @@ export interface LogLineList {
 
 export type Matrix = SampleStream[];
 
-export interface SampleStream {
+interface SampleStream {
   metric?: Metric;
   values?: SamplePair[];
   histograms?: SampleHistogramPair[];
 }
 
-export type SamplePair = any[];
+type SamplePair = any[];
 
 /** @format float */
-export type SampleValue = number;
+type SampleValue = number;
 
-export interface SampleHistogramPair {
+interface SampleHistogramPair {
   timestamp?: Time;
   histogram?: SampleHistogram;
 }
 
-export interface SampleHistogram {
+interface SampleHistogram {
   count?: FloatString;
   sum?: FloatString;
   buckets?: HistogramBuckets;
 }
 
 /** @format float */
-export type FloatString = number;
+type FloatString = number;
 
-export type HistogramBuckets = HistogramBucket[];
+type HistogramBuckets = HistogramBucket[];
 
-export interface HistogramBucket {
+interface HistogramBucket {
   /** @format int32 */
   boundaries?: number;
   lower?: FloatString;
@@ -503,15 +485,15 @@ export interface HistogramBucket {
   count?: FloatString;
 }
 
-export type Metric = Record<string, LabelValue>;
+type Metric = Record<string, LabelValue>;
 
-export type LabelSet = Record<string, LabelValue>;
+type LabelSet = Record<string, LabelValue>;
 
-export type LabelName = string;
+type LabelName = string;
 
-export type LabelValue = string;
+type LabelValue = string;
 
-export type Time = number;
+type Time = number;
 
 export interface Build {
   metadata?: APIResourceMeta;
@@ -550,7 +532,7 @@ export interface InstanceList {
  */
 export type FeatureFlags = Record<string, string>;
 
-export interface WorkflowRunEventsMetric {
+interface WorkflowRunEventsMetric {
   /** @format date-time */
   time: string;
   PENDING: number;
@@ -564,7 +546,7 @@ export interface WorkflowRunEventsMetricsCounts {
   results?: WorkflowRunEventsMetric[];
 }
 
-export interface AutoscalingConfig {
+interface AutoscalingConfig {
   waitDuration: string;
   rollingWindowDuration: string;
   utilizationScaleUpThreshold: number;
@@ -590,7 +572,7 @@ export interface CreateOrUpdateAutoscalingRequest {
   fly?: CreateFlyAutoscalingRequest;
 }
 
-export interface CreatePorterAutoscalingRequest {
+interface CreatePorterAutoscalingRequest {
   token: string;
   targetUrl: "CLOUD" | "DASHBOARD";
   targetProject: string;
@@ -598,7 +580,7 @@ export interface CreatePorterAutoscalingRequest {
   targetAppName: string;
 }
 
-export interface CreateFlyAutoscalingRequest {
+interface CreateFlyAutoscalingRequest {
   autoscalingKey: string;
   currentReplicas: number;
 }
@@ -664,12 +646,12 @@ export interface OrganizationMember {
   email: string;
 }
 
-export interface OrganizationMemberList {
+interface OrganizationMemberList {
   rows: OrganizationMember[];
   pagination: PaginationResponse;
 }
 
-export interface InviteOrganizationMembersRequest {
+interface InviteOrganizationMembersRequest {
   /**
    * Array of user emails to invite to the organization
    * @minItems 1
@@ -700,7 +682,7 @@ export interface OrganizationTenant {
   archivedAt?: string;
 }
 
-export interface OrganizationTenantList {
+interface OrganizationTenantList {
   rows: OrganizationTenant[];
 }
 
@@ -711,7 +693,7 @@ export interface CreateNewTenantForOrganizationRequest {
   slug: string;
 }
 
-export type APIToken = any;
+type APIToken = any;
 
 export type APITokenList = any;
 

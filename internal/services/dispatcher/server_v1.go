@@ -23,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -328,7 +329,10 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	ringIndex := 0
 	ringMu := sync.Mutex{}
 
-	sendEvent := func(e *contracts.WorkflowRunEvent) error {
+	sendEvent := func(ctx context.Context, e *contracts.WorkflowRunEvent) error {
+		_, sendEventSpan := telemetry.NewSpan(ctx, "subscribe_to_workflow_runs_v1.send_event")
+		defer sendEventSpan.End()
+
 		results := s.cleanResults(e.Results)
 
 		if results == nil {
@@ -361,6 +365,9 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			return nil
 		}
 
+		iterCtx, iterSpan := telemetry.NewSpan(ctx, "subscribe_to_workflow_runs_v1.iter")
+		defer iterSpan.End()
+
 		bufferSize := 1000
 
 		if len(workflowRunIds) > bufferSize {
@@ -386,7 +393,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 		start := time.Now()
 
-		finalizedWorkflowRuns, err := s.repov1.Tasks().ListFinalizedWorkflowRuns(ctx, tenantId, workflowRunIds)
+		finalizedWorkflowRuns, err := s.repov1.Tasks().ListFinalizedWorkflowRuns(iterCtx, tenantId, workflowRunIds)
 
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not list finalized workflow runs")
@@ -405,7 +412,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		}
 
 		for _, event := range events {
-			err := sendEvent(event)
+			err := sendEvent(iterCtx, event)
 
 			if err != nil {
 				return err
@@ -614,26 +621,6 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 	// 	return nil, fmt.Errorf("retry count is required in v2")
 	// }
 
-	go func() {
-		olapMsg, err := tasktypes.MonitoringEventMessageFromActionEvent(
-			tenantId,
-			task.ID,
-			retryCount,
-			request,
-		)
-
-		if err != nil {
-			s.l.Error().Err(err).Msg("could not create monitoring event message")
-			return
-		}
-
-		err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
-
-		if err != nil {
-			s.l.Error().Err(err).Msg("could not publish to OLAP queue")
-		}
-	}()
-
 	msg, err := tasktypes.CompletedTaskMessage(
 		tenantId,
 		task.ID,
@@ -654,10 +641,31 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		return nil, err
 	}
 
-	return &contracts.ActionEventResponse{
+	resp := &contracts.ActionEventResponse{
 		TenantId: tenantId,
 		WorkerId: request.WorkerId,
-	}, nil
+	}
+
+	olapMsg, err := tasktypes.MonitoringEventMessageFromActionEvent(
+		tenantId,
+		task.ID,
+		retryCount,
+		request,
+	)
+
+	if err != nil {
+		s.l.Error().Err(err).Msg("could not create monitoring event message")
+		return resp, nil
+	}
+
+	err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
+
+	if err != nil {
+		s.l.Error().Err(err).Msg("could not publish monitoring event message")
+		return resp, nil
+	}
+
+	return resp, nil
 }
 
 func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {

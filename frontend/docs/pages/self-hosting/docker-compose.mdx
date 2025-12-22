@@ -81,7 +81,7 @@ services:
     command: /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/config --overwrite=false
     environment:
       DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
-      SERVER_TASKQUEUE_RABBITMQ_URL: amqp://user:password@rabbitmq:5672/
+      SERVER_MSGQUEUE_RABBITMQ_URL: amqp://user:password@rabbitmq:5672/
       SERVER_AUTH_COOKIE_DOMAIN: localhost:8080
       SERVER_AUTH_COOKIE_INSECURE: "t"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
@@ -195,13 +195,54 @@ docker compose pull
 
 ## Connecting to the engine from within Docker
 
-If you're also running your worker application inside of `docker-compose`, you should modify the `SERVER_GRPC_BROADCAST_ADDRESS` environment variable in the `setup-config` service to use `host.docker.internal` as the hostname. For example:
+If you're also running your worker application inside of `docker-compose`, you should modify the `SERVER_GRPC_BROADCAST_ADDRESS` environment variable in the `setup-config` service to use `hatchet-engine` as the hostname. For example:
 
 ```yaml
-SERVER_GRPC_BROADCAST_ADDRESS: "host.docker.internal:7077"
+SERVER_GRPC_BROADCAST_ADDRESS: "hatchet-engine:7077"
+```
+
+Make sure your worker depends on hatchet-engine:
+
+```yaml
+worker:
+  depends_on:
+    hatchet-engine:
+      condition: service_started
 ```
 
 <Callout type="info">
   **Note:** modifying the GRPC broadcast address or server URL will require
   re-issuing an API token.
 </Callout>
+
+## Additional Docker configuration
+
+### Increase Postgres shared memory
+
+By default, containers have a 64 MB shared memory segment (`/dev/shm`). For larger Hatchet deployments this can be too small and may lead to slow queries or an unresponsive dashboard. Increase the shared memory size for the `postgres` service:
+
+```yaml filename="docker-compose.yml" copy
+# ...
+services:
+  postgres:
+    image: postgres:15.6
+    shm_size: 1g # Increase shared memory (adjust as needed)
+    command: postgres -c 'max_connections=1000'
+    restart: always
+    hostname: "postgres"
+    environment:
+      - POSTGRES_USER=hatchet
+      - POSTGRES_PASSWORD=hatchet
+      - POSTGRES_DB=hatchet
+    ports:
+      - "5435:5432"
+    volumes:
+      - hatchet_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d hatchet -U hatchet"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+# ...
+```

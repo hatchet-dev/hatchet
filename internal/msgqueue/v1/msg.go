@@ -27,7 +27,11 @@ type Message struct {
 	OtelCarrier map[string]string `json:"otel_carrier"`
 
 	// Retries is the number of retries for the task.
+	// Deprecated: retries are set globally at the moment.
 	Retries int `json:"retries"`
+
+	// Compressed indicates whether the payloads are gzip compressed
+	Compressed bool `json:"compressed,omitempty"`
 }
 
 func NewTenantMessage[T any](tenantId, id string, immediatelyExpire, persistent bool, payloads ...T) (*Message, error) {

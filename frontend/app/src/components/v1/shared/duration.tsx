@@ -1,21 +1,18 @@
-import * as React from 'react';
-import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
-import { intervalToDuration } from 'date-fns';
-import { Clock } from 'lucide-react';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+  PortalTooltip,
+  PortalTooltipTrigger,
+  PortalTooltipContent,
+  PortalTooltipProvider,
+} from '@/components/v1/ui/portal-tooltip';
 import { V1TaskStatus } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { intervalToDuration } from 'date-fns';
 import { Duration as DateFnsDuration } from 'date-fns';
+import { Clock } from 'lucide-react';
+import * as React from 'react';
 
-export function formatDuration(
-  duration: DateFnsDuration,
-  rawTimeMs: number,
-): string {
+function formatDuration(duration: DateFnsDuration, rawTimeMs: number): string {
   const parts = [];
 
   if (duration.days) {
@@ -48,7 +45,7 @@ export function formatDuration(
   return parts.join(' ');
 }
 
-export const isValidTimestamp = (
+const isValidTimestamp = (
   timestamp?: string | Date | null,
 ): timestamp is string | Date => {
   if (!timestamp) {
@@ -78,7 +75,7 @@ const durationVariants = cva('text-sm', {
   },
 });
 
-export interface DurationProps
+interface DurationProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof durationVariants> {
   start?: string | Date | null;
@@ -137,21 +134,21 @@ export function Duration({
   }
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
+    <PortalTooltipProvider>
+      <PortalTooltip>
+        <PortalTooltipTrigger asChild>
           <span
             className={cn(!asChild && durationVariants({ variant }), className)}
             {...props}
           >
             {content}
           </span>
-        </TooltipTrigger>
-        <TooltipContent>
+        </PortalTooltipTrigger>
+        <PortalTooltipContent>
           {isRunning ? 'Running for ' : ''}
           {formatDuration(duration, rawDuration)}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </PortalTooltipContent>
+      </PortalTooltip>
+    </PortalTooltipProvider>
   );
 }

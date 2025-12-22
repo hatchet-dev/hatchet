@@ -3,11 +3,7 @@ package shared
 import (
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/client/create"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
-	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
-	"github.com/hatchet-dev/hatchet/pkg/worker"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 type StreamTaskInput struct{}
@@ -35,7 +31,7 @@ func createChunks(content string, n int) []string {
 	return chunks
 }
 
-func StreamTask(ctx worker.HatchetContext, input StreamTaskInput) (*StreamTaskOutput, error) {
+func StreamTask(ctx hatchet.Context, input StreamTaskInput) (*StreamTaskOutput, error) {
 	time.Sleep(2 * time.Second)
 
 	chunks := createChunks(annaKarenina, 10)
@@ -51,12 +47,6 @@ func StreamTask(ctx worker.HatchetContext, input StreamTaskInput) (*StreamTaskOu
 }
 
 
-func StreamingWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[StreamTaskInput, StreamTaskOutput] {
-	return factory.NewTask(
-		create.StandaloneTask{
-			Name: "stream-example",
-		},
-		StreamTask,
-		hatchet,
-	)
+func StreamingWorkflow(client *hatchet.Client) *hatchet.StandaloneTask {
+	return client.NewStandaloneTask("stream-example", StreamTask)
 }

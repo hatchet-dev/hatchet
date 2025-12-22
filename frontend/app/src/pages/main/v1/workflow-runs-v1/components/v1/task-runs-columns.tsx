@@ -1,19 +1,20 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { Link } from 'react-router-dom';
 import {
   AdditionalMetadata,
   AdditionalMetadataClick,
 } from '../../../events/components/additional-metadata';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Checkbox } from '@/components/v1/ui/checkbox';
-import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { Button } from '@/components/v1/ui/button';
-import { cn } from '@/lib/utils';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Duration } from '@/components/v1/shared/duration';
+import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { appRoutes } from '@/router';
+import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const TaskRunColumn = {
   taskName: 'Task Name',
@@ -31,16 +32,20 @@ export const TaskRunColumn = {
 export type TaskRunColumnKeys = keyof typeof TaskRunColumn;
 
 export const workflowKey: TaskRunColumnKeys = 'workflow';
-export const parentTaskExternalIdKey: TaskRunColumnKeys =
-  'parentTaskExternalId';
+const parentTaskExternalIdKey: TaskRunColumnKeys = 'parentTaskExternalId';
 export const flattenDAGsKey: TaskRunColumnKeys = 'flattenDAGs';
 export const createdAtKey: TaskRunColumnKeys = 'createdAt';
-export const startedAtKey: TaskRunColumnKeys = 'startedAt';
-export const finishedAtKey: TaskRunColumnKeys = 'finishedAt';
-export const durationKey: TaskRunColumnKeys = 'duration';
+const startedAtKey: TaskRunColumnKeys = 'startedAt';
+const finishedAtKey: TaskRunColumnKeys = 'finishedAt';
+const durationKey: TaskRunColumnKeys = 'duration';
 export const additionalMetadataKey: TaskRunColumnKeys = 'additionalMetadata';
-export const taskNameKey: TaskRunColumnKeys = 'taskName';
+const taskNameKey: TaskRunColumnKeys = 'taskName';
 export const statusKey: TaskRunColumnKeys = 'status';
+
+export const createdAfterKey = 'createdAfter';
+export const finishedBeforeKey = 'finishedBefore';
+export const isCustomTimeRangeKey = 'isCustomTimeRange';
+export const timeWindowKey = 'timeWindow';
 
 export const columns: (
   tenantId: string,
@@ -83,8 +88,8 @@ export const columns: (
         {row.getCanExpand() && (
           <Button
             onClick={() => row.toggleExpanded()}
-            variant="ghost"
-            className="cursor-pointer px-2"
+            variant="icon"
+            className="px-2"
             hoverText="Show tasks"
           >
             {row.getIsExpanded() ? (
@@ -99,35 +104,19 @@ export const columns: (
     enableSorting: false,
     enableHiding: false,
   },
-  // {
-  //   accessorKey: 'task_id',
-  //   header: ({ column }) => (
-  //     <DataTableColumnHeader column={column} title="Id" />
-  //   ),
-  //   cell: ({ row }) => (
-  //     <div
-  //       className="cursor-pointer hover:underline min-w-fit whitespace-nowrap items-center flex-row flex gap-x-1"
-  //       onClick={() => {
-  //         navigator.clipboard.writeText(row.original.taskId.toString());
-  //       }}
-  //     >
-  //       {row.original.taskId}
-  //       <ClipboardDocumentIcon className="size-4 ml-1" />
-  //     </div>
-  //   ),
-  //   enableSorting: false,
-  //   enableHiding: true,
-  // },
   {
     accessorKey: taskNameKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Task" />
+      <DataTableColumnHeader column={column} title={TaskRunColumn.taskName} />
     ),
     cell: ({ row }) => {
       if (row.getCanExpand()) {
         return (
-          <Link to={`/tenants/${tenantId}/runs/${row.original.metadata.id}`}>
-            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+          <Link
+            to={appRoutes.tenantRunRoute.to}
+            params={{ tenant: tenantId, run: row.original.metadata.id }}
+          >
+            <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
               {row.original.displayName}
             </div>
           </Link>
@@ -135,7 +124,7 @@ export const columns: (
       } else {
         return (
           <div
-            className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
+            className="min-w-fit cursor-pointer whitespace-nowrap hover:underline"
             onClick={() => onTaskRunIdClick(row.original.metadata.id)}
           >
             {row.original.displayName}
@@ -153,6 +142,7 @@ export const columns: (
     ),
     cell: ({ row }) => (
       <V1RunStatus
+        className="items-center justify-center px-2 text-center"
         status={row.original.status}
         errorMessage={row.original.errorMessage}
       />
@@ -172,9 +162,12 @@ export const columns: (
       return (
         <div className="min-w-fit whitespace-nowrap">
           {(workflowId && workflowName && (
-            <a href={`/tenants/${tenantId}/workflows/${workflowId}`}>
+            <Link
+              to={appRoutes.tenantWorkflowRoute.to}
+              params={{ tenant: tenantId, workflow: workflowId }}
+            >
               {workflowName}
-            </a>
+            </Link>
           )) ||
             'N/A'}
         </div>
@@ -208,17 +201,6 @@ export const columns: (
     enableSorting: false,
     enableHiding: false,
   },
-  // {
-  //   accessorKey: 'Triggered by',
-  //   header: ({ column }) => (
-  //     <DataTableColumnHeader column={column} title="Triggered by" />
-  //   ),
-  //   cell: ({ row }) => {
-  //     return <div>{row.original.triggeredBy}</div>;
-  //   },
-  //   enableSorting: false,
-  //   enableHiding: true,
-  // },
   {
     accessorKey: createdAtKey,
     header: ({ column }) => (
