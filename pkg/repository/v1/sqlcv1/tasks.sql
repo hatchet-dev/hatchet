@@ -1136,3 +1136,17 @@ SELECT *
 FROM v1_task
 ORDER BY id, inserted_at
 LIMIT 1;
+
+-- name: CheckLastAutovacuumForPartitionedTablesCoreDB :many
+SELECT
+    s.schemaname,
+    s.relname AS tablename,
+    s.last_autovacuum,
+    EXTRACT(EPOCH FROM (NOW() - s.last_autovacuum)) AS seconds_since_last_autovacuum
+FROM pg_stat_user_tables s
+JOIN pg_catalog.pg_class c ON s.relname = c.relname
+WHERE s.schemaname = 'public'
+    AND c.relispartition = true
+    AND s.last_autovacuum IS NOT NULL
+ORDER BY s.last_autovacuum ASC
+;

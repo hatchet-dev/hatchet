@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 type PGHealthError string
@@ -21,6 +22,8 @@ type PGHealthRepository interface {
 	CheckLongRunningQueries(ctx context.Context) (PGHealthError, int, error)
 	CheckQueryCache(ctx context.Context) (PGHealthError, int, error)
 	CheckLongRunningVacuum(ctx context.Context) (PGHealthError, int, error)
+	CheckLastAutovacuumForPartitionedTables(ctx context.Context) ([]*sqlcv1.CheckLastAutovacuumForPartitionedTablesRow, error)
+	CheckLastAutovacuumForPartitionedTablesCoreDB(ctx context.Context) ([]*sqlcv1.CheckLastAutovacuumForPartitionedTablesCoreDBRow, error)
 }
 
 type pgHealthRepository struct {
@@ -176,4 +179,18 @@ func (h *pgHealthRepository) CheckLongRunningVacuum(ctx context.Context) (PGHeal
 	}
 
 	return PGHealthWarn, len(rows), nil
+}
+
+func (h *pgHealthRepository) CheckLastAutovacuumForPartitionedTables(ctx context.Context) ([]*sqlcv1.CheckLastAutovacuumForPartitionedTablesRow, error) {
+	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	return h.queries.CheckLastAutovacuumForPartitionedTables(cxt, h.pool)
+}
+
+func (h *pgHealthRepository) CheckLastAutovacuumForPartitionedTablesCoreDB(ctx context.Context) ([]*sqlcv1.CheckLastAutovacuumForPartitionedTablesCoreDBRow, error) {
+	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	return h.queries.CheckLastAutovacuumForPartitionedTablesCoreDB(cxt, h.pool)
 }

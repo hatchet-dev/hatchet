@@ -2006,6 +2006,20 @@ WHERE inserted_at::DATE = (NOW() - INTERVAL '1 day')::DATE
 GROUP BY readable_status
 ;
 
+-- name: CheckLastAutovacuumForPartitionedTables :many
+SELECT
+    s.schemaname,
+    s.relname AS tablename,
+    s.last_autovacuum,
+    EXTRACT(EPOCH FROM (NOW() - s.last_autovacuum)) AS seconds_since_last_autovacuum
+FROM pg_stat_user_tables s
+JOIN pg_catalog.pg_class c ON s.relname = c.relname
+WHERE s.schemaname = 'public'
+    AND c.relispartition = true
+    AND s.last_autovacuum IS NOT NULL
+ORDER BY s.last_autovacuum ASC
+;
+
 -- name: ListPaginatedOLAPPayloadsForOffload :many
 WITH payloads AS (
     SELECT

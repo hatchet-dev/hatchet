@@ -224,6 +224,44 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 			mc.l.Debug().Int("count", vacuumCount).Str("status", string(vacuumStatus)).Msg("recorded long-running vacuum metric")
 		}
 
+		autovacuumRows, err := mc.repo.PGHealth().CheckLastAutovacuumForPartitionedTables(ctx)
+		if err != nil {
+			mc.l.Error().Err(err).Msg("failed to check last autovacuum for partitioned tables")
+		} else {
+			for _, row := range autovacuumRows {
+				if row.SecondsSinceLastAutovacuum.Valid {
+					seconds, err := row.SecondsSinceLastAutovacuum.Float64Value()
+					if err == nil {
+						tableName := row.Tablename.String
+						mc.recorder.RecordDBLastAutovacuumSecondsSince(ctx, tableName, seconds.Float64)
+						mc.l.Debug().
+							Str("table", tableName).
+							Float64("seconds_since", seconds.Float64).
+							Msg("recorded last autovacuum metric")
+					}
+				}
+			}
+		}
+
+		autovacuumRowsCoreDB, err := mc.repo.PGHealth().CheckLastAutovacuumForPartitionedTablesCoreDB(ctx)
+		if err != nil {
+			mc.l.Error().Err(err).Msg("failed to check last autovacuum for partitioned tables")
+		} else {
+			for _, row := range autovacuumRowsCoreDB {
+				if row.SecondsSinceLastAutovacuum.Valid {
+					seconds, err := row.SecondsSinceLastAutovacuum.Float64Value()
+					if err == nil {
+						tableName := row.Tablename.String
+						mc.recorder.RecordDBLastAutovacuumSecondsSince(ctx, tableName, seconds.Float64)
+						mc.l.Debug().
+							Str("table", tableName).
+							Float64("seconds_since", seconds.Float64).
+							Msg("recorded last autovacuum metric")
+					}
+				}
+			}
+		}
+
 		mc.l.Debug().Msg("finished collecting database health metrics")
 	}
 }

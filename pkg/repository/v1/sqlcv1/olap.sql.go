@@ -158,6 +158,52 @@ type BulkCreateEventTriggersParams struct {
 	FilterID      pgtype.UUID        `json:"filter_id"`
 }
 
+const checkLastAutovacuumForPartitionedTables = `-- name: CheckLastAutovacuumForPartitionedTables :many
+SELECT
+    s.schemaname,
+    s.relname AS tablename,
+    s.last_autovacuum,
+    EXTRACT(EPOCH FROM (NOW() - s.last_autovacuum)) AS seconds_since_last_autovacuum
+FROM pg_stat_user_tables s
+JOIN pg_catalog.pg_class c ON s.relname = c.relname
+WHERE s.schemaname = 'public'
+    AND c.relispartition = true
+    AND s.last_autovacuum IS NOT NULL
+ORDER BY s.last_autovacuum ASC
+`
+
+type CheckLastAutovacuumForPartitionedTablesRow struct {
+	Schemaname                 pgtype.Text        `json:"schemaname"`
+	Tablename                  pgtype.Text        `json:"tablename"`
+	LastAutovacuum             pgtype.Timestamptz `json:"last_autovacuum"`
+	SecondsSinceLastAutovacuum pgtype.Numeric     `json:"seconds_since_last_autovacuum"`
+}
+
+func (q *Queries) CheckLastAutovacuumForPartitionedTables(ctx context.Context, db DBTX) ([]*CheckLastAutovacuumForPartitionedTablesRow, error) {
+	rows, err := db.Query(ctx, checkLastAutovacuumForPartitionedTables)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*CheckLastAutovacuumForPartitionedTablesRow
+	for rows.Next() {
+		var i CheckLastAutovacuumForPartitionedTablesRow
+		if err := rows.Scan(
+			&i.Schemaname,
+			&i.Tablename,
+			&i.LastAutovacuum,
+			&i.SecondsSinceLastAutovacuum,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
     SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name

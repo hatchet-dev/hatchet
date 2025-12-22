@@ -39,6 +39,52 @@ func (q *Queries) AnalyzeV1TaskEvent(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const checkLastAutovacuumForPartitionedTablesCoreDB = `-- name: CheckLastAutovacuumForPartitionedTablesCoreDB :many
+SELECT
+    s.schemaname,
+    s.relname AS tablename,
+    s.last_autovacuum,
+    EXTRACT(EPOCH FROM (NOW() - s.last_autovacuum)) AS seconds_since_last_autovacuum
+FROM pg_stat_user_tables s
+JOIN pg_catalog.pg_class c ON s.relname = c.relname
+WHERE s.schemaname = 'public'
+    AND c.relispartition = true
+    AND s.last_autovacuum IS NOT NULL
+ORDER BY s.last_autovacuum ASC
+`
+
+type CheckLastAutovacuumForPartitionedTablesCoreDBRow struct {
+	Schemaname                 pgtype.Text        `json:"schemaname"`
+	Tablename                  pgtype.Text        `json:"tablename"`
+	LastAutovacuum             pgtype.Timestamptz `json:"last_autovacuum"`
+	SecondsSinceLastAutovacuum pgtype.Numeric     `json:"seconds_since_last_autovacuum"`
+}
+
+func (q *Queries) CheckLastAutovacuumForPartitionedTablesCoreDB(ctx context.Context, db DBTX) ([]*CheckLastAutovacuumForPartitionedTablesCoreDBRow, error) {
+	rows, err := db.Query(ctx, checkLastAutovacuumForPartitionedTablesCoreDB)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*CheckLastAutovacuumForPartitionedTablesCoreDBRow
+	for rows.Next() {
+		var i CheckLastAutovacuumForPartitionedTablesCoreDBRow
+		if err := rows.Scan(
+			&i.Schemaname,
+			&i.Tablename,
+			&i.LastAutovacuum,
+			&i.SecondsSinceLastAutovacuum,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cleanupV1ConcurrencySlot = `-- name: CleanupV1ConcurrencySlot :execresult
 WITH locked_cs AS (
     SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count

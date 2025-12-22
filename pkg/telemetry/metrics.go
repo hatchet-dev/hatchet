@@ -14,10 +14,11 @@ type MetricsRecorder struct {
 	meter metric.Meter
 
 	// Database health metrics
-	dbBloatGauge              metric.Int64Gauge
-	dbLongRunningQueriesGauge metric.Int64Gauge
-	dbQueryCacheHitRatioGauge metric.Float64Gauge
-	dbLongRunningVacuumGauge  metric.Int64Gauge
+	dbBloatGauge                      metric.Int64Gauge
+	dbLongRunningQueriesGauge         metric.Int64Gauge
+	dbQueryCacheHitRatioGauge         metric.Float64Gauge
+	dbLongRunningVacuumGauge          metric.Int64Gauge
+	dbLastAutovacuumSecondsSinceGauge metric.Float64Gauge
 
 	// OLAP metrics
 	olapTempTableSizeDAGGauge  metric.Int64Gauge
@@ -65,6 +66,14 @@ func NewMetricsRecorder(ctx context.Context) (*MetricsRecorder, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create long running vacuum gauge: %w", err)
+	}
+
+	dbLastAutovacuumSecondsSinceGauge, err := meter.Float64Gauge(
+		"hatchet.db.last_autovacuum.seconds_since",
+		metric.WithDescription("Seconds since last autovacuum for partitioned tables"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create last autovacuum gauge: %w", err)
 	}
 
 	// OLAP metrics (instance-wide)
@@ -118,17 +127,18 @@ func NewMetricsRecorder(ctx context.Context) (*MetricsRecorder, error) {
 	}
 
 	return &MetricsRecorder{
-		meter:                      meter,
-		dbBloatGauge:               dbBloatGauge,
-		dbLongRunningQueriesGauge:  dbLongRunningQueriesGauge,
-		dbQueryCacheHitRatioGauge:  dbQueryCacheHitRatioGauge,
-		dbLongRunningVacuumGauge:   dbLongRunningVacuumGauge,
-		olapTempTableSizeDAGGauge:  olapTempTableSizeDAGGauge,
-		olapTempTableSizeTaskGauge: olapTempTableSizeTaskGauge,
-		yesterdayRunCountGauge:     yesterdayRunCountGauge,
-		activeSlotsGauge:           activeSlotsGauge,
-		activeWorkersGauge:         activeWorkersGauge,
-		activeSDKsGauge:            activeSDKsGauge,
+		meter:                             meter,
+		dbBloatGauge:                      dbBloatGauge,
+		dbLongRunningQueriesGauge:         dbLongRunningQueriesGauge,
+		dbQueryCacheHitRatioGauge:         dbQueryCacheHitRatioGauge,
+		dbLongRunningVacuumGauge:          dbLongRunningVacuumGauge,
+		dbLastAutovacuumSecondsSinceGauge: dbLastAutovacuumSecondsSinceGauge,
+		olapTempTableSizeDAGGauge:         olapTempTableSizeDAGGauge,
+		olapTempTableSizeTaskGauge:        olapTempTableSizeTaskGauge,
+		yesterdayRunCountGauge:            yesterdayRunCountGauge,
+		activeSlotsGauge:                  activeSlotsGauge,
+		activeWorkersGauge:                activeWorkersGauge,
+		activeSDKsGauge:                   activeSDKsGauge,
 	}, nil
 }
 
@@ -153,6 +163,12 @@ func (m *MetricsRecorder) RecordDBQueryCacheHitRatio(ctx context.Context, tableN
 func (m *MetricsRecorder) RecordDBLongRunningVacuum(ctx context.Context, count int64, healthStatus string) {
 	m.dbLongRunningVacuumGauge.Record(ctx, count,
 		metric.WithAttributes(attribute.String("health_status", healthStatus)))
+}
+
+// RecordDBLastAutovacuumSecondsSince records seconds since last autovacuum for a partitioned table
+func (m *MetricsRecorder) RecordDBLastAutovacuumSecondsSince(ctx context.Context, tableName string, seconds float64) {
+	m.dbLastAutovacuumSecondsSinceGauge.Record(ctx, seconds,
+		metric.WithAttributes(attribute.String("table_name", tableName)))
 }
 
 // RecordOLAPTempTableSizeDAG records the size of the OLAP DAG status updates temp table (instance-wide)
