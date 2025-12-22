@@ -107,6 +107,16 @@ func (q *Queries) AnalyzeV1Payload(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const cleanUpCutoverJobOffsets = `-- name: CleanUpCutoverJobOffsets :exec
+DELETE FROM v1_payload_cutover_job_offset
+WHERE NOT key = ANY($1::DATE[])
+`
+
+func (q *Queries) CleanUpCutoverJobOffsets(ctx context.Context, db DBTX, keystokeep []pgtype.Date) error {
+	_, err := db.Exec(ctx, cleanUpCutoverJobOffsets, keystokeep)
+	return err
+}
+
 const createPayloadRangeChunks = `-- name: CreatePayloadRangeChunks :many
 WITH chunks AS (
     SELECT
@@ -199,6 +209,68 @@ SELECT copy_v1_payload_partition_structure($1::DATE)
 func (q *Queries) CreateV1PayloadCutoverTemporaryTable(ctx context.Context, db DBTX, date pgtype.Date) error {
 	_, err := db.Exec(ctx, createV1PayloadCutoverTemporaryTable, date)
 	return err
+}
+
+const diffPayloadSourceAndTargetPartitions = `-- name: DiffPayloadSourceAndTargetPartitions :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM diff_payload_source_and_target_partitions($1::DATE) p
+)
+
+SELECT
+    tenant_id::UUID,
+    id::BIGINT,
+    inserted_at::TIMESTAMPTZ,
+    external_id::UUID,
+    type::v1_payload_type,
+    location::v1_payload_location,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
+    updated_at::TIMESTAMPTZ
+FROM payloads
+`
+
+type DiffPayloadSourceAndTargetPartitionsRow struct {
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	ID                  int64              `json:"id"`
+	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID          pgtype.UUID        `json:"external_id"`
+	Type                V1PayloadType      `json:"type"`
+	Location            V1PayloadLocation  `json:"location"`
+	ExternalLocationKey string             `json:"external_location_key"`
+	InlineContent       []byte             `json:"inline_content"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) DiffPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, partitiondate pgtype.Date) ([]*DiffPayloadSourceAndTargetPartitionsRow, error) {
+	rows, err := db.Query(ctx, diffPayloadSourceAndTargetPartitions, partitiondate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*DiffPayloadSourceAndTargetPartitionsRow
+	for rows.Next() {
+		var i DiffPayloadSourceAndTargetPartitionsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.Type,
+			&i.Location,
+			&i.ExternalLocationKey,
+			&i.InlineContent,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many

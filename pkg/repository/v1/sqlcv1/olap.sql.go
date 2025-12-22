@@ -204,6 +204,16 @@ func (q *Queries) CheckLastAutovacuumForPartitionedTables(ctx context.Context, d
 	return items, nil
 }
 
+const cleanUpOLAPCutoverJobOffsets = `-- name: CleanUpOLAPCutoverJobOffsets :exec
+DELETE FROM v1_payload_cutover_job_offset
+WHERE NOT key = ANY($1::DATE[])
+`
+
+func (q *Queries) CleanUpOLAPCutoverJobOffsets(ctx context.Context, db DBTX, keystokeep []pgtype.Date) error {
+	_, err := db.Exec(ctx, cleanUpOLAPCutoverJobOffsets, keystokeep)
+	return err
+}
+
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
     SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
@@ -526,6 +536,62 @@ SELECT copy_v1_payloads_olap_partition_structure($1::DATE)
 func (q *Queries) CreateV1PayloadOLAPCutoverTemporaryTable(ctx context.Context, db DBTX, date pgtype.Date) error {
 	_, err := db.Exec(ctx, createV1PayloadOLAPCutoverTemporaryTable, date)
 	return err
+}
+
+const diffOLAPPayloadSourceAndTargetPartitions = `-- name: DiffOLAPPayloadSourceAndTargetPartitions :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM diff_olap_payload_source_and_target_partitions($1::DATE) p
+)
+
+SELECT
+    tenant_id::UUID,
+    external_id::UUID,
+    inserted_at::TIMESTAMPTZ,
+    location::v1_payload_location_olap,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
+    updated_at::TIMESTAMPTZ
+FROM payloads
+`
+
+type DiffOLAPPayloadSourceAndTargetPartitionsRow struct {
+	TenantID            pgtype.UUID           `json:"tenant_id"`
+	ExternalID          pgtype.UUID           `json:"external_id"`
+	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
+	Location            V1PayloadLocationOlap `json:"location"`
+	ExternalLocationKey string                `json:"external_location_key"`
+	InlineContent       []byte                `json:"inline_content"`
+	UpdatedAt           pgtype.Timestamptz    `json:"updated_at"`
+}
+
+func (q *Queries) DiffOLAPPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, partitiondate pgtype.Date) ([]*DiffOLAPPayloadSourceAndTargetPartitionsRow, error) {
+	rows, err := db.Query(ctx, diffOLAPPayloadSourceAndTargetPartitions, partitiondate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*DiffOLAPPayloadSourceAndTargetPartitionsRow
+	for rows.Next() {
+		var i DiffOLAPPayloadSourceAndTargetPartitionsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ExternalID,
+			&i.InsertedAt,
+			&i.Location,
+			&i.ExternalLocationKey,
+			&i.InlineContent,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const findMinInsertedAtForDAGStatusUpdates = `-- name: FindMinInsertedAtForDAGStatusUpdates :one

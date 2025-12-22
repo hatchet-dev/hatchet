@@ -2134,3 +2134,27 @@ UPDATE v1_payloads_olap_cutover_job_offset
 SET is_completed = TRUE
 WHERE key = @key::DATE
 ;
+
+-- name: CleanUpOLAPCutoverJobOffsets :exec
+DELETE FROM v1_payload_cutover_job_offset
+WHERE NOT key = ANY(@keysToKeep::DATE[])
+;
+
+
+-- name: DiffOLAPPayloadSourceAndTargetPartitions :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM diff_olap_payload_source_and_target_partitions(@partitionDate::DATE) p
+)
+
+SELECT
+    tenant_id::UUID,
+    external_id::UUID,
+    inserted_at::TIMESTAMPTZ,
+    location::v1_payload_location_olap,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
+    updated_at::TIMESTAMPTZ
+FROM payloads
+;
