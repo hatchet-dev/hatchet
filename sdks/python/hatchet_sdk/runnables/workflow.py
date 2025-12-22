@@ -947,18 +947,18 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         The handler must return a list of outputs with the same length as the input list.
         """
 
-        if not isinstance(batch_size, int) or batch_size <= 0:
+        if batch_size <= 0:
             raise ValueError("batch_size must be a positive integer")
 
         normalized_flush: int | None = None
         if flush_interval_ms is not None:
-            if not isinstance(flush_interval_ms, int) or flush_interval_ms <= 0:
+            if flush_interval_ms <= 0:
                 raise ValueError(
                     "flush_interval_ms must be a positive integer when provided"
                 )
             normalized_flush = flush_interval_ms
 
-        if max_runs is not None and (not isinstance(max_runs, int) or max_runs <= 0):
+        if max_runs is not None and max_runs <= 0:
             raise ValueError("max_runs must be a positive integer when provided")
 
         computed_params = ComputedTaskParameters(

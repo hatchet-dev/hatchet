@@ -1,7 +1,7 @@
 import asyncio
 import queue
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic import BaseModel
@@ -30,14 +30,14 @@ async def test_batch_flush_orders_by_index() -> None:
 
     action_id = wf._create_action_name(step)
     runner = Runner(
-        event_queue=queue.Queue(),
+        event_queue=cast(Any, queue.Queue()),
         config=hatchet.config,
         slots=10,
         handle_kill=False,
         action_registry={action_id: step},
         labels=None,
         lifespan_context=None,
-        log_sender=object(),  # not used in these unit tests
+        log_sender=cast(Any, object()),  # not used in these unit tests
     )
 
     controller = runner._batch_controllers[action_id]
@@ -49,7 +49,7 @@ async def test_batch_flush_orders_by_index() -> None:
         batch_id="b1",
         expected_size=3,
         index=2,
-        ctx=FakeCtx({"value": "c"}),
+        ctx=cast(Any, FakeCtx({"value": "c"})),
         future=f2,
         on_ready=lambda _batch_id: None,
     )
@@ -59,7 +59,7 @@ async def test_batch_flush_orders_by_index() -> None:
         batch_id="b1",
         expected_size=3,
         index=0,
-        ctx=FakeCtx({"value": "a"}),
+        ctx=cast(Any, FakeCtx({"value": "a"})),
         future=f0,
         on_ready=lambda _batch_id: None,
     )
@@ -69,7 +69,7 @@ async def test_batch_flush_orders_by_index() -> None:
         batch_id="b1",
         expected_size=3,
         index=1,
-        ctx=FakeCtx({"value": "b"}),
+        ctx=cast(Any, FakeCtx({"value": "b"})),
         future=f1,
         on_ready=lambda _batch_id: None,
     )
@@ -102,14 +102,14 @@ async def test_batch_flush_validates_output_length() -> None:
 
     action_id = wf._create_action_name(step)
     runner = Runner(
-        event_queue=queue.Queue(),
+        event_queue=cast(Any, queue.Queue()),
         config=hatchet.config,
         slots=10,
         handle_kill=False,
         action_registry={action_id: step},
         labels=None,
         lifespan_context=None,
-        log_sender=object(),  # not used
+        log_sender=cast(Any, object()),  # not used
     )
     controller = runner._batch_controllers[action_id]
     loop = asyncio.get_running_loop()
@@ -122,7 +122,7 @@ async def test_batch_flush_validates_output_length() -> None:
             batch_id="b1",
             expected_size=2,
             index=index,
-            ctx=FakeCtx({"value": value}),
+            ctx=cast(Any, FakeCtx({"value": value})),
             future=fut,
             on_ready=lambda _batch_id: None,
         )
@@ -153,14 +153,14 @@ async def test_batch_flush_fans_out_errors() -> None:
 
     action_id = wf._create_action_name(step)
     runner = Runner(
-        event_queue=queue.Queue(),
+        event_queue=cast(Any, queue.Queue()),
         config=hatchet.config,
         slots=10,
         handle_kill=False,
         action_registry={action_id: step},
         labels=None,
         lifespan_context=None,
-        log_sender=object(),  # not used
+        log_sender=cast(Any, object()),  # not used
     )
     controller = runner._batch_controllers[action_id]
     loop = asyncio.get_running_loop()
@@ -173,7 +173,7 @@ async def test_batch_flush_fans_out_errors() -> None:
             batch_id="b1",
             expected_size=2,
             index=index,
-            ctx=FakeCtx({"value": value}),
+            ctx=cast(Any, FakeCtx({"value": value})),
             future=fut,
             on_ready=lambda _batch_id: None,
         )

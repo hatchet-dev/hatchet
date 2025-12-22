@@ -2,7 +2,7 @@ import asyncio
 import ctypes
 import functools
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime
@@ -447,9 +447,10 @@ class Runner:
             trigger_reason=trigger_reason,
             trigger_time=trigger_time,
             batch_key=batch_key,
-            on_ready=lambda batch_id: asyncio.create_task(
-                self._maybe_flush_batch(controller, batch_id)
-            ),
+            on_ready=lambda batch_id: (
+                asyncio.create_task(self._maybe_flush_batch(controller, batch_id)),
+                None,
+            )[1],
         )
 
     async def _await_batch_item(
@@ -497,9 +498,10 @@ class Runner:
             ctx=ctx,
             future=future,
             batch_key=action.batch_key,
-            on_ready=lambda batch_id: asyncio.create_task(
-                self._maybe_flush_batch(controller, batch_id)
-            ),
+            on_ready=lambda batch_id: (
+                asyncio.create_task(self._maybe_flush_batch(controller, batch_id)),
+                None,
+            )[1],
         )
 
         try:
@@ -540,13 +542,29 @@ class Runner:
                 controller.task.workflow._get_workflow_input(ctx) for ctx in contexts
             ]
 
+            if not controller.task.is_batch:
+                raise RuntimeError(
+                    f"Internal error: _flush_batch called for non-batch task '{controller.action_id}'"
+                )
+
             if controller.task.is_async_function:
-                outputs = await controller.task.fn(inputs, contexts)  # type: ignore[misc]
+                batch_fn_async = cast(
+                    Callable[
+                        [list[Any], list[Context]],
+                        Coroutine[Any, Any, list[Any]],
+                    ],
+                    controller.task.fn,
+                )
+                outputs = await batch_fn_async(inputs, contexts)
             else:
+                batch_fn_sync = cast(
+                    Callable[[list[Any], list[Context]], list[Any]],
+                    controller.task.fn,
+                )
                 loop = asyncio.get_running_loop()
                 outputs = await loop.run_in_executor(
                     self.thread_pool,
-                    lambda: controller.task.fn(inputs, contexts),  # type: ignore[misc]
+                    lambda: batch_fn_sync(inputs, contexts),
                 )
 
             if not isinstance(outputs, list):
