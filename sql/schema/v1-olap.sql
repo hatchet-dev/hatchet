@@ -1154,7 +1154,11 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION compute_olap_payload_batch_size(
-    partition_date DATE
+    partition_date DATE,
+    last_tenant_id UUID,
+    last_external_id UUID,
+    last_inserted_at TIMESTAMPTZ,
+    batch_size INTEGER
 ) RETURNS BIGINT
     LANGUAGE plpgsql AS
 $$
@@ -1188,7 +1192,7 @@ BEGIN
         FROM candidates
     ', source_partition_name);
 
-    EXECUTE query INTO result_size;
+    EXECUTE query INTO result_size USING last_tenant_id, last_external_id, last_inserted_at, batch_size;
 
     RETURN result_size;
 END;

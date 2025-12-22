@@ -118,11 +118,34 @@ func (q *Queries) CleanUpCutoverJobOffsets(ctx context.Context, db DBTX, keystok
 }
 
 const computePayloadBatchSize = `-- name: ComputePayloadBatchSize :one
-SELECT compute_payload_batch_size($1::DATE) AS total_size_bytes
+SELECT compute_payload_batch_size(
+    $1::DATE,
+    $2::UUID,
+    $3::TIMESTAMPTZ,
+    $4::BIGINT,
+    $5::v1_payload_type,
+    $6::INTEGER
+) AS total_size_bytes
 `
 
-func (q *Queries) ComputePayloadBatchSize(ctx context.Context, db DBTX, partitiondate pgtype.Date) (int64, error) {
-	row := db.QueryRow(ctx, computePayloadBatchSize, partitiondate)
+type ComputePayloadBatchSizeParams struct {
+	Partitiondate  pgtype.Date        `json:"partitiondate"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+	Lastid         int64              `json:"lastid"`
+	Lasttype       V1PayloadType      `json:"lasttype"`
+	Batchsize      int32              `json:"batchsize"`
+}
+
+func (q *Queries) ComputePayloadBatchSize(ctx context.Context, db DBTX, arg ComputePayloadBatchSizeParams) (int64, error) {
+	row := db.QueryRow(ctx, computePayloadBatchSize,
+		arg.Partitiondate,
+		arg.Lasttenantid,
+		arg.Lastinsertedat,
+		arg.Lastid,
+		arg.Lasttype,
+		arg.Batchsize,
+	)
 	var total_size_bytes int64
 	err := row.Scan(&total_size_bytes)
 	return total_size_bytes, err

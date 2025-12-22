@@ -444,7 +444,32 @@ func (d PartitionDate) String() string {
 	return d.Time.Format("20060102")
 }
 
-const MAX_PARTITIONS_TO_OFFLOAD = 14 // two weeks
+const MAX_PARTITIONS_TO_OFFLOAD = 14                  // two weeks
+const MAX_BATCH_SIZE_BYTES = 1.5 * 1024 * 1024 * 1024 // 1.5 GB
+
+func (p *payloadStoreRepositoryImpl) OptimizePayloadBatchSize(ctx context.Context, partitionDate PartitionDate, candidateBatchNumRows int64, lastTenantId pgtype.UUID, lastInsertedAt pgtype.Timestamptz, lastId int64, lastType sqlcv1.V1PayloadType) (*int64, error) {
+	proposedBatchSizeBytes, err := p.queries.ComputePayloadBatchSize(ctx, p.pool, pgtype.Date(partitionDate))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute payload batch size: %w", err)
+	}
+
+	if proposedBatchSizeBytes < MAX_BATCH_SIZE_BYTES {
+		return &candidateBatchNumRows, nil
+	}
+
+	// if the proposed batch size is too large, then
+	// cut it in half and try again
+	return p.OptimizePayloadBatchSize(
+		ctx,
+		partitionDate,
+		candidateBatchNumRows/2,
+		lastTenantId,
+		lastInsertedAt,
+		lastId,
+		lastType,
+	)
+}
 
 func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
@@ -452,6 +477,8 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 
 	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
 	windowSize := p.externalCutoverBatchSize * p.externalCutoverNumConcurrentOffloads
+
+	p.queries.ComputePayloadBatchSize(ctx, p.pool, pgtype.Date(partitionDate))
 
 	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, p.pool, sqlcv1.CreatePayloadRangeChunksParams{
 		Chunksize:      p.externalCutoverBatchSize,

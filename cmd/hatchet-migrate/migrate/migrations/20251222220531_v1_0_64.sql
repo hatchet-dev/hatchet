@@ -1,7 +1,12 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE OR REPLACE FUNCTION compute_payload_batch_size(
-    partition_date DATE
+    partition_date DATE,
+    last_tenant_id UUID,
+    last_inserted_at TIMESTAMPTZ,
+    last_id BIGINT,
+    last_type v1_payload_type,
+    batch_size INTEGER
 ) RETURNS BIGINT
     LANGUAGE plpgsql AS
 $$
@@ -28,21 +33,25 @@ BEGIN
             FROM %I
             WHERE (tenant_id, inserted_at, id, type) >= ($1::UUID, $2::TIMESTAMPTZ, $3::BIGINT, $4::v1_payload_type)
             ORDER BY tenant_id, inserted_at, id, type
-            LIMIT $5::INT
+            LIMIT $5::INTEGER
         )
 
         SELECT SUM(pg_column_size(inline_content)) AS total_size_bytes
         FROM candidates
     ', source_partition_name);
 
-    EXECUTE query INTO result_size;
+    EXECUTE query INTO result_size USING last_tenant_id, last_inserted_at, last_id, last_type, batch_size;
 
     RETURN result_size;
 END;
 $$;
 
 CREATE OR REPLACE FUNCTION compute_olap_payload_batch_size(
-    partition_date DATE
+    partition_date DATE,
+    last_tenant_id UUID,
+    last_external_id UUID,
+    last_inserted_at TIMESTAMPTZ,
+    batch_size INTEGER
 ) RETURNS BIGINT
     LANGUAGE plpgsql AS
 $$
@@ -76,7 +85,7 @@ BEGIN
         FROM candidates
     ', source_partition_name);
 
-    EXECUTE query INTO result_size;
+    EXECUTE query INTO result_size USING last_tenant_id, last_external_id, last_inserted_at, batch_size;
 
     RETURN result_size;
 END;
@@ -85,6 +94,6 @@ $$;
 
 -- +goose Down
 -- +goose StatementBegin
-DROP FUNCTION compute_payload_batch_size(DATE);
-DROP FUNCTION compute_olap_payload_batch_size(DATE);
+DROP FUNCTION compute_payload_batch_size(DATE, UUID, TIMESTAMPTZ, BIGINT, v1_payload_type, INTEGER);
+DROP FUNCTION compute_olap_payload_batch_size(DATE, UUID, UUID, TIMESTAMPTZ, INTEGER);
 -- +goose StatementEnd

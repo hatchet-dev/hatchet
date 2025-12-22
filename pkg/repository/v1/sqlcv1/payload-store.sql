@@ -208,4 +208,11 @@ FROM payloads
 ;
 
 -- name: ComputePayloadBatchSize :one
-SELECT compute_payload_batch_size(@partitionDate::DATE) AS total_size_bytes;
+SELECT compute_payload_batch_size(
+    @partitionDate::DATE,
+    @lastTenantId::UUID,
+    @lastInsertedAt::TIMESTAMPTZ,
+    @lastId::BIGINT,
+    @lastType::v1_payload_type,
+    @batchSize::INTEGER
+) AS total_size_bytes;
