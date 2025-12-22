@@ -14,7 +14,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/worker"
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/glob"
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/patternmatcher"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/kballard/go-shellquote"
@@ -145,6 +145,76 @@ func startWorker(devConfig *worker.WorkerDevConfig, profileFlag string) {
 		}
 		defer watcher.Close()
 
+		cwd, err := os.Getwd()
+		if err != nil {
+			cli.Logger.Fatalf("error getting cwd: %v", err)
+		}
+
+		// Create pattern matcher for file watching
+		for _, pattern := range devConfig.Files {
+			fmt.Println(styles.Muted.Render(fmt.Sprintf("  Watching pattern: %s", pattern)))
+		}
+
+		pm, err := patternmatcher.New(devConfig.Files)
+		if err != nil {
+			cli.Logger.Fatalf("error parsing file patterns: %v", err)
+		}
+
+		// Track directories to watch for new files
+		watchedDirs := make(map[string]bool)
+
+		// Walk the directory tree and watch matching files and all directories
+		err = filepath.Walk(cwd, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			// Watch all directories so we can detect new files
+			if info.IsDir() {
+				// Make path relative to cwd for pattern matching
+				relPath, err := filepath.Rel(cwd, path)
+				if err != nil {
+					relPath = path
+				}
+
+				// Watch files that match any pattern (and aren't excluded)
+				matched, err := pm.DirMatches(relPath)
+
+				if err != nil {
+					return err
+				}
+
+				if !matched {
+					return filepath.SkipDir
+				}
+
+				watcher.Add(path)
+				watchedDirs[path] = true
+				return nil
+			}
+
+			// Make path relative to cwd for pattern matching
+			relPath, err := filepath.Rel(cwd, path)
+			if err != nil {
+				relPath = path
+			}
+
+			// Watch files that match any pattern (and aren't excluded)
+			matched, err := pm.MatchesOrParentMatches(relPath)
+			if err == nil && matched {
+				watcher.Add(path)
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			cli.Logger.Fatalf("error walking path: %v", err)
+		}
+
+		watchCount := len(watcher.WatchList())
+		fmt.Println(styles.Muted.Render(fmt.Sprintf("  Watching %d file(s) and directories", watchCount)))
+
 		go func() {
 			for {
 				select {
@@ -154,7 +224,51 @@ func startWorker(devConfig *worker.WorkerDevConfig, profileFlag string) {
 					if !ok {
 						return
 					}
+
+					// Check if this is a write to an existing file or a newly created file
+					shouldReload := false
+
+					// Make path relative to cwd for pattern matching
+					relPath, err := filepath.Rel(cwd, event.Name)
+					if err != nil {
+						relPath = event.Name
+					}
+
 					if event.Has(fsnotify.Write) {
+						// Check if it's a file we're already watching (matches a pattern)
+						matched, err := pm.MatchesOrParentMatches(relPath)
+						if err == nil && matched {
+							shouldReload = true
+						}
+					} else if event.Has(fsnotify.Create) {
+						// New file or directory created
+						info, err := os.Stat(event.Name)
+						if err == nil {
+							if info.IsDir() {
+								// determine if the directory matches
+								dirRelPath, err := filepath.Rel(cwd, event.Name)
+								if err != nil {
+									dirRelPath = event.Name
+								}
+
+								dirMatched, err := pm.DirMatches(dirRelPath)
+								if err == nil && dirMatched {
+									// Watch new directory, but don't reload
+									watcher.Add(event.Name)
+									watchedDirs[event.Name] = true
+								}
+							} else {
+								// New file created - check if it matches any pattern
+								matched, err := pm.MatchesOrParentMatches(relPath)
+								if err == nil && matched {
+									watcher.Add(event.Name)
+									shouldReload = true
+								}
+							}
+						}
+					}
+
+					if shouldReload {
 						fmt.Println(styles.InfoMessage(fmt.Sprintf("File change detected: %s", event.Name)))
 						fmt.Println(styles.InfoMessage("Reloading worker..."))
 
@@ -178,39 +292,6 @@ func startWorker(devConfig *worker.WorkerDevConfig, profileFlag string) {
 				}
 			}
 		}()
-
-		cwd, err := os.Getwd()
-		if err != nil {
-			cli.Logger.Fatalf("error getting cwd: %v", err)
-		}
-
-		for _, pattern := range devConfig.Files {
-			fmt.Println(styles.Muted.Render(fmt.Sprintf("  Watching pattern: %s", pattern)))
-			runtimeGlob, err := glob.Parse(pattern)
-			if err != nil {
-				cli.Logger.Fatalf("error parsing runtime glob: %v", err)
-			}
-
-			err = filepath.Walk(cwd, func(path string, info os.FileInfo, err error) error {
-				if err != nil {
-					return err
-				}
-
-				if runtimeGlob.Match(path) {
-					watcher.Add(path)
-				}
-
-				return nil
-			})
-
-			if err != nil {
-				cli.Logger.Fatalf("error walking path: %v", err)
-			}
-		}
-
-		watchCount := len(watcher.WatchList())
-		fmt.Println(styles.Muted.Render(fmt.Sprintf("  Watching %d file(s)", watchCount)))
-		fmt.Println()
 	}
 
 	fmt.Println(workerStartingView(selectedProfile, devConfig.Reload))

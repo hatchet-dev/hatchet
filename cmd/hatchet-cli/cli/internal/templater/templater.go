@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 )
 
@@ -29,7 +30,9 @@ func Process(fsys embed.FS, srcDir, dstDir string, data Data) error {
 			return err
 		}
 
+		// Remove .embed suffix if present for the destination path
 		dstPath := filepath.Join(dstDir, path)
+		dstPath = strings.TrimSuffix(dstPath, ".embed")
 
 		if d.IsDir() {
 			return os.MkdirAll(dstPath, 0755)
