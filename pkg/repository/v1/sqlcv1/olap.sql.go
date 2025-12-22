@@ -159,7 +159,7 @@ type BulkCreateEventTriggersParams struct {
 }
 
 const cleanUpOLAPCutoverJobOffsets = `-- name: CleanUpOLAPCutoverJobOffsets :exec
-DELETE FROM v1_payload_cutover_job_offset
+DELETE FROM v1_payloads_olap_cutover_job_offset
 WHERE NOT key = ANY($1::DATE[])
 `
 
