@@ -904,7 +904,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanup2,
 		})
 
-		if sc.OpenTelemetry.CollectorURL != "" {
+		if sc.OpenTelemetry.MetricsEnabled && sc.OpenTelemetry.CollectorURL != "" {
 			mc, err := metricscontroller.New(
 				metricscontroller.WithLogger(sc.Logger),
 				metricscontroller.WithRepository(sc.V1),
