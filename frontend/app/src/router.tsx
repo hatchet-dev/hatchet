@@ -30,7 +30,11 @@ const authRoute = createRoute({
     }
     return null;
   },
-  component: Outlet,
+  component: () => (
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden">
+      <Outlet />
+    </div>
+  ),
 });
 
 const authLoginRoute = createRoute({
@@ -131,6 +135,12 @@ const tenantRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'tenants/$tenant',
   component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
+});
+
+const v2Route = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: 'v2',
+  component: lazyRouteComponent(() => import('./pages/main/v2'), 'default'),
 });
 
 const tenantIndexRedirectRoute = createRoute({
@@ -461,6 +471,7 @@ const routeTree = rootRoute.addChildren([
     onboardingCreateTenantRoute,
     onboardingGetStartedRoute,
     onboardingInvitesRoute,
+    v2Route,
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
   ]),
   v1RedirectRoute,
@@ -520,6 +531,7 @@ export const appRoutes = {
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,
   tenantTasksWorkflowRedirectRoute,
+  v2Route,
 };
 
 const Router: FC = () => {

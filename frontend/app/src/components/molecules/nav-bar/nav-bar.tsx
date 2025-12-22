@@ -196,53 +196,51 @@ export default function MainNav({ user }: MainNavProps) {
   const breadcrumbs = useBreadcrumbs();
 
   return (
-    <div className="fixed top-0 z-50 w-screen">
-      <div className="h-16 border-b bg-background">
-        <div className="flex h-16 items-center pl-4 pr-4">
-          <div className="flex flex-row items-center gap-x-8">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="icon"
-                onClick={() => toggleSidebarOpen()}
-                aria-label="Toggle sidebar"
-                size="icon"
-              >
-                <Menu className="size-4" />
-              </Button>
-              <img
-                src={theme == 'dark' ? hatchet : hatchetDark}
-                alt="Hatchet"
-                className="h-9 rounded"
-              />
-            </div>
-            {breadcrumbs.length > 0 && (
-              <Breadcrumb className="hidden md:block">
-                <BreadcrumbList>
-                  {breadcrumbs.map((crumb, index) => (
-                    <React.Fragment key={index}>
-                      {index > 0 && <BreadcrumbSeparator />}
-                      <BreadcrumbItem>
-                        {crumb.isCurrentPage ? (
-                          <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-                        ) : (
-                          <BreadcrumbLink href={crumb.href}>
-                            {crumb.label}
-                          </BreadcrumbLink>
-                        )}
-                      </BreadcrumbItem>
-                    </React.Fragment>
-                  ))}
-                </BreadcrumbList>
-              </Breadcrumb>
-            )}
+    <header className="z-50 h-16 w-full border-b bg-background">
+      <div className="flex h-16 items-center pl-4 pr-4">
+        <div className="flex flex-row items-center gap-x-8">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="icon"
+              onClick={() => toggleSidebarOpen()}
+              aria-label="Toggle sidebar"
+              size="icon"
+            >
+              <Menu className="size-4" />
+            </Button>
+            <img
+              src={theme == 'dark' ? hatchet : hatchetDark}
+              alt="Hatchet"
+              className="h-9 rounded"
+            />
           </div>
+          {breadcrumbs.length > 0 && (
+            <Breadcrumb className="hidden md:block">
+              <BreadcrumbList>
+                {breadcrumbs.map((crumb, index) => (
+                  <React.Fragment key={index}>
+                    {index > 0 && <BreadcrumbSeparator />}
+                    <BreadcrumbItem>
+                      {crumb.isCurrentPage ? (
+                        <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                      ) : (
+                        <BreadcrumbLink href={crumb.href}>
+                          {crumb.label}
+                        </BreadcrumbLink>
+                      )}
+                    </BreadcrumbItem>
+                  </React.Fragment>
+                ))}
+              </BreadcrumbList>
+            </Breadcrumb>
+          )}
+        </div>
 
-          <div className="ml-auto flex items-center gap-2">
-            <HelpDropdown />
-            <AccountDropdown user={user} />
-          </div>
+        <div className="ml-auto flex items-center gap-2">
+          <HelpDropdown />
+          <AccountDropdown user={user} />
         </div>
       </div>
-    </div>
+    </header>
   );
 }

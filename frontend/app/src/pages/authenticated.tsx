@@ -39,6 +39,12 @@ export default function Authenticated() {
   const isAuthPage =
     Boolean(matchRoute({ to: appRoutes.authLoginRoute.to })) ||
     Boolean(matchRoute({ to: appRoutes.authRegisterRoute.to }));
+  const isTenantPage = Boolean(
+    matchRoute({ to: appRoutes.tenantRoute.to, fuzzy: true }),
+  );
+  const isV2Page = Boolean(
+    matchRoute({ to: appRoutes.v2Route.to, fuzzy: true }),
+  );
   const isOrganizationsPage = Boolean(
     matchRoute({ to: appRoutes.organizationsRoute.to, fuzzy: true }),
   );
@@ -219,15 +225,32 @@ export default function Authenticated() {
   return (
     <PostHogProvider user={userQuery.data}>
       <SupportChat user={userQuery.data}>
-        <div className="flex h-full w-full flex-1 flex-row">
-          <MainNav
-            user={userQuery.data}
-            tenantMemberships={listMembershipsQuery.data?.rows || []}
-          />
-          <div className="flex-grow overflow-y-auto overflow-x-hidden pt-16">
+        {isV2Page ? (
+          // v2 owns its own shell (navbar/sidebar/etc)
+          <div className="h-full w-full min-h-0 min-w-0 overflow-hidden">
             <OutletWithContext context={ctx} />
           </div>
-        </div>
+        ) : (
+          <div className="grid h-full w-full min-h-0 min-w-0 grid-rows-[64px_1fr] overflow-hidden">
+            <MainNav
+              user={userQuery.data}
+              tenantMemberships={listMembershipsQuery.data?.rows || []}
+            />
+
+            {/* Content area: for tenant routes, v1 owns internal scrolling; otherwise Authenticated provides default scrolling */}
+            <div className="min-h-0 min-w-0 overflow-hidden">
+              <div
+                className={
+                  isTenantPage
+                    ? 'h-full w-full min-h-0 min-w-0 overflow-hidden'
+                    : 'h-full w-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden'
+                }
+              >
+                <OutletWithContext context={ctx} />
+              </div>
+            </div>
+          </div>
+        )}
       </SupportChat>
     </PostHogProvider>
   );

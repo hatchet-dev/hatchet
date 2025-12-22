@@ -49,15 +49,20 @@ function Main() {
 
   return (
     <SidePanelProvider>
-      <div className="flex h-full w-full flex-1 flex-row">
-        <Sidebar memberships={memberships} />
+      <div className="relative grid h-full w-full min-h-0 min-w-0 grid-rows-1 grid-cols-[0px_1fr_auto] overflow-hidden md:grid-cols-[auto_1fr_auto]">
+        {/* Keep a stable grid structure even when Sidebar returns null */}
+        <div className="col-start-1 row-start-1 min-h-0">
+          <Sidebar memberships={memberships} />
+        </div>
         <div
-          className="flex-grow overflow-y-auto overflow-x-hidden px-8 py-4"
+          className="col-start-2 row-start-1 min-h-0 min-w-0 overflow-auto px-8 py-4"
           style={{ containerType: 'inline-size' }}
         >
           <OutletWithContext context={childCtx} />
         </div>
-        <SidePanel />
+        <div className="col-start-3 row-start-1 min-h-0">
+          <SidePanel />
+        </div>
       </div>
     </SidePanelProvider>
   );
@@ -91,12 +96,16 @@ function Sidebar({ className, memberships }: SidebarProps) {
   return (
     <div
       className={cn(
-        'absolute top-16 z-[100] h-full w-full overflow-y-auto border-r bg-slate-100 dark:bg-slate-900 md:relative md:top-0 md:w-64 md:min-w-64 md:bg-[unset] md:dark:bg-[unset]',
+        // On mobile, overlay the content area (which is already positioned below the fixed header).
+        // On desktop, participate in the grid as a fixed-width sidebar.
+        'absolute inset-x-0 top-0 bottom-0 z-[100] w-full overflow-hidden border-r bg-slate-100 dark:bg-slate-900 md:relative md:inset-auto md:top-0 md:bottom-auto md:h-full md:w-64 md:min-w-64 md:bg-[unset] md:dark:bg-[unset]',
         className,
       )}
     >
-      <div className="flex h-full flex-col items-start justify-between space-y-4 px-4 py-4 pb-16 md:pb-4">
-        <div className="w-full grow">
+      <div className="flex h-full flex-col overflow-hidden">
+        {/* Scrollable navigation area (keep scrollbar flush to sidebar edge) */}
+        <div className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground">
+          <div className="px-4 py-4">
           <div className="py-2">
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
               Activity
@@ -278,12 +287,17 @@ function Sidebar({ className, memberships }: SidebarProps) {
               />
             </div>
           </div>
+          </div>
         </div>
-        {isCloudEnabled ? (
-          <OrganizationSelector memberships={memberships} />
-        ) : (
-          <TenantSwitcher memberships={memberships} />
-        )}
+
+        {/* Fixed footer: tenant/org picker is always visible and takes up space */}
+        <div className="w-full shrink-0 border-t border-slate-200 px-4 py-4 dark:border-slate-800">
+          {isCloudEnabled ? (
+            <OrganizationSelector memberships={memberships} />
+          ) : (
+            <TenantSwitcher memberships={memberships} />
+          )}
+        </div>
       </div>
     </div>
   );
