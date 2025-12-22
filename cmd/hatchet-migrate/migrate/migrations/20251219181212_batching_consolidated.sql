@@ -69,10 +69,6 @@ CREATE INDEX IF NOT EXISTS v1_batched_queue_item_lookup_idx
 CREATE INDEX IF NOT EXISTS v1_batched_queue_item_queue_idx
     ON v1_batched_queue_item (tenant_id ASC, queue ASC, priority DESC, inserted_at ASC);
 
--- Ensure any historical queue->batch redirect trigger is removed (final schema has no redirect trigger)
-DROP TRIGGER IF EXISTS v1_queue_item_redirect_to_batch ON v1_queue_item;
-DROP FUNCTION IF EXISTS v1_queue_item_redirect_to_batch_fn();
-
 -- v1_batch_runtime table (renamed from v1_task_batch_run in earlier iterations)
 DO $$
 BEGIN
@@ -765,10 +761,6 @@ EXECUTE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
 
 -- +goose Down
 -- +goose StatementBegin
--- Remove any historical redirect trigger/function
-DROP TRIGGER IF EXISTS v1_queue_item_redirect_to_batch ON v1_queue_item;
-DROP FUNCTION IF EXISTS v1_queue_item_redirect_to_batch_fn();
-
 DROP TRIGGER IF EXISTS after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runtime;
 DROP FUNCTION IF EXISTS after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
 

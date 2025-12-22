@@ -1074,8 +1074,6 @@ ANALYZE v1_task;
 -- name: AnalyzeV1TaskEvent :exec
 ANALYZE v1_task_event;
 
--- name: AnalyzeV1BatchRuntime :exec
-ANALYZE v1_batch_runtime;
 
 -- name: AnalyzeV1Dag :exec
 ANALYZE v1_dag;

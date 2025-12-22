@@ -12,15 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const analyzeV1BatchRuntime = `-- name: AnalyzeV1BatchRuntime :exec
-ANALYZE v1_batch_runtime
-`
-
-func (q *Queries) AnalyzeV1BatchRuntime(ctx context.Context, db DBTX) error {
-	_, err := db.Exec(ctx, analyzeV1BatchRuntime)
-	return err
-}
-
 const analyzeV1Dag = `-- name: AnalyzeV1Dag :exec
 ANALYZE v1_dag
 `

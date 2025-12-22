@@ -186,7 +186,7 @@ message AssignedAction {
     optional int32 batchIndex = 23;
 
     // (optional) payload for starting a batch execution
-    optional BatchStartPayload batch_start = 24;
+    optional BatchStartPayload batchStart = 24;
 
     // (optional) the partition key used for batching
     optional string batchKey = 25;

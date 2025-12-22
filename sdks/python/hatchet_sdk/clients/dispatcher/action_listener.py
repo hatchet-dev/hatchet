@@ -233,18 +233,18 @@ class ActionListener:
                         action_payload = ActionPayload()
 
                     batch_start_payload: BatchStartPayload | None = None
-                    if assigned_action.batch_start is not None:
+                    if assigned_action.HasField("batchStart"):
                         trigger_time = None
                         if hasattr(
-                            assigned_action.batch_start.triggerTime, "ToDatetime"
+                            assigned_action.batchStart.triggerTime, "ToDatetime"
                         ):
                             trigger_time = (
-                                assigned_action.batch_start.triggerTime.ToDatetime()
+                                assigned_action.batchStart.triggerTime.ToDatetime()
                             )
 
                         batch_start_payload = BatchStartPayload(
-                            expected_size=assigned_action.batch_start.expectedSize,
-                            trigger_reason=assigned_action.batch_start.triggerReason,
+                            expected_size=assigned_action.batchStart.expectedSize,
+                            trigger_reason=assigned_action.batchStart.triggerReason,
                             trigger_time=trigger_time,
                         )
 
