@@ -142,13 +142,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 			chunkUUIDByStr[idStr] = id
 		}
 
-		toDelete := make([]string, 0, len(chunk))
-		for _, id := range chunk {
-			idStr := id.String()
-			toDelete = append(toDelete, idStr)
-		}
-
-		deletedIds, err := t.config.APIRepository.WorkflowRun().BulkDeleteScheduledWorkflows(dbCtx, tenantId, toDelete)
+		deletedIds, err := t.config.APIRepository.WorkflowRun().BulkDeleteScheduledWorkflows(dbCtx, tenantId, chunkStr)
 		if err != nil {
 			return nil, err
 		}
@@ -165,7 +159,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 		}
 
 		// Should be rare (race conditions); report per-id errors for anything we expected to delete but didn't.
-		for _, idStr := range toDelete {
+		for _, idStr := range chunkStr {
 			if _, ok := deletedSet[idStr]; ok {
 				continue
 			}
