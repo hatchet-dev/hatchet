@@ -356,6 +356,7 @@ func (p *Pattern) compile(sl string) error {
 	for i := 0; scan.Peek() != scanner.EOF; i++ {
 		ch := scan.Next()
 
+		// nolint: gocritic
 		if ch == '*' {
 			if scan.Peek() == '*' {
 				// is some flavor of "**"

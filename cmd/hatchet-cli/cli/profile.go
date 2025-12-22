@@ -6,12 +6,13 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/spf13/cobra"
+
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
-	"github.com/rs/zerolog"
-	"github.com/spf13/cobra"
 
 	cliconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
 )

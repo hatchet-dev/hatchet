@@ -12,13 +12,14 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/kballard/go-shellquote"
+	"github.com/spf13/cobra"
+
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/worker"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/patternmatcher"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
-	"github.com/kballard/go-shellquote"
-	"github.com/spf13/cobra"
 )
 
 var c *worker.WorkerConfig
@@ -124,7 +125,7 @@ func startWorker(devConfig *worker.WorkerDevConfig, profileFlag string) {
 				cli.Logger.Fatalf("error parsing pre-command '%s': %v", preCmdStr, err)
 			}
 
-			preCmd := exec.Command(preCmdArgs[0], preCmdArgs[1:]...)
+			preCmd := exec.Command(preCmdArgs[0], preCmdArgs[1:]...) // nolint: gosec
 			preCmd.Stdout = os.Stdout
 			preCmd.Stderr = os.Stderr
 			preCmd.Env = os.Environ()
@@ -188,7 +189,12 @@ func startWorker(devConfig *worker.WorkerDevConfig, profileFlag string) {
 					return filepath.SkipDir
 				}
 
-				watcher.Add(path)
+				err = watcher.Add(path)
+
+				if err != nil {
+					return err
+				}
+
 				watchedDirs[path] = true
 				return nil
 			}
@@ -202,7 +208,10 @@ func startWorker(devConfig *worker.WorkerDevConfig, profileFlag string) {
 			// Watch files that match any pattern (and aren't excluded)
 			matched, err := pm.MatchesOrParentMatches(relPath)
 			if err == nil && matched {
-				watcher.Add(path)
+				err = watcher.Add(path)
+				if err != nil {
+					return err
+				}
 			}
 
 			return nil
@@ -254,14 +263,20 @@ func startWorker(devConfig *worker.WorkerDevConfig, profileFlag string) {
 								dirMatched, err := pm.DirMatches(dirRelPath)
 								if err == nil && dirMatched {
 									// Watch new directory, but don't reload
-									watcher.Add(event.Name)
+									err = watcher.Add(event.Name)
+									if err != nil {
+										cli.Logger.Warnf("could not add new directory to filewatcher: %s", err.Error())
+									}
 									watchedDirs[event.Name] = true
 								}
 							} else {
 								// New file created - check if it matches any pattern
 								matched, err := pm.MatchesOrParentMatches(relPath)
 								if err == nil && matched {
-									watcher.Add(event.Name)
+									err = watcher.Add(event.Name)
+									if err != nil {
+										cli.Logger.Warnf("could not add new file to filewatcher: %s", err.Error())
+									}
 									shouldReload = true
 								}
 							}
@@ -375,7 +390,7 @@ func startProcess(args []string, apiToken string) error {
 		procLk.Lock()
 	}
 
-	procCmd = exec.Command(args[0], args[1:]...)
+	procCmd = exec.Command(args[0], args[1:]...) // nolint: gosec
 
 	// Make process its own process group so we can kill it and all children
 	procCmd.SysProcAttr = &syscall.SysProcAttr{

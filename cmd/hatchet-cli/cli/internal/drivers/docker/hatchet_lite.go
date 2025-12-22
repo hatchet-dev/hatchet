@@ -40,7 +40,7 @@ type HatchetLiteOpts struct {
 	overrideGrpcPort      int
 	tokenCb               func(string)
 	portsCb               func(dashboardPort, grpcPort int) // callback with actual ports used
-	workingDir            string                             // for Docker Compose compatibility
+	workingDir            string                            // for Docker Compose compatibility
 }
 
 func initDefaultHatchetLiteOpts() *HatchetLiteOpts {
@@ -150,15 +150,16 @@ func (d *DockerDriver) RunHatchetLite(ctx context.Context, opts ...HatchetLiteOp
 
 	var dashboardPort, grpcPort int
 
-	if err == nil && existingContainer.State.Running {
+	switch {
+	case err == nil && existingContainer.State.Running:
 		// Container exists and is running - use its existing ports
 		dashboardPort, grpcPort, err = extractPortsFromContainer(&existingContainer)
 		if err != nil {
 			return fmt.Errorf("could not extract ports from existing container: %w", err)
 		}
-	} else if !cerrdefs.IsNotFound(err) && err != nil {
+	case !cerrdefs.IsNotFound(err) && err != nil:
 		return fmt.Errorf("could not inspect hatchet container: %w", err)
-	} else {
+	default:
 		// Container doesn't exist or isn't running - find available ports
 		dashboardPort = hatchetLiteOpts.overrideDashboardPort
 		if dashboardPort == 0 {

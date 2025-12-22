@@ -5,10 +5,11 @@ import (
 	"path/filepath"
 
 	"github.com/charmbracelet/log"
-	"github.com/hatchet-dev/hatchet/pkg/config/cli"
-	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
+
+	"github.com/hatchet-dev/hatchet/pkg/config/cli"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 )
 
 var (
@@ -60,7 +61,7 @@ func init() {
 		log.Fatalf("could not load cli config file: %v\n", err)
 	}
 
-	var logFormatter log.Formatter = log.TextFormatter
+	var logFormatter = log.TextFormatter
 
 	if cliConfig.Logger.Format == "json" {
 		logFormatter = log.JSONFormatter

@@ -7,7 +7,6 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/errdefs"
 
 	cerrdefs "github.com/containerd/errdefs"
 )
@@ -46,11 +45,11 @@ func (d *DockerDriver) ensureContainer(
 		if needsRecreate {
 			// Stop and remove existing container
 			timeout := 10
-			if err := d.apiClient.ContainerStop(ctx, existing.ID, container.StopOptions{Timeout: &timeout}); err != nil && !errdefs.IsNotFound(err) {
+			if err := d.apiClient.ContainerStop(ctx, existing.ID, container.StopOptions{Timeout: &timeout}); err != nil && !cerrdefs.IsNotFound(err) {
 				return "", fmt.Errorf("could not stop existing container: %w", err)
 			}
 
-			if err := d.apiClient.ContainerRemove(ctx, existing.ID, container.RemoveOptions{Force: true}); err != nil && !errdefs.IsNotFound(err) {
+			if err := d.apiClient.ContainerRemove(ctx, existing.ID, container.RemoveOptions{Force: true}); err != nil && !cerrdefs.IsNotFound(err) {
 				return "", fmt.Errorf("could not remove existing container: %w", err)
 			}
 		} else {

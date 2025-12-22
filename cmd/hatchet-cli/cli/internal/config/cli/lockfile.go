@@ -35,8 +35,12 @@ func acquireLock() (func(), error) {
 			// Successfully acquired lock
 			// Write timestamp to lock file
 			timestamp := time.Now().Format(time.RFC3339)
-			f.WriteString(timestamp)
+			_, err := f.WriteString(timestamp)
 			f.Close()
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to write to lock file: %w", err)
+			}
 
 			// Return cleanup function
 			return func() {

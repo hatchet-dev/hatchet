@@ -5,8 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hatchet-dev/hatchet/pkg/config/cli"
 	"github.com/spf13/viper"
+
+	"github.com/hatchet-dev/hatchet/pkg/config/cli"
 )
 
 // GetProfiles returns all profiles from the config

@@ -35,6 +35,3 @@ const step2 = simple.task({
     };
   },
 });
-
-
-
