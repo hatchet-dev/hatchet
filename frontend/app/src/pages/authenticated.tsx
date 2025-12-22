@@ -1,3 +1,4 @@
+import { AppLayout } from '@/components/layout/app-layout';
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
 import SupportChat from '@/components/molecules/support-chat';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -231,25 +232,18 @@ export default function Authenticated() {
             <OutletWithContext context={ctx} />
           </div>
         ) : (
-          <div className="grid h-full w-full min-h-0 min-w-0 grid-rows-[64px_1fr] overflow-hidden">
-            <MainNav
-              user={userQuery.data}
-              tenantMemberships={listMembershipsQuery.data?.rows || []}
-            />
-
-            {/* Content area: for tenant routes, v1 owns internal scrolling; otherwise Authenticated provides default scrolling */}
-            <div className="min-h-0 min-w-0 overflow-hidden">
-              <div
-                className={
-                  isTenantPage
-                    ? 'h-full w-full min-h-0 min-w-0 overflow-hidden'
-                    : 'h-full w-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden'
-                }
-              >
-                <OutletWithContext context={ctx} />
-              </div>
-            </div>
-          </div>
+          <AppLayout
+            header={
+              <MainNav
+                user={userQuery.data}
+                tenantMemberships={listMembershipsQuery.data?.rows || []}
+              />
+            }
+            // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
+            contentScroll={!isTenantPage}
+          >
+            <OutletWithContext context={ctx} />
+          </AppLayout>
         )}
       </SupportChat>
     </PostHogProvider>

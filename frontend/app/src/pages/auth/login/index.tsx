@@ -1,3 +1,5 @@
+import { AuthLayout } from '../components/auth-layout';
+import { AuthLegalText } from '../components/auth-legal-text';
 import useApiMeta from '../hooks/use-api-meta';
 import useErrorParam from '../hooks/use-error-param';
 import { UserLoginForm } from './components/user-login-form';
@@ -45,64 +47,34 @@ export default function Login() {
   ].filter(Boolean);
 
   return (
-    <div className="flex min-h-full w-full flex-1 flex-col items-center justify-start py-8 lg:flex-row lg:justify-center">
-      <div className="container relative w-full flex-col items-center justify-center lg:px-0">
-        <div className="mx-auto flex w-full max-w-md lg:p-8">
-          <div className="flex w-full flex-col justify-center space-y-6">
-            <div className="flex flex-col space-y-2 text-center">
-              <h1 className="text-2xl font-semibold tracking-tight">
-                Log in to Hatchet
-              </h1>
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                {prompt}
-              </p>
-            </div>
-            {forms.map((form, index) => (
-              <React.Fragment key={index}>
-                {form}
-                {index < schemes.length - 1 && <OrContinueWith />}
-              </React.Fragment>
-            ))}
-
-            <div className="flex flex-col space-y-2">
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                Don't have an account?{' '}
-                <Link
-                  to={appRoutes.authRegisterRoute.to}
-                  className="underline underline-offset-4 hover:text-primary"
-                >
-                  Sign up
-                </Link>
-              </p>
-            </div>
-            <p className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
-              By clicking continue, you agree to our{' '}
-              <a
-                href="https://hatchet.run/policies/terms"
-                className="underline underline-offset-4 hover:text-primary"
-              >
-                Terms of Service
-              </a>
-              ,{' '}
-              <a
-                href="https://hatchet.run/policies/cookie"
-                className="underline underline-offset-4 hover:text-primary"
-              >
-                Cookie Policy
-              </a>
-              , and{' '}
-              <a
-                href="https://hatchet.run/policies/privacy"
-                className="underline underline-offset-4 hover:text-primary"
-              >
-                Privacy Policy
-              </a>
-              .
-            </p>
-          </div>
-        </div>
+    <AuthLayout>
+      <div className="flex flex-col space-y-2 text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Log in to Hatchet
+        </h1>
+        <p className="text-sm text-gray-700 dark:text-gray-300">{prompt}</p>
       </div>
-    </div>
+
+      {forms.map((form, index) => (
+        <React.Fragment key={index}>
+          {form}
+          {index < schemes.length - 1 && <OrContinueWith />}
+        </React.Fragment>
+      ))}
+
+      <div className="flex flex-col space-y-2">
+        <p className="text-sm text-gray-700 dark:text-gray-300">
+          Don't have an account?{' '}
+          <Link
+            to={appRoutes.authRegisterRoute.to}
+            className="underline underline-offset-4 hover:text-primary"
+          >
+            Sign up
+          </Link>
+        </p>
+      </div>
+      <AuthLegalText />
+    </AuthLayout>
   );
 }
 
