@@ -4,7 +4,7 @@ import functools
 import json
 from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime
 from enum import Enum
 from multiprocessing import Queue
@@ -84,11 +84,62 @@ class _BatchState:
     batch_key: str | None = None
 
 
+@dataclass
+class _FailedBatchState:
+    exc: Exception
+    # Expected number of step-runs/items for this batch. This should come from the engine
+    # as action.batch_size on the START_STEP_RUN actions.
+    expected_size: int = 0
+    # Track which indices we've already failed to allow cleanup once we've failed them all.
+    failed_indices: set[int] = field(default_factory=set)
+
+
 class _BatchController:
     def __init__(self, action_id: str, task: Task[TWorkflowInput, R]) -> None:
         self.action_id = action_id
         self.task = task
         self.batches: dict[str, _BatchState] = {}
+        # If START_BATCH handling fails (or we otherwise decide a batch cannot proceed),
+        # we mark the batch_id as failed so any waiting or future step-runs for that
+        # batch fail fast and can be reported back to the engine via the normal
+        # step_run_callback -> STEP_EVENT_TYPE_FAILED path.
+        #
+        # This map is self-cleaning: we remove an entry once we've observed and failed
+        # all indices [0..expected_size-1] for that batch id.
+        self.failed_batches: dict[str, _FailedBatchState] = {}
+
+    def _maybe_cleanup_failed_batch(self, *, batch_id: str) -> None:
+        failed = self.failed_batches.get(batch_id)
+        if not failed:
+            return
+
+        if failed.expected_size > 0 and len(failed.failed_indices) >= failed.expected_size:
+            self.failed_batches.pop(batch_id, None)
+
+    def fail_batch(
+        self, *, batch_id: str, exc: Exception, expected_size: int = 0
+    ) -> None:
+        failed = self.failed_batches.get(batch_id)
+        if failed is None:
+            failed = _FailedBatchState(exc=exc, expected_size=expected_size)
+            self.failed_batches[batch_id] = failed
+        else:
+            # Preserve the first exception we saw (it usually has the best context),
+            # but backfill expected_size if we learn it later.
+            if failed.expected_size <= 0 and expected_size > 0:
+                failed.expected_size = expected_size
+
+        state = self.batches.pop(batch_id, None)
+        if state:
+            if failed.expected_size <= 0 and state.expected_size > 0:
+                failed.expected_size = state.expected_size
+
+            for index, queue_item in state.items.items():
+                failed.failed_indices.add(index)
+                if not queue_item.future.done():
+                    queue_item.future.set_exception(failed.exc)
+
+        self._maybe_cleanup_failed_batch(batch_id=batch_id)
 
     def enqueue_item(
         self,
@@ -101,6 +152,16 @@ class _BatchController:
         batch_key: str | None = None,
         on_ready: Callable[[str], None],
     ) -> None:
+        failed = self.failed_batches.get(batch_id)
+        if failed is not None:
+            if failed.expected_size <= 0 and expected_size > 0:
+                failed.expected_size = expected_size
+            failed.failed_indices.add(index)
+            if not future.done():
+                future.set_exception(failed.exc)
+            self._maybe_cleanup_failed_batch(batch_id=batch_id)
+            return
+
         state = self.batches.get(batch_id)
 
         if state is None:
@@ -140,6 +201,13 @@ class _BatchController:
         batch_key: str | None = None,
         on_ready: Callable[[str], None],
     ) -> None:
+        failed = self.failed_batches.get(batch_id)
+        if failed is not None:
+            if failed.expected_size <= 0 and expected_size > 0:
+                failed.expected_size = expected_size
+            self._maybe_cleanup_failed_batch(batch_id=batch_id)
+            return
+
         state = self.batches.get(batch_id)
 
         if state is None:
@@ -440,18 +508,30 @@ class Runner:
             batch_cfg.batch_size if batch_cfg is not None else expected_size
         )
 
-        controller.start_batch(
-            batch_id=action.batch_id,
-            expected_size=expected_size,
-            default_batch_size=default_batch_size,
-            trigger_reason=trigger_reason,
-            trigger_time=trigger_time,
-            batch_key=batch_key,
-            on_ready=lambda batch_id: (
-                asyncio.create_task(self._maybe_flush_batch(controller, batch_id)),
-                None,
-            )[1],
-        )
+        try:
+            controller.start_batch(
+                batch_id=action.batch_id,
+                expected_size=expected_size,
+                default_batch_size=default_batch_size,
+                trigger_reason=trigger_reason,
+                trigger_time=trigger_time,
+                batch_key=batch_key,
+                on_ready=lambda batch_id: (
+                    asyncio.create_task(self._maybe_flush_batch(controller, batch_id)),
+                    None,
+                )[1],
+            )
+        except Exception as e:
+            # Fail all waiting (and future) step-runs for this batch_id so the engine
+            # gets STEP_EVENT_TYPE_FAILED via the step callback path.
+            controller.fail_batch(
+                batch_id=action.batch_id,
+                exc=e,
+                expected_size=(expected_size if expected_size > 0 else default_batch_size),
+            )
+            logger.exception(
+                f"failed to handle START_BATCH for '{action_id}' batch {action.batch_id}: {e}"
+            )
 
     async def _await_batch_item(
         self,
