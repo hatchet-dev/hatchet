@@ -354,7 +354,7 @@ export type SeededUser = (typeof seededUsers)[SeededUserKey];
 		return err
 	}
 
-	if err := os.WriteFile(targetFile, []byte(contents), 0o644); err != nil {
+	if err := os.WriteFile(targetFile, []byte(contents), 0o600); err != nil {
 		return err
 	}
 
