@@ -581,11 +581,11 @@ CREATE INDEX v1_batched_queue_item_lookup_idx ON v1_batched_queue_item (
     inserted_at ASC
 );
 
-CREATE INDEX v1_batched_queue_item_queue_idx ON v1_batched_queue_item (
+CREATE INDEX v1_batched_queue_item_step_batch_id_idx ON v1_batched_queue_item (
     tenant_id ASC,
-    queue ASC,
-    priority DESC,
-    inserted_at ASC
+    step_id ASC,
+    batch_key ASC,
+    id ASC
 );
 
 CREATE TYPE v1_match_kind AS ENUM ('TRIGGER', 'SIGNAL');
