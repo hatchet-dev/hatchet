@@ -231,13 +231,12 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 							)
 
 							if err != nil {
-								d.l.Error().Err(err).Int64("task_id", task.ID).Msg("could not create monitoring event")
+								multiErr = multierror.Append(
+									multiErr,
+									fmt.Errorf("could not create monitoring event for task %d: %w", task.ID, err),
+								)
 							} else {
-								defer func() {
-									if err := d.pubBuffer.Pub(ctx, msgqueuev1.OLAP_QUEUE, msg, false); err != nil {
-										d.l.Error().Err(err).Msg("could not publish monitoring event")
-									}
-								}()
+								defer d.pubBuffer.Pub(ctx, msgqueuev1.OLAP_QUEUE, msg, false)
 							}
 
 							return nil
