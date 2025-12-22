@@ -206,3 +206,6 @@ SELECT
     updated_at::TIMESTAMPTZ
 FROM payloads
 ;
+
+-- name: ComputePayloadBatchSize :one
+SELECT compute_payload_batch_size(@partitionDate::DATE) AS total_size_bytes;

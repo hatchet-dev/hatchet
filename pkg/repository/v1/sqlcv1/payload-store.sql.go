@@ -117,6 +117,17 @@ func (q *Queries) CleanUpCutoverJobOffsets(ctx context.Context, db DBTX, keystok
 	return err
 }
 
+const computePayloadBatchSize = `-- name: ComputePayloadBatchSize :one
+SELECT compute_payload_batch_size($1::DATE) AS total_size_bytes
+`
+
+func (q *Queries) ComputePayloadBatchSize(ctx context.Context, db DBTX, partitiondate pgtype.Date) (int64, error) {
+	row := db.QueryRow(ctx, computePayloadBatchSize, partitiondate)
+	var total_size_bytes int64
+	err := row.Scan(&total_size_bytes)
+	return total_size_bytes, err
+}
+
 const createPayloadRangeChunks = `-- name: CreatePayloadRangeChunks :many
 WITH chunks AS (
     SELECT

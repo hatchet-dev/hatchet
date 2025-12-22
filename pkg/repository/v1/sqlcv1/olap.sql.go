@@ -168,6 +168,17 @@ func (q *Queries) CleanUpOLAPCutoverJobOffsets(ctx context.Context, db DBTX, key
 	return err
 }
 
+const computeOLAPPayloadBatchSize = `-- name: ComputeOLAPPayloadBatchSize :one
+SELECT compute_olap_payload_batch_size($1::DATE) AS total_size_bytes
+`
+
+func (q *Queries) ComputeOLAPPayloadBatchSize(ctx context.Context, db DBTX, partitiondate pgtype.Date) (int64, error) {
+	row := db.QueryRow(ctx, computeOLAPPayloadBatchSize, partitiondate)
+	var total_size_bytes int64
+	err := row.Scan(&total_size_bytes)
+	return total_size_bytes, err
+}
+
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
     SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
