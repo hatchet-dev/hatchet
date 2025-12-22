@@ -2771,12 +2771,57 @@ type OLAPCutoverBatchOutcome struct {
 	NextPagination OLAPPaginationParams
 }
 
+func (p *OLAPRepositoryImpl) OptimizeOLAPPayloadWindowSize(ctx context.Context, partitionDate PartitionDate, candidateBatchNumRows int32, pagination OLAPPaginationParams) (*int32, error) {
+	if candidateBatchNumRows <= 0 {
+		// trivial case that we'll never hit, but to prevent infinite recursion
+		zero := int32(0)
+		return &zero, nil
+	}
+
+	proposedBatchSizeBytes, err := p.queries.ComputeOLAPPayloadBatchSize(ctx, p.pool, sqlcv1.ComputeOLAPPayloadBatchSizeParams{
+		Partitiondate:  pgtype.Date(partitionDate),
+		Lasttenantid:   pagination.LastTenantId,
+		Lastinsertedat: pagination.LastInsertedAt,
+		Lastexternalid: pagination.LastExternalId,
+		Batchsize:      candidateBatchNumRows,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute olap payload batch size: %w", err)
+	}
+
+	if proposedBatchSizeBytes < MAX_BATCH_SIZE_BYTES {
+		return &candidateBatchNumRows, nil
+	}
+
+	// if the proposed batch size is too large, then
+	// cut it in half and try again
+	return p.OptimizeOLAPPayloadWindowSize(
+		ctx,
+		partitionDate,
+		candidateBatchNumRows/2,
+		pagination,
+	)
+}
+
 func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, pagination OLAPPaginationParams, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) (*OLAPCutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.processOLAPPayloadCutoverBatch")
 	defer span.End()
 
 	tableName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
-	windowSize := externalCutoverBatchSize * externalCutoverNumConcurrentOffloads
+
+	windowSizePtr, err := p.OptimizeOLAPPayloadWindowSize(
+		ctx,
+		partitionDate,
+		externalCutoverBatchSize*externalCutoverNumConcurrentOffloads,
+		pagination,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to optimize olap payload window size: %w", err)
+	}
+
+	windowSize := *windowSizePtr
 
 	payloadRanges, err := p.queries.CreateOLAPPayloadRangeChunks(ctx, p.pool, sqlcv1.CreateOLAPPayloadRangeChunksParams{
 		Chunksize:      externalCutoverBatchSize,
