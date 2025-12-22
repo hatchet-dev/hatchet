@@ -15,7 +15,6 @@ func init() {
 
 const (
 	v1RunsOlapTable = "v1_runs_olap"
-	idxName         = "ix_v1_runs_olap_tenant_id"
 )
 
 // up20251216160649 creates an index concurrently on each leaf partition of v1_runs_olap.
@@ -30,7 +29,7 @@ func up20251216160649(ctx context.Context, db *sql.DB) error {
 	for _, partition := range partitions {
 		stmt := fmt.Sprintf(
 			`CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s (tenant_id, inserted_at, id, readable_status, kind)`,
-			quoteIdent(idxName),
+			quoteIdent(idxNameForPartition(partition)),
 			quoteIdent(partition),
 		)
 
@@ -47,7 +46,7 @@ func up20251216160649(ctx context.Context, db *sql.DB) error {
 	for _, partition := range partitions {
 		stmt := fmt.Sprintf(
 			`CREATE INDEX IF NOT EXISTS %s ON %s (tenant_id, inserted_at, id, readable_status, kind)`,
-			quoteIdent(idxName),
+			quoteIdent(idxNameForPartition(partition)),
 			quoteIdent(partition),
 		)
 
@@ -58,7 +57,7 @@ func up20251216160649(ctx context.Context, db *sql.DB) error {
 
 	stmt := fmt.Sprintf(
 		`CREATE INDEX IF NOT EXISTS %s ON %s (tenant_id, inserted_at, id, readable_status, kind)`,
-		quoteIdent(idxName),
+		quoteIdent(idxNameForPartition(v1RunsOlapTable)),
 		quoteIdent(v1RunsOlapTable),
 	)
 
@@ -78,17 +77,17 @@ func down20251216160649(ctx context.Context, db *sql.DB) error {
 	for _, partition := range partitions {
 		stmt := fmt.Sprintf(
 			`DROP INDEX CONCURRENTLY IF EXISTS %s`,
-			quoteIdent(idxName),
+			quoteIdent(idxNameForPartition(partition)),
 		)
 
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("drop index concurrently %s (partition %s): %w", idxName, partition, err)
+			return fmt.Errorf("drop index concurrently %s (partition %s): %w", idxNameForPartition(partition), partition, err)
 		}
 	}
 
 	stmt := fmt.Sprintf(
 		`DROP INDEX IF EXISTS %s`,
-		quoteIdent(idxName),
+		quoteIdent(idxNameForPartition(v1RunsOlapTable)),
 	)
 
 	if _, err := db.ExecContext(ctx, stmt); err != nil {
@@ -129,4 +128,8 @@ ORDER BY 1
 func quoteIdent(ident string) string {
 	// Minimal identifier quoting suitable for Postgres.
 	return `"` + strings.ReplaceAll(ident, `"`, `""`) + `"`
+}
+
+func idxNameForPartition(partition string) string {
+	return fmt.Sprintf("ix_%s_tenant_id", partition)
 }
