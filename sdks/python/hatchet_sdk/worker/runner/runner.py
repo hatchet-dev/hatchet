@@ -85,7 +85,7 @@ class _BatchState:
 
 
 class _BatchController:
-    def __init__(self, action_id: str, task: Task[Any, Any]) -> None:
+    def __init__(self, action_id: str, task: Task[TWorkflowInput, R]) -> None:
         self.action_id = action_id
         self.task = task
         self.batches: dict[str, _BatchState] = {}
