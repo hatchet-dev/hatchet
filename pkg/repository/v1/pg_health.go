@@ -18,6 +18,9 @@ const (
 type PGHealthRepository interface {
 	PGStatStatementsEnabled(ctx context.Context) (bool, error)
 	CheckBloat(ctx context.Context) (PGHealthError, int, error)
+	CheckLongRunningQueries(ctx context.Context) (PGHealthError, int, error)
+	CheckQueryCache(ctx context.Context) (PGHealthError, int, error)
+	CheckLongRunningVacuum(ctx context.Context) (PGHealthError, int, error)
 }
 
 type pgHealthRepository struct {
