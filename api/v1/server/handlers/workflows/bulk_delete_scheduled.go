@@ -142,20 +142,9 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 			chunkUUIDByStr[idStr] = id
 		}
 
-		metaById, err := t.config.APIRepository.WorkflowRun().ScheduledWorkflowMetaByIds(dbCtx, tenantId, chunkStr)
-		if err != nil {
-			return nil, err
-		}
-
 		toDelete := make([]string, 0, len(chunk))
 		for _, id := range chunk {
 			idStr := id.String()
-			meta, ok := metaById[idStr]
-			if !ok {
-				idCp := id
-				errors = append(errors, gen.ScheduledWorkflowsBulkError{Id: &idCp, Error: "Scheduled workflow not found."})
-				continue
-			}
 			toDelete = append(toDelete, idStr)
 		}
 
