@@ -1,39 +1,56 @@
+import useCloudApiMeta from '../../auth/hooks/use-cloud-api-meta';
+import { HearAboutUsForm } from './components/hear-about-us-form';
+import { StepProgress } from './components/step-progress';
+import { TenantCreateForm } from './components/tenant-create-form';
+import { WhatBuildingForm } from './components/what-building-form';
+import { OnboardingStepConfig, OnboardingFormData } from './types';
+import { Button } from '@/components/v1/ui/button';
+import { useAnalytics } from '@/hooks/use-analytics';
+import { useOrganizations } from '@/hooks/use-organizations';
 import api, {
   CreateTenantRequest,
   queries,
   Tenant,
   TenantEnvironment,
 } from '@/lib/api';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { useApiError } from '@/lib/hooks';
 import { cloudApi } from '@/lib/api/api';
-import useCloudApiMeta from '../../auth/hooks/use-cloud-api-meta';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { TenantCreateForm } from './components/tenant-create-form';
-import { Button } from '@/components/v1/ui/button';
-import { HearAboutUsForm } from './components/hear-about-us-form';
-import { WhatBuildingForm } from './components/what-building-form';
-import { StepProgress } from './components/step-progress';
-import { OnboardingStepConfig, OnboardingFormData } from './types';
-import { useAnalytics } from '@/hooks/use-analytics';
 import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
+import { useApiError } from '@/lib/hooks';
+import { useSearchParams } from '@/lib/router-helpers';
+import { appRoutes } from '@/router';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
 
 const FINAL_STEP = 2;
 
 export default function CreateTenant() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { organizationData, isCloudEnabled } = useOrganizations();
   const { data: cloudMeta } = useCloudApiMeta();
 
-  const stepFromUrl = parseInt(searchParams.get('step') || '0', 10);
+  const getValidatedStep = (stepParam: string | null): number => {
+    if (stepParam === null) {
+      return 0;
+    }
+
+    // Handle numbers that may be wrapped in quotes (e.g. "%221%22")
+    const normalized =
+      typeof stepParam === 'string'
+        ? stepParam.replace(/["']/g, '')
+        : stepParam;
+
+    const parsedStep = Number.parseInt(normalized, 10);
+    if (!Number.isFinite(parsedStep)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(parsedStep, FINAL_STEP));
+  };
+
+  const stepFromUrl = getValidatedStep(searchParams.get('step'));
   const organizationId = searchParams.get('organizationId');
 
-  const [currentStep, setCurrentStep] = useState(
-    Math.max(0, Math.min(stepFromUrl, FINAL_STEP)),
-  );
+  const [currentStep, setCurrentStep] = useState(stepFromUrl);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<
     string | null
   >(null);
@@ -71,12 +88,11 @@ export default function CreateTenant() {
     setFieldErrors: setFieldErrors,
   });
   const { capture } = useAnalytics();
-
+  const navigate = useNavigate();
   // Sync currentStep with URL parameter
   useEffect(() => {
-    const stepFromUrl = parseInt(searchParams.get('step') || '0', 10);
-    const validStep = Math.max(0, Math.min(stepFromUrl, FINAL_STEP));
-    setCurrentStep(validStep);
+    const stepFromUrl = getValidatedStep(searchParams.get('step'));
+    setCurrentStep(stepFromUrl);
   }, [searchParams]);
 
   const listMembershipsQuery = useQuery({
@@ -134,12 +150,18 @@ export default function CreateTenant() {
       setTimeout(() => {
         if (result.type === 'cloud') {
           const tenant = result.data as OrganizationTenant;
-          window.location.href = `/tenants/${tenant.id}/onboarding/get-started`;
+          navigate({
+            to: appRoutes.tenantOnboardingGetStartedRoute.to,
+            params: { tenant: tenant.id },
+          });
           return;
         }
 
         const tenant = result.data as Tenant;
-        window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
+        navigate({
+          to: appRoutes.tenantOnboardingGetStartedRoute.to,
+          params: { tenant: tenant.metadata.id },
+        });
       }, 0);
     },
     onError: handleApiError,
@@ -173,7 +195,12 @@ export default function CreateTenant() {
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       const nextStep = currentStep + 1;
-      navigate(`?step=${nextStep}`, { replace: false });
+      setCurrentStep(nextStep);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('step', String(nextStep));
+        return next;
+      });
     }
   };
 
@@ -223,14 +250,24 @@ export default function CreateTenant() {
   const handlePrevious = () => {
     if (currentStep > 0) {
       const previousStep = currentStep - 1;
-      navigate(`?step=${previousStep}`, { replace: false });
+      setCurrentStep(previousStep);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('step', String(previousStep));
+        return next;
+      });
     }
   };
 
   const handleStepClick = (stepIndex: number) => {
     // Allow navigation to any step within valid range
     if (stepIndex >= 0 && stepIndex < steps.length) {
-      navigate(`?step=${stepIndex}`, { replace: false });
+      setCurrentStep(stepIndex);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('step', String(stepIndex));
+        return next;
+      });
     }
   };
 
@@ -346,7 +383,11 @@ export default function CreateTenant() {
               variant="outline"
               size="sm"
               onClick={() =>
-                navigate(`?step=${currentStep + 1}`, { replace: false })
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.set('step', String(currentStep + 1));
+                  return next;
+                })
               }
             >
               Skip
@@ -371,7 +412,7 @@ export default function CreateTenant() {
             >
               {createMutation.isPending ? (
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   Creating...
                 </div>
               ) : (
@@ -385,7 +426,7 @@ export default function CreateTenant() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full w-full p-4">
+    <div className="flex min-h-full w-full flex-col items-center justify-center p-4">
       <div className="w-full max-w-[450px] space-y-6">
         {renderCurrentStep()}
       </div>

@@ -1,8 +1,3 @@
-import { useState } from 'react';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
-import { Loading } from '@/components/v1/ui/loading.tsx';
-import { VisibilityState } from '@tanstack/react-table';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   columns,
   nameKey,
@@ -10,8 +5,13 @@ import {
 } from './components/workflow-columns';
 import { useWorkflows } from './hooks/use-workflows';
 import { DocsButton } from '@/components/v1/docs/docs-button';
-import { docsPages } from '@/lib/generated/docs';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { docsPages } from '@/lib/generated/docs';
+import { VisibilityState } from '@tanstack/react-table';
+import { useState } from 'react';
 
 export default function WorkflowTable() {
   const { tenantId } = useCurrentTenantId();
@@ -43,13 +43,11 @@ export default function WorkflowTable() {
       columns={columns(tenantId)}
       data={workflows}
       emptyState={
-        <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
           <p className="text-lg font-semibold">No workflows found</p>
           <div className="w-fit">
             <DocsButton
               doc={docsPages.home['your-first-task']}
-              size="full"
-              variant="outline"
               label="Learn about creating workflows and tasks"
             />
           </div>

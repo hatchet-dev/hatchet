@@ -1,9 +1,9 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { V1Filter } from '@/lib/api';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { CheckIcon } from 'lucide-react';
 import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { V1Filter } from '@/lib/api';
+import { ColumnDef } from '@tanstack/react-table';
+import { CheckIcon } from 'lucide-react';
 
 export const FilterColumn = {
   id: 'ID',
@@ -34,7 +34,7 @@ export const filterColumns = (
       cell: ({ row }) => (
         <div className="w-full">
           <Button
-            className="w-fit cursor-pointer pl-0"
+            className="w-fit pl-0"
             variant="link"
             onClick={() => {
               onRowClick?.(row.original);
@@ -103,7 +103,7 @@ export const filterColumns = (
       ),
       cell: ({ row }) =>
         row.original.isDeclarative ? (
-          <CheckIcon className="h-4 w-4 text-green-600" />
+          <CheckIcon className="size-4 text-green-600" />
         ) : null,
       enableSorting: false,
       enableHiding: true,

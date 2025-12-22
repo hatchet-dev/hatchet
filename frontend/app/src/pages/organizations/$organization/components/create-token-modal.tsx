@@ -1,4 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
+import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 import {
   Dialog,
   DialogContent,
@@ -15,14 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
+import { KeyIcon } from '@heroicons/react/24/outline';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { KeyIcon } from '@heroicons/react/24/outline';
-import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
-import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 
 const schema = z.object({
   name: z.string().min(1, 'Token name is required'),
@@ -113,8 +113,8 @@ export function CreateTokenModal({
 
         {createdToken ? (
           <div className="space-y-4">
-            <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-              <div className="text-sm text-green-800 mb-2">
+            <div className="rounded-md border border-green-200 bg-green-50 p-4">
+              <div className="mb-2 text-sm text-green-800">
                 <strong>Token created successfully!</strong>
               </div>
               <p className="text-xs text-green-700">

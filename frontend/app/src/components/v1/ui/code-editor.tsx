@@ -1,8 +1,8 @@
 import CopyToClipboard from './copy-to-clipboard';
+import { useTheme } from '@/components/theme-provider';
 import { cn } from '@/lib/utils';
 import Editor, { Monaco } from '@monaco-editor/react';
 import 'monaco-themes/themes/Pastels on Dark.json';
-import { useTheme } from '@/components/theme-provider';
 
 interface CodeEditorProps {
   code?: string;
@@ -40,7 +40,7 @@ export function CodeEditor({
     <div
       className={cn(
         className,
-        'w-full h-fit relative rounded-lg overflow-hidden',
+        'relative h-fit w-full overflow-hidden rounded-lg',
       )}
     >
       <Editor
@@ -73,7 +73,7 @@ export function CodeEditor({
       />
       {copy && (
         <CopyToClipboard
-          className="absolute top-2 right-2"
+          className="absolute right-2 top-2"
           text={code?.trim() || ''}
         />
       )}

@@ -1,14 +1,14 @@
-import { Button } from '@/components/v1/ui/button';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { useRunsContext } from '../../hooks/runs-provider';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { useMemo, useState } from 'react';
-import { Play, Command } from 'lucide-react';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
+import { Play, Command } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 interface TableActionsProps {
   onTriggerWorkflow: () => void;
@@ -41,10 +41,10 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
           }}
         >
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              <Command className="h-4 w-4 cq-xl:hidden" />
+            <Button variant="outline" size="sm">
+              <Command className="cq-xl:hidden size-4" />
               <span className="cq-xl:inline hidden text-sm">Actions</span>
-              <ChevronDownIcon className="h-4 w-4 ml-2 hidden cq-xl:inline" />
+              <ChevronDownIcon className="cq-xl:inline ml-2 hidden size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="z-[70]">
@@ -57,13 +57,10 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
 
     if (!hideTriggerRunButton) {
       baseActions = [
-        <Button
-          key="trigger"
-          className="h-8 border ml-2 px-3"
-          onClick={onTriggerWorkflow}
-        >
+        <Button key="trigger" size="sm" onClick={onTriggerWorkflow}>
           <span className="cq-xl:inline hidden text-sm">Trigger Run</span>
-          <Play className="size-4 cq-xl:hidden" />
+          {/* important: this icon can't be the `rightIcon` in the button b/c it's dynamically shown */}
+          <Play className="cq-xl:hidden size-4" />
         </Button>,
         ...baseActions,
       ];
@@ -89,7 +86,7 @@ const CancelMenuItem = () => {
         actionType="cancel"
         disabled={false}
         showModal
-        className="w-full justify-start h-8 px-2 py-1.5 font-normal border-0 bg-transparent hover:bg-accent hover:text-accent-foreground rounded-sm"
+        className="h-8 w-full justify-start rounded-sm border-0 bg-transparent px-2 py-1.5 font-normal hover:bg-accent hover:text-accent-foreground"
       />
     </div>
   );
@@ -102,7 +99,7 @@ const ReplayMenuItem = () => {
         actionType="replay"
         disabled={false}
         showModal
-        className="w-full justify-start h-8 px-2 py-1.5 font-normal border-0 bg-transparent hover:bg-accent hover:text-accent-foreground rounded-sm"
+        className="h-8 w-full justify-start rounded-sm border-0 bg-transparent px-2 py-1.5 font-normal hover:bg-accent hover:text-accent-foreground"
       />
     </div>
   );

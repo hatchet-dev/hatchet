@@ -1,17 +1,17 @@
+import { scopeKey, workflowIdKey } from '../components/filter-columns';
+import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import api, {
   queries,
   V1CreateFilterRequest,
   V1UpdateFilterRequest,
 } from '@/lib/api';
+import { useSearchParams } from '@/lib/router-helpers';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ColumnFiltersState, Updater } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { scopeKey, workflowIdKey } from '../components/filter-columns';
-import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
 
 type UseFiltersProps = {
   key: string;
@@ -130,7 +130,7 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
 
         return {
           ...Object.fromEntries(prev.entries()),
-          [paramKey]: JSON.stringify(filterState),
+          [paramKey]: filterState,
         };
       });
     },

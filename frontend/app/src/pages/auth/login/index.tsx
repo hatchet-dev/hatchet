@@ -1,14 +1,15 @@
-import { Link, useNavigate } from 'react-router-dom';
+import useApiMeta from '../hooks/use-api-meta';
+import useErrorParam from '../hooks/use-error-param';
 import { UserLoginForm } from './components/user-login-form';
 import { Button } from '@/components/v1/ui/button';
-import { useMutation } from '@tanstack/react-query';
-import api, { UserLoginRequest } from '@/lib/api';
-import { useState } from 'react';
-import { useApiError } from '@/lib/hooks';
-import useApiMeta from '../hooks/use-api-meta';
-import { Loading } from '@/components/v1/ui/loading';
 import { Icons } from '@/components/v1/ui/icons';
-import useErrorParam from '../hooks/use-error-param';
+import { Loading } from '@/components/v1/ui/loading';
+import api, { UserLoginRequest } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { appRoutes } from '@/router';
+import { useMutation } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
 import React from 'react';
 
 export default function Login() {
@@ -44,8 +45,8 @@ export default function Login() {
   ].filter(Boolean);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center w-full h-full lg:flex-row">
-      <div className="container relative flex-col items-center justify-center w-full lg:px-0">
+    <div className="flex h-full w-full flex-1 flex-col items-center justify-center lg:flex-row">
+      <div className="container relative w-full flex-col items-center justify-center lg:px-0">
         <div className="mx-auto flex w-full max-w-md lg:p-8">
           <div className="flex w-full flex-col justify-center space-y-6">
             <div className="flex flex-col space-y-2 text-center">
@@ -67,35 +68,35 @@ export default function Login() {
               <p className="text-sm text-gray-700 dark:text-gray-300">
                 Don't have an account?{' '}
                 <Link
-                  to="/auth/register"
+                  to={appRoutes.authRegisterRoute.to}
                   className="underline underline-offset-4 hover:text-primary"
                 >
                   Sign up
                 </Link>
               </p>
             </div>
-            <p className="text-left text-sm text-gray-700 dark:text-gray-300 w-full">
+            <p className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
               By clicking continue, you agree to our{' '}
-              <Link
-                to="https://www.iubenda.com/terms-and-conditions/76608149"
+              <a
+                href="https://hatchet.run/policies/terms"
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Terms of Service
-              </Link>
+              </a>
               ,{' '}
-              <Link
-                to="https://www.iubenda.com/privacy-policy/76608149/cookie-policy"
+              <a
+                href="https://hatchet.run/policies/cookie"
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Cookie Policy
-              </Link>
+              </a>
               , and{' '}
-              <Link
-                to="https://www.iubenda.com/privacy-policy/76608149"
+              <a
+                href="https://hatchet.run/policies/privacy"
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Privacy Policy
-              </Link>
+              </a>
               .
             </p>
           </div>
@@ -131,7 +132,7 @@ function BasicLogin() {
       await api.userUpdateLogin(data);
     },
     onSuccess: () => {
-      navigate('/');
+      navigate({ to: appRoutes.authenticatedRoute.to });
     },
     onError: handleApiError,
   });
@@ -148,8 +149,12 @@ function BasicLogin() {
 export function GoogleLogin() {
   return (
     <a href="/api/v1/users/google/start" className="w-full">
-      <Button variant="outline" type="button" className="w-full py-2">
-        <Icons.google className="mr-2 h-4 w-4" />
+      <Button
+        variant="outline"
+        type="button"
+        fullWidth
+        leftIcon={<Icons.google className="size-4" />}
+      >
         Google
       </Button>
     </a>
@@ -159,8 +164,12 @@ export function GoogleLogin() {
 export function GithubLogin() {
   return (
     <a href="/api/v1/users/github/start" className="w-full">
-      <Button variant="outline" type="button" className="w-full py-2">
-        <Icons.gitHub className="mr-2 h-4 w-4" />
+      <Button
+        variant="outline"
+        type="button"
+        fullWidth
+        leftIcon={<Icons.gitHub className="size-4" />}
+      >
         Github
       </Button>
     </a>

@@ -249,6 +249,7 @@ type OLAPRepository interface {
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error)
 	GetEvent(ctx context.Context, externalId string) (*sqlcv1.V1EventsOlap, error)
+	GetEventWithPayload(ctx context.Context, externalId, tenantId string) (*EventWithPayload, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 
 	GetDAGDurations(ctx context.Context, tenantId string, externalIds []pgtype.UUID, minInsertedAt pgtype.Timestamptz) (map[string]*sqlcv1.GetDagDurationsRow, error)
@@ -2152,6 +2153,84 @@ func (r *OLAPRepositoryImpl) GetEvent(ctx context.Context, externalId string) (*
 	return r.queries.GetEventByExternalId(ctx, r.readPool, sqlchelpers.UUIDFromStr(externalId))
 }
 
+func (r *OLAPRepositoryImpl) PopulateEventData(ctx context.Context, tenantId pgtype.UUID, eventExternalIds []pgtype.UUID) (map[pgtype.UUID]sqlcv1.PopulateEventDataRow, error) {
+	eventData, err := r.queries.PopulateEventData(ctx, r.readPool, sqlcv1.PopulateEventDataParams{
+		Eventexternalids: eventExternalIds,
+		Tenantid:         tenantId,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("error populating event data: %v", err)
+	}
+
+	externalIdToEventData := make(map[pgtype.UUID]sqlcv1.PopulateEventDataRow)
+
+	for _, data := range eventData {
+		externalIdToEventData[data.ExternalID] = *data
+	}
+
+	return externalIdToEventData, nil
+}
+
+func (r *OLAPRepositoryImpl) GetEventWithPayload(ctx context.Context, externalId, tenantId string) (*EventWithPayload, error) {
+	event, err := r.queries.GetEventByExternalIdUsingTenantId(ctx, r.readPool, sqlcv1.GetEventByExternalIdUsingTenantIdParams{
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Eventexternalid: sqlchelpers.UUIDFromStr(externalId),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	payload, err := r.ReadPayload(ctx, tenantId, event.ExternalID)
+
+	if err != nil {
+		return nil, fmt.Errorf("error reading event payload: %v", err)
+	}
+
+	eventExternalIds := []pgtype.UUID{event.ExternalID}
+
+	eventExternalIdToData, err := r.PopulateEventData(ctx, event.TenantID, eventExternalIds)
+
+	if err != nil {
+		return nil, fmt.Errorf("error populating event data: %v", err)
+	}
+
+	eventData, exists := eventExternalIdToData[event.ExternalID]
+	var triggeredRuns []byte
+	var queuedCount, runningCount, completedCount, cancelledCount, failedCount int64
+
+	if exists {
+		triggeredRuns = eventData.TriggeredRuns
+		queuedCount = eventData.QueuedCount
+		runningCount = eventData.RunningCount
+		completedCount = eventData.CompletedCount
+		cancelledCount = eventData.CancelledCount
+		failedCount = eventData.FailedCount
+	}
+
+	return &EventWithPayload{
+		ListEventsRow: &ListEventsRow{
+			TenantID:                event.TenantID,
+			EventID:                 event.ID,
+			EventExternalID:         event.ExternalID,
+			EventSeenAt:             event.SeenAt,
+			EventKey:                event.Key,
+			EventPayload:            payload,
+			EventAdditionalMetadata: event.AdditionalMetadata,
+			EventScope:              event.Scope.String,
+			QueuedCount:             queuedCount,
+			RunningCount:            runningCount,
+			CompletedCount:          completedCount,
+			CancelledCount:          cancelledCount,
+			FailedCount:             failedCount,
+			TriggeredRuns:           triggeredRuns,
+			TriggeringWebhookName:   &event.TriggeringWebhookName.String,
+		},
+		Payload: payload,
+	}, nil
+}
+
 type ListEventsRow struct {
 	TenantID                pgtype.UUID        `json:"tenant_id"`
 	EventID                 int64              `json:"event_id"`
@@ -2217,19 +2296,14 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		eventExternalIds[i] = event.ExternalID
 	}
 
-	eventData, err := r.queries.PopulateEventData(ctx, r.readPool, sqlcv1.PopulateEventDataParams{
-		Eventexternalids: eventExternalIds,
-		Tenantid:         opts.Tenantid,
-	})
+	eventExternalIdToData, err := r.PopulateEventData(
+		ctx,
+		opts.Tenantid,
+		eventExternalIds,
+	)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("error populating event data: %v", err)
-	}
-
-	externalIdToEventData := make(map[pgtype.UUID][]*sqlcv1.PopulateEventDataRow)
-
-	for _, data := range eventData {
-		externalIdToEventData[data.ExternalID] = append(externalIdToEventData[data.ExternalID], data)
 	}
 
 	externalIdToPayload, err := r.ReadPayloads(ctx, opts.Tenantid.String(), eventExternalIds...)
@@ -2254,52 +2328,40 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 			triggeringWebhookName = &event.TriggeringWebhookName.String
 		}
 
-		data, exists := externalIdToEventData[event.ExternalID]
+		data, exists := eventExternalIdToData[event.ExternalID]
 
-		if !exists || len(data) == 0 {
-			result = append(result, &EventWithPayload{
-				ListEventsRow: &ListEventsRow{
-					TenantID:                event.TenantID,
-					EventID:                 event.ID,
-					EventExternalID:         event.ExternalID,
-					EventSeenAt:             event.SeenAt,
-					EventKey:                event.Key,
-					EventPayload:            payload,
-					EventAdditionalMetadata: event.AdditionalMetadata,
-					EventScope:              event.Scope.String,
-					QueuedCount:             0,
-					RunningCount:            0,
-					CompletedCount:          0,
-					CancelledCount:          0,
-					FailedCount:             0,
-					TriggeringWebhookName:   triggeringWebhookName,
-				},
-				Payload: payload,
-			})
-		} else {
-			for _, d := range data {
-				result = append(result, &EventWithPayload{
-					ListEventsRow: &ListEventsRow{
-						TenantID:                event.TenantID,
-						EventID:                 event.ID,
-						EventExternalID:         event.ExternalID,
-						EventSeenAt:             event.SeenAt,
-						EventKey:                event.Key,
-						EventPayload:            payload,
-						EventAdditionalMetadata: event.AdditionalMetadata,
-						EventScope:              event.Scope.String,
-						QueuedCount:             d.QueuedCount,
-						RunningCount:            d.RunningCount,
-						CompletedCount:          d.CompletedCount,
-						CancelledCount:          d.CancelledCount,
-						FailedCount:             d.FailedCount,
-						TriggeredRuns:           d.TriggeredRuns,
-						TriggeringWebhookName:   triggeringWebhookName,
-					},
-					Payload: payload,
-				})
-			}
+		var triggeredRuns []byte
+		var queuedCount, runningCount, completedCount, cancelledCount, failedCount int64
+
+		if exists {
+			triggeredRuns = data.TriggeredRuns
+			queuedCount = data.QueuedCount
+			runningCount = data.RunningCount
+			completedCount = data.CompletedCount
+			cancelledCount = data.CancelledCount
+			failedCount = data.FailedCount
 		}
+
+		result = append(result, &EventWithPayload{
+			ListEventsRow: &ListEventsRow{
+				TenantID:                event.TenantID,
+				EventID:                 event.ID,
+				EventExternalID:         event.ExternalID,
+				EventSeenAt:             event.SeenAt,
+				EventKey:                event.Key,
+				EventPayload:            payload,
+				EventAdditionalMetadata: event.AdditionalMetadata,
+				EventScope:              event.Scope.String,
+				QueuedCount:             queuedCount,
+				RunningCount:            runningCount,
+				CompletedCount:          completedCount,
+				CancelledCount:          cancelledCount,
+				FailedCount:             failedCount,
+				TriggeredRuns:           triggeredRuns,
+				TriggeringWebhookName:   triggeringWebhookName,
+			},
+			Payload: payload,
+		})
 	}
 
 	// Ensure count is complete (and propagate any count error) before returning.

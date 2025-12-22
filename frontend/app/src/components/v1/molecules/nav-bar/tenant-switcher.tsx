@@ -1,11 +1,4 @@
 import { Button } from '@/components/v1/ui/button';
-import { cn } from '@/lib/utils';
-import {
-  BuildingOffice2Icon,
-  // ChartBarSquareIcon,
-  CheckIcon,
-} from '@heroicons/react/24/outline';
-import invariant from 'tiny-invariant';
 import {
   Command,
   CommandEmpty,
@@ -13,19 +6,27 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/v1/ui/command';
-import { Link } from 'react-router-dom';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { TenantMember } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { appRoutes } from '@/router';
+import {
+  BuildingOffice2Icon,
+  // ChartBarSquareIcon,
+  CheckIcon,
+} from '@heroicons/react/24/outline';
 import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import {
   PopoverTrigger,
   Popover,
   PopoverContent,
 } from '@radix-ui/react-popover';
+import { Link } from '@tanstack/react-router';
 import React from 'react';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
-import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { useTenantDetails } from '@/hooks/use-tenant';
-import { useOrganizations } from '@/hooks/use-organizations';
+import invariant from 'tiny-invariant';
 
 interface TenantSwitcherProps {
   className?: string;
@@ -51,15 +52,16 @@ export function TenantSwitcher({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          aria-label="Select a team"
-          className={cn('w-full justify-between', className)}
+          aria-label="Select a tenant"
+          className={cn('justify-between', className)}
+          fullWidth
         >
-          <BuildingOffice2Icon className="mr-2 h-4 w-4" />
+          <BuildingOffice2Icon className="mr-2 size-4" />
           {currTenant.name}
-          <CaretSortIcon className="ml-auto h-4 w-4 shrink-0 opacity-50" />
+          <CaretSortIcon className="ml-auto size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent side="right" className="w-full p-0 mb-6 z-50">
+      <PopoverContent side="right" className="z-50 mb-6 w-full p-0">
         <Command className="min-w-[260px]" value={currTenant.slug}>
           <CommandList>
             <CommandEmpty>No tenants found.</CommandEmpty>
@@ -72,13 +74,13 @@ export function TenantSwitcher({
                   setOpen(false);
                 }}
                 value={membership.tenant?.slug}
-                className="text-sm cursor-pointer"
+                className="cursor-pointer text-sm"
               >
-                <BuildingOffice2Icon className="mr-2 h-4 w-4" />
+                <BuildingOffice2Icon className="mr-2 size-4" />
                 {membership.tenant?.name}
                 <CheckIcon
                   className={cn(
-                    'ml-auto h-4 w-4',
+                    'ml-auto size-4',
                     currTenant.slug === membership.tenant?.slug
                       ? 'opacity-100'
                       : 'opacity-0',
@@ -91,9 +93,12 @@ export function TenantSwitcher({
             <>
               <CommandSeparator />
               <CommandList>
-                <Link to="/onboarding/create-tenant">
-                  <CommandItem className="text-sm cursor-pointer">
-                    <PlusCircledIcon className="mr-2 h-4 w-4" />
+                <Link
+                  to={appRoutes.onboardingCreateTenantRoute.to}
+                  data-cy="new-tenant"
+                >
+                  <CommandItem className="cursor-pointer text-sm">
+                    <PlusCircledIcon className="mr-2 size-4" />
                     New Tenant
                   </CommandItem>
                 </Link>

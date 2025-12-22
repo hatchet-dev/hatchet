@@ -114,6 +114,8 @@ WorkflowID:
   $ref: "./event.yaml#/WorkflowID"
 EventList:
   $ref: "./event.yaml#/EventList"
+V1Event:
+  $ref: "./v1/event.yaml#/V1Event"
 V1EventList:
   $ref: "./v1/event.yaml#/V1EventList"
 V1FilterList:
