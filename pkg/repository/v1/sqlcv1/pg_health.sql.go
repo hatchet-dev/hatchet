@@ -161,7 +161,7 @@ SELECT
         100.0 * heap_blks_hit / NULLIF(heap_blks_hit + heap_blks_read, 0),
         2
     )::float AS cache_hit_ratio_pct,
-    pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) AS total_size
+    pg_size_pretty(pg_total_relation_size(quote_ident(schemaname)||'.'||quote_ident(relname))) AS total_size
 FROM
     pg_statio_user_tables
 WHERE

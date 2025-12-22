@@ -15,6 +15,7 @@ type MetricsRecorder struct {
 
 	// Database health metrics
 	dbBloatGauge                      metric.Int64Gauge
+	dbBloatPercentGauge               metric.Float64Gauge
 	dbLongRunningQueriesGauge         metric.Int64Gauge
 	dbQueryCacheHitRatioGauge         metric.Float64Gauge
 	dbLongRunningVacuumGauge          metric.Int64Gauge
@@ -42,6 +43,14 @@ func NewMetricsRecorder(ctx context.Context) (*MetricsRecorder, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create db bloat gauge: %w", err)
+	}
+
+	dbBloatPercentGauge, err := meter.Float64Gauge(
+		"hatchet.db.bloat.dead_tuple_percent",
+		metric.WithDescription("Percentage of dead tuples per table"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create db bloat percent gauge: %w", err)
 	}
 
 	dbLongRunningQueriesGauge, err := meter.Int64Gauge(
@@ -129,6 +138,7 @@ func NewMetricsRecorder(ctx context.Context) (*MetricsRecorder, error) {
 	return &MetricsRecorder{
 		meter:                             meter,
 		dbBloatGauge:                      dbBloatGauge,
+		dbBloatPercentGauge:               dbBloatPercentGauge,
 		dbLongRunningQueriesGauge:         dbLongRunningQueriesGauge,
 		dbQueryCacheHitRatioGauge:         dbQueryCacheHitRatioGauge,
 		dbLongRunningVacuumGauge:          dbLongRunningVacuumGauge,
@@ -146,6 +156,12 @@ func NewMetricsRecorder(ctx context.Context) (*MetricsRecorder, error) {
 func (m *MetricsRecorder) RecordDBBloat(ctx context.Context, count int64, healthStatus string) {
 	m.dbBloatGauge.Record(ctx, count,
 		metric.WithAttributes(attribute.String("health_status", healthStatus)))
+}
+
+// RecordDBBloatPercent records the dead tuple percentage for a specific table
+func (m *MetricsRecorder) RecordDBBloatPercent(ctx context.Context, tableName string, deadPercent float64) {
+	m.dbBloatPercentGauge.Record(ctx, deadPercent,
+		metric.WithAttributes(attribute.String("table_name", tableName)))
 }
 
 // RecordDBLongRunningQueries records the number of long-running queries

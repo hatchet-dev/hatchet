@@ -196,6 +196,27 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 			mc.l.Debug().Int("count", bloatCount).Str("status", string(bloatStatus)).Msg("recorded database bloat metric")
 		}
 
+		// Get detailed bloat metrics per table
+		bloatDetails, err := mc.repo.PGHealth().GetBloatDetails(ctx)
+		if err != nil {
+			mc.l.Error().Err(err).Msg("failed to get bloat details")
+		} else if len(bloatDetails) > 0 {
+			mc.l.Info().Int("table_count", len(bloatDetails)).Msg("recording bloat details per table")
+			for _, row := range bloatDetails {
+				if row.DeadPct.Valid {
+					deadPct, err := row.DeadPct.Float64Value()
+					if err == nil {
+						tableName := row.Tablename.String
+						mc.recorder.RecordDBBloatPercent(ctx, tableName, deadPct.Float64)
+						mc.l.Debug().
+							Str("table", tableName).
+							Float64("dead_pct", deadPct.Float64).
+							Msg("recorded bloat percent metric")
+					}
+				}
+			}
+		}
+
 		// Check long-running queries
 		_, longRunningCount, err := mc.repo.PGHealth().CheckLongRunningQueries(ctx)
 		if err != nil {
@@ -206,13 +227,22 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 		}
 
 		// Check query cache hit ratios
-		_, cacheProblems, err := mc.repo.PGHealth().CheckQueryCache(ctx)
+		tables, err := mc.repo.PGHealth().CheckQueryCaches(ctx)
 		if err != nil {
 			mc.l.Error().Err(err).Msg("failed to check query cache")
+		} else if len(tables) == 0 {
+			mc.l.Info().Msg("no query cache data available (pg_stat_statements may not be enabled)")
 		} else {
-			// Note: The CheckQueryCache method returns problem count, not individual table metrics
-			// If you need per-table metrics, you'll need to modify the PGHealth interface
-			mc.l.Debug().Int("problem_tables", cacheProblems).Msg("recorded query cache metrics")
+			mc.l.Info().Int("table_count", len(tables)).Msg("recording query cache hit ratios")
+			for _, table := range tables {
+				tableName := table.Tablename.String
+				hitRatio := table.CacheHitRatioPct
+				mc.recorder.RecordDBQueryCacheHitRatio(ctx, tableName, hitRatio)
+				mc.l.Debug().
+					Str("table", tableName).
+					Float64("hit_ratio", hitRatio).
+					Msg("recorded query cache hit ratio metric")
+			}
 		}
 
 		// Check long-running vacuum
@@ -226,8 +256,12 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 
 		autovacuumRows, err := mc.repo.PGHealth().CheckLastAutovacuumForPartitionedTables(ctx)
 		if err != nil {
-			mc.l.Error().Err(err).Msg("failed to check last autovacuum for partitioned tables")
+			mc.l.Error().Err(err).Msg("failed to check last autovacuum for partitioned tables (OLAP DB)")
+		} else if len(autovacuumRows) == 0 {
+			mc.l.Warn().Msg("no partitioned tables found for autovacuum tracking (OLAP DB)")
 		} else {
+			mc.l.Info().Int("table_count", len(autovacuumRows)).Msg("recording last autovacuum metrics (OLAP DB)")
+			validCount := 0
 			for _, row := range autovacuumRows {
 				if row.SecondsSinceLastAutovacuum.Valid {
 					seconds, err := row.SecondsSinceLastAutovacuum.Float64Value()
@@ -237,16 +271,24 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 						mc.l.Debug().
 							Str("table", tableName).
 							Float64("seconds_since", seconds.Float64).
-							Msg("recorded last autovacuum metric")
+							Msg("recorded last autovacuum metric (OLAP DB)")
+						validCount++
 					}
 				}
+			}
+			if validCount == 0 {
+				mc.l.Warn().Int("table_count", len(autovacuumRows)).Msg("found partitioned tables but none have been autovacuumed yet (OLAP DB)")
 			}
 		}
 
 		autovacuumRowsCoreDB, err := mc.repo.PGHealth().CheckLastAutovacuumForPartitionedTablesCoreDB(ctx)
 		if err != nil {
-			mc.l.Error().Err(err).Msg("failed to check last autovacuum for partitioned tables")
+			mc.l.Error().Err(err).Msg("failed to check last autovacuum for partitioned tables (CORE DB)")
+		} else if len(autovacuumRowsCoreDB) == 0 {
+			mc.l.Warn().Msg("no partitioned tables found for autovacuum tracking (CORE DB)")
 		} else {
+			mc.l.Info().Int("table_count", len(autovacuumRowsCoreDB)).Msg("recording last autovacuum metrics (CORE DB)")
+			validCount := 0
 			for _, row := range autovacuumRowsCoreDB {
 				if row.SecondsSinceLastAutovacuum.Valid {
 					seconds, err := row.SecondsSinceLastAutovacuum.Float64Value()
@@ -256,9 +298,13 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 						mc.l.Debug().
 							Str("table", tableName).
 							Float64("seconds_since", seconds.Float64).
-							Msg("recorded last autovacuum metric")
+							Msg("recorded last autovacuum metric (CORE DB)")
+						validCount++
 					}
 				}
+			}
+			if validCount == 0 {
+				mc.l.Warn().Int("table_count", len(autovacuumRowsCoreDB)).Msg("found partitioned tables but none have been autovacuumed yet (CORE DB)")
 			}
 		}
 
@@ -365,29 +411,38 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 		activeSlots, err := mc.repo.Workers().CountActiveSlotsPerTenant()
 		if err != nil {
 			mc.l.Error().Err(err).Msg("failed to count active slots per tenant")
+		} else if len(activeSlots) == 0 {
+			mc.l.Debug().Msg("no active worker slots found")
 		} else {
+			mc.l.Info().Int("tenant_count", len(activeSlots)).Msg("recording active slots metrics")
 			for tenantId, count := range activeSlots {
 				mc.recorder.RecordActiveSlots(ctx, tenantId, count)
+				mc.l.Debug().Str("tenant_id", tenantId).Int64("count", count).Msg("recorded active slots metric")
 			}
-			mc.l.Debug().Int("tenant_count", len(activeSlots)).Msg("recorded active slots metrics")
 		}
 
 		// Count active workers per tenant
 		activeWorkers, err := mc.repo.Workers().CountActiveWorkersPerTenant()
 		if err != nil {
 			mc.l.Error().Err(err).Msg("failed to count active workers per tenant")
+		} else if len(activeWorkers) == 0 {
+			mc.l.Debug().Msg("no active workers found")
 		} else {
+			mc.l.Info().Int("tenant_count", len(activeWorkers)).Msg("recording active workers metrics")
 			for tenantId, count := range activeWorkers {
 				mc.recorder.RecordActiveWorkers(ctx, tenantId, count)
+				mc.l.Debug().Str("tenant_id", tenantId).Int64("count", count).Msg("recorded active workers metric")
 			}
-			mc.l.Debug().Int("tenant_count", len(activeWorkers)).Msg("recorded active workers metrics")
 		}
 
 		// Count active SDKs per tenant
 		activeSDKs, err := mc.repo.Workers().ListActiveSDKsPerTenant()
 		if err != nil {
 			mc.l.Error().Err(err).Msg("failed to list active SDKs per tenant")
+		} else if len(activeSDKs) == 0 {
+			mc.l.Debug().Msg("no active SDKs found")
 		} else {
+			mc.l.Info().Int("sdk_count", len(activeSDKs)).Msg("recording active SDKs metrics")
 			for tuple, count := range activeSDKs {
 				sdkInfo := telemetry.SDKInfo{
 					OperatingSystem: tuple.SDK.OperatingSystem,
@@ -396,8 +451,13 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 					SdkVersion:      tuple.SDK.SdkVersion,
 				}
 				mc.recorder.RecordActiveSDKs(ctx, tuple.TenantId, sdkInfo, count)
+				mc.l.Debug().
+					Str("tenant_id", tuple.TenantId).
+					Int64("count", count).
+					Str("sdk_language", sdkInfo.Language).
+					Str("sdk_version", sdkInfo.SdkVersion).
+					Msg("recorded active SDKs metric")
 			}
-			mc.l.Debug().Int("sdk_count", len(activeSDKs)).Msg("recorded active SDKs metrics")
 		}
 
 		mc.l.Debug().Msg("finished collecting worker metrics")

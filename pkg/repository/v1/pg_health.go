@@ -19,8 +19,10 @@ const (
 type PGHealthRepository interface {
 	PGStatStatementsEnabled(ctx context.Context) (bool, error)
 	CheckBloat(ctx context.Context) (PGHealthError, int, error)
+	GetBloatDetails(ctx context.Context) ([]*sqlcv1.CheckBloatRow, error)
 	CheckLongRunningQueries(ctx context.Context) (PGHealthError, int, error)
 	CheckQueryCache(ctx context.Context) (PGHealthError, int, error)
+	CheckQueryCaches(ctx context.Context) ([]*sqlcv1.CheckQueryCachesRow, error)
 	CheckLongRunningVacuum(ctx context.Context) (PGHealthError, int, error)
 	CheckLastAutovacuumForPartitionedTables(ctx context.Context) ([]*sqlcv1.CheckLastAutovacuumForPartitionedTablesRow, error)
 	CheckLastAutovacuumForPartitionedTablesCoreDB(ctx context.Context) ([]*sqlcv1.CheckLastAutovacuumForPartitionedTablesCoreDBRow, error)
@@ -88,6 +90,23 @@ func (h *pgHealthRepository) CheckBloat(ctx context.Context) (PGHealthError, int
 	return PGHealthWarn, len(rows), nil
 }
 
+func (h *pgHealthRepository) GetBloatDetails(ctx context.Context) ([]*sqlcv1.CheckBloatRow, error) {
+	enabled, err := h.PGStatStatementsEnabled(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !enabled {
+		return nil, nil
+	}
+
+	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	return h.queries.CheckBloat(cxt, h.pool)
+}
+
 func (h *pgHealthRepository) CheckLongRunningQueries(ctx context.Context) (PGHealthError, int, error) {
 
 	enabled, err := h.PGStatStatementsEnabled(ctx)
@@ -112,7 +131,6 @@ func (h *pgHealthRepository) CheckLongRunningQueries(ctx context.Context) (PGHea
 }
 
 func (h *pgHealthRepository) CheckQueryCache(ctx context.Context) (PGHealthError, int, error) {
-
 	enabled, err := h.PGStatStatementsEnabled(ctx)
 
 	if err != nil {
@@ -146,6 +164,23 @@ func (h *pgHealthRepository) CheckQueryCache(ctx context.Context) (PGHealthError
 	}
 
 	return PGHealthOK, 0, nil
+}
+
+func (h *pgHealthRepository) CheckQueryCaches(ctx context.Context) ([]*sqlcv1.CheckQueryCachesRow, error) {
+	enabled, err := h.PGStatStatementsEnabled(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !enabled {
+		return nil, nil
+	}
+
+	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	return h.queries.CheckQueryCaches(cxt, h.pool)
 }
 
 func (h *pgHealthRepository) CheckLongRunningVacuum(ctx context.Context) (PGHealthError, int, error) {

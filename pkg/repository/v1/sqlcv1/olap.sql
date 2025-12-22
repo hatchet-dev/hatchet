@@ -2013,11 +2013,11 @@ SELECT
     s.last_autovacuum,
     EXTRACT(EPOCH FROM (NOW() - s.last_autovacuum)) AS seconds_since_last_autovacuum
 FROM pg_stat_user_tables s
-JOIN pg_catalog.pg_class c ON s.relname = c.relname
+JOIN pg_catalog.pg_class c ON c.oid = (quote_ident(s.schemaname)||'.'||quote_ident(s.relname))::regclass
 WHERE s.schemaname = 'public'
     AND c.relispartition = true
-    AND s.last_autovacuum IS NOT NULL
-ORDER BY s.last_autovacuum ASC
+    AND c.relkind = 'r'
+ORDER BY s.last_autovacuum ASC NULLS LAST
 ;
 
 -- name: ListPaginatedOLAPPayloadsForOffload :many
