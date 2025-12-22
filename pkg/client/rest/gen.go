@@ -882,10 +882,7 @@ type ScheduledWorkflowsBulkDeleteFilter struct {
 	AdditionalMetadata  *[]string           `json:"additionalMetadata,omitempty"`
 	ParentStepRunId     *openapi_types.UUID `json:"parentStepRunId,omitempty"`
 	ParentWorkflowRunId *openapi_types.UUID `json:"parentWorkflowRunId,omitempty"`
-
-	// Statuses A list of scheduled run statuses to filter by
-	Statuses   *[]ScheduledRunStatus `json:"statuses,omitempty"`
-	WorkflowId *openapi_types.UUID   `json:"workflowId,omitempty"`
+	WorkflowId          *openapi_types.UUID `json:"workflowId,omitempty"`
 }
 
 // ScheduledWorkflowsBulkDeleteRequest defines model for ScheduledWorkflowsBulkDeleteRequest.

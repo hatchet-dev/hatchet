@@ -62,12 +62,6 @@ func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request 
 				continue
 			}
 
-			if meta.Method != dbsqlc.WorkflowTriggerScheduledRefMethodsAPI {
-				idCp := id
-				errors = append(errors, gen.ScheduledWorkflowsBulkError{Id: &idCp, Error: "Cannot update scheduled run created via code definition."})
-				continue
-			}
-
 			if meta.HasTriggeredRun {
 				idCp := id
 				errors = append(errors, gen.ScheduledWorkflowsBulkError{Id: &idCp, Error: "Scheduled run has already been triggered and cannot be rescheduled."})

@@ -1656,8 +1656,6 @@ export interface ScheduledWorkflowsBulkDeleteFilter {
    * @example ["key1:value1","key2:value2"]
    */
   additionalMetadata?: string[];
-  /** A list of scheduled run statuses to filter by */
-  statuses?: ScheduledRunStatus[];
 }
 
 export interface ScheduledWorkflowsBulkDeleteRequest {

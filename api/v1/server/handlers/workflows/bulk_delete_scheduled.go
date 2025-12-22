@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -30,7 +29,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	var ids []openapi_types.UUID
+	var ids []uuid.UUID
 	if request.Body.ScheduledWorkflowRunIds != nil {
 		ids = *request.Body.ScheduledWorkflowRunIds
 	}
@@ -70,13 +69,6 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 			psid := filter.ParentStepRunId.String()
 			opts.ParentStepRunId = &psid
 		}
-		if filter.Statuses != nil {
-			statuses := make([]dbsqlc.WorkflowRunStatus, 0, len(*filter.Statuses))
-			for _, s := range *filter.Statuses {
-				statuses = append(statuses, dbsqlc.WorkflowRunStatus(s))
-			}
-			opts.Statuses = &statuses
-		}
 		if filter.AdditionalMetadata != nil {
 			additionalMetadata := make(map[string]interface{}, len(*filter.AdditionalMetadata))
 			for _, v := range *filter.AdditionalMetadata {
@@ -107,7 +99,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 		}
 
 		// Convert list results into ids + pre-fill errors for non-API items.
-		ids = make([]openapi_types.UUID, 0, len(all))
+		ids = make([]uuid.UUID, 0, len(all))
 		for _, row := range all {
 			idStr := sqlchelpers.UUIDToStr(row.ID)
 			idUUID, err := uuid.Parse(idStr)
@@ -131,7 +123,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 		return gen.WorkflowScheduledBulkDelete400JSONResponse(apierrors.NewAPIErrors("Provide scheduledWorkflowRunIds or filter.")), nil
 	}
 
-	deleted := make([]openapi_types.UUID, 0, len(ids))
+	deleted := make([]uuid.UUID, 0, len(ids))
 
 	// Chunk to keep queries/params reasonable even if clients send large requests.
 	const chunkSize = 200
@@ -143,7 +135,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 		chunk := ids[i:end]
 
 		chunkStr := make([]string, 0, len(chunk))
-		chunkUUIDByStr := make(map[string]openapi_types.UUID, len(chunk))
+		chunkUUIDByStr := make(map[string]uuid.UUID, len(chunk))
 		for _, id := range chunk {
 			idStr := id.String()
 			chunkStr = append(chunkStr, idStr)
@@ -162,11 +154,6 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 			if !ok {
 				idCp := id
 				errors = append(errors, gen.ScheduledWorkflowsBulkError{Id: &idCp, Error: "Scheduled workflow not found."})
-				continue
-			}
-			if meta.Method != dbsqlc.WorkflowTriggerScheduledRefMethodsAPI {
-				idCp := id
-				errors = append(errors, gen.ScheduledWorkflowsBulkError{Id: &idCp, Error: "Cannot delete scheduled run created via code definition."})
 				continue
 			}
 			toDelete = append(toDelete, idStr)
