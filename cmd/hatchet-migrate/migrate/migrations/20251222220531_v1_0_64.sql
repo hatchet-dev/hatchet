@@ -36,7 +36,7 @@ BEGIN
             LIMIT $5::INTEGER
         )
 
-        SELECT SUM(pg_column_size(inline_content)) AS total_size_bytes
+        SELECT COALESCE(SUM(pg_column_size(inline_content)), 0) AS total_size_bytes
         FROM candidates
     ', source_partition_name);
 
@@ -81,7 +81,7 @@ BEGIN
             LIMIT $4::INT
         )
 
-        SELECT SUM(pg_column_size(inline_content)) AS total_size_bytes
+        SELECT COALESCE(SUM(pg_column_size(inline_content)), 0) AS total_size_bytes
         FROM candidates
     ', source_partition_name);
 
