@@ -653,7 +653,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
-	if numPayloads < int(windowSize) {
+	if numPayloads < int(*windowSize) {
 		return &CutoverBatchOutcome{
 			ShouldContinue: false,
 			NextPagination: extendedLease.Pagination,
