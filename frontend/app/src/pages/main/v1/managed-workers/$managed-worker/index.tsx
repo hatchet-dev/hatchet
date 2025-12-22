@@ -105,8 +105,10 @@ export default function ExpandedWorkflow() {
           resource="Managed worker"
           primaryAction={{
             label: 'Back to Managed Workers',
-            to: appRoutes.tenantManagedWorkersRoute.to,
-            params: { tenant: tenantId },
+            navigate: {
+              to: appRoutes.tenantManagedWorkersRoute.to,
+              params: { tenant: tenantId },
+            },
           }}
         />
       );

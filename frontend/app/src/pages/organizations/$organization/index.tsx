@@ -226,7 +226,7 @@ export default function OrganizationPage() {
           description="The organization you’re looking for doesn’t exist or you don’t have access to it."
           primaryAction={{
             label: 'Dashboard',
-            to: appRoutes.authenticatedRoute.to,
+            navigate: { to: appRoutes.authenticatedRoute.to },
           }}
         />
       );

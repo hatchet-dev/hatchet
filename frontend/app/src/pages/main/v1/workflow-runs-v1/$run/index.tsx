@@ -32,6 +32,7 @@ import api, {
   WorkflowRunShapeForWorkflowRunDetails,
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
+import { getErrorStatus } from '@/lib/error-utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -39,6 +40,15 @@ import { useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useAtom } from 'jotai';
 import { useCallback, useRef } from 'react';
+
+class StatusError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
 
 function statusToBadgeVariant(status: V1TaskStatus) {
   switch (status) {
@@ -124,11 +134,10 @@ export default function Run() {
       ]);
 
       if (!task && !dag) {
-        const notFoundError = new Error(
+        throw new StatusError(
           `Task or Workflow Run with ID ${run} not found`,
-        ) as Error & { status?: number };
-        notFoundError.status = 404;
-        throw notFoundError;
+          404,
+        );
       }
 
       if (task?.data) {
@@ -163,9 +172,7 @@ export default function Run() {
       return 1000;
     },
     retry: (_failureCount, error) => {
-      const status =
-        (error as { status?: number })?.status ??
-        (isAxiosError(error) ? error.response?.status : undefined);
+      const status = getErrorStatus(error);
 
       // Treat malformed IDs (often 400) and missing resources (404) as not found.
       if (status === 400 || status === 404) {
@@ -181,11 +188,7 @@ export default function Run() {
   }
 
   if (taskRunQuery.isError) {
-    const status =
-      (taskRunQuery.error as { status?: number })?.status ??
-      (isAxiosError(taskRunQuery.error)
-        ? taskRunQuery.error.response?.status
-        : undefined);
+    const status = getErrorStatus(taskRunQuery.error);
 
     // Treat malformed IDs (often 400) and missing resources (404) as not found.
     if (status === 400 || status === 404) {
@@ -194,8 +197,10 @@ export default function Run() {
           resource="Run"
           primaryAction={{
             label: 'Back to Runs',
-            to: appRoutes.tenantRunsRoute.to,
-            params: { tenant: params.tenant },
+            navigate: {
+              to: appRoutes.tenantRunsRoute.to,
+              params: { tenant: params.tenant },
+            },
           }}
         />
       );

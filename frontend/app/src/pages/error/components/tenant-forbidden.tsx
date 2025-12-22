@@ -2,6 +2,7 @@ import { ErrorPageLayout } from './layout';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import api, { queries } from '@/lib/api';
+import { getOptionalStringParam } from '@/lib/router-helpers';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
@@ -9,7 +10,8 @@ import { LogOut, ShieldX, Undo2 } from 'lucide-react';
 
 export function TenantForbidden() {
   const navigate = useNavigate();
-  const params = useParams({ strict: false }) as { tenant?: string };
+  const params = useParams({ strict: false });
+  const tenant = getOptionalStringParam(params, 'tenant');
 
   const userQuery = useQuery({
     ...queries.user.current,
@@ -61,7 +63,7 @@ export function TenantForbidden() {
           Requested Tenant
         </div>
         <div className="break-all text-foreground/90">
-          {params.tenant || 'unknown'}
+          {tenant || 'unknown'}
         </div>
       </div>
 

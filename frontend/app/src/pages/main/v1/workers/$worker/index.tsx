@@ -158,8 +158,10 @@ export default function ExpandedWorkflowRun() {
           resource="Worker"
           primaryAction={{
             label: 'Back to Workers',
-            to: appRoutes.tenantWorkersRoute.to,
-            params: { tenant: tenantId },
+            navigate: {
+              to: appRoutes.tenantWorkersRoute.to,
+              params: { tenant: tenantId },
+            },
           }}
         />
       );

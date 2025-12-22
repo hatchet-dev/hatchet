@@ -486,7 +486,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid task id")
 		}
 
-		task, err := config.V1.OLAP().ReadTaskRun(ctx, id)
+		task, err := config.V1.OLAP().ReadTaskRun(ctx, sqlchelpers.UUIDToStr(taskID))
 
 		if err != nil {
 			return nil, "", err

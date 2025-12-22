@@ -2,41 +2,21 @@ import { GenericError } from './components/generic-error';
 import { NewVersionAvailable } from './components/new-version-available';
 import { NotFound } from './components/not-found';
 import { TenantForbidden } from './components/tenant-forbidden';
+import { getErrorStatus, getErrorStatusText } from '@/lib/error-utils';
+import { getOptionalStringParam } from '@/lib/router-helpers';
 import { appRoutes } from '@/router';
 import {
   ErrorComponentProps,
   useMatchRoute,
   useParams,
 } from '@tanstack/react-router';
-import { isAxiosError } from 'axios';
-
-function getErrorStatus(error: unknown): number | undefined {
-  if (!error) {
-    return;
-  }
-
-  // TanStack Router can throw objects like { status, statusText }
-  const maybeStatus = (error as { status?: unknown }).status;
-  if (typeof maybeStatus === 'number') {
-    return maybeStatus;
-  }
-
-  // Axios errors
-  if (isAxiosError(error)) {
-    const axiosStatus =
-      (error as { status?: unknown }).status ?? error.response?.status;
-    if (typeof axiosStatus === 'number') {
-      return axiosStatus;
-    }
-  }
-
-  return;
-}
 
 export default function ErrorBoundary({ error }: ErrorComponentProps) {
   const matchRoute = useMatchRoute();
-  const params = useParams({ strict: false }) as { tenant?: string };
+  const params = useParams({ strict: false });
+  const tenant = getOptionalStringParam(params, 'tenant');
   const status = getErrorStatus(error);
+  const statusText = getErrorStatusText(error);
 
   console.error(error);
 
@@ -50,7 +30,7 @@ export default function ErrorBoundary({ error }: ErrorComponentProps) {
   const isTenantRoute = Boolean(
     matchRoute({
       to: appRoutes.tenantRoute.to,
-      params: params.tenant ? { tenant: params.tenant } : undefined,
+      params: tenant ? { tenant } : undefined,
       fuzzy: true,
     }),
   );
@@ -59,14 +39,9 @@ export default function ErrorBoundary({ error }: ErrorComponentProps) {
     return <TenantForbidden />;
   }
 
-  if ((error as { status?: number }).status === 404) {
+  if (status === 404) {
     return <NotFound />;
   }
 
-  return (
-    <GenericError
-      status={status}
-      statusText={(error as { statusText?: string }).statusText}
-    />
-  );
+  return <GenericError status={status} statusText={statusText} />;
 }

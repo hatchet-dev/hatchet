@@ -116,8 +116,10 @@ export default function ExpandedWorkflow() {
           resource="Workflow"
           primaryAction={{
             label: 'Back to Workflows',
-            to: appRoutes.tenantWorkflowsRoute.to,
-            params: { tenant: tenantId },
+            navigate: {
+              to: appRoutes.tenantWorkflowsRoute.to,
+              params: { tenant: tenantId },
+            },
           }}
         />
       );

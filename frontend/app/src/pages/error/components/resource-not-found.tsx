@@ -3,6 +3,7 @@ import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import { appRoutes } from '@/router';
 import { useLocation, useNavigate } from '@tanstack/react-router';
+import type { NavigateOptions } from '@tanstack/react-router';
 import { FileQuestion, Home, Undo2 } from 'lucide-react';
 import { ReactNode } from 'react';
 
@@ -15,8 +16,7 @@ export function ResourceNotFound({
   description?: ReactNode;
   primaryAction?: {
     label: string;
-    to: string;
-    params?: Record<string, string>;
+    navigate: NavigateOptions;
   };
 }) {
   const navigate = useNavigate();
@@ -37,9 +37,8 @@ export function ResourceNotFound({
             onClick={() =>
               primaryAction
                 ? navigate({
-                    to: primaryAction.to as never,
-                    params: primaryAction.params as never,
-                    replace: true,
+                    ...primaryAction.navigate,
+                    replace: primaryAction.navigate.replace ?? true,
                   })
                 : navigate({
                     to: appRoutes.authenticatedRoute.to,
