@@ -1,0 +1,6 @@
+dev:
+  preCmds: ["poetry install"]
+  runCmd: "poetry run python src/worker.py"
+  files:
+    - "**/*.py"
+  reload: true
