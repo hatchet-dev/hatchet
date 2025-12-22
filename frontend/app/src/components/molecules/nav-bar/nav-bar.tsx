@@ -206,7 +206,7 @@ export default function MainNav({ user }: MainNavProps) {
             >
               <Menu className="size-4" />
             </Button>
-            <HatchetLogo className="h-6 w-auto text-[rgb(0, 26, 56)] dark:text-[rgb(184,217,255)]" />
+            <HatchetLogo className="h-6 w-auto" />
           </div>
           {breadcrumbs.length > 0 && (
             <Breadcrumb className="hidden md:block">

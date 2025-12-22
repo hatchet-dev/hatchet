@@ -1,14 +1,21 @@
 import React from 'react';
+import { cn } from '@/lib/utils';
 
 type HatchetLogoProps = React.SVGAttributes<SVGSVGElement> & {
   title?: string;
+  colorVariant?: 'brand' | 'inherit';
 };
 
 /**
  * Hatchet wordmark + mark, aligned with the marketing site (`hatchet-marketing`).
  * Uses `currentColor` so it automatically adapts to theme via text color.
  */
-export function HatchetLogo({ title = 'Hatchet', ...props }: HatchetLogoProps) {
+export function HatchetLogo({
+  title = 'Hatchet',
+  colorVariant = 'brand',
+  className,
+  ...props
+}: HatchetLogoProps) {
   return (
     <svg
       viewBox="0 0 137 24"
@@ -16,6 +23,11 @@ export function HatchetLogo({ title = 'Hatchet', ...props }: HatchetLogoProps) {
       xmlns="http://www.w3.org/2000/svg"
       role="img"
       aria-label={title}
+      className={cn(
+        colorVariant === 'brand' &&
+          'text-[rgb(0,26,56)] dark:text-[rgb(184,217,255)]',
+        className,
+      )}
       {...props}
     >
       <path

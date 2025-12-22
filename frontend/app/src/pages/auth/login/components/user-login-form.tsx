@@ -23,16 +23,22 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isValid, touchedFields, submitCount },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
   });
 
   const emailError =
-    errors.email?.message?.toString() || props.fieldErrors?.email;
+    (touchedFields.email || submitCount > 0
+      ? errors.email?.message?.toString()
+      : undefined) || props.fieldErrors?.email;
 
   const passwordError =
-    errors.password?.message?.toString() || props.fieldErrors?.password;
+    (touchedFields.password || submitCount > 0
+      ? errors.password?.message?.toString()
+      : undefined) || props.fieldErrors?.password;
 
   return (
     <div className={cn('grid gap-6', className)}>
@@ -71,7 +77,7 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
               <div className="text-sm text-red-500">{passwordError}</div>
             )}
           </div>
-          <Button disabled={props.isLoading}>
+          <Button disabled={props.isLoading || !isValid}>
             {props.isLoading && <Spinner />}
             Sign In
           </Button>
