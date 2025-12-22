@@ -1050,9 +1050,9 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 		workerBatches := map[string][]tasktypes.TaskAssignedBatch{
 			key.WorkerID: {
 				{
-					BatchID:   batchID,
-					BatchSize: batchSize,
-					TaskIds:   taskIds,
+					BatchID:    batchID,
+					BatchSize:  batchSize,
+					TaskIds:    taskIds,
 					StartBatch: &startPayload,
 				},
 			},

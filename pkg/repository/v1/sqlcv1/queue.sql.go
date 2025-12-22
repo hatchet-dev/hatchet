@@ -929,12 +929,9 @@ func (q *Queries) ListStepsWithBatchConfig(ctx context.Context, db DBTX, stepids
 }
 
 const moveBatchedQueueItems = `-- name: MoveBatchedQueueItems :many
-WITH input AS (
-    SELECT
-        UNNEST($1::bigint[]) AS id
-), moved_items AS (
+WITH moved_items AS (
     DELETE FROM v1_batched_queue_item
-    WHERE id = ANY(SELECT id FROM input)
+    WHERE id = ANY($1::bigint[])
     RETURNING
         tenant_id,
         queue,

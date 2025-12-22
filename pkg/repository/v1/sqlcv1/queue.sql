@@ -757,12 +757,9 @@ WHERE
     AND id = ANY(@ids::bigint[]);
 
 -- name: MoveBatchedQueueItems :many
-WITH input AS (
-    SELECT
-        UNNEST(@ids::bigint[]) AS id
-), moved_items AS (
+WITH moved_items AS (
     DELETE FROM v1_batched_queue_item
-    WHERE id = ANY(SELECT id FROM input)
+    WHERE id = ANY(@ids::bigint[])
     RETURNING
         tenant_id,
         queue,
