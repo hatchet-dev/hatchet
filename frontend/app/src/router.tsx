@@ -137,12 +137,6 @@ const tenantRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
 });
 
-const v2Route = createRoute({
-  getParentRoute: () => authenticatedRoute,
-  path: 'v2',
-  component: lazyRouteComponent(() => import('./pages/main/v2'), 'default'),
-});
-
 const tenantIndexRedirectRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: '/',
@@ -471,7 +465,6 @@ const routeTree = rootRoute.addChildren([
     onboardingCreateTenantRoute,
     onboardingGetStartedRoute,
     onboardingInvitesRoute,
-    v2Route,
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
   ]),
   v1RedirectRoute,
@@ -531,7 +524,6 @@ export const appRoutes = {
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,
   tenantTasksWorkflowRedirectRoute,
-  v2Route,
 };
 
 const Router: FC = () => {

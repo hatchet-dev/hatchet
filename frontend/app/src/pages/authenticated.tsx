@@ -19,7 +19,11 @@ import {
 } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { useAtom } from 'jotai';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
+
+const DevtoolsFooter = import.meta.env.DEV
+  ? lazy(() => import('../devtools.tsx'))
+  : null;
 
 export default function Authenticated() {
   const { tenant } = useTenantDetails();
@@ -42,9 +46,6 @@ export default function Authenticated() {
     Boolean(matchRoute({ to: appRoutes.authRegisterRoute.to }));
   const isTenantPage = Boolean(
     matchRoute({ to: appRoutes.tenantRoute.to, fuzzy: true }),
-  );
-  const isV2Page = Boolean(
-    matchRoute({ to: appRoutes.v2Route.to, fuzzy: true }),
   );
   const isOrganizationsPage = Boolean(
     matchRoute({ to: appRoutes.organizationsRoute.to, fuzzy: true }),
@@ -226,25 +227,25 @@ export default function Authenticated() {
   return (
     <PostHogProvider user={userQuery.data}>
       <SupportChat user={userQuery.data}>
-        {isV2Page ? (
-          // v2 owns its own shell (navbar/sidebar/etc)
-          <div className="h-full w-full min-h-0 min-w-0 overflow-hidden">
-            <OutletWithContext context={ctx} />
-          </div>
-        ) : (
-          <AppLayout
-            header={
-              <MainNav
-                user={userQuery.data}
-                tenantMemberships={listMembershipsQuery.data?.rows || []}
-              />
-            }
-            // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
-            contentScroll={!isTenantPage}
-          >
-            <OutletWithContext context={ctx} />
-          </AppLayout>
-        )}
+        <AppLayout
+          header={
+            <MainNav
+              user={userQuery.data}
+              tenantMemberships={listMembershipsQuery.data?.rows || []}
+            />
+          }
+          footer={
+            isTenantPage && DevtoolsFooter ? (
+              <Suspense fallback={null}>
+                <DevtoolsFooter />
+              </Suspense>
+            ) : undefined
+          }
+          // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
+          contentScroll={!isTenantPage}
+        >
+          <OutletWithContext context={ctx} />
+        </AppLayout>
       </SupportChat>
     </PostHogProvider>
   );
