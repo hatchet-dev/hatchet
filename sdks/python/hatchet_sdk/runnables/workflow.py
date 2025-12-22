@@ -1333,7 +1333,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         return_type = get_type_hints(self._task.fn).get("return")
 
-        if getattr(self._task, "is_batch", False):
+        if self._task.is_batch:
             origin = get_origin(return_type)
             args = get_args(return_type)
             if origin is list and len(args) == 1:

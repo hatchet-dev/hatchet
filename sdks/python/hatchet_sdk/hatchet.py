@@ -579,7 +579,14 @@ class Hatchet:
         flush_interval_ms: int | None = None,
         batch_key: str | None = None,
         max_runs: int | None = None,
-    ):
+    ) -> Callable[
+        [
+            Callable[
+                [list[TWorkflowInput], list[Context]], list[R] | CoroutineLike[list[R]]
+            ]
+        ],
+        Standalone[TWorkflowInput, R],
+    ]:
         """
         A decorator to transform a function into a standalone Hatchet *batch* task.\n
         The handler is invoked with lists of inputs and contexts once Hatchet flushes the batch.\n
@@ -636,7 +643,7 @@ class Hatchet:
                 max_runs=max_runs,
             )
 
-            created_task = task_wrapper(func)  # type: ignore[arg-type]
+            created_task = task_wrapper(func)
 
             return Standalone[TWorkflowInput, R](
                 workflow=workflow,

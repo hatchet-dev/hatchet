@@ -356,7 +356,7 @@ class Runner:
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
 
-        if getattr(task, "is_batch", False):
+        if task.is_batch:
             return await self._await_batch_item(ctx, task, action)
 
         dependencies = await task._unpack_dependencies(ctx)
@@ -435,10 +435,9 @@ class Runner:
             trigger_reason = action.batch_start.trigger_reason
             trigger_time = action.batch_start.trigger_time
 
+        batch_cfg = controller.task.batch
         default_batch_size = (
-            controller.task.batch.batch_size  # type: ignore[union-attr]
-            if controller.task.batch is not None
-            else expected_size
+            batch_cfg.batch_size if batch_cfg is not None else expected_size
         )
 
         controller.start_batch(
@@ -476,7 +475,7 @@ class Runner:
 
         batch_id = action.batch_id
         expected_size = action.batch_size
-        index = int(action.batch_index)
+        index = action.batch_index
 
         if expected_size <= 0:
             raise RuntimeError(
