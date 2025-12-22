@@ -2,10 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 	"github.com/rs/zerolog"
@@ -77,7 +79,7 @@ var profileAddCmd = &cobra.Command{
 			cli.Logger.Fatalf("could not add profile: %v", err)
 		}
 
-		cli.Logger.Infof("Profile '%s' added successfully", name)
+		fmt.Println(profileActionView("added", name))
 	},
 }
 
@@ -110,7 +112,7 @@ var profileRemoveCmd = &cobra.Command{
 			cli.Logger.Fatalf("could not remove profile: %v", err)
 		}
 
-		cli.Logger.Infof("Profile '%s' removed successfully", name)
+		fmt.Println(profileActionView("removed", name))
 	},
 }
 
@@ -122,14 +124,9 @@ var profileListCmd = &cobra.Command{
 	Example: `  # List all configured profiles
   hatchet profile list`,
 	Run: func(cmd *cobra.Command, args []string) {
-		profiles := cli.ListProfiles()
+		profileNames := cli.ListProfiles()
 
-		if len(profiles) == 0 {
-			cli.Logger.Info("No profiles configured")
-			return
-		}
-
-		cli.Logger.Info("Configured profiles:", "profiles", profiles)
+		fmt.Println(profileListView(profileNames))
 	},
 }
 
@@ -159,19 +156,7 @@ var profileShowCmd = &cobra.Command{
 			cli.Logger.Fatalf("could not get profile: %v", err)
 		}
 
-		fmt.Printf("Profile: %s\n", name)
-		if showToken {
-			fmt.Printf("  Token: %s\n", profile.Token)
-		} else {
-			maskedToken := "****"
-			if len(profile.Token) > 4 {
-				maskedToken = profile.Token[:4] + "****"
-			}
-			fmt.Printf("  Token: %s\n", maskedToken)
-		}
-
-		fmt.Printf("  API Server URL: %s\n", profile.ApiServerURL)
-		fmt.Printf("  gRPC Host Port: %s\n", profile.GrpcHostPort)
+		fmt.Println(profileView(name, profile.Token, profile.ApiServerURL, profile.GrpcHostPort, showToken))
 	},
 }
 
@@ -209,7 +194,7 @@ var profileUpdateCmd = &cobra.Command{
 			cli.Logger.Fatalf("could not update profile: %v", err)
 		}
 
-		cli.Logger.Infof("Profile '%s' updated successfully", name)
+		fmt.Println(profileActionView("updated", name))
 	},
 }
 
@@ -250,7 +235,7 @@ func getApiTokenForm() string {
 				Value(&resp).
 				EchoMode(huh.EchoModePassword),
 		),
-	)
+	).WithTheme(styles.HatchetTheme())
 
 	err := form.Run()
 
@@ -293,7 +278,7 @@ func getProfileFromToken(cmd *cobra.Command, token, nameOverride string) (*clico
 
 	return &cliconfig.Profile{
 		TenantId:     client.TenantId(),
-		Name:         tenant.JSON200.Name,
+		Name:         name,
 		Token:        token,
 		ApiServerURL: parsedTokenConf.ServerURL,
 		GrpcHostPort: parsedTokenConf.GrpcBroadcastAddress,
@@ -321,11 +306,11 @@ func selectProfileForm() string {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
-				Title("Select a profile to remove").
+				Title("Select a profile:").
 				Options(profileNames...).
 				Value(&selectedName),
 		),
-	)
+	).WithTheme(styles.HatchetTheme())
 
 	err := form.Run()
 
@@ -334,4 +319,59 @@ func selectProfileForm() string {
 	}
 
 	return selectedName
+}
+
+// profileView renders a profile view with details
+func profileView(name, token, apiURL, grpcHost string, showToken bool) string {
+	var lines []string
+
+	// Title
+	lines = append(lines, styles.Section("Profile: "+name))
+	lines = append(lines, "")
+
+	// Token
+	tokenValue := token
+	if !showToken && len(token) > 4 {
+		tokenValue = token[:4] + "****"
+	}
+	lines = append(lines, styles.KeyValue("Token", tokenValue))
+
+	// URLs
+	lines = append(lines, styles.KeyValue("API Server URL", apiURL))
+	lines = append(lines, styles.KeyValue("gRPC Host Port", grpcHost))
+
+	return styles.InfoBox.Render(strings.Join(lines, "\n"))
+}
+
+// profileListView renders a list of profiles
+func profileListView(profiles []string) string {
+	if len(profiles) == 0 {
+		return styles.InfoMessage("No profiles configured")
+	}
+
+	var lines []string
+	lines = append(lines, styles.Section("Configured Profiles"))
+
+	for _, profile := range profiles {
+		lines = append(lines, styles.ListItem.Render(styles.Accent.Render("• ")+profile))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// profileActionView renders a profile action result (add, update, remove)
+func profileActionView(action, profileName string) string {
+	var message string
+	switch action {
+	case "added":
+		message = fmt.Sprintf("Profile '%s' added successfully", profileName)
+	case "updated":
+		message = fmt.Sprintf("Profile '%s' updated successfully", profileName)
+	case "removed":
+		message = fmt.Sprintf("Profile '%s' removed successfully", profileName)
+	default:
+		message = fmt.Sprintf("Profile '%s' %s", profileName, action)
+	}
+
+	return styles.SuccessMessage(message)
 }
