@@ -1989,37 +1989,6 @@ WHERE
     )
 ;
 
--- name: CountOLAPTempTableSizeForDAGStatusUpdates :one
-SELECT COUNT(*) AS total
-FROM v1_task_status_updates_tmp
-;
-
--- name: CountOLAPTempTableSizeForTaskStatusUpdates :one
-SELECT COUNT(*) AS total
-FROM v1_task_events_olap_tmp
-;
-
--- name: ListYesterdayRunCountsByStatus :many
-SELECT readable_status, COUNT(*)
-FROM v1_runs_olap
-WHERE inserted_at::DATE = (NOW() - INTERVAL '1 day')::DATE
-GROUP BY readable_status
-;
-
--- name: CheckLastAutovacuumForPartitionedTables :many
-SELECT
-    s.schemaname,
-    s.relname AS tablename,
-    s.last_autovacuum,
-    EXTRACT(EPOCH FROM (NOW() - s.last_autovacuum)) AS seconds_since_last_autovacuum
-FROM pg_stat_user_tables s
-JOIN pg_catalog.pg_class c ON c.oid = (quote_ident(s.schemaname)||'.'||quote_ident(s.relname))::regclass
-WHERE s.schemaname = 'public'
-    AND c.relispartition = true
-    AND c.relkind = 'r'
-ORDER BY s.last_autovacuum ASC NULLS LAST
-;
-
 -- name: ListPaginatedOLAPPayloadsForOffload :many
 WITH payloads AS (
     SELECT

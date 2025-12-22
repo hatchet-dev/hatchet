@@ -3,9 +3,8 @@ package task
 import (
 	"context"
 
-	"go.opentelemetry.io/otel/codes"
-
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
+	"go.opentelemetry.io/otel/codes"
 )
 
 func (tc *TasksControllerImpl) processPayloadExternalCutovers(ctx context.Context) func() {

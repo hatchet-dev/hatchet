@@ -39,52 +39,6 @@ func (q *Queries) AnalyzeV1TaskEvent(ctx context.Context, db DBTX) error {
 	return err
 }
 
-const checkLastAutovacuumForPartitionedTablesCoreDB = `-- name: CheckLastAutovacuumForPartitionedTablesCoreDB :many
-SELECT
-    s.schemaname,
-    s.relname AS tablename,
-    s.last_autovacuum,
-    EXTRACT(EPOCH FROM (NOW() - s.last_autovacuum)) AS seconds_since_last_autovacuum
-FROM pg_stat_user_tables s
-JOIN pg_catalog.pg_class c ON c.oid = (quote_ident(s.schemaname)||'.'||quote_ident(s.relname))::regclass
-WHERE s.schemaname = 'public'
-    AND c.relispartition = true
-    AND c.relkind = 'r'
-ORDER BY s.last_autovacuum ASC NULLS LAST
-`
-
-type CheckLastAutovacuumForPartitionedTablesCoreDBRow struct {
-	Schemaname                 pgtype.Text        `json:"schemaname"`
-	Tablename                  pgtype.Text        `json:"tablename"`
-	LastAutovacuum             pgtype.Timestamptz `json:"last_autovacuum"`
-	SecondsSinceLastAutovacuum pgtype.Numeric     `json:"seconds_since_last_autovacuum"`
-}
-
-func (q *Queries) CheckLastAutovacuumForPartitionedTablesCoreDB(ctx context.Context, db DBTX) ([]*CheckLastAutovacuumForPartitionedTablesCoreDBRow, error) {
-	rows, err := db.Query(ctx, checkLastAutovacuumForPartitionedTablesCoreDB)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*CheckLastAutovacuumForPartitionedTablesCoreDBRow
-	for rows.Next() {
-		var i CheckLastAutovacuumForPartitionedTablesCoreDBRow
-		if err := rows.Scan(
-			&i.Schemaname,
-			&i.Tablename,
-			&i.LastAutovacuum,
-			&i.SecondsSinceLastAutovacuum,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const cleanupV1ConcurrencySlot = `-- name: CleanupV1ConcurrencySlot :execresult
 WITH locked_cs AS (
     SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
@@ -483,79 +437,6 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 		return nil, err
 	}
 	return items, nil
-}
-
-const findOldestRunningTask = `-- name: FindOldestRunningTask :one
-SELECT task_id, task_inserted_at, retry_count, worker_id, tenant_id, timeout_at
-FROM v1_task_runtime
-ORDER BY task_id, task_inserted_at
-LIMIT 1
-`
-
-func (q *Queries) FindOldestRunningTask(ctx context.Context, db DBTX) (*V1TaskRuntime, error) {
-	row := db.QueryRow(ctx, findOldestRunningTask)
-	var i V1TaskRuntime
-	err := row.Scan(
-		&i.TaskID,
-		&i.TaskInsertedAt,
-		&i.RetryCount,
-		&i.WorkerID,
-		&i.TenantID,
-		&i.TimeoutAt,
-	)
-	return &i, err
-}
-
-const findOldestTask = `-- name: FindOldestTask :one
-SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
-FROM v1_task
-ORDER BY id, inserted_at
-LIMIT 1
-`
-
-func (q *Queries) FindOldestTask(ctx context.Context, db DBTX) (*V1Task, error) {
-	row := db.QueryRow(ctx, findOldestTask)
-	var i V1Task
-	err := row.Scan(
-		&i.ID,
-		&i.InsertedAt,
-		&i.TenantID,
-		&i.Queue,
-		&i.ActionID,
-		&i.StepID,
-		&i.StepReadableID,
-		&i.WorkflowID,
-		&i.WorkflowVersionID,
-		&i.WorkflowRunID,
-		&i.ScheduleTimeout,
-		&i.StepTimeout,
-		&i.Priority,
-		&i.Sticky,
-		&i.DesiredWorkerID,
-		&i.ExternalID,
-		&i.DisplayName,
-		&i.Input,
-		&i.RetryCount,
-		&i.InternalRetryCount,
-		&i.AppRetryCount,
-		&i.StepIndex,
-		&i.AdditionalMetadata,
-		&i.DagID,
-		&i.DagInsertedAt,
-		&i.ParentTaskExternalID,
-		&i.ParentTaskID,
-		&i.ParentTaskInsertedAt,
-		&i.ChildIndex,
-		&i.ChildKey,
-		&i.InitialState,
-		&i.InitialStateReason,
-		&i.ConcurrencyParentStrategyIds,
-		&i.ConcurrencyStrategyIds,
-		&i.ConcurrencyKeys,
-		&i.RetryBackoffFactor,
-		&i.RetryMaxBackoff,
-	)
-	return &i, err
 }
 
 const flattenExternalIds = `-- name: FlattenExternalIds :many

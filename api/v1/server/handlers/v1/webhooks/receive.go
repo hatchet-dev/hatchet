@@ -124,8 +124,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			 * See: https://api.slack.com/interactivity/slash-commands
 			 * For GENERIC webhooks, we convert all form fields directly to the payload map
 			 */
-			switch webhook.SourceName {
-			case sqlcv1.V1IncomingWebhookSourceNameSLACK:
+			if webhook.SourceName == sqlcv1.V1IncomingWebhookSourceNameSLACK {
 				payloadValue := formData.Get("payload")
 				if payloadValue != "" {
 					/* Interactive components: parse the payload parameter as JSON */
@@ -154,14 +153,14 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 						}
 					}
 				}
-			case sqlcv1.V1IncomingWebhookSourceNameGENERIC:
+			} else if webhook.SourceName == sqlcv1.V1IncomingWebhookSourceNameGENERIC {
 				/* For GENERIC webhooks, convert all form fields to the payload map */
 				for key, values := range formData {
 					if len(values) > 0 {
 						payloadMap[key] = values[0]
 					}
 				}
-			default:
+			} else {
 				/* For other webhook sources, form-encoded data is unexpected - return error */
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
@@ -211,13 +210,11 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 
 	if err != nil {
 		var errorMsg string
-		errStr := err.Error()
-		switch {
-		case strings.Contains(errStr, "did not evaluate to a string"):
+		if strings.Contains(err.Error(), "did not evaluate to a string") {
 			errorMsg = "Event key expression must evaluate to a string"
-		case eventKey == "":
+		} else if eventKey == "" {
 			errorMsg = "Event key evaluated to an empty string"
-		default:
+		} else {
 			errorMsg = "Failed to evaluate event key expression"
 		}
 
