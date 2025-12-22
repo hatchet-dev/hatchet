@@ -1,6 +1,9 @@
 export function AuthLegalText() {
   return (
-    <p className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
+    <p
+      data-cy="auth-legal"
+      className="w-full text-left text-sm text-gray-700 dark:text-gray-300"
+    >
       By clicking continue, you agree to our{' '}
       <a
         href="https://hatchet.run/policies/terms"

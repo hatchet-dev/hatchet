@@ -89,6 +89,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
 
   return (
     <div
+      data-cy="v1-sidebar"
       className={cn(
         // On mobile, overlay the content area (which is already positioned below the fixed header).
         // On desktop, participate in the grid as a fixed-width sidebar.
@@ -98,7 +99,10 @@ function Sidebar({ className, memberships }: SidebarProps) {
     >
       <div className="flex h-full flex-col overflow-hidden">
         {/* Scrollable navigation area (keep scrollbar flush to sidebar edge) */}
-        <div className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground">
+        <div
+          data-cy="v1-sidebar-scroll"
+          className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground"
+        >
           <div className="px-4 py-4">
             <div className="py-2">
               <h2 className="mb-2 text-lg font-semibold tracking-tight">
@@ -285,7 +289,10 @@ function Sidebar({ className, memberships }: SidebarProps) {
         </div>
 
         {/* Fixed footer: tenant/org picker is always visible and takes up space */}
-        <div className="w-full shrink-0 border-t border-slate-200 px-4 py-4 dark:border-slate-800">
+        <div
+          data-cy="v1-sidebar-footer"
+          className="w-full shrink-0 border-t border-slate-200 px-4 py-4 dark:border-slate-800"
+        >
           {isCloudEnabled ? (
             <OrganizationSelector memberships={memberships} />
           ) : (
