@@ -452,6 +452,7 @@ type CutoverOLAPPayloadToInsert struct {
 	InsertedAt          pgtype.Timestamptz
 	ExternalID          pgtype.UUID
 	ExternalLocationKey string
+	InlineContent       []byte
 }
 
 type InsertCutOverOLAPPayloadsIntoTempTableRow struct {
@@ -466,6 +467,7 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 	externalIds := make([]pgtype.UUID, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
 	externalLocationKeys := make([]string, 0, len(payloads))
+	inlineContents := make([][]byte, 0, len(payloads))
 
 	for _, payload := range payloads {
 		externalIds = append(externalIds, payload.ExternalID)
@@ -473,6 +475,7 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 		insertedAts = append(insertedAts, payload.InsertedAt)
 		locations = append(locations, string(V1PayloadLocationOlapEXTERNAL))
 		externalLocationKeys = append(externalLocationKeys, string(payload.ExternalLocationKey))
+		inlineContents = append(inlineContents, payload.InlineContent)
 	}
 
 	row := tx.QueryRow(
@@ -487,7 +490,8 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 						UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
 						UNNEST($3::UUID[]) AS external_id,
 						UNNEST($4::TEXT[]) AS location,
-						UNNEST($5::TEXT[]) AS external_location_key
+						UNNEST($5::TEXT[]) AS external_location_key,
+						UNNEST($6::JSONB[]) AS inline_content
 				), inserts AS (
 					INSERT INTO %s (tenant_id, external_id, location, external_location_key, inline_content, inserted_at, updated_at)
 					SELECT
@@ -495,7 +499,7 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 						external_id,
 						location::v1_payload_location_olap,
 						external_location_key,
-						NULL,
+						inline_content,
 						inserted_at,
 						NOW()
 					FROM inputs
@@ -515,38 +519,13 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 		externalIds,
 		locations,
 		externalLocationKeys,
+		inlineContents,
 	)
 
 	var insertRow InsertCutOverOLAPPayloadsIntoTempTableRow
 	err := row.Scan(&insertRow.TenantId, &insertRow.ExternalId, &insertRow.InsertedAt)
 
 	return &insertRow, err
-}
-
-func CompareOLAPPartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionName, sourcePartitionName string) (bool, error) {
-	row := tx.QueryRow(
-		ctx,
-		fmt.Sprintf(
-			`
-				SELECT
-					(SELECT COUNT(*) FROM %s) AS temp_partition_count,
-					(SELECT COUNT(*) FROM %s) AS source_partition_count
-			`,
-			tempPartitionName,
-			sourcePartitionName,
-		),
-	)
-
-	var tempPartitionCount int64
-	var sourcePartitionCount int64
-
-	err := row.Scan(&tempPartitionCount, &sourcePartitionCount)
-
-	if err != nil {
-		return false, err
-	}
-
-	return tempPartitionCount == sourcePartitionCount, nil
 }
 
 const findV1OLAPPayloadPartitionsBeforeDate = `-- name: findV1OLAPPayloadPartitionsBeforeDate :many

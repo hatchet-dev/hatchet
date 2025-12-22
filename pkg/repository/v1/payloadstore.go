@@ -433,6 +433,13 @@ type CutoverBatchOutcome struct {
 
 type PartitionDate pgtype.Date
 
+type PayloadMetadata struct {
+	TenantID   pgtype.UUID
+	ID         int64
+	InsertedAt pgtype.Timestamptz
+	Type       sqlcv1.V1PayloadType
+}
+
 func (d PartitionDate) String() string {
 	return d.Time.Format("20060102")
 }
@@ -470,7 +477,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	mu := sync.Mutex{}
 	eg := errgroup.Group{}
 
-	externalIdToPayload := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
+	externalIdToPayloadMetadata := make(map[PayloadExternalId]PayloadMetadata)
 	alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
 	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
 
@@ -497,7 +504,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			}
 
 			alreadyExternalPayloadsInner := make(map[PayloadExternalId]ExternalPayloadLocationKey)
-			externalIdToPayloadInner := make(map[PayloadExternalId]sqlcv1.ListPaginatedPayloadsForOffloadRow)
+			externalIdToPayloadMetadataInner := make(map[PayloadExternalId]PayloadMetadata)
 			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
 
 			for _, payload := range payloads {
@@ -507,7 +514,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 					externalId = PayloadExternalId(uuid.NewString())
 				}
 
-				externalIdToPayloadInner[externalId] = *payload
+				externalIdToPayloadMetadataInner[externalId] = PayloadMetadata{
+					TenantID:   payload.TenantID,
+					ID:         payload.ID,
+					InsertedAt: payload.InsertedAt,
+					Type:       payload.Type,
+				}
 
 				if payload.Location != sqlcv1.V1PayloadLocationINLINE {
 					alreadyExternalPayloadsInner[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
@@ -522,7 +534,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			}
 
 			mu.Lock()
-			maps.Copy(externalIdToPayload, externalIdToPayloadInner)
+			maps.Copy(externalIdToPayloadMetadata, externalIdToPayloadMetadataInner)
 			maps.Copy(alreadyExternalPayloads, alreadyExternalPayloadsInner)
 			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
 			numPayloads += len(payloads)
@@ -550,13 +562,13 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, numPayloads)
 
 	for externalId, key := range externalIdToKey {
-		payload := externalIdToPayload[externalId]
+		meta := externalIdToPayloadMetadata[externalId]
 		payloadsToInsert = append(payloadsToInsert, sqlcv1.CutoverPayloadToInsert{
-			TenantID:            payload.TenantID,
-			ID:                  payload.ID,
-			InsertedAt:          payload.InsertedAt,
+			TenantID:            meta.TenantID,
+			ID:                  meta.ID,
+			InsertedAt:          meta.InsertedAt,
 			ExternalID:          sqlchelpers.UUIDFromStr(string(externalId)),
-			Type:                payload.Type,
+			Type:                meta.Type,
 			ExternalLocationKey: string(key),
 		})
 	}
@@ -618,7 +630,7 @@ type CutoverJobRunMetadata struct {
 }
 
 func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId pgtype.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverJobRunMetadata, error) {
-	leaseInterval := 2 * time.Minute
+	leaseInterval := 10 * time.Minute
 	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
 
 	lease, err := p.queries.AcquireOrExtendCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendCutoverJobLeaseParams{
@@ -753,14 +765,52 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 	tempPartitionName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
 	sourcePartitionName := fmt.Sprintf("v1_payload_%s", partitionDate.String())
 
-	countsEqual, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
 
 	if err != nil {
 		return fmt.Errorf("failed to compare partition row counts: %w", err)
 	}
 
-	if !countsEqual {
-		return fmt.Errorf("row counts do not match between temp and source partitions for date %s", partitionDate.String())
+	const maxCountDiff = 5000
+
+	if rowCounts.SourcePartitionCount-rowCounts.TempPartitionCount > maxCountDiff {
+		return fmt.Errorf("row counts do not match between temp and source partitions for date %s. off by more than %d", partitionDate.String(), maxCountDiff)
+	} else if rowCounts.SourcePartitionCount > rowCounts.TempPartitionCount {
+		missingRows, err := p.queries.DiffPayloadSourceAndTargetPartitions(ctx, p.pool, pgtype.Date(partitionDate))
+
+		if err != nil {
+			return fmt.Errorf("failed to diff source and target partitions: %w", err)
+		}
+
+		missingPayloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, len(missingRows))
+
+		for i, p := range missingRows {
+			missingPayloadsToInsert[i] = sqlcv1.CutoverPayloadToInsert{
+				TenantID:            p.TenantID,
+				ID:                  p.ID,
+				InsertedAt:          p.InsertedAt,
+				ExternalID:          p.ExternalID,
+				Type:                p.Type,
+				ExternalLocationKey: p.ExternalLocationKey,
+				InlineContent:       p.InlineContent,
+			}
+		}
+
+		_, err = sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, p.pool, tempPartitionName, missingPayloadsToInsert)
+
+		if err != nil {
+			return fmt.Errorf("failed to insert missing payloads into temp partition: %w", err)
+		}
+
+		rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+
+		if err != nil {
+			return fmt.Errorf("failed to compare partition row counts: %w", err)
+		}
+
+		if rowCounts.SourcePartitionCount != rowCounts.TempPartitionCount {
+			return fmt.Errorf("row counts still do not match between temp and source partitions for date %s after inserting missing rows", partitionDate.String())
+		}
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
@@ -811,6 +861,22 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 
 	if err != nil {
 		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
+	}
+
+	partitionDatesToKeep := make([]pgtype.Date, len(partitions))
+
+	for i, partition := range partitions {
+		partitionDatesToKeep[i] = pgtype.Date{
+			Time:  partition.PartitionDate.Time,
+			Valid: true,
+		}
+	}
+
+	// don't need a tx for this since we're just doing cleanup
+	err = p.queries.CleanUpCutoverJobOffsets(ctx, p.pool, partitionDatesToKeep)
+
+	if err != nil {
+		return fmt.Errorf("failed to clean up cutover job offsets: %w", err)
 	}
 
 	processId := sqlchelpers.UUIDFromStr(uuid.NewString())
