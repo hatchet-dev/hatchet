@@ -19,6 +19,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { UpdateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
+import { shouldRetryQueryError } from '@/lib/error-utils';
 import { useApiError } from '@/lib/hooks';
 import { relativeDate } from '@/lib/utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
@@ -40,13 +41,7 @@ export default function ExpandedWorkflow() {
   const managedWorkerQuery = useQuery({
     ...queries.cloud.getManagedWorker(params.managedWorker),
     refetchInterval,
-    retry: (_failureCount, error) => {
-      if (isAxiosError(error) && error.response?.status === 404) {
-        return false;
-      }
-
-      return true;
-    },
+    retry: (_failureCount, error) => shouldRetryQueryError(error),
   });
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});

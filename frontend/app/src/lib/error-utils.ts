@@ -44,3 +44,17 @@ export function getErrorStatusText(error: unknown): string | undefined {
   const statusText = getUnknownProp(error, 'statusText');
   return typeof statusText === 'string' ? statusText : undefined;
 }
+
+/**
+ * React Query `retry` helper: don't retry for client errors (4xx).
+ * Retries are left enabled for network errors and server errors (5xx).
+ */
+export function shouldRetryQueryError(error: unknown): boolean {
+  const status = getErrorStatus(error);
+
+  if (status !== undefined && status >= 400 && status < 500) {
+    return false;
+  }
+
+  return true;
+}

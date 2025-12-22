@@ -32,7 +32,7 @@ import api, {
   WorkflowRunShapeForWorkflowRunDetails,
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
-import { getErrorStatus } from '@/lib/error-utils';
+import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -171,16 +171,7 @@ export default function Run() {
 
       return 1000;
     },
-    retry: (_failureCount, error) => {
-      const status = getErrorStatus(error);
-
-      // Treat malformed IDs (often 400) and missing resources (404) as not found.
-      if (status === 400 || status === 404) {
-        return false;
-      }
-
-      return true;
-    },
+    retry: (_failureCount, error) => shouldRetryQueryError(error),
   });
 
   if (taskRunQuery.isLoading) {

@@ -21,6 +21,7 @@ import {
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
+import { shouldRetryQueryError } from '@/lib/error-utils';
 import { useApiError } from '@/lib/hooks';
 import { capitalize } from '@/lib/utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
@@ -106,13 +107,7 @@ export default function ExpandedWorkflowRun() {
   const workerQuery = useQuery({
     ...queries.workers.get(params.worker),
     refetchInterval,
-    retry: (_failureCount, error) => {
-      if (isAxiosError(error) && error.response?.status === 404) {
-        return false;
-      }
-
-      return true;
-    },
+    retry: (_failureCount, error) => shouldRetryQueryError(error),
   });
 
   const worker = workerQuery.data;
