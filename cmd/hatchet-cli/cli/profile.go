@@ -52,6 +52,11 @@ var profileAddCmd = &cobra.Command{
 	Use:   "add",
 	Short: "Add a new profile",
 	Long:  `Add a new profile with an address and token for a Hatchet environment.`,
+	Example: `  # Create a new profile interactively (prompts for token)
+  hatchet profile add
+
+  # Create a new profile with a specific name
+  hatchet profile add --name production --token <your-token>`,
 	Run: func(cmd *cobra.Command, args []string) {
 		name, _ := cmd.Flags().GetString("name")
 		token, _ := cmd.Flags().GetString("token")
@@ -81,6 +86,11 @@ var profileRemoveCmd = &cobra.Command{
 	Use:   "remove",
 	Short: "Remove a profile",
 	Long:  `Remove an existing profile from the configuration.`,
+	Example: `  # Remove a profile interactively (shows selection menu)
+  hatchet profile remove
+
+  # Remove a specific profile by name
+  hatchet profile remove --name production`,
 	Run: func(cmd *cobra.Command, args []string) {
 		name, _ := cmd.Flags().GetString("name")
 
@@ -109,6 +119,8 @@ var profileListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all profiles",
 	Long:  `List all configured profiles.`,
+	Example: `  # List all configured profiles
+  hatchet profile list`,
 	Run: func(cmd *cobra.Command, args []string) {
 		profiles := cli.ListProfiles()
 
@@ -126,6 +138,14 @@ var profileShowCmd = &cobra.Command{
 	Use:   "show",
 	Short: "Show details of a specific profile",
 	Long:  `Show the details of a specific profile including address and token.`,
+	Example: `  # Show profile details interactively (shows selection menu)
+  hatchet profile show
+
+  # Show a specific profile with masked token
+  hatchet profile show --name production
+
+  # Show a specific profile with full token visible
+  hatchet profile show --name production --show-token`,
 	Run: func(cmd *cobra.Command, args []string) {
 		name, _ := cmd.Flags().GetString("name")
 		showToken, _ := cmd.Flags().GetBool("show-token")
@@ -160,6 +180,11 @@ var profileUpdateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "Update an existing profile",
 	Long:  `Update the address and/or token of an existing profile.`,
+	Example: `  # Update a profile interactively (prompts for profile and token)
+  hatchet profile update
+
+  # Update a specific profile with a new token
+  hatchet profile update --name production --token <new-token>`,
 	Run: func(cmd *cobra.Command, args []string) {
 		name, _ := cmd.Flags().GetString("name")
 		token, _ := cmd.Flags().GetString("token")
