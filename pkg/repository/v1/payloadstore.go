@@ -447,8 +447,21 @@ func (d PartitionDate) String() string {
 const MAX_PARTITIONS_TO_OFFLOAD = 14                  // two weeks
 const MAX_BATCH_SIZE_BYTES = 1.5 * 1024 * 1024 * 1024 // 1.5 GB
 
-func (p *payloadStoreRepositoryImpl) OptimizePayloadBatchSize(ctx context.Context, partitionDate PartitionDate, candidateBatchNumRows int64, lastTenantId pgtype.UUID, lastInsertedAt pgtype.Timestamptz, lastId int64, lastType sqlcv1.V1PayloadType) (*int64, error) {
-	proposedBatchSizeBytes, err := p.queries.ComputePayloadBatchSize(ctx, p.pool, pgtype.Date(partitionDate))
+func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Context, partitionDate PartitionDate, candidateBatchNumRows int32, pagination PaginationParams) (*int32, error) {
+	if candidateBatchNumRows <= 0 {
+		// trivial case that we'll never hit, but to prevent infinite recursion
+		zero := int32(0)
+		return &zero, nil
+	}
+
+	proposedBatchSizeBytes, err := p.queries.ComputePayloadBatchSize(ctx, p.pool, sqlcv1.ComputePayloadBatchSizeParams{
+		Partitiondate:  pgtype.Date(partitionDate),
+		Lasttenantid:   pagination.LastTenantID,
+		Lastinsertedat: pagination.LastInsertedAt,
+		Lastid:         pagination.LastID,
+		Lasttype:       pagination.LastType,
+		Batchsize:      candidateBatchNumRows,
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute payload batch size: %w", err)
@@ -460,14 +473,11 @@ func (p *payloadStoreRepositoryImpl) OptimizePayloadBatchSize(ctx context.Contex
 
 	// if the proposed batch size is too large, then
 	// cut it in half and try again
-	return p.OptimizePayloadBatchSize(
+	return p.OptimizePayloadWindowSize(
 		ctx,
 		partitionDate,
 		candidateBatchNumRows/2,
-		lastTenantId,
-		lastInsertedAt,
-		lastId,
-		lastType,
+		pagination,
 	)
 }
 
@@ -476,14 +486,21 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	defer span.End()
 
 	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
-	windowSize := p.externalCutoverBatchSize * p.externalCutoverNumConcurrentOffloads
+	windowSize, err := p.OptimizePayloadWindowSize(
+		ctx,
+		partitionDate,
+		p.externalCutoverBatchSize*p.externalCutoverNumConcurrentOffloads,
+		pagination,
+	)
 
-	p.queries.ComputePayloadBatchSize(ctx, p.pool, pgtype.Date(partitionDate))
+	if err != nil {
+		return nil, fmt.Errorf("failed to optimize payload window size: %w", err)
+	}
 
 	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, p.pool, sqlcv1.CreatePayloadRangeChunksParams{
 		Chunksize:      p.externalCutoverBatchSize,
 		Partitiondate:  pgtype.Date(partitionDate),
-		Windowsize:     windowSize,
+		Windowsize:     *windowSize,
 		Lasttenantid:   pagination.LastTenantID,
 		Lastinsertedat: pagination.LastInsertedAt,
 		Lastid:         pagination.LastID,
