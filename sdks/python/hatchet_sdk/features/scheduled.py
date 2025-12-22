@@ -158,7 +158,7 @@ class ScheduledClient(BaseRestClient):
                 tenant=self.client_config.tenant_id,
                 scheduled_workflow_run=scheduled_id,
                 update_scheduled_workflow_run_request=UpdateScheduledWorkflowRunRequest(
-                    trigger_at=trigger_at
+                    triggerAt=trigger_at
                 ),
             )
 
@@ -222,12 +222,10 @@ class ScheduledClient(BaseRestClient):
         filter_obj = None
         if has_filter:
             filter_obj = ScheduledWorkflowsBulkDeleteFilter(
-                workflow_id=workflow_id,
-                parent_workflow_run_id=parent_workflow_run_id,
-                parent_step_run_id=parent_step_run_id,
-                additional_metadata=maybe_additional_metadata_to_kv(
-                    additional_metadata
-                ),
+                workflowId=workflow_id,
+                parentWorkflowRunId=parent_workflow_run_id,
+                parentStepRunId=parent_step_run_id,
+                additionalMetadata=maybe_additional_metadata_to_kv(additional_metadata),
                 statuses=statuses,
             )
 
@@ -235,7 +233,7 @@ class ScheduledClient(BaseRestClient):
             return self._wa(client).workflow_scheduled_bulk_delete(
                 tenant=self.client_config.tenant_id,
                 scheduled_workflows_bulk_delete_request=ScheduledWorkflowsBulkDeleteRequest(
-                    scheduled_workflow_run_ids=scheduled_ids,
+                    scheduledWorkflowRunIds=scheduled_ids,
                     filter=filter_obj,
                 ),
             )
@@ -310,7 +308,7 @@ class ScheduledClient(BaseRestClient):
                 scheduled_id, trigger_at = u
                 update_items.append(
                     ScheduledWorkflowsBulkUpdateItem(
-                        id=scheduled_id, trigger_at=trigger_at
+                        id=scheduled_id, triggerAt=trigger_at
                     )
                 )
 
