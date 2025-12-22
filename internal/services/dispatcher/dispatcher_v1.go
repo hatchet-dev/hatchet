@@ -231,8 +231,17 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				innerEg := errgroup.Group{}
 
 				for _, batch := range batches {
-					for _, taskId := range batch.TaskIds {
+					// If this is a batched assignment and includes start metadata, emit START_BATCH
+					// before sending any of the individual tasks for the batch.
+					if batch.BatchID != "" && batch.StartBatch != nil {
+						if err := d.sendBatchStartFromPayload(ctx, msg.TenantID, batch.StartBatch); err != nil {
+							// Don't fail the whole batch assignment; tasks will be requeued via the normal path below
+							// if they cannot be sent. This just logs and continues.
+							d.l.Warn().Err(err).Msgf("could not send embedded batch start for batch %s", batch.BatchID)
+						}
+					}
 
+					for _, taskId := range batch.TaskIds {
 						innerEg.Go(func() error {
 							task := taskIdToData[taskId]
 
@@ -355,6 +364,86 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	return nil
 }
 
+func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, msgTenantId string, payload *tasktypesv1.StartBatchTaskPayload) error {
+	if payload == nil {
+		return nil
+	}
+
+	tenantId := payload.TenantId
+	if tenantId == "" {
+		tenantId = msgTenantId
+	}
+
+	if payload.BatchId == "" {
+		return fmt.Errorf("batch start payload missing batch id")
+	}
+
+	if payload.ActionId == "" {
+		return fmt.Errorf("batch start payload missing action id for batch %s", payload.BatchId)
+	}
+
+	workers, err := d.workers.Get(payload.WorkerId)
+	if err != nil {
+		if errors.Is(err, ErrWorkerNotFound) {
+			// If the worker isn't connected, ignore (the tasks will be retried separately).
+			return nil
+		}
+		return fmt.Errorf("could not get worker for batch %s: %w", payload.BatchId, err)
+	}
+
+	triggerTime := payload.TriggerTime
+	if triggerTime.IsZero() {
+		triggerTime = time.Now().UTC()
+	}
+
+	expectedSize := int32(payload.ExpectedSize)
+	if expectedSize < 0 {
+		expectedSize = 0
+	}
+
+	batchID := payload.BatchId
+	batchStart := &contracts.BatchStartPayload{
+		TriggerTime:  timestamppb.New(triggerTime),
+		ExpectedSize: expectedSize,
+	}
+
+	if payload.TriggerReason != "" {
+		batchStart.TriggerReason = payload.TriggerReason
+	}
+
+	action := &contracts.AssignedAction{
+		TenantId:   tenantId,
+		ActionType: contracts.ActionType_START_BATCH,
+		ActionId:   payload.ActionId,
+		BatchStart: batchStart,
+	}
+
+	action.BatchId = &batchID
+
+	if strings.TrimSpace(payload.BatchKey) != "" {
+		key := strings.TrimSpace(payload.BatchKey)
+		action.BatchKey = &key
+	}
+
+	var sendErr error
+	var success bool
+
+	for i, w := range workers {
+		if err := w.StartBatch(ctx, action); err != nil {
+			sendErr = multierror.Append(sendErr, fmt.Errorf("could not send batch start to worker %s (%d): %w", payload.WorkerId, i, err))
+		} else {
+			success = true
+			break
+		}
+	}
+
+	if !success {
+		return sendErr
+	}
+
+	return nil
+}
+
 func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev1.Message) error {
 	ctx, span := telemetry.NewSpanWithCarrier(ctx, "tasks-cancelled", msg.OtelCarrier)
 	defer span.End()
@@ -461,79 +550,11 @@ func (d *DispatcherImpl) handleBatchStartTask(ctx context.Context, msg *msgqueue
 	var result error
 
 	for _, payload := range payloads {
-		tenantId := payload.TenantId
-		if tenantId == "" {
-			tenantId = msg.TenantID
-		}
-
-		if payload.BatchId == "" {
-			result = multierror.Append(result, fmt.Errorf("batch start payload missing batch id"))
-			continue
-		}
-
-		if payload.ActionId == "" {
-			result = multierror.Append(result, fmt.Errorf("batch start payload missing action id for batch %s", payload.BatchId))
-			continue
-		}
-
-		workers, err := d.workers.Get(payload.WorkerId)
-		if err != nil {
+		if err := d.sendBatchStartFromPayload(ctx, msg.TenantID, payload); err != nil {
 			if errors.Is(err, ErrWorkerNotFound) {
-				d.l.Debug().Msgf("worker %s not found, ignoring batch start for batch %s", payload.WorkerId, payload.BatchId)
 				continue
 			}
-
-			result = multierror.Append(result, fmt.Errorf("could not get worker for batch %s: %w", payload.BatchId, err))
-			continue
-		}
-
-		if payload.TriggerTime.IsZero() {
-			payload.TriggerTime = time.Now().UTC()
-		}
-
-		expectedSize := int32(payload.ExpectedSize)
-		if expectedSize < 0 {
-			expectedSize = 0
-		}
-
-		batchID := payload.BatchId
-		batchStart := &contracts.BatchStartPayload{
-			TriggerTime:  timestamppb.New(payload.TriggerTime),
-			ExpectedSize: expectedSize,
-		}
-
-		if payload.TriggerReason != "" {
-			batchStart.TriggerReason = payload.TriggerReason
-		}
-
-		action := &contracts.AssignedAction{
-			TenantId:   tenantId,
-			ActionType: contracts.ActionType_START_BATCH,
-			ActionId:   payload.ActionId,
-			BatchStart: batchStart,
-		}
-
-		action.BatchId = &batchID
-
-		if strings.TrimSpace(payload.BatchKey) != "" {
-			key := strings.TrimSpace(payload.BatchKey)
-			action.BatchKey = &key
-		}
-
-		var sendErr error
-		var success bool
-
-		for i, w := range workers {
-			if err := w.StartBatch(ctx, action); err != nil {
-				sendErr = multierror.Append(sendErr, fmt.Errorf("could not send batch start to worker %s (%d): %w", payload.WorkerId, i, err))
-			} else {
-				success = true
-				break
-			}
-		}
-
-		if !success {
-			result = multierror.Append(result, sendErr)
+			result = multierror.Append(result, err)
 		}
 	}
 

@@ -88,9 +88,10 @@ type TaskAssignedBulkTaskPayload struct {
 }
 
 type TaskAssignedBatch struct {
-	BatchID   string  `json:"batch_id"`
-	BatchSize int     `json:"batch_size"`
-	TaskIds   []int64 `json:"task_ids"`
+	BatchID    string                 `json:"batch_id"`
+	BatchSize  int                    `json:"batch_size"`
+	TaskIds    []int64                `json:"task_ids"`
+	StartBatch *StartBatchTaskPayload `json:"start_batch,omitempty"`
 }
 
 type StartBatchTaskPayload struct {

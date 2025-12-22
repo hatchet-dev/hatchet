@@ -1053,6 +1053,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 					BatchID:   batchID,
 					BatchSize: batchSize,
 					TaskIds:   taskIds,
+					StartBatch: &startPayload,
 				},
 			},
 		}
