@@ -1124,3 +1124,29 @@ SELECT
     count,
     oldest::TIMESTAMPTZ
 FROM running_tasks;
+
+-- name: FindOldestRunningTask :one
+SELECT *
+FROM v1_task_runtime
+ORDER BY task_id, task_inserted_at
+LIMIT 1;
+
+-- name: FindOldestTask :one
+SELECT *
+FROM v1_task
+ORDER BY id, inserted_at
+LIMIT 1;
+
+-- name: CheckLastAutovacuumForPartitionedTablesCoreDB :many
+SELECT
+    s.schemaname,
+    s.relname AS tablename,
+    s.last_autovacuum,
+    EXTRACT(EPOCH FROM (NOW() - s.last_autovacuum)) AS seconds_since_last_autovacuum
+FROM pg_stat_user_tables s
+JOIN pg_catalog.pg_class c ON c.oid = (quote_ident(s.schemaname)||'.'||quote_ident(s.relname))::regclass
+WHERE s.schemaname = 'public'
+    AND c.relispartition = true
+    AND c.relkind = 'r'
+ORDER BY s.last_autovacuum ASC NULLS LAST
+;

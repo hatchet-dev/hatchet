@@ -262,6 +262,9 @@ type TaskRepository interface {
 	Cleanup(ctx context.Context) (bool, error)
 
 	GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error)
+
+	FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error)
+	FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -3860,4 +3863,32 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 	}
 
 	return result, nil
+}
+
+func (r *TaskRepositoryImpl) FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error) {
+	t, err := r.queries.FindOldestRunningTask(ctx, r.pool)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if t == nil {
+		return nil, nil
+	}
+
+	return &t.TaskInsertedAt.Time, nil
+}
+
+func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error) {
+	t, err := r.queries.FindOldestTask(ctx, r.pool)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if t == nil {
+		return nil, nil
+	}
+
+	return &t.InsertedAt.Time, nil
 }
