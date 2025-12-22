@@ -43,6 +43,7 @@ import (
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/ratelimit"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -420,6 +421,39 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
 	})
 
+	// note: this is a hack to allow for the v0 event getter to use the pk on the v1 event lookup table
+	populatorMW.RegisterGetter("event-with-tenant", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		event, err := config.APIRepository.Event().GetEventById(timeoutCtx, id)
+
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, "", err
+		} else if errors.Is(err, pgx.ErrNoRows) {
+			v1Event, err := t.config.V1.OLAP().GetEventWithPayload(timeoutCtx, id, parentId)
+
+			if err != nil {
+				return nil, "", err
+			}
+
+			event = &dbsqlc.Event{
+				ID:                 v1Event.EventExternalID,
+				TenantId:           v1Event.TenantID,
+				Data:               v1Event.Payload,
+				CreatedAt:          pgtype.Timestamp(v1Event.EventSeenAt),
+				AdditionalMetadata: v1Event.EventAdditionalMetadata,
+				Key:                v1Event.EventKey,
+			}
+		}
+
+		if event == nil {
+			return nil, "", fmt.Errorf("event not found")
+		}
+
+		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
+	})
+
 	populatorMW.RegisterGetter("worker", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		worker, err := config.APIRepository.Worker().GetWorkerById(id)
 
@@ -468,6 +502,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantID), nil
 	})
+
 	populatorMW.RegisterGetter("v1-filter", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		filter, err := t.config.V1.Filters().GetFilter(
 			context.Background(),
@@ -480,6 +515,20 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		return filter, sqlchelpers.UUIDToStr(filter.TenantID), nil
+	})
+
+	populatorMW.RegisterGetter("v1-event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		event, err := t.config.V1.OLAP().GetEventWithPayload(
+			context.Background(),
+			id,
+			parentId,
+		)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return event, sqlchelpers.UUIDToStr(event.TenantID), nil
 	})
 
 	populatorMW.RegisterGetter("v1-webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -563,12 +612,14 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	rateLimitMW := ratelimit.NewRateLimitMiddleware(t.config, spec)
+	otelMW := telemetry.NewOTelMiddleware(t.config)
 
 	// register echo middleware
 	g.Use(
 		loggerMiddleware,
 		middleware.Recover(),
 		rateLimitMW.Middleware(),
+		otelMW.Middleware(),
 		allHatchetMiddleware,
 	)
 

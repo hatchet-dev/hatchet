@@ -1,8 +1,4 @@
-import * as React from 'react';
-import { CheckIcon, PlusCircledIcon } from '@radix-ui/react-icons';
-import { Column } from '@tanstack/react-table';
-
-import { cn } from '@/lib/utils';
+import { ToolbarType } from '../data-table/data-table-toolbar';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -14,29 +10,20 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/v1/ui/command';
+import { Input } from '@/components/v1/ui/input';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
 import { Separator } from '@/components/v1/ui/separator';
-import { ToolbarType } from '../data-table/data-table-toolbar';
-import { Input } from '@/components/v1/ui/input';
-import { BiX } from 'react-icons/bi';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
+import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-
-interface DataTableFacetedFilterProps<TData, TValue> {
-  column?: Column<TData, TValue>;
-  title?: string;
-  type?: ToolbarType;
-  options?: {
-    label: string;
-    value: string;
-    icon?: React.ComponentType<{ className?: string }>;
-  }[];
-}
+import { CheckIcon, PlusCircledIcon } from '@radix-ui/react-icons';
+import * as React from 'react';
+import { useForm } from 'react-hook-form';
+import { BiX } from 'react-icons/bi';
+import { z } from 'zod';
 
 const keyValuePairSchema = z.object({
   key: z.string().min(1, 'Key is required'),
@@ -49,23 +36,6 @@ const arrayInputSchema = z.object({
 
 type KeyValuePair = z.infer<typeof keyValuePairSchema>;
 type ArrayInput = z.infer<typeof arrayInputSchema>;
-
-export function DataTableFacetedFilter<TData, TValue>({
-  column,
-  title,
-  type = ToolbarType.Checkbox,
-  options,
-}: DataTableFacetedFilterProps<TData, TValue>) {
-  return (
-    <Combobox
-      values={column?.getFilterValue() as string[]}
-      title={title}
-      type={type}
-      options={options}
-      setValues={(values) => column?.setFilterValue(values)}
-    />
-  );
-}
 
 export function Combobox({
   values = [],
@@ -122,7 +92,7 @@ export function Combobox({
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 border-dashed">
-          {icon || <PlusCircledIcon className="mr-2 h-4 w-4" />}
+          {icon || <PlusCircledIcon className="mr-2 size-4" />}
           {title}
           {values.length > 0 && (
             <>
@@ -150,7 +120,7 @@ export function Combobox({
                     <Badge
                       key={index}
                       variant="secondary"
-                      className="rounded-sm px-1 font-normal flex items-center space-x-1"
+                      className="flex items-center space-x-1 rounded-sm px-1 font-normal"
                     >
                       {options?.find(({ value }) => value == option)?.label ||
                         option}
@@ -160,7 +130,7 @@ export function Combobox({
                         className="ml-2"
                         onClick={() => remove(option)}
                       >
-                        <BiX className="h-3 w-3" />
+                        <BiX className="size-3" />
                       </Button>
                     </Badge>
                   ))
@@ -170,7 +140,7 @@ export function Combobox({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-2 z-[70]" align="start">
+      <PopoverContent className="z-[70] w-[300px] p-2" align="start">
         {[ToolbarType.Array, ToolbarType.KeyValue].includes(type) && (
           <div>
             <div className="">
@@ -178,7 +148,7 @@ export function Combobox({
                 <Badge
                   key={index}
                   variant="secondary"
-                  className="mr-2 mb-2 rounded-sm px-1 font-normal flex items-center space-x-1 pl-2"
+                  className="mb-2 mr-2 flex items-center space-x-1 rounded-sm px-1 pl-2 font-normal"
                 >
                   <span className="grow">{filter}</span>
                   <Button
@@ -187,14 +157,14 @@ export function Combobox({
                     className="ml-2 shrink-0"
                     onClick={() => remove(filter)}
                   >
-                    <BiX className="h-4 w-4" />
+                    <BiX className="size-4" />
                   </Button>
                 </Badge>
               ))}
             </div>
             <form onSubmit={handleSubmit(submit)}>
               {type === ToolbarType.KeyValue ? (
-                <div className="flex items-center space-x-2 mb-2">
+                <div className="mb-2 flex items-center space-x-2">
                   <Input
                     type="text"
                     placeholder="Key"
@@ -218,15 +188,16 @@ export function Combobox({
                   />
                 </div>
               )}
-              <Button type="submit" className="w-full" size="sm">
+              <Button type="submit" fullWidth size="sm">
                 Add {title} Filter
               </Button>
               {values.length > 0 && (
                 <Button
                   onClick={() => setValues([])}
-                  className="w-full mt-2"
+                  className="mt-2"
                   size="sm"
                   variant={'ghost'}
+                  fullWidth
                 >
                   Reset
                 </Button>
@@ -243,7 +214,7 @@ export function Combobox({
               onValueChange={onSearchChange}
             />
             <CommandList>
-              <CommandEmpty className="py-2 text-sm text-muted-foreground text-center">
+              <CommandEmpty className="py-2 text-center text-sm text-muted-foreground">
                 {emptyMessage || 'No results found.'}
               </CommandEmpty>
               <CommandGroup>
@@ -268,16 +239,16 @@ export function Combobox({
                     >
                       <div
                         className={cn(
-                          'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
+                          'mr-2 flex size-4 items-center justify-center rounded-sm border border-primary',
                           isSelected
                             ? 'bg-primary text-primary-foreground'
                             : 'opacity-50 [&_svg]:invisible',
                         )}
                       >
-                        <CheckIcon className={cn('h-4 w-4')} />
+                        <CheckIcon className={cn('size-4')} />
                       </div>
                       {option.icon && (
-                        <option.icon className="mr-2 h-4 w-4 text-gray-700 dark:text-gray-300" />
+                        <option.icon className="mr-2 size-4 text-gray-700 dark:text-gray-300" />
                       )}
                       <span>{option.label}</span>
                     </CommandItem>

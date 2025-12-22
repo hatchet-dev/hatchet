@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
-import { queries, WorkflowRunShapeItemForWorkflowRunDetails } from '@/lib/api';
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
-import { useWorkflowDetails } from '../../hooks/use-workflow-details';
-import { useQuery } from '@tanstack/react-query';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { queries, WorkflowRunShapeItemForWorkflowRunDetails } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 interface JobMiniMapProps {
   onClick: (stepRunId?: string, defaultOpenTab?: TabOption) => void;
@@ -108,11 +108,11 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
   }
 
   return (
-    <div className="flex flex-1 flex-row p-4 rounded-sm relative gap-1">
+    <div className="relative flex flex-1 flex-row gap-1 rounded-sm p-4">
       {columns.map((column, colIndex) => (
         <div
           key={colIndex}
-          className="flex flex-col justify-start h-full min-w-fit grow"
+          className="flex h-full min-w-fit grow flex-col justify-start"
         >
           {column.map((shapeItem) => {
             const taskRun = tasks.find(
@@ -141,7 +141,7 @@ type UseTaskRunProps = {
   taskRunId: string;
 };
 
-export const useTaskRun = ({ taskRunId }: UseTaskRunProps) => {
+const useTaskRun = ({ taskRunId }: UseTaskRunProps) => {
   const { refetchInterval } = useRefetchInterval();
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
@@ -166,8 +166,8 @@ export const TaskRunMiniMap = ({
   }
 
   return (
-    <div className="flex flex-1 flex-row p-4 rounded-sm relative gap-1">
-      <div className="flex flex-col justify-start w-full h-fit grow">
+    <div className="relative flex flex-1 flex-row gap-1 rounded-sm p-4">
+      <div className="flex h-fit w-full grow flex-col justify-start">
         <StepRunNode
           data={{
             taskRun,

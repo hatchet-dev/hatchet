@@ -1664,95 +1664,363 @@ CREATE TABLE v1_payload (
     )
 ) PARTITION BY RANGE(inserted_at);
 
-CREATE TYPE v1_payload_wal_operation AS ENUM ('CREATE', 'UPDATE', 'DELETE');
+CREATE TABLE v1_payload_cutover_job_offset (
+    key DATE PRIMARY KEY,
+    is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+    lease_process_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    lease_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-CREATE TABLE v1_payload_wal (
-    tenant_id UUID NOT NULL,
-    offload_at TIMESTAMPTZ NOT NULL,
-    payload_id BIGINT NOT NULL,
-    payload_inserted_at TIMESTAMPTZ NOT NULL,
-    payload_type v1_payload_type NOT NULL,
-    operation v1_payload_wal_operation NOT NULL DEFAULT 'CREATE',
+    last_tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
+    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00',
+    last_id BIGINT NOT NULL DEFAULT 0,
+    last_type v1_payload_type NOT NULL DEFAULT 'TASK_INPUT'
+);
 
-    -- todo: we probably should shuffle this index around - it'd make more sense now for the order to be
-    -- (tenant_id, offload_at, payload_id, payload_inserted_at, payload_type)
-    -- so we can filter by the tenant id first, then order by offload_at
-    PRIMARY KEY (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type)
-) PARTITION BY HASH (tenant_id);
-
-CREATE INDEX v1_payload_wal_payload_lookup_idx ON v1_payload_wal (payload_id, payload_inserted_at, payload_type, tenant_id);
-CREATE INDEX CONCURRENTLY v1_payload_wal_poll_idx ON v1_payload_wal (tenant_id, offload_at);
-
-SELECT create_v1_hash_partitions('v1_payload_wal'::TEXT, 4);
-
-CREATE TABLE v1_payload_cutover_queue_item (
-    tenant_id UUID NOT NULL,
-    cut_over_at TIMESTAMPTZ NOT NULL,
-    payload_id BIGINT NOT NULL,
-    payload_inserted_at TIMESTAMPTZ NOT NULL,
-    payload_type v1_payload_type NOT NULL,
-
-    PRIMARY KEY (cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type)
-) PARTITION BY HASH (tenant_id);
-
-SELECT create_v1_hash_partitions('v1_payload_cutover_queue_item'::TEXT, 4);
-
-CREATE OR REPLACE FUNCTION find_matching_tenants_in_payload_wal_partition(
-    partition_number INT
-) RETURNS UUID[]
-LANGUAGE plpgsql AS
+CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(
+    partition_date date
+) RETURNS text
+    LANGUAGE plpgsql AS
 $$
 DECLARE
-    partition_table text;
-    result UUID[];
+    partition_date_str varchar;
+    source_partition_name varchar;
+    target_table_name varchar;
+    trigger_function_name varchar;
+    trigger_name varchar;
+    partition_start date;
+    partition_end date;
 BEGIN
-    partition_table := 'v1_payload_wal_' || partition_number::text;
+    SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
+    SELECT format('v1_payload_%s', partition_date_str) INTO source_partition_name;
+    SELECT format('v1_payload_offload_tmp_%s', partition_date_str) INTO target_table_name;
+    SELECT format('sync_to_%s', target_table_name) INTO trigger_function_name;
+    SELECT format('trigger_sync_to_%s', target_table_name) INTO trigger_name;
+    partition_start := partition_date;
+    partition_end := partition_date + INTERVAL '1 day';
+
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
+        RAISE EXCEPTION 'Source partition % does not exist', source_partition_name;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = target_table_name) THEN
+        RAISE NOTICE 'Target table % already exists, skipping creation', target_table_name;
+        RETURN target_table_name;
+    END IF;
 
     EXECUTE format(
-        'SELECT ARRAY(
-            SELECT t.id
-            FROM "Tenant" t
-            WHERE EXISTS (
-                SELECT 1
-                FROM %I e
-                WHERE e.tenant_id = t.id
-                LIMIT 1
-            )
-        )',
-        partition_table)
-    INTO result;
+        'CREATE TABLE %I (LIKE %I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)',
+        target_table_name,
+        source_partition_name
+    );
 
-    RETURN result;
+    EXECUTE format('
+        ALTER TABLE %I
+        ADD CONSTRAINT %I
+        CHECK (
+            inserted_at IS NOT NULL
+            AND inserted_at >= %L::TIMESTAMPTZ
+            AND inserted_at < %L::TIMESTAMPTZ
+        )
+        ',
+        target_table_name,
+        target_table_name || '_iat_chk_bounds',
+        partition_start,
+        partition_end
+    );
+
+    EXECUTE format('
+        CREATE OR REPLACE FUNCTION %I() RETURNS trigger
+            LANGUAGE plpgsql AS $func$
+        BEGIN
+            IF TG_OP = ''INSERT'' THEN
+                INSERT INTO %I (tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at)
+                VALUES (NEW.tenant_id, NEW.id, NEW.inserted_at, NEW.external_id, NEW.type, NEW.location, NEW.external_location_key, NEW.inline_content, NEW.updated_at)
+                ON CONFLICT (tenant_id, id, inserted_at, type) DO UPDATE
+                SET
+                    location = EXCLUDED.location,
+                    external_location_key = EXCLUDED.external_location_key,
+                    inline_content = EXCLUDED.inline_content,
+                    updated_at = EXCLUDED.updated_at;
+                RETURN NEW;
+            ELSIF TG_OP = ''UPDATE'' THEN
+                UPDATE %I
+                SET
+                    location = NEW.location,
+                    external_location_key = NEW.external_location_key,
+                    inline_content = NEW.inline_content,
+                    updated_at = NEW.updated_at
+                WHERE
+                    tenant_id = NEW.tenant_id
+                    AND id = NEW.id
+                    AND inserted_at = NEW.inserted_at
+                    AND type = NEW.type;
+                RETURN NEW;
+            ELSIF TG_OP = ''DELETE'' THEN
+                DELETE FROM %I
+                WHERE
+                    tenant_id = OLD.tenant_id
+                    AND id = OLD.id
+                    AND inserted_at = OLD.inserted_at
+                    AND type = OLD.type;
+                RETURN OLD;
+            END IF;
+            RETURN NULL;
+        END;
+        $func$;
+    ', trigger_function_name, target_table_name, target_table_name, target_table_name);
+
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name, source_partition_name);
+
+    EXECUTE format('
+        CREATE TRIGGER %I
+        AFTER INSERT OR UPDATE OR DELETE ON %I
+        FOR EACH ROW
+        EXECUTE FUNCTION %I();
+    ', trigger_name, source_partition_name, trigger_function_name);
+
+    RAISE NOTICE 'Created table % as a copy of partition % with sync trigger', target_table_name, source_partition_name;
+
+    RETURN target_table_name;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION find_matching_tenants_in_payload_cutover_queue_item_partition(
-    partition_number INT
-) RETURNS UUID[]
-LANGUAGE plpgsql AS
+CREATE OR REPLACE FUNCTION list_paginated_payloads_for_offload(
+    partition_date date,
+    last_tenant_id uuid,
+    last_inserted_at timestamptz,
+    last_id bigint,
+    last_type v1_payload_type,
+    next_tenant_id uuid,
+    next_inserted_at timestamptz,
+    next_id bigint,
+    next_type v1_payload_type,
+    batch_size integer
+) RETURNS TABLE (
+    tenant_id UUID,
+    id BIGINT,
+    inserted_at TIMESTAMPTZ,
+    external_id UUID,
+    type v1_payload_type,
+    location v1_payload_location,
+    external_location_key TEXT,
+    inline_content JSONB,
+    updated_at TIMESTAMPTZ
+)
+    LANGUAGE plpgsql AS
 $$
 DECLARE
-    partition_table text;
-    result UUID[];
+    partition_date_str varchar;
+    source_partition_name varchar;
+    query text;
 BEGIN
-    partition_table := 'v1_payload_cutover_queue_item_' || partition_number::text;
+    IF partition_date IS NULL THEN
+        RAISE EXCEPTION 'partition_date parameter cannot be NULL';
+    END IF;
+
+    SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
+    SELECT format('v1_payload_%s', partition_date_str) INTO source_partition_name;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
+        RAISE EXCEPTION 'Partition % does not exist', source_partition_name;
+    END IF;
+
+    query := format('
+        WITH candidates AS MATERIALIZED (
+            SELECT tenant_id, id, inserted_at, external_id, type, location,
+                external_location_key, inline_content, updated_at
+            FROM %I
+            WHERE
+                (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
+            ORDER BY tenant_id, inserted_at, id, type
+
+            -- Multiplying by two here to handle an edge case. There is a small chance we miss a row
+            -- when a different row is inserted before it, in between us creating the chunks and selecting
+            -- them. By multiplying by two to create a "candidate" set, we significantly reduce the chance of us missing
+            -- rows in this way, since if a row is inserted before one of our last rows, we will still have
+            -- the next row after it in the candidate set.
+            LIMIT $9 * 2
+        )
+
+        SELECT tenant_id, id, inserted_at, external_id, type, location,
+               external_location_key, inline_content, updated_at
+        FROM candidates
+        WHERE
+            (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
+            AND (tenant_id, inserted_at, id, type) <= ($5, $6, $7, $8)
+        ORDER BY tenant_id, inserted_at, id, type
+    ', source_partition_name);
+
+    RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, next_tenant_id, next_inserted_at, next_id, next_type, batch_size;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION create_payload_offload_range_chunks(
+    partition_date date,
+    window_size int,
+    chunk_size int,
+    last_tenant_id uuid,
+    last_inserted_at timestamptz,
+    last_id bigint,
+    last_type v1_payload_type
+) RETURNS TABLE (
+    lower_tenant_id UUID,
+    lower_id BIGINT,
+    lower_inserted_at TIMESTAMPTZ,
+    lower_type v1_payload_type,
+    upper_tenant_id UUID,
+    upper_id BIGINT,
+    upper_inserted_at TIMESTAMPTZ,
+    upper_type v1_payload_type
+)
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    partition_date_str varchar;
+    source_partition_name varchar;
+    query text;
+BEGIN
+    IF partition_date IS NULL THEN
+        RAISE EXCEPTION 'partition_date parameter cannot be NULL';
+    END IF;
+
+    SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
+    SELECT format('v1_payload_%s', partition_date_str) INTO source_partition_name;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
+        RAISE EXCEPTION 'Partition % does not exist', source_partition_name;
+    END IF;
+
+    query := format('
+        WITH paginated AS (
+            SELECT tenant_id, id, inserted_at, type, ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, id, type) AS rn
+            FROM %I
+            WHERE (tenant_id, inserted_at, id, type) > ($1, $2, $3, $4)
+            ORDER BY tenant_id, inserted_at, id, type
+            LIMIT $5::INTEGER
+        ), lower_bounds AS (
+            SELECT rn::INTEGER / $6::INTEGER AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
+            FROM paginated
+            WHERE MOD(rn, $6::INTEGER) = 1
+        ), upper_bounds AS (
+            SELECT
+                -- Using `CEIL` and subtracting 1 here to make the `batch_ix` zero indexed like the `lower_bounds` one is.
+                -- We need the `CEIL` to handle the case where the number of rows in the window is not evenly divisible by the batch size,
+                -- because without CEIL if e.g. there were 5 rows in the window and a batch size of two and we did integer division, we would end
+                -- up with batches of index 0, 1, and 1 after dividing and subtracting. With float division and `CEIL`, we get 0, 1, and 2 as expected.
+                -- Then we need to subtract one because we compute the batch index by using integer division on the lower bounds, which are all zero indexed.
+                CEIL(rn::FLOAT / $6::FLOAT) - 1 AS batch_ix,
+                tenant_id::UUID,
+                id::BIGINT,
+                inserted_at::TIMESTAMPTZ,
+                type::v1_payload_type
+            FROM paginated
+            -- We want to include either the last row of each batch, or the last row of the entire paginated set, which may not line up with a batch end.
+            WHERE MOD(rn, $6::INTEGER) = 0 OR rn = (SELECT MAX(rn) FROM paginated)
+        )
+
+        SELECT
+            lb.tenant_id AS lower_tenant_id,
+            lb.id AS lower_id,
+            lb.inserted_at AS lower_inserted_at,
+            lb.type AS lower_type,
+            ub.tenant_id AS upper_tenant_id,
+            ub.id AS upper_id,
+            ub.inserted_at AS upper_inserted_at,
+            ub.type AS upper_type
+        FROM lower_bounds lb
+        JOIN upper_bounds ub ON lb.batch_ix = ub.batch_ix
+        ORDER BY lb.tenant_id, lb.inserted_at, lb.id, lb.type
+    ', source_partition_name);
+
+    RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, window_size, chunk_size;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION swap_v1_payload_partition_with_temp(
+    partition_date date
+) RETURNS text
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    partition_date_str varchar;
+    source_partition_name varchar;
+    temp_table_name varchar;
+    old_pk_name varchar;
+    new_pk_name varchar;
+    partition_start date;
+    partition_end date;
+    trigger_function_name varchar;
+    trigger_name varchar;
+BEGIN
+    IF partition_date IS NULL THEN
+        RAISE EXCEPTION 'partition_date parameter cannot be NULL';
+    END IF;
+
+    SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
+    SELECT format('v1_payload_%s', partition_date_str) INTO source_partition_name;
+    SELECT format('v1_payload_offload_tmp_%s', partition_date_str) INTO temp_table_name;
+    SELECT format('v1_payload_offload_tmp_%s_pkey', partition_date_str) INTO old_pk_name;
+    SELECT format('v1_payload_%s_pkey', partition_date_str) INTO new_pk_name;
+    SELECT format('sync_to_%s', temp_table_name) INTO trigger_function_name;
+    SELECT format('trigger_sync_to_%s', temp_table_name) INTO trigger_name;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = temp_table_name) THEN
+        RAISE EXCEPTION 'Temp table % does not exist', temp_table_name;
+    END IF;
+
+    partition_start := partition_date;
+    partition_end := partition_date + INTERVAL '1 day';
 
     EXECUTE format(
-        'SELECT ARRAY(
-            SELECT t.id
-            FROM "Tenant" t
-            WHERE EXISTS (
-                SELECT 1
-                FROM %I e
-                WHERE e.tenant_id = t.id
-                  AND e.cut_over_at <= NOW()
-                LIMIT 1
-            )
+        'ALTER TABLE %I SET (
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor = ''0.05'',
+            autovacuum_vacuum_threshold = ''25'',
+            autovacuum_analyze_threshold = ''25'',
+            autovacuum_vacuum_cost_delay = ''10'',
+            autovacuum_vacuum_cost_limit = ''1000''
         )',
-        partition_table)
-    INTO result;
+        temp_table_name
+    );
+    RAISE NOTICE 'Set autovacuum settings on partition %', temp_table_name;
 
-    RETURN result;
+    LOCK TABLE v1_payload IN ACCESS EXCLUSIVE MODE;
+
+    RAISE NOTICE 'Dropping trigger from partition %', source_partition_name;
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name, source_partition_name);
+
+    RAISE NOTICE 'Dropping trigger function %', trigger_function_name;
+    EXECUTE format('DROP FUNCTION IF EXISTS %I()', trigger_function_name);
+
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
+        RAISE NOTICE 'Dropping old partition %', source_partition_name;
+        EXECUTE format('ALTER TABLE v1_payload DETACH PARTITION %I', source_partition_name);
+        EXECUTE format('DROP TABLE %I CASCADE', source_partition_name);
+    END IF;
+
+    RAISE NOTICE 'Renaming primary key % to %', old_pk_name, new_pk_name;
+    EXECUTE format('ALTER INDEX %I RENAME TO %I', old_pk_name, new_pk_name);
+
+    RAISE NOTICE 'Renaming temp table % to %', temp_table_name, source_partition_name;
+    EXECUTE format('ALTER TABLE %I RENAME TO %I', temp_table_name, source_partition_name);
+
+    RAISE NOTICE 'Attaching new partition % to v1_payload', source_partition_name;
+    EXECUTE format(
+        'ALTER TABLE v1_payload ATTACH PARTITION %I FOR VALUES FROM (%L) TO (%L)',
+        source_partition_name,
+        partition_start,
+        partition_end
+    );
+
+    RAISE NOTICE 'Dropping hack check constraint';
+    EXECUTE format(
+        'ALTER TABLE %I DROP CONSTRAINT %I',
+        source_partition_name,
+        temp_table_name || '_iat_chk_bounds'
+    );
+
+    RAISE NOTICE 'Successfully swapped partition %', source_partition_name;
+    RETURN source_partition_name;
 END;
 $$;
 

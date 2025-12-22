@@ -1,16 +1,17 @@
-import { Separator } from '@/components/v1/ui/separator';
-import { useNavigate } from 'react-router-dom';
-import { ServerStackIcon } from '@heroicons/react/24/outline';
+import { BillingRequired } from '../components/billing-required';
 import CreateWorkerForm from './components/create-worker-form';
-import { useMutation } from '@tanstack/react-query';
-import { CreateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
+import { Separator } from '@/components/v1/ui/separator';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
-import { useState } from 'react';
-import { useApiError } from '@/lib/hooks';
+import { CreateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
-import { BillingRequired } from '../components/billing-required';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { useApiError } from '@/lib/hooks';
+import { appRoutes } from '@/router';
+import { ServerStackIcon } from '@heroicons/react/24/outline';
+import { useMutation } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
 
 export default function CreateWorker() {
   const navigate = useNavigate();
@@ -56,7 +57,10 @@ export default function CreateWorker() {
       return res.data;
     },
     onSuccess: (data) => {
-      navigate(`/tenants/${tenantId}/managed-workers/${data.metadata.id}`);
+      navigate({
+        to: appRoutes.tenantManagedWorkerRoute.to,
+        params: { tenant: tenantId, managedWorker: data.metadata.id },
+      });
     },
     onError: handleApiError,
   });
@@ -74,11 +78,11 @@ export default function CreateWorker() {
   }
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
-          <div className="flex flex-row gap-4 items-center justify-between">
-            <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
+          <div className="flex flex-row items-center justify-between gap-4">
+            <ServerStackIcon className="mt-1 h-6 w-6 text-foreground" />
             <h2 className="text-2xl font-bold leading-tight text-foreground">
               New Service
             </h2>

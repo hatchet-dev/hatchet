@@ -94,6 +94,7 @@ import {
   V1CreateFilterRequest,
   V1CreateWebhookRequest,
   V1DagChildren,
+  V1Event,
   V1EventList,
   V1Filter,
   V1FilterList,
@@ -714,6 +715,23 @@ export class Api<
       path: `/api/v1/stable/tenants/${tenant}/events`,
       method: "GET",
       query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get an event by its id
+   *
+   * @tags Event
+   * @name V1EventGet
+   * @summary Get events
+   * @request GET:/api/v1/stable/tenants/{tenant}/events/{v1-event}
+   * @secure
+   */
+  v1EventGet = (tenant: string, v1Event: string, params: RequestParams = {}) =>
+    this.request<V1Event, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/events/${v1Event}`,
+      method: "GET",
       secure: true,
       format: "json",
       ...params,
@@ -2100,6 +2118,27 @@ export class Api<
   eventDataGet = (event: string, params: RequestParams = {}) =>
     this.request<EventData, APIErrors>({
       path: `/api/v1/events/${event}/data`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the data for an event.
+   *
+   * @tags Event
+   * @name EventDataGetWithTenant
+   * @summary Get event data
+   * @request GET:/api/v1/tenants/{tenant}/events/{event-with-tenant}/data
+   * @secure
+   */
+  eventDataGetWithTenant = (
+    eventWithTenant: string,
+    tenant: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<EventData, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/events/${eventWithTenant}/data`,
       method: "GET",
       secure: true,
       format: "json",

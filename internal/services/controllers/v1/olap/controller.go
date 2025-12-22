@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
@@ -27,6 +28,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type OLAPController interface {
@@ -246,7 +248,11 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 }
 
 func (o *OLAPControllerImpl) Start() (func() error, error) {
-	cleanupHeavyReadMQ, heavyReadMQ := o.mq.Clone()
+	cleanupHeavyReadMQ, heavyReadMQ, err := o.mq.Clone()
+
+	if err != nil {
+		return nil, err
+	}
 	heavyReadMQ.SetQOS(2000)
 
 	o.s.Start()
@@ -282,7 +288,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		}()
 	}
 
-	_, err := o.s.NewJob(
+	_, err = o.s.NewJob(
 		gocron.DurationJob(time.Minute*15),
 		gocron.NewTask(
 			o.runOLAPTablePartition(ctx),
@@ -353,6 +359,22 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not run analyze: %w", err)
+	}
+
+	_, err = o.s.NewJob(
+		gocron.DurationJob(o.repo.Payloads().ExternalCutoverProcessInterval()),
+		gocron.NewTask(
+			o.processPayloadExternalCutovers(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
+
+	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule process olap payload external cutovers: %w", err)
+
+		cancel()
+
+		return nil, wrappedErr
 	}
 
 	cleanupBuffer, err := mqBuffer.Start()
@@ -758,15 +780,10 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		}] = opt.ExternalID
 
 		offloadToExternalOpts = append(offloadToExternalOpts, v1.OffloadToExternalStoreOpts{
-			StorePayloadOpts: &v1.StorePayloadOpts{
-				Id:         dummyId,
-				InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-				ExternalId: opt.ExternalID,
-				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-				Payload:    opt.Output,
-				TenantId:   tenantId,
-			},
-			OffloadAt: time.Now(),
+			TenantId:   v1.TenantID(tenantId),
+			ExternalID: v1.PayloadExternalId(opt.ExternalID.String()),
+			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
+			Payload:    opt.Output,
 		})
 	}
 
@@ -838,4 +855,22 @@ func hashToBucket(workflowRunID string, buckets int) int {
 	idBytes := []byte(workflowRunID)
 	hasher.Write(idBytes)
 	return int(hasher.Sum32()) % buckets
+}
+
+func (oc *OLAPControllerImpl) processPayloadExternalCutovers(ctx context.Context) func() {
+	return func() {
+		ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.processPayloadExternalCutovers")
+		defer span.End()
+
+		oc.l.Debug().Msgf("payload external cutover: processing external cutover payloads")
+
+		p := oc.repo.Payloads()
+		err := oc.repo.OLAP().ProcessOLAPPayloadCutovers(ctx, p.ExternalStoreEnabled(), p.InlineStoreTTL(), p.ExternalCutoverBatchSize(), p.ExternalCutoverNumConcurrentOffloads())
+
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not process external cutover payloads")
+			oc.l.Error().Err(err).Msg("could not process external cutover payloads")
+		}
+	}
 }

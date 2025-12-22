@@ -64,18 +64,18 @@ export function DeleteScheduledRun({
   );
 }
 
-export function DeleteScheduledRunForm({
+function DeleteScheduledRunForm({
   className,
   isFutureRun,
   ...props
 }: DeleteScheduledRunFormProps) {
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Delete scheduled run</DialogTitle>
       </DialogHeader>
       <div>
-        <div className="text-sm text-foreground mb-4">
+        <div className="mb-4 text-sm text-foreground">
           Are you sure you want to delete the scheduled run?
           {isFutureRun ? (
             <>
@@ -89,7 +89,7 @@ export function DeleteScheduledRunForm({
             </>
           )}
         </div>
-        <div className="flex flex-row gap-4 justify-end">
+        <div className="flex flex-row justify-end gap-4">
           <Button
             variant="ghost"
             onClick={() => {

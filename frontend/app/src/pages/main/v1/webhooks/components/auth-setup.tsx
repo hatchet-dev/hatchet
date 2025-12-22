@@ -1,3 +1,4 @@
+import { WebhookFormData } from '../hooks/use-webhooks';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import {
@@ -7,14 +8,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { useForm } from 'react-hook-form';
 import {
   V1WebhookAuthType,
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
   V1WebhookSourceName,
 } from '@/lib/api';
-import { WebhookFormData } from '../hooks/use-webhooks';
+import { useForm } from 'react-hook-form';
 
 type BaseAuthMethodProps = {
   register: ReturnType<typeof useForm<WebhookFormData>>['register'];
@@ -169,13 +169,17 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
   </div>
 );
 
-export const PreconfiguredHMACAuth = ({
+const PreconfiguredHMACAuth = ({
   register,
   secretLabel = 'Signing Secret',
   secretPlaceholder = 'super-secret',
+  helpText,
+  helpLink,
 }: BaseAuthMethodProps & {
   secretLabel?: string;
   secretPlaceholder?: string;
+  helpText?: string;
+  helpLink?: string;
 }) => (
   // Intended to be used for Stripe, Slack, Github, Linear, etc.
   <div className="space-y-4">
@@ -193,6 +197,27 @@ export const PreconfiguredHMACAuth = ({
           className="h-10 pr-10"
         />
       </div>
+      {helpText && (
+        <div className="pl-1 text-xs text-muted-foreground">
+          <p>
+            {helpText}
+            {helpLink && (
+              <>
+                {' '}
+                <a
+                  href={helpLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  Learn more
+                </a>
+                .
+              </>
+            )}
+          </p>
+        </div>
+      )}
     </div>
   </div>
 );
@@ -239,7 +264,13 @@ export const AuthSetup = ({
         />
       );
     case V1WebhookSourceName.SLACK:
-      return <PreconfiguredHMACAuth register={register} />;
+      return (
+        <PreconfiguredHMACAuth
+          register={register}
+          helpText="You can find your signing secret in the Basic Information panel of your Slack app settings."
+          helpLink="https://docs.slack.dev/authentication/verifying-requests-from-slack/#validating-a-request"
+        />
+      );
     default:
       const exhaustiveCheck: never = sourceName;
       throw new Error(`Unhandled source name: ${exhaustiveCheck}`);

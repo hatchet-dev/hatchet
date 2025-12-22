@@ -1,17 +1,12 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { RateLimit, ScheduledWorkflows } from '@/lib/api';
-import RelativeDate from '@/components/v1/molecules/relative-date';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { Link } from 'react-router-dom';
-
-export type RateLimitRow = RateLimit & {
-  metadata: {
-    id: string;
-  };
-};
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { ScheduledWorkflows } from '@/lib/api';
+import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const ScheduledRunColumn = {
   id: 'ID',
@@ -24,16 +19,16 @@ export const ScheduledRunColumn = {
   actions: 'Actions',
 };
 
-export type ScheduledRunColumnKeys = keyof typeof ScheduledRunColumn;
+type ScheduledRunColumnKeys = keyof typeof ScheduledRunColumn;
 
-export const idKey: ScheduledRunColumnKeys = 'id';
-export const runIdKey: ScheduledRunColumnKeys = 'runId';
+const idKey: ScheduledRunColumnKeys = 'id';
+const runIdKey: ScheduledRunColumnKeys = 'runId';
 export const statusKey: ScheduledRunColumnKeys = 'status';
-export const triggerAtKey: ScheduledRunColumnKeys = 'triggerAt';
+const triggerAtKey: ScheduledRunColumnKeys = 'triggerAt';
 export const workflowKey: ScheduledRunColumnKeys = 'workflow';
 export const metadataKey: ScheduledRunColumnKeys = 'metadata';
-export const createdAtKey: ScheduledRunColumnKeys = 'createdAt';
-export const actionsKey: ScheduledRunColumnKeys = 'actions';
+const createdAtKey: ScheduledRunColumnKeys = 'createdAt';
+const actionsKey: ScheduledRunColumnKeys = 'actions';
 
 export const columns = ({
   tenantId,
@@ -56,7 +51,7 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div
-          className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
+          className="min-w-fit cursor-pointer whitespace-nowrap hover:underline"
           onClick={() => onRowClick?.(row.original)}
         >
           {row.original.metadata.id}
@@ -75,8 +70,11 @@ export const columns = ({
       ),
       cell: ({ row }) =>
         row.original.workflowRunId ? (
-          <Link to={`/tenants/${tenantId}/runs/${row.original.workflowRunId}`}>
-            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+          <Link
+            to={appRoutes.tenantRunRoute.to}
+            params={{ tenant: tenantId, run: row.original.workflowRunId }}
+          >
+            <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
               {row.original.workflowRunName}
             </div>
           </Link>
@@ -113,7 +111,7 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div
-          className="flex flex-row items-center gap-4 cursor-pointer"
+          className="flex cursor-pointer flex-row items-center gap-4"
           onClick={() => onRowClick?.(row.original)}
         >
           <RelativeDate date={row.original.triggerAt} />
@@ -132,12 +130,13 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
-          <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-            <a
-              href={`/tenants/${tenantId}/workflows/${row.original.workflowId}`}
+          <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
+            <Link
+              to={appRoutes.tenantWorkflowRoute.to}
+              params={{ tenant: tenantId, workflow: row.original.workflowId }}
             >
               {row.original.workflowName}
-            </a>
+            </Link>
           </div>
         </div>
       ),

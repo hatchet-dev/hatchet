@@ -1,3 +1,10 @@
+import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
+import { useToast } from '@/components/v1/hooks/use-toast';
+import { IDGetter } from '@/components/v1/molecules/data-table/data-table';
+import {
+  DataTableOptionsContent,
+  DataTableOptionsContentProps,
+} from '@/components/v1/molecules/data-table/data-table-options';
 import { Button } from '@/components/v1/ui/button';
 import {
   DialogTitle,
@@ -5,33 +12,19 @@ import {
   DialogContent,
   DialogHeader,
 } from '@/components/v1/ui/dialog';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   queries,
   V1CancelTaskRequest,
   V1ReplayTaskRequest,
-  V1TaskStatus,
 } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
+import { cn } from '@/lib/utils';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useCallback } from 'react';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
-import { cn } from '@/lib/utils';
-import { Repeat1 } from 'lucide-react';
-import { useToast } from '@/components/v1/hooks/use-toast';
 import { capitalize } from 'lodash';
-import {
-  DataTableOptionsContent,
-  DataTableOptionsContentProps,
-} from '@/components/v1/molecules/data-table/data-table-options';
-import { IDGetter } from '@/components/v1/molecules/data-table/data-table';
-
-export const TASK_RUN_TERMINAL_STATUSES = [
-  V1TaskStatus.CANCELLED,
-  V1TaskStatus.FAILED,
-  V1TaskStatus.COMPLETED,
-];
+import { Repeat1 } from 'lucide-react';
+import { useCallback } from 'react';
 
 export type ActionType = 'cancel' | 'replay';
 
@@ -49,7 +42,7 @@ export type BaseTaskRunActionParams =
       externalIds?: never;
     };
 
-export type TaskRunActionsParams =
+type TaskRunActionsParams =
   | {
       actionType: 'cancel';
       filter?: never;
@@ -71,7 +64,7 @@ export type TaskRunActionsParams =
       externalIds?: never;
     };
 
-export const useTaskRunActions = () => {
+const useTaskRunActions = () => {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
@@ -203,7 +196,7 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
       <p className="text-md">
         Confirm to {label.toLowerCase()} the following runs:
       </p>
-      <ul className="list-disc pl-4 ml-4">
+      <ul className="ml-4 list-disc pl-4">
         {displayNames?.slice(0, 10).map((record) => (
           <li className="font-semibold" key={record.metadata.id}>
             {record.displayName}
@@ -265,9 +258,9 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
 
   return (
     <Dialog open={isActionModalOpen} onOpenChange={setIsActionModalOpen}>
-      <DialogContent className="sm:max-w-[700px] py-8 max-h-[90%] overflow-auto z-[70]">
+      <DialogContent className="z-[70] max-h-[90%] overflow-auto py-8 sm:max-w-[700px]">
         <DialogHeader className="gap-2">
-          <div className="flex flex-row justify-between items-center w-full">
+          <div className="flex w-full flex-row items-center justify-between">
             <DialogTitle>{label} runs</DialogTitle>
           </div>
         </DialogHeader>
@@ -285,7 +278,7 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
             />
           </div>
 
-          <div className="flex flex-row items-center gap-3 justify-end pt-4 border-t">
+          <div className="flex flex-row items-center justify-end gap-3 border-t pt-4">
             <Button
               onClick={() => {
                 setIsActionModalOpen(false);
@@ -339,7 +332,7 @@ const BaseActionButton = ({
   return (
     <Button
       size={'sm'}
-      className={cn('text-sm px-2 py-2 gap-2', className)}
+      className={cn('text-sm', className)}
       variant={'outline'}
       disabled={disabled}
       onClick={() => {
@@ -353,8 +346,8 @@ const BaseActionButton = ({
 
         setIsActionModalOpen(true);
       }}
+      leftIcon={icon}
     >
-      {icon}
       {label}
     </Button>
   );
@@ -382,7 +375,7 @@ export const TaskRunActionButton = ({
         <BaseActionButton
           disabled={disabled}
           params={{ ...params, actionType: 'cancel' }}
-          icon={<XCircleIcon className="w-4 h-4" />}
+          icon={<XCircleIcon className="size-4" />}
           label={'Cancel'}
           showModal={showModal}
           className={className}
@@ -393,7 +386,7 @@ export const TaskRunActionButton = ({
         <BaseActionButton
           disabled={disabled}
           params={{ ...params, actionType: 'replay' }}
-          icon={<Repeat1 className="w-4 h-4" />}
+          icon={<Repeat1 className="size-4" />}
           label={'Replay'}
           showModal={showModal}
           className={className}

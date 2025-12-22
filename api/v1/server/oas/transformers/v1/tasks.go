@@ -71,7 +71,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 		StartedAt:             startedAt,
 		FinishedAt:            finishedAt,
 		AdditionalMetadata:    &additionalMetadata,
-		ErrorMessage:          &task.ErrorMessage,
+		ErrorMessage:          &task.ErrorMessage.String,
 		Status:                gen.V1TaskStatus(task.Status),
 		TenantId:              uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
 		WorkflowId:            uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
@@ -189,7 +189,13 @@ func ToWorkflowRunTaskRunEventsMany(
 	toReturn := make([]gen.V1TaskEvent, len(events))
 
 	for i, event := range events {
-		workerId := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
+		var workerId *uuid.UUID
+
+		if event.WorkerID.Valid {
+			workerUUID := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
+			workerId = &workerUUID
+		}
+
 		output := string(event.OutputPayload)
 		taskExternalId := uuid.MustParse(sqlchelpers.UUIDToStr(event.TaskExternalID))
 
@@ -205,7 +211,7 @@ func ToWorkflowRunTaskRunEventsMany(
 			TaskDisplayName: &event.DisplayName,
 			TaskId:          taskExternalId,
 			Timestamp:       event.EventTimestamp.Time,
-			WorkerId:        &workerId,
+			WorkerId:        workerId,
 			RetryCount:      &retryCount,
 			Attempt:         &attempt,
 		}
@@ -317,7 +323,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID
 		Input:                 input,
 		TenantId:              uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.TenantID)),
 		WorkflowId:            uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.WorkflowID)),
-		ErrorMessage:          &taskWithData.ErrorMessage,
+		ErrorMessage:          &taskWithData.ErrorMessage.String,
 		WorkflowRunExternalId: uuid.MustParse(sqlchelpers.UUIDToStr(workflowRunExternalId)),
 		TaskExternalId:        uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.ExternalID)),
 		Type:                  gen.V1WorkflowTypeTASK,
@@ -353,7 +359,7 @@ func ToWorkflowRunDetails(
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
 
 	parentTaskExternalId := uuid.UUID{}
-	if workflowRun.ParentTaskExternalId != nil {
+	if workflowRun.ParentTaskExternalId != nil && workflowRun.ParentTaskExternalId.Valid {
 		parentTaskExternalId = uuid.MustParse(sqlchelpers.UUIDToStr(*workflowRun.ParentTaskExternalId))
 	}
 
@@ -402,7 +408,13 @@ func ToWorkflowRunDetails(
 	parsedTaskEvents := make([]gen.V1TaskEvent, len(taskRunEvents))
 
 	for i, event := range taskRunEvents {
-		workerId := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
+		var workerId *uuid.UUID
+
+		if event.WorkerID.Valid {
+			workerUUID := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
+			workerId = &workerUUID
+		}
+
 		output := string(event.OutputPayload)
 
 		retryCount := int(event.RetryCount)
@@ -416,7 +428,7 @@ func ToWorkflowRunDetails(
 			Output:          &output,
 			TaskDisplayName: &event.DisplayName,
 			Timestamp:       event.EventTimestamp.Time,
-			WorkerId:        &workerId,
+			WorkerId:        workerId,
 			TaskId:          uuid.MustParse(sqlchelpers.UUIDToStr(event.TaskExternalID)),
 			RetryCount:      &retryCount,
 			Attempt:         &attempt,

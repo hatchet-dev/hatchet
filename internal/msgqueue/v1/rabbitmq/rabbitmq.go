@@ -46,6 +46,7 @@ type MessageQueueImpl struct {
 
 	deadLetterBackoff time.Duration
 
+	maxPayloadSize         int
 	compressionEnabled     bool
 	compressionThreshold   int
 	enableMessageRejection bool
@@ -151,7 +152,7 @@ func WithMessageRejection(enabled bool, maxDeathCount int) MessageQueueImplOpt {
 }
 
 // New creates a new MessageQueueImpl.
-func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
+func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	opts := defaultMessageQueueImplOpts()
@@ -173,7 +174,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 
 	if err != nil {
 		cancel()
-		return nil, nil
+		return nil, nil, err
 	}
 
 	subMaxChans := opts.maxSubChannels
@@ -187,7 +188,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	if err != nil {
 		pubChannelPool.Close()
 		cancel()
-		return nil, nil
+		return nil, nil, err
 	}
 
 	t := &MessageQueueImpl{
@@ -204,6 +205,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		compressionThreshold:      opts.compressionThreshold,
 		enableMessageRejection:    opts.enableMessageRejection,
 		maxDeathCount:             opts.maxDeathCount,
+		maxPayloadSize:            16 * 1024 * 1024, // 16 MB
 	}
 
 	// create a new lru cache for tenant ids
@@ -213,9 +215,9 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	poolCh, err := subChannelPool.Acquire(ctx)
 
 	if err != nil {
-		t.l.Error().Msgf("cannot acquire channel: %v", err)
+		t.l.Error().Msgf("[New] cannot acquire channel: %v", err)
 		cancel()
-		return nil, nil
+		return nil, nil, err
 	}
 
 	ch := poolCh.Value()
@@ -223,24 +225,27 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	defer poolCh.Release()
 
 	if _, err := t.initQueue(ch, msgqueue.TASK_PROCESSING_QUEUE); err != nil {
-		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
-		return nil, nil
+		return nil, nil, fmt.Errorf("failed to initialize queue: %w", err)
 	}
 
 	if _, err := t.initQueue(ch, msgqueue.OLAP_QUEUE); err != nil {
-		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
-		return nil, nil
+		return nil, nil, fmt.Errorf("failed to initialize queue: %w", err)
+	}
+
+	if _, err := t.initQueue(ch, msgqueue.DISPATCHER_DEAD_LETTER_QUEUE); err != nil {
+		cancel()
+		return nil, nil, fmt.Errorf("failed to initialize queue: %w", err)
 	}
 
 	return func() error {
 		cancel()
 		return nil
-	}, t
+	}, t, nil
 }
 
-func (t *MessageQueueImpl) Clone() (func() error, msgqueue.MessageQueue) {
+func (t *MessageQueueImpl) Clone() (func() error, msgqueue.MessageQueue, error) {
 	return New(t.configFs...)
 }
 
@@ -257,27 +262,11 @@ func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, ms
 	ctx, span := telemetry.NewSpan(ctx, "MessageQueueImpl.SendMessage")
 	defer span.End()
 
-	totalSize := 0
-	for _, payload := range msg.Payloads {
-		totalSize += len(payload)
-	}
-
-	if totalSize > maxSizeErrorLogThreshold {
-		t.l.Error().
-			Int("message_size_bytes", totalSize).
-			Int("num_messages", len(msg.Payloads)).
-			Str("tenant_id", msg.TenantID).
-			Str("queue_name", q.Name()).
-			Str("message_id", msg.ID).
-			Msg("sending a very large message, this may impact performance")
-	}
-
 	span.SetAttributes(
 		attribute.String("MessageQueueImpl.SendMessage.queue_name", q.Name()),
 		attribute.String("MessageQueueImpl.SendMessage.tenant_id", msg.TenantID),
 		attribute.String("MessageQueueImpl.SendMessage.message_id", msg.ID),
 		attribute.Int("MessageQueueImpl.SendMessage.num_payloads", len(msg.Payloads)),
-		attribute.Int("MessageQueueImpl.SendMessage.total_size_bytes", totalSize),
 	)
 
 	err := t.pubMessage(ctx, q, msg)
@@ -290,6 +279,8 @@ func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, ms
 
 	return nil
 }
+
+const PUB_ACQUIRE_CHANNEL_RETRIES = 3
 
 func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
 	otelCarrier := telemetry.GetCarrier(ctx)
@@ -320,34 +311,69 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		}
 	}
 
-	acquireCtx, acquireSpan := telemetry.NewSpan(ctx, "acquire_publish_channel")
+	var pub *amqp.Channel
+	var acquireErr error
 
-	poolCh, err := t.pubChannels.Acquire(acquireCtx)
+	for range PUB_ACQUIRE_CHANNEL_RETRIES {
+		acquireCtx, acquireSpan := telemetry.NewSpan(ctx, "acquire_publish_channel")
 
-	if err != nil {
-		acquireSpan.RecordError(err)
-		acquireSpan.SetStatus(codes.Error, "error acquiring publish channel")
+		poolCh, err := t.pubChannels.Acquire(acquireCtx)
+
+		if err != nil {
+			acquireSpan.RecordError(err)
+			acquireSpan.SetStatus(codes.Error, "error acquiring publish channel")
+			acquireSpan.End()
+			t.l.Error().Msgf("[pubMessage] cannot acquire channel: %v", err)
+			// we don't retry this error, because it's always a timeout on acquiring the channel/connection, and is
+			// unlikely to succeed on retry
+			return err
+		}
+
 		acquireSpan.End()
-		t.l.Error().Msgf("cannot acquire channel: %v", err)
-		return err
+
+		pub = poolCh.Value()
+
+		// we need to case on the channel being closed here, because the channel exception may be async (after a previous pub has been
+		// sent), so we might have acquired a closed channel from the pool
+		if pub.IsClosed() {
+			poolCh.Destroy()
+			acquireErr = fmt.Errorf("channel is closed")
+			pub = nil
+			continue
+		}
+
+		defer poolCh.Release()
+		break
 	}
 
-	acquireSpan.End()
-
-	pub := poolCh.Value()
-
-	if pub.IsClosed() {
-		poolCh.Destroy()
-		return fmt.Errorf("channel is closed")
+	if pub == nil {
+		return acquireErr
 	}
-
-	defer poolCh.Release()
 
 	body, err := json.Marshal(msg)
 
 	if err != nil {
 		t.l.Error().Msgf("error marshaling msg queue: %v", err)
 		return err
+	}
+
+	bodySize := len(body)
+
+	if bodySize > t.maxPayloadSize {
+		err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", bodySize, t.maxPayloadSize)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "message size exceeds maximum allowed size")
+		return err
+	}
+
+	if bodySize > maxSizeErrorLogThreshold {
+		t.l.Error().
+			Int("message_size_bytes", bodySize).
+			Int("num_messages", len(msg.Payloads)).
+			Str("tenant_id", msg.TenantID).
+			Str("queue_name", q.Name()).
+			Str("message_id", msg.ID).
+			Msg("sending a very large message, this may impact performance")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -446,7 +472,8 @@ func (t *MessageQueueImpl) Subscribe(
 		return nil, err
 	}
 
-	if q.DLQ() != nil {
+	// only automatic DLQs get subscribed to, static DLQs require a separate subscription
+	if q.DLQ() != nil && q.DLQ().IsAutoDLQ() {
 		cleanupSubDLQ, err := t.subscribe(ctx, t.identity, q.DLQ(), preAck, postAck)
 
 		if err != nil {
@@ -487,7 +514,7 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 	poolCh, err := t.pubChannels.Acquire(ctx)
 
 	if err != nil {
-		t.l.Error().Msgf("cannot acquire channel: %v", err)
+		t.l.Error().Msgf("[RegisterTenant] cannot acquire channel: %v", err)
 		return err
 	}
 
@@ -544,7 +571,7 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 		name = fmt.Sprintf("%s-%s", q.Name(), suffix)
 	}
 
-	if !q.IsDLQ() && q.DLQ() != nil {
+	if !q.IsDLQ() && q.DLQ() != nil && q.DLQ().IsAutoDLQ() {
 		dlx1 := getTmpDLQName(q.DLQ().Name())
 		dlx2 := getProcDLQName(q.DLQ().Name())
 
@@ -574,6 +601,16 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 		}
 	}
 
+	if !q.IsDLQ() && q.DLQ() != nil && !q.DLQ().IsAutoDLQ() {
+		args["x-dead-letter-exchange"] = ""
+		args["x-dead-letter-routing-key"] = q.DLQ().Name()
+	}
+
+	if q.IsExpirable() {
+		args["x-message-ttl"] = int32(20000) // 20 seconds
+		args["x-expires"] = int32(600000)    // 10 minutes
+	}
+
 	if _, err := ch.QueueDeclare(name, q.Durable(), q.AutoDeleted(), q.Exclusive(), false, args); err != nil {
 		t.l.Error().Msgf("cannot declare queue: %q, %v", name, err)
 		return "", err
@@ -597,7 +634,7 @@ func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
 	poolCh, err := t.subChannels.Acquire(context.Background())
 
 	if err != nil {
-		t.l.Error().Msgf("cannot acquire channel for deleting queue: %v", err)
+		t.l.Error().Msgf("[deleteQueue] cannot acquire channel for deleting queue: %v", err)
 		return err
 	}
 
@@ -677,7 +714,7 @@ func (t *MessageQueueImpl) subscribe(
 		poolCh.Release()
 	}
 
-	if q.IsDLQ() {
+	if q.IsDLQ() && q.IsAutoDLQ() {
 		queueName = getProcDLQName(q.Name())
 	}
 
