@@ -2,6 +2,7 @@
 SELECT COUNT(*) FROM pg_available_extensions WHERE name = 'pg_stat_statements';
 
 -- name: CheckBloat :many
+-- Note: Requires track_counts = on (enabled by default in PostgreSQL)
 SELECT
     schemaname,
     relname AS tablename,
@@ -45,6 +46,7 @@ ORDER BY
     query_start;
 
 -- name: CheckQueryCaches :many
+-- Note: Requires track_counts = on (enabled by default in PostgreSQL)
 SELECT
     schemaname,
     relname AS tablename,

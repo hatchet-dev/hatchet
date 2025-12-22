@@ -132,6 +132,21 @@ type CronOperationsConfigFile struct {
 
 	// OLAPAnalyzeCronInterval is the interval for the olap analyze cron operation
 	OLAPAnalyzeCronInterval time.Duration `mapstructure:"olapAnalyzeCronInterval" json:"olapAnalyzeCronInterval,omitempty" default:"3h"`
+
+	// DBHealthMetricsInterval is the interval for collecting database health metrics
+	DBHealthMetricsInterval time.Duration `mapstructure:"dbHealthMetricsInterval" json:"dbHealthMetricsInterval,omitempty" default:"60s"`
+
+	// OLAPMetricsInterval is the interval for collecting OLAP metrics
+	OLAPMetricsInterval time.Duration `mapstructure:"olapMetricsInterval" json:"olapMetricsInterval,omitempty" default:"5m"`
+
+	// WorkerMetricsInterval is the interval for collecting worker metrics
+	WorkerMetricsInterval time.Duration `mapstructure:"workerMetricsInterval" json:"workerMetricsInterval,omitempty" default:"60s"`
+
+	// YesterdayRunCountHour is the hour (0-23) at which to collect yesterday's run count metrics
+	YesterdayRunCountHour uint `mapstructure:"yesterdayRunCountHour" json:"yesterdayRunCountHour,omitempty" default:"0"`
+
+	// YesterdayRunCountMinute is the minute (0-59) at which to collect yesterday's run count metrics
+	YesterdayRunCountMinute uint `mapstructure:"yesterdayRunCountMinute" json:"yesterdayRunCountMinute,omitempty" default:"5"`
 }
 
 // OLAPStatusUpdateConfigFile is the configuration for OLAP status updates

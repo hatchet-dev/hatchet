@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -21,21 +22,31 @@ type MetricsCollector interface {
 }
 
 type MetricsCollectorImpl struct {
-	l        *zerolog.Logger
-	repo     v1.Repository
-	recorder *telemetry.MetricsRecorder
-	s        gocron.Scheduler
-	a        *hatcheterrors.Wrapped
-	p        *partition.Partition
+	l                       *zerolog.Logger
+	repo                    v1.Repository
+	recorder                *telemetry.MetricsRecorder
+	s                       gocron.Scheduler
+	a                       *hatcheterrors.Wrapped
+	p                       *partition.Partition
+	dbHealthInterval        time.Duration
+	olapInterval            time.Duration
+	workerInterval          time.Duration
+	yesterdayRunCountHour   uint
+	yesterdayRunCountMinute uint
 }
 
 type MetricsCollectorOpt func(*MetricsCollectorOpts)
 
 type MetricsCollectorOpts struct {
-	l       *zerolog.Logger
-	repo    v1.Repository
-	alerter hatcheterrors.Alerter
-	p       *partition.Partition
+	l                       *zerolog.Logger
+	repo                    v1.Repository
+	alerter                 hatcheterrors.Alerter
+	p                       *partition.Partition
+	dbHealthInterval        time.Duration
+	olapInterval            time.Duration
+	workerInterval          time.Duration
+	yesterdayRunCountHour   uint
+	yesterdayRunCountMinute uint
 }
 
 func defaultMetricsCollectorOpts() *MetricsCollectorOpts {
@@ -43,8 +54,13 @@ func defaultMetricsCollectorOpts() *MetricsCollectorOpts {
 	alerter := hatcheterrors.NoOpAlerter{}
 
 	return &MetricsCollectorOpts{
-		l:       &l,
-		alerter: alerter,
+		l:                       &l,
+		alerter:                 alerter,
+		dbHealthInterval:        60 * time.Second,
+		olapInterval:            5 * time.Minute,
+		workerInterval:          60 * time.Second,
+		yesterdayRunCountHour:   0,
+		yesterdayRunCountMinute: 5,
 	}
 }
 
@@ -69,6 +85,16 @@ func WithAlerter(a hatcheterrors.Alerter) MetricsCollectorOpt {
 func WithPartition(p *partition.Partition) MetricsCollectorOpt {
 	return func(opts *MetricsCollectorOpts) {
 		opts.p = p
+	}
+}
+
+func WithIntervals(config server.CronOperationsConfigFile) MetricsCollectorOpt {
+	return func(opts *MetricsCollectorOpts) {
+		opts.dbHealthInterval = config.DBHealthMetricsInterval
+		opts.olapInterval = config.OLAPMetricsInterval
+		opts.workerInterval = config.WorkerMetricsInterval
+		opts.yesterdayRunCountHour = config.YesterdayRunCountHour
+		opts.yesterdayRunCountMinute = config.YesterdayRunCountMinute
 	}
 }
 
@@ -104,12 +130,17 @@ func New(fs ...MetricsCollectorOpt) (*MetricsCollectorImpl, error) {
 	a.WithData(map[string]interface{}{"service": "metrics-collector"})
 
 	return &MetricsCollectorImpl{
-		l:        opts.l,
-		repo:     opts.repo,
-		recorder: recorder,
-		s:        s,
-		a:        a,
-		p:        opts.p,
+		l:                       opts.l,
+		repo:                    opts.repo,
+		recorder:                recorder,
+		s:                       s,
+		a:                       a,
+		p:                       opts.p,
+		dbHealthInterval:        opts.dbHealthInterval,
+		olapInterval:            opts.olapInterval,
+		workerInterval:          opts.workerInterval,
+		yesterdayRunCountHour:   opts.yesterdayRunCountHour,
+		yesterdayRunCountMinute: opts.yesterdayRunCountMinute,
 	}, nil
 }
 
@@ -118,45 +149,49 @@ func (mc *MetricsCollectorImpl) Start() (func() error, error) {
 
 	ctx := context.Background()
 
-	// Collect database health metrics every 60 seconds
+	// Collect database health metrics
 	_, err := mc.s.NewJob(
-		gocron.DurationJob(60*time.Second),
+		gocron.DurationJob(mc.dbHealthInterval),
 		gocron.NewTask(mc.collectDatabaseHealthMetrics(ctx)),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not schedule database health metrics collection: %w", err)
 	}
+	mc.l.Info().Str("interval", mc.dbHealthInterval.String()).Msg("scheduled database health metrics collection")
 
-	// Collect OLAP metrics every 5 minutes
+	// Collect OLAP metrics
 	_, err = mc.s.NewJob(
-		gocron.DurationJob(5*time.Minute),
+		gocron.DurationJob(mc.olapInterval),
 		gocron.NewTask(mc.collectOLAPMetrics(ctx)),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not schedule OLAP metrics collection: %w", err)
 	}
+	mc.l.Info().Str("interval", mc.olapInterval.String()).Msg("scheduled OLAP metrics collection")
 
-	// Collect worker metrics every 60 seconds
+	// Collect worker metrics
 	_, err = mc.s.NewJob(
-		gocron.DurationJob(60*time.Second),
+		gocron.DurationJob(mc.workerInterval),
 		gocron.NewTask(mc.collectWorkerMetrics(ctx)),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not schedule worker metrics collection: %w", err)
 	}
+	mc.l.Info().Str("interval", mc.workerInterval.String()).Msg("scheduled worker metrics collection")
 
-	// Collect yesterday's run count once per day at midnight
+	// Collect yesterday's run count once per day
 	_, err = mc.s.NewJob(
-		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 5, 0))),
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(mc.yesterdayRunCountHour, mc.yesterdayRunCountMinute, 0))),
 		gocron.NewTask(mc.collectYesterdayRunCounts(ctx)),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not schedule yesterday run counts collection: %w", err)
 	}
+	mc.l.Info().Uint("hour", mc.yesterdayRunCountHour).Uint("minute", mc.yesterdayRunCountMinute).Msg("scheduled yesterday run counts collection")
 
 	cleanup := func() error {
 		if err := mc.s.Shutdown(); err != nil {
@@ -170,7 +205,7 @@ func (mc *MetricsCollectorImpl) Start() (func() error, error) {
 
 func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context) func() {
 	return func() {
-		ctx, span := telemetry.NewSpan(ctx, "MetricsCollector.collectDatabaseHealthMetrics")
+		ctx, span := telemetry.NewSpan(ctx, "collect database_health_metrics")
 		defer span.End()
 
 		// Only run on the engine instance that has control over the internal tenant
@@ -186,6 +221,14 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 		}
 
 		mc.l.Debug().Msg("collecting database health metrics")
+
+		// Check if track_counts is enabled
+		trackCountsEnabled, err := mc.repo.PGHealth().TrackCountsEnabled(ctx)
+		if err != nil {
+			mc.l.Error().Err(err).Msg("failed to check track_counts setting")
+		} else if !trackCountsEnabled {
+			mc.l.Error().Msg("track_counts is disabled - database health metrics require track_counts = on. Run 'ALTER SYSTEM SET track_counts = on; SELECT pg_reload_conf();' to enable it.")
+		}
 
 		// Check bloat
 		bloatStatus, bloatCount, err := mc.repo.PGHealth().CheckBloat(ctx)
@@ -231,7 +274,7 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 		if err != nil {
 			mc.l.Error().Err(err).Msg("failed to check query cache")
 		} else if len(tables) == 0 {
-			mc.l.Info().Msg("no query cache data available (pg_stat_statements may not be enabled)")
+			mc.l.Info().Msg("no query cache data available (pg_stat_statements may not be enabled or track_counts may be disabled)")
 		} else {
 			mc.l.Info().Int("table_count", len(tables)).Msg("recording query cache hit ratios")
 			for _, table := range tables {
@@ -314,7 +357,7 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 
 func (mc *MetricsCollectorImpl) collectOLAPMetrics(ctx context.Context) func() {
 	return func() {
-		ctx, span := telemetry.NewSpan(ctx, "MetricsCollector.collectOLAPMetrics")
+		ctx, span := telemetry.NewSpan(ctx, "collect olap_metrics")
 		defer span.End()
 
 		// Only run on the engine instance that has control over the internal tenant
@@ -355,7 +398,7 @@ func (mc *MetricsCollectorImpl) collectOLAPMetrics(ctx context.Context) func() {
 
 func (mc *MetricsCollectorImpl) collectYesterdayRunCounts(ctx context.Context) func() {
 	return func() {
-		ctx, span := telemetry.NewSpan(ctx, "MetricsCollector.collectYesterdayRunCounts")
+		ctx, span := telemetry.NewSpan(ctx, "collect yesterday_run_counts")
 		defer span.End()
 
 		// Only run on the engine instance that has control over the internal tenant
@@ -390,7 +433,7 @@ func (mc *MetricsCollectorImpl) collectYesterdayRunCounts(ctx context.Context) f
 
 func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func() {
 	return func() {
-		ctx, span := telemetry.NewSpan(ctx, "MetricsCollector.collectWorkerMetrics")
+		ctx, span := telemetry.NewSpan(ctx, "collect worker_metrics")
 		defer span.End()
 
 		// Only run on the engine instance that has control over the internal tenant

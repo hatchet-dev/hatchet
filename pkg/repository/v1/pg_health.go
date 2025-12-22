@@ -8,6 +8,20 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
+// PGHealthRepository provides database health monitoring functionality.
+//
+// Important: Many health checks rely on PostgreSQL's statistics collector,
+// which requires track_counts = on (enabled by default). If track_counts
+// is disabled, queries against pg_stat_user_tables and pg_statio_user_tables
+// will return empty results, and health checks will report no data available.
+//
+// To verify track_counts is enabled, run:
+//   SHOW track_counts;
+//
+// To enable track_counts (requires superuser or appropriate permissions):
+//   ALTER SYSTEM SET track_counts = on;
+//   SELECT pg_reload_conf();
+
 type PGHealthError string
 
 const (
@@ -18,6 +32,7 @@ const (
 
 type PGHealthRepository interface {
 	PGStatStatementsEnabled(ctx context.Context) (bool, error)
+	TrackCountsEnabled(ctx context.Context) (bool, error)
 	CheckBloat(ctx context.Context) (PGHealthError, int, error)
 	GetBloatDetails(ctx context.Context) ([]*sqlcv1.CheckBloatRow, error)
 	CheckLongRunningQueries(ctx context.Context) (PGHealthError, int, error)
@@ -31,14 +46,19 @@ type PGHealthRepository interface {
 type pgHealthRepository struct {
 	*sharedRepository
 	pgStatStatementsCache *cache.Cache
+	trackCountsCache      *cache.Cache
 }
 
-const pgStatStatementsCacheKey = "pg_stat_statements_enabled"
+const (
+	pgStatStatementsCacheKey = "pg_stat_statements_enabled"
+	trackCountsCacheKey      = "track_counts_enabled"
+)
 
 func newPGHealthRepository(shared *sharedRepository) *pgHealthRepository {
 	return &pgHealthRepository{
 		sharedRepository:      shared,
 		pgStatStatementsCache: cache.New(10 * time.Minute),
+		trackCountsCache:      cache.New(10 * time.Minute),
 	}
 }
 
@@ -49,16 +69,38 @@ func (h *pgHealthRepository) PGStatStatementsEnabled(ctx context.Context) (bool,
 		}
 	}
 
-	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	count, err := h.queries.CheckPGStatStatementsEnabled(cxt, h.pool)
+	count, err := h.queries.CheckPGStatStatementsEnabled(ctx, h.pool)
 	if err != nil {
 		return false, err
 	}
 
 	enabled := count > 0
 	h.pgStatStatementsCache.Set(pgStatStatementsCacheKey, enabled)
+
+	return enabled, nil
+}
+
+func (h *pgHealthRepository) TrackCountsEnabled(ctx context.Context) (bool, error) {
+	if cached, ok := h.trackCountsCache.Get(trackCountsCacheKey); ok {
+		if enabled, ok := cached.(bool); ok {
+			return enabled, nil
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	var setting string
+	err := h.pool.QueryRow(ctx, "SHOW track_counts").Scan(&setting)
+	if err != nil {
+		return false, err
+	}
+
+	enabled := setting == "on"
+	h.trackCountsCache.Set(trackCountsCacheKey, enabled)
 
 	return enabled, nil
 }
@@ -75,10 +117,10 @@ func (h *pgHealthRepository) CheckBloat(ctx context.Context) (PGHealthError, int
 		return PGHealthOK, 0, nil
 	}
 
-	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	rows, err := h.queries.CheckBloat(cxt, h.pool)
+	rows, err := h.queries.CheckBloat(ctx, h.pool)
 	if err != nil {
 		return PGHealthOK, 0, err
 	}
@@ -101,10 +143,10 @@ func (h *pgHealthRepository) GetBloatDetails(ctx context.Context) ([]*sqlcv1.Che
 		return nil, nil
 	}
 
-	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return h.queries.CheckBloat(cxt, h.pool)
+	return h.queries.CheckBloat(ctx, h.pool)
 }
 
 func (h *pgHealthRepository) CheckLongRunningQueries(ctx context.Context) (PGHealthError, int, error) {
@@ -119,10 +161,10 @@ func (h *pgHealthRepository) CheckLongRunningQueries(ctx context.Context) (PGHea
 		return PGHealthOK, 0, nil
 	}
 
-	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	rows, err := h.queries.CheckLongRunningQueries(cxt, h.pool)
+	rows, err := h.queries.CheckLongRunningQueries(ctx, h.pool)
 	if err != nil {
 		return PGHealthOK, 0, err
 	}
@@ -141,10 +183,10 @@ func (h *pgHealthRepository) CheckQueryCache(ctx context.Context) (PGHealthError
 		return PGHealthOK, 0, nil
 	}
 
-	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	tables, err := h.queries.CheckQueryCaches(cxt, h.pool)
+	tables, err := h.queries.CheckQueryCaches(ctx, h.pool)
 	if err != nil {
 		return PGHealthOK, 0, err
 	}
@@ -177,10 +219,10 @@ func (h *pgHealthRepository) CheckQueryCaches(ctx context.Context) ([]*sqlcv1.Ch
 		return nil, nil
 	}
 
-	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return h.queries.CheckQueryCaches(cxt, h.pool)
+	return h.queries.CheckQueryCaches(ctx, h.pool)
 }
 
 func (h *pgHealthRepository) CheckLongRunningVacuum(ctx context.Context) (PGHealthError, int, error) {
@@ -195,10 +237,10 @@ func (h *pgHealthRepository) CheckLongRunningVacuum(ctx context.Context) (PGHeal
 		return PGHealthOK, 0, nil
 	}
 
-	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	rows, err := h.queries.LongRunningVacuum(cxt, h.pool)
+	rows, err := h.queries.LongRunningVacuum(ctx, h.pool)
 	if err != nil {
 		return PGHealthOK, 0, err
 	}
@@ -217,15 +259,15 @@ func (h *pgHealthRepository) CheckLongRunningVacuum(ctx context.Context) (PGHeal
 }
 
 func (h *pgHealthRepository) CheckLastAutovacuumForPartitionedTables(ctx context.Context) ([]*sqlcv1.CheckLastAutovacuumForPartitionedTablesRow, error) {
-	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return h.queries.CheckLastAutovacuumForPartitionedTables(cxt, h.pool)
+	return h.queries.CheckLastAutovacuumForPartitionedTables(ctx, h.pool)
 }
 
 func (h *pgHealthRepository) CheckLastAutovacuumForPartitionedTablesCoreDB(ctx context.Context) ([]*sqlcv1.CheckLastAutovacuumForPartitionedTablesCoreDBRow, error) {
-	cxt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return h.queries.CheckLastAutovacuumForPartitionedTablesCoreDB(cxt, h.pool)
+	return h.queries.CheckLastAutovacuumForPartitionedTablesCoreDB(ctx, h.pool)
 }

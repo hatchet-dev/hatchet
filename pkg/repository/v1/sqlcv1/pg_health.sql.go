@@ -50,6 +50,7 @@ type CheckBloatRow struct {
 	LastAnalyze    pgtype.Timestamptz `json:"last_analyze"`
 }
 
+// Note: Requires track_counts = on (enabled by default in PostgreSQL)
 func (q *Queries) CheckBloat(ctx context.Context, db DBTX) ([]*CheckBloatRow, error) {
 	rows, err := db.Query(ctx, checkBloat)
 	if err != nil {
@@ -181,6 +182,7 @@ type CheckQueryCachesRow struct {
 	TotalSize        string      `json:"total_size"`
 }
 
+// Note: Requires track_counts = on (enabled by default in PostgreSQL)
 func (q *Queries) CheckQueryCaches(ctx context.Context, db DBTX) ([]*CheckQueryCachesRow, error) {
 	rows, err := db.Query(ctx, checkQueryCaches)
 	if err != nil {

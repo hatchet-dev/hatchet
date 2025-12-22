@@ -910,6 +910,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				metricscontroller.WithRepository(sc.V1),
 				metricscontroller.WithAlerter(sc.Alerter),
 				metricscontroller.WithPartition(p),
+				metricscontroller.WithIntervals(sc.CronOperations),
 			)
 			if err != nil {
 				return nil, fmt.Errorf("could not create metrics collector: %w", err)
