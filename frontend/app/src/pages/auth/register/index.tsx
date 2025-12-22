@@ -69,9 +69,11 @@ export default function Register() {
 
 function BasicRegister() {
   const navigate = useNavigate();
+  const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
+    setErrors: setErrors,
   });
 
   const createMutation = useMutation({
@@ -88,7 +90,12 @@ function BasicRegister() {
   return (
     <UserRegisterForm
       isLoading={createMutation.isPending}
-      onSubmit={createMutation.mutate}
+      onSubmit={(data) => {
+        setErrors([]);
+        setFieldErrors({});
+        createMutation.mutate(data);
+      }}
+      errors={errors}
       fieldErrors={fieldErrors}
     />
   );

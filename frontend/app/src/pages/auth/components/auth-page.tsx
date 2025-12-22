@@ -44,8 +44,8 @@ export function AuthPage({
   const prompt = promptFn({ basicEnabled, googleEnabled, githubEnabled });
 
   const sections = [
-    basicEnabled && basicSection,
     providers.length > 0 && <SocialAuthButtons providers={providers} />,
+    basicEnabled && basicSection,
   ].filter(Boolean);
 
   return (
@@ -56,6 +56,7 @@ export function AuthPage({
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         <p className="text-sm text-gray-700 dark:text-gray-300">{prompt}</p>
+        {footer}
       </div>
 
       {sections.map((section, index) => (
@@ -65,7 +66,6 @@ export function AuthPage({
         </React.Fragment>
       ))}
 
-      {footer}
       <div className="pt-4 space-y-5">
         <AuthLegalText />
       </div>

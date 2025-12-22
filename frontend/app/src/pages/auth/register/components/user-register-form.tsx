@@ -2,6 +2,7 @@ import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
+import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -19,6 +20,7 @@ interface UserRegisterFormProps {
   className?: string;
   onSubmit: (opts: SubmitType) => void;
   isLoading: boolean;
+  errors?: string[];
   fieldErrors?: Record<string, string>;
 }
 
@@ -103,6 +105,11 @@ export function UserRegisterForm({
               <div className="text-sm text-red-500">{passwordError}</div>
             )}
           </div>
+          {props.errors && props.errors.length > 0 && (
+            <Alert variant="destructive">
+              <AlertDescription>{props.errors.join(' ')}</AlertDescription>
+            </Alert>
+          )}
           <Button disabled={props.isLoading || !isValid}>
             {props.isLoading && <Spinner />}
             Create Account

@@ -46,8 +46,9 @@ export default function Login() {
 
 function BasicLogin() {
   const navigate = useNavigate();
+  const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { handleApiError } = useApiError({ setFieldErrors });
+  const { handleApiError } = useApiError({ setFieldErrors, setErrors });
 
   const loginMutation = useMutation({
     mutationKey: ['user:update:login'],
@@ -63,7 +64,12 @@ function BasicLogin() {
   return (
     <UserLoginForm
       isLoading={loginMutation.isPending}
-      onSubmit={loginMutation.mutate}
+      onSubmit={(data) => {
+        setErrors([]);
+        setFieldErrors({});
+        loginMutation.mutate(data);
+      }}
+      errors={errors}
       fieldErrors={fieldErrors}
     />
   );
