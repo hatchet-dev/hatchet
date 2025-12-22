@@ -1,5 +1,3 @@
-import hatchet from '@/assets/hatchet_logo.png';
-import hatchetDark from '@/assets/hatchet_logo_dark.png';
 import { useSidebar } from '@/components/sidebar-provider';
 import { useTheme } from '@/components/theme-provider';
 import {
@@ -20,6 +18,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
+import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -192,7 +191,6 @@ interface MainNavProps {
 
 export default function MainNav({ user }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
-  const { theme } = useTheme();
   const breadcrumbs = useBreadcrumbs();
 
   return (
@@ -208,11 +206,7 @@ export default function MainNav({ user }: MainNavProps) {
             >
               <Menu className="size-4" />
             </Button>
-            <img
-              src={theme == 'dark' ? hatchet : hatchetDark}
-              alt="Hatchet"
-              className="h-9 rounded"
-            />
+            <HatchetLogo className="h-6 w-auto text-[rgb(0, 26, 56)] dark:text-[rgb(184,217,255)]" />
           </div>
           {breadcrumbs.length > 0 && (
             <Breadcrumb className="hidden md:block">
