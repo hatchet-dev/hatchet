@@ -486,7 +486,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	defer span.End()
 
 	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
-	windowSize, err := p.OptimizePayloadWindowSize(
+	windowSizePtr, err := p.OptimizePayloadWindowSize(
 		ctx,
 		partitionDate,
 		p.externalCutoverBatchSize*p.externalCutoverNumConcurrentOffloads,
@@ -497,10 +497,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, fmt.Errorf("failed to optimize payload window size: %w", err)
 	}
 
+	windowSize := *windowSizePtr
+
 	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, p.pool, sqlcv1.CreatePayloadRangeChunksParams{
 		Chunksize:      p.externalCutoverBatchSize,
 		Partitiondate:  pgtype.Date(partitionDate),
-		Windowsize:     *windowSize,
+		Windowsize:     windowSize,
 		Lasttenantid:   pagination.LastTenantID,
 		Lastinsertedat: pagination.LastInsertedAt,
 		Lastid:         pagination.LastID,
@@ -653,7 +655,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
-	if numPayloads < int(*windowSize) {
+	if numPayloads < int(windowSize) {
 		return &CutoverBatchOutcome{
 			ShouldContinue: false,
 			NextPagination: extendedLease.Pagination,
