@@ -1,4 +1,10 @@
 import { Button } from '@/components/v1/ui/button';
+import { Spinner } from '@/components/v1/ui/loading';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { cloudApi } from '@/lib/api/api';
+import { TenantPaymentMethod } from '@/lib/api/generated/cloud/data-contracts';
+import { useApiError } from '@/lib/hooks';
+import { useState } from 'react';
 import {
   FaCcAmex,
   FaCcDiscover,
@@ -8,16 +14,8 @@ import {
   FaCcDinersClub,
   FaCcJcb,
 } from 'react-icons/fa';
-
-import { LuBanknote } from 'react-icons/lu';
-
 import { IconType } from 'react-icons/lib';
-import { useApiError } from '@/lib/hooks';
-import { useState } from 'react';
-import { Spinner } from '@/components/v1/ui/loading';
-import { TenantPaymentMethod } from '@/lib/api/generated/cloud/data-contracts';
-import { cloudApi } from '@/lib/api/api';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { LuBanknote } from 'react-icons/lu';
 
 const ccIcons: Record<string, IconType> = {
   visa: FaCcVisa,
@@ -59,8 +57,8 @@ export function PaymentMethods({
 
   return (
     <>
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
           <h3 className="text-xl font-semibold leading-tight text-foreground">
             Payment Methods
           </h3>
@@ -73,9 +71,9 @@ export function PaymentMethods({
                   ? ccIcons[method.brand]
                   : ccIcons.generic;
               return (
-                <div key={i} className="flex flex-row items-center gap-4 mb-4">
-                  <div className="flex flex-col mt-4 text-sm">
-                    <div className="flex flex-row gap-2 items-center">
+                <div key={i} className="mb-4 flex flex-row items-center gap-4">
+                  <div className="mt-4 flex flex-col text-sm">
+                    <div className="flex flex-row items-center gap-2">
                       <Icon size={24} />
                       {method.brand.toUpperCase()}
                       {method.last4 && ` *** *** ${method.last4} `}

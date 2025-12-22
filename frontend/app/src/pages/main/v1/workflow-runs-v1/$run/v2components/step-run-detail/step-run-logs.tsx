@@ -1,12 +1,12 @@
+import LoggingComponent from '@/components/v1/cloud/logging/logs';
 import { V1TaskSummary, V1LogLineList, V1TaskStatus } from '@/lib/api';
-import { V1LogLineListQuery } from '@/lib/api/queries';
 import api from '@/lib/api/api';
+import { V1LogLineListQuery } from '@/lib/api/queries';
 import {
   useInfiniteQuery,
   InfiniteData,
   useQueryClient,
 } from '@tanstack/react-query';
-import LoggingComponent from '@/components/v1/cloud/logging/logs';
 import { useMemo, useCallback, useRef, useEffect } from 'react';
 
 const LOGS_PER_PAGE = 100;

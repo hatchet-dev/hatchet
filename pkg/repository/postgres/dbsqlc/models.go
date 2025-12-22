@@ -1379,49 +1379,6 @@ func (ns NullV1PayloadType) Value() (driver.Value, error) {
 	return string(ns.V1PayloadType), nil
 }
 
-type V1PayloadWalOperation string
-
-const (
-	V1PayloadWalOperationCREATE V1PayloadWalOperation = "CREATE"
-	V1PayloadWalOperationUPDATE V1PayloadWalOperation = "UPDATE"
-	V1PayloadWalOperationDELETE V1PayloadWalOperation = "DELETE"
-)
-
-func (e *V1PayloadWalOperation) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1PayloadWalOperation(s)
-	case string:
-		*e = V1PayloadWalOperation(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1PayloadWalOperation: %T", src)
-	}
-	return nil
-}
-
-type NullV1PayloadWalOperation struct {
-	V1PayloadWalOperation V1PayloadWalOperation `json:"v1_payload_wal_operation"`
-	Valid                 bool                  `json:"valid"` // Valid is true if V1PayloadWalOperation is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1PayloadWalOperation) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1PayloadWalOperation, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1PayloadWalOperation.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1PayloadWalOperation) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1PayloadWalOperation), nil
-}
-
 type V1StepMatchConditionKind string
 
 const (
@@ -2768,23 +2725,6 @@ type V1PayloadCutoverJobOffset struct {
 	LastInsertedAt pgtype.Timestamptz `json:"last_inserted_at"`
 	LastID         int64              `json:"last_id"`
 	LastType       V1PayloadType      `json:"last_type"`
-}
-
-type V1PayloadCutoverQueueItem struct {
-	TenantID          pgtype.UUID        `json:"tenant_id"`
-	CutOverAt         pgtype.Timestamptz `json:"cut_over_at"`
-	PayloadID         int64              `json:"payload_id"`
-	PayloadInsertedAt pgtype.Timestamptz `json:"payload_inserted_at"`
-	PayloadType       V1PayloadType      `json:"payload_type"`
-}
-
-type V1PayloadWal struct {
-	TenantID          pgtype.UUID           `json:"tenant_id"`
-	OffloadAt         pgtype.Timestamptz    `json:"offload_at"`
-	PayloadID         int64                 `json:"payload_id"`
-	PayloadInsertedAt pgtype.Timestamptz    `json:"payload_inserted_at"`
-	PayloadType       V1PayloadType         `json:"payload_type"`
-	Operation         V1PayloadWalOperation `json:"operation"`
 }
 
 type V1Queue struct {

@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.7] - 2025-12-15
+
+### Added
+
+- Adds a `get` method to the event client
+
 ## [1.21.6] - 2025-12-11
 
 ### Added

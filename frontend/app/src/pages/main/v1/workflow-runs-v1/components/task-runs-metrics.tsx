@@ -1,9 +1,9 @@
-import { V1TaskStatus } from '@/lib/api';
-import { Badge } from '@/components/v1/ui/badge';
 import { useRunsContext } from '../hooks/runs-provider';
+import { Badge } from '@/components/v1/ui/badge';
+import { V1TaskStatus } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { PlayIcon, X, Ban, ChartColumn } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useCallback, useMemo } from 'react';
 
 function statusToFriendlyName(status: V1TaskStatus) {
@@ -101,7 +101,7 @@ function MetricBadge({
       data-is-selected={isSelected}
       variant={isSelected ? 'default' : 'outline'}
       className={cn(
-        'cursor-pointer text-sm px-3 py-1 w-fit h-8 data-[is-selected=false]:font-light',
+        'h-8 w-fit cursor-pointer px-3 py-1 text-sm data-[is-selected=false]:font-light',
         className,
       )}
       onClick={() => handleStatusClick(status)}
@@ -109,7 +109,7 @@ function MetricBadge({
       <span className="flex items-center gap-1">
         <span>{formattedCount}</span>
         <span className="cq-xl:inline hidden">{friendlyName}</span>
-        <IconComponent className="size-4 cq-xl:hidden" />
+        <IconComponent className="cq-xl:hidden size-4" />
       </span>
     </Badge>
   );
@@ -127,87 +127,37 @@ export const V1WorkflowRunsMetricsView = () => {
     <div className="flex flex-row justify-start gap-2">
       <MetricBadge
         status={V1TaskStatus.COMPLETED}
-        className={`
-          text-green-800 dark:text-green-300
-
-          data-[is-selected=false]:border data-[is-selected=false]:border-green-500/20
-
-          data-[is-selected=true]:bg-green-500/20
-
-          hover:data-[is-selected=true]:bg-green-500/20
-
-          hover:data-[is-selected=false]:bg-green-500/20 hover:data-[is-selected=false]:border-transparent
-          `}
+        className={`text-green-800 data-[is-selected=false]:border data-[is-selected=false]:border-green-500/20 data-[is-selected=true]:bg-green-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-green-500/20 hover:data-[is-selected=true]:bg-green-500/20 dark:text-green-300`}
       />
 
       <MetricBadge
         status={V1TaskStatus.RUNNING}
-        className={`
-          text-yellow-800 dark:text-yellow-300
-
-          data-[is-selected=false]:border data-[is-selected=false]:border-yellow-500/20
-
-          data-[is-selected=true]:bg-yellow-500/20
-
-          hover:data-[is-selected=true]:bg-yellow-500/20
-
-          hover:data-[is-selected=false]:bg-yellow-500/20 hover:data-[is-selected=false]:border-transparent
-          `}
+        className={`text-yellow-800 data-[is-selected=false]:border data-[is-selected=false]:border-yellow-500/20 data-[is-selected=true]:bg-yellow-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-yellow-500/20 hover:data-[is-selected=true]:bg-yellow-500/20 dark:text-yellow-300`}
       />
 
       <MetricBadge
         status={V1TaskStatus.FAILED}
-        className={`
-          text-red-800 dark:text-red-300
-
-          data-[is-selected=false]:border data-[is-selected=false]:border-red-500/20
-
-          data-[is-selected=true]:bg-red-500/20
-
-          hover:data-[is-selected=true]:bg-red-500/20
-
-          hover:data-[is-selected=false]:bg-red-500/20 hover:data-[is-selected=false]:border-transparent
-          `}
+        className={`text-red-800 data-[is-selected=false]:border data-[is-selected=false]:border-red-500/20 data-[is-selected=true]:bg-red-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-red-500/20 hover:data-[is-selected=true]:bg-red-500/20 dark:text-red-300`}
       />
 
       <MetricBadge
         status={V1TaskStatus.CANCELLED}
-        className={`
-          text-orange-800 dark:text-orange-300
-
-          data-[is-selected=false]:border data-[is-selected=false]:border-orange-500/20
-
-          data-[is-selected=true]:bg-orange-500/20
-
-          hover:data-[is-selected=true]:bg-orange-500/20
-
-          hover:data-[is-selected=false]:bg-orange-500/20 hover:data-[is-selected=false]:border-transparent
-          `}
+        className={`text-orange-800 data-[is-selected=false]:border data-[is-selected=false]:border-orange-500/20 data-[is-selected=true]:bg-orange-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-orange-500/20 hover:data-[is-selected=true]:bg-orange-500/20 dark:text-orange-300`}
       />
 
       <MetricBadge
         status={V1TaskStatus.QUEUED}
-        className={`
-          text-slate-800 dark:text-slate-300
-
-          data-[is-selected=false]:border data-[is-selected=false]:border-slate-500/20
-
-          data-[is-selected=true]:bg-slate-500/20
-
-          hover:data-[is-selected=true]:bg-slate-500/20
-
-          hover:data-[is-selected=false]:bg-slate-500/20 hover:data-[is-selected=false]:border-transparent
-          `}
+        className={`text-slate-800 data-[is-selected=false]:border data-[is-selected=false]:border-slate-500/20 data-[is-selected=true]:bg-slate-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-slate-500/20 hover:data-[is-selected=true]:bg-slate-500/20 dark:text-slate-300`}
       />
 
       {!hideMetrics && (
         <Badge
           variant="outline"
-          className="rounded-sm font-normal cursor-pointer text-sm px-3 py-1 w-fit h-8"
+          className="h-8 w-fit cursor-pointer rounded-sm px-3 py-1 text-sm font-normal"
           onClick={() => setShowQueueMetrics(true)}
         >
           <span className="cq-xl:inline hidden">Queue metrics</span>
-          <ChartColumn className="size-4 cq-xl:hidden" />
+          <ChartColumn className="cq-xl:hidden size-4" />
         </Badge>
       )}
     </div>

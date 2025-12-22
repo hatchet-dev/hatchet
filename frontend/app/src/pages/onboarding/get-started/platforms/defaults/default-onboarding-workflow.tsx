@@ -1,10 +1,11 @@
-import { Button } from '@/components/v1/ui/button';
 import { useToast } from '@/components/hooks/use-toast';
+import { Button } from '@/components/v1/ui/button';
 import api, { V1WorkflowRunDetails, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
+import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 export const DefaultOnboardingWorkflow: React.FC<{
   tenantId: string;
@@ -51,7 +52,10 @@ export const DefaultOnboardingWorkflow: React.FC<{
         return;
       }
 
-      navigate(`/tenants/${tenantId}/runs/${workflowRun.run.metadata.id}`);
+      navigate({
+        to: appRoutes.tenantRunRoute.to,
+        params: { tenant: tenantId, run: workflowRun.run.metadata.id },
+      });
     },
   });
 

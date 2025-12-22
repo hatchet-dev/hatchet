@@ -1,27 +1,27 @@
-import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
-import { useState } from 'react';
-import { VisibilityState } from '@tanstack/react-table';
-import { ScheduledWorkflows } from '@/lib/api';
-import {
-  ToolbarFilters,
-  ToolbarType,
-} from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/v1/ui/button';
-import { columns } from './components/scheduled-runs-columns';
-import { DeleteScheduledRun } from './components/delete-scheduled-runs';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { workflowRunStatusFilters } from '../workflow-runs-v1/hooks/use-toolbar-filters';
 import { TriggerWorkflowForm } from '../workflows/$workflow/components/trigger-workflow-form';
-import { DocsButton } from '@/components/v1/docs/docs-button';
-import { docsPages } from '@/lib/generated/docs';
-import { useScheduledRuns } from './hooks/use-scheduled-runs';
+import { DeleteScheduledRun } from './components/delete-scheduled-runs';
+import { columns } from './components/scheduled-runs-columns';
 import {
   ScheduledRunColumn,
   workflowKey,
   statusKey,
   metadataKey,
 } from './components/scheduled-runs-columns';
-import { workflowRunStatusFilters } from '../workflow-runs-v1/hooks/use-toolbar-filters';
+import { useScheduledRuns } from './hooks/use-scheduled-runs';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import {
+  ToolbarFilters,
+  ToolbarType,
+} from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { Button } from '@/components/v1/ui/button';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { ScheduledWorkflows } from '@/lib/api';
+import { docsPages } from '@/lib/generated/docs';
+import { VisibilityState } from '@tanstack/react-table';
+import { useState } from 'react';
 
 interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
@@ -97,7 +97,7 @@ export default function ScheduledRunsTable({
     <Button
       key="schedule-run"
       onClick={() => setTriggerWorkflow(true)}
-      className="h-8 border px-3"
+      variant="cta"
     >
       Schedule Run
     </Button>,
@@ -126,13 +126,11 @@ export default function ScheduledRunsTable({
 
       <DataTable
         emptyState={
-          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
             <p className="text-lg font-semibold">No runs found</p>
             <div className="w-fit">
               <DocsButton
                 doc={docsPages.home['scheduled-runs']}
-                size="full"
-                variant="outline"
                 label="Learn about scheduled runs"
               />
             </div>

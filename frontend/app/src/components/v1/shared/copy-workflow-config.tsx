@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import { Button } from '../ui/button';
 import { CheckIcon, CopyIcon } from 'lucide-react';
+import { useState } from 'react';
 
 export function CopyWorkflowConfigButton({
   workflowConfig,
@@ -21,12 +21,12 @@ export function CopyWorkflowConfigButton({
     >
       {copySuccess ? (
         <>
-          <CheckIcon className="w-3 h-3 mr-2" />
+          <CheckIcon className="mr-2 size-3" />
           Copied!
         </>
       ) : (
         <>
-          <CopyIcon className="w-3 h-3 mr-2" />
+          <CopyIcon className="mr-2 size-3" />
           Copy Config
         </>
       )}

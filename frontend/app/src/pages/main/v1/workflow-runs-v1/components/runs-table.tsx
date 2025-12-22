@@ -1,35 +1,33 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
-import { columns, TaskRunColumn } from './v1/task-runs-columns';
+import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail';
+import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
+import { useRunsContext } from '../hooks/runs-provider';
+import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
-import { Skeleton } from '@/components/v1/ui/skeleton';
+import { columns, TaskRunColumn } from './v1/task-runs-columns';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import {
+  DataPoint,
+  ZoomableChart,
+} from '@/components/v1/molecules/charts/zoomable';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Loading } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
-import {
-  DataPoint,
-  ZoomableChart,
-} from '@/components/v1/molecules/charts/zoomable';
-import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail';
+import { Skeleton } from '@/components/v1/ui/skeleton';
+import { Toaster } from '@/components/v1/ui/toaster';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
-import { Toaster } from '@/components/v1/ui/toaster';
-import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
-
-import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
-import { useRunsContext } from '../hooks/runs-provider';
-
-import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { Loading } from '@/components/v1/ui/loading';
+import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface RunsTableProps {
   headerClassName?: string;
@@ -63,7 +61,7 @@ const GetWorkflowChart = () => {
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
-    return <Skeleton className="w-full h-36" />;
+    return <Skeleton className="h-36 w-full" />;
   }
 
   return (
@@ -209,7 +207,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   const isFetching = !hasLoaded && (isRunsFetching || isStatusCountsFetching);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden gap-y-2">
+    <div className="flex h-full flex-col gap-y-2 overflow-hidden">
       <Toaster />
 
       <TriggerWorkflowForm
@@ -220,7 +218,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       {!hideMetrics && (
         <Dialog open={showQueueMetrics} onOpenChange={setShowQueueMetrics}>
-          <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+          <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
             <DialogHeader>
               <DialogTitle>Queue Metrics</DialogTitle>
             </DialogHeader>
@@ -240,17 +238,15 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       {!hideMetrics && <GetWorkflowChart />}
 
-      <div className="flex-1 min-h-0">
+      <div className="min-h-0 flex-1">
         <DataTable
           emptyState={
-            <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+            <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
               <p className="text-lg font-semibold">No runs found</p>
               <div className="w-fit">
                 <DocsButton
                   doc={docsPages.home['your-first-task']}
                   label={'Learn more about tasks'}
-                  size="full"
-                  variant="outline"
                 />
               </div>
             </div>
@@ -264,11 +260,11 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           leftActions={[
             ...(!hideCounts
               ? [
-                  <div key="metrics" className="flex justify-start mr-auto">
+                  <div key="metrics" className="mr-auto flex justify-start">
                     {runStatusCounts.length > 0 ? (
                       <V1WorkflowRunsMetricsView />
                     ) : (
-                      <Skeleton className="max-w-[800px] w-[40vw] h-8" />
+                      <Skeleton className="h-8 w-[40vw] max-w-[800px]" />
                     )}
                   </div>,
                 ]

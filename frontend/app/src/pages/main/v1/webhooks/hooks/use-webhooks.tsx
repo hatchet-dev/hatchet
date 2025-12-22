@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   queries,
@@ -10,6 +9,7 @@ import api, {
   V1WebhookSourceName,
 } from '@/lib/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 
 export const useWebhooks = (onDeleteSuccess?: () => void) => {
   const queryClient = useQueryClient();

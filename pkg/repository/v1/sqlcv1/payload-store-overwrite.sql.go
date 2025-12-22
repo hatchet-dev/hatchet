@@ -14,6 +14,7 @@ type CutoverPayloadToInsert struct {
 	ExternalID          pgtype.UUID
 	Type                V1PayloadType
 	ExternalLocationKey string
+	InlineContent       []byte
 }
 
 type InsertCutOverPayloadsIntoTempTableRow struct {
@@ -31,6 +32,7 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 	types := make([]string, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
 	externalLocationKeys := make([]string, 0, len(payloads))
+	inlineContents := make([][]byte, 0, len(payloads))
 
 	for _, payload := range payloads {
 		externalIds = append(externalIds, payload.ExternalID)
@@ -40,6 +42,7 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 		types = append(types, string(payload.Type))
 		locations = append(locations, string(V1PayloadLocationEXTERNAL))
 		externalLocationKeys = append(externalLocationKeys, string(payload.ExternalLocationKey))
+		inlineContents = append(inlineContents, payload.InlineContent)
 	}
 
 	row := tx.QueryRow(
@@ -56,7 +59,8 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 						UNNEST($4::UUID[]) AS external_id,
 						UNNEST($5::TEXT[]) AS type,
 						UNNEST($6::TEXT[]) AS location,
-						UNNEST($7::TEXT[]) AS external_location_key
+						UNNEST($7::TEXT[]) AS external_location_key,
+						UNNEST($8::JSONB[]) AS inline_content
 				), inserts AS (
 					INSERT INTO %s (tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at)
 					SELECT
@@ -67,7 +71,7 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 						type::v1_payload_type,
 						location::v1_payload_location,
 						external_location_key,
-						NULL,
+						inline_content,
 						NOW()
 					FROM inputs
 					ORDER BY tenant_id, inserted_at, id, type
@@ -88,6 +92,7 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 		types,
 		locations,
 		externalLocationKeys,
+		inlineContents,
 	)
 
 	var insertRow InsertCutOverPayloadsIntoTempTableRow
@@ -102,7 +107,12 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 	return &insertRow, err
 }
 
-func ComparePartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionName, sourcePartitionName string) (bool, error) {
+type PartitionRowCounts struct {
+	SourcePartitionCount int64
+	TempPartitionCount   int64
+}
+
+func ComparePartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionName, sourcePartitionName string) (*PartitionRowCounts, error) {
 	row := tx.QueryRow(
 		ctx,
 		fmt.Sprintf(
@@ -122,10 +132,13 @@ func ComparePartitionRowCounts(ctx context.Context, tx DBTX, tempPartitionName, 
 	err := row.Scan(&tempPartitionCount, &sourcePartitionCount)
 
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	return tempPartitionCount == sourcePartitionCount, nil
+	return &PartitionRowCounts{
+		SourcePartitionCount: sourcePartitionCount,
+		TempPartitionCount:   tempPartitionCount,
+	}, nil
 }
 
 const findV1PayloadPartitionsBeforeDate = `-- name: findV1PayloadPartitionsBeforeDate :many

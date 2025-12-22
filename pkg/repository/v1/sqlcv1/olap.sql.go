@@ -158,6 +158,16 @@ type BulkCreateEventTriggersParams struct {
 	FilterID      pgtype.UUID        `json:"filter_id"`
 }
 
+const cleanUpOLAPCutoverJobOffsets = `-- name: CleanUpOLAPCutoverJobOffsets :exec
+DELETE FROM v1_payload_cutover_job_offset
+WHERE NOT key = ANY($1::DATE[])
+`
+
+func (q *Queries) CleanUpOLAPCutoverJobOffsets(ctx context.Context, db DBTX, keystokeep []pgtype.Date) error {
+	_, err := db.Exec(ctx, cleanUpOLAPCutoverJobOffsets, keystokeep)
+	return err
+}
+
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
     SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
@@ -458,6 +468,62 @@ func (q *Queries) CreateV1PayloadOLAPCutoverTemporaryTable(ctx context.Context, 
 	return err
 }
 
+const diffOLAPPayloadSourceAndTargetPartitions = `-- name: DiffOLAPPayloadSourceAndTargetPartitions :many
+WITH payloads AS (
+    SELECT
+        (p).*
+    FROM diff_olap_payload_source_and_target_partitions($1::DATE) p
+)
+
+SELECT
+    tenant_id::UUID,
+    external_id::UUID,
+    inserted_at::TIMESTAMPTZ,
+    location::v1_payload_location_olap,
+    COALESCE(external_location_key, '')::TEXT AS external_location_key,
+    inline_content::JSONB AS inline_content,
+    updated_at::TIMESTAMPTZ
+FROM payloads
+`
+
+type DiffOLAPPayloadSourceAndTargetPartitionsRow struct {
+	TenantID            pgtype.UUID           `json:"tenant_id"`
+	ExternalID          pgtype.UUID           `json:"external_id"`
+	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
+	Location            V1PayloadLocationOlap `json:"location"`
+	ExternalLocationKey string                `json:"external_location_key"`
+	InlineContent       []byte                `json:"inline_content"`
+	UpdatedAt           pgtype.Timestamptz    `json:"updated_at"`
+}
+
+func (q *Queries) DiffOLAPPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, partitiondate pgtype.Date) ([]*DiffOLAPPayloadSourceAndTargetPartitionsRow, error) {
+	rows, err := db.Query(ctx, diffOLAPPayloadSourceAndTargetPartitions, partitiondate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*DiffOLAPPayloadSourceAndTargetPartitionsRow
+	for rows.Next() {
+		var i DiffOLAPPayloadSourceAndTargetPartitionsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ExternalID,
+			&i.InsertedAt,
+			&i.Location,
+			&i.ExternalLocationKey,
+			&i.InlineContent,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findMinInsertedAtForDAGStatusUpdates = `-- name: FindMinInsertedAtForDAGStatusUpdates :one
 WITH tenants AS (
     SELECT UNNEST(
@@ -671,6 +737,37 @@ WHERE elt.external_id = $1::uuid
 
 func (q *Queries) GetEventByExternalId(ctx context.Context, db DBTX, eventexternalid pgtype.UUID) (*V1EventsOlap, error) {
 	row := db.QueryRow(ctx, getEventByExternalId, eventexternalid)
+	var i V1EventsOlap
+	err := row.Scan(
+		&i.TenantID,
+		&i.ID,
+		&i.ExternalID,
+		&i.SeenAt,
+		&i.Key,
+		&i.Payload,
+		&i.AdditionalMetadata,
+		&i.Scope,
+		&i.TriggeringWebhookName,
+	)
+	return &i, err
+}
+
+const getEventByExternalIdUsingTenantId = `-- name: GetEventByExternalIdUsingTenantId :one
+SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
+FROM v1_event_lookup_table_olap elt
+JOIN v1_events_olap e ON (elt.event_id, elt.event_seen_at) = (e.id, e.seen_at)
+WHERE
+    elt.external_id = $1::uuid
+    AND elt.tenant_id = $2::uuid
+`
+
+type GetEventByExternalIdUsingTenantIdParams struct {
+	Eventexternalid pgtype.UUID `json:"eventexternalid"`
+	Tenantid        pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) GetEventByExternalIdUsingTenantId(ctx context.Context, db DBTX, arg GetEventByExternalIdUsingTenantIdParams) (*V1EventsOlap, error) {
+	row := db.QueryRow(ctx, getEventByExternalIdUsingTenantId, arg.Eventexternalid, arg.Tenantid)
 	var i V1EventsOlap
 	err := row.Scan(
 		&i.TenantID,
@@ -1335,7 +1432,8 @@ WITH payloads AS (
         $4::TIMESTAMPTZ,
         $5::UUID,
         $6::UUID,
-        $7::TIMESTAMPTZ
+        $7::TIMESTAMPTZ,
+        $8::INTEGER
     ) p
 )
 SELECT
@@ -1357,6 +1455,7 @@ type ListPaginatedOLAPPayloadsForOffloadParams struct {
 	Nexttenantid   pgtype.UUID        `json:"nexttenantid"`
 	Nextexternalid pgtype.UUID        `json:"nextexternalid"`
 	Nextinsertedat pgtype.Timestamptz `json:"nextinsertedat"`
+	Batchsize      int32              `json:"batchsize"`
 }
 
 type ListPaginatedOLAPPayloadsForOffloadRow struct {
@@ -1378,6 +1477,7 @@ func (q *Queries) ListPaginatedOLAPPayloadsForOffload(ctx context.Context, db DB
 		arg.Nexttenantid,
 		arg.Nextexternalid,
 		arg.Nextinsertedat,
+		arg.Batchsize,
 	)
 	if err != nil {
 		return nil, err
@@ -3075,6 +3175,8 @@ WITH tenants AS (
     SELECT
         d.id,
         d.inserted_at,
+        d.readable_status,
+        d.tenant_id,
         d.total_tasks,
         COUNT(t.id) AS task_count,
         COUNT(t.id) FILTER (WHERE t.readable_status = 'COMPLETED') AS completed_count,
@@ -3087,14 +3189,16 @@ WITH tenants AS (
     LEFT JOIN
         relevant_tasks t ON (d.tenant_id, d.id, d.inserted_at) = (t.tenant_id, t.dag_id, t.dag_inserted_at)
     GROUP BY
-        d.id, d.inserted_at, d.total_tasks
-), updated_dags AS (
-    UPDATE
-        v1_dags_olap d
-    SET
-        readable_status = CASE
+        d.id, d.inserted_at, d.readable_status, d.tenant_id, d.total_tasks
+), dag_new_statuses AS (
+    SELECT
+        dtc.id,
+        dtc.inserted_at,
+        dtc.readable_status AS old_readable_status,
+        dtc.tenant_id,
+        CASE
             -- If we only have queued events, we should keep the status as is
-            WHEN dtc.queued_count = dtc.task_count THEN d.readable_status
+            WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
             -- If the task count is not equal to the total tasks, we should set the status to running
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
@@ -3103,15 +3207,88 @@ WITH tenants AS (
             WHEN dtc.cancelled_count > 0 THEN 'CANCELLED'
             WHEN dtc.completed_count = dtc.task_count THEN 'COMPLETED'
             ELSE 'RUNNING'
-        END
+        END::v1_readable_status_olap AS new_readable_status
     FROM
         dag_task_counts dtc
+), already_in_target_partition AS (
+    -- Check if rows already exist in the target partition (with the new readable_status)
+    -- This is to avoid rare cases of duplicates writes causing unique constraint violations,
+    -- when i.e. we write to one partition of QUEUED, that gets moved from QUEUED -> COMPLETED,
+    -- and we later insert into QUEUED again but try to update to COMPLETED again.
+    SELECT
+        dns.tenant_id,
+        dns.id,
+        dns.inserted_at,
+        dns.old_readable_status,
+        dns.new_readable_status
+    FROM
+        dag_new_statuses dns
+    JOIN
+        v1_dags_olap d ON
+            d.inserted_at = dns.inserted_at
+            AND d.id = dns.id
+            AND d.readable_status = dns.new_readable_status
     WHERE
-        (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
+        -- Only consider rows where we would actually change the status
+        dns.old_readable_status != dns.new_readable_status
+), updated_target_partition_dags AS (
+    -- Update the existing rows in the target partition
+    UPDATE
+        v1_dags_olap d
+    SET
+        -- Touch the row to ensure it's returned (no-op update)
+        readable_status = d.readable_status
+    FROM
+        already_in_target_partition ap
+    WHERE
+        (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.new_readable_status)
     RETURNING
         d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+), deleted_duplicate_dags AS (
+    -- Delete the old rows that already have a copy in the target partition
+    DELETE FROM
+        v1_dags_olap d
+    USING
+        already_in_target_partition ap
+    WHERE
+        (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
+), dags_to_update AS (
+    -- DAGs that need updating and don't already exist in target partition
+    SELECT
+        dns.tenant_id,
+        dns.id,
+        dns.inserted_at,
+        dns.old_readable_status,
+        dns.new_readable_status
+    FROM
+        dag_new_statuses dns
+    WHERE
+        NOT EXISTS (
+            SELECT 1
+            FROM already_in_target_partition ap
+            WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (dns.tenant_id, dns.id, dns.inserted_at)
+        )
+), updated_dags AS (
+    UPDATE
+        v1_dags_olap d
+    SET
+        readable_status = dtu.new_readable_status
+    FROM
+        dags_to_update dtu
+    WHERE
+        (d.inserted_at, d.id, d.readable_status) = (dtu.inserted_at, dtu.id, dtu.old_readable_status)
+        AND dtu.old_readable_status != dtu.new_readable_status
+    RETURNING
+        d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+), all_result_dags AS (
+    -- Combine updated dags from both paths
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, workflow_id
+    FROM updated_dags
+    UNION ALL
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, workflow_id
+    FROM updated_target_partition_dags
 ), events_to_requeue AS (
-    -- Get events which don't have a corresponding locked_task
+    -- Get events which don't have a corresponding locked_dag
     SELECT
         e.tenant_id,
         e.requeue_retries,
@@ -3164,7 +3341,7 @@ SELECT
     (SELECT count FROM event_count) AS count,
     d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 FROM
-    updated_dags d
+    all_result_dags d
 `
 
 type UpdateDAGStatusesParams struct {
@@ -3279,6 +3456,7 @@ WITH tenants AS (
         t.tenant_id,
         t.id,
         t.inserted_at,
+        t.readable_status,
         e.retry_count,
         e.max_readable_status
     FROM
@@ -3290,35 +3468,93 @@ WITH tenants AS (
     ORDER BY
         t.inserted_at, t.id
     FOR UPDATE
+), already_in_target_partition AS (
+    -- Check if rows already exist in the target partition (with the new readable_status)
+    -- This is to avoid rare cases of duplicates writes causing unique constraint violations,
+    -- when i.e. we write to one partition of QUEUED, that gets moved from QUEUED -> COMPLETED,
+    -- and we later insert into QUEUED again but try to update to COMPLETED again.
+    SELECT
+        lt.tenant_id,
+        lt.id,
+        lt.inserted_at,
+        lt.readable_status AS old_readable_status,
+        lt.retry_count,
+        lt.max_readable_status,
+        t.external_id,
+        t.latest_worker_id,
+        t.workflow_id,
+        (t.dag_id IS NOT NULL)::boolean AS is_dag_task
+    FROM
+        locked_tasks lt
+    JOIN
+        v1_tasks_olap t ON
+            t.inserted_at = lt.inserted_at
+            AND t.id = lt.id
+            AND t.readable_status = lt.max_readable_status
+    WHERE
+        -- Only consider rows where we would actually change the status
+        lt.readable_status != lt.max_readable_status
+), deleted_duplicate_tasks AS (
+    -- Delete the old rows that already have a copy in the target partition
+    DELETE FROM
+        v1_tasks_olap t
+    USING
+        already_in_target_partition ap
+    WHERE
+        (t.inserted_at, t.id, t.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
+), tasks_to_update AS (
+    -- Tasks that need updating and don't already exist in target partition
+    SELECT
+        lt.tenant_id,
+        lt.id,
+        lt.inserted_at,
+        lt.readable_status,
+        lt.retry_count,
+        lt.max_readable_status
+    FROM
+        locked_tasks lt
+    WHERE
+        NOT EXISTS (
+            SELECT 1
+            FROM already_in_target_partition ap
+            WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
+        )
 ), updated_tasks AS (
     UPDATE
         v1_tasks_olap t
     SET
-        readable_status = e.max_readable_status,
-        latest_retry_count = e.retry_count,
+        readable_status = tu.max_readable_status,
+        latest_retry_count = tu.retry_count,
         latest_worker_id = CASE WHEN lw.worker_id::uuid IS NOT NULL THEN lw.worker_id::uuid ELSE t.latest_worker_id END
     FROM
-        updatable_events e
+        tasks_to_update tu
     LEFT JOIN
         latest_worker_id lw ON
-            (e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count) = (lw.tenant_id, lw.task_id, lw.task_inserted_at, lw.retry_count)
+            (tu.tenant_id, tu.id, tu.inserted_at, tu.retry_count) = (lw.tenant_id, lw.task_id, lw.task_inserted_at, lw.retry_count)
     WHERE
-        (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
+        (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
         AND
             (
                 -- if the retry count is greater than the latest retry count, update the status
                 (
-                    e.retry_count > t.latest_retry_count
-                    AND e.max_readable_status != t.readable_status
+                    tu.retry_count > t.latest_retry_count
+                    AND tu.max_readable_status != t.readable_status
                 ) OR
                 -- if the retry count is equal to the latest retry count, update the status if the status is greater
                 (
-                    e.retry_count = t.latest_retry_count
-                    AND e.max_readable_status > t.readable_status
+                    tu.retry_count = t.latest_retry_count
+                    AND tu.max_readable_status > t.readable_status
                 )
             )
     RETURNING
         t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
+), all_result_tasks AS (
+    -- Combine actually updated tasks with those already in target partition
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, latest_worker_id, workflow_id, is_dag_task
+    FROM updated_tasks
+    UNION ALL
+    SELECT tenant_id, id, inserted_at, max_readable_status AS readable_status, external_id, latest_worker_id, workflow_id, is_dag_task
+    FROM already_in_target_partition
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -3382,7 +3618,7 @@ SELECT
     (SELECT count FROM event_count) AS count,
     t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, t.is_dag_task
 FROM
-    updated_tasks t
+    all_result_tasks t
 `
 
 type UpdateTaskStatusesParams struct {

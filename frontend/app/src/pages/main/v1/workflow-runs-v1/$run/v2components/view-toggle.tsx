@@ -1,9 +1,9 @@
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { Button } from '@/components/v1/ui/button';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { type ViewOptions } from '@/lib/atoms';
 import { useAtom } from 'jotai';
 import { BiExitFullscreen, BiExpand } from 'react-icons/bi';
-import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 
 const ToggleIcon = ({ view }: { view: ViewOptions | undefined }) => {
   switch (view) {
@@ -35,7 +35,7 @@ export const ViewToggle = () => {
   }
 
   return (
-    <div className="sticky ml-auto mt-auto bottom-2 right-2 z-20">
+    <div className="sticky bottom-2 right-2 z-20 ml-auto mt-auto">
       <Button variant="outline" size="icon" onClick={() => setView(otherView)}>
         <ToggleIcon view={view} />
       </Button>

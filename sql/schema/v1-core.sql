@@ -1793,98 +1793,6 @@ CREATE TABLE v1_payload (
     )
 ) PARTITION BY RANGE(inserted_at);
 
-CREATE TYPE v1_payload_wal_operation AS ENUM ('CREATE', 'UPDATE', 'DELETE');
-
-CREATE TABLE v1_payload_wal (
-    tenant_id UUID NOT NULL,
-    offload_at TIMESTAMPTZ NOT NULL,
-    payload_id BIGINT NOT NULL,
-    payload_inserted_at TIMESTAMPTZ NOT NULL,
-    payload_type v1_payload_type NOT NULL,
-    operation v1_payload_wal_operation NOT NULL DEFAULT 'CREATE',
-
-    -- todo: we probably should shuffle this index around - it'd make more sense now for the order to be
-    -- (tenant_id, offload_at, payload_id, payload_inserted_at, payload_type)
-    -- so we can filter by the tenant id first, then order by offload_at
-    PRIMARY KEY (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type)
-) PARTITION BY HASH (tenant_id);
-
-CREATE INDEX v1_payload_wal_payload_lookup_idx ON v1_payload_wal (payload_id, payload_inserted_at, payload_type, tenant_id);
-CREATE INDEX CONCURRENTLY v1_payload_wal_poll_idx ON v1_payload_wal (tenant_id, offload_at);
-
-SELECT create_v1_hash_partitions('v1_payload_wal'::TEXT, 4);
-
-CREATE TABLE v1_payload_cutover_queue_item (
-    tenant_id UUID NOT NULL,
-    cut_over_at TIMESTAMPTZ NOT NULL,
-    payload_id BIGINT NOT NULL,
-    payload_inserted_at TIMESTAMPTZ NOT NULL,
-    payload_type v1_payload_type NOT NULL,
-
-    PRIMARY KEY (cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type)
-) PARTITION BY HASH (tenant_id);
-
-SELECT create_v1_hash_partitions('v1_payload_cutover_queue_item'::TEXT, 4);
-
-CREATE OR REPLACE FUNCTION find_matching_tenants_in_payload_wal_partition(
-    partition_number INT
-) RETURNS UUID[]
-LANGUAGE plpgsql AS
-$$
-DECLARE
-    partition_table text;
-    result UUID[];
-BEGIN
-    partition_table := 'v1_payload_wal_' || partition_number::text;
-
-    EXECUTE format(
-        'SELECT ARRAY(
-            SELECT t.id
-            FROM "Tenant" t
-            WHERE EXISTS (
-                SELECT 1
-                FROM %I e
-                WHERE e.tenant_id = t.id
-                LIMIT 1
-            )
-        )',
-        partition_table)
-    INTO result;
-
-    RETURN result;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION find_matching_tenants_in_payload_cutover_queue_item_partition(
-    partition_number INT
-) RETURNS UUID[]
-LANGUAGE plpgsql AS
-$$
-DECLARE
-    partition_table text;
-    result UUID[];
-BEGIN
-    partition_table := 'v1_payload_cutover_queue_item_' || partition_number::text;
-
-    EXECUTE format(
-        'SELECT ARRAY(
-            SELECT t.id
-            FROM "Tenant" t
-            WHERE EXISTS (
-                SELECT 1
-                FROM %I e
-                WHERE e.tenant_id = t.id
-                  AND e.cut_over_at <= NOW()
-                LIMIT 1
-            )
-        )',
-        partition_table)
-    INTO result;
-
-    RETURN result;
-END;
-$$;
-
 CREATE TABLE v1_payload_cutover_job_offset (
     key DATE PRIMARY KEY,
     is_completed BOOLEAN NOT NULL DEFAULT FALSE,
@@ -2014,7 +1922,8 @@ CREATE OR REPLACE FUNCTION list_paginated_payloads_for_offload(
     next_tenant_id uuid,
     next_inserted_at timestamptz,
     next_id bigint,
-    next_type v1_payload_type
+    next_type v1_payload_type,
+    batch_size integer
 ) RETURNS TABLE (
     tenant_id UUID,
     id BIGINT,
@@ -2045,16 +1954,32 @@ BEGIN
     END IF;
 
     query := format('
+        WITH candidates AS MATERIALIZED (
+            SELECT tenant_id, id, inserted_at, external_id, type, location,
+                external_location_key, inline_content, updated_at
+            FROM %I
+            WHERE
+                (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
+            ORDER BY tenant_id, inserted_at, id, type
+
+            -- Multiplying by two here to handle an edge case. There is a small chance we miss a row
+            -- when a different row is inserted before it, in between us creating the chunks and selecting
+            -- them. By multiplying by two to create a "candidate" set, we significantly reduce the chance of us missing
+            -- rows in this way, since if a row is inserted before one of our last rows, we will still have
+            -- the next row after it in the candidate set.
+            LIMIT $9 * 2
+        )
+
         SELECT tenant_id, id, inserted_at, external_id, type, location,
                external_location_key, inline_content, updated_at
-        FROM %I
+        FROM candidates
         WHERE
             (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
             AND (tenant_id, inserted_at, id, type) <= ($5, $6, $7, $8)
         ORDER BY tenant_id, inserted_at, id, type
     ', source_partition_name);
 
-    RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, next_tenant_id, next_inserted_at, next_id, next_type;
+    RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, next_tenant_id, next_inserted_at, next_id, next_type, batch_size;
 END;
 $$;
 
@@ -2137,6 +2062,57 @@ BEGIN
     ', source_partition_name);
 
     RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, window_size, chunk_size;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION diff_payload_source_and_target_partitions(
+    partition_date date
+) RETURNS TABLE (
+    tenant_id UUID,
+    id BIGINT,
+    inserted_at TIMESTAMPTZ,
+    external_id UUID,
+    type v1_payload_type,
+    location v1_payload_location,
+    external_location_key TEXT,
+    inline_content JSONB,
+    updated_at TIMESTAMPTZ
+)
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    partition_date_str varchar;
+    source_partition_name varchar;
+    temp_partition_name varchar;
+    query text;
+BEGIN
+    IF partition_date IS NULL THEN
+        RAISE EXCEPTION 'partition_date parameter cannot be NULL';
+    END IF;
+
+    SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
+    SELECT format('v1_payload_%s', partition_date_str) INTO source_partition_name;
+    SELECT format('v1_payload_offload_tmp_%s', partition_date_str) INTO temp_partition_name;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
+        RAISE EXCEPTION 'Partition % does not exist', source_partition_name;
+    END IF;
+
+    query := format('
+        SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
+        FROM %I source
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM %I AS target
+            WHERE
+                source.tenant_id = target.tenant_id
+                AND source.inserted_at = target.inserted_at
+                AND source.id = target.id
+                AND source.type = target.type
+        )
+    ', source_partition_name, temp_partition_name);
+
+    RETURN QUERY EXECUTE query;
 END;
 $$;
 

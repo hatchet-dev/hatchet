@@ -1,19 +1,19 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import api, { TenantMember, queries } from '@/lib/api';
-import { capitalize } from '@/lib/utils';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { useOutletContext } from 'react-router-dom';
-import { UserContextType } from '@/lib/outlet';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { useMutation } from '@tanstack/react-query';
-import { useApiError } from '@/lib/hooks';
-import queryClient from '@/query-client';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { useState } from 'react';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api, { TenantMember, queries } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { UserContextType } from '@/lib/outlet';
+import { useOutletContext } from '@/lib/router-helpers';
+import { capitalize } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import queryClient from '@/query-client';
+import { useMutation } from '@tanstack/react-query';
+import { ColumnDef } from '@tanstack/react-table';
+import { useState } from 'react';
 
 // Component for handling member actions
 function MemberActions({

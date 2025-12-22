@@ -1,8 +1,8 @@
 import { Loading } from '@/components/v1/ui/loading';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
 import JSConfetti from 'js-confetti';
+import { useEffect, useRef } from 'react';
 
 export const WorkerListener: React.FC<{
   tenantId: string;

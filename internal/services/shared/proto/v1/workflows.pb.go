@@ -1010,9 +1010,9 @@ type TaskBatchConfig struct {
 	unknownFields protoimpl.UnknownFields
 
 	BatchSize       int32   `protobuf:"varint,1,opt,name=batch_size,json=batchSize,proto3" json:"batch_size,omitempty"`                           // (required) maximum number of inputs per flush
-	FlushIntervalMs *int32  `protobuf:"varint,2,opt,name=flush_interval_ms,json=flushIntervalMs,proto3,oneof" json:"flush_interval_ms,omitempty"` // (optional) flush interval in milliseconds
-	BatchKey        *string `protobuf:"bytes,3,opt,name=batch_key,json=batchKey,proto3,oneof" json:"batch_key,omitempty"`                         // (optional) CEL expression to evaluate a batch partition key
-	MaxRuns         *int32  `protobuf:"varint,4,opt,name=max_runs,json=maxRuns,proto3,oneof" json:"max_runs,omitempty"`                           // (optional) maximum concurrently running batches per unique key
+	FlushIntervalMs *int32  `protobuf:"varint,2,opt,name=flush_interval_ms,json=flushIntervalMs,proto3,oneof" json:"flush_interval_ms,omitempty"` // (optional) flush interval in milliseconds, default: 1000
+	BatchKey        *string `protobuf:"bytes,3,opt,name=batch_key,json=batchKey,proto3,oneof" json:"batch_key,omitempty"`                         // (optional) CEL expression to evaluate a batch partition key, default: default
+	MaxRuns         *int32  `protobuf:"varint,4,opt,name=max_runs,json=maxRuns,proto3,oneof" json:"max_runs,omitempty"`                           // (optional) maximum concurrently running batches per unique key, default: 100
 }
 
 func (x *TaskBatchConfig) Reset() {

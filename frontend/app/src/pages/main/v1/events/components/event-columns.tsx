@@ -1,11 +1,10 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { Badge } from '@/components/v1/ui/badge';
-import { V1Event } from '@/lib/api';
-import { Button } from '@/components/v1/ui/button';
-
 import { AdditionalMetadata } from './additional-metadata';
-import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
+import { V1Event } from '@/lib/api';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const EventColumn = {
   id: 'Event ID',
@@ -53,7 +52,7 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="w-full">
           <Button
-            className="w-fit cursor-pointer pl-0"
+            className="w-fit pl-0"
             variant="link"
             onClick={() => {
               onRowClick?.(row.original);
@@ -74,7 +73,7 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="w-full">
           <Button
-            className="cursor-pointer pl-0 text-left h-auto whitespace-normal min-w-0 justify-start"
+            className="h-auto min-w-0 justify-start whitespace-normal pl-0 text-left"
             variant="link"
             onClick={() => {
               onRowClick?.(row.original);
@@ -221,7 +220,7 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
   ];
 
   return (
-    <div className="flex flex-row gap-2 items-center justify-start">
+    <div className="flex flex-row items-center justify-start gap-2">
       {badges.map(
         ({ variant, count, label }) =>
           count > 0 && (

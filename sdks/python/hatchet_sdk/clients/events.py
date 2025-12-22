@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
+from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
@@ -271,3 +272,22 @@ class EventClient(BaseRestClient):
                 ),
                 scopes=scopes,
             )
+
+    def get(
+        self,
+        event_id: str,
+    ) -> V1Event:
+        with self.client() as client:
+            return self._ea(client).v1_event_get(
+                tenant=self.client_config.tenant_id,
+                v1_event=event_id,
+            )
+
+    async def aio_get(
+        self,
+        event_id: str,
+    ) -> V1Event:
+        return await asyncio.to_thread(
+            self.get,
+            event_id=event_id,
+        )
