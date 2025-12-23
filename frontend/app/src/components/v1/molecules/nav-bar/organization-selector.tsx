@@ -308,7 +308,7 @@ export function OrganizationSelector({
     organizations,
     getOrganizationForTenant,
     isTenantArchivedInOrg,
-      displayTenant,
+    displayTenant,
   ]);
 
   const triggerDisabled =
