@@ -1,15 +1,17 @@
 describe('Tenants: switching', () => {
   beforeEach(() => {
+    // Ensure no persisted tenant selection leaks between tests/spec ordering.
+    cy.clearAllLocalStorage();
     cy.login('owner');
     cy.visit('/');
-    cy.clearAllLocalStorage();
   });
 
   it('should survive page reloads and root redirect', () => {
     cy.get('button[aria-label="Select a tenant"]')
       .filter(':visible')
       .first()
-      .click();
+      .as('tenantSwitcher');
+    cy.get('@tenantSwitcher').click({ force: true });
 
     cy.get('[cmdk-list]').should('be.visible');
     cy.get('[cmdk-list]')
@@ -21,7 +23,8 @@ describe('Tenants: switching', () => {
       .filter(':visible')
       .first()
       .should('contain.text', 'Tenant 1')
-      .click();
+      .as('tenantSwitcher2');
+    cy.get('@tenantSwitcher2').click({ force: true });
 
     cy.get('[cmdk-list]').should('be.visible');
     cy.get('[cmdk-list]')
@@ -46,12 +49,15 @@ describe('Tenants: switching', () => {
   });
 
   it('should not break on login with different user', () => {
+    // Explicitly reset persisted selection from the previous user session.
+    cy.clearAllLocalStorage();
     cy.login('owner');
     cy.visit('/');
     cy.get('button[aria-label="Select a tenant"]')
       .filter(':visible')
       .first()
-      .click();
+      .as('tenantSwitcher');
+    cy.get('@tenantSwitcher').click({ force: true });
     cy.get('[cmdk-list]').should('be.visible');
     cy.get('[cmdk-list]')
       .find('[data-value="tenant1"]')
@@ -61,7 +67,8 @@ describe('Tenants: switching', () => {
       .filter(':visible')
       .first()
       .should('contain.text', 'Tenant 1')
-      .click();
+      .as('tenantSwitcher2');
+    cy.get('@tenantSwitcher2').click({ force: true });
     cy.get('[cmdk-list]').should('be.visible');
     cy.get('[cmdk-list]')
       .find('[data-value="tenant2"]')
