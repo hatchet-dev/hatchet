@@ -517,7 +517,11 @@ class Hatchet:
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
     ) -> Callable[
-        [Callable[[list[EmptyModel], list[Context]], list[R] | CoroutineLike[list[R]]]],
+        [
+            Callable[
+                [list[tuple[EmptyModel, Context]]], list[R] | CoroutineLike[list[R]]
+            ]
+        ],
         Standalone[EmptyModel, R],
     ]: ...
 
@@ -549,7 +553,8 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                [list[TWorkflowInput], list[Context]], list[R] | CoroutineLike[list[R]]
+                [list[tuple[TWorkflowInput, Context]]],
+                list[R] | CoroutineLike[list[R]],
             ]
         ],
         Standalone[TWorkflowInput, R],
@@ -582,20 +587,21 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                [list[TWorkflowInput], list[Context]], list[R] | CoroutineLike[list[R]]
+                [list[tuple[TWorkflowInput, Context]]],
+                list[R] | CoroutineLike[list[R]],
             ]
         ],
         Standalone[TWorkflowInput, R],
     ]:
         """
         A decorator to transform a function into a standalone Hatchet *batch* task.\n
-        The handler is invoked with lists of inputs and contexts once Hatchet flushes the batch.\n
+        The handler is invoked with a list of (input, context) tuples once Hatchet flushes the batch.\n
         The handler must return a list of outputs with the same length as the input list.\n
         """
 
         def inner(
             func: Callable[
-                [list[TWorkflowInput], list[Context]],
+                [list[tuple[TWorkflowInput, Context]]],
                 list[R] | CoroutineLike[list[R]],
             ],
         ) -> Standalone[TWorkflowInput, R]:

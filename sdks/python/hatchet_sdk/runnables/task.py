@@ -104,6 +104,10 @@ class Task(Generic[TWorkflowInput, R]):
                 Concatenate[list[TWorkflowInput], list[Context], P],
                 list[R] | CoroutineLike[list[R]] | AwaitableLike[list[R]],
             ]
+            | Callable[
+                Concatenate[list[tuple[TWorkflowInput, Context]], P],
+                list[R] | CoroutineLike[list[R]] | AwaitableLike[list[R]],
+            ]
             | (
                 Callable[
                     Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]

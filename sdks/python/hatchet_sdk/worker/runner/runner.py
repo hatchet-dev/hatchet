@@ -626,6 +626,7 @@ class Runner:
             inputs = [
                 controller.task.workflow._get_workflow_input(ctx) for ctx in contexts
             ]
+            tasks = list(zip(inputs, contexts))
 
             if not controller.task.is_batch:
                 raise RuntimeError(
@@ -635,21 +636,21 @@ class Runner:
             if controller.task.is_async_function:
                 batch_fn_async = cast(
                     Callable[
-                        [list[Any], list[Context]],
+                        [list[tuple[Any, Context]]],
                         Coroutine[Any, Any, list[Any]],
                     ],
                     controller.task.fn,
                 )
-                outputs = await batch_fn_async(inputs, contexts)
+                outputs = await batch_fn_async(tasks)
             else:
                 batch_fn_sync = cast(
-                    Callable[[list[Any], list[Context]], list[Any]],
+                    Callable[[list[tuple[Any, Context]]], list[Any]],
                     controller.task.fn,
                 )
                 loop = asyncio.get_running_loop()
                 outputs = await loop.run_in_executor(
                     self.thread_pool,
-                    lambda: batch_fn_sync(inputs, contexts),
+                    lambda: batch_fn_sync(tasks),
                 )
 
             if not isinstance(outputs, list):

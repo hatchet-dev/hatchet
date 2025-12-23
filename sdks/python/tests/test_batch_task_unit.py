@@ -25,8 +25,8 @@ async def test_batch_flush_orders_by_index() -> None:
     wf = hatchet.workflow(name="batch-unit-test", input_validator=Inp)
 
     @wf.batch_task(name="step", batch_max_size=3)
-    async def step(inputs: list[Inp], ctxs: list[Any]) -> list[dict[str, str]]:
-        return [{"uppercase": i.value.upper()} for i in inputs]
+    async def step(tasks: list[tuple[Inp, Any]]) -> list[dict[str, str]]:
+        return [{"uppercase": inp.value.upper()} for inp, _ctx in tasks]
 
     action_id = wf._create_action_name(step)
     runner = Runner(
@@ -97,8 +97,8 @@ async def test_batch_flush_validates_output_length() -> None:
     wf = hatchet.workflow(name="batch-unit-test-length", input_validator=Inp)
 
     @wf.batch_task(name="step", batch_max_size=2)
-    async def step(inputs: list[Inp], ctxs: list[Any]) -> list[dict[str, str]]:
-        return [{"uppercase": inputs[0].value.upper()}]
+    async def step(tasks: list[tuple[Inp, Any]]) -> list[dict[str, str]]:
+        return [{"uppercase": tasks[0][0].value.upper()}]
 
     action_id = wf._create_action_name(step)
     runner = Runner(
@@ -148,7 +148,7 @@ async def test_batch_flush_fans_out_errors() -> None:
     wf = hatchet.workflow(name="batch-unit-test-errors", input_validator=Inp)
 
     @wf.batch_task(name="step", batch_max_size=2)
-    async def step(inputs: list[Inp], ctxs: list[Any]) -> list[dict[str, str]]:
+    async def step(tasks: list[tuple[Inp, Any]]) -> list[dict[str, str]]:
         raise RuntimeError("boom")
 
     action_id = wf._create_action_name(step)

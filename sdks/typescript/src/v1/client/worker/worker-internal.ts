@@ -327,11 +327,10 @@ export class V1Worker {
       const orderedItems = Array.from(state.items.entries())
         .sort(([a], [b]) => a - b)
         .map(([, item]) => item);
-      const contexts = orderedItems.map((item) => item.ctx);
-      const inputs = contexts.map((ctx) => ctx.input);
+      const tasks = orderedItems.map((item) => [item.ctx.input, item.ctx] as const);
 
       try {
-        const outputs = await batch.fn(inputs, contexts);
+        const outputs = await batch.fn(tasks as any);
 
         if (!Array.isArray(outputs)) {
           throw new HatchetError(`Batch task '${task.name}' must return an array of outputs`);

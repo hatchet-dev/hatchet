@@ -230,7 +230,8 @@ export class HatchetClient implements IHatchetClient {
 
   /**
    * Creates a new batched task workflow. Batched tasks aggregate pending executions until the configured
-   * batch size is reached or the optional flush interval elapses, then invoke the handler with all inputs.
+   * batch size is reached or the optional flush interval elapses, then invoke the handler with all buffered
+   * items as `(input, ctx)` tuples.
    * @template I The per-item input type for the task.
    * @template O The per-item output type for the task.
    * @param options Batch task configuration options.

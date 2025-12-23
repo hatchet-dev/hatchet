@@ -44,11 +44,11 @@ dag.batchTask({
   batchMaxInterval: '10s',
   batchGroupKey: 'input.batchId',
   batchGroupMaxRuns: 1,
-  fn: async (inputs, ctxs) => {
-    const lowers = await Promise.all(ctxs.map((ctx) => ctx.parentOutput(toLower)));
+  fn: async (tasks) => {
+    const lowers = await Promise.all(tasks.map(([, ctx]) => ctx.parentOutput(toLower)));
 
     return lowers.map((lower, index) => ({
-      Original: inputs[index].Message,
+      Original: tasks[index][0].Message,
       Transformed: lower.TransformedMessage.split('').reverse().join(''),
     }));
   },

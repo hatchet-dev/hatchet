@@ -24,13 +24,12 @@ workflow = hatchet.workflow(name="batch-task-example", input_validator=BatchInpu
     batch_group_max_runs=1,
 )
 async def uppercase(
-    inputs: list[BatchInput], ctxs: list[Context]
+    tasks: list[tuple[BatchInput, Context]]
 ) -> list[dict[str, str]]:
-    # `inputs` is aligned with `ctxs` by index.
+    # Each item is a tuple of (input, ctx).
     await asyncio.sleep(10)
     return [
-        {"group": inputs[i].group, "uppercase": inputs[i].message.upper()}
-        for i in range(len(inputs))
+        {"group": inp.group, "uppercase": inp.message.upper()} for inp, _ctx in tasks
     ]
 
 

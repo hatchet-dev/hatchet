@@ -1,6 +1,9 @@
 # Context
 
-The Hatchet Context class provides helper methods and useful data to tasks at runtime. It is passed as the second argument to all tasks and durable tasks.
+The Hatchet Context class provides helper methods and useful data to tasks at runtime.
+
+- For **tasks** and **durable tasks**, it is passed as the second argument (`fn(input, ctx)`).
+- For **batch tasks**, it is paired with each input as a tuple (`fn(tasks)` where `tasks: list[tuple[input, Context]]`).
 
 There are two types of context classes you'll encounter:
 

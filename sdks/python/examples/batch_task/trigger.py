@@ -8,7 +8,7 @@ async def main() -> None:
     await asyncio.gather(
         workflow.aio_run(BatchInput(message="alpha", group="tenant-1")),
         workflow.aio_run(BatchInput(message="bravo", group="tenant-1")),
-        workflow.aio_run(BatchInput(message="charlie", group="tenant-1")),
+        workflow.aio_run(BatchInput(message="charlie", group="tenant-2")),
     )
 
 

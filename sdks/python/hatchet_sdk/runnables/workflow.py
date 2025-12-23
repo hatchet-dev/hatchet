@@ -933,7 +933,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> Callable[
         [
             Callable[
-                [list[TWorkflowInput], list[Context]], list[R] | CoroutineLike[list[R]]
+                [list[tuple[TWorkflowInput, Context]]],
+                list[R] | CoroutineLike[list[R]],
             ]
         ],
         Task[TWorkflowInput, R],
@@ -942,7 +943,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         A decorator to transform a function into a Hatchet *batch* task that runs as part of a workflow.
 
         Batch tasks buffer individual executions until Hatchet flushes the batch (size reached or flush interval),
-        then invoke the handler once with all inputs and their corresponding contexts.
+        then invoke the handler once with all (input, context) pairs.
 
         The handler must return a list of outputs with the same length as the input list.
         """
@@ -967,7 +968,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         def inner(
             func: Callable[
-                [list[TWorkflowInput], list[Context]],
+                [list[tuple[TWorkflowInput, Context]]],
                 list[R] | CoroutineLike[list[R]],
             ],
         ) -> Task[TWorkflowInput, R]:

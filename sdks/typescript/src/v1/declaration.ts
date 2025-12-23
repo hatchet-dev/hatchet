@@ -20,6 +20,7 @@ import {
   DurableTaskFn,
   BatchTaskConfig,
   BatchTaskFn,
+  BatchTaskItem,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -586,7 +587,8 @@ export class WorkflowDeclaration<
    * Adds a batched task to the workflow.
    *
    * Batched tasks buffer individual executions until the configured batch size is reached
-   * (or the optional flush interval elapses), then invoke the handler with all buffered inputs.
+   * (or the optional flush interval elapses), then invoke the handler with a single `tasks` array where
+   * each item is a tuple of `(input, ctx)`.
    *
    * This mirrors `hatchet.batchTask(...)`, but binds the task to this workflow DAG.
    */
@@ -594,10 +596,9 @@ export class WorkflowDeclaration<
     Name extends string,
     Fn extends Name extends keyof O
       ? (
-          inputs: I[],
-          ctxs: Context<I>[]
+          tasks: BatchTaskItem<I>[]
         ) => O[Name] extends OutputType ? O[Name][] | Promise<O[Name][]> : void
-      : (inputs: I[], ctxs: Context<I>[]) => void,
+      : (tasks: BatchTaskItem<I>[]) => void,
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -871,7 +872,7 @@ export function CreateTaskWorkflow<
 /**
  * Creates a new batched task workflow declaration. Batched tasks buffer individual task executions
  * until the configured batch size is met or the optional flush interval elapses, then invoke the
- * provided batch handler with all pending inputs at once.
+ * provided batch handler with all pending items as `(input, ctx)` tuples.
  * @template I The input type for each task invocation.
  * @template O The output type for each task invocation.
  * @param options The batch task configuration options.

@@ -54,9 +54,15 @@ export type TaskFn<
   C = Context<I>,
 > = (input: I, ctx: C) => O | Promise<O>;
 
+export type BatchTaskItem<I extends InputType = UnknownInputType> = readonly [I, Context<I>];
+
+/**
+ * Batch task handler signature (zip-style).
+ *
+ * Each item is a tuple of (input, context). This avoids parallel arrays and accidental index drift.
+ */
 export type BatchTaskFn<I extends InputType = UnknownInputType, O extends OutputType = void> = (
-  inputs: I[],
-  contexts: Context<I>[]
+  tasks: BatchTaskItem<I>[]
 ) => O[] | Promise<O[]>;
 
 export type BatchTaskConfig<I extends InputType = UnknownInputType, O extends OutputType = void> = {
@@ -80,8 +86,8 @@ export type BatchTaskConfig<I extends InputType = UnknownInputType, O extends Ou
    */
   batchGroupMaxRuns?: number;
   /**
-   * The batch handler invoked with the buffered inputs and their corresponding contexts.
-   * The returned array must match the number of inputs in the batch.
+   * The batch handler invoked with buffered items.
+   * The returned array must match the number of tasks in the batch.
    */
   fn: BatchTaskFn<I, O>;
 };

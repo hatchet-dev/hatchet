@@ -3,6 +3,7 @@ import sleep from '@hatchet/util/sleep';
 import { hatchet } from '../hatchet-client';
 import { Worker } from '../../client/worker/worker';
 import type { Duration } from '../../client/duration';
+import type { Context } from '../../client/worker/context';
 import type { JsonObject } from '../../types';
 
 describe('batch-task e2e', () => {
@@ -16,8 +17,8 @@ describe('batch-task e2e', () => {
     retries: 0,
     batchMaxSize: 3,
     batchMaxInterval: '200ms',
-    fn: (inputs: { Message: string }[]) =>
-      inputs.map((input) => ({
+    fn: (tasks: Array<readonly [{ Message: string }, Context<{ Message: string }>]> ) =>
+      tasks.map(([input]) => ({
         TransformedMessage: input.Message.toUpperCase(),
       })),
   });
@@ -26,7 +27,7 @@ describe('batch-task e2e', () => {
     I extends JsonObject,
     O extends JsonObject,
   >(config: {
-    fn: (inputs: I[]) => O[] | Promise<O[]>;
+    fn: (tasks: Array<readonly [I, Context<I>]>) => O[] | Promise<O[]>;
     batchMaxSize: number;
     batchMaxInterval?: Duration;
     batchGroupKey?: string;
@@ -112,11 +113,11 @@ describe('batch-task e2e', () => {
       batchMaxSize: 2,
       batchMaxInterval: '200ms',
       batchGroupKey: 'input.group',
-      fn: (inputs: Array<{ Message: string; group: string }>) =>
-        inputs.map((input) => ({
+      fn: (tasks: Array<readonly [{ Message: string; group: string }, Context<{ Message: string; group: string }>]> ) =>
+        tasks.map(([input]) => ({
           batchKey: input.group,
-          batchSize: inputs.length,
-          uniqueKeys: new Set(inputs.map((item) => item.group)).size,
+          batchSize: tasks.length,
+          uniqueKeys: new Set(tasks.map(([item]) => item.group)).size,
           uppercase: input.Message.toUpperCase(),
         })),
     });
@@ -144,11 +145,11 @@ describe('batch-task e2e', () => {
       batchMaxSize: 3,
       batchMaxInterval: '150ms',
       batchGroupKey: 'input.group',
-      fn: (inputs: Array<{ Message: string; group: string }>) =>
-        inputs.map((input) => ({
+      fn: (tasks: Array<readonly [{ Message: string; group: string }, Context<{ Message: string; group: string }>]> ) =>
+        tasks.map(([input]) => ({
           batchKey: input.group,
-          batchSize: inputs.length,
-          uniqueKeys: new Set(inputs.map((item) => item.group)).size,
+          batchSize: tasks.length,
+          uniqueKeys: new Set(tasks.map(([item]) => item.group)).size,
           payload: input.Message,
         })),
     });
@@ -173,10 +174,10 @@ describe('batch-task e2e', () => {
     const singleItemWorkflow = await createAndRegisterBatchWorkflow({
       batchMaxSize: 1,
       batchMaxInterval: '100ms',
-      fn: (inputs: Array<{ Message: string }>) =>
-        inputs.map((input) => ({
+      fn: (tasks: Array<readonly [{ Message: string }, Context<{ Message: string }>]> ) =>
+        tasks.map(([input]) => ({
           original: input.Message,
-          batchSize: inputs.length,
+          batchSize: tasks.length,
         })),
     });
 
