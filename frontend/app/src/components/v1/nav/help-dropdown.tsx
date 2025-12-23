@@ -36,18 +36,14 @@ export function HelpDropdown({
   side?: React.ComponentProps<typeof DropdownMenuContent>['side'];
   className?: string;
 }) {
-  const meta = useApiMeta();
+  const { meta } = useApiMeta();
   const navigate = useNavigate();
   const { tenant } = useTenantDetails();
   const [open, setOpen] = useState(false);
 
   const hasPylon = useMemo(() => {
-    if (!meta.data?.pylonAppId) {
-      return null;
-    }
-
-    return !!meta.data.pylonAppId;
-  }, [meta]);
+    return !!meta?.pylonAppId;
+  }, [meta?.pylonAppId]);
 
   const trigger =
     triggerVariant === 'button' ? (

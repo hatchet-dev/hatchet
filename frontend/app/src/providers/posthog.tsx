@@ -31,7 +31,7 @@ interface PostHogProviderProps {
  * - Session recording with input masking
  */
 export function PostHogProvider({ children, user }: PostHogProviderProps) {
-  const meta = useApiMeta();
+  const { meta } = useApiMeta();
   const { tenant } = useTenantDetails();
   const initializedRef = useRef(false);
 
@@ -42,8 +42,8 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
         apiHost: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
       };
     }
-    return meta.data?.posthog;
-  }, [meta.data?.posthog]);
+    return meta?.posthog;
+  }, [meta?.posthog]);
 
   // Check for cross-domain tracking params in URL hash
   const bootstrapIds = useMemo(() => {

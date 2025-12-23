@@ -37,7 +37,7 @@ export function TenantSwitcher({
   className,
   memberships,
 }: TenantSwitcherProps) {
-  const meta = useApiMeta();
+  const { meta } = useApiMeta();
   const { setTenant: setCurrTenant, tenant: currTenant } = useTenantDetails();
   const [open, setOpen] = React.useState(false);
   const { hasOrganizations } = useOrganizations();
@@ -104,7 +104,7 @@ export function TenantSwitcher({
                 </CommandItem>
               ))}
             </CommandList>
-            {meta.data?.allowCreateTenant && !hasOrganizations && (
+            {meta?.allowCreateTenant && !hasOrganizations && (
               <>
                 <CommandSeparator />
                 <CommandList>

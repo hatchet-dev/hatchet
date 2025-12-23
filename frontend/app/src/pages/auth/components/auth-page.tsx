@@ -17,13 +17,13 @@ export function AuthPage({
   altAction: React.ReactNode;
 }) {
   useErrorParam();
-  const meta = useApiMeta();
+  const { meta } = useApiMeta();
 
   if (meta.isLoading) {
     return <Loading />;
   }
 
-  const schemes = meta.data?.auth?.schemes || [];
+  const schemes = meta?.auth?.schemes || [];
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
