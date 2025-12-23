@@ -26,8 +26,8 @@ type RegisterBatchBatchResults struct {
 	closed bool
 }
 
-// TODO why?
 // DO NOT USE: dummy query to satisfy sqlc and register Batch calls on DBTX
+// the actual implementation gets overridden in batch.go
 func (q *Queries) RegisterBatch(ctx context.Context, db DBTX, id []int64) *RegisterBatchBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range id {
