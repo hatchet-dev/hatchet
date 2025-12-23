@@ -38,12 +38,36 @@ export function TenantSwitcher({
   memberships,
 }: TenantSwitcherProps) {
   const { meta } = useApiMeta();
-  const { setTenant: setCurrTenant, tenant: currTenant } = useTenantDetails();
+  const {
+    setTenant: setCurrTenant,
+    displayTenant,
+    isLoading: isTenantLoading,
+    isSwitchingTenant,
+  } = useTenantDetails();
   const [open, setOpen] = React.useState(false);
   const { hasOrganizations } = useOrganizations();
 
-  if (!currTenant) {
-    return <Spinner />;
+  if (!displayTenant) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        aria-label="Loading tenant"
+        className={cn(
+          'min-w-0 justify-between gap-2 bg-muted/20 shadow-none',
+          className,
+        )}
+        disabled
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <BuildingOffice2Icon className="size-4 shrink-0 opacity-60" />
+          <span className="min-w-0 flex-1 truncate text-muted-foreground">
+            Loading tenant…
+          </span>
+        </div>
+        <Spinner className="mr-0" />
+      </Button>
+    );
   }
 
   return (
@@ -60,12 +84,21 @@ export function TenantSwitcher({
             open && 'bg-muted/30',
             className,
           )}
+          disabled={
+            isTenantLoading || isSwitchingTenant || memberships.length === 0
+          }
         >
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <BuildingOffice2Icon className="size-4 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{currTenant.name}</span>
+            <span className="min-w-0 flex-1 truncate">
+              {displayTenant.name}
+            </span>
           </div>
-          <CaretSortIcon className="size-4 shrink-0 opacity-50" />
+          {isTenantLoading || isSwitchingTenant ? (
+            <Spinner className="mr-0" />
+          ) : (
+            <CaretSortIcon className="size-4 shrink-0 opacity-50" />
+          )}
         </Button>
       </PopoverTrigger>
       {/* Portal so the popover can render above the mobile sidebar overlay (header is z-50). */}
@@ -96,7 +129,7 @@ export function TenantSwitcher({
                   <CheckIcon
                     className={cn(
                       'ml-auto size-4',
-                      currTenant.slug === membership.tenant?.slug
+                      displayTenant.slug === membership.tenant?.slug
                         ? 'opacity-100'
                         : 'opacity-0',
                     )}

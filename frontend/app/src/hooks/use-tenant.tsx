@@ -11,7 +11,7 @@ import { appRoutes } from '@/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { useAtom } from 'jotai';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type Plan = 'free' | 'starter' | 'growth';
 
@@ -42,11 +42,39 @@ export function useTenantDetails() {
   const matchRoute = useMatchRoute();
   const navigate = useNavigate();
   const tenantParamInPath = params.tenant;
+  const [switchingTenantId, setSwitchingTenantId] = useState<string | null>(
+    null,
+  );
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
+      setSwitchingTenantId(tenant.metadata.id);
       setLastTenant(tenant);
-      queryClient.clear();
+      // On tenant-switch we want to avoid leaking tenant-scoped query data across tenants.
+      // However, a full `queryClient.clear()` causes the top-nav switchers to briefly lose
+      // their option/selected state (since memberships + user are global). Instead, we
+      // remove everything except a small allowlist of global queries.
+      queryClient.cancelQueries();
+      queryClient.removeQueries({
+        predicate: (query) => {
+          const key0 = query.queryKey?.[0];
+
+          // Global, safe-to-keep queries (not tenant-scoped):
+          if (
+            key0 === 'tenant-memberships:list' ||
+            key0 === 'user:get' ||
+            key0 === 'user:get:current' ||
+            key0 === 'user:list-tenant-invites' ||
+            key0 === 'user:list:tenant-invites' ||
+            key0 === 'metadata' ||
+            key0 === 'organization:list'
+          ) {
+            return false;
+          }
+
+          return true;
+        },
+      });
 
       const isOnTenantRoute = Boolean(
         matchRoute({
@@ -76,6 +104,17 @@ export function useTenantDetails() {
     [matchRoute, navigate, setLastTenant, queryClient, tenantParamInPath],
   );
 
+  // Clear the "switching" state once the router param reflects the newly-selected tenant.
+  useEffect(() => {
+    if (!switchingTenantId) {
+      return;
+    }
+
+    if (params.tenant === switchingTenantId) {
+      setSwitchingTenantId(null);
+    }
+  }, [params.tenant, switchingTenantId]);
+
   const membership = useMemo(() => {
     if (!tenantId) {
       return undefined;
@@ -86,7 +125,20 @@ export function useTenantDetails() {
     );
   }, [tenantId, memberships]);
 
-  const tenant = membership?.tenant;
+  const tenant =
+    membership?.tenant ||
+    (lastTenant?.metadata.id && lastTenant.metadata.id === tenantId
+      ? lastTenant
+      : undefined);
+
+  // For UI (switchers) we want an optimistic, non-jumpy label during tenant transitions.
+  // This does NOT change the effective tenant-scoped routing; it only stabilizes display.
+  const displayTenant =
+    switchingTenantId &&
+    lastTenant?.metadata.id &&
+    lastTenant.metadata.id === switchingTenantId
+      ? lastTenant
+      : tenant;
 
   const createTenantMutation = useMutation({
     mutationKey: ['tenant:create'],
@@ -181,7 +233,9 @@ export function useTenantDetails() {
   return {
     tenantId,
     tenant,
-    isLoading: membershipsQuery.isLoading,
+    displayTenant,
+    isLoading: membershipsQuery.isLoading || membershipsQuery.isFetching,
+    isSwitchingTenant: switchingTenantId !== null,
     membership: membership?.role,
     setTenant,
     create: createTenantMutation,

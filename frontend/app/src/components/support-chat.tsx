@@ -4,7 +4,7 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 
 interface SupportChatProps {
-  user: User;
+  user?: User;
 }
 
 const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({

@@ -1,7 +1,6 @@
 import { AppLayout } from '@/components/layout/app-layout';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
-import { Loading } from '@/components/v1/ui/loading';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { queries, User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
@@ -202,27 +201,6 @@ export default function Authenticated() {
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
     }
   }, [isAuthPage, navigate, userQuery.error]);
-
-  if (
-    userQuery.isLoading ||
-    invitesQuery.isLoading ||
-    listMembershipsQuery.isLoading
-  ) {
-    return <Loading />;
-  }
-
-  if (userQuery.error && !isAuthPage) {
-    return null;
-  }
-
-  if (!userQuery.data) {
-    return <Loading />;
-  }
-
-  // Allow organization pages even without tenant memberships
-  if (!isOrganizationsPage && !listMembershipsQuery.data?.rows) {
-    return <Loading />;
-  }
 
   return (
     <PostHogProvider user={userQuery.data}>

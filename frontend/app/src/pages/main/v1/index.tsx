@@ -2,7 +2,6 @@ import { SideNav } from '../../../components/v1/nav/side-nav';
 import { sideNavItems } from './side-nav-items';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
-import { Loading } from '@/components/v1/ui/loading.tsx';
 import { SidePanelProvider } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
@@ -34,10 +33,6 @@ function Main() {
     user,
     memberships,
   });
-
-  if (!user || !memberships) {
-    return <Loading />;
-  }
 
   return (
     <SidePanelProvider>

@@ -41,7 +41,7 @@ import {
   BiUserCircle,
 } from 'react-icons/bi';
 
-function AccountDropdown({ user }: { user: User }) {
+function AccountDropdown({ user }: { user?: User }) {
   const navigate = useNavigate();
 
   const { handleApiError } = useApiError({});
@@ -70,6 +70,7 @@ function AccountDropdown({ user }: { user: User }) {
           size="sm"
           aria-label="User Menu"
           className="relative max-w-[220px] justify-between gap-2 bg-muted/20 px-2 shadow-none hover:bg-muted/30"
+          disabled={!user}
         >
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <BiUserCircle className="size-5 shrink-0 text-foreground" />
@@ -77,7 +78,8 @@ function AccountDropdown({ user }: { user: User }) {
               className="hidden min-w-0 flex-1 truncate lg:block"
               data-cy="user-name"
             >
-              {user.name || user.email}
+              {user?.name || user?.email}
+              {/* TODO-DESIGN: add a loading state */}
             </span>
           </div>
           <ChevronDown className="size-4 shrink-0 opacity-60" />
@@ -90,10 +92,10 @@ function AccountDropdown({ user }: { user: User }) {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none" data-cy="user-name">
-              {user.name || user.email}
+              {user?.name || user?.email}
             </p>
             <p className="text-xs leading-none text-gray-700 dark:text-gray-300">
-              {user.email}
+              {user?.email}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -135,7 +137,7 @@ function AccountDropdown({ user }: { user: User }) {
 }
 
 interface TopNavProps {
-  user: User;
+  user?: User;
   tenantMemberships: TenantMember[];
 }
 
@@ -186,7 +188,8 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
 
   const { isCloudEnabled } = useCloud();
   const { tenant } = useTenantDetails();
-  const showTenantSwitcher = tenantMemberships?.length > 0 && !!tenant;
+  const showTenantSwitcher =
+    !!user && tenantMemberships?.length > 0 && !!tenant;
 
   return (
     <header className="z-50 h-16 w-full  bg-background">

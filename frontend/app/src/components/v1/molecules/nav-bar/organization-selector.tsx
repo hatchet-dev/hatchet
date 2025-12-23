@@ -184,7 +184,12 @@ export function OrganizationSelector({
 }: OrganizationSelectorProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { tenant: currTenant, setTenant: setCurrTenant } = useTenantDetails();
+  const {
+    displayTenant,
+    setTenant: setCurrTenant,
+    isLoading: isTenantLoading,
+    isSwitchingTenant,
+  } = useTenantDetails();
   const [open, setOpen] = useState(false);
   const [expandedOrgs, setExpandedOrgs] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -195,6 +200,7 @@ export function OrganizationSelector({
     isTenantArchivedInOrg,
     handleCreateOrganization,
     createOrganizationLoading,
+    isLoading: isOrganizationsLoading,
   } = useOrganizations();
 
   const handleClose = () => setOpen(false);
@@ -271,8 +277,8 @@ export function OrganizationSelector({
       }
     });
 
-    const currentOrg = currTenant
-      ? getOrganizationForTenant(currTenant.metadata.id)
+    const currentOrg = displayTenant
+      ? getOrganizationForTenant(displayTenant.metadata.id)
       : null;
     const currentOrgTenants = currentOrg
       ? orgMap.get(currentOrg.metadata.id) || []
@@ -302,12 +308,14 @@ export function OrganizationSelector({
     organizations,
     getOrganizationForTenant,
     isTenantArchivedInOrg,
-    currTenant,
+      displayTenant,
   ]);
 
-  if (!currTenant) {
-    return null;
-  }
+  const triggerDisabled =
+    isTenantLoading ||
+    isOrganizationsLoading ||
+    isSwitchingTenant ||
+    memberships.length === 0;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -324,12 +332,20 @@ export function OrganizationSelector({
               open && 'bg-muted/30',
               className,
             )}
+            disabled={triggerDisabled}
           >
             <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
               <BuildingOffice2Icon className="size-4 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">{currTenant.name}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {displayTenant?.name ?? 'Loading tenant…'}
+              </span>
             </div>
-            <CaretSortIcon className="size-4 shrink-0 opacity-50" />
+            {(isTenantLoading || isOrganizationsLoading || isSwitchingTenant) &&
+            !open ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />
+            ) : (
+              <CaretSortIcon className="size-4 shrink-0 opacity-50" />
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent
@@ -342,12 +358,19 @@ export function OrganizationSelector({
             <CommandList>
               <CommandEmpty>No tenants found.</CommandEmpty>
 
+              {isOrganizationsLoading && (
+                <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />
+                  Loading organizations…
+                </div>
+              )}
+
               {currentOrgData && (
                 <CommandGroup heading="Current Organization">
                   <OrganizationGroup
                     organization={currentOrgData.organization}
                     tenants={currentOrgData.tenants}
-                    currentTenant={currTenant}
+                    currentTenant={displayTenant!}
                     isExpanded={expandedOrgs.includes(
                       currentOrgData.organization.metadata.id,
                     )}
@@ -381,7 +404,7 @@ export function OrganizationSelector({
                       key={organization.metadata.id}
                       organization={organization}
                       tenants={tenants}
-                      currentTenant={currTenant}
+                      currentTenant={displayTenant!}
                       isExpanded={expandedOrgs.includes(
                         organization.metadata.id,
                       )}
@@ -414,7 +437,7 @@ export function OrganizationSelector({
                       <CheckIcon
                         className={cn(
                           'ml-auto size-4',
-                          currTenant.slug === membership.tenant?.slug
+                          displayTenant?.slug === membership.tenant?.slug
                             ? 'opacity-100'
                             : 'opacity-0',
                         )}

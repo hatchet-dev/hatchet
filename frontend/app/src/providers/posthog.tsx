@@ -17,7 +17,7 @@ const PostHogContext = createContext<PostHogContextValue>({ isReady: false });
 
 interface PostHogProviderProps {
   children: React.ReactNode;
-  user: User;
+  user?: User;
 }
 
 /**
