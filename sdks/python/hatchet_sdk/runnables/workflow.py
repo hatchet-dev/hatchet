@@ -951,7 +951,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         if batch_max_size <= 0:
             raise ValueError("batch_max_size must be a positive integer")
 
-        if batch_max_interval is not None and batch_max_interval.total_seconds() <= 0:
+        if (
+            batch_max_interval is not None
+            and isinstance(batch_max_interval, timedelta)
+            and batch_max_interval.total_seconds() <= 0
+        ):
             raise ValueError("batch_max_interval must be positive when provided")
 
         if batch_group_max_runs is not None and batch_group_max_runs <= 0:

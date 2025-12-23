@@ -21,3 +21,13 @@ def timedelta_to_expr(td: Duration) -> str:
     if seconds % MINUTE == 0:
         return f"{seconds // MINUTE}m"
     return f"{seconds}s"
+
+
+def str_to_timedelta(s: str) -> timedelta:
+    if s.endswith("h"):
+        return timedelta(hours=int(s[:-1]))
+    if s.endswith("m"):
+        return timedelta(minutes=int(s[:-1]))
+    if s.endswith("s"):
+        return timedelta(seconds=int(s[:-1]))
+    raise ValueError(f"Invalid duration string: {s}")
