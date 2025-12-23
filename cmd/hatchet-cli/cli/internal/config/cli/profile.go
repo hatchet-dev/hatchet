@@ -14,6 +14,9 @@ import (
 func GetProfiles() map[string]cli.Profile {
 	profiles := make(map[string]cli.Profile)
 
+	viperMutex.RLock()
+	defer viperMutex.RUnlock()
+
 	if ProfilesViperConfig == nil {
 		return profiles
 	}
@@ -41,6 +44,9 @@ func GetProfiles() map[string]cli.Profile {
 
 // GetProfile returns a specific profile by name
 func GetProfile(name string) (*cli.Profile, error) {
+	viperMutex.RLock()
+	defer viperMutex.RUnlock()
+
 	if ProfilesViperConfig == nil {
 		return nil, fmt.Errorf("config not initialized")
 	}
@@ -110,6 +116,9 @@ func AddProfile(name string, profile *cli.Profile) error {
 	}
 	defer unlock()
 
+	viperMutex.Lock()
+	defer viperMutex.Unlock()
+
 	// Reload config to get latest state
 	if err := reloadConfig(); err != nil {
 		return fmt.Errorf("failed to reload config: %w", err)
@@ -137,6 +146,9 @@ func RemoveProfile(name string) error {
 		return fmt.Errorf("failed to acquire lock: %w", err)
 	}
 	defer unlock()
+
+	viperMutex.Lock()
+	defer viperMutex.Unlock()
 
 	// Reload config to get latest state
 	if err := reloadConfig(); err != nil {
@@ -192,6 +204,9 @@ func UpdateProfile(name string, profile *cli.Profile) error {
 		return fmt.Errorf("failed to acquire lock: %w", err)
 	}
 	defer unlock()
+
+	viperMutex.Lock()
+	defer viperMutex.Unlock()
 
 	// Reload config to get latest state
 	if err := reloadConfig(); err != nil {

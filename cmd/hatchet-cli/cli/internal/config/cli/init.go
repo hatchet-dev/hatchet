@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/charmbracelet/log"
 	"github.com/mitchellh/go-homedir"
@@ -17,6 +18,7 @@ var (
 	CLIConfig           *cli.CLIConfig
 	ProfilesViperConfig *viper.Viper
 	Logger              *log.Logger
+	viperMutex          sync.RWMutex // Protects ProfilesViperConfig from concurrent access
 )
 
 func init() {
