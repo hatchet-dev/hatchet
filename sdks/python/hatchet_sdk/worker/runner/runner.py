@@ -626,7 +626,7 @@ class Runner:
             inputs = [
                 controller.task.workflow._get_workflow_input(ctx) for ctx in contexts
             ]
-            tasks = list(zip(inputs, contexts, strict=False))
+            tasks = list(zip(inputs, contexts))
 
             if not controller.task.is_batch:
                 raise RuntimeError(
