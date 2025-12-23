@@ -442,7 +442,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
               <div className="px-4 py-4">
                 {navSections.map((section) => (
                   <div key={section.key} className="py-2">
-                    <h2 className="mb-2 text-xs font-semibold font-mono tracking-widest uppercase text-muted-foreground">
+                    <h2 className="mb-2 text-xs font-mono tracking-widest uppercase text-muted-foreground">
                       {section.title}
                     </h2>
 
