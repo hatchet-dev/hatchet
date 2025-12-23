@@ -33,7 +33,7 @@ export function sideNavItems(opts: {
     },
     {
       key: 'tenant-settings-github',
-      name: 'Github',
+      name: 'GitHub',
       to: appRoutes.tenantSettingsGithubRoute.to,
     },
     {
