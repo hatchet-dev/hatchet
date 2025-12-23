@@ -260,7 +260,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
       className={cn(
         // On mobile, overlay the content area (which is already positioned below the fixed header).
         // On desktop, participate in the grid as a fixed-width sidebar.
-        'relative absolute inset-x-0 top-0 bottom-0 z-[100] w-full overflow-hidden border-r bg-slate-100 dark:bg-slate-900 md:relative md:inset-auto md:top-0 md:bottom-auto md:h-full md:bg-[unset] md:dark:bg-[unset]',
+        'relative absolute inset-x-0 top-0 bottom-0 z-[100] w-full overflow-hidden bg-slate-100 dark:bg-slate-900 md:relative md:inset-auto md:top-0 md:bottom-auto md:h-full md:bg-[unset] md:dark:bg-[unset]',
         !isResizing && 'md:transition-[width] md:duration-200 md:ease-in-out',
         className,
       )}

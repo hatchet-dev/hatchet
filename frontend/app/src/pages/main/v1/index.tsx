@@ -44,10 +44,12 @@ function Main() {
       <ThreeColumnLayout
         sidebar={<SideNav navItems={navSections} />}
         sidePanel={<SidePanel />}
-        mainClassName="overflow-auto px-8 py-4"
+        mainClassName="overflow-auto"
         mainContainerType="inline-size"
       >
-        <OutletWithContext context={childCtx} />
+        <div className="border-l border-t md:rounded-tl-xl p-4 h-full dark:bg-[#02061D] bg-background ">
+          <OutletWithContext context={childCtx} />
+        </div>
       </ThreeColumnLayout>
     </SidePanelProvider>
   );

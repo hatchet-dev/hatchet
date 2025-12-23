@@ -189,7 +189,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
   const showTenantSwitcher = tenantMemberships?.length > 0 && !!tenant;
 
   return (
-    <header className="z-50 h-16 w-full border-b bg-background">
+    <header className="z-50 h-16 w-full  bg-background">
       {/* Mobile header */}
       <div className="flex h-16 items-center px-4 md:hidden">
         <div className="flex items-center gap-3">
