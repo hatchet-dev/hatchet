@@ -2158,3 +2158,12 @@ SELECT
     updated_at::TIMESTAMPTZ
 FROM payloads
 ;
+
+-- name: ComputeOLAPPayloadBatchSize :one
+SELECT compute_olap_payload_batch_size(
+    @partitionDate::DATE,
+    @lastTenantId::UUID,
+    @lastExternalId::UUID,
+    @lastInsertedAt::TIMESTAMPTZ,
+    @batchSize::INTEGER
+) AS total_size_bytes;

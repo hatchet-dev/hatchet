@@ -214,6 +214,37 @@ func (q *Queries) CleanUpOLAPCutoverJobOffsets(ctx context.Context, db DBTX, key
 	return err
 }
 
+const computeOLAPPayloadBatchSize = `-- name: ComputeOLAPPayloadBatchSize :one
+SELECT compute_olap_payload_batch_size(
+    $1::DATE,
+    $2::UUID,
+    $3::UUID,
+    $4::TIMESTAMPTZ,
+    $5::INTEGER
+) AS total_size_bytes
+`
+
+type ComputeOLAPPayloadBatchSizeParams struct {
+	Partitiondate  pgtype.Date        `json:"partitiondate"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+	Batchsize      int32              `json:"batchsize"`
+}
+
+func (q *Queries) ComputeOLAPPayloadBatchSize(ctx context.Context, db DBTX, arg ComputeOLAPPayloadBatchSizeParams) (int64, error) {
+	row := db.QueryRow(ctx, computeOLAPPayloadBatchSize,
+		arg.Partitiondate,
+		arg.Lasttenantid,
+		arg.Lastexternalid,
+		arg.Lastinsertedat,
+		arg.Batchsize,
+	)
+	var total_size_bytes int64
+	err := row.Scan(&total_size_bytes)
+	return total_size_bytes, err
+}
+
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
     SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name

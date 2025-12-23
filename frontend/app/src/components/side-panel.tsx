@@ -83,8 +83,9 @@ export function SidePanel() {
   return (
     <div
       ref={panelRef}
+      data-cy="side-panel"
       className={cn(
-        'relative flex flex-shrink-0 flex-col overflow-hidden border-l border-border bg-background',
+        'relative flex flex-shrink-0 flex-col overflow-hidden border-l border-border bg-background h-full',
         !isResizing && 'transition-all duration-300 ease-in-out',
       )}
       style={{
@@ -137,6 +138,7 @@ export function SidePanel() {
           </div>
 
           <div
+            data-cy="side-panel-content"
             className={cn(
               'side-panel-content flex-1 overflow-auto p-4',
               isResizing && 'pointer-events-none',

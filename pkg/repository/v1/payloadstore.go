@@ -445,14 +445,60 @@ func (d PartitionDate) String() string {
 	return d.Time.Format("20060102")
 }
 
-const MAX_PARTITIONS_TO_OFFLOAD = 14 // two weeks
+const MAX_PARTITIONS_TO_OFFLOAD = 14                  // two weeks
+const MAX_BATCH_SIZE_BYTES = 1.5 * 1024 * 1024 * 1024 // 1.5 GB
+
+func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Context, partitionDate PartitionDate, candidateBatchNumRows int32, pagination PaginationParams) (*int32, error) {
+	if candidateBatchNumRows <= 0 {
+		// trivial case that we'll never hit, but to prevent infinite recursion
+		zero := int32(0)
+		return &zero, nil
+	}
+
+	proposedBatchSizeBytes, err := p.queries.ComputePayloadBatchSize(ctx, p.pool, sqlcv1.ComputePayloadBatchSizeParams{
+		Partitiondate:  pgtype.Date(partitionDate),
+		Lasttenantid:   pagination.LastTenantID,
+		Lastinsertedat: pagination.LastInsertedAt,
+		Lastid:         pagination.LastID,
+		Lasttype:       pagination.LastType,
+		Batchsize:      candidateBatchNumRows,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute payload batch size: %w", err)
+	}
+
+	if proposedBatchSizeBytes < MAX_BATCH_SIZE_BYTES {
+		return &candidateBatchNumRows, nil
+	}
+
+	// if the proposed batch size is too large, then
+	// cut it in half and try again
+	return p.OptimizePayloadWindowSize(
+		ctx,
+		partitionDate,
+		candidateBatchNumRows/2,
+		pagination,
+	)
+}
 
 func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
 	defer span.End()
 
 	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
-	windowSize := p.externalCutoverBatchSize * p.externalCutoverNumConcurrentOffloads
+	windowSizePtr, err := p.OptimizePayloadWindowSize(
+		ctx,
+		partitionDate,
+		p.externalCutoverBatchSize*p.externalCutoverNumConcurrentOffloads,
+		pagination,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to optimize payload window size: %w", err)
+	}
+
+	windowSize := *windowSizePtr
 
 	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, p.pool, sqlcv1.CreatePayloadRangeChunksParams{
 		Chunksize:      p.externalCutoverBatchSize,

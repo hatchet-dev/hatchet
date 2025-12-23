@@ -206,6 +206,92 @@ func (w *workflowRunAPIRepository) UpdateScheduledWorkflow(ctx context.Context, 
 	})
 }
 
+func (w *workflowRunAPIRepository) ScheduledWorkflowMetaByIds(ctx context.Context, tenantId string, scheduledWorkflowIds []string) (map[string]repository.ScheduledWorkflowMeta, error) {
+	if len(scheduledWorkflowIds) == 0 {
+		return map[string]repository.ScheduledWorkflowMeta{}, nil
+	}
+
+	ids := make([]pgtype.UUID, 0, len(scheduledWorkflowIds))
+	for _, id := range scheduledWorkflowIds {
+		ids = append(ids, sqlchelpers.UUIDFromStr(id))
+	}
+
+	rows, err := w.queries.GetScheduledWorkflowMetaByIds(ctx, w.pool, dbsqlc.GetScheduledWorkflowMetaByIdsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      ids,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]repository.ScheduledWorkflowMeta, len(scheduledWorkflowIds))
+	for _, row := range rows {
+		idStr := sqlchelpers.UUIDToStr(row.ID)
+		out[idStr] = repository.ScheduledWorkflowMeta{
+			Id:              idStr,
+			Method:          row.Method,
+			HasTriggeredRun: row.HasTriggeredRun,
+		}
+	}
+
+	return out, nil
+}
+
+func (w *workflowRunAPIRepository) BulkDeleteScheduledWorkflows(ctx context.Context, tenantId string, scheduledWorkflowIds []string) ([]string, error) {
+	if len(scheduledWorkflowIds) == 0 {
+		return []string{}, nil
+	}
+
+	ids := make([]pgtype.UUID, 0, len(scheduledWorkflowIds))
+	for _, id := range scheduledWorkflowIds {
+		ids = append(ids, sqlchelpers.UUIDFromStr(id))
+	}
+
+	deletedIds, err := w.queries.BulkDeleteScheduledWorkflows(ctx, w.pool, dbsqlc.BulkDeleteScheduledWorkflowsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      ids,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	deleted := make([]string, 0, len(scheduledWorkflowIds))
+	for _, id := range deletedIds {
+		deleted = append(deleted, sqlchelpers.UUIDToStr(id))
+	}
+
+	return deleted, nil
+}
+
+func (w *workflowRunAPIRepository) BulkUpdateScheduledWorkflows(ctx context.Context, tenantId string, updates []repository.ScheduledWorkflowUpdate) ([]string, error) {
+	if len(updates) == 0 {
+		return []string{}, nil
+	}
+
+	ids := make([]pgtype.UUID, 0, len(updates))
+	triggerAts := make([]pgtype.Timestamp, 0, len(updates))
+	for _, u := range updates {
+		ids = append(ids, sqlchelpers.UUIDFromStr(u.Id))
+		triggerAts = append(triggerAts, sqlchelpers.TimestampFromTime(u.TriggerAt))
+	}
+
+	updatedIds, err := w.queries.BulkUpdateScheduledWorkflows(ctx, w.pool, dbsqlc.BulkUpdateScheduledWorkflowsParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Ids:        ids,
+		Triggerats: triggerAts,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	updated := make([]string, 0, len(updates))
+	for _, id := range updatedIds {
+		updated = append(updated, sqlchelpers.UUIDToStr(id))
+	}
+
+	return updated, nil
+}
+
 func (w *workflowRunAPIRepository) GetWorkflowRunShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*dbsqlc.GetWorkflowRunShapeRow, error) {
 	return w.queries.GetWorkflowRunShape(ctx, w.pool, sqlchelpers.UUIDFromStr(workflowVersionId.String()))
 }

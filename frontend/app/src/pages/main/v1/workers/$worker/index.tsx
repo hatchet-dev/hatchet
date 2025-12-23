@@ -21,13 +21,16 @@ import {
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
+import { shouldRetryQueryError } from '@/lib/error-utils';
 import { useApiError } from '@/lib/hooks';
 import { capitalize } from '@/lib/utils';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
 import { useMemo, useState } from 'react';
 import { BiDotsVertical } from 'react-icons/bi';
 
@@ -104,6 +107,7 @@ export default function ExpandedWorkflowRun() {
   const workerQuery = useQuery({
     ...queries.workers.get(params.worker),
     refetchInterval,
+    retry: (_failureCount, error) => shouldRetryQueryError(error),
   });
 
   const worker = workerQuery.data;
@@ -135,7 +139,33 @@ export default function ExpandedWorkflowRun() {
     return registeredWorkflows.slice(0, N_ACTIONS_TO_PREVIEW);
   }, [showAllActions, registeredWorkflows]);
 
-  if (!worker || workerQuery.isLoading || !workerQuery.data) {
+  if (workerQuery.isLoading) {
+    return <Loading />;
+  }
+
+  if (workerQuery.isError) {
+    if (
+      isAxiosError(workerQuery.error) &&
+      workerQuery.error.response?.status === 404
+    ) {
+      return (
+        <ResourceNotFound
+          resource="Worker"
+          primaryAction={{
+            label: 'Back to Workers',
+            navigate: {
+              to: appRoutes.tenantWorkersRoute.to,
+              params: { tenant: tenantId },
+            },
+          }}
+        />
+      );
+    }
+
+    throw workerQuery.error;
+  }
+
+  if (!worker) {
     return <Loading />;
   }
 

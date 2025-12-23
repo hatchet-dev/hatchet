@@ -106,3 +106,15 @@ export function useSearchParams(): [
 
   return [searchParams, setSearchParams];
 }
+
+export function getOptionalStringParam(
+  params: unknown,
+  key: string,
+): string | undefined {
+  if (!params || typeof params !== 'object') {
+    return undefined;
+  }
+
+  const value = Reflect.get(params, key);
+  return typeof value === 'string' ? value : undefined;
+}

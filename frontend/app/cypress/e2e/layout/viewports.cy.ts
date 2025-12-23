@@ -1,0 +1,93 @@
+/* eslint-disable no-loop-func, @typescript-eslint/no-loop-func */
+import { loginSession } from '../../support/flows/auth';
+
+type Viewport = { name: string; width: number; height: number };
+
+const viewports: Viewport[] = [
+  { name: 'mobile-shorty', width: 320, height: 200 },
+  { name: 'mobile-small', width: 375, height: 667 },
+  { name: 'mobile-tall', width: 390, height: 844 },
+  { name: 'tablet', width: 768, height: 1024 },
+  { name: 'desktop', width: 1280, height: 800 },
+];
+
+describe('layout: viewports', () => {
+  describe('auth pages', () => {
+    for (const vp of viewports) {
+      it(`[${vp.name}] login: can reach top and bottom content`, () => {
+        cy.viewport(vp.width, vp.height);
+        cy.visit('/auth/login');
+
+        cy.contains('h2', 'Log in to continue', { timeout: 30000 }).should(
+          'be.visible',
+        );
+
+        // Ensure the legal text is reachable (scroll container is the auth route wrapper).
+        cy.get('[data-cy="auth-legal"]').scrollIntoView().should('be.visible');
+        cy.contains('h2', 'Log in to continue')
+          .scrollIntoView()
+          .should('be.visible');
+      });
+
+      it(`[${vp.name}] register: can reach top and bottom content`, () => {
+        cy.viewport(vp.width, vp.height);
+        cy.visit('/auth/register');
+
+        cy.contains('h2', 'Create an account', { timeout: 30000 }).should(
+          'be.visible',
+        );
+
+        cy.get('[data-cy="auth-legal"]').scrollIntoView().should('be.visible');
+        cy.contains('h2', 'Create an account')
+          .scrollIntoView()
+          .should('be.visible');
+      });
+    }
+  });
+
+  describe('v1 shell', () => {
+    for (const vp of viewports) {
+      it(`[${vp.name}] sidebar scrolls and footer stays visible`, () => {
+        loginSession('owner');
+        cy.viewport(vp.width, vp.height);
+        cy.visit('/');
+
+        // Wait for the authenticated shell to load (avoids flaking on redirects/hydration).
+        cy.get('button[aria-label="User Menu"]', { timeout: 30000 }).should(
+          'be.visible',
+        );
+        cy.location('pathname', { timeout: 30000 }).should(
+          'match',
+          /\/tenants\/.+/,
+        );
+
+        // On narrow viewports the sidebar is closed by default; open it via the hamburger button.
+        if (vp.width < 768) {
+          cy.get('button[aria-label="Toggle sidebar"]', { timeout: 30000 })
+            .should('be.visible')
+            .click();
+        }
+
+        cy.get('[data-cy="v1-sidebar"]').should('be.visible');
+        cy.get('[data-cy="v1-sidebar-footer"]').should('be.visible');
+
+        // Footer stays visible when scrolling the nav list (only if the nav list overflows).
+        cy.get('[data-cy="v1-sidebar-scroll"]').then(($el) => {
+          const el = $el.get(0);
+          const isVertScrollable = el.scrollHeight > el.clientHeight;
+
+          if (!isVertScrollable) {
+            cy.log('sidebar nav does not overflow at this viewport');
+            return;
+          }
+
+          cy.wrap($el).scrollTo('bottom');
+          cy.get('[data-cy="v1-sidebar-footer"]').should('be.visible');
+
+          cy.wrap($el).scrollTo('top');
+          cy.contains('h2', 'Activity').should('be.visible');
+        });
+      });
+    }
+  });
+});
