@@ -262,6 +262,9 @@ type TaskRepository interface {
 	Cleanup(ctx context.Context) (bool, error)
 
 	GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error)
+
+	FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error)
+	FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -1118,7 +1121,6 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		payload, ok := payloads[retrieveOpts]
 
 		if !ok {
-			r.l.Error().Msgf("ListenForDurableEvent: matched event %s with created at %s and id %d has empty payload, falling back to input", event.ExternalID, event.CreatedAt.Time, event.ID)
 			payload = retrieveOptsToEventData[retrieveOpts]
 		}
 
@@ -2986,7 +2988,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		if !ok {
 			// If the input wasn't found in the payload store,
 			// fall back to the input stored on the task itself.
-			r.l.Error().Msgf("ReplayTasks: task %s with ID %d and inserted_at %s has empty payload, falling back to input", task.ExternalID.String(), task.ID, task.InsertedAt.Time)
 
 			input = task.Input
 		}
@@ -3518,7 +3519,6 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		payload, ok := payloads[retrieveOpts]
 
 		if !ok {
-			r.l.Error().Msgf("ListTaskParentOutputs: task %s with ID %d and inserted_at %s has empty payload, falling back to input", wrId, retrieveOpts.Id, retrieveOpts.InsertedAt.Time)
 			payload = retrieveOptToPayload[retrieveOpts]
 		}
 
@@ -3600,7 +3600,6 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 		payload, ok := payloads[retrieveOpt]
 
 		if !ok {
-			r.l.Error().Msgf("ListenForDurableEvent: task %s with ID %d and inserted_at %s has empty payload, falling back to input", event.ExternalID, event.ID, event.InsertedAt.Time)
 			payload = event.Data
 		}
 
@@ -3860,4 +3859,32 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId string) 
 	}
 
 	return result, nil
+}
+
+func (r *TaskRepositoryImpl) FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error) {
+	t, err := r.queries.FindOldestRunningTask(ctx, r.pool)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if t == nil {
+		return nil, nil
+	}
+
+	return &t.TaskInsertedAt.Time, nil
+}
+
+func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error) {
+	t, err := r.queries.FindOldestTask(ctx, r.pool)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if t == nil {
+		return nil, nil
+	}
+
+	return &t.InsertedAt.Time, nil
 }

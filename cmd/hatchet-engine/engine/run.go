@@ -14,6 +14,7 @@ import (
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/jobs"
+	metricscontroller "github.com/hatchet-dev/hatchet/internal/services/controllers/metrics"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/v1/olap"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/v1/task"
@@ -69,6 +70,18 @@ func init() {
 
 	if err != nil {
 		panic(fmt.Errorf("could not initialize tracer: %w", err))
+	}
+
+	// Initialize the meter provider for metrics
+	_, err = telemetry.InitMeter(&telemetry.TracerOpts{
+		ServiceName:   svcName,
+		CollectorURL:  collectorURL,
+		Insecure:      insecureBool,
+		CollectorAuth: collectorAuth,
+	})
+
+	if err != nil {
+		panic(fmt.Errorf("could not initialize meter: %w", err))
 	}
 }
 
@@ -890,6 +903,31 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Name: "webhook worker",
 			Fn:   cleanup2,
 		})
+
+		if sc.OpenTelemetry.MetricsEnabled && sc.OpenTelemetry.CollectorURL != "" {
+			mc, err := metricscontroller.New(
+				metricscontroller.WithLogger(sc.Logger),
+				metricscontroller.WithRepository(sc.V1),
+				metricscontroller.WithAlerter(sc.Alerter),
+				metricscontroller.WithPartition(p),
+				metricscontroller.WithIntervals(sc.CronOperations),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("could not create metrics collector: %w", err)
+			}
+
+			cleanupMetrics, err := mc.Start()
+			if err != nil {
+				return nil, fmt.Errorf("could not start metrics collector: %w", err)
+			}
+
+			teardown = append(teardown, Teardown{
+				Name: "metrics collector",
+				Fn:   cleanupMetrics,
+			})
+
+			l.Info().Msg("metrics collector started")
+		}
 	}
 
 	if sc.HasService("all") || sc.HasService("grpc-api") {
