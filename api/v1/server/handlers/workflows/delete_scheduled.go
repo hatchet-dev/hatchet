@@ -14,6 +14,13 @@ import (
 func (t *WorkflowService) WorkflowScheduledDelete(ctx echo.Context, request gen.WorkflowScheduledDeleteRequestObject) (gen.WorkflowScheduledDeleteResponseObject, error) {
 	scheduled := ctx.Get("scheduled-workflow-run").(*dbsqlc.ListScheduledWorkflowsRow)
 
+	// Only allow deleting scheduled runs created via API.
+	if scheduled.Method != dbsqlc.WorkflowTriggerScheduledRefMethodsAPI {
+		return gen.WorkflowScheduledDelete403JSONResponse(gen.APIError{
+			Description: "Cannot delete scheduled run created via code definition.",
+		}), nil
+	}
+
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 

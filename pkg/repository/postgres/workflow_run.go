@@ -206,6 +206,147 @@ func (w *workflowRunAPIRepository) UpdateScheduledWorkflow(ctx context.Context, 
 	})
 }
 
+func (w *workflowRunAPIRepository) ScheduledWorkflowMetaByIds(ctx context.Context, tenantId string, scheduledWorkflowIds []string) (map[string]repository.ScheduledWorkflowMeta, error) {
+	if len(scheduledWorkflowIds) == 0 {
+		return map[string]repository.ScheduledWorkflowMeta{}, nil
+	}
+
+	ids := make([]pgtype.UUID, 0, len(scheduledWorkflowIds))
+	for _, id := range scheduledWorkflowIds {
+		ids = append(ids, sqlchelpers.UUIDFromStr(id))
+	}
+
+	// Only fetch minimal metadata required for bulk operations.
+	const q = `
+SELECT
+  t."id",
+  t."method",
+  EXISTS (
+    SELECT 1 FROM "WorkflowRunTriggeredBy" tb
+    WHERE tb."scheduledId" = t."id"
+  ) AS "hasTriggeredRun"
+FROM "WorkflowTriggerScheduledRef" t
+JOIN "WorkflowVersion" v ON t."parentId" = v."id"
+JOIN "Workflow" w ON v."workflowId" = w."id"
+WHERE w."tenantId" = $1::uuid
+  AND t."id" = ANY($2::uuid[])
+`
+
+	rows, err := w.pool.Query(ctx, q, sqlchelpers.UUIDFromStr(tenantId), ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make(map[string]repository.ScheduledWorkflowMeta, len(scheduledWorkflowIds))
+	for rows.Next() {
+		var id pgtype.UUID
+		var method dbsqlc.WorkflowTriggerScheduledRefMethods
+		var hasTriggered bool
+
+		if err := rows.Scan(&id, &method, &hasTriggered); err != nil {
+			return nil, err
+		}
+
+		idStr := sqlchelpers.UUIDToStr(id)
+		out[idStr] = repository.ScheduledWorkflowMeta{
+			Id:              idStr,
+			Method:          method,
+			HasTriggeredRun: hasTriggered,
+		}
+	}
+
+	return out, rows.Err()
+}
+
+func (w *workflowRunAPIRepository) BulkDeleteScheduledWorkflows(ctx context.Context, tenantId string, scheduledWorkflowIds []string) ([]string, error) {
+	if len(scheduledWorkflowIds) == 0 {
+		return []string{}, nil
+	}
+
+	ids := make([]pgtype.UUID, 0, len(scheduledWorkflowIds))
+	for _, id := range scheduledWorkflowIds {
+		ids = append(ids, sqlchelpers.UUIDFromStr(id))
+	}
+
+	const q = `
+DELETE FROM "WorkflowTriggerScheduledRef" t
+USING "WorkflowVersion" v, "Workflow" w
+WHERE t."parentId" = v."id"
+  AND v."workflowId" = w."id"
+  AND w."tenantId" = $1::uuid
+  AND t."method" = 'API'
+  AND t."id" = ANY($2::uuid[])
+RETURNING t."id"
+`
+
+	rows, err := w.pool.Query(ctx, q, sqlchelpers.UUIDFromStr(tenantId), ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	deleted := make([]string, 0, len(scheduledWorkflowIds))
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		deleted = append(deleted, sqlchelpers.UUIDToStr(id))
+	}
+
+	return deleted, rows.Err()
+}
+
+func (w *workflowRunAPIRepository) BulkUpdateScheduledWorkflows(ctx context.Context, tenantId string, updates []repository.ScheduledWorkflowUpdate) ([]string, error) {
+	if len(updates) == 0 {
+		return []string{}, nil
+	}
+
+	ids := make([]pgtype.UUID, 0, len(updates))
+	times := make([]time.Time, 0, len(updates))
+	for _, u := range updates {
+		ids = append(ids, sqlchelpers.UUIDFromStr(u.Id))
+		times = append(times, u.TriggerAt)
+	}
+
+	const q = `
+WITH input AS (
+  SELECT * FROM unnest($2::uuid[], $3::timestamptz[]) AS u(id, triggerAt)
+)
+UPDATE "WorkflowTriggerScheduledRef" t
+SET "triggerAt" = i.triggerAt
+FROM input i, "WorkflowVersion" v, "Workflow" w
+WHERE t."id" = i.id
+  AND t."parentId" = v."id"
+  AND v."workflowId" = w."id"
+  AND w."tenantId" = $1::uuid
+  AND t."method" = 'API'
+  AND NOT EXISTS (
+    SELECT 1 FROM "WorkflowRunTriggeredBy" tb
+    WHERE tb."scheduledId" = t."id"
+  )
+RETURNING t."id"
+`
+
+	rows, err := w.pool.Query(ctx, q, sqlchelpers.UUIDFromStr(tenantId), ids, times)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	updated := make([]string, 0, len(updates))
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		updated = append(updated, sqlchelpers.UUIDToStr(id))
+	}
+
+	return updated, rows.Err()
+}
+
 func (w *workflowRunAPIRepository) GetWorkflowRunShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*dbsqlc.GetWorkflowRunShapeRow, error) {
 	return w.queries.GetWorkflowRunShape(ctx, w.pool, sqlchelpers.UUIDFromStr(workflowVersionId.String()))
 }
