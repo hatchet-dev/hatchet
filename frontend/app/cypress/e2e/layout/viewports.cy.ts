@@ -60,7 +60,14 @@ describe('layout: viewports', () => {
       it(`[${vp.name}] sidebar scrolls and footer stays visible`, () => {
         loginSession('owner');
         cy.viewport(vp.width, vp.height);
-        cy.visit('/');
+        cy.visit('/', {
+          onBeforeLoad(win) {
+            // Start each test from a clean sidebar state (but keep auth cookies).
+            win.localStorage.removeItem('v1SidebarCollapsed');
+            win.localStorage.removeItem('v1SidebarWidthExpanded');
+            win.localStorage.removeItem('v1SidebarWidth'); // legacy key
+          },
+        });
 
         // Wait for the authenticated shell to load (avoids flaking on redirects/hydration).
         cy.get('button[aria-label="User Menu"]', { timeout: 30000 }).should(
@@ -97,6 +104,30 @@ describe('layout: viewports', () => {
           cy.wrap($el).scrollTo('top');
           cy.contains('h2', 'Activity').should('be.visible');
         });
+
+        // Collapsed sidebar should also be scrollable on wide viewports.
+        if (vp.width >= 768) {
+          // Collapse via the resize edge click (no drag).
+          cy.get('[data-cy="v1-sidebar-resize-handle"]').click({ force: true });
+
+          cy.get('[data-cy="v1-sidebar-scroll-collapsed"]').then(($el) => {
+            const el = $el.get(0);
+            const isVertScrollable = el.scrollHeight > el.clientHeight;
+
+            if (!isVertScrollable) {
+              cy.log(
+                'collapsed sidebar nav does not overflow at this viewport',
+              );
+              return;
+            }
+
+            cy.wrap($el).scrollTo('bottom');
+            cy.wrap($el).invoke('scrollTop').should('be.greaterThan', 0);
+
+            // Help is in the fixed footer and should remain reachable/visible.
+            cy.get('button[aria-label="Help Menu"]').should('be.visible');
+          });
+        }
       });
     }
   });

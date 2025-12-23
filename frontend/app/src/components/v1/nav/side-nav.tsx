@@ -8,11 +8,11 @@ import {
   useSidebar,
 } from '@/components/hooks/use-sidebar';
 import { HelpDropdown } from '@/components/v1/nav/help-dropdown';
-import { Button } from '@/components/v1/ui/button';
 import {
-  Collapsible,
-  CollapsibleContent,
-} from '@/components/v1/ui/collapsible';
+  SidebarButtonPrimary,
+  SidebarButtonSecondary,
+} from '@/components/v1/nav/sidebar-buttons';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -329,98 +329,109 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
 
       <div className="flex h-full flex-col overflow-hidden">
         {renderCollapsed ? (
-          <div className="flex h-full flex-col items-center justify-between py-4">
-            <div className="flex w-full flex-col items-center gap-y-2 px-2">
-              {navSections.map((section, sectionIdx) => (
-                <React.Fragment key={section.key}>
-                  {sectionIdx > 0 && (
-                    <div className="my-2 h-px w-8 bg-slate-200 dark:bg-slate-800" />
-                  )}
+          <>
+            {/* Scrollable navigation area (collapsed) */}
+            <div
+              data-cy="v1-sidebar-scroll-collapsed"
+              className="min-h-0 flex-1 overflow-auto py-4 [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground"
+            >
+              <div className="flex w-full flex-col items-center gap-y-2 px-2">
+                {navSections.map((section, sectionIdx) => (
+                  <React.Fragment key={section.key}>
+                    {sectionIdx > 0 && (
+                      <div className="my-2 h-px w-8 bg-slate-200 dark:bg-slate-800" />
+                    )}
 
-                  {section.items.map((item) => {
-                    const activeTo = item.activeTo ?? item.to;
-                    const activeFuzzy = item.activeFuzzy ?? false;
-                    const active = isActive(activeTo, activeFuzzy);
+                    {section.items.map((item) => {
+                      const activeTo = item.activeTo ?? item.to;
+                      const activeFuzzy = item.activeFuzzy ?? false;
+                      const active = isActive(activeTo, activeFuzzy);
 
-                    if (item.children && item.children.length > 0) {
-                      return (
-                        <DropdownMenu key={item.key}>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              hoverText={item.name}
-                              hoverTextSide="right"
-                              aria-label={item.name}
-                              className={cn(
-                                'w-10',
-                                active && 'bg-slate-200 dark:bg-slate-800',
-                              )}
-                            >
-                              {item.icon({ collapsed: true })}
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            side="right"
-                            align="start"
-                            className="bg-secondary text-secondary-foreground"
-                          >
-                            {item.children.map((child) => (
-                              <DropdownMenuItem
-                                key={child.key}
-                                asChild
-                                className="w-full cursor-pointer hover:bg-primary/10 focus:bg-primary/10"
+                      if (item.children && item.children.length > 0) {
+                        return (
+                          <DropdownMenu key={item.key}>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                hoverText={item.name}
+                                hoverTextSide="right"
+                                aria-label={item.name}
+                                className={cn(
+                                  'w-10',
+                                  active && 'bg-slate-200 dark:bg-slate-800',
+                                )}
                               >
-                                <Link
-                                  to={child.to}
-                                  params={commonParams}
-                                  onClick={onNavLinkClick}
+                                {item.icon({ collapsed: true })}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              side="right"
+                              align="start"
+                              className="bg-secondary text-secondary-foreground"
+                            >
+                              {item.children.map((child) => (
+                                <DropdownMenuItem
+                                  key={child.key}
+                                  asChild
+                                  className="w-full cursor-pointer hover:bg-primary/10 focus:bg-primary/10"
                                 >
-                                  {child.name}
-                                </Link>
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      );
-                    }
+                                  <Link
+                                    to={child.to}
+                                    params={commonParams}
+                                    onClick={onNavLinkClick}
+                                  >
+                                    {child.name}
+                                  </Link>
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        );
+                      }
 
-                    return (
-                      <Button
-                        key={item.key}
-                        variant="ghost"
-                        size="icon"
-                        hoverText={item.name}
-                        hoverTextSide="right"
-                        aria-label={item.name}
-                        className={cn(
-                          'w-10',
-                          active && 'bg-slate-200 dark:bg-slate-800',
-                        )}
-                        onClick={() => {
-                          navigate({
-                            to: item.to,
-                            params: commonParams,
-                          });
-                          onNavLinkClick();
-                        }}
-                      >
-                        {item.icon({ collapsed: true })}
-                      </Button>
-                    );
-                  })}
-                </React.Fragment>
-              ))}
+                      return (
+                        <Button
+                          key={item.key}
+                          variant="ghost"
+                          size="icon"
+                          hoverText={item.name}
+                          hoverTextSide="right"
+                          aria-label={item.name}
+                          className={cn(
+                            'w-10',
+                            active && 'bg-slate-200 dark:bg-slate-800',
+                          )}
+                          onClick={() => {
+                            navigate({
+                              to: item.to,
+                              params: commonParams,
+                            });
+                            onNavLinkClick();
+                          }}
+                        >
+                          {item.icon({ collapsed: true })}
+                        </Button>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </div>
             </div>
 
-            <HelpDropdown
-              variant="sidebar"
-              triggerVariant="icon"
-              align="start"
-              side="right"
-              className="w-10"
-            />
-          </div>
+            {/* Fixed footer */}
+            <div className="w-full shrink-0 py-4">
+              <div className="flex w-full justify-center">
+                <HelpDropdown
+                  variant="sidebar"
+                  triggerVariant="icon"
+                  align="start"
+                  side="right"
+                  className="w-10"
+                />
+              </div>
+            </div>
+          </>
         ) : (
           <>
             {/* Scrollable navigation area (keep scrollbar flush to sidebar edge) */}
@@ -480,102 +491,5 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
         )}
       </div>
     </div>
-  );
-}
-
-function SidebarButtonPrimary({
-  onNavLinkClick,
-  to,
-  params,
-  name,
-  icon,
-  prefix,
-  collapsibleChildren = [],
-}: {
-  onNavLinkClick: () => void;
-  to: string;
-  params?: Record<string, string>;
-  name: string;
-  icon: React.ReactNode;
-  prefix?: string;
-  collapsibleChildren?: React.ReactNode[];
-}) {
-  const matchRoute = useMatchRoute();
-
-  // `to` (and `prefix`) are TanStack route templates (e.g. `/tenants/$tenant/...`).
-  // Use the router matcher instead of raw string comparisons against `location.pathname`.
-  const open =
-    collapsibleChildren.length > 0
-      ? prefix
-        ? Boolean(matchRoute({ to: prefix, params, fuzzy: true }))
-        : Boolean(matchRoute({ to, params, fuzzy: true }))
-      : false;
-
-  const selected =
-    collapsibleChildren.length > 0 ? open : Boolean(matchRoute({ to, params }));
-
-  const primaryLink = (
-    <Link to={to} params={params} onClick={onNavLinkClick}>
-      <Button
-        variant="ghost"
-        className={cn(
-          'w-full justify-start pl-2 min-w-0 overflow-hidden',
-          selected && 'bg-slate-200 dark:bg-slate-800',
-        )}
-      >
-        {icon}
-        <span className="truncate">{name}</span>
-      </Button>
-    </Link>
-  );
-
-  return collapsibleChildren.length == 0 ? (
-    primaryLink
-  ) : (
-    <Collapsible
-      open={open}
-      // onOpenChange={setIsOpen}
-      className="w-full"
-    >
-      {primaryLink}
-      <CollapsibleContent className={'ml-4 space-y-2 border-l border-muted'}>
-        {collapsibleChildren}
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-function SidebarButtonSecondary({
-  onNavLinkClick,
-  to,
-  params,
-  name,
-  prefix,
-}: {
-  onNavLinkClick: () => void;
-  to: string;
-  params?: Record<string, string>;
-  name: string;
-  prefix?: string;
-}) {
-  const matchRoute = useMatchRoute();
-  const hasPrefix = prefix
-    ? Boolean(matchRoute({ to: prefix, params, fuzzy: true }))
-    : false;
-  const selected = Boolean(matchRoute({ to, params })) || hasPrefix;
-
-  return (
-    <Link to={to} params={params} onClick={onNavLinkClick}>
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn(
-          'my-[1px] ml-1 mr-3 w-[calc(100%-3px)] justify-start pl-3 pr-0 min-w-0 overflow-hidden',
-          selected && 'bg-slate-200 dark:bg-slate-800',
-        )}
-      >
-        <span className="truncate">{name}</span>
-      </Button>
-    </Link>
   );
 }

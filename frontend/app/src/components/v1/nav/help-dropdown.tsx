@@ -1,3 +1,4 @@
+import { SidebarButtonPrimaryAction } from '@/components/v1/nav/sidebar-buttons';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -12,7 +13,7 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { appRoutes } from '@/router';
 import { useNavigate } from '@tanstack/react-router';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   BiBook,
   BiCalendar,
@@ -38,6 +39,7 @@ export function HelpDropdown({
   const meta = useApiMeta();
   const navigate = useNavigate();
   const { tenant } = useTenantDetails();
+  const [open, setOpen] = useState(false);
 
   const hasPylon = useMemo(() => {
     if (!meta.data?.pylonAppId) {
@@ -49,16 +51,12 @@ export function HelpDropdown({
 
   const trigger =
     triggerVariant === 'button' ? (
-      <Button
-        variant="outline"
-        size="sm"
-        aria-label="Help"
-        fullWidth
-        leftIcon={<BiHelpCircle className="size-4" />}
-        className={cn('justify-start', className)}
-      >
-        Help
-      </Button>
+      <SidebarButtonPrimaryAction
+        name="Help"
+        icon={<BiHelpCircle className="size-4 mr-2" />}
+        selected={open}
+        className={cn(className)}
+      />
     ) : (
       <Button
         variant="icon"
@@ -73,7 +71,7 @@ export function HelpDropdown({
     );
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
       <DropdownMenuContent
         className="w-56"
