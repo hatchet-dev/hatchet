@@ -2,14 +2,19 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
+	"github.com/opencontainers/go-digest"
 
 	cerrdefs "github.com/containerd/errdefs"
 )
+
+const hatchetHashLabel = "hatchet-cli.opts.hash"
 
 // ensureContainer creates a container if it doesn't exist, or updates it if it already exists.
 // Returns the container ID.
@@ -21,6 +26,9 @@ func (d *DockerDriver) ensureContainer(
 	hostConfig *container.HostConfig,
 	networkConfig *network.NetworkingConfig,
 ) (string, error) {
+	newHash := getHashLabel(containerName, imageName, containerConfig, hostConfig, networkConfig)
+	containerConfig.Labels[hatchetHashLabel] = newHash
+
 	// Check if container already exists
 	existing, err := d.apiClient.ContainerInspect(ctx, containerName)
 
@@ -28,19 +36,12 @@ func (d *DockerDriver) ensureContainer(
 		// Container exists - check if it needs to be recreated
 		needsRecreate := false
 
-		// Check if image has changed
-		if existing.Config.Image != imageName {
+		// get the current hash label
+		currentHash, ok := existing.Config.Labels[hatchetHashLabel]
+
+		if !ok || currentHash != newHash {
 			needsRecreate = true
 		}
-
-		// Check if the image ID has changed (for :latest tags)
-		imageInspect, err := d.apiClient.ImageInspect(ctx, imageName)
-		if err == nil && existing.Image != imageInspect.ID {
-			needsRecreate = true
-		}
-
-		// TODO: more checks, ports, volumes, etc
-		// We can potentially hash the inputs and write them to a label, then compare the label
 
 		if needsRecreate {
 			// Stop and remove existing container
@@ -84,6 +85,30 @@ func (d *DockerDriver) ensureContainer(
 	return resp.ID, nil
 }
 
+func (d *DockerDriver) stopContainer(ctx context.Context, containerName string) error {
+	containers, err := d.apiClient.ContainerList(ctx, container.ListOptions{
+		Filters: filters.NewArgs(filters.Arg("name", containerName)),
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not get container ID: %w", err)
+	}
+
+	if len(containers) == 0 {
+		// Container doesn't exist
+		return nil
+	}
+
+	containerId := containers[0].ID
+
+	timeout := 10
+	if err := d.apiClient.ContainerStop(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil && !cerrdefs.IsNotFound(err) {
+		return fmt.Errorf("could not stop container: %w", err)
+	}
+
+	return nil
+}
+
 func (d *DockerDriver) ensureContainerIsHealthy(ctx context.Context, containerId string) error {
 	inspect, err := d.apiClient.ContainerInspect(ctx, containerId)
 	if err != nil {
@@ -111,4 +136,54 @@ func (d *DockerDriver) ensureContainerIsHealthy(ctx context.Context, containerId
 
 		time.Sleep(1 * time.Second)
 	}
+}
+
+type Config struct {
+	ContainerName string
+	ImageName     string
+
+	ContainerConfig *container.Config
+	HostConfig      *container.HostConfig
+	NetworkConfig   *network.NetworkingConfig
+}
+
+func (c *Config) Hash() (string, error) {
+	valueBytes, err := json.Marshal(c)
+
+	if err != nil {
+		return "", err
+	}
+
+	digester := digest.SHA512.Digester()
+
+	if _, err := digester.Hash().Write(valueBytes); err != nil {
+		return "", err
+	}
+
+	return digester.Digest().String(), nil
+}
+
+func getHashLabel(
+	containerName string,
+	imageName string,
+	containerConfig *container.Config,
+	hostConfig *container.HostConfig,
+	networkConfig *network.NetworkingConfig,
+) string {
+	config := &Config{
+		ContainerName:   containerName,
+		ImageName:       imageName,
+		ContainerConfig: containerConfig,
+		HostConfig:      hostConfig,
+		NetworkConfig:   networkConfig,
+	}
+
+	hash, err := config.Hash()
+
+	if err != nil {
+		// panic is ok here, we're in the CLI and this should never happen
+		panic(fmt.Sprintf("could not hash hatchet-lite opts: %v", err))
+	}
+
+	return hash
 }

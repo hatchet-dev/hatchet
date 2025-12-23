@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"strconv"
 	"strings"
@@ -20,15 +21,14 @@ import (
 
 // hatchet lite opts
 const (
-	defaultPostgresName          = "postgres"
-	defaultHatchetName           = "hatchet"
-	defaultProjectName           = "hatchet-cli" // TODO: revert to hatchet?
-	defaultServiceName           = "hatchet"
+	defaultpostgresName          = "postgres"
+	defaulthatchetName           = "hatchet"
+	defaultprojectName           = "hatchet-cli"
+	defaultserviceName           = "hatchet"
 	startingDashboardPort        = 8888
 	startingGrpcPort             = 7077
 	hatchetInternalDashboardPort = 8888
 	hatchetInternalGrpcPort      = 7077
-	dockerComposeVersion         = "2.31.0" // mimic Docker Compose version
 )
 
 type HatchetLiteOpts struct {
@@ -40,16 +40,14 @@ type HatchetLiteOpts struct {
 	overrideGrpcPort      int
 	tokenCb               func(string)
 	portsCb               func(dashboardPort, grpcPort int) // callback with actual ports used
-	workingDir            string                            // for Docker Compose compatibility
 }
 
 func initDefaultHatchetLiteOpts() *HatchetLiteOpts {
 	return &HatchetLiteOpts{
-		postgresName: defaultPostgresName,
-		hatchetName:  defaultHatchetName,
-		projectName:  defaultProjectName,
-		serviceName:  defaultServiceName,
-		workingDir:   "/tmp/hatchet-cli", // default working directory
+		postgresName: defaultpostgresName,
+		hatchetName:  defaulthatchetName,
+		projectName:  defaultprojectName,
+		serviceName:  defaultserviceName,
 	}
 }
 
@@ -79,13 +77,6 @@ func WithProjectName(name string) HatchetLiteOpt {
 func WithServiceName(name string) HatchetLiteOpt {
 	return func(d *HatchetLiteOpts) error {
 		d.serviceName = name
-		return nil
-	}
-}
-
-func WithWorkingDir(dir string) HatchetLiteOpt {
-	return func(d *HatchetLiteOpts) error {
-		d.workingDir = dir
 		return nil
 	}
 }
@@ -137,6 +128,8 @@ func (d *DockerDriver) RunHatchetLite(ctx context.Context, opts ...HatchetLiteOp
 		}
 	}
 
+	sharedLabels := getSharedLabels(hatchetLiteOpts)
+
 	// find or create network (use Docker Compose naming convention)
 	networkName := fmt.Sprintf("%s_default", hatchetLiteOpts.projectName)
 	networkId, err := d.initNetwork(ctx, networkName, hatchetLiteOpts.projectName)
@@ -156,6 +149,14 @@ func (d *DockerDriver) RunHatchetLite(ctx context.Context, opts ...HatchetLiteOp
 		dashboardPort, grpcPort, err = extractPortsFromContainer(&existingContainer)
 		if err != nil {
 			return fmt.Errorf("could not extract ports from existing container: %w", err)
+		}
+
+		if hatchetLiteOpts.overrideDashboardPort != 0 {
+			dashboardPort = hatchetLiteOpts.overrideDashboardPort
+		}
+
+		if hatchetLiteOpts.overrideGrpcPort != 0 {
+			grpcPort = hatchetLiteOpts.overrideGrpcPort
 		}
 	case !cerrdefs.IsNotFound(err) && err != nil:
 		return fmt.Errorf("could not inspect hatchet container: %w", err)
@@ -179,12 +180,12 @@ func (d *DockerDriver) RunHatchetLite(ctx context.Context, opts ...HatchetLiteOp
 	}
 
 	// start postgres container
-	if err := d.startPostgresContainer(ctx, hatchetLiteOpts, networkId); err != nil {
+	if err := d.startPostgresContainer(ctx, hatchetLiteOpts, networkId, sharedLabels); err != nil {
 		return fmt.Errorf("could not start postgres container: %w", err)
 	}
 
 	// start hatchet-lite container
-	if err := d.startHatchetLiteContainer(ctx, hatchetLiteOpts, networkId, dashboardPort, grpcPort); err != nil {
+	if err := d.startHatchetLiteContainer(ctx, hatchetLiteOpts, networkId, dashboardPort, grpcPort, sharedLabels); err != nil {
 		return fmt.Errorf("could not start hatchet-lite container: %w", err)
 	}
 
@@ -206,7 +207,27 @@ func (d *DockerDriver) RunHatchetLite(ctx context.Context, opts ...HatchetLiteOp
 	return nil
 }
 
-func (d *DockerDriver) startPostgresContainer(ctx context.Context, opts *HatchetLiteOpts, networkId string) error {
+func (d *DockerDriver) StopHatchetLite(ctx context.Context, opts ...HatchetLiteOpt) error {
+	hatchetLiteOpts := initDefaultHatchetLiteOpts()
+
+	for _, fn := range opts {
+		if err := fn(hatchetLiteOpts); err != nil {
+			return err
+		}
+	}
+
+	if err := d.stopHatchetLiteContainer(ctx, hatchetLiteOpts); err != nil {
+		return fmt.Errorf("could not stop hatchet-lite container: %w", err)
+	}
+
+	if err := d.stopPostgresContainer(ctx, hatchetLiteOpts); err != nil {
+		return fmt.Errorf("could not stop postgres container: %w", err)
+	}
+
+	return nil
+}
+
+func (d *DockerDriver) startPostgresContainer(ctx context.Context, opts *HatchetLiteOpts, networkId string, sharedLabels map[string]string) error {
 	imageName := "postgres:17"
 	containerName := canonicalContainerName(opts.projectName, opts.postgresName)
 
@@ -225,6 +246,17 @@ func (d *DockerDriver) startPostgresContainer(ctx context.Context, opts *Hatchet
 		return fmt.Errorf("could not inspect image %s: %w", imageName, err)
 	}
 
+	labels := map[string]string{}
+
+	// copy shared labels
+	maps.Copy(labels, sharedLabels)
+
+	labels["com.docker.compose.service"] = opts.postgresName
+	labels["com.docker.compose.container-number"] = "1"
+	labels["com.docker.compose.oneoff"] = "False"
+	labels["com.docker.compose.depends_on"] = ""
+	labels["com.docker.compose.image"] = imageInspect.ID
+
 	containerConfig := &container.Config{
 		Image: imageName,
 		Env: []string{
@@ -240,17 +272,7 @@ func (d *DockerDriver) startPostgresContainer(ctx context.Context, opts *Hatchet
 			Retries:     5,
 			StartPeriod: 10 * time.Second,
 		},
-		Labels: map[string]string{
-			"com.docker.compose.project":              opts.projectName,
-			"com.docker.compose.service":              opts.postgresName,
-			"com.docker.compose.container-number":     "1",
-			"com.docker.compose.oneoff":               "False",
-			"com.docker.compose.version":              dockerComposeVersion,
-			"com.docker.compose.project.working_dir":  opts.workingDir,
-			"com.docker.compose.project.config_files": opts.workingDir + "/docker-compose.yml",
-			"com.docker.compose.depends_on":           "",
-			"com.docker.compose.image":                imageInspect.ID,
-		},
+		Labels: labels,
 	}
 
 	// Create volume with proper labels for Docker Compose compatibility
@@ -259,7 +281,6 @@ func (d *DockerDriver) startPostgresContainer(ctx context.Context, opts *Hatchet
 		Name: postgresVolumeName,
 		Labels: map[string]string{
 			"com.docker.compose.project": opts.projectName,
-			"com.docker.compose.version": dockerComposeVersion,
 			"com.docker.compose.volume":  "postgres_data",
 		},
 	})
@@ -308,7 +329,13 @@ func (d *DockerDriver) startPostgresContainer(ctx context.Context, opts *Hatchet
 	return nil
 }
 
-func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *HatchetLiteOpts, networkId string, dashboardPort, grpcPort int) error {
+func (d *DockerDriver) stopPostgresContainer(ctx context.Context, opts *HatchetLiteOpts) error {
+	containerName := canonicalContainerName(opts.projectName, opts.postgresName)
+
+	return d.stopContainer(ctx, containerName)
+}
+
+func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *HatchetLiteOpts, networkId string, dashboardPort, grpcPort int, sharedLabels map[string]string) error {
 	imageName := "ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest"
 	containerName := canonicalContainerName(opts.projectName, opts.hatchetName)
 
@@ -333,6 +360,15 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 		nat.Port(fmt.Sprintf("%d/tcp", hatchetInternalGrpcPort)):      struct{}{},
 	}
 
+	labels := map[string]string{}
+	maps.Copy(labels, sharedLabels)
+
+	labels["com.docker.compose.service"] = opts.hatchetName
+	labels["com.docker.compose.container-number"] = "1"
+	labels["com.docker.compose.oneoff"] = "False"
+	labels["com.docker.compose.depends_on"] = opts.postgresName
+	labels["com.docker.compose.image"] = imageInspect.ID
+
 	containerConfig := &container.Config{
 		Image: imageName,
 		Env: []string{
@@ -349,17 +385,7 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 			"SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS=localhost:" + fmt.Sprintf("%d", hatchetInternalGrpcPort),
 		},
 		ExposedPorts: exposedPorts,
-		Labels: map[string]string{
-			"com.docker.compose.project":              opts.projectName,
-			"com.docker.compose.service":              opts.hatchetName,
-			"com.docker.compose.container-number":     "1",
-			"com.docker.compose.oneoff":               "False",
-			"com.docker.compose.version":              dockerComposeVersion,
-			"com.docker.compose.project.working_dir":  opts.workingDir,
-			"com.docker.compose.project.config_files": opts.workingDir + "/docker-compose.yml",
-			"com.docker.compose.depends_on":           opts.postgresName,
-			"com.docker.compose.image":                imageInspect.ID,
-		},
+		Labels:       labels,
 		Healthcheck: &container.HealthConfig{
 			Test:        []string{"CMD-SHELL", "curl -f http://localhost:8733/ready || exit 1"},
 			Interval:    2 * time.Second,
@@ -375,7 +401,6 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 		Name: hatchetVolumeName,
 		Labels: map[string]string{
 			"com.docker.compose.project": opts.projectName,
-			"com.docker.compose.version": dockerComposeVersion,
 			"com.docker.compose.volume":  "hatchet_config",
 		},
 	})
@@ -431,6 +456,11 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 	}
 
 	return nil
+}
+
+func (d *DockerDriver) stopHatchetLiteContainer(ctx context.Context, opts *HatchetLiteOpts) error {
+	containerName := canonicalContainerName(opts.projectName, opts.hatchetName)
+	return d.stopContainer(ctx, containerName)
 }
 
 // findAvailablePort returns an available port starting from the given port
@@ -493,4 +523,10 @@ func extractPortsFromContainer(inspect *container.InspectResponse) (dashboardPor
 	}
 
 	return dashboardPort, grpcPort, nil
+}
+
+func getSharedLabels(opts *HatchetLiteOpts) map[string]string {
+	return map[string]string{
+		"com.docker.compose.project": opts.projectName,
+	}
 }
