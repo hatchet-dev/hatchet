@@ -701,27 +701,9 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		countParams.TriggeringEventExternalId = sqlchelpers.UUIDFromStr(triggeringEventExternalId.String())
 	}
 
-	var (
-		rows     []*sqlcv1.ListTasksOlapRow
-		count    int64
-		countErr error
-	)
+	rows, err := r.queries.ListTasksOlap(ctx, tx, params)
 
-	// A pgx.Tx must not be used concurrently, so we run the count query against the pool.
-	g, gctx := errgroup.WithContext(ctx)
-
-	g.Go(func() error {
-		var err error
-		rows, err = r.queries.ListTasksOlap(gctx, tx, params)
-		return err
-	})
-
-	g.Go(func() error {
-		count, countErr = r.queries.CountTasks(gctx, r.readPool, countParams)
-		return nil
-	})
-
-	if err := g.Wait(); err != nil {
+	if err != nil {
 		return nil, 0, err
 	}
 
@@ -779,7 +761,9 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		})
 	}
 
-	if countErr != nil {
+	count, err := r.queries.CountTasks(ctx, tx, countParams)
+
+	if err != nil {
 		count = int64(len(tasksWithData))
 	}
 
@@ -1026,20 +1010,8 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		countParams.TriggeringEventExternalId = *opts.TriggeringEventExternalId
 	}
 
-	var (
-		workflowRunIds []*sqlcv1.FetchWorkflowRunIdsRow
-		count          int64
-		countErr       error
-	)
+	workflowRunIds, err := r.queries.FetchWorkflowRunIds(ctx, tx, params)
 
-	// A pgx.Tx must not be used concurrently; run count on the pool in the background while we do tx work.
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		count, countErr = r.queries.CountWorkflowRuns(gctx, r.readPool, countParams)
-		return nil
-	})
-
-	workflowRunIds, err = r.queries.FetchWorkflowRunIds(ctx, tx, params)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1082,6 +1054,13 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		externalIdsForPayloads = append(externalIdsForPayloads, dag.OutputEventExternalID)
 	}
 
+	count, err := r.queries.CountWorkflowRuns(ctx, tx, countParams)
+
+	if err != nil {
+		r.l.Error().Msgf("error counting workflow runs: %v", err)
+		count = int64(len(workflowRunIds))
+	}
+
 	tasksToPopulated := make(map[string]*sqlcv1.PopulateTaskRunDataRow)
 
 	populatedTasks, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, opts.IncludePayloads)
@@ -1100,16 +1079,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 	if err := commit(ctx); err != nil {
 		return nil, 0, err
-	}
-
-	// Join the count goroutine before returning.
-	if err := g.Wait(); err != nil {
-		return nil, 0, err
-	}
-
-	if countErr != nil {
-		r.l.Error().Msgf("error counting workflow runs: %v", countErr)
-		count = int64(len(workflowRunIds))
 	}
 
 	externalIdToPayload := make(map[pgtype.UUID][]byte)
@@ -2235,37 +2204,24 @@ type EventWithPayload struct {
 }
 
 func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error) {
-	var (
-		events     []*sqlcv1.V1EventsOlap
-		eventCount int64
-	)
+	events, err := r.queries.ListEvents(ctx, r.readPool, opts)
 
-	g, gctx := errgroup.WithContext(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	g.Go(func() error {
-		c, err := r.queries.CountEvents(gctx, r.readPool, sqlcv1.CountEventsParams{
-			Tenantid:           opts.Tenantid,
-			Keys:               opts.Keys,
-			Since:              opts.Since,
-			Until:              opts.Until,
-			WorkflowIds:        opts.WorkflowIds,
-			EventIds:           opts.EventIds,
-			AdditionalMetadata: opts.AdditionalMetadata,
-			Statuses:           opts.Statuses,
-			Scopes:             opts.Scopes,
-		})
-
-		if err != nil {
-			return err
-		}
-
-		eventCount = c
-		return nil
+	eventCount, err := r.queries.CountEvents(ctx, r.readPool, sqlcv1.CountEventsParams{
+		Tenantid:           opts.Tenantid,
+		Keys:               opts.Keys,
+		Since:              opts.Since,
+		Until:              opts.Until,
+		WorkflowIds:        opts.WorkflowIds,
+		EventIds:           opts.EventIds,
+		AdditionalMetadata: opts.AdditionalMetadata,
+		Statuses:           opts.Statuses,
+		Scopes:             opts.Scopes,
 	})
 
-	// We need the events list to proceed; keep it in-line while the count runs in the background.
-	var err error
-	events, err = r.queries.ListEvents(gctx, r.readPool, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2342,11 +2298,6 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 			},
 			Payload: payload,
 		})
-	}
-
-	// Ensure count is complete (and propagate any count error) before returning.
-	if err := g.Wait(); err != nil {
-		return nil, nil, err
 	}
 
 	return result, &eventCount, nil

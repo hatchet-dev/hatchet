@@ -17,8 +17,6 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 	"github.com/sethvargo/go-retry"
-
-	_ "github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate/migrations" // register go migrations
 )
 
 //go:embed migrations/*.sql
