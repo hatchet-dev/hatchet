@@ -134,11 +134,12 @@ export function useTenantDetails() {
 
   const [pollBilling, setPollBilling] = useState(false);
 
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { data: cloudMeta, isCloudEnabled } = useCloudApiMeta();
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenant?.metadata?.id || ''),
-    enabled: tenant && !!cloudMeta?.data.canBill,
+    enabled:
+      !!tenant?.metadata?.id && isCloudEnabled && !!cloudMeta?.data.canBill,
     refetchInterval: pollBilling ? 1000 : false,
   });
 

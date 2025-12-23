@@ -1,11 +1,17 @@
 import { cloudApi } from '@/lib/api/api';
+import { APICloudMetadata } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 export default function useCloudApiMeta() {
   const { handleApiError } = useApiError({});
+
+  const checkIsCloudEnabled = useCallback((cloudMeta: APICloudMetadata) => {
+    // @ts-expect-error errors is returned when this is oss
+    return !!cloudMeta && !cloudMeta?.errors;
+  }, []);
 
   const cloudMetaQuery = useQuery({
     queryKey: ['cloud-metadata:get'],
@@ -13,6 +19,17 @@ export default function useCloudApiMeta() {
     queryFn: async () => {
       try {
         const meta = await cloudApi.metadataGet();
+        if (!checkIsCloudEnabled(meta.data)) {
+          console.log('\x1b[33m🪓 Thanks for self-hosting Hatchet!\x1b[0m');
+          console.log('For support, please contact support@hatchet.run,');
+          console.log(
+            'Join our Discord server at https://hatchet.run/discord,',
+          );
+          console.log('or visit https://docs.hatchet.run/self-hosting');
+        } else {
+          console.log('🪓☁️');
+        }
+
         return meta;
       } catch (e) {
         console.error('Failed to get cloud metadata', e);
@@ -27,10 +44,8 @@ export default function useCloudApiMeta() {
   }
 
   const isCloudEnabled = useMemo(() => {
-    // Check if we have data AND no errors (errors indicate OSS environment)
-    // @ts-expect-error errors is returned when this is oss
-    return !!cloudMetaQuery.data?.data && !cloudMetaQuery.data?.data?.errors;
-  }, [cloudMetaQuery.data?.data]);
+    return checkIsCloudEnabled(cloudMetaQuery.data?.data || {});
+  }, [cloudMetaQuery.data?.data, checkIsCloudEnabled]);
 
   return {
     data: cloudMetaQuery.data,
