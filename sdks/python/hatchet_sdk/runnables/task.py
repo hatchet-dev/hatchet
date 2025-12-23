@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, is_dataclass
+from datetime import timedelta
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
     TYPE_CHECKING,
@@ -47,11 +48,7 @@ from hatchet_sdk.runnables.types import (
     is_async_fn,
     is_sync_fn,
 )
-from hatchet_sdk.utils.timedelta_to_expression import (
-    Duration,
-    str_to_timedelta,
-    timedelta_to_expr,
-)
+from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
     CoroutineLike,
@@ -71,7 +68,7 @@ P = ParamSpec("P")
 @dataclass(frozen=True)
 class BatchTaskConfig:
     batch_max_size: int
-    batch_max_interval: Duration | None = None
+    batch_max_interval: timedelta | None = None
     batch_group_key: str | None = None
     batch_group_max_runs: int | None = None
 
@@ -270,12 +267,7 @@ class Task(Generic[TWorkflowInput, R]):
             batch_proto = TaskBatchConfigProto(batch_max_size=self.batch.batch_max_size)
 
             if self.batch.batch_max_interval is not None:
-                batch_max_interval = (
-                    str_to_timedelta(self.batch.batch_max_interval)
-                    if isinstance(self.batch.batch_max_interval, str)
-                    else self.batch.batch_max_interval
-                )
-                interval_ms = int(batch_max_interval.total_seconds() * 1000)
+                interval_ms = int(self.batch.batch_max_interval.total_seconds() * 1000)
                 if interval_ms <= 0:
                     raise ValueError(
                         "batch_max_interval must be positive when provided"

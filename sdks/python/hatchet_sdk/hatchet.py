@@ -513,7 +513,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         batch_max_size: int = ...,
-        batch_max_interval: Duration | None = None,
+        batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
     ) -> Callable[
@@ -547,7 +547,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         batch_max_size: int = ...,
-        batch_max_interval: Duration | None = None,
+        batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
     ) -> Callable[
@@ -581,7 +581,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         batch_max_size: int = 1,
-        batch_max_interval: Duration | None = None,
+        batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
     ) -> Callable[
