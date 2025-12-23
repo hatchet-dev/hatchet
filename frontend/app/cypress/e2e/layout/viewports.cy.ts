@@ -13,34 +13,44 @@ const viewports: Viewport[] = [
 
 describe('layout: viewports', () => {
   describe('auth pages', () => {
+    beforeEach(() => {
+      // These tests must be runnable even if a previous spec logged in and left auth cookies behind.
+      // Otherwise `/auth/login` and `/auth/register` can redirect into the app shell and the layout
+      // assertions become meaningless (and flaky across spec ordering).
+      Cypress.session.clearAllSavedSessions();
+      cy.clearAllCookies();
+      cy.clearAllLocalStorage();
+    });
+
     for (const vp of viewports) {
       it(`[${vp.name}] login: can reach top and bottom content`, () => {
         cy.viewport(vp.width, vp.height);
         cy.visit('/auth/login');
 
-        cy.contains('h2', 'Log in to continue', { timeout: 30000 }).should(
-          'be.visible',
-        );
+        cy.location('pathname', { timeout: 30000 }).should('eq', '/auth/login');
+        cy.get('[data-cy="auth-title"]', { timeout: 30000 })
+          .should('be.visible')
+          .and('contain', 'Log in');
 
         // Ensure the legal text is reachable (scroll container is the auth route wrapper).
         cy.get('[data-cy="auth-legal"]').scrollIntoView().should('be.visible');
-        cy.contains('h2', 'Log in to continue')
-          .scrollIntoView()
-          .should('be.visible');
+        cy.get('[data-cy="auth-title"]').scrollIntoView().should('be.visible');
       });
 
       it(`[${vp.name}] register: can reach top and bottom content`, () => {
         cy.viewport(vp.width, vp.height);
         cy.visit('/auth/register');
 
-        cy.contains('h2', 'Create an account', { timeout: 30000 }).should(
-          'be.visible',
+        cy.location('pathname', { timeout: 30000 }).should(
+          'eq',
+          '/auth/register',
         );
+        cy.get('[data-cy="auth-title"]', { timeout: 30000 })
+          .should('be.visible')
+          .and('contain', 'Create an account');
 
         cy.get('[data-cy="auth-legal"]').scrollIntoView().should('be.visible');
-        cy.contains('h2', 'Create an account')
-          .scrollIntoView()
-          .should('be.visible');
+        cy.get('[data-cy="auth-title"]').scrollIntoView().should('be.visible');
       });
     }
   });
