@@ -1002,8 +1002,8 @@ FROM
     input rec;
 
 -- name: RegisterBatch :batchexec
--- TODO why?
 -- DO NOT USE: dummy query to satisfy sqlc and register Batch calls on DBTX
+-- the actual implementation gets overridden in batch.go
 SELECT * FROM v1_task WHERE id = $1;
 
 -- name: CountActiveTaskBatchRuns :one

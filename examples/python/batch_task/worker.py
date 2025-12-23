@@ -32,7 +32,6 @@ async def uppercase(
     return [
         {"group": inp.group, "uppercase": inp.message.upper()} for inp, _ctx in tasks
     ]
-# !!
 
 
 def main() -> None:

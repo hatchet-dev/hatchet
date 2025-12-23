@@ -1,4 +1,7 @@
-import { Callout } from "nextra/components";
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import UniversalTabs from "@/components/UniversalTabs";
+import { Callout, Tabs } from "nextra/components";
 
 # Batch Assignment (Beta)
 
@@ -22,7 +25,9 @@ definitions/manifests or SDK helpers). The current fields are:
 - `batch_max_size` (required): the maximum number of items to flush at once. Must be
   at least `1`.
 - `batch_max_interval` (optional): the maximum time (in milliseconds) an item can
-  wait before a flush is triggered. **Defaults to `1000`.**
+  wait before a flush is triggered. This timer starts when the **first** item for a
+  given batch arrives; if fewer than `batch_max_size` items arrive before the interval
+  elapses, Hatchet may flush a smaller batch. **Defaults to `1000`.**
 - `batch_group_key` (optional): a CEL expression that groups tasks into logical
   batches. Tasks with different keys are always processed separately. **Defaults
   to `'default'`.**
@@ -51,28 +56,41 @@ If the expression fails to evaluate or produces an unsupported type, Hatchet
 rejects task creation to keep buffering logic predictable. Use CEL tooling
 locally to validate expressions before deploying.
 
+### Group key behavior (example)
+
+Given items arriving with group keys: `A, A, B, A, A, B, B, B, C, C, C`, and:
+
+- `batch_max_size = 3`
+- `batch_group_key = tenant_id` (values `A`, `B`, `C`)
+- `batch_group_max_runs = 2`
+
+Hatchet will never mix keys inside a batch. Batches might flush like:
+
+- Group `A`: `A, A, A`, then `A, A`
+- Group `B`: `B, B, B`, then `B, B`
+- Group `C`: `C, C, C`
+
 ## Worker execution model
 
-Workers that opt into batchable tasks receive an array of inputs instead of a
-single payload. SDKs expose this through dedicated helpers (for example,
-`hatchet.batchTask` in the TypeScript SDK) that pass the aggregated inputs (and
-per-item contexts) to your handler. Items continue to respect per-task retry
-policies; batching changes how tasks are *delivered*, not how they’re retried.
+Workers that opt into batchable tasks receive **multiple task invocations at once**.
+SDK helpers (for example, `hatchet.batchTask` in the TypeScript SDK) invoke your handler
+with a single `tasks` array, where each element is a tuple of the task's `(input, context)`.
 
-```ts
-const batch = hatchet.batchTask({
-  name: "simple",
-  batchMaxSize: 2,
-  batchMaxInterval: "1s", // defaults to 1000ms if omitted
-  batchGroupKey: "input.batchId", // defaults to `'default'` if omitted
-  batchGroupMaxRuns: 100, // defaults to 100 if omitted
-  fn: async (inputs, ctxs) => {
-    return inputs.map((input, index) => ({
-      message: `${input.Message.toLowerCase()}#${index}`,
-    }));
-  },
-});
-```
+This “zipped” shape avoids parallel arrays (`inputs[]` + `contexts[]`) and keeps the mental model simple:
+**a batch is just a list of normal tasks that happen to be executed together**, each with its usual context.
+
+Items continue to respect per-task retry policies; batching changes how tasks are *delivered*, not how they’re retried.
+
+### SDK example
+
+<UniversalTabs items={["Typescript", "Python"]}>
+  <Tabs.Tab title="Typescript">
+    <Snippet src={snippets.typescript.batch_assign.task.declaring_a_task} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.batch_task.worker.declaring_a_batched_task} />
+  </Tabs.Tab>
+</UniversalTabs>
 
 When a batch flushes, Hatchet records `batchId`, `batchMaxSize`, `batchIndex`, and
 `batchGroupKey` on each task’s runtime metadata. This is available via the API (and
@@ -89,6 +107,11 @@ Batch runs are reference counted inside the repository. When all tasks in a
 batch complete (successfully or by cancellation), Hatchet automatically releases
 the batch reservation, allowing queued tasks with the same key to start building
 the next batch.
+
+## Behavior and beta notes
+
+Batch assignment is **beta** and will iterate. We intend to keep the first positional parameter stable
+(`tasks` as `(input, context)` tuples), but helper methods and ergonomics may evolve.
 
 ## Notes on evaluation order
 

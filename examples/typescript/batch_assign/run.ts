@@ -1,7 +1,7 @@
-import { batch } from './task';
+import { dag } from './workflow';
 
 async function main() {
-  const task1 = batch.run([
+  const task1 = dag.run([
     {
       Message: 'task1',
       batchId: '1',
@@ -68,7 +68,7 @@ async function main() {
     // },
   ]);
   const results = await task1;
-  console.log(results[0].TransformedMessage);
+  console.log(results[0]['step-2'].Transformed);
   // console.log(results[1].TransformedMessage);
   // console.log(results[2].TransformedMessage);
   // console.log(results[3].TransformedMessage);
