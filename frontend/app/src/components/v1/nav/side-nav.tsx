@@ -368,13 +368,13 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                             <DropdownMenuContent
                               side="right"
                               align="start"
-                              className="bg-secondary text-secondary-foreground"
+                              className="z-[100]"
                             >
                               {item.children.map((child) => (
                                 <DropdownMenuItem
                                   key={child.key}
                                   asChild
-                                  className="w-full cursor-pointer hover:bg-primary/10 focus:bg-primary/10"
+                                  className="w-full cursor-pointer"
                                 >
                                   <Link
                                     to={child.to}

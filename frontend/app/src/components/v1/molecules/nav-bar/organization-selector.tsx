@@ -315,22 +315,27 @@ export function OrganizationSelector({
         <PopoverTrigger asChild>
           <Button
             variant="outline"
+            size="sm"
             role="combobox"
             aria-expanded={open}
             aria-label="Select a tenant"
-            className={cn('w-full justify-between', className)}
+            className={cn(
+              'w-full min-w-0 justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
+              open && 'bg-muted/30',
+              className,
+            )}
           >
-            <div className="flex items-center gap-2">
-              <BuildingOffice2Icon className="size-4" />
-              <span className="truncate">{currTenant.name}</span>
+            <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+              <BuildingOffice2Icon className="size-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">{currTenant.name}</span>
             </div>
-            <CaretSortIcon className="ml-2 size-4 shrink-0 opacity-50" />
+            <CaretSortIcon className="size-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          side="top"
+          side="bottom"
           align="start"
-          sideOffset={20}
+          sideOffset={8}
           className="z-50 w-[287px] rounded-md border border-border p-0 shadow-md"
         >
           <Command className="border-0">

@@ -33,7 +33,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { ChevronDown, Menu } from 'lucide-react';
 import React from 'react';
-import { BiEnvelope, BiMoon, BiSun, BiUserCircle } from 'react-icons/bi';
+import { BiEnvelope, BiLogOut, BiMoon, BiSun, BiUserCircle } from 'react-icons/bi';
 
 function AccountDropdown({ user }: { user: User }) {
   const navigate = useNavigate();
@@ -63,13 +63,18 @@ function AccountDropdown({ user }: { user: User }) {
           variant="outline"
           size="sm"
           aria-label="Account Menu"
-          className="relative max-w-[240px] justify-start gap-2"
+          className="relative max-w-[220px] justify-between gap-2 bg-muted/20 px-2 shadow-none hover:bg-muted/30"
         >
-          <BiUserCircle className="size-5 shrink-0 text-foreground" />
-          <span className="min-w-0 truncate" data-cy="user-name">
-            {user.name || user.email}
-          </span>
-          <ChevronDown className="ml-1 size-4 shrink-0 opacity-60" />
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+            <BiUserCircle className="size-5 shrink-0 text-foreground" />
+            <span
+              className="hidden min-w-0 flex-1 truncate lg:block"
+              data-cy="user-name"
+            >
+              {user.name || user.email}
+            </span>
+          </div>
+          <ChevronDown className="size-4 shrink-0 opacity-60" />
           {(pendingInvitesQuery.data ?? 0) > 0 && (
             <div className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full border-2 border-background bg-blue-500"></div>
           )}
@@ -90,25 +95,31 @@ function AccountDropdown({ user }: { user: User }) {
         {(pendingInvitesQuery.data ?? 0) > 0 && (
           <>
             <DropdownMenuItem
+              variant="interactive"
               onClick={() =>
                 navigate({ to: appRoutes.onboardingInvitesRoute.to })
               }
             >
-              <BiEnvelope className="mr-2" />
+              <BiEnvelope className="mr-2 size-4" />
               Invites ({pendingInvitesQuery.data})
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
         )}
-        <DropdownMenuItem onClick={() => toggleTheme()}>
+        <DropdownMenuItem variant="interactive" onClick={() => toggleTheme()}>
           {theme === 'dark' ? (
-            <BiSun className="mr-2" />
+            <BiSun className="mr-2 size-4" />
           ) : (
-            <BiMoon className="mr-2" />
+            <BiMoon className="mr-2 size-4" />
           )}
           Theme: {theme === 'dark' ? 'Dark' : 'Light'}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => logoutMutation.mutate()}>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          variant="interactive"
+          onClick={() => logoutMutation.mutate()}
+        >
+          <BiLogOut className="mr-2 size-4" />
           Log out
           <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
         </DropdownMenuItem>
@@ -196,7 +207,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
 
         <div className="ml-auto flex items-center gap-2">
           {showTenantSwitcher && (
-            <div className="max-w-[55vw] min-w-[160px]">
+            <div className="max-w-[55vw] min-w-[140px]">
               {isCloudEnabled ? (
                 <OrganizationSelector memberships={tenantMemberships} />
               ) : (
@@ -274,7 +285,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
 
         <div className="flex items-center justify-end gap-2 pr-4">
           {showTenantSwitcher && (
-            <div className="w-[280px]">
+            <div className="w-[220px] lg:w-[280px]">
               {isCloudEnabled ? (
                 <OrganizationSelector memberships={tenantMemberships} />
               ) : (

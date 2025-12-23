@@ -50,18 +50,30 @@ export function TenantSwitcher({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          size="sm"
           role="combobox"
           aria-expanded={open}
           aria-label="Select a tenant"
-          className={cn('justify-between', className)}
+          className={cn(
+            'min-w-0 justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
+            open && 'bg-muted/30',
+            className,
+          )}
           fullWidth
         >
-          <BuildingOffice2Icon className="mr-2 size-4" />
-          {currTenant.name}
-          <CaretSortIcon className="ml-auto size-4 shrink-0 opacity-50" />
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+            <BuildingOffice2Icon className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{currTenant.name}</span>
+          </div>
+          <CaretSortIcon className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent side="right" className="z-50 mb-6 w-full p-0">
+      <PopoverContent
+        side="bottom"
+        align="start"
+        sideOffset={8}
+        className="z-50 w-[--radix-popover-trigger-width] p-0"
+      >
         <Command className="min-w-[260px]" value={currTenant.slug}>
           <CommandList>
             <CommandEmpty>No tenants found.</CommandEmpty>
