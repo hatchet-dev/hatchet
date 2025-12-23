@@ -37,7 +37,7 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { Menu } from 'lucide-react';
 import React from 'react';
 import { useEffect, useMemo, useState } from 'react';
@@ -201,6 +201,30 @@ interface MainNavProps {
 export default function MainNav({ user }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
   const breadcrumbs = useBreadcrumbs();
+  const navigate = useNavigate();
+  const matchRoute = useMatchRoute();
+  const params = useParams({ strict: false }) as { tenant?: string };
+  const tenantParamInPath = params.tenant;
+
+  const isOnTenantRoute = Boolean(
+    matchRoute({
+      to: appRoutes.tenantRoute.to,
+      params: tenantParamInPath ? { tenant: tenantParamInPath } : undefined,
+      fuzzy: true,
+    }),
+  );
+
+  const onLogoClick = () => {
+    if (isOnTenantRoute && tenantParamInPath) {
+      navigate({
+        to: appRoutes.tenantRunsRoute.to,
+        params: { tenant: tenantParamInPath },
+      });
+      return;
+    }
+
+    navigate({ to: appRoutes.authenticatedRoute.to });
+  };
 
   // Keep the header aligned with the v1 sidebar column by mirroring its width.
   // This only affects md+ layouts; mobile uses the standard header layout.
@@ -257,7 +281,14 @@ export default function MainNav({ user }: MainNavProps) {
           >
             <Menu className="size-4" />
           </Button>
-          <HatchetLogo variant="mark" className="h-5 w-5" />
+          <button
+            type="button"
+            onClick={onLogoClick}
+            aria-label="Go to Runs"
+            className="rounded-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <HatchetLogo variant="mark" className="h-5 w-5" />
+          </button>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
@@ -286,16 +317,24 @@ export default function MainNav({ user }: MainNavProps) {
           )}
         >
           {storedCollapsed ? (
-            <HatchetLogo variant="mark" className="h-5 w-5" />
+            <button
+              type="button"
+              onClick={onLogoClick}
+              aria-label="Go to Runs"
+              className="rounded-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <HatchetLogo variant="mark" className="h-5 w-5" />
+            </button>
           ) : (
-            <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onLogoClick}
+              aria-label="Go to Runs"
+              className="flex items-center gap-2 rounded-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
               <HatchetLogo variant="mark" className="h-4 w-4" />
-              <HatchetLogo
-                variant="wordmark"
-                className="h-4 w-auto"
-                title="Hatchet"
-              />
-            </div>
+              <HatchetLogo variant="wordmark" className="h-4 w-auto" />
+            </button>
           )}
         </div>
 
