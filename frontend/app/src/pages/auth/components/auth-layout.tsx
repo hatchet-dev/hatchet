@@ -1,22 +1,18 @@
+import { HeroPanel } from './hero-panel';
 import { PropsWithChildren } from 'react';
 
 export function AuthLayout({ children }: PropsWithChildren) {
   return (
-    <div className="flex min-h-screen w-full">
-      {/* Left column: advertisement surface (hidden on mobile) */}
-      <div className="hidden w-1/2 flex-col justify-center bg-muted/40 p-10 lg:flex">
-        <div className="mx-auto w-full max-w-lg">
-          <div className="text-sm font-medium text-muted-foreground">
-            advertisment surface
-          </div>
-        </div>
+    <div className="min-h-screen w-full lg:grid lg:grid-cols-2">
+      <div className="relative hidden overflow-hidden bg-muted/30 px-10 py-12 lg:flex">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent" />
+        <HeroPanel />
       </div>
 
-      {/* Right column: form (responsible for its own scroll) */}
-      <div className="w-full overflow-y-auto lg:w-1/2">
-        <div className="flex min-h-screen w-full items-center justify-center px-4 py-10 lg:justify-start lg:pl-12 lg:pr-10 lg:py-12">
+      <div className="w-full overflow-y-auto">
+        <div className="flex min-h-screen w-full items-center justify-center px-4 py-10 lg:justify-start lg:px-12 lg:py-12">
           <div className="w-full max-w-lg">
-            <div className="flex w-full flex-col justify-center space-y-7">
+            <div className="flex w-full flex-col justify-center space-y-6">
               {children}
             </div>
           </div>
@@ -25,5 +21,3 @@ export function AuthLayout({ children }: PropsWithChildren) {
     </div>
   );
 }
-
-

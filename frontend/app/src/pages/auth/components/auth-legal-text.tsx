@@ -4,7 +4,7 @@ export function AuthLegalText() {
       data-cy="auth-legal"
       className="w-full text-left text-sm text-gray-500 dark:text-gray-500"
     >
-      By clicking continue, you agree to our{' '}
+      By continuing, you agree to our{' '}
       <a
         href="https://hatchet.run/policies/terms"
         className="underline underline-offset-4 hover:text-primary"
@@ -16,14 +16,14 @@ export function AuthLegalText() {
         href="https://hatchet.run/policies/cookie"
         className="underline underline-offset-4 hover:text-primary"
       >
-        Cookie Policy
+        Cookie
       </a>
       , and{' '}
       <a
         href="https://hatchet.run/policies/privacy"
         className="underline underline-offset-4 hover:text-primary"
       >
-        Privacy Policy
+        Privacy Policies
       </a>
       .
     </p>

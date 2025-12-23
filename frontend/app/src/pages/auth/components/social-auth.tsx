@@ -22,12 +22,12 @@ const PROVIDER_CONFIG: Record<
 
 export function OrContinueWith() {
   return (
-    <div className="relative my-5">
+    <div className="relative my-4">
       <div className="absolute inset-0 flex items-center">
-        <span className="w-full border-t" />
+        <span className="w-full border-t border-muted-foreground/20" />
       </div>
       <div className="relative flex justify-center text-xs uppercase">
-        <span className="bg-background px-2 text-gray-700 dark:text-gray-300">
+        <span className="bg-background px-2 text-muted-foreground">
           Or continue with
         </span>
       </div>
@@ -67,7 +67,7 @@ export function SocialAuthButtons({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {providers.map((p) => (
         <SocialAuthButton key={p} provider={p} />
       ))}

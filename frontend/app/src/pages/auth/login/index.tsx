@@ -10,35 +10,18 @@ import { useState } from 'react';
 export default function Login() {
   return (
     <AuthPage
-      title="Log in to Hatchet"
-      promptFn={({ basicEnabled, googleEnabled, githubEnabled }) => {
-        if (basicEnabled && (googleEnabled || githubEnabled)) {
-          return 'Enter your email and password below, or continue with a supported provider.';
-        }
-
-        if (googleEnabled || githubEnabled) {
-          return 'Continue with a supported provider.';
-        }
-
-        if (basicEnabled) {
-          return 'Enter your email and password below.';
-        }
-
-        return 'No login methods are enabled.';
-      }}
+      title="Log in to continue"
       basicSection={<BasicLogin />}
-      footer={
-        <div className="flex flex-col space-y-2">
-          <p className="text-sm text-gray-700 dark:text-gray-300">
-            Don't have an account?{' '}
-            <Link
-              to={appRoutes.authRegisterRoute.to}
-              className="underline underline-offset-4 hover:text-primary"
-            >
-              Sign up
-            </Link>
-          </p>
-        </div>
+      altAction={
+        <>
+          Don&apos;t have an account?{' '}
+          <Link
+            to={appRoutes.authRegisterRoute.to}
+            className="font-semibold text-primary underline underline-offset-4 hover:text-primary/90"
+          >
+            Sign up
+          </Link>
+        </>
       }
     />
   );

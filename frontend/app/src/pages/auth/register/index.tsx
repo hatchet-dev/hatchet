@@ -34,34 +34,17 @@ export default function Register() {
   return (
     <AuthPage
       title="Create an account"
-      promptFn={({ basicEnabled, googleEnabled, githubEnabled }) => {
-        if (basicEnabled && (googleEnabled || githubEnabled)) {
-          return 'Enter your email and password to create an account, or continue with a supported provider.';
-        }
-
-        if (googleEnabled || githubEnabled) {
-          return 'Continue with a supported provider.';
-        }
-
-        if (basicEnabled) {
-          return 'Create an account to get started.';
-        }
-
-        return 'No login methods are enabled.';
-      }}
       basicSection={<BasicRegister />}
-      footer={
-        <div className="flex flex-col space-y-2">
-          <p className="text-sm text-gray-700 dark:text-gray-300">
-            Already have an account?{' '}
-            <Link
-              to={appRoutes.authLoginRoute.to}
-              className="underline underline-offset-4 hover:text-primary"
-            >
-              Log in
-            </Link>
-          </p>
-        </div>
+      altAction={
+        <>
+          Already have an account?{' '}
+          <Link
+            to={appRoutes.authLoginRoute.to}
+            className="font-semibold text-primary underline underline-offset-4 hover:text-primary/90"
+          >
+            Log in
+          </Link>
+        </>
       }
     />
   );
