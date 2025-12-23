@@ -63,6 +63,8 @@ export function sideNavItems(opts: {
     },
   ];
 
+  // TODO-DESIGN update icons
+
   return [
     {
       key: 'activity',
