@@ -268,7 +268,9 @@ class Task(Generic[TWorkflowInput, R]):
             if self.batch.batch_max_interval is not None:
                 interval_ms = int(self.batch.batch_max_interval.total_seconds() * 1000)
                 if interval_ms <= 0:
-                    raise ValueError("batch_max_interval must be positive when provided")
+                    raise ValueError(
+                        "batch_max_interval must be positive when provided"
+                    )
                 batch_proto.batch_max_interval = interval_ms
 
             if self.batch.batch_group_key is not None:

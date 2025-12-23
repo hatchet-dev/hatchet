@@ -955,7 +955,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             raise ValueError("batch_max_interval must be positive when provided")
 
         if batch_group_max_runs is not None and batch_group_max_runs <= 0:
-            raise ValueError("batch_group_max_runs must be a positive integer when provided")
+            raise ValueError(
+                "batch_group_max_runs must be a positive integer when provided"
+            )
 
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
