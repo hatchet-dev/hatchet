@@ -81,6 +81,7 @@
     "timeago-react": "^3.0.7",
     "tiny-invariant": "^1.3.3",
     "use-debounce": "^10.0.6",
+    "uuid": "^13.0.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
@@ -95,6 +96,7 @@
     "@typescript-eslint/parser": "^6.21.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.21",
+    "cypress": "^13.17.0",
     "eslint": "^8.57.1",
     "eslint-config-airbnb-typescript": "^17.1.0",
     "eslint-config-prettier": "^9.1.0",
@@ -104,7 +106,6 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.19",
     "eslint-plugin-unused-imports": "^3.2.0",
-    "cypress": "^13.17.0",
     "postcss": "^8.5.3",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.7.2",

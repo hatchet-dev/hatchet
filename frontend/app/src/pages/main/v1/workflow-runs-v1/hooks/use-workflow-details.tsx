@@ -1,9 +1,9 @@
 import { queries, V1TaskStatus } from '@/lib/api';
+import { getErrorStatus } from '@/lib/error-utils';
 import { defaultQueryRetry } from '@/lib/query-retry';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
-import { AxiosError, isAxiosError } from 'axios';
 
 export function isTerminalState(status: V1TaskStatus | undefined) {
   if (!status) {
@@ -40,14 +40,7 @@ export const useWorkflowDetails = () => {
   const workflowRun = data?.run;
   const workflowConfig = data?.workflowConfig;
 
-  let errStatusCode: number | undefined;
-
-  // get the status code of the error
-  if (error && isAxiosError(error)) {
-    const axiosErr = error as AxiosError;
-
-    errStatusCode = axiosErr.response?.status;
-  }
+  const errStatusCode = getErrorStatus(error);
 
   return {
     shape,

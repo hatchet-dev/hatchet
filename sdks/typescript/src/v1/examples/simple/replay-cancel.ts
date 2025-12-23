@@ -1,4 +1,4 @@
-import { V1TaskStatus } from '@hatchet-dev/typescript-sdk/clients/rest/generated/data-contracts';
+import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
 import { hatchet } from '../hatchet-client';
 
 async function main() {

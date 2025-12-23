@@ -2,7 +2,7 @@ import os
 from typing import cast
 
 from bs4 import BeautifulSoup, Tag
-from markdownify import markdownify  # type: ignore[import-untyped]
+from markdownify import markdownify
 from mkdocs.config.defaults import MkDocsConfig
 from mkdocs.plugins import BasePlugin
 from mkdocs.structure.pages import Page
