@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/huh"
 	"github.com/fsnotify/fsnotify"
 	"github.com/kballard/go-shellquote"
 	"github.com/spf13/cobra"
@@ -25,9 +26,10 @@ import (
 var c *worker.WorkerConfig
 
 var workerCmd = &cobra.Command{
-	Use:   "worker",
-	Short: "Commands for managing Hatchet workers",
-	Long:  `Manage Hatchet workers with commands for development and testing.`,
+	Use:     "worker",
+	Short:   "Commands for managing Hatchet workers",
+	Long:    `Manage Hatchet workers with commands for development and testing.`,
+	Aliases: []string{"workers", "wrk"},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		var err error
 
@@ -74,7 +76,7 @@ var devCmd = &cobra.Command{
 			devConfig.RunCmd = runCmd
 		}
 
-		startWorker(&devConfig, profileFlag)
+		startWorker(cmd, &devConfig, profileFlag)
 	},
 }
 
@@ -92,7 +94,7 @@ func init() {
 var procCmd *exec.Cmd
 var procLk sync.Mutex
 
-func startWorker(devConfig *worker.WorkerDevConfig, profileFlag string) {
+func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileFlag string) {
 	var selectedProfile string
 
 	// Use profile from flag if provided, otherwise show selection form
@@ -102,7 +104,11 @@ func startWorker(devConfig *worker.WorkerDevConfig, profileFlag string) {
 		selectedProfile = selectProfileForm()
 
 		if selectedProfile == "" {
-			cli.Logger.Fatal("no profiles found. please create a profile using '%s'", profileAddCmd.CommandPath())
+			// No profiles found - prompt user to either start local server or add a profile
+			selectedProfile = handleNoProfiles(cmd)
+			if selectedProfile == "" {
+				cli.Logger.Fatal("no profile selected or created")
+			}
 		}
 	}
 
@@ -426,6 +432,71 @@ func startProcess(args []string, apiToken string) error {
 	}()
 
 	return nil
+}
+
+// handleNoProfiles prompts the user to either start a local server or add a profile with an API token
+func handleNoProfiles(cmd *cobra.Command) string {
+	var choice string
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("No profiles found. How would you like to proceed?").
+				Options(
+					huh.NewOption("Start a local Hatchet server (requires Docker)", "local"),
+					huh.NewOption("Connect to an existing Hatchet instance with an API token", "remote"),
+					huh.NewOption("Cancel", "cancel"),
+				).
+				Value(&choice),
+		),
+	).WithTheme(styles.HatchetTheme())
+
+	err := form.Run()
+	if err != nil {
+		cli.Logger.Fatalf("could not run profile setup form: %v", err)
+	}
+
+	switch choice {
+	case "local":
+		return startLocalServerAndCreateProfile(cmd)
+	case "remote":
+		return createProfileFromToken(cmd)
+	case "cancel":
+		return ""
+	default:
+		return ""
+	}
+}
+
+// startLocalServerAndCreateProfile starts a local Hatchet server and creates a profile
+func startLocalServerAndCreateProfile(cmd *cobra.Command) string {
+	fmt.Println(styles.InfoMessage("Starting local Hatchet server..."))
+
+	result, err := startLocalServer(cmd, "local", 0, 0, "")
+	if err != nil {
+		cli.Logger.Errorf("%v", err)
+		fmt.Println()
+		fmt.Println(styles.Muted.Render("Alternatively, you can connect to an existing Hatchet instance."))
+		return ""
+	}
+
+	// Show success message
+	fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, "Starting worker..."))
+
+	return result.ProfileName
+}
+
+// createProfileFromToken prompts for an API token and creates a profile
+func createProfileFromToken(cmd *cobra.Command) string {
+	name, err := addProfileFromToken(cmd)
+	if err != nil {
+		cli.Logger.Errorf("could not add profile: %v", err)
+		return ""
+	}
+
+	fmt.Println(styles.SuccessMessage(fmt.Sprintf("Profile '%s' created successfully", name)))
+
+	return name
 }
 
 // workerConfigMissingView renders the missing config message

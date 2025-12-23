@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 )
 
 // Version will be linked by an ldflag during build
@@ -22,6 +24,13 @@ var rootCmd = &cobra.Command{
 			os.Exit(0)
 		}
 	},
+	Run: func(cmd *cobra.Command, args []string) {
+		err := cmd.Help()
+
+		if err != nil {
+			cli.Logger.Fatalf("could not print help: %v", err)
+		}
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -34,9 +43,10 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVar(
+	rootCmd.PersistentFlags().BoolVarP(
 		&printVersion,
 		"version",
+		"v",
 		false,
 		"The version of the hatchet cli.",
 	)

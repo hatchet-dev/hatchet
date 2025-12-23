@@ -41,12 +41,13 @@ var quickstartCmd = &cobra.Command{
 		// Use interactive forms only if flags not provided
 		if language == "" {
 			language = selectLanguageForm()
-		} else {
-			// Validate language if provided via flag
-			validLanguages := map[string]bool{"python": true, "typescript": true, "go": true}
-			if !validLanguages[language] {
-				cli.Logger.Fatalf("invalid language: %s (must be one of: python, typescript, go)", language)
-			}
+		}
+
+		// Validate language
+		validLanguages := map[string]bool{"python": true, "typescript": true, "go": true}
+
+		if !validLanguages[language] {
+			cli.Logger.Fatalf("invalid language: %s (must be one of: python, typescript, go)", language)
 		}
 
 		if projectName == "" {

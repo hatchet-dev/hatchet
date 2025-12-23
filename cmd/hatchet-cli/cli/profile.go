@@ -20,7 +20,7 @@ import (
 // profileCmd represents the profile command
 var profileCmd = &cobra.Command{
 	Use:     "profile",
-	Aliases: []string{"profiles"},
+	Aliases: []string{"profiles", "prof"},
 	Short:   "Manage profiles for different Hatchet environments",
 	Long:    `Manage profiles that store connection information (address and token) for different Hatchet environments.`,
 	Example: `
@@ -245,6 +245,65 @@ func getApiTokenForm() string {
 	}
 
 	return resp
+}
+
+// addProfileFromToken prompts for an API token and creates a profile, returning the profile name
+func addProfileFromToken(cmd *cobra.Command) (string, error) {
+	var token string
+
+	tokenForm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Enter your Hatchet API token").
+				Placeholder("API Token").
+				Value(&token).
+				EchoMode(huh.EchoModePassword),
+		),
+	).WithTheme(styles.HatchetTheme())
+
+	err := tokenForm.Run()
+	if err != nil {
+		return "", fmt.Errorf("could not run token input form: %w", err)
+	}
+
+	if token == "" {
+		return "", fmt.Errorf("no token provided")
+	}
+
+	// Get profile details from token
+	profile, err := getProfileFromToken(cmd, token, "")
+	if err != nil {
+		return "", fmt.Errorf("could not get profile from token: %w", err)
+	}
+
+	// Prompt for custom name or use tenant name
+	name := profile.Name
+
+	nameForm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title(fmt.Sprintf("Enter a name for this profile (default: %s)", name)).
+				Placeholder(name).
+				Value(&name),
+		),
+	).WithTheme(styles.HatchetTheme())
+
+	err = nameForm.Run()
+	if err != nil {
+		return "", fmt.Errorf("could not run name input form: %w", err)
+	}
+
+	if name == "" {
+		name = profile.Name
+	}
+
+	// Save the profile
+	err = cli.AddProfile(name, profile)
+	if err != nil {
+		return "", fmt.Errorf("could not add profile: %w", err)
+	}
+
+	return name, nil
 }
 
 func getProfileFromToken(cmd *cobra.Command, token, nameOverride string) (*cliconfig.Profile, error) {
