@@ -1,4 +1,21 @@
-import * as React from 'react';
+import { DataTablePagination } from './data-table-pagination';
+import {
+  DataTableToolbar,
+  ShowTableActionsProps,
+  ToolbarFilters,
+} from './data-table-toolbar';
+import { Skeleton } from '@/components/v1/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/v1/ui/table';
+import { cn } from '@/lib/utils';
+import { ConfirmActionModal } from '@/pages/main/v1/task-runs-v1/actions';
+import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -18,26 +35,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/v1/ui/table';
-
-import { DataTablePagination } from './data-table-pagination';
-import {
-  DataTableToolbar,
-  ShowTableActionsProps,
-  ToolbarFilters,
-} from './data-table-toolbar';
-import { Skeleton } from '@/components/v1/ui/skeleton';
-import { cn } from '@/lib/utils';
-import { ConfirmActionModal } from '@/pages/main/v1/task-runs-v1/actions';
-import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
+import * as React from 'react';
 
 export interface IDGetter<T> {
   metadata: {
@@ -227,7 +225,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
                 <TableHead
                   key={header.id}
                   colSpan={header.colSpan}
-                  className={cn('bg-background border-b', headerClassName)}
+                  className={cn('border-b bg-background', headerClassName)}
                 >
                   {header.isPlaceholder
                     ? null
@@ -288,7 +286,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   );
 
   return (
-    <div className="flex flex-col max-h-full space-y-4">
+    <div className="flex max-h-full flex-col space-y-4">
       {tableActions?.selectedActionType && (
         <ConfirmActionModal
           actionType={tableActions.selectedActionType}
@@ -316,7 +314,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
         />
       )}
       <div
-        className={`flex-1 min-h-0 rounded-md ${!card && 'border'} ${!card && 'overflow-auto'}`}
+        className={`min-h-0 flex-1 rounded-md ${!card && 'border'} ${!card && 'overflow-auto'}`}
       >
         {!card ? getTable() : getCards()}
       </div>

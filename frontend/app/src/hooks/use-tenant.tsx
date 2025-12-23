@@ -1,31 +1,31 @@
-import { useCallback, useMemo, useState } from 'react';
 import api, {
   UpdateTenantRequest,
   Tenant,
   CreateTenantRequest,
   queries,
 } from '@/lib/api';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { Evaluate } from '@/lib/can/shared/permission.base';
+import useCloud from '@/pages/auth/hooks/use-cloud';
+import { appRoutes } from '@/router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { useAtom } from 'jotai';
+import { useCallback, useMemo, useState } from 'react';
 
 type Plan = 'free' | 'starter' | 'growth';
 
 export function useCurrentTenantId() {
-  const params = useParams();
+  const params = useParams({ from: appRoutes.tenantRoute.to });
   const tenantId = params.tenant;
-
-  invariant(tenantId, 'Tenant ID is required');
 
   return { tenantId };
 }
 
 export function useTenantDetails() {
-  const params = useParams();
+  // Allow calling this hook even when not currently on a tenant route
+  // (e.g., onboarding pages). When not matched, params will be empty.
+  const params = useParams({ strict: false });
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const tenantId = params.tenant || lastTenant?.metadata.id;
 
@@ -39,23 +39,41 @@ export function useTenantDetails() {
   );
 
   const queryClient = useQueryClient();
-  const location = useLocation();
+  const matchRoute = useMatchRoute();
   const navigate = useNavigate();
+  const tenantParamInPath = params.tenant;
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
-      const currentPath = location.pathname;
-
-      const newPath = currentPath.replace(
-        /\/tenants\/([^/]+)/,
-        `/tenants/${tenant.metadata.id}`,
-      );
-
       setLastTenant(tenant);
       queryClient.clear();
-      navigate(newPath);
+
+      const isOnTenantRoute = Boolean(
+        matchRoute({
+          to: appRoutes.tenantRoute.to,
+          params: tenantParamInPath
+            ? {
+                tenant: tenantParamInPath,
+              }
+            : undefined,
+          fuzzy: true,
+        }),
+      );
+
+      if (!isOnTenantRoute) {
+        navigate({
+          to: appRoutes.tenantRunsRoute.to,
+          params: { tenant: tenant.metadata.id },
+        });
+        return;
+      }
+
+      navigate({
+        to: '.', // stay on the current route
+        params: { tenant: tenant.metadata.id },
+      });
     },
-    [navigate, location.pathname, setLastTenant, queryClient],
+    [matchRoute, navigate, setLastTenant, queryClient, tenantParamInPath],
   );
 
   const membership = useMemo(() => {
@@ -116,11 +134,11 @@ export function useTenantDetails() {
 
   const [pollBilling, setPollBilling] = useState(false);
 
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { cloud, isCloudEnabled } = useCloud();
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenant?.metadata?.id || ''),
-    enabled: tenant && !!cloudMeta?.data.canBill,
+    enabled: !!tenant?.metadata?.id && isCloudEnabled && !!cloud?.canBill,
     refetchInterval: pollBilling ? 1000 : false,
   });
 
@@ -137,7 +155,7 @@ export function useTenantDetails() {
   }, [billingState.data?.paymentMethods]);
 
   const billingContext: BillingContext | undefined = useMemo(() => {
-    if (!cloudMeta?.data.canBill) {
+    if (!cloud?.canBill) {
       return;
     }
 
@@ -147,22 +165,17 @@ export function useTenantDetails() {
       plan: subscriptionPlan,
       hasPaymentMethods,
     };
-  }, [
-    cloudMeta?.data.canBill,
-    billingState.data,
-    subscriptionPlan,
-    hasPaymentMethods,
-  ]);
+  }, [cloud?.canBill, billingState.data, subscriptionPlan, hasPaymentMethods]);
 
   const can = useCallback(
     (evalFn: Evaluate) => {
       return evalFn({
         tenant,
         billing: billingContext,
-        meta: cloudMeta?.data,
+        meta: cloud,
       });
     },
-    [billingContext, cloudMeta?.data, tenant],
+    [billingContext, cloud, tenant],
   );
 
   return {

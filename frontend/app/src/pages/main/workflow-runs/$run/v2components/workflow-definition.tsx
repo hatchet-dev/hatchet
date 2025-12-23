@@ -1,7 +1,8 @@
 import { Button } from '@/components/v1/ui/button';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { appRoutes } from '@/router';
 import { Squares2X2Icon } from '@heroicons/react/24/outline';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 
 export const WorkflowDefinitionLink = ({
   workflowId,
@@ -12,7 +13,8 @@ export const WorkflowDefinitionLink = ({
 
   return (
     <Link
-      to={`/tenants/${tenantId}/workflows/${workflowId}`}
+      to={appRoutes.tenantWorkflowRoute.to}
+      params={{ tenant: tenantId, workflow: workflowId }}
       target="_blank"
       rel="noreferrer"
     >

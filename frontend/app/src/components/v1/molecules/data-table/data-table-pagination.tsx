@@ -1,11 +1,3 @@
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  DoubleArrowLeftIcon,
-  DoubleArrowRightIcon,
-} from '@radix-ui/react-icons';
-import { Table } from '@tanstack/react-table';
-
 import { Button } from '@/components/v1/ui/button';
 import {
   Select,
@@ -14,7 +6,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  DoubleArrowLeftIcon,
+  DoubleArrowRightIcon,
+} from '@radix-ui/react-icons';
 import { Label } from '@radix-ui/react-label';
+import { Table } from '@tanstack/react-table';
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
@@ -59,7 +58,7 @@ export function DataTablePagination<TData>({
             }}
           >
             <SelectTrigger
-              className="h-8 w-[70px] z-[70]"
+              className="z-[70] h-8 w-[70px]"
               id="rows-per-page"
               aria-labelledby="rows-per-page-label"
             >

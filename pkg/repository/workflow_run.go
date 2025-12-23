@@ -473,6 +473,16 @@ type WorkflowRunAPIRepository interface {
 	// UpdateScheduledWorkflow updates a scheduled workflow run
 	UpdateScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string, triggerAt time.Time) error
 
+	// ScheduledWorkflowMetaByIds returns minimal metadata for scheduled workflows by id.
+	// Intended for bulk operations to avoid N+1 DB calls.
+	ScheduledWorkflowMetaByIds(ctx context.Context, tenantId string, scheduledWorkflowIds []string) (map[string]ScheduledWorkflowMeta, error)
+
+	// BulkDeleteScheduledWorkflows deletes scheduled workflows in bulk and returns deleted ids.
+	BulkDeleteScheduledWorkflows(ctx context.Context, tenantId string, scheduledWorkflowIds []string) ([]string, error)
+
+	// BulkUpdateScheduledWorkflows updates scheduled workflows in bulk and returns updated ids.
+	BulkUpdateScheduledWorkflows(ctx context.Context, tenantId string, updates []ScheduledWorkflowUpdate) ([]string, error)
+
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
 	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error)
 
@@ -487,6 +497,17 @@ type WorkflowRunAPIRepository interface {
 	GetStepRunsForJobRuns(ctx context.Context, tenantId string, jobRunIds []string) ([]*StepRunForJobRun, error)
 
 	GetWorkflowRunShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*dbsqlc.GetWorkflowRunShapeRow, error)
+}
+
+type ScheduledWorkflowMeta struct {
+	Id              string
+	Method          dbsqlc.WorkflowTriggerScheduledRefMethods
+	HasTriggeredRun bool
+}
+
+type ScheduledWorkflowUpdate struct {
+	Id        string
+	TriggerAt time.Time
 }
 
 var (

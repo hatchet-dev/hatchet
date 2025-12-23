@@ -1,3 +1,12 @@
+import { AuthMethod } from './components/auth-method';
+import { AuthSetup } from './components/auth-setup';
+import { SourceName } from './components/source-name';
+import { columns, WebhookColumn } from './components/webhook-columns';
+import {
+  useWebhooks,
+  WebhookFormData,
+  webhookFormSchema,
+} from './hooks/use-webhooks';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { Button } from '@/components/v1/ui/button';
@@ -31,23 +40,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertTriangle, Check, Copy, Lightbulb, Webhook } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link } from 'react-router-dom';
-import { AuthMethod } from './components/auth-method';
-import { AuthSetup } from './components/auth-setup';
-import { SourceName } from './components/source-name';
-import { columns, WebhookColumn } from './components/webhook-columns';
-import {
-  useWebhooks,
-  WebhookFormData,
-  webhookFormSchema,
-} from './hooks/use-webhooks';
 
 export default function Webhooks() {
   const { data, isLoading, error } = useWebhooks();
 
   return (
     <div>
-      <div className="flex flex-row justify-end w-full">
+      <div className="flex w-full flex-row justify-end">
         <CreateWebhookModal />
       </div>
       <DataTable
@@ -57,7 +56,7 @@ export default function Webhooks() {
         data={data}
         columnKeyToName={WebhookColumn}
         emptyState={
-          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
             <p className="text-lg font-semibold">No webhooks found</p>
             <div className="w-fit">
               <DocsButton
@@ -245,7 +244,7 @@ const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
   switch (sourceName) {
     case V1WebhookSourceName.GITHUB:
       return (
-        <div className="flex flex-row items-center gap-x-2 ml-1">
+        <div className="ml-1 flex flex-row items-center gap-x-2">
           <AlertTriangle className="size-4 text-yellow-500" />
           <p className="text-xs text-muted-foreground">
             Select <span className="font-semibold">application/json</span> as
@@ -347,11 +346,11 @@ const CreateWebhookModal = () => {
       <DialogTrigger asChild>
         <Button variant="cta">Create Webhook</Button>
       </DialogTrigger>
-      <DialogContent className="max-w-[90%] md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%] max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] max-w-[90%] overflow-y-auto md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%]">
         <DialogHeader>
           <DialogTitle className="flex flex-col items-start gap-y-4">
             <div className="flex flex-row items-center gap-x-3">
-              <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
                 <Webhook className="size-4 text-indigo-700" />
               </div>
               Create a webhook
@@ -380,7 +379,7 @@ const CreateWebhookModal = () => {
             <div className="flex flex-col items-start gap-2 text-xs text-muted-foreground">
               <span className="">Send incoming webhook requests to:</span>
               <div className="flex flex-row items-center gap-2">
-                <code className="max-w-full font-mono bg-muted px-2 py-1 rounded text-xs">
+                <code className="max-w-full rounded bg-muted px-2 py-1 font-mono text-xs">
                   {createWebhookURL(webhookName)}
                 </code>
                 <Button
@@ -419,9 +418,9 @@ const CreateWebhookModal = () => {
               <SelectContent>
                 {Object.values(V1WebhookSourceName).map((source) => (
                   <SelectItem key={source} value={source} className="h-10">
-                    <div className="h-10 flex flex-row items-center gap-x-2">
+                    <div className="flex h-10 flex-row items-center gap-x-2">
                       <SourceName sourceName={source} />
-                      <span className="text-sm truncate max-w-full">
+                      <span className="max-w-full truncate text-sm">
                         {createSourceInlineDescription(source)}
                       </span>
                     </div>
@@ -458,18 +457,18 @@ const CreateWebhookModal = () => {
                 {errors.eventKeyExpression.message}
               </p>
             )}
-            <div className="text-xs text-muted-foreground pl-1">
+            <div className="pl-1 text-xs text-muted-foreground">
               <p>
                 CEL expression to extract the event key from the webhook
                 payload. See{' '}
-                <Link
-                  to="https://cel.dev/"
+                <a
+                  href="https://cel.dev/"
                   className="text-blue-600"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   the docs
-                </Link>{' '}
+                </a>{' '}
                 for details.
               </p>
               <ul className="list-disc pl-4">
@@ -477,10 +476,10 @@ const CreateWebhookModal = () => {
                 <li>`headers` refers to the headers</li>
               </ul>
               {sourceName === V1WebhookSourceName.SLACK && (
-                <div className="mt-2 p-3 bg-muted border border-border rounded-md">
+                <div className="mt-2 rounded-md border border-border bg-muted p-3">
                   <p className="text-xs text-muted-foreground">
                     For Slack webhooks, the event key expression{' '}
-                    <code className="bg-background px-1.5 py-0.5 rounded text-foreground">
+                    <code className="rounded bg-background px-1.5 py-0.5 text-foreground">
                       input.type
                     </code>{' '}
                     works well since Slack interactive payloads don't have a
@@ -492,7 +491,7 @@ const CreateWebhookModal = () => {
           </div>
 
           <div className="space-y-4">
-            <div className="space-y-4 pl-4 border-l-2 border-gray-200">
+            <div className="space-y-4 border-l-2 border-gray-200 pl-4">
               {sourceName === V1WebhookSourceName.GENERIC && (
                 <div className="space-y-2">
                   <Label htmlFor="authType" className="text-sm font-medium">

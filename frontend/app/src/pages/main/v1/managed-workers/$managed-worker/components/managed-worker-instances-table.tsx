@@ -1,9 +1,6 @@
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './managed-worker-instances-columns';
-import { Loading } from '@/components/v1/ui/loading.tsx';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
   Card,
@@ -12,13 +9,16 @@ import {
   CardDescription,
   CardFooter,
 } from '@/components/v1/ui/card';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { queries } from '@/lib/api';
+import { Instance } from '@/lib/api/generated/cloud/data-contracts';
 import { capitalize } from '@/lib/utils';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { useQuery } from '@tanstack/react-query';
 import { VisibilityState } from '@tanstack/react-table';
+import { useMemo, useState } from 'react';
 import { BiCard, BiTable } from 'react-icons/bi';
-import { Instance } from '@/lib/api/generated/cloud/data-contracts';
-import { Badge } from '@/components/v1/ui/badge';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function ManagedWorkerInstancesTable({
   managedWorkerId,
@@ -51,7 +51,7 @@ export function ManagedWorkerInstancesTable({
       <CardHeader>
         <CardTitle>No Instances</CardTitle>
         <CardDescription>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
+          <p className="mb-4 text-gray-700 dark:text-gray-300">
             There are no instances currently active for this managed worker
             pool.
           </p>
@@ -64,19 +64,19 @@ export function ManagedWorkerInstancesTable({
   const card: React.FC<{ data: Instance }> = ({ data }) => (
     <div
       key={data.instanceId}
-      className="border overflow-hidden shadow rounded-lg"
+      className="overflow-hidden rounded-lg border shadow"
     >
       <div className="p-4 sm:p-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg leading-6 font-medium text-foreground">
+          <h3 className="text-lg font-medium leading-6 text-foreground">
             {data.name}
           </h3>
           <StateBadge state={data.state} />
         </div>
-        <div className="mt-2 flex items-center text-sm text-background-secondary">
+        <div className="text-background-secondary mt-2 flex items-center text-sm">
           CPUs: {data.cpus} {data.cpuKind}
         </div>
-        <div className="mt-2 flex items-center text-sm text-background-secondary">
+        <div className="text-background-secondary mt-2 flex items-center text-sm">
           Memory: {data.memoryMb} MB
         </div>
       </div>
@@ -96,9 +96,9 @@ export function ManagedWorkerInstancesTable({
       aria-label="Toggle card/table view"
     >
       {!cardToggle ? (
-        <BiCard className={`size-4 `} />
+        <BiCard className={`size-4`} />
       ) : (
-        <BiTable className={`size-4 `} />
+        <BiTable className={`size-4`} />
       )}
     </Button>,
     <Button

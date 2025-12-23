@@ -1,9 +1,4 @@
-import { usePagination } from '@/hooks/use-pagination';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import api, { queries, V1TaskStatus } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { workflowRunStatusFilters } from '../../workflow-runs-v1/hooks/use-toolbar-filters';
 import {
   keyKey,
   workflowKey,
@@ -13,9 +8,14 @@ import {
   scopeKey,
 } from '../components/event-columns';
 import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { usePagination } from '@/hooks/use-pagination';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
+import api, { queries, V1TaskStatus } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { z } from 'zod';
-import { workflowRunStatusFilters } from '../../workflow-runs-v1/hooks/use-toolbar-filters';
 
 type UseEventsProps = {
   key: string;

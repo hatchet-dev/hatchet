@@ -1,12 +1,54 @@
-import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
-import { cloudApi } from '@/lib/api/api';
-import api from '@/lib/api';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { Loading } from '@/components/v1/ui/loading';
+import { CancelInviteModal } from './components/cancel-invite-modal';
+import { CreateTokenModal } from './components/create-token-modal';
+import { DeleteMemberModal } from './components/delete-member-modal';
+import { DeleteTenantModal } from './components/delete-tenant-modal';
+import { DeleteTokenModal } from './components/delete-token-modal';
+import { InviteMemberModal } from './components/invite-member-modal';
+import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/v1/ui/card';
+import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/v1/ui/dropdown-menu';
 import { Input } from '@/components/v1/ui/input';
-import { formatDistanceToNow } from 'date-fns';
+import { Loading } from '@/components/v1/ui/loading';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/v1/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
+import { useOrganizations } from '@/hooks/use-organizations';
+import api from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
+import {
+  OrganizationMember,
+  ManagementToken,
+  OrganizationInvite,
+  OrganizationInviteStatus,
+  TenantStatusType,
+  OrganizationTenant,
+} from '@/lib/api/generated/cloud/data-contracts';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
+import { appRoutes } from '@/router';
 import {
   PlusIcon,
   BuildingOffice2Icon,
@@ -18,54 +60,17 @@ import {
   XMarkIcon,
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/v1/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/v1/ui/table';
-import { Badge } from '@/components/v1/ui/badge';
-import { useState } from 'react';
-import { InviteMemberModal } from './components/invite-member-modal';
-import { DeleteMemberModal } from './components/delete-member-modal';
-import { CreateTokenModal } from './components/create-token-modal';
-import { DeleteTokenModal } from './components/delete-token-modal';
-import { CancelInviteModal } from './components/cancel-invite-modal';
-import { DeleteTenantModal } from './components/delete-tenant-modal';
-import {
-  OrganizationMember,
-  ManagementToken,
-  OrganizationInvite,
-  OrganizationInviteStatus,
-  TenantStatusType,
-  OrganizationTenant,
-} from '@/lib/api/generated/cloud/data-contracts';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
 import { EllipsisVerticalIcon, TrashIcon } from '@heroicons/react/24/outline';
-import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
+import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useParams, useNavigate } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
+import { formatDistanceToNow } from 'date-fns';
+import { useState } from 'react';
 
 export default function OrganizationPage() {
-  const { organization: orgId } = useParams<{ organization: string }>();
+  const { organization: orgId } = useParams({
+    from: appRoutes.organizationsRoute.to,
+  });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { handleUpdateOrganization, updateOrganizationLoading } =
@@ -209,27 +214,36 @@ export default function OrganizationPage() {
     return <Loading />;
   }
 
-  if (organizationQuery.error || !organizationQuery.data) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-            Organization not found
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            The organization you're looking for doesn't exist or you don't have
-            access to it.
-          </p>
-        </div>
-      </div>
-    );
+  if (organizationQuery.isError) {
+    const status = isAxiosError(organizationQuery.error)
+      ? organizationQuery.error.response?.status
+      : undefined;
+
+    if (status === 404 || status === 403) {
+      return (
+        <ResourceNotFound
+          resource="Organization"
+          description="The organization you’re looking for doesn’t exist or you don’t have access to it."
+          primaryAction={{
+            label: 'Dashboard',
+            navigate: { to: appRoutes.authenticatedRoute.to },
+          }}
+        />
+      );
+    }
+
+    throw organizationQuery.error;
+  }
+
+  if (!organizationQuery.data) {
+    return <Loading />;
   }
 
   const organization = organizationQuery.data;
 
   return (
     <div className="max-h-full overflow-y-auto">
-      <div className="p-6 space-y-6 max-w-6xl mx-auto">
+      <div className="mx-auto max-w-6xl space-y-6 p-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -240,7 +254,7 @@ export default function OrganizationPage() {
                     value={editedName}
                     onChange={(e) => setEditedName(e.target.value)}
                     onKeyDown={handleKeyPress}
-                    className="text-2xl font-bold h-10 px-3"
+                    className="h-10 px-3 text-2xl font-bold"
                     autoFocus
                     disabled={updateOrganizationLoading}
                   />
@@ -288,9 +302,9 @@ export default function OrganizationPage() {
               );
               if (previousPath) {
                 sessionStorage.removeItem('orgSettingsPreviousPath');
-                navigate(previousPath, { replace: false });
+                navigate({ to: previousPath, replace: false });
               } else {
-                navigate(-1);
+                window.history.back();
               }
             }}
             className="h-8 w-8 p-0"
@@ -308,10 +322,10 @@ export default function OrganizationPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  navigate(
-                    '/onboarding/create-tenant?organizationId=' +
-                      organization.metadata.id,
-                  );
+                  navigate({
+                    to: appRoutes.onboardingCreateTenantRoute.to,
+                    search: { organizationId: organization.metadata.id },
+                  });
                 }}
                 leftIcon={<PlusIcon className="size-4" />}
               >
@@ -378,10 +392,13 @@ export default function OrganizationPage() {
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuItem
                                       onClick={() => {
-                                        navigate(`/tenants/${orgTenant.id}`);
+                                        navigate({
+                                          to: appRoutes.tenantRoute.to,
+                                          params: { tenant: orgTenant.id },
+                                        });
                                       }}
                                     >
-                                      <ArrowRightIcon className="size-4 mr-2" />
+                                      <ArrowRightIcon className="mr-2 size-4" />
                                       View Tenant
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
@@ -389,7 +406,7 @@ export default function OrganizationPage() {
                                         setTenantToArchive(orgTenant)
                                       }
                                     >
-                                      <TrashIcon className="size-4 mr-2" />
+                                      <TrashIcon className="mr-2 size-4" />
                                       Archive Tenant
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
@@ -403,7 +420,7 @@ export default function OrganizationPage() {
                 </div>
 
                 {/* Mobile Card View */}
-                <div className="md:hidden space-y-4">
+                <div className="space-y-4 md:hidden">
                   {organization.tenants
                     .filter(
                       (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
@@ -415,7 +432,7 @@ export default function OrganizationPage() {
                       return (
                         <div
                           key={orgTenant.id}
-                          className="border rounded-lg p-4 space-y-3"
+                          className="space-y-3 rounded-lg border p-4"
                         >
                           <div className="flex items-center justify-between">
                             <h4 className="font-medium">
@@ -458,16 +475,19 @@ export default function OrganizationPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem
                                   onClick={() => {
-                                    navigate(`/tenants/${orgTenant.id}`);
+                                    navigate({
+                                      to: appRoutes.tenantRoute.to,
+                                      params: { tenant: orgTenant.id },
+                                    });
                                   }}
                                 >
-                                  <ArrowRightIcon className="size-4 mr-2" />
+                                  <ArrowRightIcon className="mr-2 size-4" />
                                   View Tenant
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => setTenantToArchive(orgTenant)}
                                 >
-                                  <TrashIcon className="size-4 mr-2" />
+                                  <TrashIcon className="mr-2 size-4" />
                                   Archive Tenant
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -479,18 +499,18 @@ export default function OrganizationPage() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <BuildingOffice2Icon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Tenants Yet</h3>
-                <p className="text-muted-foreground mb-4">
+              <div className="py-8 text-center">
+                <BuildingOffice2Icon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="mb-2 text-lg font-medium">No Tenants Yet</h3>
+                <p className="mb-4 text-muted-foreground">
                   Add your first tenant to get started.
                 </p>
                 <Button
                   onClick={() => {
-                    navigate(
-                      '/onboarding/create-tenant?organizationId=' +
-                        organization.metadata.id,
-                    );
+                    navigate({
+                      to: appRoutes.onboardingCreateTenantRoute.to,
+                      search: { organizationId: organization.metadata.id },
+                    });
                   }}
                   leftIcon={<PlusIcon className="size-4" />}
                 >
@@ -561,9 +581,9 @@ export default function OrganizationPage() {
                                       <TooltipTrigger asChild>
                                         <DropdownMenuItem
                                           disabled
-                                          className="text-gray-400 cursor-not-allowed"
+                                          className="cursor-not-allowed text-gray-400"
                                         >
-                                          <TrashIcon className="size-4 mr-2" />
+                                          <TrashIcon className="mr-2 size-4" />
                                           Remove Member
                                         </DropdownMenuItem>
                                       </TooltipTrigger>
@@ -576,7 +596,7 @@ export default function OrganizationPage() {
                                   <DropdownMenuItem
                                     onClick={() => setMemberToDelete(member)}
                                   >
-                                    <TrashIcon className="size-4 mr-2" />
+                                    <TrashIcon className="mr-2 size-4" />
                                     Remove Member
                                   </DropdownMenuItem>
                                 )}
@@ -590,11 +610,11 @@ export default function OrganizationPage() {
                 </div>
 
                 {/* Mobile Card View */}
-                <div className="md:hidden space-y-4">
+                <div className="space-y-4 md:hidden">
                   {organization.members.map((member) => (
                     <div
                       key={member.metadata.id}
-                      className="border rounded-lg p-4 space-y-3"
+                      className="space-y-3 rounded-lg border p-4"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -618,7 +638,7 @@ export default function OrganizationPage() {
                               <DropdownMenuItem
                                 onClick={() => setMemberToDelete(member)}
                               >
-                                <TrashIcon className="size-4 mr-2" />
+                                <TrashIcon className="mr-2 size-4" />
                                 Remove Member
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -653,10 +673,10 @@ export default function OrganizationPage() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <UserIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Members Yet</h3>
-                <p className="text-muted-foreground mb-4">
+              <div className="py-8 text-center">
+                <UserIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="mb-2 text-lg font-medium">No Members Yet</h3>
+                <p className="mb-4 text-muted-foreground">
                   Members will appear here when they join this organization.
                 </p>
               </div>
@@ -754,7 +774,7 @@ export default function OrganizationPage() {
                                     <DropdownMenuItem
                                       onClick={() => setInviteToCancel(invite)}
                                     >
-                                      <TrashIcon className="size-4 mr-2" />
+                                      <TrashIcon className="mr-2 size-4" />
                                       Cancel Invitation
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
@@ -768,11 +788,11 @@ export default function OrganizationPage() {
                 </div>
 
                 {/* Mobile Card View */}
-                <div className="md:hidden space-y-4">
+                <div className="space-y-4 md:hidden">
                   {organizationInvitesQuery.data.rows.map((invite) => (
                     <div
                       key={invite.metadata.id}
-                      className="border rounded-lg p-4 space-y-3"
+                      className="space-y-3 rounded-lg border p-4"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -810,7 +830,7 @@ export default function OrganizationPage() {
                                 <DropdownMenuItem
                                   onClick={() => setInviteToCancel(invite)}
                                 >
-                                  <TrashIcon className="size-4 mr-2" />
+                                  <TrashIcon className="mr-2 size-4" />
                                   Cancel Invitation
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -850,10 +870,10 @@ export default function OrganizationPage() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <EnvelopeIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Pending Invites</h3>
-                <p className="text-muted-foreground mb-4">
+              <div className="py-8 text-center">
+                <EnvelopeIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="mb-2 text-lg font-medium">No Pending Invites</h3>
+                <p className="mb-4 text-muted-foreground">
                   Invite members to join this organization.
                 </p>
                 <Button
@@ -950,11 +970,11 @@ export default function OrganizationPage() {
                 </div>
 
                 {/* Mobile Card View */}
-                <div className="md:hidden space-y-4">
+                <div className="space-y-4 md:hidden">
                   {managementTokensQuery.data.rows.map((token) => (
                     <div
                       key={token.id}
-                      className="border rounded-lg p-4 space-y-3"
+                      className="space-y-3 rounded-lg border p-4"
                     >
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium">{token.name}</h4>
@@ -1001,12 +1021,12 @@ export default function OrganizationPage() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <KeyIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">
+              <div className="py-8 text-center">
+                <KeyIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="mb-2 text-lg font-medium">
                   No Management Tokens
                 </h3>
-                <p className="text-muted-foreground mb-4">
+                <p className="mb-4 text-muted-foreground">
                   Create API tokens to manage this organization
                   programmatically.
                 </p>

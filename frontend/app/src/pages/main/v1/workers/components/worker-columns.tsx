@@ -1,12 +1,12 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { Worker } from '@/lib/api';
-import { Link } from 'react-router-dom';
-import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SdkInfo } from './sdk-info';
-
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
+import { Worker } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const WorkerColumn = {
   status: 'Status',
@@ -22,7 +22,6 @@ type WorkerColumnKeys = keyof typeof WorkerColumn;
 
 export const statusKey: WorkerColumnKeys = 'status';
 const nameKey: WorkerColumnKeys = 'name';
-const typeKey: WorkerColumnKeys = 'type';
 const startedAtKey: WorkerColumnKeys = 'startedAt';
 const slotsKey: WorkerColumnKeys = 'slots';
 const lastHeartbeatAtKey: WorkerColumnKeys = 'lastHeartbeatAt';
@@ -110,7 +109,7 @@ function WorkerStatusBadge({
       className={cn(
         'px-3 py-1',
         finalConfig.colors,
-        'text-xs font-medium rounded-md border-transparent',
+        'rounded-md border-transparent text-xs font-medium',
         className,
       )}
       variant={variant}
@@ -130,7 +129,10 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
       <DataTableColumnHeader column={column} title={WorkerColumn.status} />
     ),
     cell: ({ row }) => (
-      <Link to={`/tenants/${tenantId}/workers/${row.original.metadata.id}`}>
+      <Link
+        to={appRoutes.tenantWorkerRoute.to}
+        params={{ tenant: tenantId, worker: row.original.metadata.id }}
+      >
         <WorkerStatusBadge status={row.original.status} />
       </Link>
     ),
@@ -143,24 +145,14 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
       <DataTableColumnHeader column={column} title={WorkerColumn.name} />
     ),
     cell: ({ row }) => (
-      <Link to={`/tenants/${tenantId}/workers/${row.original.metadata.id}`}>
-        <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+      <Link
+        to={appRoutes.tenantWorkerRoute.to}
+        params={{ tenant: tenantId, worker: row.original.metadata.id }}
+      >
+        <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
           {row.original.webhookUrl || row.original.name}
         </div>
       </Link>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: typeKey,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={WorkerColumn.type} />
-    ),
-    cell: ({ row }) => (
-      <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-        {row.original.type.toLocaleLowerCase()}
-      </div>
     ),
     enableSorting: false,
     enableHiding: false,

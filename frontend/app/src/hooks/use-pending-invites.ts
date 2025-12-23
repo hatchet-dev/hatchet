@@ -1,17 +1,17 @@
-import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import useCloud from '@/pages/auth/hooks/use-cloud';
+import { useQuery } from '@tanstack/react-query';
 
 export const usePendingInvites = () => {
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { isCloudEnabled } = useCloud();
 
   const query = useQuery({
     queryKey: ['pending-invites'],
     queryFn: async () => {
       const [tenantInvites, orgInvites] = await Promise.allSettled([
         api.userListTenantInvites(),
-        cloudMeta?.data
+        isCloudEnabled
           ? cloudApi.userListOrganizationInvites()
           : Promise.resolve({ data: { rows: [] } }),
       ]);

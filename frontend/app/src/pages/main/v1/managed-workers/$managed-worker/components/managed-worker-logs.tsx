@@ -1,17 +1,17 @@
+import LoggingComponent from '@/components/v1/cloud/logging/logs';
+import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+import { Button } from '@/components/v1/ui/button';
+import { Input } from '@/components/v1/ui/input';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
 import {
   LogLine,
   ManagedWorker,
 } from '@/lib/api/generated/cloud/data-contracts';
-import LoggingComponent from '@/components/v1/cloud/logging/logs';
-import { useState, useEffect } from 'react';
-import { Input } from '@/components/v1/ui/input';
-import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
-import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { ListCloudLogsQuery } from '@/lib/api/queries';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 
 export function ManagedWorkerLogs({
   managedWorker,
@@ -109,7 +109,7 @@ export function ManagedWorkerLogs({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-row justify-between items-center">
+      <div className="flex flex-row items-center justify-between">
         <form
           onSubmit={() =>
             setQueryParams({

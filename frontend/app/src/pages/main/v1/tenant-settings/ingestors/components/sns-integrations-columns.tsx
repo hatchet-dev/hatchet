@@ -1,12 +1,12 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { SNSIntegration } from '@/lib/api';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Button } from '@/components/v1/ui/button';
-import { useState } from 'react';
+import { SNSIntegration } from '@/lib/api';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { CopyIcon } from '@radix-ui/react-icons';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { ColumnDef } from '@tanstack/react-table';
+import { useState } from 'react';
 
 type Props = {
   ingestUrl: string;

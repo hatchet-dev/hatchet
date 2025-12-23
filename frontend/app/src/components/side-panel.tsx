@@ -1,13 +1,13 @@
-import { useSidePanel } from '@/hooks/use-side-panel';
+import { Button } from './v1/ui/button';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
+import { useSidePanel } from '@/hooks/use-side-panel';
+import { cn } from '@/lib/utils';
 import {
   Cross2Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from '@radix-ui/react-icons';
-import { Button } from './v1/ui/button';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { cn } from '@/lib/utils';
 
 const DEFAULT_PANEL_WIDTH = 650;
 const MIN_PANEL_WIDTH = 350;
@@ -83,8 +83,9 @@ export function SidePanel() {
   return (
     <div
       ref={panelRef}
+      data-cy="side-panel"
       className={cn(
-        'flex flex-col border-l border-border bg-background relative flex-shrink-0 overflow-hidden',
+        'relative flex flex-shrink-0 flex-col overflow-hidden border-l border-border bg-background h-full',
         !isResizing && 'transition-all duration-300 ease-in-out',
       )}
       style={{
@@ -95,20 +96,20 @@ export function SidePanel() {
         <>
           <div
             className={cn(
-              'absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500/20 transition-colors z-10',
+              'absolute bottom-0 left-0 top-0 z-10 w-1 cursor-col-resize transition-colors hover:bg-blue-500/20',
               isResizing && 'bg-blue-500/30',
             )}
             onMouseDown={handleMouseDown}
           />
 
-          <div className="sticky top-0 z-20 flex flex-row w-full justify-between items-center bg-background px-4 pt-4 pb-2">
-            <div className="flex flex-row gap-x-2 items-center">
+          <div className="sticky top-0 z-20 flex w-full flex-row items-center justify-between bg-background px-4 pb-2 pt-4">
+            <div className="flex flex-row items-center gap-x-2">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={goBack}
                 disabled={!canGoBack}
-                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0 border"
+                className="flex-shrink-0 rounded-sm border opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
                 <ChevronLeftIcon className="size-4" />
                 <span className="sr-only">Go Back</span>
@@ -118,7 +119,7 @@ export function SidePanel() {
                 size="sm"
                 onClick={goForward}
                 disabled={!canGoForward}
-                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0 border"
+                className="flex-shrink-0 rounded-sm border opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
                 <ChevronRightIcon className="size-4" />
                 <span className="sr-only">Go Forward</span>
@@ -128,7 +129,7 @@ export function SidePanel() {
               <Button
                 variant="ghost"
                 onClick={close}
-                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+                className="flex-shrink-0 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
                 <Cross2Icon className="size-4" />
                 <span className="sr-only">Close</span>
@@ -137,8 +138,9 @@ export function SidePanel() {
           </div>
 
           <div
+            data-cy="side-panel-content"
             className={cn(
-              'flex-1 p-4 overflow-auto side-panel-content',
+              'side-panel-content flex-1 overflow-auto p-4',
               isResizing && 'pointer-events-none',
             )}
           >

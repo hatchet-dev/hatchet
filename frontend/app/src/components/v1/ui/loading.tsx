@@ -7,7 +7,7 @@ export function Spinner() {
 
 export function Loading({ className }: { className?: string }) {
   return (
-    <div className={cn('flex flex-row flex-1 w-full h-full', className)}>
+    <div className={cn('flex h-full w-full flex-1 flex-row', className)}>
       <Spinner />
     </div>
   );

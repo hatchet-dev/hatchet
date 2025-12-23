@@ -697,9 +697,27 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		countParams.TriggeringEventExternalId = sqlchelpers.UUIDFromStr(triggeringEventExternalId.String())
 	}
 
-	rows, err := r.queries.ListTasksOlap(ctx, tx, params)
+	var (
+		rows     []*sqlcv1.ListTasksOlapRow
+		count    int64
+		countErr error
+	)
 
-	if err != nil {
+	// A pgx.Tx must not be used concurrently, so we run the count query against the pool.
+	g, gctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		var err error
+		rows, err = r.queries.ListTasksOlap(gctx, tx, params)
+		return err
+	})
+
+	g.Go(func() error {
+		count, countErr = r.queries.CountTasks(gctx, r.readPool, countParams)
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
 		return nil, 0, err
 	}
 
@@ -757,9 +775,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		})
 	}
 
-	count, err := r.queries.CountTasks(ctx, tx, countParams)
-
-	if err != nil {
+	if countErr != nil {
 		count = int64(len(tasksWithData))
 	}
 
@@ -1006,8 +1022,20 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		countParams.TriggeringEventExternalId = *opts.TriggeringEventExternalId
 	}
 
-	workflowRunIds, err := r.queries.FetchWorkflowRunIds(ctx, tx, params)
+	var (
+		workflowRunIds []*sqlcv1.FetchWorkflowRunIdsRow
+		count          int64
+		countErr       error
+	)
 
+	// A pgx.Tx must not be used concurrently; run count on the pool in the background while we do tx work.
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		count, countErr = r.queries.CountWorkflowRuns(gctx, r.readPool, countParams)
+		return nil
+	})
+
+	workflowRunIds, err = r.queries.FetchWorkflowRunIds(ctx, tx, params)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1050,13 +1078,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		externalIdsForPayloads = append(externalIdsForPayloads, dag.OutputEventExternalID)
 	}
 
-	count, err := r.queries.CountWorkflowRuns(ctx, tx, countParams)
-
-	if err != nil {
-		r.l.Error().Msgf("error counting workflow runs: %v", err)
-		count = int64(len(workflowRunIds))
-	}
-
 	tasksToPopulated := make(map[string]*sqlcv1.PopulateTaskRunDataRow)
 
 	populatedTasks, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, opts.IncludePayloads)
@@ -1075,6 +1096,16 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 	if err := commit(ctx); err != nil {
 		return nil, 0, err
+	}
+
+	// Join the count goroutine before returning.
+	if err := g.Wait(); err != nil {
+		return nil, 0, err
+	}
+
+	if countErr != nil {
+		r.l.Error().Msgf("error counting workflow runs: %v", countErr)
+		count = int64(len(workflowRunIds))
 	}
 
 	externalIdToPayload := make(map[pgtype.UUID][]byte)
@@ -2200,24 +2231,37 @@ type EventWithPayload struct {
 }
 
 func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error) {
-	events, err := r.queries.ListEvents(ctx, r.readPool, opts)
+	var (
+		events     []*sqlcv1.V1EventsOlap
+		eventCount int64
+	)
 
-	if err != nil {
-		return nil, nil, err
-	}
+	g, gctx := errgroup.WithContext(ctx)
 
-	eventCount, err := r.queries.CountEvents(ctx, r.readPool, sqlcv1.CountEventsParams{
-		Tenantid:           opts.Tenantid,
-		Keys:               opts.Keys,
-		Since:              opts.Since,
-		Until:              opts.Until,
-		WorkflowIds:        opts.WorkflowIds,
-		EventIds:           opts.EventIds,
-		AdditionalMetadata: opts.AdditionalMetadata,
-		Statuses:           opts.Statuses,
-		Scopes:             opts.Scopes,
+	g.Go(func() error {
+		c, err := r.queries.CountEvents(gctx, r.readPool, sqlcv1.CountEventsParams{
+			Tenantid:           opts.Tenantid,
+			Keys:               opts.Keys,
+			Since:              opts.Since,
+			Until:              opts.Until,
+			WorkflowIds:        opts.WorkflowIds,
+			EventIds:           opts.EventIds,
+			AdditionalMetadata: opts.AdditionalMetadata,
+			Statuses:           opts.Statuses,
+			Scopes:             opts.Scopes,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		eventCount = c
+		return nil
 	})
 
+	// We need the events list to proceed; keep it in-line while the count runs in the background.
+	var err error
+	events, err = r.queries.ListEvents(gctx, r.readPool, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2294,6 +2338,11 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 			},
 			Payload: payload,
 		})
+	}
+
+	// Ensure count is complete (and propagate any count error) before returning.
+	if err := g.Wait(); err != nil {
+		return nil, nil, err
 	}
 
 	return result, &eventCount, nil
@@ -2747,12 +2796,57 @@ type OLAPCutoverBatchOutcome struct {
 	NextPagination OLAPPaginationParams
 }
 
+func (p *OLAPRepositoryImpl) OptimizeOLAPPayloadWindowSize(ctx context.Context, partitionDate PartitionDate, candidateBatchNumRows int32, pagination OLAPPaginationParams) (*int32, error) {
+	if candidateBatchNumRows <= 0 {
+		// trivial case that we'll never hit, but to prevent infinite recursion
+		zero := int32(0)
+		return &zero, nil
+	}
+
+	proposedBatchSizeBytes, err := p.queries.ComputeOLAPPayloadBatchSize(ctx, p.pool, sqlcv1.ComputeOLAPPayloadBatchSizeParams{
+		Partitiondate:  pgtype.Date(partitionDate),
+		Lasttenantid:   pagination.LastTenantId,
+		Lastinsertedat: pagination.LastInsertedAt,
+		Lastexternalid: pagination.LastExternalId,
+		Batchsize:      candidateBatchNumRows,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute olap payload batch size: %w", err)
+	}
+
+	if proposedBatchSizeBytes < MAX_BATCH_SIZE_BYTES {
+		return &candidateBatchNumRows, nil
+	}
+
+	// if the proposed batch size is too large, then
+	// cut it in half and try again
+	return p.OptimizeOLAPPayloadWindowSize(
+		ctx,
+		partitionDate,
+		candidateBatchNumRows/2,
+		pagination,
+	)
+}
+
 func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, pagination OLAPPaginationParams, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) (*OLAPCutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.processOLAPPayloadCutoverBatch")
 	defer span.End()
 
 	tableName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
-	windowSize := externalCutoverBatchSize * externalCutoverNumConcurrentOffloads
+
+	windowSizePtr, err := p.OptimizeOLAPPayloadWindowSize(
+		ctx,
+		partitionDate,
+		externalCutoverBatchSize*externalCutoverNumConcurrentOffloads,
+		pagination,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to optimize olap payload window size: %w", err)
+	}
+
+	windowSize := *windowSizePtr
 
 	payloadRanges, err := p.queries.CreateOLAPPayloadRangeChunks(ctx, p.pool, sqlcv1.CreateOLAPPayloadRangeChunksParams{
 		Chunksize:      externalCutoverBatchSize,
@@ -2909,7 +3003,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 }
 
 func (p *OLAPRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId pgtype.UUID, partitionDate PartitionDate, pagination OLAPPaginationParams) (*OLAPCutoverJobRunMetadata, error) {
-	leaseInterval := 2 * time.Minute
+	leaseInterval := 10 * time.Minute
 	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
 
 	lease, err := p.queries.AcquireOrExtendOLAPCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendOLAPCutoverJobLeaseParams{
@@ -3042,14 +3136,50 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	tempPartitionName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
 	sourcePartitionName := fmt.Sprintf("v1_payloads_olap_%s", partitionDate.String())
 
-	countsEqual, err := sqlcv1.CompareOLAPPartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
 
 	if err != nil {
 		return fmt.Errorf("failed to compare partition row counts: %w", err)
 	}
 
-	if !countsEqual {
-		return fmt.Errorf("row counts do not match between temp and source partitions for date %s", partitionDate.String())
+	const maxCountDiff = 5000
+
+	if rowCounts.SourcePartitionCount-rowCounts.TempPartitionCount > maxCountDiff {
+		return fmt.Errorf("row counts do not match between temp and source partitions for date %s. off by more than %d", partitionDate.String(), maxCountDiff)
+	} else if rowCounts.SourcePartitionCount > rowCounts.TempPartitionCount {
+		missingRows, err := p.queries.DiffOLAPPayloadSourceAndTargetPartitions(ctx, p.pool, pgtype.Date(partitionDate))
+
+		if err != nil {
+			return fmt.Errorf("failed to diff source and target partitions: %w", err)
+		}
+
+		missingPayloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, len(missingRows))
+
+		for i, p := range missingRows {
+			missingPayloadsToInsert[i] = sqlcv1.CutoverOLAPPayloadToInsert{
+				TenantID:            p.TenantID,
+				InsertedAt:          p.InsertedAt,
+				ExternalID:          p.ExternalID,
+				ExternalLocationKey: p.ExternalLocationKey,
+				InlineContent:       p.InlineContent,
+			}
+		}
+
+		_, err = sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, p.pool, tempPartitionName, missingPayloadsToInsert)
+
+		if err != nil {
+			return fmt.Errorf("failed to insert missing payloads into temp partition: %w", err)
+		}
+
+		rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+
+		if err != nil {
+			return fmt.Errorf("failed to compare partition row counts: %w", err)
+		}
+
+		if rowCounts.SourcePartitionCount != rowCounts.TempPartitionCount {
+			return fmt.Errorf("row counts still do not match between temp and source partitions for date %s after inserting missing rows", partitionDate.String())
+		}
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
@@ -3100,6 +3230,22 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 
 	if err != nil {
 		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
+	}
+
+	partitionDatesToKeep := make([]pgtype.Date, len(partitions))
+
+	for i, partition := range partitions {
+		partitionDatesToKeep[i] = pgtype.Date{
+			Time:  partition.PartitionDate.Time,
+			Valid: true,
+		}
+	}
+
+	// don't need a tx for this since we're just doing cleanup
+	err = p.queries.CleanUpOLAPCutoverJobOffsets(ctx, p.pool, partitionDatesToKeep)
+
+	if err != nil {
+		return fmt.Errorf("failed to clean up olap cutover job offsets: %w", err)
 	}
 
 	processId := sqlchelpers.UUIDFromStr(uuid.NewString())

@@ -1,8 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useFilterDetails, useFilters } from '../hooks/use-filters';
+import { updateFilterSchema, UpdateFilterFormData } from '../schemas';
 import { Button } from '@/components/v1/ui/button';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
-import { Textarea } from '@/components/v1/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -11,12 +9,14 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/v1/ui/dialog';
-import { Trash2Icon, EditIcon, SaveIcon, XIcon } from 'lucide-react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useFilterDetails, useFilters } from '../hooks/use-filters';
-import { updateFilterSchema, UpdateFilterFormData } from '../schemas';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
+import { Textarea } from '@/components/v1/ui/textarea';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Trash2Icon, EditIcon, SaveIcon, XIcon } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { useForm } from 'react-hook-form';
 
 interface FilterDetailViewProps {
   filterId: string;
@@ -228,7 +228,7 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
                 id="expression"
                 value={filter.expression}
                 disabled
-                className="bg-muted min-h-[100px] font-mono disabled:cursor-text"
+                className="min-h-[100px] bg-muted font-mono disabled:cursor-text"
               />
             )}
           </div>
@@ -256,7 +256,7 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
                 id="payload"
                 value={JSON.stringify(filter.payload || {}, null, 2)}
                 disabled
-                className="bg-muted min-h-[120px] font-mono text-sm disabled:cursor-text"
+                className="min-h-[120px] bg-muted font-mono text-sm disabled:cursor-text"
               />
             )}
           </div>

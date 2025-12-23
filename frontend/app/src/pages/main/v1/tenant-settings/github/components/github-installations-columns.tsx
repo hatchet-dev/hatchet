@@ -1,10 +1,10 @@
-import { ColumnDef } from '@tanstack/react-table';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/v1/ui/avatar';
 import { Button } from '@/components/v1/ui/button';
-import { GearIcon } from '@radix-ui/react-icons';
 import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { CheckCircleIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
+import { GearIcon } from '@radix-ui/react-icons';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const columns = (
   linkToTenant: (installationId: string) => void,
@@ -17,8 +17,8 @@ export const columns = (
       ),
       cell: ({ row }) => {
         return (
-          <div className="flex flex-row gap-4 items-center">
-            <Avatar className="w-6 h-6">
+          <div className="flex flex-row items-center gap-4">
+            <Avatar className="h-6 w-6">
               <AvatarImage src={row.original.account_avatar_url} />
               <AvatarFallback />
             </Avatar>
