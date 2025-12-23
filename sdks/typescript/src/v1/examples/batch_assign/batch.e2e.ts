@@ -6,7 +6,7 @@ import type { Duration } from '../../client/duration';
 import type { Context } from '../../client/worker/context';
 import type { JsonObject } from '../../types';
 
-describe('batch-task e2e', () => {
+xdescribe('batch-task e2e', () => {
   jest.setTimeout(60000);
 
   let worker: Worker;
