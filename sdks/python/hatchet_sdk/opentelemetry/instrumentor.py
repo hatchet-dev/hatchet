@@ -8,7 +8,9 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 try:
     from opentelemetry.context import Context
-    from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
+    from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
+        BaseInstrumentor,
+    )
     from opentelemetry.instrumentation.utils import unwrap
     from opentelemetry.metrics import MeterProvider, NoOpMeterProvider, get_meter
     from opentelemetry.trace import (
