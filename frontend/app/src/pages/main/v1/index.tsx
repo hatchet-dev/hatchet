@@ -166,6 +166,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
   const [startWidth, setStartWidth] = useState(0);
   const wasCollapsedAtDragStartRef = useRef(false);
   const didDragRef = useRef(false);
+  const [showResizeToggle, setShowResizeToggle] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -578,13 +579,22 @@ function Sidebar({ className, memberships }: SidebarProps) {
       {/* Desktop-only drag handle */}
       <div
         className={cn(
-          'group/resize absolute right-0 top-0 bottom-0 z-20 hidden w-1 cursor-col-resize transition-colors hover:bg-blue-500/20 md:block',
+          'absolute right-0 top-0 bottom-0 z-20 hidden w-1 cursor-col-resize transition-colors hover:bg-blue-500/20 md:block',
           isResizing && 'bg-blue-500/30',
         )}
+        data-cy="v1-sidebar-resize-handle"
         onMouseDown={handleMouseDown}
+        onMouseUp={(e) => {
+          // Handle click-up inside the handle immediately (and prevent the document listener
+          // from also firing for the same event).
+          e.stopPropagation();
+          handleMouseUp();
+        }}
+        onMouseEnter={() => setShowResizeToggle(true)}
+        onMouseLeave={() => setShowResizeToggle(false)}
       >
         {/* Hover affordance: click-to-toggle button on the gutter */}
-        {isWide && (
+        {isWide && showResizeToggle && (
           <Button
             variant="ghost"
             size="icon"
@@ -594,9 +604,10 @@ function Sidebar({ className, memberships }: SidebarProps) {
             className={cn(
               // A small pill that sits inside the gutter (no overflow required)
               'absolute right-0 top-1/2 z-30 hidden h-8 w-5 -translate-y-1/2 rounded-l-md border border-r-0 bg-secondary/90 text-secondary-foreground shadow-sm opacity-0 backdrop-blur transition-opacity md:flex',
-              'group-hover/resize:opacity-100',
+              'opacity-100',
               isResizing && 'pointer-events-none opacity-0',
             )}
+            data-cy="v1-sidebar-resize-toggle"
             onMouseDown={(e) => {
               // Prevent starting a drag resize when clicking the button.
               e.stopPropagation();
@@ -639,6 +650,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                               size="icon"
                               hoverText={item.name}
                               hoverTextSide="right"
+                              aria-label={item.name}
                               className={cn(
                                 'w-10',
                                 active && 'bg-slate-200 dark:bg-slate-800',
@@ -679,6 +691,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                         size="icon"
                         hoverText={item.name}
                         hoverTextSide="right"
+                        aria-label={item.name}
                         className={cn(
                           'w-10',
                           active && 'bg-slate-200 dark:bg-slate-800',
