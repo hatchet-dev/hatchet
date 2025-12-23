@@ -1,3 +1,10 @@
+import {
+  V1_COLLAPSED_SIDEBAR_WIDTH,
+  V1_DEFAULT_EXPANDED_SIDEBAR_WIDTH,
+  V1_SIDEBAR_COLLAPSED_KEY,
+  V1_SIDEBAR_WIDTH_EXPANDED_KEY,
+  V1_SIDEBAR_WIDTH_LEGACY_KEY,
+} from '@/components/layout/nav-constants';
 import { useSidebar } from '@/components/sidebar-provider';
 import { useTheme } from '@/components/theme-provider';
 import {
@@ -20,10 +27,12 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { TenantMember, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
+import { cn } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { appRoutes } from '@/router';
@@ -31,7 +40,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { Menu } from 'lucide-react';
 import React from 'react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BiBook,
   BiCalendar,
@@ -193,24 +202,106 @@ export default function MainNav({ user }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
   const breadcrumbs = useBreadcrumbs();
 
+  // Keep the header aligned with the v1 sidebar column by mirroring its width.
+  // This only affects md+ layouts; mobile uses the standard header layout.
+  const defaultExpandedWidth = (() => {
+    if (typeof window === 'undefined') {
+      return V1_DEFAULT_EXPANDED_SIDEBAR_WIDTH;
+    }
+
+    try {
+      // Back-compat: previous implementation stored this under `v1SidebarWidth`.
+      const legacy = window.localStorage.getItem(V1_SIDEBAR_WIDTH_LEGACY_KEY);
+      return legacy ? JSON.parse(legacy) : V1_DEFAULT_EXPANDED_SIDEBAR_WIDTH;
+    } catch {
+      return V1_DEFAULT_EXPANDED_SIDEBAR_WIDTH;
+    }
+  })();
+
+  const [storedExpandedWidth] = useLocalStorageState(
+    V1_SIDEBAR_WIDTH_EXPANDED_KEY,
+    defaultExpandedWidth,
+  );
+  const [storedCollapsed] = useLocalStorageState(
+    V1_SIDEBAR_COLLAPSED_KEY,
+    false,
+  );
+  const [isWide, setIsWide] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : false,
+  );
+
+  useEffect(() => {
+    const handleResize = () => setIsWide(window.innerWidth >= 768);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const headerSidebarWidth = useMemo(() => {
+    if (!isWide) {
+      return undefined;
+    }
+    return storedCollapsed ? V1_COLLAPSED_SIDEBAR_WIDTH : storedExpandedWidth;
+  }, [isWide, storedCollapsed, storedExpandedWidth]);
+
   return (
     <header className="z-50 h-16 w-full border-b bg-background">
-      <div className="flex h-16 items-center pl-4 pr-4">
-        <div className="flex flex-row items-center gap-x-8">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="icon"
-              onClick={() => toggleSidebarOpen()}
-              aria-label="Toggle sidebar"
-              size="icon"
-              className="md:hidden"
-            >
-              <Menu className="size-4" />
-            </Button>
-            <HatchetLogo className="h-6 w-auto" />
-          </div>
+      {/* Mobile header */}
+      <div className="flex h-16 items-center px-4 md:hidden">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="icon"
+            onClick={() => toggleSidebarOpen()}
+            aria-label="Toggle sidebar"
+            size="icon"
+          >
+            <Menu className="size-4" />
+          </Button>
+          <HatchetLogo variant="mark" className="h-5 w-5" />
+        </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          <HelpDropdown />
+          <AccountDropdown user={user} />
+        </div>
+      </div>
+
+      {/* Desktop header (aligned to v1 sidebar column) */}
+      <div
+        className="hidden h-16 md:grid md:grid-cols-[var(--v1-sidebar-width)_minmax(0,1fr)_auto] md:items-center"
+        style={
+          headerSidebarWidth
+            ? ({
+                ['--v1-sidebar-width' as any]: `${headerSidebarWidth}px`,
+              } as React.CSSProperties)
+            : undefined
+        }
+      >
+        <div
+          className={cn(
+            'flex h-16 items-center',
+            // Match the icon position in the expanded sidebar (px-4 container + pl-2 button => 24px).
+            // In collapsed mode, center within the column to match the icon-only sidebar.
+            storedCollapsed ? 'justify-center' : 'pl-6',
+          )}
+        >
+          {storedCollapsed ? (
+            <HatchetLogo variant="mark" className="h-5 w-5" />
+          ) : (
+            <div className="flex items-center gap-2">
+              <HatchetLogo variant="mark" className="h-4 w-4" />
+              <HatchetLogo
+                variant="wordmark"
+                className="h-4 w-auto"
+                title="Hatchet"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0 px-8">
           {breadcrumbs.length > 0 && (
-            <Breadcrumb className="hidden md:block">
+            <Breadcrumb>
               <BreadcrumbList>
                 {breadcrumbs.map((crumb, index) => (
                   <React.Fragment key={index}>
@@ -231,7 +322,7 @@ export default function MainNav({ user }: MainNavProps) {
           )}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2 pr-4">
           <HelpDropdown />
           <AccountDropdown user={user} />
         </div>

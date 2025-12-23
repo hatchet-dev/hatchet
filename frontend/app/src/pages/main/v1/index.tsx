@@ -1,3 +1,15 @@
+import {
+  V1_COLLAPSE_SNAP_AT,
+  V1_COLLAPSED_SIDEBAR_WIDTH,
+  V1_DEFAULT_EXPANDED_SIDEBAR_WIDTH,
+  V1_EXPAND_SNAP_AT,
+  V1_MAX_EXPANDED_SIDEBAR_WIDTH,
+  V1_MIN_EXPANDED_SIDEBAR_WIDTH,
+  V1_RESIZE_DRAG_THRESHOLD_PX,
+  V1_SIDEBAR_COLLAPSED_KEY,
+  V1_SIDEBAR_WIDTH_EXPANDED_KEY,
+  V1_SIDEBAR_WIDTH_LEGACY_KEY,
+} from '@/components/layout/nav-constants';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/side-panel';
 import { useSidebar } from '@/components/sidebar-provider';
@@ -92,14 +104,6 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   memberships: TenantMember[];
 }
 
-const DEFAULT_EXPANDED_SIDEBAR_WIDTH = 200; // matches prior `w-64`
-const MIN_EXPANDED_SIDEBAR_WIDTH = 200;
-const MAX_EXPANDED_SIDEBAR_WIDTH = 520;
-const COLLAPSED_SIDEBAR_WIDTH = 56;
-const COLLAPSE_SNAP_AT = MIN_EXPANDED_SIDEBAR_WIDTH;
-const EXPAND_SNAP_AT = MIN_EXPANDED_SIDEBAR_WIDTH - 100;
-const RESIZE_DRAG_THRESHOLD_PX = 3;
-
 type SidebarNavChild = {
   key: string;
   name: string;
@@ -135,24 +139,24 @@ function Sidebar({ className, memberships }: SidebarProps) {
 
   const defaultExpandedWidth = (() => {
     if (typeof window === 'undefined') {
-      return DEFAULT_EXPANDED_SIDEBAR_WIDTH;
+      return V1_DEFAULT_EXPANDED_SIDEBAR_WIDTH;
     }
 
     try {
       // Back-compat: previous implementation stored this under `v1SidebarWidth`.
-      const legacy = window.localStorage.getItem('v1SidebarWidth');
-      return legacy ? JSON.parse(legacy) : DEFAULT_EXPANDED_SIDEBAR_WIDTH;
+      const legacy = window.localStorage.getItem(V1_SIDEBAR_WIDTH_LEGACY_KEY);
+      return legacy ? JSON.parse(legacy) : V1_DEFAULT_EXPANDED_SIDEBAR_WIDTH;
     } catch {
-      return DEFAULT_EXPANDED_SIDEBAR_WIDTH;
+      return V1_DEFAULT_EXPANDED_SIDEBAR_WIDTH;
     }
   })();
 
   const [storedExpandedWidth, setStoredExpandedWidth] = useLocalStorageState(
-    'v1SidebarWidthExpanded',
+    V1_SIDEBAR_WIDTH_EXPANDED_KEY,
     defaultExpandedWidth,
   );
   const [storedCollapsed, setStoredCollapsed] = useLocalStorageState(
-    'v1SidebarCollapsed',
+    V1_SIDEBAR_COLLAPSED_KEY,
     false,
   );
   // Initialize from the current viewport so we don't "animate" from mobile->desktop
@@ -197,10 +201,10 @@ function Sidebar({ className, memberships }: SidebarProps) {
 
     if (isResizing && liveWidth !== null) {
       if (wasCollapsedAtDragStartRef.current) {
-        return liveWidth < EXPAND_SNAP_AT;
+        return liveWidth < V1_EXPAND_SNAP_AT;
       }
 
-      return liveWidth <= COLLAPSE_SNAP_AT;
+      return liveWidth <= V1_COLLAPSE_SNAP_AT;
     }
 
     return storedCollapsed;
@@ -216,7 +220,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
     }
 
     if (storedCollapsed) {
-      return COLLAPSED_SIDEBAR_WIDTH;
+      return V1_COLLAPSED_SIDEBAR_WIDTH;
     }
 
     return storedExpandedWidth;
@@ -229,12 +233,15 @@ function Sidebar({ className, memberships }: SidebarProps) {
       }
 
       const deltaX = e.clientX - startX;
-      if (!didDragRef.current && Math.abs(deltaX) >= RESIZE_DRAG_THRESHOLD_PX) {
+      if (
+        !didDragRef.current &&
+        Math.abs(deltaX) >= V1_RESIZE_DRAG_THRESHOLD_PX
+      ) {
         didDragRef.current = true;
       }
       const newWidth = Math.max(
-        COLLAPSED_SIDEBAR_WIDTH,
-        Math.min(MAX_EXPANDED_SIDEBAR_WIDTH, startWidth + deltaX),
+        V1_COLLAPSED_SIDEBAR_WIDTH,
+        Math.min(V1_MAX_EXPANDED_SIDEBAR_WIDTH, startWidth + deltaX),
       );
 
       setLiveWidth(newWidth);
@@ -258,30 +265,30 @@ function Sidebar({ className, memberships }: SidebarProps) {
 
     const finalWidth =
       liveWidth ??
-      (storedCollapsed ? COLLAPSED_SIDEBAR_WIDTH : storedExpandedWidth);
+      (storedCollapsed ? V1_COLLAPSED_SIDEBAR_WIDTH : storedExpandedWidth);
 
     // Snap rules depend on the mode we started dragging in.
     if (wasCollapsedAtDragStartRef.current) {
-      if (finalWidth >= EXPAND_SNAP_AT) {
+      if (finalWidth >= V1_EXPAND_SNAP_AT) {
         setStoredCollapsed(false);
         setStoredExpandedWidth(
           Math.max(
-            MIN_EXPANDED_SIDEBAR_WIDTH,
-            Math.min(MAX_EXPANDED_SIDEBAR_WIDTH, finalWidth),
+            V1_MIN_EXPANDED_SIDEBAR_WIDTH,
+            Math.min(V1_MAX_EXPANDED_SIDEBAR_WIDTH, finalWidth),
           ),
         );
       } else {
         setStoredCollapsed(true);
       }
     } else {
-      if (finalWidth <= COLLAPSE_SNAP_AT) {
+      if (finalWidth <= V1_COLLAPSE_SNAP_AT) {
         setStoredCollapsed(true);
       } else {
         setStoredCollapsed(false);
         setStoredExpandedWidth(
           Math.max(
-            MIN_EXPANDED_SIDEBAR_WIDTH,
-            Math.min(MAX_EXPANDED_SIDEBAR_WIDTH, finalWidth),
+            V1_MIN_EXPANDED_SIDEBAR_WIDTH,
+            Math.min(V1_MAX_EXPANDED_SIDEBAR_WIDTH, finalWidth),
           ),
         );
       }
@@ -309,7 +316,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
       setIsResizing(true);
       setStartX(e.clientX);
       const start = storedCollapsed
-        ? COLLAPSED_SIDEBAR_WIDTH
+        ? V1_COLLAPSED_SIDEBAR_WIDTH
         : storedExpandedWidth;
       setStartWidth(start);
       setLiveWidth(start);
@@ -569,9 +576,9 @@ function Sidebar({ className, memberships }: SidebarProps) {
               width: effectiveWidth,
               minWidth:
                 isResizing || storedCollapsed
-                  ? COLLAPSED_SIDEBAR_WIDTH
-                  : MIN_EXPANDED_SIDEBAR_WIDTH,
-              maxWidth: MAX_EXPANDED_SIDEBAR_WIDTH,
+                  ? V1_COLLAPSED_SIDEBAR_WIDTH
+                  : V1_MIN_EXPANDED_SIDEBAR_WIDTH,
+              maxWidth: V1_MAX_EXPANDED_SIDEBAR_WIDTH,
             }
           : undefined
       }
