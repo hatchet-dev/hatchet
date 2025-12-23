@@ -43,7 +43,12 @@ import {
   ServerStackIcon,
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
-import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  GearIcon,
+} from '@radix-ui/react-icons';
 import { Link, useMatchRoute, useNavigate } from '@tanstack/react-router';
 import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
 import React, {
@@ -336,6 +341,12 @@ function Sidebar({ className, memberships }: SidebarProps) {
 
   const managedWorkerEnabled = featureFlags?.data?.['managed-worker'];
 
+  const toggleCollapsed = useCallback(() => {
+    setStoredCollapsed(!storedCollapsed);
+    setLiveWidth(null);
+    setIsResizing(false);
+  }, [setStoredCollapsed, storedCollapsed]);
+
   const navSections = useMemo<SidebarNavSection[]>(() => {
     const billingLabel = cloudMeta?.data.canBill
       ? 'Billing & Limits'
@@ -567,11 +578,42 @@ function Sidebar({ className, memberships }: SidebarProps) {
       {/* Desktop-only drag handle */}
       <div
         className={cn(
-          'absolute right-0 top-0 bottom-0 z-10 hidden w-1 cursor-col-resize transition-colors hover:bg-blue-500/20 md:block',
+          'group/resize absolute right-0 top-0 bottom-0 z-20 hidden w-1 cursor-col-resize transition-colors hover:bg-blue-500/20 md:block',
           isResizing && 'bg-blue-500/30',
         )}
         onMouseDown={handleMouseDown}
-      />
+      >
+        {/* Hover affordance: click-to-toggle button on the gutter */}
+        {isWide && (
+          <Button
+            variant="ghost"
+            size="icon"
+            hoverText={storedCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            hoverTextSide="right"
+            aria-label={storedCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className={cn(
+              // A small pill that sits inside the gutter (no overflow required)
+              'absolute right-0 top-1/2 z-30 hidden h-8 w-5 -translate-y-1/2 rounded-l-md border border-r-0 bg-secondary/90 text-secondary-foreground shadow-sm opacity-0 backdrop-blur transition-opacity md:flex',
+              'group-hover/resize:opacity-100',
+              isResizing && 'pointer-events-none opacity-0',
+            )}
+            onMouseDown={(e) => {
+              // Prevent starting a drag resize when clicking the button.
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleCollapsed();
+            }}
+          >
+            {storedCollapsed ? (
+              <ChevronRightIcon className="size-4" />
+            ) : (
+              <ChevronLeftIcon className="size-4" />
+            )}
+          </Button>
+        )}
+      </div>
 
       <div className="flex h-full flex-col overflow-hidden">
         {renderCollapsed ? (
