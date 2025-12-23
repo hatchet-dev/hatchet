@@ -1,7 +1,7 @@
 import { AppLayout } from '@/components/layout/app-layout';
-import MainNav from '@/components/molecules/nav-bar/nav-bar';
-import SupportChat from '@/components/molecules/support-chat';
-import { Loading } from '@/components/v1/ui/loading.tsx';
+import SupportChat from '@/components/support-chat';
+import TopNav from '@/components/v1/nav/top-nav.tsx';
+import { Loading } from '@/components/v1/ui/loading';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { queries, User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
@@ -229,7 +229,7 @@ export default function Authenticated() {
       <SupportChat user={userQuery.data}>
         <AppLayout
           header={
-            <MainNav
+            <TopNav
               user={userQuery.data}
               tenantMemberships={listMembershipsQuery.data?.rows || []}
             />

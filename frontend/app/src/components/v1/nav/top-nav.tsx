@@ -1,12 +1,5 @@
-import {
-  V1_COLLAPSED_SIDEBAR_WIDTH,
-  V1_DEFAULT_EXPANDED_SIDEBAR_WIDTH,
-  V1_SIDEBAR_COLLAPSED_KEY,
-  V1_SIDEBAR_WIDTH_EXPANDED_KEY,
-  V1_SIDEBAR_WIDTH_LEGACY_KEY,
-} from '@/components/layout/nav-constants';
-import { useSidebar } from '@/components/sidebar-provider';
-import { useTheme } from '@/components/theme-provider';
+import { useSidebar } from '@/components/hooks/use-sidebar';
+import { useTheme } from '@/components/hooks/use-theme';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -27,7 +20,6 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
-import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { TenantMember, User } from '@/lib/api';
@@ -40,7 +32,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { Menu } from 'lucide-react';
 import React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   BiBook,
   BiCalendar,
@@ -193,13 +185,19 @@ function AccountDropdown({ user }: { user: User }) {
   );
 }
 
-interface MainNavProps {
+interface TopNavProps {
   user: User;
   tenantMemberships: TenantMember[];
 }
 
-export default function MainNav({ user }: MainNavProps) {
-  const { toggleSidebarOpen } = useSidebar();
+export default function TopNav({ user }: TopNavProps) {
+  const {
+    toggleSidebarOpen,
+    isWide,
+    sidebarWidth: headerSidebarWidth,
+    collapsed: storedCollapsed,
+    setCollapsed: setStoredCollapsed,
+  } = useSidebar();
   const breadcrumbs = useBreadcrumbs();
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
@@ -226,47 +224,16 @@ export default function MainNav({ user }: MainNavProps) {
     navigate({ to: appRoutes.authenticatedRoute.to });
   };
 
-  // Keep the header aligned with the v1 sidebar column by mirroring its width.
-  // This only affects md+ layouts; mobile uses the standard header layout.
-  const defaultExpandedWidth = (() => {
-    if (typeof window === 'undefined') {
-      return V1_DEFAULT_EXPANDED_SIDEBAR_WIDTH;
-    }
-
-    try {
-      // Back-compat: previous implementation stored this under `v1SidebarWidth`.
-      const legacy = window.localStorage.getItem(V1_SIDEBAR_WIDTH_LEGACY_KEY);
-      return legacy ? JSON.parse(legacy) : V1_DEFAULT_EXPANDED_SIDEBAR_WIDTH;
-    } catch {
-      return V1_DEFAULT_EXPANDED_SIDEBAR_WIDTH;
-    }
-  })();
-
-  const [storedExpandedWidth] = useLocalStorageState(
-    V1_SIDEBAR_WIDTH_EXPANDED_KEY,
-    defaultExpandedWidth,
-  );
-  const [storedCollapsed] = useLocalStorageState(
-    V1_SIDEBAR_COLLAPSED_KEY,
-    false,
-  );
-  const [isWide, setIsWide] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth >= 768 : false,
-  );
-
-  useEffect(() => {
-    const handleResize = () => setIsWide(window.innerWidth >= 768);
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const headerSidebarWidth = useMemo(() => {
+  const onDesktopLogoClick = () => {
+    // On desktop, clicking the logo acts as a collapse/expand affordance.
+    // Mobile keeps the navigation behavior (see mobile header).
     if (!isWide) {
-      return undefined;
+      onLogoClick();
+      return;
     }
-    return storedCollapsed ? V1_COLLAPSED_SIDEBAR_WIDTH : storedExpandedWidth;
-  }, [isWide, storedCollapsed, storedExpandedWidth]);
+
+    setStoredCollapsed(!storedCollapsed);
+  };
 
   return (
     <header className="z-50 h-16 w-full border-b bg-background">
@@ -319,8 +286,8 @@ export default function MainNav({ user }: MainNavProps) {
           {storedCollapsed ? (
             <button
               type="button"
-              onClick={onLogoClick}
-              aria-label="Go to Runs"
+              onClick={onDesktopLogoClick}
+              aria-label="Expand sidebar"
               className="rounded-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <HatchetLogo variant="mark" className="h-5 w-5" />
@@ -328,8 +295,8 @@ export default function MainNav({ user }: MainNavProps) {
           ) : (
             <button
               type="button"
-              onClick={onLogoClick}
-              aria-label="Go to Runs"
+              onClick={onDesktopLogoClick}
+              aria-label="Collapse sidebar"
               className="flex items-center gap-2 rounded-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <HatchetLogo variant="mark" className="h-4 w-4" />

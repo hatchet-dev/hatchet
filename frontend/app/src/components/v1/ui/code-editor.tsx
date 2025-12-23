@@ -1,5 +1,5 @@
 import CopyToClipboard from './copy-to-clipboard';
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '@/components/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import Editor, { Monaco } from '@monaco-editor/react';
 import 'monaco-themes/themes/Pastels on Dark.json';
