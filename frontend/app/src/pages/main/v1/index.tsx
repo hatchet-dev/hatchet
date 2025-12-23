@@ -43,8 +43,7 @@ import {
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
 import { cn } from '@/lib/utils';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
-import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import {
   BuildingOffice2Icon,
@@ -134,8 +133,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
 
-  const { data: cloudMeta, isCloudEnabled } = useCloudApiMeta();
-  const featureFlags = useCloudFeatureFlags(tenantId);
+  const { cloud, isCloudEnabled, featureFlags } = useCloud(tenantId);
 
   const defaultExpandedWidth = (() => {
     if (typeof window === 'undefined') {
@@ -347,7 +345,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
     [matchRoute, commonParams],
   );
 
-  const managedWorkerEnabled = featureFlags?.data?.['managed-worker'];
+  const managedWorkerEnabled = featureFlags?.['managed-worker'];
 
   const toggleCollapsed = useCallback(() => {
     setStoredCollapsed(!storedCollapsed);
@@ -356,7 +354,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
   }, [setStoredCollapsed, storedCollapsed]);
 
   const navSections = useMemo<SidebarNavSection[]>(() => {
-    const billingLabel = cloudMeta?.data.canBill
+    const billingLabel = cloud?.canBill
       ? 'Billing & Limits'
       : 'Resource Limits';
 
@@ -553,7 +551,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
     ];
 
     return sections;
-  }, [cloudMeta?.data.canBill, managedWorkerEnabled]);
+  }, [cloud?.canBill, managedWorkerEnabled]);
 
   if (sidebarOpen === 'closed') {
     return null;

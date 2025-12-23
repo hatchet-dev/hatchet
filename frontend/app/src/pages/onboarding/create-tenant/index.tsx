@@ -1,4 +1,4 @@
-import useCloudApiMeta from '../../auth/hooks/use-cloud-api-meta';
+import useCloud from '../../auth/hooks/use-cloud';
 import { HearAboutUsForm } from './components/hear-about-us-form';
 import { StepProgress } from './components/step-progress';
 import { TenantCreateForm } from './components/tenant-create-form';
@@ -27,7 +27,7 @@ const FINAL_STEP = 2;
 export default function CreateTenant() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { organizationData, isCloudEnabled } = useOrganizations();
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { cloud } = useCloud();
 
   const getValidatedStep = (stepParam: string | null): number => {
     if (stepParam === null) {
@@ -103,7 +103,7 @@ export default function CreateTenant() {
     mutationKey: ['user:update:login'],
     mutationFn: async (data: CreateTenantRequest) => {
       // Use cloud API if cloud is enabled and organization is selected
-      if (cloudMeta?.data && selectedOrganizationId) {
+      if (cloud && selectedOrganizationId) {
         const result = await cloudApi.organizationCreateTenant(
           selectedOrganizationId,
           {
