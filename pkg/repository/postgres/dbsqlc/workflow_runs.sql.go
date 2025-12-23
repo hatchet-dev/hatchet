@@ -90,6 +90,95 @@ func (q *Queries) BulkCreateWorkflowRunEvent(ctx context.Context, db DBTX, arg B
 	return err
 }
 
+const bulkDeleteScheduledWorkflows = `-- name: BulkDeleteScheduledWorkflows :many
+DELETE FROM "WorkflowTriggerScheduledRef" t
+USING "WorkflowVersion" v, "Workflow" w
+WHERE
+    t."parentId" = v."id"
+    AND v."workflowId" = w."id"
+    AND w."tenantId" = $1::uuid
+    AND t."method" = 'API'
+    AND t."id" = ANY($2::uuid[])
+RETURNING t."id"
+`
+
+type BulkDeleteScheduledWorkflowsParams struct {
+	Tenantid pgtype.UUID   `json:"tenantid"`
+	Ids      []pgtype.UUID `json:"ids"`
+}
+
+func (q *Queries) BulkDeleteScheduledWorkflows(ctx context.Context, db DBTX, arg BulkDeleteScheduledWorkflowsParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, bulkDeleteScheduledWorkflows, arg.Tenantid, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const bulkUpdateScheduledWorkflows = `-- name: BulkUpdateScheduledWorkflows :many
+WITH input AS (
+    SELECT
+        ids.id,
+        times."triggerAt"
+    FROM unnest($2::uuid[]) WITH ORDINALITY AS ids(id, ord)
+    JOIN unnest($3::timestamp[]) WITH ORDINALITY AS times("triggerAt", ord)
+        USING (ord)
+)
+UPDATE "WorkflowTriggerScheduledRef" t
+SET "triggerAt" = i."triggerAt"
+FROM input i, "WorkflowVersion" v, "Workflow" w
+WHERE
+    t."id" = i.id
+    AND t."parentId" = v."id"
+    AND v."workflowId" = w."id"
+    AND w."tenantId" = $1::uuid
+    AND t."method" = 'API'
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "WorkflowRunTriggeredBy" tb
+        WHERE tb."scheduledId" = t."id"
+    )
+RETURNING t."id"
+`
+
+type BulkUpdateScheduledWorkflowsParams struct {
+	Tenantid   pgtype.UUID        `json:"tenantid"`
+	Ids        []pgtype.UUID      `json:"ids"`
+	Triggerats []pgtype.Timestamp `json:"triggerats"`
+}
+
+func (q *Queries) BulkUpdateScheduledWorkflows(ctx context.Context, db DBTX, arg BulkUpdateScheduledWorkflowsParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, bulkUpdateScheduledWorkflows, arg.Tenantid, arg.Ids, arg.Triggerats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countScheduledWorkflows = `-- name: CountScheduledWorkflows :one
 SELECT count(*)
 FROM "WorkflowTriggerScheduledRef" t
@@ -1397,6 +1486,54 @@ func (q *Queries) GetScheduledChildWorkflowRun(ctx context.Context, db DBTX, arg
 		&i.Priority,
 	)
 	return &i, err
+}
+
+const getScheduledWorkflowMetaByIds = `-- name: GetScheduledWorkflowMetaByIds :many
+SELECT
+    t."id",
+    t."method",
+    EXISTS (
+        SELECT 1
+        FROM "WorkflowRunTriggeredBy" tb
+        WHERE tb."scheduledId" = t."id"
+    ) AS "hasTriggeredRun"
+FROM "WorkflowTriggerScheduledRef" t
+JOIN "WorkflowVersion" v ON t."parentId" = v."id"
+JOIN "Workflow" w ON v."workflowId" = w."id"
+WHERE
+    w."tenantId" = $1::uuid
+    AND t."id" = ANY($2::uuid[])
+`
+
+type GetScheduledWorkflowMetaByIdsParams struct {
+	Tenantid pgtype.UUID   `json:"tenantid"`
+	Ids      []pgtype.UUID `json:"ids"`
+}
+
+type GetScheduledWorkflowMetaByIdsRow struct {
+	ID              pgtype.UUID                        `json:"id"`
+	Method          WorkflowTriggerScheduledRefMethods `json:"method"`
+	HasTriggeredRun bool                               `json:"hasTriggeredRun"`
+}
+
+func (q *Queries) GetScheduledWorkflowMetaByIds(ctx context.Context, db DBTX, arg GetScheduledWorkflowMetaByIdsParams) ([]*GetScheduledWorkflowMetaByIdsRow, error) {
+	rows, err := db.Query(ctx, getScheduledWorkflowMetaByIds, arg.Tenantid, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetScheduledWorkflowMetaByIdsRow
+	for rows.Next() {
+		var i GetScheduledWorkflowMetaByIdsRow
+		if err := rows.Scan(&i.ID, &i.Method, &i.HasTriggeredRun); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getStepRunsForJobRunsWithOutput = `-- name: GetStepRunsForJobRunsWithOutput :many

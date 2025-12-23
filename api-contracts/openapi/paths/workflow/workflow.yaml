@@ -1113,6 +1113,154 @@ scheduled:
     summary: Delete scheduled workflow run
     tags:
       - Workflow
+  patch:
+    x-resources: ["tenant", "scheduled-workflow-run"]
+    description: Update (reschedule) a scheduled workflow run for a tenant
+    operationId: workflow-scheduled:update
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The scheduled workflow id
+        in: path
+        name: scheduled-workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/UpdateScheduledWorkflowRunRequest"
+      description: The input to reschedule the workflow run
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflows"
+        description: Successfully updated the scheduled workflow run
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Update scheduled workflow run
+    tags:
+      - Workflow
+
+scheduledBulkDelete:
+  post:
+    x-resources: ["tenant"]
+    description: Bulk delete scheduled workflow runs for a tenant
+    operationId: workflow-scheduled:bulk-delete
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflowsBulkDeleteRequest"
+      description: The input to bulk delete scheduled workflow runs
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflowsBulkDeleteResponse"
+        description: Bulk delete response
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Bulk delete scheduled workflow runs
+    tags:
+      - Workflow
+
+scheduledBulkUpdate:
+  post:
+    x-resources: ["tenant"]
+    description: Bulk update (reschedule) scheduled workflow runs for a tenant
+    operationId: workflow-scheduled:bulk-update
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflowsBulkUpdateRequest"
+      description: The input to bulk update scheduled workflow runs
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflowsBulkUpdateResponse"
+        description: Bulk update response
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Bulk update scheduled workflow runs
+    tags:
+      - Workflow
 
 crons:
   get:

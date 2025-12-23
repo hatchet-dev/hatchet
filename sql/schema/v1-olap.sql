@@ -214,6 +214,7 @@ CREATE TABLE v1_runs_olap (
 SELECT create_v1_olap_partition_with_date_and_status('v1_runs_olap', CURRENT_DATE);
 
 CREATE INDEX ix_v1_runs_olap_parent_task_external_id ON v1_runs_olap (parent_task_external_id) WHERE parent_task_external_id IS NOT NULL;
+CREATE INDEX ix_v1_runs_olap_tenant_id ON v1_runs_olap (tenant_id, inserted_at, id, readable_status, kind);
 
 -- LOOKUP TABLES --
 CREATE TABLE v1_lookup_table_olap (
@@ -1153,6 +1154,51 @@ BEGIN
     ', source_partition_name, temp_partition_name);
 
     RETURN QUERY EXECUTE query;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION compute_olap_payload_batch_size(
+    partition_date DATE,
+    last_tenant_id UUID,
+    last_external_id UUID,
+    last_inserted_at TIMESTAMPTZ,
+    batch_size INTEGER
+) RETURNS BIGINT
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    partition_date_str TEXT;
+    source_partition_name TEXT;
+    query TEXT;
+    result_size BIGINT;
+BEGIN
+    IF partition_date IS NULL THEN
+        RAISE EXCEPTION 'partition_date parameter cannot be NULL';
+    END IF;
+
+    SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
+    SELECT format('v1_payloads_olap_%s', partition_date_str) INTO source_partition_name;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
+        RAISE EXCEPTION 'Partition % does not exist', source_partition_name;
+    END IF;
+
+    query := format('
+        WITH candidates AS (
+            SELECT *
+            FROM %I
+            WHERE (tenant_id, external_id, inserted_at) >= ($1::UUID, $2::UUID, $3::TIMESTAMPTZ)
+            ORDER BY tenant_id, external_id, inserted_at
+            LIMIT $4::INT
+        )
+
+        SELECT COALESCE(SUM(pg_column_size(inline_content)), 0) AS total_size_bytes
+        FROM candidates
+    ', source_partition_name);
+
+    EXECUTE query INTO result_size USING last_tenant_id, last_external_id, last_inserted_at, batch_size;
+
+    RETURN result_size;
 END;
 $$;
 

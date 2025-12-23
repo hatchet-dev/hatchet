@@ -159,13 +159,44 @@ type BulkCreateEventTriggersParams struct {
 }
 
 const cleanUpOLAPCutoverJobOffsets = `-- name: CleanUpOLAPCutoverJobOffsets :exec
-DELETE FROM v1_payload_cutover_job_offset
+DELETE FROM v1_payloads_olap_cutover_job_offset
 WHERE NOT key = ANY($1::DATE[])
 `
 
 func (q *Queries) CleanUpOLAPCutoverJobOffsets(ctx context.Context, db DBTX, keystokeep []pgtype.Date) error {
 	_, err := db.Exec(ctx, cleanUpOLAPCutoverJobOffsets, keystokeep)
 	return err
+}
+
+const computeOLAPPayloadBatchSize = `-- name: ComputeOLAPPayloadBatchSize :one
+SELECT compute_olap_payload_batch_size(
+    $1::DATE,
+    $2::UUID,
+    $3::UUID,
+    $4::TIMESTAMPTZ,
+    $5::INTEGER
+) AS total_size_bytes
+`
+
+type ComputeOLAPPayloadBatchSizeParams struct {
+	Partitiondate  pgtype.Date        `json:"partitiondate"`
+	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+	Batchsize      int32              `json:"batchsize"`
+}
+
+func (q *Queries) ComputeOLAPPayloadBatchSize(ctx context.Context, db DBTX, arg ComputeOLAPPayloadBatchSizeParams) (int64, error) {
+	row := db.QueryRow(ctx, computeOLAPPayloadBatchSize,
+		arg.Partitiondate,
+		arg.Lasttenantid,
+		arg.Lastexternalid,
+		arg.Lastinsertedat,
+		arg.Batchsize,
+	)
+	var total_size_bytes int64
+	err := row.Scan(&total_size_bytes)
+	return total_size_bytes, err
 }
 
 const countEvents = `-- name: CountEvents :one

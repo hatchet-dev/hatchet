@@ -37,4 +37,3 @@ class DispatcherStub:
     GetGroupKeyActions: Any
     ReleaseGroupKeyActions: Any
     ListActions: Any
-

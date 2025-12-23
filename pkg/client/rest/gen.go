@@ -878,6 +878,50 @@ type ScheduledWorkflows struct {
 	WorkflowVersionId    string                   `json:"workflowVersionId"`
 }
 
+// ScheduledWorkflowsBulkDeleteFilter defines model for ScheduledWorkflowsBulkDeleteFilter.
+type ScheduledWorkflowsBulkDeleteFilter struct {
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata  *[]string           `json:"additionalMetadata,omitempty"`
+	ParentStepRunId     *openapi_types.UUID `json:"parentStepRunId,omitempty"`
+	ParentWorkflowRunId *openapi_types.UUID `json:"parentWorkflowRunId,omitempty"`
+	WorkflowId          *openapi_types.UUID `json:"workflowId,omitempty"`
+}
+
+// ScheduledWorkflowsBulkDeleteRequest defines model for ScheduledWorkflowsBulkDeleteRequest.
+type ScheduledWorkflowsBulkDeleteRequest struct {
+	Filter                  *ScheduledWorkflowsBulkDeleteFilter `json:"filter,omitempty"`
+	ScheduledWorkflowRunIds *[]openapi_types.UUID               `json:"scheduledWorkflowRunIds,omitempty"`
+}
+
+// ScheduledWorkflowsBulkDeleteResponse defines model for ScheduledWorkflowsBulkDeleteResponse.
+type ScheduledWorkflowsBulkDeleteResponse struct {
+	DeletedIds []openapi_types.UUID          `json:"deletedIds"`
+	Errors     []ScheduledWorkflowsBulkError `json:"errors"`
+}
+
+// ScheduledWorkflowsBulkError defines model for ScheduledWorkflowsBulkError.
+type ScheduledWorkflowsBulkError struct {
+	Error string              `json:"error"`
+	Id    *openapi_types.UUID `json:"id,omitempty"`
+}
+
+// ScheduledWorkflowsBulkUpdateItem defines model for ScheduledWorkflowsBulkUpdateItem.
+type ScheduledWorkflowsBulkUpdateItem struct {
+	Id        openapi_types.UUID `json:"id"`
+	TriggerAt time.Time          `json:"triggerAt"`
+}
+
+// ScheduledWorkflowsBulkUpdateRequest defines model for ScheduledWorkflowsBulkUpdateRequest.
+type ScheduledWorkflowsBulkUpdateRequest struct {
+	Updates []ScheduledWorkflowsBulkUpdateItem `json:"updates"`
+}
+
+// ScheduledWorkflowsBulkUpdateResponse defines model for ScheduledWorkflowsBulkUpdateResponse.
+type ScheduledWorkflowsBulkUpdateResponse struct {
+	Errors     []ScheduledWorkflowsBulkError `json:"errors"`
+	UpdatedIds []openapi_types.UUID          `json:"updatedIds"`
+}
+
 // ScheduledWorkflowsList defines model for ScheduledWorkflowsList.
 type ScheduledWorkflowsList struct {
 	Pagination *PaginationResponse   `json:"pagination,omitempty"`
@@ -1200,6 +1244,11 @@ type TriggerWorkflowRunRequest struct {
 // UpdateCronWorkflowTriggerRequest defines model for UpdateCronWorkflowTriggerRequest.
 type UpdateCronWorkflowTriggerRequest struct {
 	Enabled *bool `json:"enabled,omitempty"`
+}
+
+// UpdateScheduledWorkflowRunRequest defines model for UpdateScheduledWorkflowRunRequest.
+type UpdateScheduledWorkflowRunRequest struct {
+	TriggerAt time.Time `json:"triggerAt"`
 }
 
 // UpdateTenantAlertEmailGroupRequest defines model for UpdateTenantAlertEmailGroupRequest.
@@ -2871,6 +2920,15 @@ type WorkflowRunCancelJSONRequestBody = WorkflowRunsCancelRequest
 // WorkflowCronUpdateJSONRequestBody defines body for WorkflowCronUpdate for application/json ContentType.
 type WorkflowCronUpdateJSONRequestBody = UpdateCronWorkflowTriggerRequest
 
+// WorkflowScheduledBulkDeleteJSONRequestBody defines body for WorkflowScheduledBulkDelete for application/json ContentType.
+type WorkflowScheduledBulkDeleteJSONRequestBody = ScheduledWorkflowsBulkDeleteRequest
+
+// WorkflowScheduledBulkUpdateJSONRequestBody defines body for WorkflowScheduledBulkUpdate for application/json ContentType.
+type WorkflowScheduledBulkUpdateJSONRequestBody = ScheduledWorkflowsBulkUpdateRequest
+
+// WorkflowScheduledUpdateJSONRequestBody defines body for WorkflowScheduledUpdate for application/json ContentType.
+type WorkflowScheduledUpdateJSONRequestBody = UpdateScheduledWorkflowRunRequest
+
 // CronWorkflowTriggerCreateJSONRequestBody defines body for CronWorkflowTriggerCreate for application/json ContentType.
 type CronWorkflowTriggerCreateJSONRequestBody = CreateCronWorkflowTriggerRequest
 
@@ -3417,11 +3475,26 @@ type ClientInterface interface {
 	// WorkflowScheduledList request
 	WorkflowScheduledList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// WorkflowScheduledBulkDeleteWithBody request with any body
+	WorkflowScheduledBulkDeleteWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WorkflowScheduledBulkDelete(ctx context.Context, tenant openapi_types.UUID, body WorkflowScheduledBulkDeleteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowScheduledBulkUpdateWithBody request with any body
+	WorkflowScheduledBulkUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WorkflowScheduledBulkUpdate(ctx context.Context, tenant openapi_types.UUID, body WorkflowScheduledBulkUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// WorkflowScheduledDelete request
 	WorkflowScheduledDelete(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowScheduledGet request
 	WorkflowScheduledGet(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowScheduledUpdateWithBody request with any body
+	WorkflowScheduledUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WorkflowScheduledUpdate(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, body WorkflowScheduledUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CronWorkflowTriggerCreateWithBody request with any body
 	CronWorkflowTriggerCreateWithBody(ctx context.Context, tenant openapi_types.UUID, workflow string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5052,6 +5125,54 @@ func (c *Client) WorkflowScheduledList(ctx context.Context, tenant openapi_types
 	return c.Client.Do(req)
 }
 
+func (c *Client) WorkflowScheduledBulkDeleteWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledBulkDeleteRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowScheduledBulkDelete(ctx context.Context, tenant openapi_types.UUID, body WorkflowScheduledBulkDeleteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledBulkDeleteRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowScheduledBulkUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledBulkUpdateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowScheduledBulkUpdate(ctx context.Context, tenant openapi_types.UUID, body WorkflowScheduledBulkUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledBulkUpdateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) WorkflowScheduledDelete(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowScheduledDeleteRequest(c.Server, tenant, scheduledWorkflowRun)
 	if err != nil {
@@ -5066,6 +5187,30 @@ func (c *Client) WorkflowScheduledDelete(ctx context.Context, tenant openapi_typ
 
 func (c *Client) WorkflowScheduledGet(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowScheduledGetRequest(c.Server, tenant, scheduledWorkflowRun)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowScheduledUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledUpdateRequestWithBody(c.Server, tenant, scheduledWorkflowRun, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowScheduledUpdate(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, body WorkflowScheduledUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledUpdateRequest(c.Server, tenant, scheduledWorkflowRun, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11560,6 +11705,100 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 	return req, nil
 }
 
+// NewWorkflowScheduledBulkDeleteRequest calls the generic WorkflowScheduledBulkDelete builder with application/json body
+func NewWorkflowScheduledBulkDeleteRequest(server string, tenant openapi_types.UUID, body WorkflowScheduledBulkDeleteJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWorkflowScheduledBulkDeleteRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewWorkflowScheduledBulkDeleteRequestWithBody generates requests for WorkflowScheduledBulkDelete with any type of body
+func NewWorkflowScheduledBulkDeleteRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/scheduled/bulk-delete", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewWorkflowScheduledBulkUpdateRequest calls the generic WorkflowScheduledBulkUpdate builder with application/json body
+func NewWorkflowScheduledBulkUpdateRequest(server string, tenant openapi_types.UUID, body WorkflowScheduledBulkUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWorkflowScheduledBulkUpdateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewWorkflowScheduledBulkUpdateRequestWithBody generates requests for WorkflowScheduledBulkUpdate with any type of body
+func NewWorkflowScheduledBulkUpdateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/scheduled/bulk-update", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewWorkflowScheduledDeleteRequest generates requests for WorkflowScheduledDelete
 func NewWorkflowScheduledDeleteRequest(server string, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -11638,6 +11877,60 @@ func NewWorkflowScheduledGetRequest(server string, tenant openapi_types.UUID, sc
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewWorkflowScheduledUpdateRequest calls the generic WorkflowScheduledUpdate builder with application/json body
+func NewWorkflowScheduledUpdateRequest(server string, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, body WorkflowScheduledUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWorkflowScheduledUpdateRequestWithBody(server, tenant, scheduledWorkflowRun, "application/json", bodyReader)
+}
+
+// NewWorkflowScheduledUpdateRequestWithBody generates requests for WorkflowScheduledUpdate with any type of body
+func NewWorkflowScheduledUpdateRequestWithBody(server string, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scheduled-workflow-run", runtime.ParamLocationPath, scheduledWorkflowRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/scheduled/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -13120,11 +13413,26 @@ type ClientWithResponsesInterface interface {
 	// WorkflowScheduledListWithResponse request
 	WorkflowScheduledListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*WorkflowScheduledListResponse, error)
 
+	// WorkflowScheduledBulkDeleteWithBodyWithResponse request with any body
+	WorkflowScheduledBulkDeleteWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowScheduledBulkDeleteResponse, error)
+
+	WorkflowScheduledBulkDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, body WorkflowScheduledBulkDeleteJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowScheduledBulkDeleteResponse, error)
+
+	// WorkflowScheduledBulkUpdateWithBodyWithResponse request with any body
+	WorkflowScheduledBulkUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowScheduledBulkUpdateResponse, error)
+
+	WorkflowScheduledBulkUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, body WorkflowScheduledBulkUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowScheduledBulkUpdateResponse, error)
+
 	// WorkflowScheduledDeleteWithResponse request
 	WorkflowScheduledDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledDeleteResponse, error)
 
 	// WorkflowScheduledGetWithResponse request
 	WorkflowScheduledGetWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledGetResponse, error)
+
+	// WorkflowScheduledUpdateWithBodyWithResponse request with any body
+	WorkflowScheduledUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowScheduledUpdateResponse, error)
+
+	WorkflowScheduledUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, body WorkflowScheduledUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowScheduledUpdateResponse, error)
 
 	// CronWorkflowTriggerCreateWithBodyWithResponse request with any body
 	CronWorkflowTriggerCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CronWorkflowTriggerCreateResponse, error)
@@ -15690,6 +15998,54 @@ func (r WorkflowScheduledListResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowScheduledBulkDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ScheduledWorkflowsBulkDeleteResponse
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowScheduledBulkDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowScheduledBulkDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WorkflowScheduledBulkUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ScheduledWorkflowsBulkUpdateResponse
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowScheduledBulkUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowScheduledBulkUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowScheduledDeleteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -15732,6 +16088,31 @@ func (r WorkflowScheduledGetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r WorkflowScheduledGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WorkflowScheduledUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ScheduledWorkflows
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowScheduledUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowScheduledUpdateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -17528,6 +17909,40 @@ func (c *ClientWithResponses) WorkflowScheduledListWithResponse(ctx context.Cont
 	return ParseWorkflowScheduledListResponse(rsp)
 }
 
+// WorkflowScheduledBulkDeleteWithBodyWithResponse request with arbitrary body returning *WorkflowScheduledBulkDeleteResponse
+func (c *ClientWithResponses) WorkflowScheduledBulkDeleteWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowScheduledBulkDeleteResponse, error) {
+	rsp, err := c.WorkflowScheduledBulkDeleteWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledBulkDeleteResponse(rsp)
+}
+
+func (c *ClientWithResponses) WorkflowScheduledBulkDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, body WorkflowScheduledBulkDeleteJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowScheduledBulkDeleteResponse, error) {
+	rsp, err := c.WorkflowScheduledBulkDelete(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledBulkDeleteResponse(rsp)
+}
+
+// WorkflowScheduledBulkUpdateWithBodyWithResponse request with arbitrary body returning *WorkflowScheduledBulkUpdateResponse
+func (c *ClientWithResponses) WorkflowScheduledBulkUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowScheduledBulkUpdateResponse, error) {
+	rsp, err := c.WorkflowScheduledBulkUpdateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledBulkUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) WorkflowScheduledBulkUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, body WorkflowScheduledBulkUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowScheduledBulkUpdateResponse, error) {
+	rsp, err := c.WorkflowScheduledBulkUpdate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledBulkUpdateResponse(rsp)
+}
+
 // WorkflowScheduledDeleteWithResponse request returning *WorkflowScheduledDeleteResponse
 func (c *ClientWithResponses) WorkflowScheduledDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledDeleteResponse, error) {
 	rsp, err := c.WorkflowScheduledDelete(ctx, tenant, scheduledWorkflowRun, reqEditors...)
@@ -17544,6 +17959,23 @@ func (c *ClientWithResponses) WorkflowScheduledGetWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseWorkflowScheduledGetResponse(rsp)
+}
+
+// WorkflowScheduledUpdateWithBodyWithResponse request with arbitrary body returning *WorkflowScheduledUpdateResponse
+func (c *ClientWithResponses) WorkflowScheduledUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowScheduledUpdateResponse, error) {
+	rsp, err := c.WorkflowScheduledUpdateWithBody(ctx, tenant, scheduledWorkflowRun, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) WorkflowScheduledUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, body WorkflowScheduledUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowScheduledUpdateResponse, error) {
+	rsp, err := c.WorkflowScheduledUpdate(ctx, tenant, scheduledWorkflowRun, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledUpdateResponse(rsp)
 }
 
 // CronWorkflowTriggerCreateWithBodyWithResponse request with arbitrary body returning *CronWorkflowTriggerCreateResponse
@@ -22136,6 +22568,86 @@ func ParseWorkflowScheduledListResponse(rsp *http.Response) (*WorkflowScheduledL
 	return response, nil
 }
 
+// ParseWorkflowScheduledBulkDeleteResponse parses an HTTP response from a WorkflowScheduledBulkDeleteWithResponse call
+func ParseWorkflowScheduledBulkDeleteResponse(rsp *http.Response) (*WorkflowScheduledBulkDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowScheduledBulkDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ScheduledWorkflowsBulkDeleteResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowScheduledBulkUpdateResponse parses an HTTP response from a WorkflowScheduledBulkUpdateWithResponse call
+func ParseWorkflowScheduledBulkUpdateResponse(rsp *http.Response) (*WorkflowScheduledBulkUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowScheduledBulkUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ScheduledWorkflowsBulkUpdateResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseWorkflowScheduledDeleteResponse parses an HTTP response from a WorkflowScheduledDeleteWithResponse call
 func ParseWorkflowScheduledDeleteResponse(rsp *http.Response) (*WorkflowScheduledDeleteResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -22178,6 +22690,53 @@ func ParseWorkflowScheduledGetResponse(rsp *http.Response) (*WorkflowScheduledGe
 	}
 
 	response := &WorkflowScheduledGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ScheduledWorkflows
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowScheduledUpdateResponse parses an HTTP response from a WorkflowScheduledUpdateWithResponse call
+func ParseWorkflowScheduledUpdateResponse(rsp *http.Response) (*WorkflowScheduledUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowScheduledUpdateResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

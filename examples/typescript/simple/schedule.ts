@@ -16,6 +16,11 @@ async function main() {
   const scheduledRunId = scheduled.metadata.id;
   console.log(scheduledRunId);
 
+  // > Reschedule a Scheduled Run
+  await hatchet.scheduled.update(scheduledRunId, {
+    triggerAt: new Date(Date.now() + 60 * 60 * 1000),
+  });
+
   // > Delete a Scheduled Run
   await hatchet.scheduled.delete(scheduled);
 
@@ -24,6 +29,16 @@ async function main() {
     workflow: simple,
   });
   console.log(scheduledRuns);
+
+  // > Bulk Delete Scheduled Runs
+  await hatchet.scheduled.bulkDelete({
+    scheduledRuns: [scheduledRunId],
+  });
+
+  // > Bulk Reschedule Scheduled Runs
+  await hatchet.scheduled.bulkUpdate([
+    { scheduledRun: scheduledRunId, triggerAt: new Date(Date.now() + 2 * 60 * 60 * 1000) },
+  ]);
 }
 
 if (require.main === module) {

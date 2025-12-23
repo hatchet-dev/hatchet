@@ -9,7 +9,7 @@ import { UserContextType } from '@/lib/outlet';
 import { useOutletContext } from '@/lib/router-helpers';
 import { capitalize } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import queryClient from '@/query-client';
 import { useMutation } from '@tanstack/react-query';
 import { ColumnDef } from '@tanstack/react-table';
@@ -30,7 +30,7 @@ function MemberActions({
   const { handleApiError } = useApiError({});
   const { tenantId } = useCurrentTenantId();
   const meta = useApiMeta();
-  const { isCloudEnabled } = useCloudApiMeta();
+  const { isCloudEnabled } = useCloud();
 
   const deleteMemberMutation = useMutation({
     mutationKey: ['tenant-member:delete', tenantId],

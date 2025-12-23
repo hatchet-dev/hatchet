@@ -2105,7 +2105,7 @@ WHERE key = @key::DATE
 ;
 
 -- name: CleanUpOLAPCutoverJobOffsets :exec
-DELETE FROM v1_payload_cutover_job_offset
+DELETE FROM v1_payloads_olap_cutover_job_offset
 WHERE NOT key = ANY(@keysToKeep::DATE[])
 ;
 
@@ -2127,3 +2127,12 @@ SELECT
     updated_at::TIMESTAMPTZ
 FROM payloads
 ;
+
+-- name: ComputeOLAPPayloadBatchSize :one
+SELECT compute_olap_payload_batch_size(
+    @partitionDate::DATE,
+    @lastTenantId::UUID,
+    @lastExternalId::UUID,
+    @lastInsertedAt::TIMESTAMPTZ,
+    @batchSize::INTEGER
+) AS total_size_bytes;

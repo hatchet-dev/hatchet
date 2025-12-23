@@ -7,17 +7,17 @@ import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import invariant from 'tiny-invariant';
 
 export default function Github() {
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { cloud } = useCloud();
 
-  const hasGithubIntegration = cloudMeta?.data.canLinkGithub;
+  const hasGithubIntegration = cloud?.canLinkGithub;
 
-  if (!cloudMeta || !hasGithubIntegration) {
+  if (!cloud || !hasGithubIntegration) {
     return (
       <div className="h-full w-full flex-grow">
         <p className="my-4 text-gray-700 dark:text-gray-300">

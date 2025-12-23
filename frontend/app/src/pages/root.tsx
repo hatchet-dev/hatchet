@@ -10,7 +10,8 @@ function Root({ children }: PropsWithChildren) {
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
       <RefetchIntervalProvider>
         <SidebarProvider>
-          <div className="fixed h-full w-full">
+          {/* Root should not own scrolling; route shells decide their scroll behavior. */}
+          <div className="h-full w-full overflow-hidden">
             <Toaster />
             {children ?? <Outlet />}
           </div>
