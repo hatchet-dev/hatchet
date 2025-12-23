@@ -1,4 +1,4 @@
-import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
 

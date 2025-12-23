@@ -21,7 +21,7 @@ describe('Tenants: create', () => {
     cy.contains('button', 'Continue').click();
 
     const tenantName = `CypressTenant${String(ts).slice(-6)}`;
-    cy.get('input#name').clear().type(tenantName);
+    cy.get('input#name').filter(':visible').first().clear().type(tenantName);
     cy.intercept('POST', '/api/v1/tenants').as('createTenant');
     cy.contains('button', 'Create Tenant').click();
     cy.wait('@createTenant').its('response.statusCode').should('eq', 200);
@@ -32,9 +32,9 @@ describe('Tenants: create', () => {
     );
     cy.contains('h1', 'Setup your', { timeout: 30000 }).should('be.visible');
 
-    cy.get('button[aria-label="Select a tenant"]').should(
-      'have.text',
-      tenantName,
-    );
+    cy.get('button[aria-label="Select a tenant"]')
+      .filter(':visible')
+      .first()
+      .should('contain.text', tenantName);
   });
 });

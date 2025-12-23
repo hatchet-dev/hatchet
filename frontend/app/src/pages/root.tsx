@@ -1,5 +1,5 @@
-import { SidebarProvider } from '@/components/sidebar-provider';
-import { ThemeProvider } from '@/components/theme-provider';
+import { SidebarProvider } from '@/components/hooks/use-sidebar';
+import { ThemeProvider } from '@/components/hooks/use-theme';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { RefetchIntervalProvider } from '@/contexts/refetch-interval-context';
 import { Outlet } from '@tanstack/react-router';

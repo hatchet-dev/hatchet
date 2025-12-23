@@ -4,24 +4,24 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 
 interface SupportChatProps {
-  user: User;
+  user?: User;
 }
 
 const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
   user,
   children,
 }) => {
-  const meta = useApiMeta();
+  const { meta } = useApiMeta();
 
   const { tenant } = useTenantDetails();
 
   const APP_ID = useMemo(() => {
-    if (!meta.data?.pylonAppId) {
+    if (!meta?.pylonAppId) {
       return null;
     }
 
-    return meta.data.pylonAppId;
-  }, [meta]);
+    return meta?.pylonAppId;
+  }, [meta?.pylonAppId]);
 
   useEffect(() => {
     if (!APP_ID) {

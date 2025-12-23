@@ -61,7 +61,7 @@ const ownersColumns: ColumnDef<TenantMember>[] = [
 ];
 
 export default function Members() {
-  const meta = useApiMeta();
+  const { meta } = useApiMeta();
 
   return (
     <div className="h-full w-full flex-grow">
@@ -71,7 +71,7 @@ export default function Members() {
         </h2>
         <Separator className="my-4" />
         <MembersList />
-        {meta.data?.allowInvites && (
+        {meta?.allowInvites && (
           <>
             <Separator className="my-4" />
             <InvitesList />
