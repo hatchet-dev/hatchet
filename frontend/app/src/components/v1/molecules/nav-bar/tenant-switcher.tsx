@@ -111,7 +111,7 @@ export function TenantSwitcher({
           className="z-[300] w-56 p-0"
         >
           <Command className="">
-            <CommandList>
+            <CommandList data-cy="tenant-switcher-list">
               <CommandEmpty>No tenants found.</CommandEmpty>
               {memberships.map((membership) => (
                 <CommandItem
@@ -122,6 +122,11 @@ export function TenantSwitcher({
                     setOpen(false);
                   }}
                   value={membership.tenant?.slug}
+                  data-cy={
+                    membership.tenant?.slug
+                      ? `tenant-switcher-item-${membership.tenant.slug}`
+                      : undefined
+                  }
                   className="cursor-pointer text-sm"
                 >
                   <BuildingOffice2Icon className="mr-2 size-4" />

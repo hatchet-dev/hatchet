@@ -11,11 +11,10 @@ describe('Tenants: switching', () => {
       .filter(':visible')
       .first()
       .as('tenantSwitcher');
-    cy.get('@tenantSwitcher').click({ force: true });
+    cy.get('@tenantSwitcher').should('not.be.disabled').click({ force: true });
 
-    cy.get('[cmdk-list]').should('be.visible');
-    cy.get('[cmdk-list]')
-      .find('[data-value="tenant1"]')
+    cy.get('[data-cy="tenant-switcher-list"]').should('be.visible');
+    cy.get('[data-cy="tenant-switcher-item-tenant1"]')
       .scrollIntoView()
       .click({ force: true });
 
@@ -24,11 +23,10 @@ describe('Tenants: switching', () => {
       .first()
       .should('contain.text', 'Tenant 1')
       .as('tenantSwitcher2');
-    cy.get('@tenantSwitcher2').click({ force: true });
+    cy.get('@tenantSwitcher2').should('not.be.disabled').click({ force: true });
 
-    cy.get('[cmdk-list]').should('be.visible');
-    cy.get('[cmdk-list]')
-      .find('[data-value="tenant2"]')
+    cy.get('[data-cy="tenant-switcher-list"]').should('be.visible');
+    cy.get('[data-cy="tenant-switcher-item-tenant2"]')
       .scrollIntoView()
       .click({ force: true });
 
@@ -57,10 +55,9 @@ describe('Tenants: switching', () => {
       .filter(':visible')
       .first()
       .as('tenantSwitcher');
-    cy.get('@tenantSwitcher').click({ force: true });
-    cy.get('[cmdk-list]').should('be.visible');
-    cy.get('[cmdk-list]')
-      .find('[data-value="tenant1"]')
+    cy.get('@tenantSwitcher').should('not.be.disabled').click({ force: true });
+    cy.get('[data-cy="tenant-switcher-list"]').should('be.visible');
+    cy.get('[data-cy="tenant-switcher-item-tenant1"]')
       .scrollIntoView()
       .click({ force: true });
     cy.get('button[aria-label="Select a tenant"]')
@@ -68,10 +65,9 @@ describe('Tenants: switching', () => {
       .first()
       .should('contain.text', 'Tenant 1')
       .as('tenantSwitcher2');
-    cy.get('@tenantSwitcher2').click({ force: true });
-    cy.get('[cmdk-list]').should('be.visible');
-    cy.get('[cmdk-list]')
-      .find('[data-value="tenant2"]')
+    cy.get('@tenantSwitcher2').should('not.be.disabled').click({ force: true });
+    cy.get('[data-cy="tenant-switcher-list"]').should('be.visible');
+    cy.get('[data-cy="tenant-switcher-item-tenant2"]')
       .scrollIntoView()
       .click({ force: true });
     cy.get('button[aria-label="Select a tenant"]')
