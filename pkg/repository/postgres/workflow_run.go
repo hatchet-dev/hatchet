@@ -216,47 +216,25 @@ func (w *workflowRunAPIRepository) ScheduledWorkflowMetaByIds(ctx context.Contex
 		ids = append(ids, sqlchelpers.UUIDFromStr(id))
 	}
 
-	// Only fetch minimal metadata required for bulk operations.
-	const q = `
-SELECT
-  t."id",
-  t."method",
-  EXISTS (
-    SELECT 1 FROM "WorkflowRunTriggeredBy" tb
-    WHERE tb."scheduledId" = t."id"
-  ) AS "hasTriggeredRun"
-FROM "WorkflowTriggerScheduledRef" t
-JOIN "WorkflowVersion" v ON t."parentId" = v."id"
-JOIN "Workflow" w ON v."workflowId" = w."id"
-WHERE w."tenantId" = $1::uuid
-  AND t."id" = ANY($2::uuid[])
-`
-
-	rows, err := w.pool.Query(ctx, q, sqlchelpers.UUIDFromStr(tenantId), ids)
+	rows, err := w.queries.GetScheduledWorkflowMetaByIds(ctx, w.pool, dbsqlc.GetScheduledWorkflowMetaByIdsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      ids,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	out := make(map[string]repository.ScheduledWorkflowMeta, len(scheduledWorkflowIds))
-	for rows.Next() {
-		var id pgtype.UUID
-		var method dbsqlc.WorkflowTriggerScheduledRefMethods
-		var hasTriggered bool
-
-		if err := rows.Scan(&id, &method, &hasTriggered); err != nil {
-			return nil, err
-		}
-
-		idStr := sqlchelpers.UUIDToStr(id)
+	for _, row := range rows {
+		idStr := sqlchelpers.UUIDToStr(row.ID)
 		out[idStr] = repository.ScheduledWorkflowMeta{
 			Id:              idStr,
-			Method:          method,
-			HasTriggeredRun: hasTriggered,
+			Method:          row.Method,
+			HasTriggeredRun: row.HasTriggeredRun,
 		}
 	}
 
-	return out, rows.Err()
+	return out, nil
 }
 
 func (w *workflowRunAPIRepository) BulkDeleteScheduledWorkflows(ctx context.Context, tenantId string, scheduledWorkflowIds []string) ([]string, error) {
@@ -269,33 +247,20 @@ func (w *workflowRunAPIRepository) BulkDeleteScheduledWorkflows(ctx context.Cont
 		ids = append(ids, sqlchelpers.UUIDFromStr(id))
 	}
 
-	const q = `
-DELETE FROM "WorkflowTriggerScheduledRef" t
-USING "WorkflowVersion" v, "Workflow" w
-WHERE t."parentId" = v."id"
-  AND v."workflowId" = w."id"
-  AND w."tenantId" = $1::uuid
-  AND t."method" = 'API'
-  AND t."id" = ANY($2::uuid[])
-RETURNING t."id"
-`
-
-	rows, err := w.pool.Query(ctx, q, sqlchelpers.UUIDFromStr(tenantId), ids)
+	deletedIds, err := w.queries.BulkDeleteScheduledWorkflows(ctx, w.pool, dbsqlc.BulkDeleteScheduledWorkflowsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      ids,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	deleted := make([]string, 0, len(scheduledWorkflowIds))
-	for rows.Next() {
-		var id pgtype.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
+	for _, id := range deletedIds {
 		deleted = append(deleted, sqlchelpers.UUIDToStr(id))
 	}
 
-	return deleted, rows.Err()
+	return deleted, nil
 }
 
 func (w *workflowRunAPIRepository) BulkUpdateScheduledWorkflows(ctx context.Context, tenantId string, updates []repository.ScheduledWorkflowUpdate) ([]string, error) {
@@ -304,47 +269,27 @@ func (w *workflowRunAPIRepository) BulkUpdateScheduledWorkflows(ctx context.Cont
 	}
 
 	ids := make([]pgtype.UUID, 0, len(updates))
-	times := make([]time.Time, 0, len(updates))
+	triggerAts := make([]pgtype.Timestamp, 0, len(updates))
 	for _, u := range updates {
 		ids = append(ids, sqlchelpers.UUIDFromStr(u.Id))
-		times = append(times, u.TriggerAt)
+		triggerAts = append(triggerAts, sqlchelpers.TimestampFromTime(u.TriggerAt))
 	}
 
-	const q = `
-WITH input AS (
-  SELECT * FROM unnest($2::uuid[], $3::timestamptz[]) AS u(id, triggerAt)
-)
-UPDATE "WorkflowTriggerScheduledRef" t
-SET "triggerAt" = i.triggerAt
-FROM input i, "WorkflowVersion" v, "Workflow" w
-WHERE t."id" = i.id
-  AND t."parentId" = v."id"
-  AND v."workflowId" = w."id"
-  AND w."tenantId" = $1::uuid
-  AND t."method" = 'API'
-  AND NOT EXISTS (
-    SELECT 1 FROM "WorkflowRunTriggeredBy" tb
-    WHERE tb."scheduledId" = t."id"
-  )
-RETURNING t."id"
-`
-
-	rows, err := w.pool.Query(ctx, q, sqlchelpers.UUIDFromStr(tenantId), ids, times)
+	updatedIds, err := w.queries.BulkUpdateScheduledWorkflows(ctx, w.pool, dbsqlc.BulkUpdateScheduledWorkflowsParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Ids:        ids,
+		Triggerats: triggerAts,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	updated := make([]string, 0, len(updates))
-	for rows.Next() {
-		var id pgtype.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
+	for _, id := range updatedIds {
 		updated = append(updated, sqlchelpers.UUIDToStr(id))
 	}
 
-	return updated, rows.Err()
+	return updated, nil
 }
 
 func (w *workflowRunAPIRepository) GetWorkflowRunShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*dbsqlc.GetWorkflowRunShapeRow, error) {

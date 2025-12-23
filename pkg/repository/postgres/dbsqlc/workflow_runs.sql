@@ -1562,6 +1562,58 @@ DELETE FROM "WorkflowTriggerScheduledRef"
 WHERE
     "id" = @scheduleId::uuid;
 
+-- name: GetScheduledWorkflowMetaByIds :many
+SELECT
+    t."id",
+    t."method",
+    EXISTS (
+        SELECT 1
+        FROM "WorkflowRunTriggeredBy" tb
+        WHERE tb."scheduledId" = t."id"
+    ) AS "hasTriggeredRun"
+FROM "WorkflowTriggerScheduledRef" t
+JOIN "WorkflowVersion" v ON t."parentId" = v."id"
+JOIN "Workflow" w ON v."workflowId" = w."id"
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND t."id" = ANY(@ids::uuid[]);
+
+-- name: BulkDeleteScheduledWorkflows :many
+DELETE FROM "WorkflowTriggerScheduledRef" t
+USING "WorkflowVersion" v, "Workflow" w
+WHERE
+    t."parentId" = v."id"
+    AND v."workflowId" = w."id"
+    AND w."tenantId" = @tenantId::uuid
+    AND t."method" = 'API'
+    AND t."id" = ANY(@ids::uuid[])
+RETURNING t."id";
+
+-- name: BulkUpdateScheduledWorkflows :many
+WITH input AS (
+    SELECT
+        ids.id,
+        times."triggerAt"
+    FROM unnest(@ids::uuid[]) WITH ORDINALITY AS ids(id, ord)
+    JOIN unnest(@triggerAts::timestamp[]) WITH ORDINALITY AS times("triggerAt", ord)
+        USING (ord)
+)
+UPDATE "WorkflowTriggerScheduledRef" t
+SET "triggerAt" = i."triggerAt"
+FROM input i, "WorkflowVersion" v, "Workflow" w
+WHERE
+    t."id" = i.id
+    AND t."parentId" = v."id"
+    AND v."workflowId" = w."id"
+    AND w."tenantId" = @tenantId::uuid
+    AND t."method" = 'API'
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "WorkflowRunTriggeredBy" tb
+        WHERE tb."scheduledId" = t."id"
+    )
+RETURNING t."id";
+
 -- name: GetUpstreamErrorsForOnFailureStep :many
 WITH workflow_run AS (
     SELECT wr.*
