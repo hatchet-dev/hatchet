@@ -17,12 +17,12 @@ export const batch = hatchet.batchTask({
   // retries are on the individual invocation, not the batch
   retries: 0,
   executionTimeout: '60s',
-  batchSize: 200,
-  flushInterval: 1000,
+  batchMaxSize: 200,
+  batchMaxInterval: '1s',
   // group inputs by a computed key (e.g. tenant id or message)
-  batchKey: 'input.batchId',
+  batchGroupKey: 'input.batchId',
   // allow at most two concurrent batches per key
-  maxRuns: 1,
+  batchGroupMaxRuns: 1,
   scheduleTimeout: '5m',
   fn: async (inputs: SimpleInput[], ctx) =>
     Promise.all(

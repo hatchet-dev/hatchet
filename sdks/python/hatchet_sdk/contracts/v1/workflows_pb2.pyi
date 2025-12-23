@@ -188,16 +188,16 @@ class DesiredWorkerLabels(_message.Message):
     def __init__(self, strValue: _Optional[str] = ..., intValue: _Optional[int] = ..., required: bool = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
 
 class TaskBatchConfig(_message.Message):
-    __slots__ = ("batch_size", "flush_interval_ms", "batch_key", "max_runs")
-    BATCH_SIZE_FIELD_NUMBER: _ClassVar[int]
-    FLUSH_INTERVAL_MS_FIELD_NUMBER: _ClassVar[int]
-    BATCH_KEY_FIELD_NUMBER: _ClassVar[int]
-    MAX_RUNS_FIELD_NUMBER: _ClassVar[int]
-    batch_size: int
-    flush_interval_ms: int
-    batch_key: str
-    max_runs: int
-    def __init__(self, batch_size: _Optional[int] = ..., flush_interval_ms: _Optional[int] = ..., batch_key: _Optional[str] = ..., max_runs: _Optional[int] = ...) -> None: ...
+    __slots__ = ("batch_max_size", "batch_max_interval", "batch_group_key", "batch_group_max_runs")
+    BATCH_MAX_SIZE_FIELD_NUMBER: _ClassVar[int]
+    BATCH_MAX_INTERVAL_FIELD_NUMBER: _ClassVar[int]
+    BATCH_GROUP_KEY_FIELD_NUMBER: _ClassVar[int]
+    BATCH_GROUP_MAX_RUNS_FIELD_NUMBER: _ClassVar[int]
+    batch_max_size: int
+    batch_max_interval: int
+    batch_group_key: str
+    batch_group_max_runs: int
+    def __init__(self, batch_max_size: _Optional[int] = ..., batch_max_interval: _Optional[int] = ..., batch_group_key: _Optional[str] = ..., batch_group_max_runs: _Optional[int] = ...) -> None: ...
 
 class CreateTaskOpts(_message.Message):
     __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds", "concurrency", "conditions", "schedule_timeout", "batch")

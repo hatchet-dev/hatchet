@@ -329,14 +329,14 @@ export interface DesiredWorkerLabels {
 }
 
 export interface TaskBatchConfig {
-  /** (required) maximum number of inputs per flush */
-  batchSize: number;
-  /** (optional) flush interval in milliseconds */
-  flushIntervalMs?: number | undefined;
-  /** (optional) CEL expression to evaluate a batch partition key */
-  batchKey?: string | undefined;
-  /** (optional) maximum concurrently running batches per unique key */
-  maxRuns?: number | undefined;
+  /** (required) maximum items per batch */
+  batchMaxSize: number;
+  /** (optional) time before batch flushes (milliseconds) */
+  batchMaxInterval?: number | undefined;
+  /** (optional) partition key for fairness (prevents mixing tenants) */
+  batchGroupKey?: string | undefined;
+  /** (optional) concurrent batches per group */
+  batchGroupMaxRuns?: number | undefined;
 }
 
 /** CreateTaskOpts represents options to create a task. */
@@ -1606,22 +1606,27 @@ export const DesiredWorkerLabels: MessageFns<DesiredWorkerLabels> = {
 };
 
 function createBaseTaskBatchConfig(): TaskBatchConfig {
-  return { batchSize: 0, flushIntervalMs: undefined, batchKey: undefined, maxRuns: undefined };
+  return {
+    batchMaxSize: 0,
+    batchMaxInterval: undefined,
+    batchGroupKey: undefined,
+    batchGroupMaxRuns: undefined,
+  };
 }
 
 export const TaskBatchConfig: MessageFns<TaskBatchConfig> = {
   encode(message: TaskBatchConfig, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.batchSize !== 0) {
-      writer.uint32(8).int32(message.batchSize);
+    if (message.batchMaxSize !== 0) {
+      writer.uint32(8).int32(message.batchMaxSize);
     }
-    if (message.flushIntervalMs !== undefined) {
-      writer.uint32(16).int32(message.flushIntervalMs);
+    if (message.batchMaxInterval !== undefined) {
+      writer.uint32(16).int32(message.batchMaxInterval);
     }
-    if (message.batchKey !== undefined) {
-      writer.uint32(26).string(message.batchKey);
+    if (message.batchGroupKey !== undefined) {
+      writer.uint32(26).string(message.batchGroupKey);
     }
-    if (message.maxRuns !== undefined) {
-      writer.uint32(32).int32(message.maxRuns);
+    if (message.batchGroupMaxRuns !== undefined) {
+      writer.uint32(32).int32(message.batchGroupMaxRuns);
     }
     return writer;
   },
@@ -1638,7 +1643,7 @@ export const TaskBatchConfig: MessageFns<TaskBatchConfig> = {
             break;
           }
 
-          message.batchSize = reader.int32();
+          message.batchMaxSize = reader.int32();
           continue;
         }
         case 2: {
@@ -1646,7 +1651,7 @@ export const TaskBatchConfig: MessageFns<TaskBatchConfig> = {
             break;
           }
 
-          message.flushIntervalMs = reader.int32();
+          message.batchMaxInterval = reader.int32();
           continue;
         }
         case 3: {
@@ -1654,7 +1659,7 @@ export const TaskBatchConfig: MessageFns<TaskBatchConfig> = {
             break;
           }
 
-          message.batchKey = reader.string();
+          message.batchGroupKey = reader.string();
           continue;
         }
         case 4: {
@@ -1662,7 +1667,7 @@ export const TaskBatchConfig: MessageFns<TaskBatchConfig> = {
             break;
           }
 
-          message.maxRuns = reader.int32();
+          message.batchGroupMaxRuns = reader.int32();
           continue;
         }
       }
@@ -1676,28 +1681,32 @@ export const TaskBatchConfig: MessageFns<TaskBatchConfig> = {
 
   fromJSON(object: any): TaskBatchConfig {
     return {
-      batchSize: isSet(object.batchSize) ? globalThis.Number(object.batchSize) : 0,
-      flushIntervalMs: isSet(object.flushIntervalMs)
-        ? globalThis.Number(object.flushIntervalMs)
+      batchMaxSize: isSet(object.batchMaxSize) ? globalThis.Number(object.batchMaxSize) : 0,
+      batchMaxInterval: isSet(object.batchMaxInterval)
+        ? globalThis.Number(object.batchMaxInterval)
         : undefined,
-      batchKey: isSet(object.batchKey) ? globalThis.String(object.batchKey) : undefined,
-      maxRuns: isSet(object.maxRuns) ? globalThis.Number(object.maxRuns) : undefined,
+      batchGroupKey: isSet(object.batchGroupKey)
+        ? globalThis.String(object.batchGroupKey)
+        : undefined,
+      batchGroupMaxRuns: isSet(object.batchGroupMaxRuns)
+        ? globalThis.Number(object.batchGroupMaxRuns)
+        : undefined,
     };
   },
 
   toJSON(message: TaskBatchConfig): unknown {
     const obj: any = {};
-    if (message.batchSize !== 0) {
-      obj.batchSize = Math.round(message.batchSize);
+    if (message.batchMaxSize !== 0) {
+      obj.batchMaxSize = Math.round(message.batchMaxSize);
     }
-    if (message.flushIntervalMs !== undefined) {
-      obj.flushIntervalMs = Math.round(message.flushIntervalMs);
+    if (message.batchMaxInterval !== undefined) {
+      obj.batchMaxInterval = Math.round(message.batchMaxInterval);
     }
-    if (message.batchKey !== undefined) {
-      obj.batchKey = message.batchKey;
+    if (message.batchGroupKey !== undefined) {
+      obj.batchGroupKey = message.batchGroupKey;
     }
-    if (message.maxRuns !== undefined) {
-      obj.maxRuns = Math.round(message.maxRuns);
+    if (message.batchGroupMaxRuns !== undefined) {
+      obj.batchGroupMaxRuns = Math.round(message.batchGroupMaxRuns);
     }
     return obj;
   },
@@ -1707,10 +1716,10 @@ export const TaskBatchConfig: MessageFns<TaskBatchConfig> = {
   },
   fromPartial(object: DeepPartial<TaskBatchConfig>): TaskBatchConfig {
     const message = createBaseTaskBatchConfig();
-    message.batchSize = object.batchSize ?? 0;
-    message.flushIntervalMs = object.flushIntervalMs ?? undefined;
-    message.batchKey = object.batchKey ?? undefined;
-    message.maxRuns = object.maxRuns ?? undefined;
+    message.batchMaxSize = object.batchMaxSize ?? 0;
+    message.batchMaxInterval = object.batchMaxInterval ?? undefined;
+    message.batchGroupKey = object.batchGroupKey ?? undefined;
+    message.batchGroupMaxRuns = object.batchGroupMaxRuns ?? undefined;
     return message;
   },
 };

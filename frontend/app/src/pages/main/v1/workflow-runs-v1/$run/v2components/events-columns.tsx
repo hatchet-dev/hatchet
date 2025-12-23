@@ -23,6 +23,8 @@ type BatchEventPayload = {
   status?: string;
   batchId?: string;
   batchKey?: string;
+  flushIntervalMs?: number;
+  nextFlushAt?: string;
   pending?: number;
   expectedSize?: number;
   batchSize?: number;
@@ -64,12 +66,14 @@ function renderBatchMetadataBadges(
   const entries: Array<[string, string | number | undefined]> = [
     ['Status', meta.status],
     ['Batch ID', meta.batchId],
-    ['Batch key', meta.batchKey],
+    ['Batch group key', meta.batchKey],
     ['Pending', meta.pending],
     ['Expected size', meta.expectedSize],
-    ['Batch size', meta.batchSize],
+    ['Batch max size', meta.batchSize],
     ['Active runs', meta.activeRuns],
-    ['Max runs/key', meta.maxRuns],
+    ['Batch max interval (ms)', meta.flushIntervalMs],
+    ['Next flush at', meta.nextFlushAt],
+    ['Group max runs', meta.maxRuns],
     ['Reason', meta.triggerReason],
     ['Triggered at', meta.triggeredAt],
   ];

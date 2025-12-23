@@ -882,22 +882,22 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 			defaultMaxRuns := int32(100)
 
 			steps[j].BatchConfig = &v1.StepBatchConfig{
-				BatchSize:          stepCp.Batch.BatchSize,
+				BatchSize:          stepCp.Batch.BatchMaxSize,
 				FlushIntervalMs:    &defaultFlushIntervalMs,
 				BatchKeyExpression: &defaultBatchKeyExpression,
 				MaxRuns:            &defaultMaxRuns,
 			}
 
-			if stepCp.Batch.FlushIntervalMs != nil {
-				steps[j].BatchConfig.FlushIntervalMs = stepCp.Batch.FlushIntervalMs
+			if stepCp.Batch.BatchMaxInterval != nil {
+				steps[j].BatchConfig.FlushIntervalMs = stepCp.Batch.BatchMaxInterval
 			}
 
-			if stepCp.Batch.BatchKey != nil && *stepCp.Batch.BatchKey != "" {
-				steps[j].BatchConfig.BatchKeyExpression = stepCp.Batch.BatchKey
+			if stepCp.Batch.BatchGroupKey != nil && *stepCp.Batch.BatchGroupKey != "" {
+				steps[j].BatchConfig.BatchKeyExpression = stepCp.Batch.BatchGroupKey
 			}
 
-			if stepCp.Batch.MaxRuns != nil {
-				steps[j].BatchConfig.MaxRuns = stepCp.Batch.MaxRuns
+			if stepCp.Batch.BatchGroupMaxRuns != nil {
+				steps[j].BatchConfig.MaxRuns = stepCp.Batch.BatchGroupMaxRuns
 			}
 
 		}

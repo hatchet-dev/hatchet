@@ -61,26 +61,24 @@ export type BatchTaskFn<I extends InputType = UnknownInputType, O extends Output
 
 export type BatchTaskConfig<I extends InputType = UnknownInputType, O extends OutputType = void> = {
   /**
-   * The maximum number of inputs to accumulate before invoking the batch handler.
+   * The maximum number of items to accumulate before invoking the batch handler.
    * Must be a positive integer.
    */
-  batchSize: number;
+  batchMaxSize: number;
   /**
-   * Optional flush interval in milliseconds. When provided, the worker will invoke the batch handler
-   * with whatever inputs have accumulated once this interval elapses, even if the batch size has not
-   * been reached.
+   * Optional maximum interval to wait before flushing a batch.
+   * Uses Go duration string format.
    */
-  flushInterval?: number;
+  batchMaxInterval?: Duration;
   /**
-   * Optional CEL expression that evaluates to the partition key for the batch.
-   * Inputs producing the same key will be buffered together.
+   * Optional partition key expression for batch fairness.
+   * Inputs producing the same key will be buffered together (prevents mixing tenants).
    */
-  batchKey?: string;
+  batchGroupKey?: string;
   /**
-   * Optional maximum number of concurrently running batches per unique batch key.
-   * Defaults to 1 when provided without a value.
+   * Optional maximum number of concurrently running batches per unique group key.
    */
-  maxRuns?: number;
+  batchGroupMaxRuns?: number;
   /**
    * The batch handler invoked with the buffered inputs and their corresponding contexts.
    * The returned array must match the number of inputs in the batch.

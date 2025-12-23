@@ -66,10 +66,10 @@ P = ParamSpec("P")
 
 @dataclass(frozen=True)
 class BatchTaskConfig:
-    batch_size: int
-    flush_interval_ms: int | None = None
-    batch_key: str | None = None
-    max_runs: int | None = None
+    batch_max_size: int
+    batch_max_interval: Duration | None = None
+    batch_group_key: str | None = None
+    batch_group_max_runs: int | None = None
 
 
 class Depends(Generic[T, TWorkflowInput]):
@@ -259,13 +259,19 @@ class Task(Generic[TWorkflowInput, R]):
         )
 
         if self.batch is not None:
-            batch_proto = TaskBatchConfigProto(batch_size=self.batch.batch_size)
-            if self.batch.flush_interval_ms is not None:
-                batch_proto.flush_interval_ms = self.batch.flush_interval_ms
-            if self.batch.batch_key is not None:
-                batch_proto.batch_key = self.batch.batch_key
-            if self.batch.max_runs is not None:
-                batch_proto.max_runs = self.batch.max_runs
+            batch_proto = TaskBatchConfigProto(batch_max_size=self.batch.batch_max_size)
+
+            if self.batch.batch_max_interval is not None:
+                interval_ms = int(self.batch.batch_max_interval.total_seconds() * 1000)
+                if interval_ms <= 0:
+                    raise ValueError("batch_max_interval must be positive when provided")
+                batch_proto.batch_max_interval = interval_ms
+
+            if self.batch.batch_group_key is not None:
+                batch_proto.batch_group_key = self.batch.batch_group_key
+
+            if self.batch.batch_group_max_runs is not None:
+                batch_proto.batch_group_max_runs = self.batch.batch_group_max_runs
 
             proto.batch.CopyFrom(batch_proto)
 

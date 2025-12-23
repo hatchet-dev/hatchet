@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import sleep from '@hatchet/util/sleep';
 import { hatchet } from '../hatchet-client';
 import { Worker } from '../../client/worker/worker';
+import type { Duration } from '../../client/duration';
 import type { JsonObject } from '../../types';
 
 describe('batch-task e2e', () => {
@@ -13,8 +14,8 @@ describe('batch-task e2e', () => {
   const batchWorkflow = hatchet.batchTask({
     name: workflowName,
     retries: 0,
-    batchSize: 3,
-    flushInterval: 200,
+    batchMaxSize: 3,
+    batchMaxInterval: '200ms',
     fn: (inputs: { Message: string }[]) =>
       inputs.map((input) => ({
         TransformedMessage: input.Message.toUpperCase(),
@@ -26,10 +27,10 @@ describe('batch-task e2e', () => {
     O extends JsonObject,
   >(config: {
     fn: (inputs: I[]) => O[] | Promise<O[]>;
-    batchSize: number;
-    flushInterval?: number;
-    batchKey?: string;
-    maxRuns?: number;
+    batchMaxSize: number;
+    batchMaxInterval?: Duration;
+    batchGroupKey?: string;
+    batchGroupMaxRuns?: number;
     name?: string;
     retries?: number;
   }) => {
@@ -37,15 +38,16 @@ describe('batch-task e2e', () => {
       throw new Error('Worker not initialized');
     }
 
-    const { fn, batchSize, flushInterval, batchKey, maxRuns, name, retries } = config;
+    const { fn, batchMaxSize, batchMaxInterval, batchGroupKey, batchGroupMaxRuns, name, retries } =
+      config;
 
     const workflow = hatchet.batchTask<I, O>({
       name: name ?? `batch-e2e-${randomUUID()}`,
       retries: retries ?? 0,
-      batchSize,
-      flushInterval,
-      batchKey,
-      maxRuns,
+      batchMaxSize,
+      batchMaxInterval,
+      batchGroupKey,
+      batchGroupMaxRuns,
       fn,
     });
 
@@ -107,9 +109,9 @@ describe('batch-task e2e', () => {
 
   it('partitions batches by key when batch size is reached', async () => {
     const keyedWorkflow = await createAndRegisterBatchWorkflow({
-      batchSize: 2,
-      flushInterval: 200,
-      batchKey: 'input.group',
+      batchMaxSize: 2,
+      batchMaxInterval: '200ms',
+      batchGroupKey: 'input.group',
       fn: (inputs: Array<{ Message: string; group: string }>) =>
         inputs.map((input) => ({
           batchKey: input.group,
@@ -139,9 +141,9 @@ describe('batch-task e2e', () => {
 
   it('flushes keyed batches independently when flush interval elapses', async () => {
     const keyedWorkflow = await createAndRegisterBatchWorkflow({
-      batchSize: 3,
-      flushInterval: 150,
-      batchKey: 'input.group',
+      batchMaxSize: 3,
+      batchMaxInterval: '150ms',
+      batchGroupKey: 'input.group',
       fn: (inputs: Array<{ Message: string; group: string }>) =>
         inputs.map((input) => ({
           batchKey: input.group,
@@ -169,8 +171,8 @@ describe('batch-task e2e', () => {
 
   it('handles batch size of one without keys', async () => {
     const singleItemWorkflow = await createAndRegisterBatchWorkflow({
-      batchSize: 1,
-      flushInterval: 100,
+      batchMaxSize: 1,
+      batchMaxInterval: '100ms',
       fn: (inputs: Array<{ Message: string }>) =>
         inputs.map((input) => ({
           original: input.Message,

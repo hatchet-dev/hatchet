@@ -914,10 +914,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         name: str | None = None,
         *,
-        batch_size: int,
-        flush_interval_ms: int | None = None,
-        batch_key: str | None = None,
-        max_runs: int | None = None,
+        batch_max_size: int,
+        batch_max_interval: Duration | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
@@ -947,19 +947,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         The handler must return a list of outputs with the same length as the input list.
         """
 
-        if batch_size <= 0:
-            raise ValueError("batch_size must be a positive integer")
+        if batch_max_size <= 0:
+            raise ValueError("batch_max_size must be a positive integer")
 
-        normalized_flush: int | None = None
-        if flush_interval_ms is not None:
-            if flush_interval_ms <= 0:
-                raise ValueError(
-                    "flush_interval_ms must be a positive integer when provided"
-                )
-            normalized_flush = flush_interval_ms
+        if batch_max_interval is not None and batch_max_interval.total_seconds() <= 0:
+            raise ValueError("batch_max_interval must be positive when provided")
 
-        if max_runs is not None and max_runs <= 0:
-            raise ValueError("max_runs must be a positive integer when provided")
+        if batch_group_max_runs is not None and batch_group_max_runs <= 0:
+            raise ValueError("batch_group_max_runs must be a positive integer when provided")
 
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
@@ -998,10 +993,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 skip_if=skip_if,
                 cancel_if=cancel_if,
                 batch=BatchTaskConfig(
-                    batch_size=batch_size,
-                    flush_interval_ms=normalized_flush,
-                    batch_key=batch_key,
-                    max_runs=max_runs,
+                    batch_max_size=batch_max_size,
+                    batch_max_interval=batch_max_interval,
+                    batch_group_key=batch_group_key,
+                    batch_group_max_runs=batch_group_max_runs,
                 ),
             )
 

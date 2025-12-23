@@ -512,10 +512,10 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
-        batch_size: int = ...,
-        flush_interval_ms: int | None = None,
-        batch_key: str | None = None,
-        max_runs: int | None = None,
+        batch_max_size: int = ...,
+        batch_max_interval: Duration | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
     ) -> Callable[
         [Callable[[list[EmptyModel], list[Context]], list[R] | CoroutineLike[list[R]]]],
         Standalone[EmptyModel, R],
@@ -542,10 +542,10 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
-        batch_size: int = ...,
-        flush_interval_ms: int | None = None,
-        batch_key: str | None = None,
-        max_runs: int | None = None,
+        batch_max_size: int = ...,
+        batch_max_interval: Duration | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
     ) -> Callable[
         [
             Callable[
@@ -575,10 +575,10 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
-        batch_size: int = 1,
-        flush_interval_ms: int | None = None,
-        batch_key: str | None = None,
-        max_runs: int | None = None,
+        batch_max_size: int = 1,
+        batch_max_interval: Duration | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
     ) -> Callable[
         [
             Callable[
@@ -637,10 +637,10 @@ class Hatchet:
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
-                batch_size=batch_size,
-                flush_interval_ms=flush_interval_ms,
-                batch_key=batch_key,
-                max_runs=max_runs,
+                batch_max_size=batch_max_size,
+                batch_max_interval=batch_max_interval,
+                batch_group_key=batch_group_key,
+                batch_group_max_runs=batch_group_max_runs,
             )
 
             created_task = task_wrapper(func)

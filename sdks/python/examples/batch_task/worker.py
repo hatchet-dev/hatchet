@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 
 from pydantic import BaseModel
 
@@ -17,10 +18,10 @@ workflow = hatchet.workflow(name="batch-task-example", input_validator=BatchInpu
 
 @workflow.batch_task(
     name="uppercase",
-    batch_size=2,
-    flush_interval_ms=500,
-    batch_key="input.group",
-    max_runs=1,
+    batch_max_size=3,
+    batch_max_interval=timedelta(milliseconds=500),
+    batch_group_key="input.group",
+    batch_group_max_runs=1,
 )
 async def uppercase(
     inputs: list[BatchInput], ctxs: list[Context]

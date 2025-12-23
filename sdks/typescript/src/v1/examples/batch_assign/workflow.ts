@@ -40,10 +40,10 @@ const toLower = dag.task({
 dag.batchTask({
   name: 'step-2',
   parents: [toLower],
-  batchSize: 200,
-  flushInterval: 10000,
-  batchKey: 'input.batchId',
-  maxRuns: 1,
+  batchMaxSize: 200,
+  batchMaxInterval: '10s',
+  batchGroupKey: 'input.batchId',
+  batchGroupMaxRuns: 1,
   fn: async (inputs, ctxs) => {
     const lowers = await Promise.all(ctxs.map((ctx) => ctx.parentOutput(toLower)));
 

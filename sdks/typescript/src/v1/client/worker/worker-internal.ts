@@ -36,6 +36,7 @@ import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { durationToMilliseconds } from '@hatchet/v1/client/duration';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
@@ -312,11 +313,11 @@ export class V1Worker {
       throw new HatchetError(`Batch configuration missing for task '${task.name}'`);
     }
 
-    const { batchSize } = batch;
+    const { batchMaxSize } = batch;
 
-    if (!Number.isInteger(batchSize) || batchSize <= 0) {
+    if (!Number.isInteger(batchMaxSize) || batchMaxSize <= 0) {
       throw new HatchetError(
-        `Batch task '${workflow.name}:${task.name}' must have a positive integer batchSize`
+        `Batch task '${workflow.name}:${task.name}' must have a positive integer batchMaxSize`
       );
     }
 
@@ -426,7 +427,7 @@ export class V1Worker {
 
         if (!state) {
           state = {
-            expectedSize: expectedSize > 0 ? expectedSize : batchSize,
+            expectedSize: expectedSize > 0 ? expectedSize : batchMaxSize,
             items: new Map<number, BatchQueueItem>(),
             started: true,
             batchKey,
@@ -701,12 +702,14 @@ export class V1Worker {
                 : [],
             batch: batchedTask.batch
               ? {
-                  batchSize: batchedTask.batch.batchSize,
-                  flushIntervalMs: batchedTask.batch.flushInterval,
-                  batchKey: batchedTask.batch.batchKey,
-                  maxRuns:
-                    typeof batchedTask.batch.maxRuns === 'number'
-                      ? batchedTask.batch.maxRuns
+                  batchMaxSize: batchedTask.batch.batchMaxSize,
+                  batchMaxInterval: batchedTask.batch.batchMaxInterval
+                    ? durationToMilliseconds(batchedTask.batch.batchMaxInterval)
+                    : undefined,
+                  batchGroupKey: batchedTask.batch.batchGroupKey,
+                  batchGroupMaxRuns:
+                    typeof batchedTask.batch.batchGroupMaxRuns === 'number'
+                      ? batchedTask.batch.batchGroupMaxRuns
                       : undefined,
                 }
               : undefined,

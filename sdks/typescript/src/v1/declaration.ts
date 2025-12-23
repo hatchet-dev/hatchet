@@ -150,10 +150,10 @@ export type CreateBatchTaskWorkflowOpts<
 > = CreateBaseWorkflowOpts &
   Omit<CreateWorkflowTaskOpts<I, O>, 'fn'> & {
     fn: BatchTaskFn<I, O>;
-    batchSize: number;
-    flushInterval?: number;
-    batchKey?: string;
-    maxRuns?: number;
+    batchMaxSize: number;
+    batchMaxInterval?: Duration;
+    batchGroupKey?: string;
+    batchGroupMaxRuns?: number;
   };
 
 export type CreateDurableTaskWorkflowOpts<
@@ -619,25 +619,21 @@ export class WorkflowDeclaration<
     if (options instanceof TaskWorkflowDeclaration) {
       typedOptions = options.taskDef;
     } else {
-      const { fn, batchSize, flushInterval, batchKey, maxRuns, ...rest } = options;
+      const { fn, batchMaxSize, batchMaxInterval, batchGroupKey, batchGroupMaxRuns, ...rest } =
+        options;
 
-      if (!Number.isFinite(batchSize) || batchSize <= 0 || !Number.isInteger(batchSize)) {
-        throw new Error(`batchSize must be a positive integer, received '${batchSize}'`);
+      if (!Number.isFinite(batchMaxSize) || batchMaxSize <= 0 || !Number.isInteger(batchMaxSize)) {
+        throw new Error(`batchMaxSize must be a positive integer, received '${batchMaxSize}'`);
       }
-
-      const normalizedFlush =
-        flushInterval && Number.isFinite(flushInterval) && flushInterval > 0
-          ? flushInterval
-          : undefined;
 
       typedOptions = {
         ...(rest as any),
         batch: {
           fn,
-          batchSize,
-          flushInterval: normalizedFlush,
-          batchKey,
-          maxRuns,
+          batchMaxSize,
+          batchMaxInterval,
+          batchGroupKey,
+          batchGroupMaxRuns,
         },
       } as CreateWorkflowTaskOpts<I, TO> & { batch: BatchTaskConfig<I, TO> };
     }
@@ -889,25 +885,20 @@ export function CreateBatchTaskWorkflow<
   options: CreateBatchTaskWorkflowOpts<I, O>,
   client?: IHatchetClient
 ): TaskWorkflowDeclaration<I, O> {
-  const { fn, batchSize, flushInterval, batchKey, maxRuns, ...rest } = options;
+  const { fn, batchMaxSize, batchMaxInterval, batchGroupKey, batchGroupMaxRuns, ...rest } = options;
 
-  if (!Number.isFinite(batchSize) || batchSize <= 0 || !Number.isInteger(batchSize)) {
-    throw new Error(`batchSize must be a positive integer, received '${batchSize}'`);
+  if (!Number.isFinite(batchMaxSize) || batchMaxSize <= 0 || !Number.isInteger(batchMaxSize)) {
+    throw new Error(`batchMaxSize must be a positive integer, received '${batchMaxSize}'`);
   }
-
-  const normalizedFlush =
-    flushInterval && Number.isFinite(flushInterval) && flushInterval > 0
-      ? flushInterval
-      : undefined;
 
   const taskOptions = {
     ...rest,
     batch: {
       fn,
-      batchSize,
-      flushInterval: normalizedFlush,
-      batchKey,
-      maxRuns,
+      batchMaxSize,
+      batchMaxInterval,
+      batchGroupKey,
+      batchGroupMaxRuns,
     },
   } as CreateWorkflowTaskOpts<I, O> & { batch: BatchTaskConfig<I, O> };
 

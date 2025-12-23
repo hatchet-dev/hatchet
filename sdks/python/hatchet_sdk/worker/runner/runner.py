@@ -113,7 +113,10 @@ class _BatchController:
         if not failed:
             return
 
-        if failed.expected_size > 0 and len(failed.failed_indices) >= failed.expected_size:
+        if (
+            failed.expected_size > 0
+            and len(failed.failed_indices) >= failed.expected_size
+        ):
             self.failed_batches.pop(batch_id, None)
 
     def fail_batch(
@@ -505,7 +508,7 @@ class Runner:
 
         batch_cfg = controller.task.batch
         default_batch_size = (
-            batch_cfg.batch_size if batch_cfg is not None else expected_size
+            batch_cfg.batch_max_size if batch_cfg is not None else expected_size
         )
 
         try:
@@ -527,7 +530,9 @@ class Runner:
             controller.fail_batch(
                 batch_id=action.batch_id,
                 exc=e,
-                expected_size=(expected_size if expected_size > 0 else default_batch_size),
+                expected_size=(
+                    expected_size if expected_size > 0 else default_batch_size
+                ),
             )
             logger.exception(
                 f"failed to handle START_BATCH for '{action_id}' batch {action.batch_id}: {e}"
