@@ -576,17 +576,12 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtyp
 	input, exists := payloads[workflowRunId]
 
 	if !exists {
-		r.l.Error().Msgf("ReadTaskRunData: task with external_id %s and inserted_at %s has empty payload, falling back to input", workflowRunId, taskRun.InsertedAt.Time)
 		input = taskRun.Input
 	}
 
 	output, exists := payloads[taskRun.OutputEventExternalID]
 
 	if !exists {
-		if taskRun.OutputEventExternalID.Valid && taskRun.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-			r.l.Error().Msgf("ReadTaskRunData: task with external_id %s and inserted_at %s has empty payload, falling back to output (lookup key: %s)", taskRun.ExternalID, taskRun.InsertedAt.Time, taskRun.OutputEventExternalID)
-		}
-
 		output = taskRun.Output
 	}
 
@@ -767,18 +762,12 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		input, exists := payloads[task.ExternalID]
 
 		if !exists {
-			if opts.IncludePayloads && task.ExternalID.Valid {
-				r.l.Error().Msgf("ListTasks: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
-			}
 			input = task.Input
 		}
 
 		output, exists := payloads[task.OutputEventExternalID]
 
 		if !exists {
-			if opts.IncludePayloads && task.OutputEventExternalID.Valid && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-				r.l.Error().Msgf("ListTasks: task with external_id %s and inserted_at %s has empty payload, falling back to output (lookup key: %s)", task.ExternalID, task.InsertedAt.Time, task.OutputEventExternalID)
-			}
 			output = task.Output
 		}
 
@@ -861,19 +850,12 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 		input, exists := payloads[task.ExternalID]
 
 		if !exists {
-			if includePayloads && task.ExternalID.Valid {
-				r.l.Error().Msgf("ListTasksByDAGId: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
-			}
 			input = task.Input
 		}
 
 		output, exists := payloads[task.OutputEventExternalID]
 
 		if !exists {
-			if includePayloads && task.OutputEventExternalID.Valid && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-				r.l.Error().Msgf("ListTasksByDAGId: task with external_id %s and inserted_at %s has empty payload, falling back to output (lookup key: %s)", task.ExternalID, task.InsertedAt.Time, task.OutputEventExternalID)
-			}
-
 			output = task.Output
 		}
 
@@ -941,18 +923,12 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 		input, exists := payloads[task.ExternalID]
 
 		if !exists {
-			if includePayloads && task.ExternalID.Valid {
-				r.l.Error().Msgf("ListTasksByIdAndInsertedAt-1: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
-			}
 			input = task.Input
 		}
 
 		output, exists := payloads[task.OutputEventExternalID]
 
 		if !exists {
-			if includePayloads && task.OutputEventExternalID.Valid && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-				r.l.Error().Msgf("ListTasksByIdAndInsertedAt-2: task with external_id %s and inserted_at %s has empty payload, falling back to output (lookup key: %s)", task.ExternalID, task.InsertedAt.Time, task.OutputEventExternalID)
-			}
 			output = task.Output
 		}
 

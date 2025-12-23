@@ -197,7 +197,6 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		}]
 
 		if !ok {
-			s.l.Error().Msgf("generateExternalIdsForChildWorkflows: task has empty payload, falling back to input")
 			payload = lockedEvent.Data
 		}
 
