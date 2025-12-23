@@ -52,7 +52,7 @@ export function TenantSwitcher({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          aria-label="Select a team"
+          aria-label="Select a tenant"
           className={cn('justify-between', className)}
           fullWidth
         >
@@ -93,7 +93,10 @@ export function TenantSwitcher({
             <>
               <CommandSeparator />
               <CommandList>
-                <Link to={appRoutes.onboardingCreateTenantRoute.to}>
+                <Link
+                  to={appRoutes.onboardingCreateTenantRoute.to}
+                  data-cy="new-tenant"
+                >
                   <CommandItem className="cursor-pointer text-sm">
                     <PlusCircledIcon className="mr-2 size-4" />
                     New Tenant

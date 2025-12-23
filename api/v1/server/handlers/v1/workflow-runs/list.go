@@ -19,7 +19,7 @@ import (
 )
 
 func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId string) (gen.V1WorkflowRunListResponseObject, error) {
-	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
+	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
 
 	var (

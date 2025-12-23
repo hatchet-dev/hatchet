@@ -18,6 +18,9 @@ type WorkerRepository interface {
 	ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
 	GetWorkerById(workerId string) (*sqlcv1.GetWorkerByIdRow, error)
 	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error)
+	CountActiveSlotsPerTenant() (map[string]int64, error)
+	CountActiveWorkersPerTenant() (map[string]int64, error)
+	ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error)
 }
 
 type workerRepository struct {
@@ -88,4 +91,75 @@ func (w *workerRepository) ListWorkerState(tenantId, workerId string, maxRuns in
 	}
 
 	return slots, []*dbsqlc.GetStepRunForEngineRow{}, nil
+}
+
+func (w *workerRepository) CountActiveSlotsPerTenant() (map[string]int64, error) {
+	slots, err := w.queries.ListTotalActiveSlotsPerTenant(context.Background(), w.pool)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list active slots per tenant: %w", err)
+	}
+
+	tenantToSlots := make(map[string]int64)
+
+	for _, slot := range slots {
+		tenantToSlots[slot.TenantId.String()] = slot.TotalActiveSlots
+	}
+
+	return tenantToSlots, nil
+}
+
+type SDK struct {
+	OperatingSystem string
+	Language        string
+	LanguageVersion string
+	SdkVersion      string
+}
+
+type TenantIdSDKTuple struct {
+	TenantId string
+	SDK      SDK
+}
+
+func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error) {
+	sdks, err := w.queries.ListActiveSDKsPerTenant(context.Background(), w.pool)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list active sdks per tenant: %w", err)
+	}
+
+	tenantIdSDKTupleToCount := make(map[TenantIdSDKTuple]int64)
+
+	for _, sdk := range sdks {
+		tenantId := sdk.TenantId.String()
+		tenantIdSdkTuple := TenantIdSDKTuple{
+			TenantId: tenantId,
+			SDK: SDK{
+				OperatingSystem: sdk.Os,
+				Language:        sdk.Language,
+				LanguageVersion: sdk.LanguageVersion,
+				SdkVersion:      sdk.SdkVersion,
+			},
+		}
+
+		tenantIdSDKTupleToCount[tenantIdSdkTuple] = sdk.Count
+	}
+
+	return tenantIdSDKTupleToCount, nil
+}
+
+func (w *workerRepository) CountActiveWorkersPerTenant() (map[string]int64, error) {
+	workers, err := w.queries.ListActiveWorkersPerTenant(context.Background(), w.pool)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list active workers per tenant: %w", err)
+	}
+
+	tenantToWorkers := make(map[string]int64)
+
+	for _, worker := range workers {
+		tenantToWorkers[worker.TenantId.String()] = worker.Count
+	}
+
+	return tenantToWorkers, nil
 }

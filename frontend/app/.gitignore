@@ -26,3 +26,8 @@ dist-ssr
 # Sentry Config File
 .env.sentry-build-plugin
 src/lib/generated
+
+# Cypress
+cypress/screenshots
+cypress/videos
+cypress/support/seeded-users.generated.ts

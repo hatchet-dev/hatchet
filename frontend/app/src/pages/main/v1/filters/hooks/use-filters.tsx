@@ -130,7 +130,7 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
 
         return {
           ...Object.fromEntries(prev.entries()),
-          [paramKey]: JSON.stringify(filterState),
+          [paramKey]: filterState,
         };
       });
     },

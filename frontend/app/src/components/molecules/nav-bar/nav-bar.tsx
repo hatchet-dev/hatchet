@@ -1,5 +1,3 @@
-import hatchet from '@/assets/hatchet_logo.png';
-import hatchetDark from '@/assets/hatchet_logo_dark.png';
 import { useSidebar } from '@/components/sidebar-provider';
 import { useTheme } from '@/components/theme-provider';
 import {
@@ -20,6 +18,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
+import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -147,7 +146,7 @@ function AccountDropdown({ user }: { user: User }) {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">
+            <p className="text-sm font-medium leading-none" data-cy="user-name">
               {user.name || user.email}
             </p>
             <p className="text-xs leading-none text-gray-700 dark:text-gray-300">
@@ -192,57 +191,50 @@ interface MainNavProps {
 
 export default function MainNav({ user }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
-  const { theme } = useTheme();
   const breadcrumbs = useBreadcrumbs();
 
   return (
-    <div className="fixed top-0 z-50 w-screen">
-      <div className="h-16 border-b bg-background">
-        <div className="flex h-16 items-center pl-4 pr-4">
-          <div className="flex flex-row items-center gap-x-8">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="icon"
-                onClick={() => toggleSidebarOpen()}
-                aria-label="Toggle sidebar"
-                size="icon"
-              >
-                <Menu className="size-4" />
-              </Button>
-              <img
-                src={theme == 'dark' ? hatchet : hatchetDark}
-                alt="Hatchet"
-                className="h-9 rounded"
-              />
-            </div>
-            {breadcrumbs.length > 0 && (
-              <Breadcrumb className="hidden md:block">
-                <BreadcrumbList>
-                  {breadcrumbs.map((crumb, index) => (
-                    <React.Fragment key={index}>
-                      {index > 0 && <BreadcrumbSeparator />}
-                      <BreadcrumbItem>
-                        {crumb.isCurrentPage ? (
-                          <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-                        ) : (
-                          <BreadcrumbLink href={crumb.href}>
-                            {crumb.label}
-                          </BreadcrumbLink>
-                        )}
-                      </BreadcrumbItem>
-                    </React.Fragment>
-                  ))}
-                </BreadcrumbList>
-              </Breadcrumb>
-            )}
+    <header className="z-50 h-16 w-full border-b bg-background">
+      <div className="flex h-16 items-center pl-4 pr-4">
+        <div className="flex flex-row items-center gap-x-8">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="icon"
+              onClick={() => toggleSidebarOpen()}
+              aria-label="Toggle sidebar"
+              size="icon"
+            >
+              <Menu className="size-4" />
+            </Button>
+            <HatchetLogo className="h-6 w-auto" />
           </div>
+          {breadcrumbs.length > 0 && (
+            <Breadcrumb className="hidden md:block">
+              <BreadcrumbList>
+                {breadcrumbs.map((crumb, index) => (
+                  <React.Fragment key={index}>
+                    {index > 0 && <BreadcrumbSeparator />}
+                    <BreadcrumbItem>
+                      {crumb.isCurrentPage ? (
+                        <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                      ) : (
+                        <BreadcrumbLink href={crumb.href}>
+                          {crumb.label}
+                        </BreadcrumbLink>
+                      )}
+                    </BreadcrumbItem>
+                  </React.Fragment>
+                ))}
+              </BreadcrumbList>
+            </Breadcrumb>
+          )}
+        </div>
 
-          <div className="ml-auto flex items-center gap-2">
-            <HelpDropdown />
-            <AccountDropdown user={user} />
-          </div>
+        <div className="ml-auto flex items-center gap-2">
+          <HelpDropdown />
+          <AccountDropdown user={user} />
         </div>
       </div>
-    </div>
+    </header>
   );
 }

@@ -455,18 +455,6 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	return nil
 }
 
-func getMessageSize(m *msgqueue.Message) int {
-	payloadSize := getPayloadSize(m.Payloads)
-
-	size := payloadSize + len(m.TenantID) + len(m.ID) + 4 // 4 bytes for other fields
-
-	for k, v := range m.OtelCarrier {
-		size += len(k) + len(v)
-	}
-
-	return size
-}
-
 // Subscribe subscribes to the msg queue.
 func (t *MessageQueueImpl) Subscribe(
 	q msgqueue.Queue,

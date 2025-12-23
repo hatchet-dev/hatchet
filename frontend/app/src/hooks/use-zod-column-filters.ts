@@ -21,14 +21,17 @@ export function useZodColumnFilters<T extends z.ZodType>(
 
   const state = useMemo((): z.infer<T> => {
     const rawValue = searchParams.get(key);
+
     if (!rawValue) {
       return schema.parse({});
     }
 
     try {
-      const parsed = JSON.parse(rawValue);
-      return schema.parse(parsed);
-    } catch {
+      const parsed =
+        typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue;
+      const validated = schema.parse(parsed);
+      return validated;
+    } catch (e) {
       return schema.parse({});
     }
   }, [searchParams, key, schema]);
@@ -37,7 +40,7 @@ export function useZodColumnFilters<T extends z.ZodType>(
     (newValue: z.infer<T>) => {
       setSearchParams((prev) => ({
         ...Object.fromEntries(prev.entries()),
-        [key]: JSON.stringify(newValue),
+        [key]: newValue,
       }));
     },
     [key, setSearchParams],

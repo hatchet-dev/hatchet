@@ -1,3 +1,4 @@
+import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/side-panel';
 import { useSidebar } from '@/components/sidebar-provider';
 import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
@@ -18,8 +19,7 @@ import {
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
 import { cn } from '@/lib/utils';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
-import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import {
   CalendarDaysIcon,
@@ -49,16 +49,14 @@ function Main() {
 
   return (
     <SidePanelProvider>
-      <div className="flex h-full w-full flex-1 flex-row">
-        <Sidebar memberships={memberships} />
-        <div
-          className="flex-grow overflow-y-auto overflow-x-hidden px-8 py-4"
-          style={{ containerType: 'inline-size' }}
-        >
-          <OutletWithContext context={childCtx} />
-        </div>
-        <SidePanel />
-      </div>
+      <ThreeColumnLayout
+        sidebar={<Sidebar memberships={memberships} />}
+        sidePanel={<SidePanel />}
+        mainClassName="overflow-auto px-8 py-4"
+        mainContainerType="inline-size"
+      >
+        <OutletWithContext context={childCtx} />
+      </ThreeColumnLayout>
     </SidePanelProvider>
   );
 }
@@ -73,8 +71,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
   const { tenantId } = useCurrentTenantId();
 
-  const { data: cloudMeta, isCloudEnabled } = useCloudApiMeta();
-  const featureFlags = useCloudFeatureFlags(tenantId);
+  const { cloud, isCloudEnabled, featureFlags } = useCloud(tenantId);
 
   const onNavLinkClick = useCallback(() => {
     if (window.innerWidth > 768) {
@@ -90,200 +87,214 @@ function Sidebar({ className, memberships }: SidebarProps) {
 
   return (
     <div
+      data-cy="v1-sidebar"
       className={cn(
-        'absolute top-16 z-[100] h-full w-full overflow-y-auto border-r bg-slate-100 dark:bg-slate-900 md:relative md:top-0 md:w-64 md:min-w-64 md:bg-[unset] md:dark:bg-[unset]',
+        // On mobile, overlay the content area (which is already positioned below the fixed header).
+        // On desktop, participate in the grid as a fixed-width sidebar.
+        'absolute inset-x-0 top-0 bottom-0 z-[100] w-full overflow-hidden border-r bg-slate-100 dark:bg-slate-900 md:relative md:inset-auto md:top-0 md:bottom-auto md:h-full md:w-64 md:min-w-64 md:bg-[unset] md:dark:bg-[unset]',
         className,
       )}
     >
-      <div className="flex h-full flex-col items-start justify-between space-y-4 px-4 py-4 pb-16 md:pb-4">
-        <div className="w-full grow">
-          <div className="py-2">
-            <h2 className="mb-2 text-lg font-semibold tracking-tight">
-              Activity
-            </h2>
-            <div className="flex flex-col gap-y-1">
-              <SidebarButtonPrimary
-                key="runs"
-                onNavLinkClick={onNavLinkClick}
-                to={appRoutes.tenantRunsRoute.to}
-                params={{ tenant: tenantId }}
-                name="Runs"
-                icon={<PlayIcon className="mr-2 size-4" />}
-              />
-              <SidebarButtonPrimary
-                key="events"
-                onNavLinkClick={onNavLinkClick}
-                to={appRoutes.tenantEventsRoute.to}
-                params={{ tenant: tenantId }}
-                name="Events"
-                icon={<SquareActivityIcon className="mr-2 size-4" />}
-              />
-            </div>
-          </div>
-          <div className="py-2">
-            <h2 className="mb-2 text-lg font-semibold tracking-tight">
-              Triggers
-            </h2>
-            <div className="space-y-1">
-              <SidebarButtonPrimary
-                key="scheduled"
-                onNavLinkClick={onNavLinkClick}
-                to={appRoutes.tenantScheduledRoute.to}
-                params={{ tenant: tenantId }}
-                name="Scheduled Runs"
-                icon={<CalendarDaysIcon className="mr-2 size-4" />}
-              />
-              <SidebarButtonPrimary
-                key="crons"
-                onNavLinkClick={onNavLinkClick}
-                to={appRoutes.tenantCronJobsRoute.to}
-                params={{ tenant: tenantId }}
-                name="Cron Jobs"
-                icon={<ClockIcon className="mr-2 size-4" />}
-              />
-              <SidebarButtonPrimary
-                key="webhooks"
-                onNavLinkClick={onNavLinkClick}
-                to={appRoutes.tenantWebhooksRoute.to}
-                params={{ tenant: tenantId }}
-                name="Webhooks"
-                icon={<WebhookIcon className="mr-2 h-4 w-4" />}
-              />
-            </div>
-          </div>
-          <div className="py-2">
-            <h2 className="mb-2 text-lg font-semibold tracking-tight">
-              Resources
-            </h2>
-            <div className="space-y-1">
-              <SidebarButtonPrimary
-                key="workers"
-                onNavLinkClick={onNavLinkClick}
-                to={appRoutes.tenantWorkersRoute.to}
-                params={{ tenant: tenantId }}
-                name="Workers"
-                icon={<ServerStackIcon className="mr-2 size-4" />}
-              />
-              <SidebarButtonPrimary
-                key="workflows"
-                onNavLinkClick={onNavLinkClick}
-                to={appRoutes.tenantWorkflowsRoute.to}
-                params={{ tenant: tenantId }}
-                name="Workflows"
-                icon={<Squares2X2Icon className="mr-2 size-4" />}
-              />
-              {featureFlags?.data['managed-worker'] && (
+      <div className="flex h-full flex-col overflow-hidden">
+        {/* Scrollable navigation area (keep scrollbar flush to sidebar edge) */}
+        <div
+          data-cy="v1-sidebar-scroll"
+          className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground"
+        >
+          <div className="px-4 py-4">
+            <div className="py-2">
+              <h2 className="mb-2 text-lg font-semibold tracking-tight">
+                Activity
+              </h2>
+              <div className="flex flex-col gap-y-1">
                 <SidebarButtonPrimary
-                  key="managed-compute"
+                  key="runs"
                   onNavLinkClick={onNavLinkClick}
-                  to={appRoutes.tenantManagedWorkersRoute.to}
+                  to={appRoutes.tenantRunsRoute.to}
                   params={{ tenant: tenantId }}
-                  name="Managed Compute"
-                  icon={<CpuChipIcon className="mr-2 size-4" />}
+                  name="Runs"
+                  icon={<PlayIcon className="mr-2 size-4" />}
                 />
-              )}
-              <SidebarButtonPrimary
-                key="rate-limits"
-                onNavLinkClick={onNavLinkClick}
-                to={appRoutes.tenantRateLimitsRoute.to}
-                params={{ tenant: tenantId }}
-                name="Rate Limits"
-                icon={<ScaleIcon className="mr-2 size-4" />}
-              />
-              <SidebarButtonPrimary
-                key="filters"
-                onNavLinkClick={onNavLinkClick}
-                to={appRoutes.tenantFiltersRoute.to}
-                params={{ tenant: tenantId }}
-                name="Filters"
-                icon={<Filter className="mr-2 size-4" />}
-              />
+                <SidebarButtonPrimary
+                  key="events"
+                  onNavLinkClick={onNavLinkClick}
+                  to={appRoutes.tenantEventsRoute.to}
+                  params={{ tenant: tenantId }}
+                  name="Events"
+                  icon={<SquareActivityIcon className="mr-2 size-4" />}
+                />
+              </div>
             </div>
-          </div>
-          <div className="py-2">
-            <h2 className="mb-2 text-lg font-semibold tracking-tight">
-              Settings
-            </h2>
-            <div className="space-y-1">
-              <SidebarButtonPrimary
-                key="tenant-settings"
-                onNavLinkClick={onNavLinkClick}
-                to={appRoutes.tenantSettingsOverviewRoute.to}
-                params={{ tenant: tenantId }}
-                prefix={appRoutes.tenantSettingsIndexRoute.to}
-                name="General"
-                icon={<GearIcon className="mr-2 size-4" />}
-                collapsibleChildren={[
-                  <SidebarButtonSecondary
-                    key="tenant-settings-overview"
+            <div className="py-2">
+              <h2 className="mb-2 text-lg font-semibold tracking-tight">
+                Triggers
+              </h2>
+              <div className="space-y-1">
+                <SidebarButtonPrimary
+                  key="scheduled"
+                  onNavLinkClick={onNavLinkClick}
+                  to={appRoutes.tenantScheduledRoute.to}
+                  params={{ tenant: tenantId }}
+                  name="Scheduled Runs"
+                  icon={<CalendarDaysIcon className="mr-2 size-4" />}
+                />
+                <SidebarButtonPrimary
+                  key="crons"
+                  onNavLinkClick={onNavLinkClick}
+                  to={appRoutes.tenantCronJobsRoute.to}
+                  params={{ tenant: tenantId }}
+                  name="Cron Jobs"
+                  icon={<ClockIcon className="mr-2 size-4" />}
+                />
+                <SidebarButtonPrimary
+                  key="webhooks"
+                  onNavLinkClick={onNavLinkClick}
+                  to={appRoutes.tenantWebhooksRoute.to}
+                  params={{ tenant: tenantId }}
+                  name="Webhooks"
+                  icon={<WebhookIcon className="mr-2 h-4 w-4" />}
+                />
+              </div>
+            </div>
+            <div className="py-2">
+              <h2 className="mb-2 text-lg font-semibold tracking-tight">
+                Resources
+              </h2>
+              <div className="space-y-1">
+                <SidebarButtonPrimary
+                  key="workers"
+                  onNavLinkClick={onNavLinkClick}
+                  to={appRoutes.tenantWorkersRoute.to}
+                  params={{ tenant: tenantId }}
+                  name="Workers"
+                  icon={<ServerStackIcon className="mr-2 size-4" />}
+                />
+                <SidebarButtonPrimary
+                  key="workflows"
+                  onNavLinkClick={onNavLinkClick}
+                  to={appRoutes.tenantWorkflowsRoute.to}
+                  params={{ tenant: tenantId }}
+                  name="Workflows"
+                  icon={<Squares2X2Icon className="mr-2 size-4" />}
+                />
+                {featureFlags?.['managed-worker'] && (
+                  <SidebarButtonPrimary
+                    key="managed-compute"
                     onNavLinkClick={onNavLinkClick}
-                    to={appRoutes.tenantSettingsOverviewRoute.to}
+                    to={appRoutes.tenantManagedWorkersRoute.to}
                     params={{ tenant: tenantId }}
-                    name="Overview"
-                  />,
-                  <SidebarButtonSecondary
-                    key="tenant-settings-api-tokens"
-                    onNavLinkClick={onNavLinkClick}
-                    to={appRoutes.tenantSettingsApiTokensRoute.to}
-                    params={{ tenant: tenantId }}
-                    name="API Tokens"
-                  />,
-                  <SidebarButtonSecondary
-                    key="tenant-settings-github"
-                    onNavLinkClick={onNavLinkClick}
-                    to={appRoutes.tenantSettingsGithubRoute.to}
-                    params={{ tenant: tenantId }}
-                    name="Github"
-                  />,
-                  <SidebarButtonSecondary
-                    key="tenant-settings-members"
-                    onNavLinkClick={onNavLinkClick}
-                    to={appRoutes.tenantSettingsMembersRoute.to}
-                    params={{ tenant: tenantId }}
-                    name="Members"
-                  />,
-                  <SidebarButtonSecondary
-                    key="tenant-settings-billing-and-limits"
-                    onNavLinkClick={onNavLinkClick}
-                    to={appRoutes.tenantSettingsBillingRoute.to}
-                    params={{ tenant: tenantId }}
-                    name={
-                      cloudMeta?.data.canBill
-                        ? 'Billing & Limits'
-                        : 'Resource Limits'
-                    }
-                  />,
-                  <SidebarButtonSecondary
-                    key="tenant-settings-alerting"
-                    onNavLinkClick={onNavLinkClick}
-                    to={appRoutes.tenantSettingsAlertingRoute.to}
-                    params={{ tenant: tenantId }}
-                    name="Alerting"
-                  />,
-                  <SidebarButtonSecondary
-                    key="tenant-settings-ingestors"
-                    onNavLinkClick={onNavLinkClick}
-                    to={appRoutes.tenantSettingsIngestorsRoute.to}
-                    params={{ tenant: tenantId }}
-                    name="Ingestors"
-                  />,
-                  <SidebarButtonSecondary
-                    key="quickstart"
-                    onNavLinkClick={onNavLinkClick}
-                    to={appRoutes.tenantOnboardingGetStartedRoute.to}
-                    params={{ tenant: tenantId }}
-                    name="Quickstart"
-                  />,
-                ]}
-              />
+                    name="Managed Compute"
+                    icon={<CpuChipIcon className="mr-2 size-4" />}
+                  />
+                )}
+                <SidebarButtonPrimary
+                  key="rate-limits"
+                  onNavLinkClick={onNavLinkClick}
+                  to={appRoutes.tenantRateLimitsRoute.to}
+                  params={{ tenant: tenantId }}
+                  name="Rate Limits"
+                  icon={<ScaleIcon className="mr-2 size-4" />}
+                />
+                <SidebarButtonPrimary
+                  key="filters"
+                  onNavLinkClick={onNavLinkClick}
+                  to={appRoutes.tenantFiltersRoute.to}
+                  params={{ tenant: tenantId }}
+                  name="Filters"
+                  icon={<Filter className="mr-2 size-4" />}
+                />
+              </div>
+            </div>
+            <div className="py-2">
+              <h2 className="mb-2 text-lg font-semibold tracking-tight">
+                Settings
+              </h2>
+              <div className="space-y-1">
+                <SidebarButtonPrimary
+                  key="tenant-settings"
+                  onNavLinkClick={onNavLinkClick}
+                  to={appRoutes.tenantSettingsOverviewRoute.to}
+                  params={{ tenant: tenantId }}
+                  prefix={appRoutes.tenantSettingsIndexRoute.to}
+                  name="General"
+                  icon={<GearIcon className="mr-2 size-4" />}
+                  collapsibleChildren={[
+                    <SidebarButtonSecondary
+                      key="tenant-settings-overview"
+                      onNavLinkClick={onNavLinkClick}
+                      to={appRoutes.tenantSettingsOverviewRoute.to}
+                      params={{ tenant: tenantId }}
+                      name="Overview"
+                    />,
+                    <SidebarButtonSecondary
+                      key="tenant-settings-api-tokens"
+                      onNavLinkClick={onNavLinkClick}
+                      to={appRoutes.tenantSettingsApiTokensRoute.to}
+                      params={{ tenant: tenantId }}
+                      name="API Tokens"
+                    />,
+                    <SidebarButtonSecondary
+                      key="tenant-settings-github"
+                      onNavLinkClick={onNavLinkClick}
+                      to={appRoutes.tenantSettingsGithubRoute.to}
+                      params={{ tenant: tenantId }}
+                      name="Github"
+                    />,
+                    <SidebarButtonSecondary
+                      key="tenant-settings-members"
+                      onNavLinkClick={onNavLinkClick}
+                      to={appRoutes.tenantSettingsMembersRoute.to}
+                      params={{ tenant: tenantId }}
+                      name="Members"
+                    />,
+                    <SidebarButtonSecondary
+                      key="tenant-settings-billing-and-limits"
+                      onNavLinkClick={onNavLinkClick}
+                      to={appRoutes.tenantSettingsBillingRoute.to}
+                      params={{ tenant: tenantId }}
+                      name={
+                        cloud?.canBill ? 'Billing & Limits' : 'Resource Limits'
+                      }
+                    />,
+                    <SidebarButtonSecondary
+                      key="tenant-settings-alerting"
+                      onNavLinkClick={onNavLinkClick}
+                      to={appRoutes.tenantSettingsAlertingRoute.to}
+                      params={{ tenant: tenantId }}
+                      name="Alerting"
+                    />,
+                    <SidebarButtonSecondary
+                      key="tenant-settings-ingestors"
+                      onNavLinkClick={onNavLinkClick}
+                      to={appRoutes.tenantSettingsIngestorsRoute.to}
+                      params={{ tenant: tenantId }}
+                      name="Ingestors"
+                    />,
+                    <SidebarButtonSecondary
+                      key="quickstart"
+                      onNavLinkClick={onNavLinkClick}
+                      to={appRoutes.tenantOnboardingGetStartedRoute.to}
+                      params={{ tenant: tenantId }}
+                      name="Quickstart"
+                    />,
+                  ]}
+                />
+              </div>
             </div>
           </div>
         </div>
-        {isCloudEnabled ? (
-          <OrganizationSelector memberships={memberships} />
-        ) : (
-          <TenantSwitcher memberships={memberships} />
-        )}
+
+        {/* Fixed footer: tenant/org picker is always visible and takes up space */}
+        <div
+          data-cy="v1-sidebar-footer"
+          className="w-full shrink-0 border-t border-slate-200 px-4 py-4 dark:border-slate-800"
+        >
+          {isCloudEnabled ? (
+            <OrganizationSelector memberships={memberships} />
+          ) : (
+            <TenantSwitcher memberships={memberships} />
+          )}
+        </div>
       </div>
     </div>
   );

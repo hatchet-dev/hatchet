@@ -175,6 +175,10 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/scheduledList"
   /api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}:
     $ref: "./paths/workflow/workflow.yaml#/scheduled"
+  /api/v1/tenants/{tenant}/workflows/scheduled/bulk-delete:
+    $ref: "./paths/workflow/workflow.yaml#/scheduledBulkDelete"
+  /api/v1/tenants/{tenant}/workflows/scheduled/bulk-update:
+    $ref: "./paths/workflow/workflow.yaml#/scheduledBulkUpdate"
   /api/v1/tenants/{tenant}/workflows/{workflow}/crons:
     $ref: "./paths/workflow/workflow.yaml#/cronsCreate"
   /api/v1/tenants/{tenant}/workflows/crons:
