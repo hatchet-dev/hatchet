@@ -29,6 +29,7 @@ type Profile struct {
 	ExpiresAt    time.Time `mapstructure:"expiresAt" json:"expiresAt"`
 	ApiServerURL string    `mapstructure:"apiServerURL" json:"apiServerURL"`
 	GrpcHostPort string    `mapstructure:"grpcHostPort" json:"grpcHostPort"`
+	TLSStrategy  string    `mapstructure:"tlsStrategy" json:"tlsStrategy" default:"tls"`
 }
 
 type CLIConfigLogger struct {

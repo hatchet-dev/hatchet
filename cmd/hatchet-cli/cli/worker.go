@@ -21,6 +21,8 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/patternmatcher"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+
+	cliconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
 )
 
 var c *worker.WorkerConfig
@@ -117,8 +119,6 @@ func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileF
 	if err != nil {
 		cli.Logger.Fatalf("could not get profile '%s': %v", selectedProfile, err)
 	}
-
-	apiToken := profile.Token
 
 	interruptChan := cmdutils.InterruptChan()
 
@@ -300,7 +300,7 @@ func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileF
 							cli.Logger.Fatalf("error parsing run command: %v", err)
 						}
 
-						err = startProcess(args, apiToken)
+						err = startProcess(args, profile)
 						if err != nil {
 							cli.Logger.Fatalf("error restarting worker: %v", err)
 						}
@@ -322,7 +322,7 @@ func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileF
 		cli.Logger.Fatalf("error parsing run command: %v", err)
 	}
 
-	err = startProcess(args, apiToken)
+	err = startProcess(args, profile)
 	if err != nil {
 		cli.Logger.Fatalf("error starting worker: %v", err)
 	}
@@ -385,7 +385,7 @@ func killProcess() {
 	}
 }
 
-func startProcess(args []string, apiToken string) error {
+func startProcess(args []string, profile *cliconfig.Profile) error {
 	procLk.Lock()
 	defer procLk.Unlock()
 
@@ -403,7 +403,12 @@ func startProcess(args []string, apiToken string) error {
 		Setpgid: true,
 	}
 
-	procCmd.Env = append(os.Environ(), fmt.Sprintf("HATCHET_CLIENT_TOKEN=%s", apiToken), "HATCHET_CLIENT_TLS_STRATEGY=none")
+	procCmd.Env = append(os.Environ(), fmt.Sprintf("HATCHET_CLIENT_TOKEN=%s", profile.Token))
+
+	if profile.TLSStrategy != "tls" { // tls is the default on all SDKs
+		procCmd.Env = append(procCmd.Env, "HATCHET_CLIENT_TLS_STRATEGY="+profile.TLSStrategy)
+	}
+
 	procCmd.Stdout = os.Stdout
 	procCmd.Stderr = os.Stderr
 

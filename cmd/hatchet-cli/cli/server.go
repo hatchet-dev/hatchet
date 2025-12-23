@@ -132,7 +132,7 @@ func startLocalServer(cmd *cobra.Command, profileName string, dashboardPort, grp
 	}
 
 	// Create profile from the token
-	profile, err := getProfileFromToken(cmd, token, profileName)
+	profile, err := getProfileFromToken(cmd, token, profileName, "none")
 	if err != nil {
 		return nil, fmt.Errorf("could not get profile from token: %w", err)
 	}

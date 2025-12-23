@@ -20,6 +20,10 @@ func GetProfiles() map[string]cli.Profile {
 
 	profilesMap := ProfilesViperConfig.GetStringMap("profiles")
 	for name := range profilesMap {
+		tlsStrategy := ProfilesViperConfig.GetString(fmt.Sprintf("profiles.%s.tlsStrategy", name))
+		if tlsStrategy == "" {
+			tlsStrategy = "tls"
+		}
 		profile := cli.Profile{
 			TenantId:     ProfilesViperConfig.GetString(fmt.Sprintf("profiles.%s.tenantId", name)),
 			Name:         ProfilesViperConfig.GetString(fmt.Sprintf("profiles.%s.name", name)),
@@ -27,6 +31,7 @@ func GetProfiles() map[string]cli.Profile {
 			ExpiresAt:    ProfilesViperConfig.GetTime(fmt.Sprintf("profiles.%s.expiresAt", name)),
 			ApiServerURL: ProfilesViperConfig.GetString(fmt.Sprintf("profiles.%s.apiServerURL", name)),
 			GrpcHostPort: ProfilesViperConfig.GetString(fmt.Sprintf("profiles.%s.grpcHostPort", name)),
+			TLSStrategy:  tlsStrategy,
 		}
 		profiles[name] = profile
 	}
@@ -45,6 +50,11 @@ func GetProfile(name string) (*cli.Profile, error) {
 		return nil, fmt.Errorf("profile '%s' not found", name)
 	}
 
+	tlsStrategy := ProfilesViperConfig.GetString(fmt.Sprintf("%s.tlsStrategy", key))
+	if tlsStrategy == "" {
+		tlsStrategy = "tls"
+	}
+
 	profile := &cli.Profile{
 		TenantId:     ProfilesViperConfig.GetString(fmt.Sprintf("%s.tenantId", key)),
 		Name:         ProfilesViperConfig.GetString(fmt.Sprintf("%s.name", key)),
@@ -52,6 +62,7 @@ func GetProfile(name string) (*cli.Profile, error) {
 		ExpiresAt:    ProfilesViperConfig.GetTime(fmt.Sprintf("%s.expiresAt", key)),
 		ApiServerURL: ProfilesViperConfig.GetString(fmt.Sprintf("%s.apiServerURL", key)),
 		GrpcHostPort: ProfilesViperConfig.GetString(fmt.Sprintf("%s.grpcHostPort", key)),
+		TLSStrategy:  tlsStrategy,
 	}
 
 	return profile, nil
@@ -83,6 +94,16 @@ func AddProfile(name string, profile *cli.Profile) error {
 		return fmt.Errorf("grpcHostPort is required")
 	}
 
+	// Set default TLS strategy if not provided
+	if profile.TLSStrategy == "" {
+		profile.TLSStrategy = "tls"
+	}
+
+	// Validate TLS strategy
+	if profile.TLSStrategy != "tls" && profile.TLSStrategy != "none" {
+		return fmt.Errorf("tlsStrategy must be either 'tls' or 'none'")
+	}
+
 	unlock, err := acquireLock()
 	if err != nil {
 		return fmt.Errorf("failed to acquire lock: %w", err)
@@ -100,6 +121,7 @@ func AddProfile(name string, profile *cli.Profile) error {
 	ProfilesViperConfig.Set(fmt.Sprintf("profiles.%s.expiresAt", name), profile.ExpiresAt)
 	ProfilesViperConfig.Set(fmt.Sprintf("profiles.%s.apiServerURL", name), profile.ApiServerURL)
 	ProfilesViperConfig.Set(fmt.Sprintf("profiles.%s.grpcHostPort", name), profile.GrpcHostPort)
+	ProfilesViperConfig.Set(fmt.Sprintf("profiles.%s.tlsStrategy", name), profile.TLSStrategy)
 
 	return saveConfig()
 }
@@ -198,6 +220,13 @@ func UpdateProfile(name string, profile *cli.Profile) error {
 	}
 	if profile.GrpcHostPort != "" {
 		ProfilesViperConfig.Set(fmt.Sprintf("%s.grpcHostPort", key), profile.GrpcHostPort)
+	}
+	if profile.TLSStrategy != "" {
+		// Validate TLS strategy before updating
+		if profile.TLSStrategy != "tls" && profile.TLSStrategy != "none" {
+			return fmt.Errorf("tlsStrategy must be either 'tls' or 'none'")
+		}
+		ProfilesViperConfig.Set(fmt.Sprintf("%s.tlsStrategy", key), profile.TLSStrategy)
 	}
 
 	return saveConfig()

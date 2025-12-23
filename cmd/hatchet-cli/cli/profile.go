@@ -63,15 +63,20 @@ var profileAddCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		name, _ := cmd.Flags().GetString("name")
 		token, _ := cmd.Flags().GetString("token")
+		tlsStrategy, _ := cmd.Flags().GetString("tls-strategy")
 
 		if token == "" {
 			token = getApiTokenForm()
 		}
 
-		profile, err := getProfileFromToken(cmd, token, name)
+		profile, err := getProfileFromToken(cmd, token, name, tlsStrategy)
 
 		if err != nil {
 			cli.Logger.Fatalf("could not get profile from token: %v", err)
+		}
+
+		if name == "" {
+			name = profile.Name
 		}
 
 		err = cli.AddProfile(name, profile)
@@ -174,6 +179,7 @@ var profileUpdateCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		name, _ := cmd.Flags().GetString("name")
 		token, _ := cmd.Flags().GetString("token")
+		tlsStrategy, _ := cmd.Flags().GetString("tls-strategy")
 
 		if name == "" {
 			name = selectProfileForm()
@@ -183,7 +189,7 @@ var profileUpdateCmd = &cobra.Command{
 			token = getApiTokenForm()
 		}
 
-		profile, err := getProfileFromToken(cmd, token, name)
+		profile, err := getProfileFromToken(cmd, token, name, tlsStrategy)
 
 		if err != nil {
 			cli.Logger.Fatalf("could not get profile from token: %v", err)
@@ -244,7 +250,35 @@ func getApiTokenForm() string {
 		cli.Logger.Fatalf("could not run profile add form: %v", err)
 	}
 
-	return resp
+	return parseToken(resp)
+}
+
+// parseToken extracts the token from various formats that users might paste
+func parseToken(input string) string {
+	input = strings.TrimSpace(input)
+
+	// Remove "export " prefix if present
+	input = strings.TrimPrefix(input, "export ")
+	input = strings.TrimSpace(input)
+
+	// Check for HATCHET_CLIENT_TOKEN= or HATCHET_CLIENT_TOKEN: prefix
+	if strings.HasPrefix(input, "HATCHET_CLIENT_TOKEN=") {
+		input = strings.TrimPrefix(input, "HATCHET_CLIENT_TOKEN=")
+	} else if strings.HasPrefix(input, "HATCHET_CLIENT_TOKEN:") {
+		input = strings.TrimPrefix(input, "HATCHET_CLIENT_TOKEN:")
+	}
+
+	input = strings.TrimSpace(input)
+
+	// Remove surrounding quotes if present
+	if len(input) >= 2 {
+		if (strings.HasPrefix(input, "\"") && strings.HasSuffix(input, "\"")) ||
+			(strings.HasPrefix(input, "'") && strings.HasSuffix(input, "'")) {
+			input = input[1 : len(input)-1]
+		}
+	}
+
+	return strings.TrimSpace(input)
 }
 
 // addProfileFromToken prompts for an API token and creates a profile, returning the profile name
@@ -271,7 +305,7 @@ func addProfileFromToken(cmd *cobra.Command) (string, error) {
 	}
 
 	// Get profile details from token
-	profile, err := getProfileFromToken(cmd, token, "")
+	profile, err := getProfileFromToken(cmd, token, "", "")
 	if err != nil {
 		return "", fmt.Errorf("could not get profile from token: %w", err)
 	}
@@ -306,7 +340,7 @@ func addProfileFromToken(cmd *cobra.Command) (string, error) {
 	return name, nil
 }
 
-func getProfileFromToken(cmd *cobra.Command, token, nameOverride string) (*cliconfig.Profile, error) {
+func getProfileFromToken(cmd *cobra.Command, token, nameOverride, tlsOverride string) (*cliconfig.Profile, error) {
 	name := nameOverride
 	parsedTokenConf, err := loaderutils.GetConfFromJWT(token)
 
@@ -336,6 +370,14 @@ func getProfileFromToken(cmd *cobra.Command, token, nameOverride string) (*clico
 		name = tenant.JSON200.Name
 	}
 
+	// Determine TLS strategy based on port or override
+	var tlsStrategy string
+	if tlsOverride != "" {
+		tlsStrategy = tlsOverride
+	} else {
+		tlsStrategy = determineTLSStrategy(parsedTokenConf.GrpcBroadcastAddress)
+	}
+
 	return &cliconfig.Profile{
 		TenantId:     client.TenantId(),
 		Name:         name,
@@ -343,7 +385,45 @@ func getProfileFromToken(cmd *cobra.Command, token, nameOverride string) (*clico
 		ApiServerURL: parsedTokenConf.ServerURL,
 		GrpcHostPort: parsedTokenConf.GrpcBroadcastAddress,
 		ExpiresAt:    parsedTokenConf.ExpiresAt,
+		TLSStrategy:  tlsStrategy,
 	}, nil
+}
+
+func determineTLSStrategy(grpcHostPort string) string {
+	// Extract port from host:port
+	parts := strings.Split(grpcHostPort, ":")
+	if len(parts) != 2 {
+		// If we can't parse the port, default to TLS
+		return "tls"
+	}
+
+	port := parts[1]
+
+	// If port is 443, default to TLS
+	if port == "443" {
+		return "tls"
+	}
+
+	// Otherwise, ask the user
+	var useTLS bool
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title(fmt.Sprintf("Does the gRPC endpoint %s use TLS?", grpcHostPort)).
+				Description("Port 443 typically uses TLS. Other ports may vary.").
+				Value(&useTLS),
+		),
+	).WithTheme(styles.HatchetTheme())
+
+	err := form.Run()
+	if err != nil {
+		cli.Logger.Fatalf("could not run TLS confirmation form: %v", err)
+	}
+
+	if useTLS {
+		return "tls"
+	}
+	return "none"
 }
 
 func selectProfileForm() string {
