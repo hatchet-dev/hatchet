@@ -114,7 +114,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		if token != nil {
 			cf.Token = *token
 		}
-		clientConfig, err = loader.GetClientConfigFromConfigFile(cf)
+		clientConfig, err = loader.GetClientConfigFromConfigFile(token, cf)
 
 		if err != nil {
 			panic(err)
