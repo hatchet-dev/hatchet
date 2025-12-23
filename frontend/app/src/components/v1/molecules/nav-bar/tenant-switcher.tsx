@@ -40,14 +40,13 @@ export function TenantSwitcher({
   const { meta } = useApiMeta();
   const {
     setTenant: setCurrTenant,
-    displayTenant,
     isLoading: isTenantLoading,
-    isSwitchingTenant,
+    tenant,
   } = useTenantDetails();
   const [open, setOpen] = React.useState(false);
   const { hasOrganizations } = useOrganizations();
 
-  if (!displayTenant) {
+  if (!tenant) {
     return (
       <Button
         variant="outline"
@@ -84,17 +83,13 @@ export function TenantSwitcher({
             open && 'bg-muted/30',
             className,
           )}
-          disabled={
-            isTenantLoading || isSwitchingTenant || memberships.length === 0
-          }
+          disabled={isTenantLoading || memberships.length === 0}
         >
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <BuildingOffice2Icon className="size-4 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">
-              {displayTenant.name}
-            </span>
+            <span className="min-w-0 flex-1 truncate">{tenant.name}</span>
           </div>
-          {isTenantLoading || isSwitchingTenant ? (
+          {isTenantLoading ? (
             <Spinner className="mr-0" />
           ) : (
             <CaretSortIcon className="size-4 shrink-0 opacity-50" />
@@ -134,7 +129,7 @@ export function TenantSwitcher({
                   <CheckIcon
                     className={cn(
                       'ml-auto size-4',
-                      displayTenant.slug === membership.tenant?.slug
+                      tenant?.slug === membership.tenant?.slug
                         ? 'opacity-100'
                         : 'opacity-0',
                     )}
