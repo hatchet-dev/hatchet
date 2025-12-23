@@ -17,9 +17,9 @@ export function AuthPage({
   altAction: React.ReactNode;
 }) {
   useErrorParam();
-  const { meta } = useApiMeta();
+  const { meta, isLoading } = useApiMeta();
 
-  if (meta.isLoading) {
+  if (isLoading) {
     return <Loading />;
   }
 
