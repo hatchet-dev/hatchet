@@ -214,7 +214,7 @@ func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListW
 		}
 
 		res = append(res, alerttypes.WorkflowRunFailedItem{
-			Link:                  fmt.Sprintf("%s/workflow-runs/%s?tenant=%s", t.serverURL, workflowRunId, tenantId),
+			Link:                  fmt.Sprintf("%s/tenants/%s/runs/%s", t.serverURL, tenantId, workflowRunId),
 			WorkflowName:          workflowRun.Workflow.Name,
 			WorkflowRunReadableId: readableId,
 			RelativeDate:          timediff.TimeDiff(finishedAt),
@@ -265,7 +265,7 @@ func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId string, token *dbsq
 		TokenName:             token.Name.String,
 		ExpiresAtRelativeDate: timediff.TimeDiff(token.ExpiresAt.Time),
 		ExpiresAtAbsoluteDate: token.ExpiresAt.Time.Format("2006-01-02 15:04:05"),
-		Link:                  fmt.Sprintf("%s/tenant-settings/api-tokens?tenant=%s", t.serverURL, tenantId),
+		Link:                  fmt.Sprintf("%s/tenants/%s/tenant-settings/api-tokens", t.serverURL, tenantId),
 	}
 
 	return t.sendExpiringTokenAlert(ctx, tenantAlerting, payload)
@@ -329,7 +329,7 @@ func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId string, alert
 	}
 
 	payload := &alerttypes.ResourceLimitAlert{
-		Link:          fmt.Sprintf("%s/tenant-settings/billing-and-limits?tenant=%s", t.serverURL, tenantId),
+		Link:          fmt.Sprintf("%s/tenants/%s/tenant-settings/billing-and-limits", t.serverURL, tenantId),
 		Resource:      string(alert.Resource),
 		AlertType:     string(alert.AlertType),
 		CurrentValue:  int(alert.Value),
