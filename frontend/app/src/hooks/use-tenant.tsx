@@ -6,7 +6,7 @@ import api, {
 } from '@/lib/api';
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
 import { Evaluate } from '@/lib/can/shared/permission.base';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
@@ -134,12 +134,11 @@ export function useTenantDetails() {
 
   const [pollBilling, setPollBilling] = useState(false);
 
-  const { data: cloudMeta, isCloudEnabled } = useCloudApiMeta();
+  const { cloud, isCloudEnabled } = useCloud();
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenant?.metadata?.id || ''),
-    enabled:
-      !!tenant?.metadata?.id && isCloudEnabled && !!cloudMeta?.data.canBill,
+    enabled: !!tenant?.metadata?.id && isCloudEnabled && !!cloud?.canBill,
     refetchInterval: pollBilling ? 1000 : false,
   });
 
@@ -156,7 +155,7 @@ export function useTenantDetails() {
   }, [billingState.data?.paymentMethods]);
 
   const billingContext: BillingContext | undefined = useMemo(() => {
-    if (!cloudMeta?.data.canBill) {
+    if (!cloud?.canBill) {
       return;
     }
 
@@ -166,22 +165,17 @@ export function useTenantDetails() {
       plan: subscriptionPlan,
       hasPaymentMethods,
     };
-  }, [
-    cloudMeta?.data.canBill,
-    billingState.data,
-    subscriptionPlan,
-    hasPaymentMethods,
-  ]);
+  }, [cloud?.canBill, billingState.data, subscriptionPlan, hasPaymentMethods]);
 
   const can = useCallback(
     (evalFn: Evaluate) => {
       return evalFn({
         tenant,
         billing: billingContext,
-        meta: cloudMeta?.data,
+        meta: cloud,
       });
     },
-    [billingContext, cloudMeta?.data, tenant],
+    [billingContext, cloud, tenant],
   );
 
   return {

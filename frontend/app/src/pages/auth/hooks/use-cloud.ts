@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { useCallback, useMemo } from 'react';
 
-export default function useCloudApiMeta() {
+export default function useCloud(tenantId?: string) {
   const { handleApiError } = useApiError({});
 
   const checkIsCloudEnabled = useCallback((cloudMeta: APICloudMetadata) => {
@@ -47,8 +47,28 @@ export default function useCloudApiMeta() {
     return checkIsCloudEnabled(cloudMetaQuery.data?.data || {});
   }, [cloudMetaQuery.data?.data, checkIsCloudEnabled]);
 
+  const featureFlagsQuery = useQuery({
+    queryKey: ['feature-flags:list', tenantId],
+    retry: false,
+    enabled: isCloudEnabled && !!tenantId,
+    queryFn: async () => {
+      try {
+        // tenantId is guaranteed by `enabled`
+        return await cloudApi.featureFlagsList(tenantId as string);
+      } catch (e) {
+        return null;
+      }
+    },
+    staleTime: 1000 * 60,
+  });
+
+  if (featureFlagsQuery.isError) {
+    handleApiError(featureFlagsQuery.error as AxiosError);
+  }
+
   return {
-    data: cloudMetaQuery.data,
+    cloud: cloudMetaQuery.data?.data,
     isCloudEnabled,
+    featureFlags: featureFlagsQuery.data?.data,
   };
 }

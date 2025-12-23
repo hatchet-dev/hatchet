@@ -19,8 +19,7 @@ import {
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
 import { cn } from '@/lib/utils';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
-import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import {
   CalendarDaysIcon,
@@ -72,8 +71,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
   const { tenantId } = useCurrentTenantId();
 
-  const { data: cloudMeta, isCloudEnabled } = useCloudApiMeta();
-  const featureFlags = useCloudFeatureFlags(tenantId);
+  const { cloud, isCloudEnabled, featureFlags } = useCloud(tenantId);
 
   const onNavLinkClick = useCallback(() => {
     if (window.innerWidth > 768) {
@@ -179,7 +177,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                   name="Workflows"
                   icon={<Squares2X2Icon className="mr-2 size-4" />}
                 />
-                {featureFlags?.data['managed-worker'] && (
+                {featureFlags?.['managed-worker'] && (
                   <SidebarButtonPrimary
                     key="managed-compute"
                     onNavLinkClick={onNavLinkClick}
@@ -255,9 +253,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                       to={appRoutes.tenantSettingsBillingRoute.to}
                       params={{ tenant: tenantId }}
                       name={
-                        cloudMeta?.data.canBill
-                          ? 'Billing & Limits'
-                          : 'Resource Limits'
+                        cloud?.canBill ? 'Billing & Limits' : 'Resource Limits'
                       }
                     />,
                     <SidebarButtonSecondary
