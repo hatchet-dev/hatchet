@@ -42,7 +42,7 @@ function Main() {
   return (
     <SidePanelProvider>
       <ThreeColumnLayout
-        sidebar={<SideNav memberships={memberships} navItems={navSections} />}
+        sidebar={<SideNav navItems={navSections} />}
         sidePanel={<SidePanel />}
         mainClassName="overflow-auto px-8 py-4"
         mainContainerType="inline-size"

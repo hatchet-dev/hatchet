@@ -7,8 +7,7 @@ import {
   RESIZE_DRAG_THRESHOLD_PX,
   useSidebar,
 } from '@/components/hooks/use-sidebar';
-import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
-import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
+import { HelpDropdown } from '@/components/v1/nav/help-dropdown';
 import { Button } from '@/components/v1/ui/button';
 import {
   Collapsible,
@@ -20,16 +19,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/v1/ui/popover';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { TenantMember } from '@/lib/api';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { cn } from '@/lib/utils';
-import useCloud from '@/pages/auth/hooks/use-cloud';
-import { BuildingOffice2Icon } from '@heroicons/react/24/outline';
 import { ChevronLeftIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import { Link, useMatchRoute, useNavigate } from '@tanstack/react-router';
 import React, {
@@ -41,7 +32,6 @@ import React, {
 } from 'react';
 
 export interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
-  memberships: TenantMember[];
   navItems: SideNavSection[];
 }
 
@@ -69,11 +59,7 @@ export type SideNavSection = {
   items: SideNavItem[];
 };
 
-export function SideNav({
-  className,
-  memberships,
-  navItems: navSections,
-}: SideNavProps) {
+export function SideNav({ className, navItems: navSections }: SideNavProps) {
   const {
     sidebarOpen,
     setSidebarOpen,
@@ -83,11 +69,10 @@ export function SideNav({
     expandedWidth: storedExpandedWidth,
     setExpandedWidth: setStoredExpandedWidth,
   } = useSidebar();
-  const { tenantId } = useCurrentTenantId();
+  const { tenantId } = useTenantDetails();
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
 
-  const { isCloudEnabled } = useCloud(tenantId);
   const [isResizing, setIsResizing] = useState(false);
   const [liveWidth, setLiveWidth] = useState<number | null>(null);
   const [startX, setStartX] = useState(0);
@@ -248,7 +233,10 @@ export function SideNav({
     };
   }, [isResizing, handleMouseMove, handleMouseUp]);
 
-  const commonParams = useMemo(() => ({ tenant: tenantId }), [tenantId]);
+  const commonParams = useMemo(
+    () => (tenantId ? { tenant: tenantId } : undefined),
+    [tenantId],
+  );
   const isActive = useCallback(
     (to: string, fuzzy = false) =>
       Boolean(matchRoute({ to, params: commonParams, fuzzy })),
@@ -425,26 +413,13 @@ export function SideNav({
               ))}
             </div>
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  hoverText={isCloudEnabled ? 'Organization' : 'Tenant'}
-                  hoverTextSide="right"
-                  className="w-10"
-                >
-                  <BuildingOffice2Icon className="size-5" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent side="right" align="start" className="w-80 p-2">
-                {isCloudEnabled ? (
-                  <OrganizationSelector memberships={memberships} />
-                ) : (
-                  <TenantSwitcher memberships={memberships} />
-                )}
-              </PopoverContent>
-            </Popover>
+            <HelpDropdown
+              variant="sidebar"
+              triggerVariant="icon"
+              align="start"
+              side="right"
+              className="w-10"
+            />
           </div>
         ) : (
           <>
@@ -494,11 +469,12 @@ export function SideNav({
               data-cy="v1-sidebar-footer"
               className="w-full shrink-0 border-t border-slate-200 px-4 py-4 dark:border-slate-800"
             >
-              {isCloudEnabled ? (
-                <OrganizationSelector memberships={memberships} />
-              ) : (
-                <TenantSwitcher memberships={memberships} />
-              )}
+              <HelpDropdown
+                variant="sidebar"
+                triggerVariant="button"
+                align="start"
+                side="top"
+              />
             </div>
           </>
         )}

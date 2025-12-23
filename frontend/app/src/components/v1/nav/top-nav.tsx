@@ -1,5 +1,7 @@
 import { useSidebar } from '@/components/hooks/use-sidebar';
 import { useTheme } from '@/components/hooks/use-theme';
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
+import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -25,104 +27,20 @@ import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { TenantMember, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
-import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { VersionInfo } from '@/pages/main/info/components/version-info';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
-import { Menu } from 'lucide-react';
+import { ChevronDown, Menu } from 'lucide-react';
 import React from 'react';
-import { useMemo } from 'react';
-import {
-  BiBook,
-  BiCalendar,
-  BiChat,
-  BiHelpCircle,
-  BiLogoDiscordAlt,
-  BiSolidGraduation,
-  BiUserCircle,
-  BiEnvelope,
-} from 'react-icons/bi';
-
-function HelpDropdown() {
-  const meta = useApiMeta();
-  const navigate = useNavigate();
-  const { tenant } = useTenantDetails();
-
-  const hasPylon = useMemo(() => {
-    if (!meta.data?.pylonAppId) {
-      return null;
-    }
-
-    return !!meta.data.pylonAppId;
-  }, [meta]);
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="icon" aria-label="Help Menu">
-          <BiHelpCircle className="h-6 w-6 cursor-pointer text-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end" forceMount>
-        {hasPylon && (
-          <DropdownMenuItem onClick={() => (window as any).Pylon('show')}>
-            <BiChat className="mr-2" />
-            Chat with Support
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem
-          onClick={() => window.open('https://docs.hatchet.run', '_blank')}
-        >
-          <BiBook className="mr-2" />
-          Documentation
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() =>
-            window.open('https://discord.com/invite/ZMeUafwH89', '_blank')
-          }
-        >
-          <BiLogoDiscordAlt className="mr-2" />
-          Join Discord
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() =>
-            window.open('https://hatchet.run/office-hours', '_blank')
-          }
-        >
-          <BiCalendar className="mr-2" />
-          Schedule Office Hours
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            if (!tenant) {
-              return;
-            }
-
-            navigate({
-              to: appRoutes.tenantOnboardingGetStartedRoute.to,
-              params: { tenant: tenant.metadata.id },
-            });
-          }}
-        >
-          <BiSolidGraduation className="mr-2" />
-          Restart Tutorial
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <VersionInfo />
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
+import { BiEnvelope, BiMoon, BiSun, BiUserCircle } from 'react-icons/bi';
 
 function AccountDropdown({ user }: { user: User }) {
   const navigate = useNavigate();
 
   const { handleApiError } = useApiError({});
 
-  const { toggleTheme } = useTheme();
+  const { toggleTheme, theme } = useTheme();
 
   // Check for pending invites to show the Invites menu item
   const { pendingInvitesQuery } = usePendingInvites();
@@ -141,8 +59,17 @@ function AccountDropdown({ user }: { user: User }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="icon" aria-label="User Menu">
-          <BiUserCircle className="h-6 w-6 cursor-pointer text-foreground" />
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label="Account Menu"
+          className="relative max-w-[240px] justify-start gap-2"
+        >
+          <BiUserCircle className="size-5 shrink-0 text-foreground" />
+          <span className="min-w-0 truncate" data-cy="user-name">
+            {user.name || user.email}
+          </span>
+          <ChevronDown className="ml-1 size-4 shrink-0 opacity-60" />
           {(pendingInvitesQuery.data ?? 0) > 0 && (
             <div className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full border-2 border-background bg-blue-500"></div>
           )}
@@ -174,7 +101,12 @@ function AccountDropdown({ user }: { user: User }) {
           </>
         )}
         <DropdownMenuItem onClick={() => toggleTheme()}>
-          Toggle Theme
+          {theme === 'dark' ? (
+            <BiSun className="mr-2" />
+          ) : (
+            <BiMoon className="mr-2" />
+          )}
+          Theme: {theme === 'dark' ? 'Dark' : 'Light'}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => logoutMutation.mutate()}>
           Log out
@@ -190,7 +122,7 @@ interface TopNavProps {
   tenantMemberships: TenantMember[];
 }
 
-export default function TopNav({ user }: TopNavProps) {
+export default function TopNav({ user, tenantMemberships }: TopNavProps) {
   const {
     toggleSidebarOpen,
     isWide,
@@ -235,6 +167,10 @@ export default function TopNav({ user }: TopNavProps) {
     setStoredCollapsed(!storedCollapsed);
   };
 
+  const { isCloudEnabled } = useCloud();
+  const { tenant } = useTenantDetails();
+  const showTenantSwitcher = tenantMemberships?.length > 0 && !!tenant;
+
   return (
     <header className="z-50 h-16 w-full border-b bg-background">
       {/* Mobile header */}
@@ -259,7 +195,15 @@ export default function TopNav({ user }: TopNavProps) {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <HelpDropdown />
+          {showTenantSwitcher && (
+            <div className="max-w-[55vw] min-w-[160px]">
+              {isCloudEnabled ? (
+                <OrganizationSelector memberships={tenantMemberships} />
+              ) : (
+                <TenantSwitcher memberships={tenantMemberships} />
+              )}
+            </div>
+          )}
           <AccountDropdown user={user} />
         </div>
       </div>
@@ -329,7 +273,15 @@ export default function TopNav({ user }: TopNavProps) {
         </div>
 
         <div className="flex items-center justify-end gap-2 pr-4">
-          <HelpDropdown />
+          {showTenantSwitcher && (
+            <div className="w-[280px]">
+              {isCloudEnabled ? (
+                <OrganizationSelector memberships={tenantMemberships} />
+              ) : (
+                <TenantSwitcher memberships={tenantMemberships} />
+              )}
+            </div>
+          )}
           <AccountDropdown user={user} />
         </div>
       </div>
