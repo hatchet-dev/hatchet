@@ -108,6 +108,10 @@ function HelpDropdown() {
           <BiSolidGraduation className="mr-2" />
           Restart Tutorial
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem>
+          <VersionInfo />
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -169,10 +173,6 @@ function AccountDropdown({ user }: { user: User }) {
             <DropdownMenuSeparator />
           </>
         )}
-        <DropdownMenuItem>
-          <VersionInfo />
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => toggleTheme()}>
           Toggle Theme
         </DropdownMenuItem>
