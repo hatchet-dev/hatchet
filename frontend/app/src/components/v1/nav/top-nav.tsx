@@ -214,7 +214,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
           </button>
         </div>
 
-        <div className="flex items-center justify-end gap-2 ml-auto">
+        <div className="flex ml-auto items-center justify-end gap-2">
           {showTenantSwitcher &&
             (isCloudEnabled ? (
               <OrganizationSelector memberships={tenantMemberships} />
