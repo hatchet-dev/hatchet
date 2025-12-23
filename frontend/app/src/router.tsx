@@ -1,5 +1,8 @@
+import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
+import api, { queries } from '@/lib/api';
+import queryClient from '@/query-client';
 import {
   RouterProvider,
   createRootRoute,
@@ -17,6 +20,11 @@ const rootRoute = createRootRoute({
   errorComponent: (props) => (
     <Root>
       <ErrorBoundary {...props} />
+    </Root>
+  ),
+  notFoundComponent: () => (
+    <Root>
+      <NotFound />
     </Root>
   ),
 });
@@ -88,6 +96,7 @@ const authenticatedRoute = createRoute({
     () => import('./pages/authenticated'),
     'default',
   ),
+  notFoundComponent: () => <NotFound />,
 });
 
 const onboardingCreateTenantRoute = createRoute({
@@ -135,7 +144,34 @@ const v1RedirectRoute = createRoute({
 const tenantRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'tenants/$tenant',
+  loader: async ({ params }) => {
+    // Ensure the tenant in the URL is one the user actually has access to.
+    // If not, throw a 403 so the global error boundary can show a friendly message.
+    const memberships = await queryClient.fetchQuery({
+      ...queries.user.listTenantMemberships,
+      retry: false,
+    });
+
+    const hasAccess = Boolean(
+      memberships?.rows?.some((m) => m.tenant?.metadata.id === params.tenant),
+    );
+
+    if (!hasAccess) {
+      throw new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
+    }
+
+    // Optionally warm the tenant details cache, since most tenant pages expect it.
+    // If this fails for any reason, let the error boundary handle it.
+    await queryClient.fetchQuery({
+      queryKey: ['tenant:get', params.tenant],
+      queryFn: async () => (await api.tenantGet(params.tenant)).data,
+      retry: false,
+    });
+
+    return null;
+  },
   component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
+  notFoundComponent: () => <NotFound />,
 });
 
 const tenantIndexRedirectRoute = createRoute({

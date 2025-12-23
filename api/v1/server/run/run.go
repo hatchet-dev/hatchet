@@ -480,7 +480,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		task, err := config.V1.OLAP().ReadTaskRun(ctx, id)
+		// Validate UUID early to avoid panics deeper in the stack.
+		var taskID pgtype.UUID
+		if err := taskID.Scan(id); err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid task id")
+		}
+
+		task, err := config.V1.OLAP().ReadTaskRun(ctx, sqlchelpers.UUIDToStr(taskID))
 
 		if err != nil {
 			return nil, "", err
@@ -494,7 +500,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("v1-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflowRun, err := t.config.V1.OLAP().ReadWorkflowRun(context.Background(), sqlchelpers.UUIDFromStr(id))
+		// Validate UUID early to avoid panics deeper in the stack.
+		var workflowRunID pgtype.UUID
+		if err := workflowRunID.Scan(id); err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid workflow run id")
+		}
+
+		workflowRun, err := t.config.V1.OLAP().ReadWorkflowRun(context.Background(), workflowRunID)
 
 		if err != nil {
 			return nil, "", err
