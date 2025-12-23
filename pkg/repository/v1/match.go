@@ -515,7 +515,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			payload, ok := payloads[retrieveOpts]
 
 			if !ok {
-				m.l.Error().Msgf("dag %d with inserted at %s has empty payload, falling back to input", dagData.DagID, dagData.DagInsertedAt.Time)
 				payload = dagData.Input
 			}
 

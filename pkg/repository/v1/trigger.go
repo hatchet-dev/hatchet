@@ -1531,7 +1531,6 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		}]
 
 		if !ok {
-			r.l.Error().Msgf("registerChildWorkflows: event with inserted at %s and id %d has empty payload, falling back to input", event.InsertedAt.Time, event.ID)
 			payload = event.Data
 		}
 
