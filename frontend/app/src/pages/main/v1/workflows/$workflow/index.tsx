@@ -206,10 +206,7 @@ export default function ExpandedWorkflow() {
           <TabsContent value="runs" className="min-h-0 flex-1">
             <RecentRunsList />
           </TabsContent>
-          <TabsContent
-            value="settings"
-            className="min-h-0 flex-1 pt-4 pb-8"
-          >
+          <TabsContent value="settings" className="min-h-0 flex-1 pt-4 pb-8">
             {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
               <Loading />
             ) : (
