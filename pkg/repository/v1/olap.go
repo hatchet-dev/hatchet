@@ -270,6 +270,10 @@ type OLAPRepository interface {
 	ListWorkflowRunExternalIds(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]pgtype.UUID, error)
 
 	ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error
+
+	CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error)
+	CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error)
+	ListYesterdayRunCountsByStatus(ctx context.Context) (map[sqlcv1.V1ReadableStatusOlap]int64, error)
 }
 
 type StatusUpdateBatchSizeLimits struct {
@@ -2510,7 +2514,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 
 		for i, opt := range putPayloadOpts {
 			storeOpts := OffloadToExternalStoreOpts{
-				TenantId:   TenantID(tenantId),
+				TenantId:   tenantId,
 				ExternalID: PayloadExternalId(opt.ExternalId.String()),
 				InsertedAt: opt.InsertedAt,
 				Payload:    opt.Payload,
@@ -2792,6 +2796,30 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 
 func (r *OLAPRepositoryImpl) StatusUpdateBatchSizeLimits() StatusUpdateBatchSizeLimits {
 	return r.statusUpdateBatchSizeLimits
+}
+
+func (r *OLAPRepositoryImpl) CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error) {
+	return r.queries.CountOLAPTempTableSizeForDAGStatusUpdates(ctx, r.readPool)
+}
+
+func (r *OLAPRepositoryImpl) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error) {
+	return r.queries.CountOLAPTempTableSizeForTaskStatusUpdates(ctx, r.readPool)
+}
+
+func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context) (map[sqlcv1.V1ReadableStatusOlap]int64, error) {
+	rows, err := r.queries.ListYesterdayRunCountsByStatus(ctx, r.readPool)
+
+	if err != nil {
+		return nil, err
+	}
+
+	statusToCount := make(map[sqlcv1.V1ReadableStatusOlap]int64)
+
+	for _, row := range rows {
+		statusToCount[row.ReadableStatus] = row.Count
+	}
+
+	return statusToCount, nil
 }
 
 type BulkCutOverOLAPPayload struct {
