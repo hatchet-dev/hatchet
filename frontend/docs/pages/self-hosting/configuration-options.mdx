@@ -307,6 +307,7 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_OTEL_INSECURE`              | Whether to use an insecure connection to the collector URL |               |
 | `SERVER_OTEL_TRACE_ID_RATIO`        | OpenTelemetry trace ID ratio                               |               |
 | `SERVER_OTEL_COLLECTOR_AUTH`        | OpenTelemetry Collector Authorization header value         |               |
+| `SERVER_OTEL_METRICS_ENABLED`       | Enable OpenTelemetry metrics collection                    | `false`       |
 | `SERVER_PROMETHEUS_ENABLED`         | Enable Prometheus                                          | `false`       |
 | `SERVER_PROMETHEUS_ADDRESS`         | Prometheus address                                         | `:9090`       |
 | `SERVER_PROMETHEUS_PATH`            | Prometheus metrics path                                    | `/metrics`    |
@@ -338,36 +339,41 @@ Variables marked with ⚠️ are conditionally required when specific features a
 
 ## Cron Operations Configuration
 
-| Variable                                                  | Description                                           | Default Value |
-| --------------------------------------------------------- | ----------------------------------------------------- | ------------- |
-| `SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL`       | Interval for running ANALYZE on task-related tables   | `3h`          |
-| `SERVER_CRON_OPERATIONS_OLAP_ANALYZE_CRON_INTERVAL`       | Interval for running ANALYZE on OLAP/analytics tables | `3h`          |
-| `SERVER_WAIT_FOR_FLUSH`                                   | Default wait for flush                                | `1ms`         |
-| `SERVER_MAX_CONCURRENT`                                   | Default max concurrent                                | `50`          |
-| `SERVER_FLUSH_PERIOD_MILLISECONDS`                        | Default flush period                                  | `10ms`        |
-| `SERVER_FLUSH_ITEMS_THRESHOLD`                            | Default flush threshold                               | `100`         |
-| `SERVER_FLUSH_STRATEGY`                                   | Default flush strategy                                | `DYNAMIC`     |
-| `SERVER_WORKFLOWRUNBUFFER_WAIT_FOR_FLUSH`                 | Workflow run buffer wait for flush                    |               |
-| `SERVER_WORKFLOWRUNBUFFER_MAX_CONCURRENT`                 | Max concurrent workflow run buffer ops                |               |
-| `SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS`      | Flush period for workflow run buffer                  |               |
-| `SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD`          | Items threshold for workflow run buffer               |               |
-| `SERVER_WORKFLOWRUNBUFFER_FLUSH_STRATEGY`                 | Flush strategy for workflow run buffer                |               |
-| `SERVER_EVENTBUFFER_WAIT_FOR_FLUSH`                       | Event buffer wait for flush                           |               |
-| `SERVER_EVENTBUFFER_MAX_CONCURRENT`                       | Max concurrent event buffer ops                       |               |
-| `SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS`            | Flush period for event buffer                         |               |
-| `SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD`                | Items threshold for event buffer                      |               |
-| `SERVER_EVENTBUFFER_SERIAL_BUFFER`                        | Event buffer serial mode                              |               |
-| `SERVER_EVENTBUFFER_FLUSH_STRATEGY`                       | Flush strategy for event buffer                       |               |
-| `SERVER_RELEASESEMAPHOREBUFFER_WAIT_FOR_FLUSH`            | Release semaphore buffer wait for flush               |               |
-| `SERVER_RELEASESEMAPHOREBUFFER_MAX_CONCURRENT`            | Max concurrent release semaphore buffer ops           |               |
-| `SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS` | Flush period for release semaphore buffer             |               |
-| `SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD`     | Items threshold for release semaphore buffer          |               |
-| `SERVER_RELEASESEMAPHOREBUFFER_FLUSH_STRATEGY`            | Flush strategy for release semaphore buffer           |               |
-| `SERVER_QUEUESTEPRUNBUFFER_WAIT_FOR_FLUSH`                | Queue step run buffer wait for flush                  |               |
-| `SERVER_QUEUESTEPRUNBUFFER_MAX_CONCURRENT`                | Max concurrent queue step run buffer ops              |               |
-| `SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS`     | Flush period for queue step run buffer                |               |
-| `SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD`         | Items threshold for queue step run buffer             |               |
-| `SERVER_QUEUESTEPRUNBUFFER_FLUSH_STRATEGY`                | Flush strategy for queue step run buffer              |               |
+| Variable                                                  | Description                                                           | Default Value |
+| --------------------------------------------------------- | --------------------------------------------------------------------- | ------------- |
+| `SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL`       | Interval for running ANALYZE on task-related tables                   | `3h`          |
+| `SERVER_CRON_OPERATIONS_OLAP_ANALYZE_CRON_INTERVAL`       | Interval for running ANALYZE on OLAP/analytics tables                 | `3h`          |
+| `SERVER_CRON_OPERATIONS_DB_HEALTH_METRICS_INTERVAL`       | Interval for collecting database health metrics (OTel)                | `60s`         |
+| `SERVER_CRON_OPERATIONS_OLAP_METRICS_INTERVAL`            | Interval for collecting OLAP metrics (OTel)                           | `5m`          |
+| `SERVER_CRON_OPERATIONS_WORKER_METRICS_INTERVAL`          | Interval for collecting worker metrics (OTel)                         | `60s`         |
+| `SERVER_CRON_OPERATIONS_YESTERDAY_RUN_COUNT_HOUR`         | Hour (0-23) at which to collect yesterday's workflow run count (OTel) | `0`           |
+| `SERVER_CRON_OPERATIONS_YESTERDAY_RUN_COUNT_MINUTE`       | Minute (0-59) at which to collect yesterday's workflow run count      | `5`           |
+| `SERVER_WAIT_FOR_FLUSH`                                   | Default wait for flush                                                | `1ms`         |
+| `SERVER_MAX_CONCURRENT`                                   | Default max concurrent                                                | `50`          |
+| `SERVER_FLUSH_PERIOD_MILLISECONDS`                        | Default flush period                                                  | `10ms`        |
+| `SERVER_FLUSH_ITEMS_THRESHOLD`                            | Default flush threshold                                               | `100`         |
+| `SERVER_FLUSH_STRATEGY`                                   | Default flush strategy                                                | `DYNAMIC`     |
+| `SERVER_WORKFLOWRUNBUFFER_WAIT_FOR_FLUSH`                 | Workflow run buffer wait for flush                                    |               |
+| `SERVER_WORKFLOWRUNBUFFER_MAX_CONCURRENT`                 | Max concurrent workflow run buffer ops                                |               |
+| `SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS`      | Flush period for workflow run buffer                                  |               |
+| `SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD`          | Items threshold for workflow run buffer                               |               |
+| `SERVER_WORKFLOWRUNBUFFER_FLUSH_STRATEGY`                 | Flush strategy for workflow run buffer                                |               |
+| `SERVER_EVENTBUFFER_WAIT_FOR_FLUSH`                       | Event buffer wait for flush                                           |               |
+| `SERVER_EVENTBUFFER_MAX_CONCURRENT`                       | Max concurrent event buffer ops                                       |               |
+| `SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS`            | Flush period for event buffer                                         |               |
+| `SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD`                | Items threshold for event buffer                                      |               |
+| `SERVER_EVENTBUFFER_SERIAL_BUFFER`                        | Event buffer serial mode                                              |               |
+| `SERVER_EVENTBUFFER_FLUSH_STRATEGY`                       | Flush strategy for event buffer                                       |               |
+| `SERVER_RELEASESEMAPHOREBUFFER_WAIT_FOR_FLUSH`            | Release semaphore buffer wait for flush                               |               |
+| `SERVER_RELEASESEMAPHOREBUFFER_MAX_CONCURRENT`            | Max concurrent release semaphore buffer ops                           |               |
+| `SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS` | Flush period for release semaphore buffer                             |               |
+| `SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD`     | Items threshold for release semaphore buffer                          |               |
+| `SERVER_RELEASESEMAPHOREBUFFER_FLUSH_STRATEGY`            | Flush strategy for release semaphore buffer                           |               |
+| `SERVER_QUEUESTEPRUNBUFFER_WAIT_FOR_FLUSH`                | Queue step run buffer wait for flush                                  |               |
+| `SERVER_QUEUESTEPRUNBUFFER_MAX_CONCURRENT`                | Max concurrent queue step run buffer ops                              |               |
+| `SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS`     | Flush period for queue step run buffer                                |               |
+| `SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD`         | Items threshold for queue step run buffer                             |               |
+| `SERVER_QUEUESTEPRUNBUFFER_FLUSH_STRATEGY`                | Flush strategy for queue step run buffer                              |               |
 
 ## OLAP Database Configuration
 

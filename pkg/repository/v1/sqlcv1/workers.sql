@@ -87,3 +87,42 @@ WHERE
     AND runtime.worker_id = @workerId::uuid
 LIMIT
     COALESCE(sqlc.narg('limit')::int, 100);
+
+-- name: ListTotalActiveSlotsPerTenant :many
+SELECT "tenantId", SUM("maxRuns") AS "totalActiveSlots"
+FROM "Worker"
+WHERE
+    "dispatcherId" IS NOT NULL
+    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND "isActive" = true
+    AND "isPaused" = false
+GROUP BY "tenantId"
+;
+
+-- name: ListActiveSDKsPerTenant :many
+SELECT
+    "tenantId",
+    COALESCE("language"::TEXT, 'unknown')::TEXT AS "language",
+    COALESCE("languageVersion", 'unknown') AS "languageVersion",
+    COALESCE("sdkVersion", 'unknown') AS "sdkVersion",
+    COALESCE("os", 'unknown') AS "os",
+    COUNT(*) AS "count"
+FROM "Worker"
+WHERE
+    "dispatcherId" IS NOT NULL
+    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND "isActive" = true
+    AND "isPaused" = false
+GROUP BY "tenantId", "language", "languageVersion", "sdkVersion", "os"
+;
+
+-- name: ListActiveWorkersPerTenant :many
+SELECT "tenantId", COUNT(*)
+FROM "Worker"
+WHERE
+    "dispatcherId" IS NOT NULL
+    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND "isActive" = true
+    AND "isPaused" = false
+GROUP BY "tenantId"
+;
