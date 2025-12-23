@@ -203,6 +203,7 @@ export default function MainNav({ user }: MainNavProps) {
               onClick={() => toggleSidebarOpen()}
               aria-label="Toggle sidebar"
               size="icon"
+              className="md:hidden"
             >
               <Menu className="size-4" />
             </Button>
