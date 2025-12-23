@@ -31,7 +31,11 @@ const authRoute = createRoute({
     }
     return null;
   },
-  component: Outlet,
+  component: () => (
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden">
+      <Outlet />
+    </div>
+  ),
 });
 
 const authLoginRoute = createRoute({
