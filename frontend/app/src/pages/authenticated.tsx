@@ -1,3 +1,4 @@
+import { AppLayout } from '@/components/layout/app-layout';
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
 import SupportChat from '@/components/molecules/support-chat';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -18,7 +19,11 @@ import {
 } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { useAtom } from 'jotai';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
+
+const DevtoolsFooter = import.meta.env.DEV
+  ? lazy(() => import('../devtools.tsx'))
+  : null;
 
 export default function Authenticated() {
   const { tenant } = useTenantDetails();
@@ -39,6 +44,9 @@ export default function Authenticated() {
   const isAuthPage =
     Boolean(matchRoute({ to: appRoutes.authLoginRoute.to })) ||
     Boolean(matchRoute({ to: appRoutes.authRegisterRoute.to }));
+  const isTenantPage = Boolean(
+    matchRoute({ to: appRoutes.tenantRoute.to, fuzzy: true }),
+  );
   const isOrganizationsPage = Boolean(
     matchRoute({ to: appRoutes.organizationsRoute.to, fuzzy: true }),
   );
@@ -219,15 +227,25 @@ export default function Authenticated() {
   return (
     <PostHogProvider user={userQuery.data}>
       <SupportChat user={userQuery.data}>
-        <div className="flex h-full w-full flex-1 flex-row">
-          <MainNav
-            user={userQuery.data}
-            tenantMemberships={listMembershipsQuery.data?.rows || []}
-          />
-          <div className="flex-grow overflow-y-auto overflow-x-hidden pt-16">
-            <OutletWithContext context={ctx} />
-          </div>
-        </div>
+        <AppLayout
+          header={
+            <MainNav
+              user={userQuery.data}
+              tenantMemberships={listMembershipsQuery.data?.rows || []}
+            />
+          }
+          footer={
+            isTenantPage && DevtoolsFooter ? (
+              <Suspense fallback={null}>
+                <DevtoolsFooter />
+              </Suspense>
+            ) : undefined
+          }
+          // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
+          contentScroll={!isTenantPage}
+        >
+          <OutletWithContext context={ctx} />
+        </AppLayout>
       </SupportChat>
     </PostHogProvider>
   );

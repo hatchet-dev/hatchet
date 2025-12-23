@@ -58,6 +58,10 @@ import {
   ScheduleWorkflowRunRequest,
   ScheduledRunStatus,
   ScheduledWorkflows,
+  ScheduledWorkflowsBulkDeleteRequest,
+  ScheduledWorkflowsBulkDeleteResponse,
+  ScheduledWorkflowsBulkUpdateRequest,
+  ScheduledWorkflowsBulkUpdateResponse,
   ScheduledWorkflowsList,
   ScheduledWorkflowsOrderByField,
   StepRun,
@@ -77,6 +81,7 @@ import {
   TenantStepRunQueueMetrics,
   TriggerWorkflowRunRequest,
   UpdateCronWorkflowTriggerRequest,
+  UpdateScheduledWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
   UpdateTenantMemberRequest,
@@ -2326,6 +2331,76 @@ export class Api<
       path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Update (reschedule) a scheduled workflow run for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledUpdate
+   * @summary Update scheduled workflow run
+   * @request PATCH:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}
+   * @secure
+   */
+  workflowScheduledUpdate = (
+    tenant: string,
+    scheduledWorkflowRun: string,
+    data: UpdateScheduledWorkflowRunRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<ScheduledWorkflows, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Bulk delete scheduled workflow runs for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledBulkDelete
+   * @summary Bulk delete scheduled workflow runs
+   * @request POST:/api/v1/tenants/{tenant}/workflows/scheduled/bulk-delete
+   * @secure
+   */
+  workflowScheduledBulkDelete = (
+    tenant: string,
+    data: ScheduledWorkflowsBulkDeleteRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<ScheduledWorkflowsBulkDeleteResponse, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/bulk-delete`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Bulk update (reschedule) scheduled workflow runs for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledBulkUpdate
+   * @summary Bulk update scheduled workflow runs
+   * @request POST:/api/v1/tenants/{tenant}/workflows/scheduled/bulk-update
+   * @secure
+   */
+  workflowScheduledBulkUpdate = (
+    tenant: string,
+    data: ScheduledWorkflowsBulkUpdateRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<ScheduledWorkflowsBulkUpdateResponse, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/bulk-update`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
       ...params,
     });
   /**

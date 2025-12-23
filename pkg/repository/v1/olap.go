@@ -2771,12 +2771,57 @@ type OLAPCutoverBatchOutcome struct {
 	NextPagination OLAPPaginationParams
 }
 
+func (p *OLAPRepositoryImpl) OptimizeOLAPPayloadWindowSize(ctx context.Context, partitionDate PartitionDate, candidateBatchNumRows int32, pagination OLAPPaginationParams) (*int32, error) {
+	if candidateBatchNumRows <= 0 {
+		// trivial case that we'll never hit, but to prevent infinite recursion
+		zero := int32(0)
+		return &zero, nil
+	}
+
+	proposedBatchSizeBytes, err := p.queries.ComputeOLAPPayloadBatchSize(ctx, p.pool, sqlcv1.ComputeOLAPPayloadBatchSizeParams{
+		Partitiondate:  pgtype.Date(partitionDate),
+		Lasttenantid:   pagination.LastTenantId,
+		Lastinsertedat: pagination.LastInsertedAt,
+		Lastexternalid: pagination.LastExternalId,
+		Batchsize:      candidateBatchNumRows,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute olap payload batch size: %w", err)
+	}
+
+	if proposedBatchSizeBytes < MAX_BATCH_SIZE_BYTES {
+		return &candidateBatchNumRows, nil
+	}
+
+	// if the proposed batch size is too large, then
+	// cut it in half and try again
+	return p.OptimizeOLAPPayloadWindowSize(
+		ctx,
+		partitionDate,
+		candidateBatchNumRows/2,
+		pagination,
+	)
+}
+
 func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, pagination OLAPPaginationParams, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) (*OLAPCutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.processOLAPPayloadCutoverBatch")
 	defer span.End()
 
 	tableName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
-	windowSize := externalCutoverBatchSize * externalCutoverNumConcurrentOffloads
+
+	windowSizePtr, err := p.OptimizeOLAPPayloadWindowSize(
+		ctx,
+		partitionDate,
+		externalCutoverBatchSize*externalCutoverNumConcurrentOffloads,
+		pagination,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to optimize olap payload window size: %w", err)
+	}
+
+	windowSize := *windowSizePtr
 
 	payloadRanges, err := p.queries.CreateOLAPPayloadRangeChunks(ctx, p.pool, sqlcv1.CreateOLAPPayloadRangeChunksParams{
 		Chunksize:      externalCutoverBatchSize,
@@ -2933,7 +2978,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 }
 
 func (p *OLAPRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId pgtype.UUID, partitionDate PartitionDate, pagination OLAPPaginationParams) (*OLAPCutoverJobRunMetadata, error) {
-	leaseInterval := 2 * time.Minute
+	leaseInterval := 10 * time.Minute
 	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
 
 	lease, err := p.queries.AcquireOrExtendOLAPCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendOLAPCutoverJobLeaseParams{
@@ -3066,14 +3111,50 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	tempPartitionName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
 	sourcePartitionName := fmt.Sprintf("v1_payloads_olap_%s", partitionDate.String())
 
-	countsEqual, err := sqlcv1.CompareOLAPPartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
 
 	if err != nil {
 		return fmt.Errorf("failed to compare partition row counts: %w", err)
 	}
 
-	if !countsEqual {
-		return fmt.Errorf("row counts do not match between temp and source partitions for date %s", partitionDate.String())
+	const maxCountDiff = 5000
+
+	if rowCounts.SourcePartitionCount-rowCounts.TempPartitionCount > maxCountDiff {
+		return fmt.Errorf("row counts do not match between temp and source partitions for date %s. off by more than %d", partitionDate.String(), maxCountDiff)
+	} else if rowCounts.SourcePartitionCount > rowCounts.TempPartitionCount {
+		missingRows, err := p.queries.DiffOLAPPayloadSourceAndTargetPartitions(ctx, p.pool, pgtype.Date(partitionDate))
+
+		if err != nil {
+			return fmt.Errorf("failed to diff source and target partitions: %w", err)
+		}
+
+		missingPayloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, len(missingRows))
+
+		for i, p := range missingRows {
+			missingPayloadsToInsert[i] = sqlcv1.CutoverOLAPPayloadToInsert{
+				TenantID:            p.TenantID,
+				InsertedAt:          p.InsertedAt,
+				ExternalID:          p.ExternalID,
+				ExternalLocationKey: p.ExternalLocationKey,
+				InlineContent:       p.InlineContent,
+			}
+		}
+
+		_, err = sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, p.pool, tempPartitionName, missingPayloadsToInsert)
+
+		if err != nil {
+			return fmt.Errorf("failed to insert missing payloads into temp partition: %w", err)
+		}
+
+		rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+
+		if err != nil {
+			return fmt.Errorf("failed to compare partition row counts: %w", err)
+		}
+
+		if rowCounts.SourcePartitionCount != rowCounts.TempPartitionCount {
+			return fmt.Errorf("row counts still do not match between temp and source partitions for date %s after inserting missing rows", partitionDate.String())
+		}
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
@@ -3124,6 +3205,22 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 
 	if err != nil {
 		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
+	}
+
+	partitionDatesToKeep := make([]pgtype.Date, len(partitions))
+
+	for i, partition := range partitions {
+		partitionDatesToKeep[i] = pgtype.Date{
+			Time:  partition.PartitionDate.Time,
+			Valid: true,
+		}
+	}
+
+	// don't need a tx for this since we're just doing cleanup
+	err = p.queries.CleanUpOLAPCutoverJobOffsets(ctx, p.pool, partitionDatesToKeep)
+
+	if err != nil {
+		return fmt.Errorf("failed to clean up olap cutover job offsets: %w", err)
 	}
 
 	processId := sqlchelpers.UUIDFromStr(uuid.NewString())

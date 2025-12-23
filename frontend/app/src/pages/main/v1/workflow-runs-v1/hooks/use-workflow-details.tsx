@@ -1,5 +1,6 @@
 import { queries, V1TaskStatus } from '@/lib/api';
-import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
+import { getErrorStatus } from '@/lib/error-utils';
+import { defaultQueryRetry } from '@/lib/query-retry';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
@@ -20,7 +21,7 @@ export const useWorkflowDetails = () => {
   const params = useParams({ from: appRoutes.tenantRunRoute.to });
 
   const { data, isLoading, isError, error } = useQuery({
-    retry: (_f, error) => shouldRetryQueryError(error),
+    retry: defaultQueryRetry,
     refetchInterval: (query) => {
       const data = query.state.data;
 

@@ -1,0 +1,59 @@
+package workflows
+
+import (
+	"context"
+	"time"
+
+	"github.com/labstack/echo/v4"
+
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+)
+
+func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.WorkflowScheduledUpdateRequestObject) (gen.WorkflowScheduledUpdateResponseObject, error) {
+	scheduled := ctx.Get("scheduled-workflow-run").(*dbsqlc.ListScheduledWorkflowsRow)
+
+	if request.Body == nil {
+		return gen.WorkflowScheduledUpdate400JSONResponse(apierrors.NewAPIErrors("Request body is required.")), nil
+	}
+
+	// Only allow updating scheduled runs created via API.
+	if scheduled.Method != dbsqlc.WorkflowTriggerScheduledRefMethodsAPI {
+		return gen.WorkflowScheduledUpdate403JSONResponse(apierrors.NewAPIErrors("Cannot update scheduled run created via code definition.")), nil
+	}
+
+	// If a scheduled run has already been triggered, it can no longer be rescheduled.
+	if scheduled.WorkflowRunId.Valid {
+		return gen.WorkflowScheduledUpdate400JSONResponse(apierrors.NewAPIErrors("Scheduled run has already been triggered and cannot be rescheduled.")), nil
+	}
+
+	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
+	defer cancel()
+
+	err := t.config.APIRepository.WorkflowRun().UpdateScheduledWorkflow(
+		dbCtx,
+		sqlchelpers.UUIDToStr(scheduled.TenantId),
+		request.ScheduledWorkflowRun.String(),
+		request.Body.TriggerAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	updated, err := t.config.APIRepository.WorkflowRun().GetScheduledWorkflow(
+		dbCtx,
+		sqlchelpers.UUIDToStr(scheduled.TenantId),
+		request.ScheduledWorkflowRun.String(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil {
+		return gen.WorkflowScheduledUpdate404JSONResponse(apierrors.NewAPIErrors("Scheduled workflow not found.")), nil
+	}
+
+	return gen.WorkflowScheduledUpdate200JSONResponse(*transformers.ToScheduledWorkflowsFromSQLC(updated)), nil
+}

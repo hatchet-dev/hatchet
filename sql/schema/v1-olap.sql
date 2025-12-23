@@ -1105,6 +1105,99 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION diff_olap_payload_source_and_target_partitions(
+    partition_date date
+) RETURNS TABLE (
+    tenant_id UUID,
+    external_id UUID,
+    inserted_at TIMESTAMPTZ,
+    location v1_payload_location_olap,
+    external_location_key TEXT,
+    inline_content JSONB,
+    updated_at TIMESTAMPTZ
+)
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    partition_date_str varchar;
+    source_partition_name varchar;
+    temp_partition_name varchar;
+    query text;
+BEGIN
+    IF partition_date IS NULL THEN
+        RAISE EXCEPTION 'partition_date parameter cannot be NULL';
+    END IF;
+
+    SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
+    SELECT format('v1_payloads_olap_%s', partition_date_str) INTO source_partition_name;
+    SELECT format('v1_payloads_olap_offload_tmp_%s', partition_date_str) INTO temp_partition_name;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
+        RAISE EXCEPTION 'Partition % does not exist', source_partition_name;
+    END IF;
+
+    query := format('
+        SELECT tenant_id, external_id, inserted_at, location, external_location_key, inline_content, updated_at
+        FROM %I source
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM %I AS target
+            WHERE
+                source.tenant_id = target.tenant_id
+                AND source.external_id = target.external_id
+                AND source.inserted_at = target.inserted_at
+        )
+    ', source_partition_name, temp_partition_name);
+
+    RETURN QUERY EXECUTE query;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION compute_olap_payload_batch_size(
+    partition_date DATE,
+    last_tenant_id UUID,
+    last_external_id UUID,
+    last_inserted_at TIMESTAMPTZ,
+    batch_size INTEGER
+) RETURNS BIGINT
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    partition_date_str TEXT;
+    source_partition_name TEXT;
+    query TEXT;
+    result_size BIGINT;
+BEGIN
+    IF partition_date IS NULL THEN
+        RAISE EXCEPTION 'partition_date parameter cannot be NULL';
+    END IF;
+
+    SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
+    SELECT format('v1_payloads_olap_%s', partition_date_str) INTO source_partition_name;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
+        RAISE EXCEPTION 'Partition % does not exist', source_partition_name;
+    END IF;
+
+    query := format('
+        WITH candidates AS (
+            SELECT *
+            FROM %I
+            WHERE (tenant_id, external_id, inserted_at) >= ($1::UUID, $2::UUID, $3::TIMESTAMPTZ)
+            ORDER BY tenant_id, external_id, inserted_at
+            LIMIT $4::INT
+        )
+
+        SELECT COALESCE(SUM(pg_column_size(inline_content)), 0) AS total_size_bytes
+        FROM candidates
+    ', source_partition_name);
+
+    EXECUTE query INTO result_size USING last_tenant_id, last_external_id, last_inserted_at, batch_size;
+
+    RETURN result_size;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION swap_v1_payloads_olap_partition_with_temp(
     partition_date date
 ) RETURNS text

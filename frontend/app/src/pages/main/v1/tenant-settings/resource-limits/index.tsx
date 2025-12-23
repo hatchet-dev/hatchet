@@ -5,13 +5,13 @@ import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useQuery } from '@tanstack/react-query';
 
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
 
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { cloud, isCloudEnabled } = useCloud();
 
   const resourcePolicyQuery = useQuery({
     ...queries.tenantResourcePolicy.get(tenantId),
@@ -19,12 +19,12 @@ export default function ResourceLimits() {
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenantId),
-    enabled: !!cloudMeta?.data.canBill,
+    enabled: isCloudEnabled && !!cloud?.canBill,
   });
 
   const cols = columns();
 
-  const billingEnabled = cloudMeta?.data.canBill;
+  const billingEnabled = isCloudEnabled && cloud?.canBill;
 
   const hasPaymentMethods =
     (billingState.data?.paymentMethods?.length || 0) > 0;

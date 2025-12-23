@@ -9,11 +9,26 @@ import { redirect, useLoaderData, useNavigate } from '@tanstack/react-router';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function loader(_args: { request: Request }) {
+  // Avoid calling cloud-only endpoints (like /management/invites) unless cloud is enabled.
+  // In OSS environments, cloud endpoints can return a 403 and create noisy console logs.
+  let isCloudEnabled = false;
+
+  try {
+    const meta = await cloudApi.metadataGet();
+    // In OSS, the API returns an `errors` field instead of cloud metadata.
+    // @ts-expect-error `errors` may be present in OSS mode
+    isCloudEnabled = !!meta?.data && !meta?.data?.errors;
+  } catch {
+    isCloudEnabled = false;
+  }
+
   const [tenantInvitesRes, orgInvitesRes] = await Promise.allSettled([
     api.userListTenantInvites(),
-    cloudApi
-      .userListOrganizationInvites()
-      .catch(() => ({ data: { rows: [] } })),
+    isCloudEnabled
+      ? cloudApi
+          .userListOrganizationInvites()
+          .catch(() => ({ data: { rows: [] } }))
+      : Promise.resolve({ data: { rows: [] } }),
   ]);
 
   const tenantInvites =
