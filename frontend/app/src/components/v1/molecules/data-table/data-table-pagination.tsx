@@ -58,7 +58,7 @@ export function DataTablePagination<TData>({
             }}
           >
             <SelectTrigger
-              className="z-[70] h-8 w-[70px]"
+              className="h-8 w-[70px]"
               id="rows-per-page"
               aria-labelledby="rows-per-page-label"
             >
