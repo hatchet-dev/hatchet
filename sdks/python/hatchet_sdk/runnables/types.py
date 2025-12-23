@@ -59,6 +59,14 @@ class ConcurrencyExpression(BaseModel):
             limit_strategy=self.limit_strategy,
         )
 
+    @staticmethod
+    def from_int(max_runs: int) -> "ConcurrencyExpression":
+        return ConcurrencyExpression(
+            expression="'constant'",
+            max_runs=max_runs,
+            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        )
+
 
 TWorkflowInput = TypeVar(
     "TWorkflowInput", bound=BaseModel | DataclassInstance | dict[str, Any]
@@ -113,7 +121,7 @@ class WorkflowConfig(BaseModel):
     on_events: list[str] = Field(default_factory=list)
     on_crons: list[str] = Field(default_factory=list)
     sticky: StickyStrategy | None = None
-    concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None
+    concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]
     default_priority: int | None = None
 

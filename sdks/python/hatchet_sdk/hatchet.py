@@ -231,7 +231,9 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
+        concurrency: (
+            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+        ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
     ) -> Workflow[EmptyModel]: ...
@@ -248,7 +250,9 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
+        concurrency: (
+            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+        ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
     ) -> Workflow[TWorkflowInput]: ...
@@ -264,7 +268,9 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
+        concurrency: (
+            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+        ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
@@ -287,7 +293,7 @@ class Hatchet:
 
         :param default_priority: The priority of the workflow. Higher values will cause this workflow to have priority in scheduling over other, lower priority ones.
 
-        :param concurrency: A concurrency object controlling the concurrency settings for this workflow.
+        :param concurrency: A concurrency object controlling the concurrency settings for this workflow. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
 
         :param task_defaults: A `TaskDefaults` object controlling the default task settings for this workflow.
 
@@ -325,7 +331,9 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
+        concurrency: (
+            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+        ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -351,7 +359,9 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
+        concurrency: (
+            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+        ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -376,7 +386,9 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
+        concurrency: (
+            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+        ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -414,7 +426,7 @@ class Hatchet:
 
         :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling.
 
-        :param concurrency: A concurrency object controlling the concurrency settings for this task.
+        :param concurrency: A concurrency object controlling the concurrency settings for this task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
 
         :param schedule_timeout: The maximum time allowed for scheduling the task.
 
@@ -461,6 +473,8 @@ class Hatchet:
                 _concurrency = concurrency
             elif isinstance(concurrency, ConcurrencyExpression):
                 _concurrency = [concurrency]
+            elif isinstance(concurrency, int):
+                _concurrency = [ConcurrencyExpression.from_int(concurrency)]
             else:
                 _concurrency = []
 
@@ -498,7 +512,9 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
+        concurrency: (
+            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+        ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -524,7 +540,9 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
+        concurrency: (
+            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+        ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -553,7 +571,9 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
+        concurrency: (
+            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+        ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -599,7 +619,7 @@ class Hatchet:
 
         :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling.
 
-        :param concurrency: A concurrency object controlling the concurrency settings for this task.
+        :param concurrency: A concurrency object controlling the concurrency settings for this task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
 
         :param schedule_timeout: The maximum time allowed for scheduling the task.
 
@@ -645,6 +665,8 @@ class Hatchet:
                 _concurrency = concurrency
             elif isinstance(concurrency, ConcurrencyExpression):
                 _concurrency = [concurrency]
+            elif isinstance(concurrency, int):
+                _concurrency = [ConcurrencyExpression.from_int(concurrency)]
             else:
                 _concurrency = []
 

@@ -134,7 +134,7 @@ class Task(Generic[TWorkflowInput, R]):
         desired_worker_labels: dict[str, DesiredWorkerLabels] | None,
         backoff_factor: float | None,
         backoff_max_seconds: int | None,
-        concurrency: list[ConcurrencyExpression] | None,
+        concurrency: int | list[ConcurrencyExpression] | None,
         wait_for: list[Condition | OrGroup] | None,
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
@@ -320,6 +320,11 @@ class Task(Generic[TWorkflowInput, R]):
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
 
     def to_proto(self, service_name: str) -> CreateTaskOpts:
+        if isinstance(self.concurrency, int):
+            concurrency = [ConcurrencyExpression.from_int(self.concurrency)]
+        else:
+            concurrency = self.concurrency
+
         return CreateTaskOpts(
             readable_id=self.name,
             action=service_name + ":" + self.name,
@@ -331,7 +336,7 @@ class Task(Generic[TWorkflowInput, R]):
             worker_labels=self.desired_worker_labels,
             backoff_factor=self.backoff_factor,
             backoff_max_seconds=self.backoff_max_seconds,
-            concurrency=[t.to_proto() for t in self.concurrency],
+            concurrency=[t.to_proto() for t in concurrency],
             conditions=self._conditions_to_proto(),
             schedule_timeout=timedelta_to_expr(self.schedule_timeout),
         )

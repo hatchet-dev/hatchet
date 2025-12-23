@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependencies are now chainable, so one dependency can rely on an upstream one, similar to in FastAPI.
 - Dependencies can now be both functions (sync and async) and context managers (sync and async) to allow for cleaning up things like database connections, etc.
 - The `ClientConfig` has a new `Tenacity` object, which allows for specifying retry config.
+- Concurrency limits can now be specified as integers, which will provide behavior equivalent to setting a constant key with a `GROUP_ROUND_ROBIN` strategy.
 
 ### Changed
 
