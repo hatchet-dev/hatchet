@@ -23,6 +23,7 @@ import {
   PopoverTrigger,
   Popover,
   PopoverContent,
+  PopoverPortal,
 } from '@radix-ui/react-popover';
 import { Link } from '@tanstack/react-router';
 import React from 'react';
@@ -67,57 +68,61 @@ export function TenantSwitcher({
           <CaretSortIcon className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        side="bottom"
-        align="start"
-        sideOffset={8}
-        className="z-50 w-56 p-0"
-      >
-        <Command className="">
-          <CommandList>
-            <CommandEmpty>No tenants found.</CommandEmpty>
-            {memberships.map((membership) => (
-              <CommandItem
-                key={membership.metadata.id}
-                onSelect={() => {
-                  invariant(membership.tenant);
-                  setCurrTenant(membership.tenant);
-                  setOpen(false);
-                }}
-                value={membership.tenant?.slug}
-                className="cursor-pointer text-sm"
-              >
-                <BuildingOffice2Icon className="mr-2 size-4" />
-                {membership.tenant?.name}
-                <CheckIcon
-                  className={cn(
-                    'ml-auto size-4',
-                    currTenant.slug === membership.tenant?.slug
-                      ? 'opacity-100'
-                      : 'opacity-0',
-                  )}
-                />
-              </CommandItem>
-            ))}
-          </CommandList>
-          {meta.data?.allowCreateTenant && !hasOrganizations && (
-            <>
-              <CommandSeparator />
-              <CommandList>
-                <Link
-                  to={appRoutes.onboardingCreateTenantRoute.to}
-                  data-cy="new-tenant"
+      {/* Portal so the popover can render above the mobile sidebar overlay (header is z-50). */}
+      <PopoverPortal>
+        <PopoverContent
+          side="bottom"
+          align="start"
+          sideOffset={8}
+          // Must render above the mobile sidebar overlay (`side-nav` uses z-[100]).
+          className="z-[300] w-56 p-0"
+        >
+          <Command className="">
+            <CommandList>
+              <CommandEmpty>No tenants found.</CommandEmpty>
+              {memberships.map((membership) => (
+                <CommandItem
+                  key={membership.metadata.id}
+                  onSelect={() => {
+                    invariant(membership.tenant);
+                    setCurrTenant(membership.tenant);
+                    setOpen(false);
+                  }}
+                  value={membership.tenant?.slug}
+                  className="cursor-pointer text-sm"
                 >
-                  <CommandItem className="cursor-pointer text-sm">
-                    <PlusCircledIcon className="mr-2 size-4" />
-                    New Tenant
-                  </CommandItem>
-                </Link>
-              </CommandList>
-            </>
-          )}
-        </Command>
-      </PopoverContent>
+                  <BuildingOffice2Icon className="mr-2 size-4" />
+                  {membership.tenant?.name}
+                  <CheckIcon
+                    className={cn(
+                      'ml-auto size-4',
+                      currTenant.slug === membership.tenant?.slug
+                        ? 'opacity-100'
+                        : 'opacity-0',
+                    )}
+                  />
+                </CommandItem>
+              ))}
+            </CommandList>
+            {meta.data?.allowCreateTenant && !hasOrganizations && (
+              <>
+                <CommandSeparator />
+                <CommandList>
+                  <Link
+                    to={appRoutes.onboardingCreateTenantRoute.to}
+                    data-cy="new-tenant"
+                  >
+                    <CommandItem className="cursor-pointer text-sm">
+                      <PlusCircledIcon className="mr-2 size-4" />
+                      New Tenant
+                    </CommandItem>
+                  </Link>
+                </CommandList>
+              </>
+            )}
+          </Command>
+        </PopoverContent>
+      </PopoverPortal>
     </Popover>
   );
 }
