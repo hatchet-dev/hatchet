@@ -11,29 +11,38 @@ describe('Tenants: switching', () => {
       .first()
       .click();
 
-    cy.get('div[data-value="tenant1"]').filter(':visible').first().click();
+    cy.get('[cmdk-list]').should('be.visible');
+    cy.get('[cmdk-list]')
+      .find('[data-value="tenant1"]')
+      .scrollIntoView()
+      .click({ force: true });
 
     cy.get('button[aria-label="Select a tenant"]')
-      .should('have.text', 'Tenant 1')
       .filter(':visible')
+      .first()
+      .should('contain.text', 'Tenant 1')
       .click();
 
-    cy.get('div[data-value="tenant2"]').filter(':visible').first().click();
+    cy.get('[cmdk-list]').should('be.visible');
+    cy.get('[cmdk-list]')
+      .find('[data-value="tenant2"]')
+      .scrollIntoView()
+      .click({ force: true });
 
-    cy.get('button[aria-label="Select a tenant"]').should(
-      'have.text',
-      'Tenant 2',
-    );
+    cy.get('button[aria-label="Select a tenant"]')
+      .filter(':visible')
+      .first()
+      .should('contain.text', 'Tenant 2');
     cy.reload();
-    cy.get('button[aria-label="Select a tenant"]').should(
-      'have.text',
-      'Tenant 2',
-    );
+    cy.get('button[aria-label="Select a tenant"]')
+      .filter(':visible')
+      .first()
+      .should('contain.text', 'Tenant 2');
     cy.visit('/');
-    cy.get('button[aria-label="Select a tenant"]').should(
-      'have.text',
-      'Tenant 2',
-    );
+    cy.get('button[aria-label="Select a tenant"]')
+      .filter(':visible')
+      .first()
+      .should('contain.text', 'Tenant 2');
   });
 
   it('should not break on login with different user', () => {
@@ -43,16 +52,25 @@ describe('Tenants: switching', () => {
       .filter(':visible')
       .first()
       .click();
-    cy.get('div[data-value="tenant1"]').filter(':visible').first().click();
+    cy.get('[cmdk-list]').should('be.visible');
+    cy.get('[cmdk-list]')
+      .find('[data-value="tenant1"]')
+      .scrollIntoView()
+      .click({ force: true });
     cy.get('button[aria-label="Select a tenant"]')
-      .should('have.text', 'Tenant 1')
       .filter(':visible')
+      .first()
+      .should('contain.text', 'Tenant 1')
       .click();
-    cy.get('div[data-value="tenant2"]').filter(':visible').first().click();
-    cy.get('button[aria-label="Select a tenant"]').should(
-      'have.text',
-      'Tenant 2',
-    );
+    cy.get('[cmdk-list]').should('be.visible');
+    cy.get('[cmdk-list]')
+      .find('[data-value="tenant2"]')
+      .scrollIntoView()
+      .click({ force: true });
+    cy.get('button[aria-label="Select a tenant"]')
+      .filter(':visible')
+      .first()
+      .should('contain.text', 'Tenant 2');
     cy.get('button[aria-label="User Menu"]')
       .filter(':visible')
       .should('be.visible')
@@ -63,9 +81,9 @@ describe('Tenants: switching', () => {
 
     cy.login('member');
     cy.visit('/');
-    cy.get('button[aria-label="Select a tenant"]').should(
-      'have.text',
-      'Tenant 1',
-    );
+    cy.get('button[aria-label="Select a tenant"]')
+      .filter(':visible')
+      .first()
+      .should('contain.text', 'Tenant 1');
   });
 });

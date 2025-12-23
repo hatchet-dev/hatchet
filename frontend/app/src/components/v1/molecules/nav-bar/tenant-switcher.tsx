@@ -73,7 +73,7 @@ export function TenantSwitcher({
         sideOffset={8}
         className="z-50 w-56 p-0"
       >
-        <Command className="" value={currTenant.slug}>
+        <Command className="">
           <CommandList>
             <CommandEmpty>No tenants found.</CommandEmpty>
             {memberships.map((membership) => (

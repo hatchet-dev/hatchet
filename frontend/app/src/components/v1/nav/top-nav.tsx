@@ -68,7 +68,7 @@ function AccountDropdown({ user }: { user: User }) {
         <Button
           variant="outline"
           size="sm"
-          aria-label="Account Menu"
+          aria-label="User Menu"
           className="relative max-w-[220px] justify-between gap-2 bg-muted/20 px-2 shadow-none hover:bg-muted/30"
         >
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">

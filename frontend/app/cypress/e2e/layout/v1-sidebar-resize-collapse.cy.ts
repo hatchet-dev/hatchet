@@ -204,6 +204,7 @@ describe('v1 sidebar: resize + collapse', () => {
       .parents('[role="menu"]')
       .first()
       .invoke('attr', 'class')
-      .should('contain', 'bg-secondary');
+      // UI uses popover surfaces; accept either explicit secondary surface or popover surface.
+      .should('match', /\bbg-(secondary|popover)\b/);
   });
 });

@@ -15,6 +15,15 @@ describe('auth: login', () => {
       });
     cy.location('pathname').should('include', '/tenants/');
     cy.get('button[aria-label="User Menu"]').filter(':visible').first().click();
-    cy.get('[data-cy="user-name"]').should('have.text', seededUsers.owner.name);
+    // `data-cy="user-name"` exists in both the trigger and the dropdown content; scope to the open menu.
+    cy.get('[role="menu"]')
+      .filter(':visible')
+      .first()
+      .within(() => {
+        cy.get('[data-cy="user-name"]')
+          .filter(':visible')
+          .first()
+          .should('have.text', seededUsers.owner.name);
+      });
   });
 });
