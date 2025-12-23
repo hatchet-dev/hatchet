@@ -17,7 +17,7 @@ describe('batch-task e2e', () => {
     retries: 0,
     batchMaxSize: 3,
     batchMaxInterval: '200ms',
-    fn: (tasks: Array<readonly [{ Message: string }, Context<{ Message: string }>]> ) =>
+    fn: (tasks: Array<readonly [{ Message: string }, Context<{ Message: string }>]>) =>
       tasks.map(([input]) => ({
         TransformedMessage: input.Message.toUpperCase(),
       })),
@@ -113,7 +113,11 @@ describe('batch-task e2e', () => {
       batchMaxSize: 2,
       batchMaxInterval: '200ms',
       batchGroupKey: 'input.group',
-      fn: (tasks: Array<readonly [{ Message: string; group: string }, Context<{ Message: string; group: string }>]> ) =>
+      fn: (
+        tasks: Array<
+          readonly [{ Message: string; group: string }, Context<{ Message: string; group: string }>]
+        >
+      ) =>
         tasks.map(([input]) => ({
           batchKey: input.group,
           batchSize: tasks.length,
@@ -145,7 +149,11 @@ describe('batch-task e2e', () => {
       batchMaxSize: 3,
       batchMaxInterval: '150ms',
       batchGroupKey: 'input.group',
-      fn: (tasks: Array<readonly [{ Message: string; group: string }, Context<{ Message: string; group: string }>]> ) =>
+      fn: (
+        tasks: Array<
+          readonly [{ Message: string; group: string }, Context<{ Message: string; group: string }>]
+        >
+      ) =>
         tasks.map(([input]) => ({
           batchKey: input.group,
           batchSize: tasks.length,
@@ -174,7 +182,7 @@ describe('batch-task e2e', () => {
     const singleItemWorkflow = await createAndRegisterBatchWorkflow({
       batchMaxSize: 1,
       batchMaxInterval: '100ms',
-      fn: (tasks: Array<readonly [{ Message: string }, Context<{ Message: string }>]> ) =>
+      fn: (tasks: Array<readonly [{ Message: string }, Context<{ Message: string }>]>) =>
         tasks.map(([input]) => ({
           original: input.Message,
           batchSize: tasks.length,
