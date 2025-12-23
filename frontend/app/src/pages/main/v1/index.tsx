@@ -47,6 +47,7 @@ function Main() {
         mainClassName="overflow-auto"
         mainContainerType="inline-size"
       >
+        {/* TODO-DESIGN: replace the color with a tailwind color */}
         <div className="border-l border-t md:rounded-tl-xl p-4 h-full dark:bg-[#050A23] bg-background ">
           <OutletWithContext context={childCtx} />
         </div>
