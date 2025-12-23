@@ -11,7 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
 
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { data: cloudMeta, isCloudEnabled } = useCloudApiMeta();
 
   const resourcePolicyQuery = useQuery({
     ...queries.tenantResourcePolicy.get(tenantId),
@@ -19,12 +19,12 @@ export default function ResourceLimits() {
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenantId),
-    enabled: !!cloudMeta?.data.canBill,
+    enabled: isCloudEnabled && !!cloudMeta?.data.canBill,
   });
 
   const cols = columns();
 
-  const billingEnabled = cloudMeta?.data.canBill;
+  const billingEnabled = isCloudEnabled && cloudMeta?.data.canBill;
 
   const hasPaymentMethods =
     (billingState.data?.paymentMethods?.length || 0) > 0;
