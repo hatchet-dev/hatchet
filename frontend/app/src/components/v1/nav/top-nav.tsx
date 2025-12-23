@@ -33,7 +33,13 @@ import { useMutation } from '@tanstack/react-query';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { ChevronDown, Menu } from 'lucide-react';
 import React from 'react';
-import { BiEnvelope, BiLogOut, BiMoon, BiSun, BiUserCircle } from 'react-icons/bi';
+import {
+  BiEnvelope,
+  BiLogOut,
+  BiMoon,
+  BiSun,
+  BiUserCircle,
+} from 'react-icons/bi';
 
 function AccountDropdown({ user }: { user: User }) {
   const navigate = useNavigate();
@@ -205,16 +211,13 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
           </button>
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          {showTenantSwitcher && (
-            <div className="max-w-[55vw] min-w-[140px]">
-              {isCloudEnabled ? (
-                <OrganizationSelector memberships={tenantMemberships} />
-              ) : (
-                <TenantSwitcher memberships={tenantMemberships} />
-              )}
-            </div>
-          )}
+        <div className="flex items-center justify-end gap-2 ml-auto">
+          {showTenantSwitcher &&
+            (isCloudEnabled ? (
+              <OrganizationSelector memberships={tenantMemberships} />
+            ) : (
+              <TenantSwitcher memberships={tenantMemberships} />
+            ))}
           <AccountDropdown user={user} />
         </div>
       </div>
@@ -284,15 +287,12 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         </div>
 
         <div className="flex items-center justify-end gap-2 pr-4">
-          {showTenantSwitcher && (
-            <div className="w-[220px] lg:w-[280px]">
-              {isCloudEnabled ? (
-                <OrganizationSelector memberships={tenantMemberships} />
-              ) : (
-                <TenantSwitcher memberships={tenantMemberships} />
-              )}
-            </div>
-          )}
+          {showTenantSwitcher &&
+            (isCloudEnabled ? (
+              <OrganizationSelector memberships={tenantMemberships} />
+            ) : (
+              <TenantSwitcher memberships={tenantMemberships} />
+            ))}
           <AccountDropdown user={user} />
         </div>
       </div>

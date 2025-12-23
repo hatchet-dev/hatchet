@@ -59,7 +59,6 @@ export function TenantSwitcher({
             open && 'bg-muted/30',
             className,
           )}
-          fullWidth
         >
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <BuildingOffice2Icon className="size-4 shrink-0" />
@@ -72,9 +71,9 @@ export function TenantSwitcher({
         side="bottom"
         align="start"
         sideOffset={8}
-        className="z-50 w-[--radix-popover-trigger-width] p-0"
+        className="z-50 w-56 p-0"
       >
-        <Command className="min-w-[260px]" value={currTenant.slug}>
+        <Command className="" value={currTenant.slug}>
           <CommandList>
             <CommandEmpty>No tenants found.</CommandEmpty>
             {memberships.map((membership) => (
