@@ -204,8 +204,8 @@ func TestBatchSchedulerFlushOnBatchSize(t *testing.T) {
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:               stepId,
 		BatchKey:             "batch",
-		BatchSize:            2,
-		BatchFlushIntervalMs: 0,
+		BatchMaxSize:         2,
+		BatchMaxInterval:     0,
 	}
 
 	notifyCh := make(chan []string, 1) // deprecated path, preserved for compatibility
@@ -247,8 +247,8 @@ func TestBatchSchedulerFlushOnInterval(t *testing.T) {
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:               stepId,
 		BatchKey:             "interval",
-		BatchSize:            10,
-		BatchFlushIntervalMs: 50,
+		BatchMaxSize:         10,
+		BatchMaxInterval:     50,
 	}
 
 	notifyCh := make(chan []string, 1)
@@ -282,9 +282,9 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 		&sqlcv1.ListDistinctBatchResourcesRow{
 			StepID:               stepId,
 			BatchKey:             "group",
-			BatchSize:            2,
-			BatchFlushIntervalMs: 0,
-			BatchMaxRuns:         1,
+			BatchMaxSize:         2,
+			BatchMaxInterval:     0,
+			BatchGroupMaxRuns:    1,
 		},
 		queueFactory,
 		&Scheduler{},
@@ -386,10 +386,10 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 		require.NotNil(t, assigned.QueueItem)
 		require.NotNil(t, assigned.Batch)
 		require.Equal(t, string(flushReasonBatchSizeReached), assigned.Batch.Reason)
-		require.Equal(t, int32(2), assigned.Batch.ConfiguredBatchSize)
-		require.Equal(t, int32(1), assigned.Batch.MaxRuns)
+		require.Equal(t, int32(2), assigned.Batch.ConfiguredBatchMaxSize)
+		require.Equal(t, int32(1), assigned.Batch.ConfiguredBatchGroupMaxRuns)
 		require.NotEmpty(t, assigned.Batch.BatchID)
-		require.Equal(t, "group", assigned.Batch.BatchKey)
+		require.Equal(t, "group", assigned.Batch.BatchGroupKey)
 		require.Equal(t, "action", assigned.Batch.ActionID)
 	}
 
@@ -409,8 +409,8 @@ func TestBatchSchedulerUsesSingleSlotForBatch(t *testing.T) {
 		&sqlcv1.ListDistinctBatchResourcesRow{
 			StepID:               stepId,
 			BatchKey:             "single-slot",
-			BatchSize:            3,
-			BatchFlushIntervalMs: 0,
+			BatchMaxSize:         3,
+			BatchMaxInterval:     0,
 		},
 		queueFactory,
 		&Scheduler{},
@@ -521,8 +521,8 @@ func TestBatchSchedulerScheduleTimeout(t *testing.T) {
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:               stepId,
 		BatchKey:             "timeout-batch",
-		BatchSize:            5,
-		BatchFlushIntervalMs: 0,
+		BatchMaxSize:         5,
+		BatchMaxInterval:     0,
 	}
 
 	var emitted []*QueueResults

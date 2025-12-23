@@ -122,10 +122,10 @@ type CreateStepOpts struct {
 }
 
 type StepBatchConfig struct {
-	BatchSize          int32   `json:"batchSize" validate:"required,min=1,max=100000"`
-	FlushIntervalMs    *int32  `json:"flushIntervalMs,omitempty" validate:"omitempty,min=1,max=86400000"`
-	BatchKeyExpression *string `json:"batchKeyExpression,omitempty"`
-	MaxRuns            *int32  `json:"maxRuns,omitempty" validate:"omitempty,min=1,max=10000"`
+	BatchMaxSize       int32   `json:"batchMaxSize" validate:"required,min=1,max=100000"`
+	BatchMaxInterval   *int32  `json:"batchMaxInterval,omitempty" validate:"omitempty,min=1,max=86400000"`
+	BatchGroupKey      *string `json:"batchGroupKey,omitempty"`
+	BatchGroupMaxRuns  *int32  `json:"batchGroupMaxRuns,omitempty" validate:"omitempty,min=1,max=10000"`
 }
 
 type CreateStepMatchConditionOpt struct {
@@ -274,28 +274,28 @@ func (w *workflowRepository) ListStepBatchConfigs(ctx context.Context, tenantId 
 	for _, row := range rows {
 		stepId := sqlchelpers.UUIDToStr(row.ID)
 
-		if !row.BatchSize.Valid {
+		if !row.BatchMaxSize.Valid {
 			result[stepId] = nil
 			continue
 		}
 
 		cfg := &StepBatchConfig{
-			BatchSize: row.BatchSize.Int32,
+			BatchMaxSize: row.BatchMaxSize.Int32,
 		}
 
-		if row.BatchFlushIntervalMs.Valid {
-			val := row.BatchFlushIntervalMs.Int32
-			cfg.FlushIntervalMs = &val
+		if row.BatchMaxInterval.Valid {
+			val := row.BatchMaxInterval.Int32
+			cfg.BatchMaxInterval = &val
 		}
 
-		if row.BatchKeyExpression.Valid {
-			val := row.BatchKeyExpression.String
-			cfg.BatchKeyExpression = &val
+		if row.BatchGroupKey.Valid {
+			val := row.BatchGroupKey.String
+			cfg.BatchGroupKey = &val
 		}
 
-		if row.BatchMaxRuns.Valid {
-			val := row.BatchMaxRuns.Int32
-			cfg.MaxRuns = &val
+		if row.BatchGroupMaxRuns.Valid {
+			val := row.BatchGroupMaxRuns.Int32
+			cfg.BatchGroupMaxRuns = &val
 		}
 
 		result[stepId] = cfg
@@ -776,24 +776,24 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 		if stepOpts.BatchConfig != nil {
 			batchSize = pgtype.Int4{
-				Int32: stepOpts.BatchConfig.BatchSize,
+				Int32: stepOpts.BatchConfig.BatchMaxSize,
 				Valid: true,
 			}
 
-			if stepOpts.BatchConfig.FlushIntervalMs != nil {
+			if stepOpts.BatchConfig.BatchMaxInterval != nil {
 				batchFlushInterval = pgtype.Int4{
-					Int32: *stepOpts.BatchConfig.FlushIntervalMs,
+					Int32: *stepOpts.BatchConfig.BatchMaxInterval,
 					Valid: true,
 				}
 			}
 
-			if stepOpts.BatchConfig.BatchKeyExpression != nil && *stepOpts.BatchConfig.BatchKeyExpression != "" {
-				batchKeyExpression = sqlchelpers.TextFromStr(*stepOpts.BatchConfig.BatchKeyExpression)
+			if stepOpts.BatchConfig.BatchGroupKey != nil && *stepOpts.BatchConfig.BatchGroupKey != "" {
+				batchKeyExpression = sqlchelpers.TextFromStr(*stepOpts.BatchConfig.BatchGroupKey)
 			}
 
-			if stepOpts.BatchConfig.MaxRuns != nil {
+			if stepOpts.BatchConfig.BatchGroupMaxRuns != nil {
 				batchMaxRuns = pgtype.Int4{
-					Int32: *stepOpts.BatchConfig.MaxRuns,
+					Int32: *stepOpts.BatchConfig.BatchGroupMaxRuns,
 					Valid: true,
 				}
 			}
@@ -808,10 +808,10 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			Readableid:           stepOpts.ReadableId,
 			CustomUserData:       customUserData,
 			Retries:              retries,
-			BatchSize:            batchSize,
-			BatchFlushIntervalMs: batchFlushInterval,
-			BatchKeyExpression:   batchKeyExpression,
-			BatchMaxRuns:         batchMaxRuns,
+			BatchMaxSize:         batchSize,
+			BatchMaxInterval:     batchFlushInterval,
+			BatchGroupKey:        batchKeyExpression,
+			BatchGroupMaxRuns:    batchMaxRuns,
 		}
 
 		if stepOpts.ScheduleTimeout != nil {

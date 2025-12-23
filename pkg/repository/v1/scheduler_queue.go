@@ -46,11 +46,12 @@ type BatchAssignmentMetadata struct {
 
 	TriggeredAt time.Time
 
-	ConfiguredBatchSize int32
+	ConfiguredBatchMaxSize int32
 
-	ConfiguredFlushIntervalMs int32
+	// ConfiguredBatchMaxIntervalMs is stored in milliseconds.
+	ConfiguredBatchMaxIntervalMs int32
 
-	MaxRuns int32
+	ConfiguredBatchGroupMaxRuns int32
 
 	Pending int32
 
@@ -58,9 +59,9 @@ type BatchAssignmentMetadata struct {
 
 	BatchID string
 
-	StepID   string
-	ActionID string
-	BatchKey string
+	StepID        string
+	ActionID      string
+	BatchGroupKey string
 }
 
 type AssignResults struct {

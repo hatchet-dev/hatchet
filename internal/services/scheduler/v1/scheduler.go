@@ -637,7 +637,7 @@ func (s *Scheduler) emitBatchWaitingEvents(ctx context.Context, tenantId string,
 			pending = 1
 		}
 
-		expected := int(meta.ConfiguredBatchSize)
+		expected := int(meta.ConfiguredBatchMaxSize)
 		if expected <= 0 {
 			expected = pending
 		}
@@ -649,12 +649,12 @@ func (s *Scheduler) emitBatchWaitingEvents(ctx context.Context, tenantId string,
 		if queueItem.BatchKey.Valid {
 			batchKey = strings.TrimSpace(queueItem.BatchKey.String)
 			if batchKey != "" {
-				fmt.Fprintf(&builder, " Batch key: %s.", batchKey)
+				fmt.Fprintf(&builder, " Batch group key: %s.", batchKey)
 			}
 		}
 
-		if meta.ConfiguredFlushIntervalMs > 0 {
-			interval := time.Duration(meta.ConfiguredFlushIntervalMs) * time.Millisecond
+		if meta.ConfiguredBatchMaxIntervalMs > 0 {
+			interval := time.Duration(meta.ConfiguredBatchMaxIntervalMs) * time.Millisecond
 			if meta.NextFlushAt != nil {
 				fmt.Fprintf(&builder, " Flush at %s (interval %s).", meta.NextFlushAt.UTC().Format(time.RFC3339), interval)
 			} else {
@@ -662,8 +662,8 @@ func (s *Scheduler) emitBatchWaitingEvents(ctx context.Context, tenantId string,
 			}
 		}
 
-		if meta.MaxRuns > 0 {
-			fmt.Fprintf(&builder, " Max concurrent batches per key: %d.", meta.MaxRuns)
+		if meta.ConfiguredBatchGroupMaxRuns > 0 {
+			fmt.Fprintf(&builder, " Max concurrent batches per key: %d.", meta.ConfiguredBatchGroupMaxRuns)
 		}
 
 		if meta.Reason != "" {
@@ -671,19 +671,19 @@ func (s *Scheduler) emitBatchWaitingEvents(ctx context.Context, tenantId string,
 		}
 
 		eventPayload := map[string]interface{}{
-			"status":       "waiting_for_batch",
-			"batchKey":     batchKey,
-			"pending":      pending,
-			"expectedSize": expected,
-			"maxRuns":      meta.MaxRuns,
+			"status":            "waiting_for_batch",
+			"batchGroupKey":     batchKey,
+			"pending":           pending,
+			"expectedSize":      expected,
+			"batchGroupMaxRuns": meta.ConfiguredBatchGroupMaxRuns,
 		}
 
 		if meta.NextFlushAt != nil {
 			eventPayload["nextFlushAt"] = meta.NextFlushAt.UTC().Format(time.RFC3339)
 		}
 
-		if meta.ConfiguredFlushIntervalMs > 0 {
-			eventPayload["flushIntervalMs"] = meta.ConfiguredFlushIntervalMs
+		if meta.ConfiguredBatchMaxIntervalMs > 0 {
+			eventPayload["batchMaxIntervalMs"] = meta.ConfiguredBatchMaxIntervalMs
 		}
 
 		if queueItem.StepID.Valid {
@@ -867,8 +867,8 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 			if meta.ActionID != "" {
 				actionID = meta.ActionID
 			}
-			if strings.TrimSpace(meta.BatchKey) != "" {
-				batchKey = strings.TrimSpace(meta.BatchKey)
+			if strings.TrimSpace(meta.BatchGroupKey) != "" {
+				batchKey = strings.TrimSpace(meta.BatchGroupKey)
 			}
 		}
 
@@ -952,7 +952,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 			batchID = uuid.NewString()
 		}
 
-		shouldRelease := meta.MaxRuns > 0 && strings.TrimSpace(key.BatchKey) != "" && batchID != ""
+		shouldRelease := meta.ConfiguredBatchGroupMaxRuns > 0 && strings.TrimSpace(key.BatchKey) != "" && batchID != ""
 		releaseOnError := func() {
 			if !shouldRelease {
 				return
@@ -981,12 +981,12 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 		}
 
 		batchSize := len(group)
-		configuredSize := int(meta.ConfiguredBatchSize)
+		configuredSize := int(meta.ConfiguredBatchMaxSize)
 		if configuredSize <= 0 {
 			configuredSize = batchSize
 		}
 
-		flushReason := describeBatchFlushReason(meta.Reason, configuredSize, time.Duration(meta.ConfiguredFlushIntervalMs)*time.Millisecond)
+		flushReason := describeBatchFlushReason(meta.Reason, configuredSize, time.Duration(meta.ConfiguredBatchMaxIntervalMs)*time.Millisecond)
 
 		assignmentsPayload := make([]repov1.TaskBatchAssignment, 0, len(group))
 		taskIds := make([]int64, 0, len(group))
@@ -1027,8 +1027,8 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 			TriggerTime:   triggeredAt,
 		}
 
-		if meta.MaxRuns > 0 {
-			maxRuns := int(meta.MaxRuns)
+		if meta.ConfiguredBatchGroupMaxRuns > 0 {
+			maxRuns := int(meta.ConfiguredBatchGroupMaxRuns)
 			startPayload.MaxRuns = &maxRuns
 		}
 
@@ -1083,27 +1083,27 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 		)
 
 		if key.BatchKey != "" {
-			batchMessage += fmt.Sprintf(" Batch key: %s.", key.BatchKey)
+			batchMessage += fmt.Sprintf(" Batch group key: %s.", key.BatchKey)
 		}
 
-		if meta.MaxRuns > 0 {
-			batchMessage += fmt.Sprintf(" Max concurrent batches per key: %d.", meta.MaxRuns)
+		if meta.ConfiguredBatchGroupMaxRuns > 0 {
+			batchMessage += fmt.Sprintf(" Max concurrent batches per key: %d.", meta.ConfiguredBatchGroupMaxRuns)
 		}
 
-		if meta.ConfiguredFlushIntervalMs > 0 {
-			interval := time.Duration(meta.ConfiguredFlushIntervalMs) * time.Millisecond
-			batchMessage += fmt.Sprintf(" Configured flush interval: %s.", interval)
+		if meta.ConfiguredBatchMaxIntervalMs > 0 {
+			interval := time.Duration(meta.ConfiguredBatchMaxIntervalMs) * time.Millisecond
+			batchMessage += fmt.Sprintf(" Configured batch max interval: %s.", interval)
 		}
 
 		batchPayloadFields := map[string]interface{}{
-			"status":         "flushed",
-			"batchId":        batchID,
-			"batchKey":       key.BatchKey,
-			"batchSize":      batchSize,
-			"configuredSize": configuredSize,
-			"triggerReason":  flushReason,
-			"triggeredAt":    triggeredAt.UTC().Format(time.RFC3339),
-			"maxRuns":        meta.MaxRuns,
+			"status":            "flushed",
+			"batchId":           batchID,
+			"batchGroupKey":     key.BatchKey,
+			"batchMaxSize":      batchSize,
+			"configuredSize":    configuredSize,
+			"triggerReason":     flushReason,
+			"triggeredAt":       triggeredAt.UTC().Format(time.RFC3339),
+			"batchGroupMaxRuns": meta.ConfiguredBatchGroupMaxRuns,
 		}
 
 		if key.StepID != "" {
@@ -1116,8 +1116,8 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 			batchPayloadFields["actionId"] = key.ActionID
 		}
 
-		if meta.ConfiguredFlushIntervalMs > 0 {
-			batchPayloadFields["flushIntervalMs"] = meta.ConfiguredFlushIntervalMs
+		if meta.ConfiguredBatchMaxIntervalMs > 0 {
+			batchPayloadFields["batchMaxIntervalMs"] = meta.ConfiguredBatchMaxIntervalMs
 		}
 
 		batchPayload := buildBatchEventPayload(batchPayloadFields)
@@ -1177,9 +1177,9 @@ func describeBatchFlushReason(reason string, batchSize int, interval time.Durati
 		return "dispatcher changed"
 	case "interval_elapsed":
 		if interval > 0 {
-			return fmt.Sprintf("flush interval %s elapsed", interval)
+			return fmt.Sprintf("batch max interval %s elapsed", interval)
 		}
-		return "flush interval elapsed"
+		return "batch max interval elapsed"
 	case "buffer_drained":
 		return "buffer drained during shutdown"
 	default:

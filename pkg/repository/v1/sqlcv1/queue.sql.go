@@ -707,9 +707,9 @@ SELECT
     b.batch_key,
     MIN(b.inserted_at)::timestamptz AS oldest_item_at,
     COUNT(*) AS pending_count,
-    COALESCE(MAX(s."batch_size"), -1)::integer AS batch_size,
-    COALESCE(MAX(s."batch_flush_interval_ms"), -1)::integer AS batch_flush_interval_ms,
-    COALESCE(MAX(s."batch_max_runs"), -1)::integer AS batch_max_runs
+    COALESCE(MAX(s."batch_max_size"), -1)::integer AS batch_max_size,
+    COALESCE(MAX(s."batch_max_interval"), -1)::integer AS batch_max_interval,
+    COALESCE(MAX(s."batch_group_max_runs"), -1)::integer AS batch_group_max_runs
 FROM
     v1_batched_queue_item b
 JOIN
@@ -724,13 +724,13 @@ ORDER BY
 `
 
 type ListDistinctBatchResourcesRow struct {
-	StepID               pgtype.UUID        `json:"step_id"`
-	BatchKey             string             `json:"batch_key"`
-	OldestItemAt         pgtype.Timestamptz `json:"oldest_item_at"`
-	PendingCount         int64              `json:"pending_count"`
-	BatchSize            int32              `json:"batch_size"`
-	BatchFlushIntervalMs int32              `json:"batch_flush_interval_ms"`
-	BatchMaxRuns         int32              `json:"batch_max_runs"`
+	StepID            pgtype.UUID        `json:"step_id"`
+	BatchKey          string             `json:"batch_key"`
+	OldestItemAt      pgtype.Timestamptz `json:"oldest_item_at"`
+	PendingCount      int64              `json:"pending_count"`
+	BatchMaxSize      int32              `json:"batch_max_size"`
+	BatchMaxInterval  int32              `json:"batch_max_interval"`
+	BatchGroupMaxRuns int32              `json:"batch_group_max_runs"`
 }
 
 func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListDistinctBatchResourcesRow, error) {
@@ -747,9 +747,9 @@ func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, tenan
 			&i.BatchKey,
 			&i.OldestItemAt,
 			&i.PendingCount,
-			&i.BatchSize,
-			&i.BatchFlushIntervalMs,
-			&i.BatchMaxRuns,
+			&i.BatchMaxSize,
+			&i.BatchMaxInterval,
+			&i.BatchGroupMaxRuns,
 		); err != nil {
 			return nil, err
 		}
@@ -904,8 +904,8 @@ FROM
     "Step"
 WHERE
     "id" = ANY($1::uuid[])
-    AND "batch_size" IS NOT NULL
-    AND "batch_size" >= 1
+    AND "batch_max_size" IS NOT NULL
+    AND "batch_max_size" >= 1
 `
 
 func (q *Queries) ListStepsWithBatchConfig(ctx context.Context, db DBTX, stepids []pgtype.UUID) ([]pgtype.UUID, error) {
@@ -1033,8 +1033,8 @@ WITH locked_qis AS (
         "Step" s ON s."id" = qi.step_id
     WHERE
         qi.id = ANY($1::bigint[])
-        AND s."batch_size" IS NOT NULL
-        AND s."batch_size" >= 1
+        AND s."batch_max_size" IS NOT NULL
+        AND s."batch_max_size" >= 1
     ORDER BY
         qi.id ASC
     FOR UPDATE

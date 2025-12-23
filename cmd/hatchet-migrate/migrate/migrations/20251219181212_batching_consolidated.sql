@@ -5,10 +5,10 @@ ALTER TYPE "LeaseKind" ADD VALUE IF NOT EXISTS 'BATCH';
 
 -- v0 "Step" batching configuration fields
 ALTER TABLE "Step"
-    ADD COLUMN IF NOT EXISTS batch_size INTEGER,
-    ADD COLUMN IF NOT EXISTS batch_flush_interval_ms INTEGER,
-    ADD COLUMN IF NOT EXISTS batch_key_expression TEXT,
-    ADD COLUMN IF NOT EXISTS batch_max_runs INTEGER;
+    ADD COLUMN IF NOT EXISTS batch_max_size INTEGER,
+    ADD COLUMN IF NOT EXISTS batch_max_interval INTEGER,
+    ADD COLUMN IF NOT EXISTS batch_group_key TEXT,
+    ADD COLUMN IF NOT EXISTS batch_group_max_runs INTEGER;
 
 -- v1 batching propagation fields
 ALTER TABLE v1_task
@@ -792,10 +792,10 @@ ALTER TABLE v1_rate_limited_queue_items
     DROP COLUMN IF EXISTS batch_key;
 
 ALTER TABLE "Step"
-    DROP COLUMN IF EXISTS batch_max_runs,
-    DROP COLUMN IF EXISTS batch_key_expression,
-    DROP COLUMN IF EXISTS batch_flush_interval_ms,
-    DROP COLUMN IF EXISTS batch_size;
+    DROP COLUMN IF EXISTS batch_group_max_runs,
+    DROP COLUMN IF EXISTS batch_group_key,
+    DROP COLUMN IF EXISTS batch_max_interval,
+    DROP COLUMN IF EXISTS batch_max_size;
 
 SELECT 'no-op: cannot remove enum values from v1_event_type_olap' AS notice;
 SELECT 'no-op: cannot remove value from "LeaseKind"' AS notice;

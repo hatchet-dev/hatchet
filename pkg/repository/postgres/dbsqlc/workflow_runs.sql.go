@@ -1628,7 +1628,7 @@ func (q *Queries) GetStepRunsForJobRunsWithOutput(ctx context.Context, db DBTX, 
 const getStepsForJobs = `-- name: GetStepsForJobs :many
 SELECT
 	j."id" as "jobId",
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s.batch_size, s.batch_flush_interval_ms, s.batch_key_expression, s.batch_max_runs,
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s.batch_max_size, s.batch_max_interval, s.batch_group_key, s.batch_group_max_runs,
     (
         SELECT array_agg(so."A")::uuid[]  -- Casting the array_agg result to uuid[]
         FROM "_StepOrder" so
@@ -1678,10 +1678,10 @@ func (q *Queries) GetStepsForJobs(ctx context.Context, db DBTX, arg GetStepsForJ
 			&i.Step.RetryBackoffFactor,
 			&i.Step.RetryMaxBackoff,
 			&i.Step.ScheduleTimeout,
-			&i.Step.BatchSize,
-			&i.Step.BatchFlushIntervalMs,
-			&i.Step.BatchKeyExpression,
-			&i.Step.BatchMaxRuns,
+			&i.Step.BatchMaxSize,
+			&i.Step.BatchMaxInterval,
+			&i.Step.BatchGroupKey,
+			&i.Step.BatchGroupMaxRuns,
 			&i.Parents,
 		); err != nil {
 			return nil, err
@@ -1697,7 +1697,7 @@ func (q *Queries) GetStepsForJobs(ctx context.Context, db DBTX, arg GetStepsForJ
 const getStepsForWorkflowVersion = `-- name: GetStepsForWorkflowVersion :many
 
 SELECT
-    "Step".id, "Step"."createdAt", "Step"."updatedAt", "Step"."deletedAt", "Step"."readableId", "Step"."tenantId", "Step"."jobId", "Step"."actionId", "Step".timeout, "Step"."customUserData", "Step".retries, "Step"."retryBackoffFactor", "Step"."retryMaxBackoff", "Step"."scheduleTimeout", "Step".batch_size, "Step".batch_flush_interval_ms, "Step".batch_key_expression, "Step".batch_max_runs  from "Step"
+    "Step".id, "Step"."createdAt", "Step"."updatedAt", "Step"."deletedAt", "Step"."readableId", "Step"."tenantId", "Step"."jobId", "Step"."actionId", "Step".timeout, "Step"."customUserData", "Step".retries, "Step"."retryBackoffFactor", "Step"."retryMaxBackoff", "Step"."scheduleTimeout", "Step".batch_max_size, "Step".batch_max_interval, "Step".batch_group_key, "Step".batch_group_max_runs  from "Step"
 JOIN "Job" j ON "Step"."jobId" = j."id"
 WHERE
     j."workflowVersionId" = ANY($1::uuid[])
@@ -1727,10 +1727,10 @@ func (q *Queries) GetStepsForWorkflowVersion(ctx context.Context, db DBTX, workf
 			&i.RetryBackoffFactor,
 			&i.RetryMaxBackoff,
 			&i.ScheduleTimeout,
-			&i.BatchSize,
-			&i.BatchFlushIntervalMs,
-			&i.BatchKeyExpression,
-			&i.BatchMaxRuns,
+			&i.BatchMaxSize,
+			&i.BatchMaxInterval,
+			&i.BatchGroupKey,
+			&i.BatchGroupMaxRuns,
 		); err != nil {
 			return nil, err
 		}

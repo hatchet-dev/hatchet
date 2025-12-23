@@ -122,7 +122,7 @@ SELECT
 	i.workflow_version_id,
 	i.workflow_run_id,
 	CASE
-		WHEN s."batch_size" IS NOT NULL AND s."batch_size" >= 1 THEN COALESCE(NULLIF(BTRIM(i.batch_key), ''), 'default')
+		WHEN s."batch_max_size" IS NOT NULL AND s."batch_max_size" >= 1 THEN COALESCE(NULLIF(BTRIM(i.batch_key), ''), 'default')
 		ELSE NULLIF(BTRIM(i.batch_key), '')
 	END
 FROM

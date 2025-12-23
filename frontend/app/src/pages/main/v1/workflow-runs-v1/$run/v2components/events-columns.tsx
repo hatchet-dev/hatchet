@@ -22,13 +22,13 @@ import { createColumnHelper } from '@tanstack/react-table';
 type BatchEventPayload = {
   status?: string;
   batchId?: string;
-  batchKey?: string;
-  flushIntervalMs?: number;
+  batchGroupKey?: string;
+  batchMaxIntervalMs?: number;
   nextFlushAt?: string;
   pending?: number;
   expectedSize?: number;
-  batchSize?: number;
-  maxRuns?: number;
+  batchMaxSize?: number;
+  batchGroupMaxRuns?: number;
   triggerReason?: string;
   triggeredAt?: string;
   activeRuns?: number;
@@ -66,14 +66,14 @@ function renderBatchMetadataBadges(
   const entries: Array<[string, string | number | undefined]> = [
     ['Status', meta.status],
     ['Batch ID', meta.batchId],
-    ['Batch group key', meta.batchKey],
+    ['Batch group key', meta.batchGroupKey],
     ['Pending', meta.pending],
     ['Expected size', meta.expectedSize],
-    ['Batch max size', meta.batchSize],
+    ['Batch max size', meta.batchMaxSize],
     ['Active runs', meta.activeRuns],
-    ['Batch max interval (ms)', meta.flushIntervalMs],
+    ['Batch max interval (ms)', meta.batchMaxIntervalMs],
     ['Next flush at', meta.nextFlushAt],
-    ['Group max runs', meta.maxRuns],
+    ['Group max runs', meta.batchGroupMaxRuns],
     ['Reason', meta.triggerReason],
     ['Triggered at', meta.triggeredAt],
   ];

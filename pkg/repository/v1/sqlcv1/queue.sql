@@ -327,8 +327,8 @@ FROM
     "Step"
 WHERE
     "id" = ANY(@stepIds::uuid[])
-    AND "batch_size" IS NOT NULL
-    AND "batch_size" >= 1;
+    AND "batch_max_size" IS NOT NULL
+    AND "batch_max_size" >= 1;
 
 -- name: GetQueuedCounts :many
 SELECT
@@ -626,9 +626,9 @@ SELECT
     b.batch_key,
     MIN(b.inserted_at)::timestamptz AS oldest_item_at,
     COUNT(*) AS pending_count,
-    COALESCE(MAX(s."batch_size"), -1)::integer AS batch_size,
-    COALESCE(MAX(s."batch_flush_interval_ms"), -1)::integer AS batch_flush_interval_ms,
-    COALESCE(MAX(s."batch_max_runs"), -1)::integer AS batch_max_runs
+    COALESCE(MAX(s."batch_max_size"), -1)::integer AS batch_max_size,
+    COALESCE(MAX(s."batch_max_interval"), -1)::integer AS batch_max_interval,
+    COALESCE(MAX(s."batch_group_max_runs"), -1)::integer AS batch_group_max_runs
 FROM
     v1_batched_queue_item b
 JOIN
@@ -651,8 +651,8 @@ WITH locked_qis AS (
         "Step" s ON s."id" = qi.step_id
     WHERE
         qi.id = ANY(@ids::bigint[])
-        AND s."batch_size" IS NOT NULL
-        AND s."batch_size" >= 1
+        AND s."batch_max_size" IS NOT NULL
+        AND s."batch_max_size" >= 1
     ORDER BY
         qi.id ASC
     FOR UPDATE

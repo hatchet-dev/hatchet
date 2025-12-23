@@ -19,19 +19,19 @@ batch to a single worker.
 To enable batching for a step, set its **batch configuration** (via workflow
 definitions/manifests or SDK helpers). The current fields are:
 
-- `batch_size` (required): the maximum number of items to flush at once. Must be
+- `batch_max_size` (required): the maximum number of items to flush at once. Must be
   at least `1`.
-- `flush_interval_ms` (optional): the maximum time (in milliseconds) an item can
+- `batch_max_interval` (optional): the maximum time (in milliseconds) an item can
   wait before a flush is triggered. **Defaults to `1000`.**
-- `batch_key` (optional): a CEL expression that groups tasks into logical
+- `batch_group_key` (optional): a CEL expression that groups tasks into logical
   batches. Tasks with different keys are always processed separately. **Defaults
   to `'default'`.**
-- `max_runs` (optional): the maximum number of concurrently running batches per
+- `batch_group_max_runs` (optional): the maximum number of concurrently running batches per
   key. Additional batches wait for an earlier batch with the same key to finish.
   **Defaults to `100`.**
 
-`batch_size` controls throughput; `flush_interval_ms` bounds latency for
-sporadic traffic; `batch_key` controls partitioning; `max_runs` bounds batch
+`batch_max_size` controls throughput; `batch_max_interval` bounds latency for
+sporadic traffic; `batch_group_key` controls partitioning; `batch_group_max_runs` bounds batch
 concurrency per key.
 
 ## Supplying a batch key
@@ -62,10 +62,10 @@ policies; batching changes how tasks are *delivered*, not how they’re retried.
 ```ts
 const batch = hatchet.batchTask({
   name: "simple",
-  batchSize: 2,
-  flushInterval: 1_000, // defaults to 1000ms if omitted
-  batchKey: "input.batchId", // defaults to `'default'` if omitted
-  maxRuns: 100, // defaults to 100 if omitted
+  batchMaxSize: 2,
+  batchMaxInterval: "1s", // defaults to 1000ms if omitted
+  batchGroupKey: "input.batchId", // defaults to `'default'` if omitted
+  batchGroupMaxRuns: 100, // defaults to 100 if omitted
   fn: async (inputs, ctxs) => {
     return inputs.map((input, index) => ({
       message: `${input.Message.toLowerCase()}#${index}`,
@@ -74,8 +74,8 @@ const batch = hatchet.batchTask({
 });
 ```
 
-When a batch flushes, Hatchet records `batchId`, `batchSize`, `batchIndex`, and
-`batchKey` on each task’s runtime metadata. This is available via the API (and
+When a batch flushes, Hatchet records `batchId`, `batchMaxSize`, `batchIndex`, and
+`batchGroupKey` on each task’s runtime metadata. This is available via the API (and
 SDK contexts) so you can trace which invocations ran together.
 
 ## Observability and lifecycle

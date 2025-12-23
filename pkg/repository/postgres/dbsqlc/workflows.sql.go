@@ -383,10 +383,10 @@ INSERT INTO "Step" (
     "scheduleTimeout",
     "retryBackoffFactor",
     "retryMaxBackoff",
-    "batch_size",
-    "batch_flush_interval_ms",
-    "batch_key_expression",
-    "batch_max_runs"
+    "batch_max_size",
+    "batch_max_interval",
+    "batch_group_key",
+    "batch_group_max_runs"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -406,28 +406,28 @@ INSERT INTO "Step" (
     $16::integer,
     $17::text,
     $18::integer
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout", batch_size, batch_flush_interval_ms, batch_key_expression, batch_max_runs
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout", batch_max_size, batch_max_interval, batch_group_key, batch_group_max_runs
 `
 
 type CreateStepParams struct {
-	ID                   pgtype.UUID      `json:"id"`
-	CreatedAt            pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt            pgtype.Timestamp `json:"updatedAt"`
-	Deletedat            pgtype.Timestamp `json:"deletedat"`
-	Readableid           string           `json:"readableid"`
-	Tenantid             pgtype.UUID      `json:"tenantid"`
-	Jobid                pgtype.UUID      `json:"jobid"`
-	Actionid             string           `json:"actionid"`
-	Timeout              pgtype.Text      `json:"timeout"`
-	CustomUserData       []byte           `json:"customUserData"`
-	Retries              pgtype.Int4      `json:"retries"`
-	ScheduleTimeout      pgtype.Text      `json:"scheduleTimeout"`
-	RetryBackoffFactor   pgtype.Float8    `json:"retryBackoffFactor"`
-	RetryMaxBackoff      pgtype.Int4      `json:"retryMaxBackoff"`
-	BatchSize            pgtype.Int4      `json:"batchSize"`
-	BatchFlushIntervalMs pgtype.Int4      `json:"batchFlushIntervalMs"`
-	BatchKeyExpression   pgtype.Text      `json:"batchKeyExpression"`
-	BatchMaxRuns         pgtype.Int4      `json:"batchMaxRuns"`
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	Deletedat          pgtype.Timestamp `json:"deletedat"`
+	Readableid         string           `json:"readableid"`
+	Tenantid           pgtype.UUID      `json:"tenantid"`
+	Jobid              pgtype.UUID      `json:"jobid"`
+	Actionid           string           `json:"actionid"`
+	Timeout            pgtype.Text      `json:"timeout"`
+	CustomUserData     []byte           `json:"customUserData"`
+	Retries            pgtype.Int4      `json:"retries"`
+	ScheduleTimeout    pgtype.Text      `json:"scheduleTimeout"`
+	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
+	BatchMaxSize       pgtype.Int4      `json:"batchMaxSize"`
+	BatchMaxInterval   pgtype.Int4      `json:"batchMaxInterval"`
+	BatchGroupKey      pgtype.Text      `json:"batchGroupKey"`
+	BatchGroupMaxRuns  pgtype.Int4      `json:"batchGroupMaxRuns"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -446,10 +446,10 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.ScheduleTimeout,
 		arg.RetryBackoffFactor,
 		arg.RetryMaxBackoff,
-		arg.BatchSize,
-		arg.BatchFlushIntervalMs,
-		arg.BatchKeyExpression,
-		arg.BatchMaxRuns,
+		arg.BatchMaxSize,
+		arg.BatchMaxInterval,
+		arg.BatchGroupKey,
+		arg.BatchGroupMaxRuns,
 	)
 	var i Step
 	err := row.Scan(
@@ -467,10 +467,10 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.RetryBackoffFactor,
 		&i.RetryMaxBackoff,
 		&i.ScheduleTimeout,
-		&i.BatchSize,
-		&i.BatchFlushIntervalMs,
-		&i.BatchKeyExpression,
-		&i.BatchMaxRuns,
+		&i.BatchMaxSize,
+		&i.BatchMaxInterval,
+		&i.BatchGroupKey,
+		&i.BatchGroupMaxRuns,
 	)
 	return &i, err
 }

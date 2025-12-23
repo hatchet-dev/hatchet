@@ -2530,24 +2530,24 @@ type SlackAppWebhook struct {
 }
 
 type Step struct {
-	ID                   pgtype.UUID      `json:"id"`
-	CreatedAt            pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt            pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt            pgtype.Timestamp `json:"deletedAt"`
-	ReadableId           pgtype.Text      `json:"readableId"`
-	TenantId             pgtype.UUID      `json:"tenantId"`
-	JobId                pgtype.UUID      `json:"jobId"`
-	ActionId             string           `json:"actionId"`
-	Timeout              pgtype.Text      `json:"timeout"`
-	CustomUserData       []byte           `json:"customUserData"`
-	Retries              int32            `json:"retries"`
-	RetryBackoffFactor   pgtype.Float8    `json:"retryBackoffFactor"`
-	RetryMaxBackoff      pgtype.Int4      `json:"retryMaxBackoff"`
-	ScheduleTimeout      string           `json:"scheduleTimeout"`
-	BatchSize            pgtype.Int4      `json:"batch_size"`
-	BatchFlushIntervalMs pgtype.Int4      `json:"batch_flush_interval_ms"`
-	BatchKeyExpression   pgtype.Text      `json:"batch_key_expression"`
-	BatchMaxRuns         pgtype.Int4      `json:"batch_max_runs"`
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
+	ReadableId         pgtype.Text      `json:"readableId"`
+	TenantId           pgtype.UUID      `json:"tenantId"`
+	JobId              pgtype.UUID      `json:"jobId"`
+	ActionId           string           `json:"actionId"`
+	Timeout            pgtype.Text      `json:"timeout"`
+	CustomUserData     []byte           `json:"customUserData"`
+	Retries            int32            `json:"retries"`
+	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
+	ScheduleTimeout    string           `json:"scheduleTimeout"`
+	BatchMaxSize       pgtype.Int4      `json:"batch_max_size"`
+	BatchMaxInterval   pgtype.Int4      `json:"batch_max_interval"`
+	BatchGroupKey      pgtype.Text      `json:"batch_group_key"`
+	BatchGroupMaxRuns  pgtype.Int4      `json:"batch_group_max_runs"`
 }
 
 type StepDesiredWorkerLabel struct {

@@ -1942,7 +1942,7 @@ func (r *sharedRepository) insertTasks(
 			additionalMetadatas[i] = task.AdditionalMetadata
 		}
 
-		if stepConfig.BatchKeyExpression.Valid && stepConfig.BatchKeyExpression.String != "" {
+		if stepConfig.BatchGroupKey.Valid && stepConfig.BatchGroupKey.String != "" {
 			var additionalMeta map[string]interface{}
 
 			if len(additionalMetadatas[i]) > 0 {
@@ -1952,10 +1952,10 @@ func (r *sharedRepository) insertTasks(
 			}
 
 			if task.Input == nil {
-				return nil, fmt.Errorf("failed to parse batch key expression (%s): input is nil", stepConfig.BatchKeyExpression.String)
+				return nil, fmt.Errorf("failed to parse batch group key expression (%s): input is nil", stepConfig.BatchGroupKey.String)
 			}
 
-			res, err := r.celParser.ParseAndEvalStepRun(stepConfig.BatchKeyExpression.String, cel.NewInput(
+			res, err := r.celParser.ParseAndEvalStepRun(stepConfig.BatchGroupKey.String, cel.NewInput(
 				cel.WithInput(task.Input.Input),
 				cel.WithAdditionalMetadata(additionalMeta),
 				cel.WithWorkflowRunID(task.ExternalId),
@@ -1965,17 +1965,17 @@ func (r *sharedRepository) insertTasks(
 			// TODO write an event for failed parse
 
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse batch key expression (%s): %w", stepConfig.BatchKeyExpression.String, err)
+				return nil, fmt.Errorf("failed to parse batch group key expression (%s): %w", stepConfig.BatchGroupKey.String, err)
 			}
 
 			if res.String == nil {
 				prefix := "expected string output for batch key"
 
 				if res.Int != nil {
-					return nil, fmt.Errorf("failed to parse batch key expression (%s): %s, got int", stepConfig.BatchKeyExpression.String, prefix)
+					return nil, fmt.Errorf("failed to parse batch group key expression (%s): %s, got int", stepConfig.BatchGroupKey.String, prefix)
 				}
 
-				return nil, fmt.Errorf("failed to parse batch key expression (%s): %s, got unknown type", stepConfig.BatchKeyExpression.String, prefix)
+				return nil, fmt.Errorf("failed to parse batch group key expression (%s): %s, got unknown type", stepConfig.BatchGroupKey.String, prefix)
 			}
 
 			value := strings.TrimSpace(*res.String)
@@ -2474,7 +2474,7 @@ func (r *sharedRepository) replayTasks(
 			additionalMetadatas[i] = task.AdditionalMetadata
 		}
 
-		if stepConfig.BatchKeyExpression.Valid && stepConfig.BatchKeyExpression.String != "" {
+		if stepConfig.BatchGroupKey.Valid && stepConfig.BatchGroupKey.String != "" {
 			var additionalMeta map[string]interface{}
 
 			if len(additionalMetadatas[i]) > 0 {
@@ -2484,10 +2484,10 @@ func (r *sharedRepository) replayTasks(
 			}
 
 			if task.Input == nil {
-				return nil, fmt.Errorf("failed to parse batch key expression (%s): input is nil", stepConfig.BatchKeyExpression.String)
+				return nil, fmt.Errorf("failed to parse batch group key expression (%s): input is nil", stepConfig.BatchGroupKey.String)
 			}
 
-			res, err := r.celParser.ParseAndEvalStepRun(stepConfig.BatchKeyExpression.String, cel.NewInput(
+			res, err := r.celParser.ParseAndEvalStepRun(stepConfig.BatchGroupKey.String, cel.NewInput(
 				cel.WithInput(task.Input.Input),
 				cel.WithAdditionalMetadata(additionalMeta),
 				cel.WithWorkflowRunID(task.ExternalId),
@@ -2495,17 +2495,17 @@ func (r *sharedRepository) replayTasks(
 			))
 
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse batch key expression (%s): %w", stepConfig.BatchKeyExpression.String, err)
+				return nil, fmt.Errorf("failed to parse batch group key expression (%s): %w", stepConfig.BatchGroupKey.String, err)
 			}
 
 			if res.String == nil {
 				prefix := "expected string output for batch key"
 
 				if res.Int != nil {
-					return nil, fmt.Errorf("failed to parse batch key expression (%s): %s, got int", stepConfig.BatchKeyExpression.String, prefix)
+					return nil, fmt.Errorf("failed to parse batch group key expression (%s): %s, got int", stepConfig.BatchGroupKey.String, prefix)
 				}
 
-				return nil, fmt.Errorf("failed to parse batch key expression (%s): %s, got unknown type", stepConfig.BatchKeyExpression.String, prefix)
+				return nil, fmt.Errorf("failed to parse batch group key expression (%s): %s, got unknown type", stepConfig.BatchGroupKey.String, prefix)
 			}
 
 			value := strings.TrimSpace(*res.String)

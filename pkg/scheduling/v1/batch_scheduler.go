@@ -142,17 +142,17 @@ func newBatchScheduler(
 		Str("batch_key", batchKey).
 		Logger()
 
-	batchSize := resource.BatchSize
+	batchSize := resource.BatchMaxSize
 	if batchSize <= 0 {
 		batchSize = 1
 	}
 
 	var flushInterval time.Duration
-	if resource.BatchFlushIntervalMs > 0 {
-		flushInterval = time.Duration(resource.BatchFlushIntervalMs) * time.Millisecond
+	if resource.BatchMaxInterval > 0 {
+		flushInterval = time.Duration(resource.BatchMaxInterval) * time.Millisecond
 	}
 
-	maxRuns := resource.BatchMaxRuns
+	maxRuns := resource.BatchGroupMaxRuns
 
 	return &BatchScheduler{
 		cf:            cf,
@@ -433,9 +433,9 @@ func (b *BatchScheduler) emitWaitingEvents(newItems []*sqlcv1.V1BatchedQueueItem
 		return
 	}
 
-	flushIntervalMs := int32(0)
+	batchMaxIntervalMs := int32(0)
 	if b.flushInterval > 0 {
-		flushIntervalMs = int32(b.flushInterval / time.Millisecond)
+		batchMaxIntervalMs = int32(b.flushInterval / time.Millisecond)
 	}
 
 	var nextFlush *time.Time
@@ -489,17 +489,17 @@ func (b *BatchScheduler) emitWaitingEvents(newItems []*sqlcv1.V1BatchedQueueItem
 		buffered = append(buffered, &v1repo.AssignedItem{
 			QueueItem: queueItem,
 			Batch: &v1repo.BatchAssignmentMetadata{
-				State:                     "waiting",
-				TriggeredAt:               triggeredAt,
-				ConfiguredBatchSize:       int32(b.batchSize),
-				ConfiguredFlushIntervalMs: flushIntervalMs,
-				MaxRuns:                   int32(b.maxRuns),
-				Pending:                   pending,
-				NextFlushAt:               nextFlush,
-				BatchID:                   "",
-				StepID:                    sqlchelpers.UUIDToStr(queueItem.StepID),
-				ActionID:                  queueItem.ActionID,
-				BatchKey:                  metaBatchKey,
+				State:                        "waiting",
+				TriggeredAt:                  triggeredAt,
+				ConfiguredBatchMaxSize:       int32(b.batchSize),
+				ConfiguredBatchMaxIntervalMs: batchMaxIntervalMs,
+				ConfiguredBatchGroupMaxRuns:  int32(b.maxRuns),
+				Pending:                      pending,
+				NextFlushAt:                  nextFlush,
+				BatchID:                      "",
+				StepID:                       sqlchelpers.UUIDToStr(queueItem.StepID),
+				ActionID:                     queueItem.ActionID,
+				BatchGroupKey:                metaBatchKey,
 			},
 		})
 	}
@@ -806,9 +806,9 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 		queueResultsByTaskID := make(map[int64]*v1repo.AssignedItem, len(group))
 		triggeredAt := time.Now().UTC()
 
-		flushIntervalMs := int32(0)
+		batchMaxIntervalMs := int32(0)
 		if b.flushInterval > 0 {
-			flushIntervalMs = int32(b.flushInterval / time.Millisecond)
+			batchMaxIntervalMs = int32(b.flushInterval / time.Millisecond)
 		}
 
 		for _, batched := range group {
@@ -837,18 +837,18 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 				WorkerId:  workerID,
 				QueueItem: queueItem,
 				Batch: &v1repo.BatchAssignmentMetadata{
-					State:                     "flushed",
-					Reason:                    string(reason),
-					TriggeredAt:               triggeredAt,
-					ConfiguredBatchSize:       int32(b.batchSize),
-					ConfiguredFlushIntervalMs: flushIntervalMs,
-					MaxRuns:                   int32(b.maxRuns),
-					Pending:                   0,
-					NextFlushAt:               nil,
-					BatchID:                   batchID,
-					StepID:                    sqlchelpers.UUIDToStr(stepID),
-					ActionID:                  actionID,
-					BatchKey:                  batchKeyNormalized,
+					State:                        "flushed",
+					Reason:                       string(reason),
+					TriggeredAt:                  triggeredAt,
+					ConfiguredBatchMaxSize:       int32(b.batchSize),
+					ConfiguredBatchMaxIntervalMs: batchMaxIntervalMs,
+					ConfiguredBatchGroupMaxRuns:  int32(b.maxRuns),
+					Pending:                      0,
+					NextFlushAt:                  nil,
+					BatchID:                      batchID,
+					StepID:                       sqlchelpers.UUIDToStr(stepID),
+					ActionID:                     actionID,
+					BatchGroupKey:                batchKeyNormalized,
 				},
 			}
 		}
