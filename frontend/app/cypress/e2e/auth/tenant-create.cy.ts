@@ -3,7 +3,10 @@ describe('Tenants: create', () => {
     const ts = Date.now();
     cy.login('owner');
     cy.visit('/');
-    cy.get('button[aria-label="Select a tenant"]').click();
+    cy.get('button[aria-label="Select a tenant"]')
+      .filter(':visible')
+      .first()
+      .click();
     cy.get('[data-cy="new-tenant"]').click();
 
     // Authenticated layout redirects users without memberships to onboarding/create-tenant.

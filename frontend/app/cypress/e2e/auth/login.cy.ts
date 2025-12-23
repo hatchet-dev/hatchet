@@ -5,9 +5,16 @@ describe('auth: login', () => {
     cy.visit('/');
     cy.get('input#email').type(seededUsers.owner.email);
     cy.get('input#password').type(seededUsers.owner.password);
-    cy.contains('button', 'Sign In').click();
+    cy.get('form')
+      .filter(':visible')
+      .first()
+      .within(() => {
+        cy.contains('button', /^Sign In$/)
+          .should('be.enabled')
+          .click();
+      });
     cy.location('pathname').should('include', '/tenants/');
-    cy.get('button[aria-label="User Menu"]').click();
+    cy.get('button[aria-label="User Menu"]').filter(':visible').first().click();
     cy.get('[data-cy="user-name"]').should('have.text', seededUsers.owner.name);
   });
 });

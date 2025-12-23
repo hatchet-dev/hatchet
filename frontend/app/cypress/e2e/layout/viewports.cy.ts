@@ -18,11 +18,13 @@ describe('layout: viewports', () => {
         cy.viewport(vp.width, vp.height);
         cy.visit('/auth/login');
 
-        cy.contains('h1', 'Log in to Hatchet').should('be.visible');
+        cy.contains('h2', 'Log in to continue', { timeout: 30000 }).should(
+          'be.visible',
+        );
 
         // Ensure the legal text is reachable (scroll container is the auth route wrapper).
         cy.get('[data-cy="auth-legal"]').scrollIntoView().should('be.visible');
-        cy.contains('h1', 'Log in to Hatchet')
+        cy.contains('h2', 'Log in to continue')
           .scrollIntoView()
           .should('be.visible');
       });
@@ -31,10 +33,12 @@ describe('layout: viewports', () => {
         cy.viewport(vp.width, vp.height);
         cy.visit('/auth/register');
 
-        cy.contains('h1', 'Create an account').should('be.visible');
+        cy.contains('h2', 'Create an account', { timeout: 30000 }).should(
+          'be.visible',
+        );
 
         cy.get('[data-cy="auth-legal"]').scrollIntoView().should('be.visible');
-        cy.contains('h1', 'Create an account')
+        cy.contains('h2', 'Create an account')
           .scrollIntoView()
           .should('be.visible');
       });

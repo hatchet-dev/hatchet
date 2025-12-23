@@ -1,5 +1,6 @@
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 
+// TODO-DESIGN
 export function HeroPanel() {
   return (
     <div className="relative flex h-full w-full flex-col justify-between">
