@@ -125,6 +125,14 @@ enable_error_code = [
     "truthy-iterable",
 ]
 
+[[tool.mypy.overrides]]
+module = ["opentelemetry.*", "wrapt"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["opentelemetry.instrumentation.instrumentor"]
+disable_error_code = ["attr-defined"]
+
 [tool.ruff]
 exclude = [
     "hatchet_sdk/clients/rest/api/*",

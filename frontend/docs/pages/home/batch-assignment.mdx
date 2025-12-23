@@ -79,7 +79,7 @@ with a single `tasks` array, where each element is a tuple of the task's `(input
 This “zipped” shape avoids parallel arrays (`inputs[]` + `contexts[]`) and keeps the mental model simple:
 **a batch is just a list of normal tasks that happen to be executed together**, each with its usual context.
 
-Items continue to respect per-task retry policies; batching changes how tasks are *delivered*, not how they’re retried.
+Items continue to respect per-task retry policies; batching changes how tasks are _delivered_, not how they’re retried.
 
 ### SDK example
 

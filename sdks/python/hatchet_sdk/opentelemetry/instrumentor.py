@@ -1,16 +1,14 @@
 import json
 from collections.abc import Callable, Collection, Coroutine
 from importlib.metadata import version
-from typing import Any, cast
+from typing import Any, TypeAlias, cast
 
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 try:
     from opentelemetry.context import Context
-    from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
-        BaseInstrumentor,
-    )
+    from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
     from opentelemetry.instrumentation.utils import unwrap
     from opentelemetry.metrics import MeterProvider, NoOpMeterProvider, get_meter
     from opentelemetry.trace import (
@@ -24,7 +22,7 @@ try:
     from opentelemetry.trace.propagation.tracecontext import (
         TraceContextTextMapPropagator,
     )
-    from wrapt import wrap_function_wrapper  # type: ignore[import-untyped]
+    from wrapt import wrap_function_wrapper
 except (RuntimeError, ImportError, ModuleNotFoundError) as e:
     raise ModuleNotFoundError(
         "To use the HatchetInstrumentor, you must install Hatchet's `otel` extra using (e.g.) `pip install hatchet-sdk[otel]`"
@@ -58,7 +56,7 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 
 hatchet_sdk_version = version("hatchet-sdk")
 
-InstrumentKwargs = TracerProvider | MeterProvider | None
+InstrumentKwargs: TypeAlias = TracerProvider | MeterProvider | None
 
 OTEL_TRACEPARENT_KEY = "traceparent"
 

@@ -951,11 +951,18 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         if batch_max_size <= 0:
             raise ValueError("batch_max_size must be a positive integer")
 
-        if batch_max_interval is not None and batch_max_interval.total_seconds() <= 0:
-            raise ValueError("batch_max_interval must be positive when provided")
+        if batch_max_interval is not None:
+            if isinstance(batch_max_interval, str):
+                raise TypeError(
+                    "batch_max_interval must be a datetime.timedelta, not a duration string"
+                )
+            if batch_max_interval.total_seconds() <= 0:
+                raise ValueError("batch_max_interval must be positive when provided")
 
         if batch_group_max_runs is not None and batch_group_max_runs <= 0:
-            raise ValueError("batch_group_max_runs must be a positive integer when provided")
+            raise ValueError(
+                "batch_group_max_runs must be a positive integer when provided"
+            )
 
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,

@@ -80,24 +80,23 @@ async def test_priority(
     choices: list[Priority] = ["low", "medium", "high", "default"]
     N = 30
 
-    items = []
+    run_items = []
     for ix in range(N):
         priority: Priority = choice(choices)
-        items.append(
+        run_items.append(
             priority_workflow.create_bulk_run_item(
                 options=TriggerWorkflowOptions(
-                    priority=(priority_to_int(pr)),
+                    priority=priority_to_int(priority),
                     additional_metadata={
-                        "priority": pr,
+                        "priority": priority,
                         "key": ix,
                         "test_run_id": test_run_id,
                     },
                 )
             )
-            for ix in range(N)
-            for pr in [choice(choices)]
-        ]
-    )
+        )
+
+    run_refs = await priority_workflow.aio_run_many_no_wait(run_items)
 
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
@@ -178,18 +177,17 @@ async def test_priority_via_scheduling(
             priority_workflow.aio_schedule(
                 run_at=run_at,
                 options=ScheduleTriggerWorkflowOptions(
-                    priority=(priority_to_int(pr)),
+                    priority=priority_to_int(priority),
                     additional_metadata={
-                        "priority": pr,
+                        "priority": priority,
                         "key": ix,
                         "test_run_id": test_run_id,
                     },
                 ),
             )
-            for ix in range(n)
-            for pr in [choice(choices)]
-        ]
-    )
+        )
+
+    versions = await asyncio.gather(*schedule_tasks)
 
     await asyncio.sleep(sleep_time * 2)
 

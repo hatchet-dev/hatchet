@@ -183,7 +183,6 @@ class ScheduledClient(BaseRestClient):
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
         parent_step_run_id: str | None = None,
-        statuses: list[ScheduledRunStatus] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
     ) -> ScheduledWorkflowsBulkDeleteResponse:
         """
@@ -198,7 +197,6 @@ class ScheduledClient(BaseRestClient):
         :param workflow_id: Filter by workflow ID.
         :param parent_workflow_run_id: Filter by parent workflow run ID.
         :param parent_step_run_id: Filter by parent step run ID.
-        :param statuses: Filter by scheduled run statuses.
         :param additional_metadata: Filter by additional metadata key/value pairs.
         :return: The bulk delete response containing deleted IDs and per-item errors.
         :raises ValueError: If neither `scheduled_ids` nor any filter field is provided.
@@ -209,7 +207,6 @@ class ScheduledClient(BaseRestClient):
                 workflow_id,
                 parent_workflow_run_id,
                 parent_step_run_id,
-                statuses,
                 additional_metadata,
             )
         )
@@ -226,7 +223,6 @@ class ScheduledClient(BaseRestClient):
                 parentWorkflowRunId=parent_workflow_run_id,
                 parentStepRunId=parent_step_run_id,
                 additionalMetadata=maybe_additional_metadata_to_kv(additional_metadata),
-                statuses=statuses,
             )
 
         with self.client() as client:
@@ -245,7 +241,6 @@ class ScheduledClient(BaseRestClient):
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
         parent_step_run_id: str | None = None,
-        statuses: list[ScheduledRunStatus] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
     ) -> ScheduledWorkflowsBulkDeleteResponse:
         """
@@ -255,7 +250,6 @@ class ScheduledClient(BaseRestClient):
         :param workflow_id: Filter by workflow ID.
         :param parent_workflow_run_id: Filter by parent workflow run ID.
         :param parent_step_run_id: Filter by parent step run ID.
-        :param statuses: Filter by scheduled run statuses.
         :param additional_metadata: Filter by additional metadata key/value pairs.
         :return: The bulk delete response containing deleted IDs and per-item errors.
         :raises ValueError: If neither `scheduled_ids` nor any filter field is provided.
@@ -266,7 +260,6 @@ class ScheduledClient(BaseRestClient):
                 workflow_id,
                 parent_workflow_run_id,
                 parent_step_run_id,
-                statuses,
                 additional_metadata,
             )
         )
@@ -282,7 +275,6 @@ class ScheduledClient(BaseRestClient):
             workflow_id=workflow_id,
             parent_workflow_run_id=parent_workflow_run_id,
             parent_step_run_id=parent_step_run_id,
-            statuses=statuses,
             additional_metadata=additional_metadata,
         )
 

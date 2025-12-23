@@ -266,9 +266,16 @@ class Task(Generic[TWorkflowInput, R]):
             batch_proto = TaskBatchConfigProto(batch_max_size=self.batch.batch_max_size)
 
             if self.batch.batch_max_interval is not None:
-                interval_ms = int(self.batch.batch_max_interval.total_seconds() * 1000)
+                interval = self.batch.batch_max_interval
+                if isinstance(interval, str):
+                    raise TypeError(
+                        "batch_max_interval must be a datetime.timedelta, not a duration string"
+                    )
+                interval_ms = int(interval.total_seconds() * 1000)
                 if interval_ms <= 0:
-                    raise ValueError("batch_max_interval must be positive when provided")
+                    raise ValueError(
+                        "batch_max_interval must be positive when provided"
+                    )
                 batch_proto.batch_max_interval = interval_ms
 
             if self.batch.batch_group_key is not None:
