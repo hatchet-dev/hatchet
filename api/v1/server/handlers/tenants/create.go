@@ -50,6 +50,10 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		Name: request.Body.Name,
 	}
 
+	if request.Body.Color != nil {
+		createOpts.Color = request.Body.Color
+	}
+
 	if request.Body.OnboardingData != nil {
 		createOpts.OnboardingData = *request.Body.OnboardingData
 	}

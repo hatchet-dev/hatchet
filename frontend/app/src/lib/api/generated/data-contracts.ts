@@ -753,6 +753,8 @@ export interface Tenant {
   name: string;
   /** The slug of the tenant. */
   slug: string;
+  /** Tenant color as a hex string (#RRGGBB). */
+  color?: string;
   /** Whether the tenant has opted out of analytics. */
   analyticsOptOut?: boolean;
   /** Whether to alert tenant members. */
@@ -1266,6 +1268,8 @@ export interface CreateTenantRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
+  /** Tenant color as a hex string (#RRGGBB). */
+  color?: string;
   /** The UI version of the tenant. Defaults to V0. */
   uiVersion?: TenantUIVersion;
   /** The engine version of the tenant. Defaults to V0. */
@@ -1279,6 +1283,8 @@ export interface CreateTenantRequest {
 export interface UpdateTenantRequest {
   /** The name of the tenant. */
   name?: string;
+  /** Tenant color as a hex string (#RRGGBB). */
+  color?: string;
   /** Whether the tenant has opted out of analytics. */
   analyticsOptOut?: boolean;
   /** Whether to alert tenant members. */

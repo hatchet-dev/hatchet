@@ -45,6 +45,7 @@ func ToTenantMember(tenantMember *dbsqlc.PopulateTenantMembersRow) *gen.TenantMe
 			Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(tenantMember.TenantId), tenantMember.TenantCreatedAt.Time, tenantMember.TenantUpdatedAt.Time),
 			Name:              tenantMember.TenantName,
 			Slug:              tenantMember.TenantSlug,
+			Color:             &tenantMember.TenantColor,
 			AnalyticsOptOut:   &tenantMember.AnalyticsOptOut,
 			AlertMemberEmails: &tenantMember.AlertMemberEmails,
 			Version:           gen.TenantVersion(tenantMember.TenantVersion),

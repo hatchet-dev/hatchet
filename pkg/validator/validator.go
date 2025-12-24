@@ -16,6 +16,7 @@ import (
 )
 
 var NameRegex = regexp.MustCompile("^[a-zA-Z0-9\\.\\-_]+$") //nolint:gosimple
+var HexColorRegex = regexp.MustCompile("^#[0-9a-fA-F]{6}$")
 
 func newValidator() *validator.Validate {
 	validate := validator.New()
@@ -65,6 +66,10 @@ func newValidator() *validator.Validate {
 		_, err := time.ParseDuration(fl.Field().String())
 
 		return err == nil
+	})
+
+	_ = validate.RegisterValidation("hexcolor", func(fl validator.FieldLevel) bool {
+		return HexColorRegex.MatchString(fl.Field().String())
 	})
 
 	_ = validate.RegisterValidation("celworkflowrunstr", func(fl validator.FieldLevel) bool {

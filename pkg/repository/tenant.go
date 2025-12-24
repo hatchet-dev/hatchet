@@ -13,6 +13,9 @@ type CreateTenantOpts struct {
 	// (required) the tenant slug
 	Slug string `validate:"required,hatchetName"`
 
+	// (optional) the tenant color as a hex string (#RRGGBB)
+	Color *string `validate:"omitempty,hexcolor"`
+
 	// (optional) the tenant ID
 	ID *string `validate:"omitempty,uuid"`
 
@@ -32,6 +35,8 @@ type CreateTenantOpts struct {
 
 type UpdateTenantOpts struct {
 	Name *string
+
+	Color *string `validate:"omitempty"`
 
 	AnalyticsOptOut *bool `validate:"omitempty"`
 

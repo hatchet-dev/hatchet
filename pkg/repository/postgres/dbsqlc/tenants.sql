@@ -7,7 +7,7 @@ WITH active_controller_partitions AS (
     WHERE
         "lastHeartbeat" > NOW() - INTERVAL '1 minute'
 )
-INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version", "uiVersion", "onboardingData", "environment")
+INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version", "uiVersion", "onboardingData", "environment", "color")
 VALUES (
     sqlc.arg('id')::uuid,
     sqlc.arg('name')::text,
@@ -25,7 +25,8 @@ VALUES (
     COALESCE(sqlc.narg('version')::"TenantMajorEngineVersion", 'V0'),
     COALESCE(sqlc.narg('uiVersion')::"TenantMajorUIVersion", 'V0'),
     sqlc.narg('onboardingData')::jsonb,
-    sqlc.narg('environment')::"TenantEnvironment"
+    sqlc.narg('environment')::"TenantEnvironment",
+    COALESCE(sqlc.narg('color')::text, '#3B82F6')
 )
 RETURNING *;
 
@@ -34,6 +35,7 @@ UPDATE
     "Tenant"
 SET
     "name" = COALESCE(sqlc.narg('name')::text, "name"),
+    "color" = COALESCE(sqlc.narg('color')::text, "color"),
     "analyticsOptOut" = COALESCE(sqlc.narg('analyticsOptOut')::boolean, "analyticsOptOut"),
     "alertMemberEmails" = COALESCE(sqlc.narg('alertMemberEmails')::boolean, "alertMemberEmails"),
     "version" = COALESCE(sqlc.narg('version')::"TenantMajorEngineVersion", "version"),
@@ -610,6 +612,7 @@ SELECT
     t."updatedAt" as "tenantUpdatedAt",
     t."name" as "tenantName",
     t."slug" as "tenantSlug",
+    t."color" as "tenantColor",
     t."alertMemberEmails" as "alertMemberEmails",
     t."analyticsOptOut" as "analyticsOptOut",
     t."version" as "tenantVersion",

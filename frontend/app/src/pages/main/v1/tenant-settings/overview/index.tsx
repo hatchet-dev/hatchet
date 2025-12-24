@@ -25,6 +25,8 @@ export default function TenantSettings() {
         <Separator className="my-4" />
         <UpdateTenant />
         <Separator className="my-4" />
+        <TenantColor />
+        <Separator className="my-4" />
         <AnalyticsOptOut />
         <Separator className="my-4" />
         <InactivityTimeout />
@@ -129,6 +131,96 @@ const AnalyticsOptOut: React.FC = () => {
         ) : (
           <Button onClick={save}>Save and Reload</Button>
         ))}
+    </>
+  );
+};
+
+const TENANT_COLOR_PALETTE = [
+  '#3B82F6', // blue
+  '#22C55E', // green
+  '#F97316', // orange
+  '#A855F7', // purple
+  '#EF4444', // red
+  '#14B8A6', // teal
+  '#EAB308', // yellow
+  '#64748B', // slate
+] as const;
+
+const DEFAULT_TENANT_COLOR = '#3B82F6';
+
+const TenantColor: React.FC = () => {
+  const { tenant } = useTenantDetails();
+  const { tenantId } = useCurrentTenantId();
+
+  const initial =
+    tenant?.color && TENANT_COLOR_PALETTE.includes(tenant.color as any)
+      ? tenant.color
+      : DEFAULT_TENANT_COLOR;
+
+  const [selected, setSelected] = useState<string>(initial);
+  const [isLoading, setIsLoading] = useState(false);
+  const [changed, setChanged] = useState(false);
+
+  const { handleApiError } = useApiError({});
+
+  const updateMutation = useMutation({
+    mutationKey: ['tenant:update'],
+    mutationFn: async (data: UpdateTenantRequest) => {
+      await api.tenantUpdate(tenantId, data);
+    },
+    onMutate: () => {
+      setIsLoading(true);
+    },
+    onSuccess: () => {
+      window.location.reload();
+    },
+    onSettled: () => {
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 300);
+    },
+    onError: handleApiError,
+  });
+
+  const save = () => {
+    updateMutation.mutate({ color: selected });
+  };
+
+  return (
+    <>
+      <h2 className="text-xl font-semibold leading-tight text-foreground">
+        Tenant Color
+      </h2>
+      <Separator className="my-4" />
+      <p className="my-4 text-gray-700 dark:text-gray-300">
+        Choose a color to help identify this tenant in the tenant switcher.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {TENANT_COLOR_PALETTE.map((color) => (
+          <button
+            key={color}
+            type="button"
+            aria-label={`Select tenant color ${color}`}
+            onClick={() => {
+              setSelected(color);
+              setChanged(color !== (tenant?.color ?? DEFAULT_TENANT_COLOR));
+            }}
+            className={[
+              'h-8 w-8 rounded-full border',
+              selected === color
+                ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background'
+                : 'opacity-90 hover:opacity-100',
+            ].join(' ')}
+            style={{ backgroundColor: color }}
+          />
+        ))}
+      </div>
+
+      <div className="mt-4">
+        {changed &&
+          (isLoading ? <Spinner /> : <Button onClick={save}>Save</Button>)}
+      </div>
     </>
   );
 };

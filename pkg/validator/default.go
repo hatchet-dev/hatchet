@@ -22,6 +22,7 @@ const (
 	CronErr        = "Invalid cron expression"
 	DurationErr    = "Invalid duration. Durations must be in the format <number><unit>, where unit is one of: 's', 'm', 'h'"
 	CELExprErr     = "Invalid CEL expression"
+	HexColorErr    = "Invalid color. Must be a hex string in the format #RRGGBB."
 )
 
 type APIErrors gen.APIErrors
@@ -135,6 +136,8 @@ func getErrorStr(errObj *ValidationErrObject) string {
 		return errObj.SafeExternalError(CronErr)
 	case "duration":
 		return errObj.SafeExternalError(DurationErr)
+	case "hexcolor":
+		return errObj.SafeExternalError(HexColorErr)
 	case "celworkflowrunstr":
 		return errObj.SafeExternalError(CELExprErr)
 	case "celsteprunstr":

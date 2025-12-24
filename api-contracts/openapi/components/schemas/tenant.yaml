@@ -8,6 +8,9 @@ Tenant:
     slug:
       type: string
       description: The slug of the tenant.
+    color:
+      type: string
+      description: Tenant color as a hex string (#RRGGBB).
     analyticsOptOut:
       type: boolean
       description: Whether the tenant has opted out of analytics.
@@ -90,6 +93,11 @@ CreateTenantRequest:
       description: The slug of the tenant.
       x-oapi-codegen-extra-tags:
         validate: "required,hatchetName"
+    color:
+      type: string
+      description: Tenant color as a hex string (#RRGGBB).
+      x-oapi-codegen-extra-tags:
+        validate: "omitnil,hexcolor"
     uiVersion:
       $ref: "#/TenantUIVersion"
       description: The UI version of the tenant. Defaults to V0.
@@ -113,6 +121,11 @@ UpdateTenantRequest:
     name:
       type: string
       description: The name of the tenant.
+    color:
+      type: string
+      description: Tenant color as a hex string (#RRGGBB).
+      x-oapi-codegen-extra-tags:
+        validate: "omitnil,hexcolor"
     analyticsOptOut:
       type: boolean
       description: Whether the tenant has opted out of analytics.

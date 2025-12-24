@@ -14,7 +14,6 @@ import { cn } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { appRoutes } from '@/router';
 import {
-  BuildingOffice2Icon,
   // ChartBarSquareIcon,
   CheckIcon,
 } from '@heroicons/react/24/outline';
@@ -32,6 +31,18 @@ import invariant from 'tiny-invariant';
 interface TenantSwitcherProps {
   className?: string;
   memberships: TenantMember[];
+}
+
+const DEFAULT_TENANT_COLOR = '#3B82F6';
+
+function TenantColorDot({ color }: { color?: string }) {
+  return (
+    <span
+      aria-hidden
+      className="size-3 shrink-0 rounded-full"
+      style={{ backgroundColor: color || DEFAULT_TENANT_COLOR }}
+    />
+  );
 }
 export function TenantSwitcher({
   className,
@@ -56,10 +67,11 @@ export function TenantSwitcher({
           'min-w-0 justify-between gap-2 bg-muted/20 shadow-none',
           className,
         )}
+        style={{ borderColor: DEFAULT_TENANT_COLOR }}
         disabled
       >
         <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-          <BuildingOffice2Icon className="size-4 shrink-0 opacity-60" />
+          <TenantColorDot />
           <span className="min-w-0 flex-1 truncate text-muted-foreground">
             Loading tenant…
           </span>
@@ -83,10 +95,11 @@ export function TenantSwitcher({
             open && 'bg-muted/30',
             className,
           )}
+          style={{ borderColor: tenant.color || DEFAULT_TENANT_COLOR }}
           disabled={isTenantLoading || memberships.length === 0}
         >
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-            <BuildingOffice2Icon className="size-4 shrink-0" />
+            <TenantColorDot color={tenant.color} />
             <span className="min-w-0 flex-1 truncate">{tenant.name}</span>
           </div>
           {isTenantLoading ? (
@@ -122,9 +135,9 @@ export function TenantSwitcher({
                       ? `tenant-switcher-item-${membership.tenant.slug}`
                       : undefined
                   }
-                  className="cursor-pointer text-sm"
+                  className="cursor-pointer text-sm gap-2"
                 >
-                  <BuildingOffice2Icon className="mr-2 size-4" />
+                  <TenantColorDot color={membership.tenant?.color} />
                   {membership.tenant?.name}
                   <CheckIcon
                     className={cn(

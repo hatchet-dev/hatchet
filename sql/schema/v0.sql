@@ -611,6 +611,7 @@ CREATE TABLE "Tenant" (
     "uiVersion" "TenantMajorUIVersion" NOT NULL DEFAULT 'V0',
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
+    "color" TEXT NOT NULL DEFAULT '#3B82F6',
     "analyticsOptOut" BOOLEAN NOT NULL DEFAULT false,
     "alertMemberEmails" BOOLEAN NOT NULL DEFAULT true,
     "controllerPartitionId" TEXT,
@@ -622,6 +623,7 @@ CREATE TABLE "Tenant" (
     "environment" "TenantEnvironment",
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
+    ,CONSTRAINT "Tenant_color_hex_check" CHECK ("color" ~ '^#[0-9A-Fa-f]{6}$')
 );
 
 -- CreateTable

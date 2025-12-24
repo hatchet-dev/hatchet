@@ -537,6 +537,8 @@ type CreateTenantRequest struct {
 	// Slug The slug of the tenant.
 	Slug      string           `json:"slug" validate:"required,hatchetName"`
 	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
+	// Color Tenant color as a hex string (#RRGGBB).
+	Color *string `json:"color,omitempty" validate:"omitnil,hexcolor"`
 }
 
 // CronWorkflows defines model for CronWorkflows.
@@ -1095,9 +1097,12 @@ type Tenant struct {
 	AlertMemberEmails *bool `json:"alertMemberEmails,omitempty"`
 
 	// AnalyticsOptOut Whether the tenant has opted out of analytics.
-	AnalyticsOptOut *bool              `json:"analyticsOptOut,omitempty"`
-	Environment     *TenantEnvironment `json:"environment,omitempty"`
-	Metadata        APIResourceMeta    `json:"metadata"`
+	AnalyticsOptOut *bool `json:"analyticsOptOut,omitempty"`
+
+	// Color Tenant color as a hex string (#RRGGBB).
+	Color       *string            `json:"color,omitempty"`
+	Environment *TenantEnvironment `json:"environment,omitempty"`
+	Metadata    APIResourceMeta    `json:"metadata"`
 
 	// Name The name of the tenant.
 	Name string `json:"name"`
@@ -1272,6 +1277,9 @@ type UpdateTenantRequest struct {
 
 	// AnalyticsOptOut Whether the tenant has opted out of analytics.
 	AnalyticsOptOut *bool `json:"analyticsOptOut,omitempty"`
+
+	// Color Tenant color as a hex string (#RRGGBB).
+	Color *string `json:"color,omitempty" validate:"omitnil,hexcolor"`
 
 	// EnableExpiringTokenAlerts Whether to enable alerts when tokens are approaching expiration.
 	EnableExpiringTokenAlerts *bool `json:"enableExpiringTokenAlerts,omitempty"`

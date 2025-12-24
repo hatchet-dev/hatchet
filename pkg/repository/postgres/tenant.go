@@ -108,6 +108,12 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 		},
 		OnboardingData: onboardingDataBytes,
 		Environment:    environment,
+		Color: func() pgtype.Text {
+			if opts.Color == nil {
+				return pgtype.Text{}
+			}
+			return sqlchelpers.TextFromStr(*opts.Color)
+		}(),
 	})
 
 	if err != nil {
@@ -138,6 +144,10 @@ func (r *tenantAPIRepository) UpdateTenant(ctx context.Context, id string, opts 
 
 	if opts.Name != nil {
 		params.Name = sqlchelpers.TextFromStr(*opts.Name)
+	}
+
+	if opts.Color != nil {
+		params.Color = sqlchelpers.TextFromStr(*opts.Color)
 	}
 
 	if opts.AnalyticsOptOut != nil {
