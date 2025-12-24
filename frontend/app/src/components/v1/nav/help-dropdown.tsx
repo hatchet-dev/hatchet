@@ -138,9 +138,7 @@ export function HelpDropdown({
 
               setOpen(true);
             }}
-            aria-label={
-              pylon.enabled ? 'Open Support Chat' : 'Open Support Menu'
-            }
+            aria-label="Open Support Chat"
             selected={open}
           />
 
