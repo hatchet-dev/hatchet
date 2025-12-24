@@ -482,9 +482,10 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
             >
               <HelpDropdown
                 variant="sidebar"
-                triggerVariant="button"
+                triggerVariant="split"
                 align="start"
                 side="top"
+                className="w-full"
               />
             </div>
           </>
