@@ -1,0 +1,3 @@
+[submodule "hatchet-marketing"]
+	path = hatchet-marketing
+	url = https://github.com/hatchet-dev/hatchet-marketing
