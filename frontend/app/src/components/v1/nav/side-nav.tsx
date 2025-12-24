@@ -59,6 +59,13 @@ export type SideNavSection = {
   items: SideNavItem[];
 };
 
+const ACTIVE_BG_CLASS = cn(
+  'bg-foreground/5',
+  'dark:bg-foreground/10',
+  'border',
+  'border-border/40',
+);
+
 export function SideNav({ className, navItems: navSections }: SideNavProps) {
   const {
     sidebarOpen,
@@ -359,7 +366,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                 aria-label={item.name}
                                 className={cn(
                                   'w-10',
-                                  active && 'bg-slate-200 dark:bg-slate-800',
+                                  active && ACTIVE_BG_CLASS,
                                 )}
                               >
                                 {item.icon({ collapsed: true })}
@@ -398,10 +405,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                           hoverText={item.name}
                           hoverTextSide="right"
                           aria-label={item.name}
-                          className={cn(
-                            'w-10',
-                            active && 'bg-slate-200 dark:bg-slate-800',
-                          )}
+                          className={cn('w-10', active && ACTIVE_BG_CLASS)}
                           onClick={() => {
                             navigate({
                               to: item.to,

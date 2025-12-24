@@ -31,9 +31,9 @@ export const V1RunDetailHeader = () => {
       <div className="flex flex-row items-center justify-between">
         <div className="flex w-full flex-row items-center justify-between">
           <div>
-            <h2 className="flex flex-row items-center gap-4 text-2xl font-bold leading-tight text-foreground">
+            <h2 className="flex flex-row items-center gap-4 text-2xl font-normal leading-tight text-foreground">
               <AdjustmentsHorizontalIcon className="mt-1 h-5 w-5" />
-              {workflowRun.displayName}
+              <span className="font-mono">{workflowRun.displayName}</span>
             </h2>
           </div>
           <div className="flex flex-row items-center gap-2">

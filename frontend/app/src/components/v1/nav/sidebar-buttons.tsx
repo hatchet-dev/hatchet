@@ -23,6 +23,42 @@ export type SidebarButtonPrimaryActionProps = Omit<ButtonProps, 'children'> & {
   selected?: boolean;
 };
 
+const ACTIVE_BG_CLASS = cn(
+  'bg-foreground/5',
+  'dark:bg-foreground/10',
+  'border',
+  'border-border/40',
+);
+const BASE_PRIMARY_BUTTON_CLASS = cn(
+  'w-full',
+  'justify-start',
+  'pl-2',
+  'min-w-0',
+  'overflow-hidden',
+  'font-mono',
+);
+const BASE_SECONDARY_BUTTON_CLASS = cn(
+  'my-[1px]',
+  'ml-1',
+  'mr-3',
+  'w-[calc(100%-3px)]',
+  'justify-start',
+  'pl-3',
+  'pr-0',
+  'min-w-0',
+  'overflow-hidden',
+  'font-mono',
+);
+const INACTIVE_BG_CLASS = cn(
+  'opacity-[0.63]',
+  'bg-transparent',
+  'hover:opacity-100',
+  'hover:text-foreground',
+  'hover:bg-foreground/5',
+  'dark:hover:bg-foreground/10',
+  'hover:border',
+  'hover:border-border/40',
+);
 // Use this when a primary sidebar button needs to behave like a true `<button>`
 // trigger (e.g. Radix `DropdownMenuTrigger asChild`), so event handlers + refs
 // passed by the parent flow through to the underlying DOM element.
@@ -37,8 +73,8 @@ export const SidebarButtonPrimaryAction = React.forwardRef<
       type="button"
       variant="ghost"
       className={cn(
-        'w-full justify-start pl-2 min-w-0 overflow-hidden',
-        selected && 'bg-slate-200 dark:bg-slate-800',
+        BASE_PRIMARY_BUTTON_CLASS,
+        selected ? ACTIVE_BG_CLASS : INACTIVE_BG_CLASS,
         className,
       )}
     >
@@ -96,8 +132,8 @@ export function SidebarButtonPrimary(
       <Button
         variant="ghost"
         className={cn(
-          'w-full justify-start pl-2 min-w-0 overflow-hidden',
-          selected && 'bg-slate-200 dark:bg-slate-800',
+          BASE_PRIMARY_BUTTON_CLASS,
+          selected ? ACTIVE_BG_CLASS : INACTIVE_BG_CLASS,
         )}
       >
         {icon}
@@ -143,8 +179,8 @@ export function SidebarButtonSecondary({
         variant="ghost"
         size="sm"
         className={cn(
-          'my-[1px] ml-1 mr-3 w-[calc(100%-3px)] justify-start pl-3 pr-0 min-w-0 overflow-hidden',
-          selected && 'bg-slate-200 dark:bg-slate-800',
+          BASE_SECONDARY_BUTTON_CLASS,
+          selected ? ACTIVE_BG_CLASS : INACTIVE_BG_CLASS,
         )}
       >
         <span className="truncate">{name}</span>
