@@ -366,7 +366,9 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                 aria-label={item.name}
                                 className={cn(
                                   'w-10',
-                                  active && ACTIVE_BG_CLASS,
+                                  active
+                                    ? ACTIVE_BG_CLASS
+                                    : 'opacity-[0.63] hover:opacity-100',
                                 )}
                               >
                                 {item.icon({ collapsed: true })}
@@ -405,7 +407,12 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                           hoverText={item.name}
                           hoverTextSide="right"
                           aria-label={item.name}
-                          className={cn('w-10', active && ACTIVE_BG_CLASS)}
+                          className={cn(
+                            'w-10',
+                            active
+                              ? ACTIVE_BG_CLASS
+                              : 'opacity-[0.63] hover:opacity-100',
+                          )}
                           onClick={() => {
                             navigate({
                               to: item.to,
