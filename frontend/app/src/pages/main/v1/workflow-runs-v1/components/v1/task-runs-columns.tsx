@@ -116,7 +116,7 @@ export const columns: (
             to={appRoutes.tenantRunRoute.to}
             params={{ tenant: tenantId, run: row.original.metadata.id }}
           >
-            <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
+            <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline font-mono">
               {row.original.displayName}
             </div>
           </Link>
@@ -124,7 +124,7 @@ export const columns: (
       } else {
         return (
           <div
-            className="min-w-fit cursor-pointer whitespace-nowrap hover:underline"
+            className="min-w-fit cursor-pointer whitespace-nowrap hover:underline font-mono"
             onClick={() => onTaskRunIdClick(row.original.metadata.id)}
           >
             {row.original.displayName}

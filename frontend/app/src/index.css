@@ -2,6 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hatchet marketing fonts (local .woff2) */
+@font-face {
+  font-family: 'martina';
+  font-weight: normal;
+  font-display: swap;
+  src: url('./assets/fonts/martina-plantijn-regular.woff2');
+}
+
+@font-face {
+  font-family: 'martina';
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+  src: url('./assets/fonts/martina-plantijn-italic.woff2');
+}
+
+@font-face {
+  font-family: 'judge-extended';
+  font-weight: normal;
+  font-display: swap;
+  src: url('./assets/fonts/F37Judge-MediumExtended.woff2');
+  ascent-override: 105%;
+  descent-override: 35%;
+}
+
+@font-face {
+  font-family: 'judge';
+  font-weight: normal;
+  font-display: swap;
+  src: url('./assets/fonts/F37Judge-Regular.woff2');
+}
+
+@font-face {
+  font-family: 'dm-mono';
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/dm-mono-regular.woff2');
+}
+@font-face {
+  font-family: 'dm-mono';
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+  src: url('./assets/fonts/dm-mono-regular-italic.woff2');
+}
+@font-face {
+  font-family: 'dm-mono';
+  font-weight: 500;
+  font-display: swap;
+  src: url('./assets/fonts/dm-mono-medium.woff2');
+}
+@font-face {
+  font-family: 'dm-mono';
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+  src: url('./assets/fonts/dm-mono-medium-italic.woff2');
+}
+
+@font-face {
+  font-family: 'emoji';
+  font-weight: normal;
+  font-display: swap;
+  src: url('./assets/fonts/noto-webfont.woff2');
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -83,7 +149,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
 }
 
@@ -253,7 +319,7 @@ body,
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
 }
 

@@ -3,14 +3,6 @@ import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
-import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbSeparator,
-  BreadcrumbPage,
-} from '@/components/v1/ui/breadcrumb';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { V1TaskStatus, queries } from '@/lib/api';
@@ -36,31 +28,12 @@ export const V1RunDetailHeader = () => {
   return (
     <div className="flex flex-col gap-4">
       <Toaster />
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink href={`/tenants/${tenantId}/runs`}>
-              Home
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink href={`/tenants/${tenantId}/runs`}>
-              Runs
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{workflowRun.displayName}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
       <div className="flex flex-row items-center justify-between">
         <div className="flex w-full flex-row items-center justify-between">
           <div>
-            <h2 className="flex flex-row items-center gap-4 text-2xl font-bold leading-tight text-foreground">
+            <h2 className="flex flex-row items-center gap-4 text-2xl font-normal leading-tight text-foreground">
               <AdjustmentsHorizontalIcon className="mt-1 h-5 w-5" />
-              {workflowRun.displayName}
+              <span className="font-mono">{workflowRun.displayName}</span>
             </h2>
           </div>
           <div className="flex flex-row items-center gap-2">
