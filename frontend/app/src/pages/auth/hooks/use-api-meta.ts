@@ -25,7 +25,7 @@ export default function useApiMeta() {
   }, [metaQuery.data]);
 
   return {
-    data: data,
+    meta: data,
     isLoading: false,
   };
 }

@@ -1,4 +1,4 @@
-import { Button } from './v1/ui/button';
+import { Button } from '../ui/button';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { cn } from '@/lib/utils';

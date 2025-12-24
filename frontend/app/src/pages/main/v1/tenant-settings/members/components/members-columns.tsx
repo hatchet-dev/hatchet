@@ -29,7 +29,7 @@ function MemberActions({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { handleApiError } = useApiError({});
   const { tenantId } = useCurrentTenantId();
-  const meta = useApiMeta();
+  const { meta } = useApiMeta();
   const { isCloudEnabled } = useCloud();
 
   const deleteMemberMutation = useMutation({
@@ -49,11 +49,11 @@ function MemberActions({
 
   const canDeleteMember =
     member.user.email !== user?.email &&
-    meta.data?.allowInvites &&
+    meta?.allowInvites &&
     !(isCloudEnabled && isOwnerRole); // Hide delete option for OWNER in cloud mode
 
   const canChangePassword =
-    member.user.email === user?.email && meta.data?.allowChangePassword;
+    member.user.email === user?.email && meta?.allowChangePassword;
 
   const canEditRole = member.user.email !== user?.email;
 
