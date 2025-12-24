@@ -42,8 +42,7 @@ function Main() {
         // mainClassName="overflow-auto"
         mainContainerType="inline-size"
       >
-        {/* TODO-DESIGN: replace the color with a tailwind color */}
-        <div className="border-l border-t md:rounded-tl-xl p-4 h-full dark:bg-[#050A23] bg-background overflow-y-auto">
+        <div className="h-full overflow-y-auto border-l border-t bg-muted/30 p-4 md:rounded-tl-xl dark:bg-brand-navy/50">
           <OutletWithContext context={childCtx} />
         </div>
       </ThreeColumnLayout>

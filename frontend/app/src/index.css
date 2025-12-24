@@ -70,6 +70,15 @@
 
 @layer base {
   :root {
+    /* Hatchet brand colors (aligned with hatchet-marketing/src/styles/global.css) */
+    --navy: 228 61% 10%; /* #0A1029 */
+    --cyan: 212 100% 86%; /* #B8D9FF */
+    --navy-dark: 227 88% 6%; /* #02081D */
+    --cyan-dark: 212 60% 78%; /* #A5C5E9 */
+    --blue: 212 100% 60%; /* #3392FF */
+    --magenta: 287 69% 57%; /* #BC46DD */
+    --yellow: 69 77% 47%; /* #B8D41C */
+
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
 
@@ -79,8 +88,9 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Brand defaults */
+    --primary: var(--blue);
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -96,7 +106,7 @@
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: var(--blue);
 
     --radius: 0.5rem;
 
@@ -117,8 +127,8 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: var(--blue);
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
@@ -134,7 +144,7 @@
 
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --ring: var(--blue);
 
     --chart-1: 221.2 83.2% 53.3%;
     --chart-2: 212 95% 68%;
