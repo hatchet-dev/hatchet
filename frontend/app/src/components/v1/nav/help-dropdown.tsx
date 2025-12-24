@@ -41,30 +41,35 @@ export function HelpDropdownItems({
           Chat with Support
         </DropdownMenuItem>
       )}
-      <DropdownMenuItem
-        variant="interactive"
-        onClick={() => window.open('https://docs.hatchet.run', '_blank')}
-      >
-        <BiBook className="mr-2" />
-        Documentation
+      <DropdownMenuItem variant="interactive" asChild>
+        <a
+          href="https://docs.hatchet.run"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <BiBook className="mr-2" />
+          Documentation
+        </a>
       </DropdownMenuItem>
-      <DropdownMenuItem
-        variant="interactive"
-        onClick={() =>
-          window.open('https://discord.com/invite/ZMeUafwH89', '_blank')
-        }
-      >
-        <BiLogoDiscordAlt className="mr-2" />
-        Join Discord
+      <DropdownMenuItem variant="interactive" asChild>
+        <a
+          href="https://discord.com/invite/ZMeUafwH89"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <BiLogoDiscordAlt className="mr-2" />
+          Join Discord
+        </a>
       </DropdownMenuItem>
-      <DropdownMenuItem
-        variant="interactive"
-        onClick={() =>
-          window.open('https://hatchet.run/office-hours', '_blank')
-        }
-      >
-        <BiCalendar className="mr-2" />
-        Schedule Office Hours
+      <DropdownMenuItem variant="interactive" asChild>
+        <a
+          href="https://hatchet.run/office-hours"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <BiCalendar className="mr-2" />
+          Schedule Office Hours
+        </a>
       </DropdownMenuItem>
       <DropdownMenuItem
         variant="interactive"
