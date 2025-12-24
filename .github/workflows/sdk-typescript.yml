@@ -24,8 +24,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          submodules: recursive
 
       - name: Install pnpm
         run: npm install -g pnpm@10.16.1
@@ -57,8 +55,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          submodules: recursive
 
       - name: Install pnpm
         run: npm install -g pnpm@10.16.1
@@ -175,8 +171,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          submodules: recursive
 
       - name: Install pnpm
         run: npm install -g pnpm@10.16.1
