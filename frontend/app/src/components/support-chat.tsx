@@ -1,11 +1,36 @@
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { User } from '@/lib/api';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import React, { PropsWithChildren, useEffect, useMemo } from 'react';
+import React, {
+  PropsWithChildren,
+  useCallback,
+  useEffect,
+  useMemo,
+} from 'react';
 
 interface SupportChatProps {
   user?: User;
 }
+
+export const usePylon = () => {
+  const { meta } = useApiMeta();
+
+  const show = useCallback(() => {
+    (window as any).Pylon('show');
+  }, []);
+
+  if (!meta?.pylonAppId) {
+    return {
+      enabled: false,
+      show: () => {},
+    };
+  }
+
+  return {
+    enabled: true,
+    show,
+  };
+};
 
 const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
   user,
@@ -46,6 +71,7 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
         email_hash: user.emailHash,
       },
     };
+    (window as any).Pylon('hideChatBubble');
 
     (window as any).Pylon('setNewIssueCustomFields', {
       user_id: user.metadata.id,

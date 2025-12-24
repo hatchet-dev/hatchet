@@ -333,7 +333,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
             {/* Scrollable navigation area (collapsed) */}
             <div
               data-cy="v1-sidebar-scroll-collapsed"
-              className="min-h-0 flex-1 overflow-auto py-4 overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground"
+              className="min-h-0 flex-1 overflow-auto py-4 pl-2 overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground"
             >
               <div className="flex w-full flex-col items-center gap-y-2 px-2">
                 {navSections.map((section, sectionIdx) => (
@@ -482,9 +482,10 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
             >
               <HelpDropdown
                 variant="sidebar"
-                triggerVariant="button"
+                triggerVariant="split"
                 align="start"
                 side="top"
+                className="w-full"
               />
             </div>
           </>
