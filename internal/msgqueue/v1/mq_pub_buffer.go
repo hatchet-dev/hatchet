@@ -129,7 +129,8 @@ type msgIdPubBuffer struct {
 
 	pub PubFunc
 
-	semaphore chan struct{}
+	semaphore        chan struct{}
+	semaphoreRelease chan time.Duration
 
 	serialize func(t any) ([]byte, error)
 }
@@ -143,17 +144,20 @@ func newMsgIDPubBuffer(ctx context.Context, tenantID, msgID string, pub PubFunc)
 		pub:              pub,
 		serialize:        json.Marshal,
 		semaphore:        make(chan struct{}, PUB_MAX_CONCURRENCY),
+		semaphoreRelease: make(chan time.Duration, PUB_MAX_CONCURRENCY),
 	}
 
 	b.startFlusher(ctx)
+	b.startSemaphoreReleaser(ctx)
 
 	return b
 }
 
 func (m *msgIdPubBuffer) startFlusher(ctx context.Context) {
-	ticker := time.NewTicker(PUB_FLUSH_INTERVAL)
-
 	go func() {
+		ticker := time.NewTicker(PUB_FLUSH_INTERVAL)
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -163,6 +167,26 @@ func (m *msgIdPubBuffer) startFlusher(ctx context.Context) {
 				go m.flush()
 			case <-m.notifier:
 				go m.flush()
+			}
+		}
+	}()
+}
+
+func (m *msgIdPubBuffer) startSemaphoreReleaser(ctx context.Context) {
+	go func() {
+		timer := time.NewTimer(0)
+		defer timer.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case delay := <-m.semaphoreRelease:
+				if delay > 0 {
+					timer.Reset(delay)
+					<-timer.C
+				}
+				<-m.semaphore
 			}
 		}
 	}()
@@ -179,8 +203,8 @@ func (m *msgIdPubBuffer) flush() {
 
 	defer func() {
 		go func() {
-			<-time.After(PUB_FLUSH_INTERVAL - time.Since(startedFlush))
-			<-m.semaphore
+			delay := PUB_FLUSH_INTERVAL - time.Since(startedFlush)
+			m.semaphoreRelease <- delay
 		}()
 	}()
 
