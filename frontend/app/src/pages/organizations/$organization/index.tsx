@@ -15,7 +15,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { Input } from '@/components/v1/ui/input';
 import { Loading } from '@/components/v1/ui/loading';
 import {
   Table,
@@ -271,300 +270,144 @@ export default function OrganizationPage() {
             </Button>
           }
         >
-            {tenantsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loading />
-              </div>
-            ) : organization.tenants && organization.tenants.length > 0 ? (
-              <div className="space-y-4">
-                {/* Desktop Table View */}
-                <div className="hidden md:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Slug</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {organization.tenants
-                        .filter(
-                          (tenant) =>
-                            tenant.status !== TenantStatusType.ARCHIVED,
-                        )
-                        .map((orgTenant) => {
-                          const detailedTenant = detailedTenants.find(
-                            (t) => t?.metadata.id === orgTenant.id,
-                          );
-                          return (
-                            <TableRow key={orgTenant.id}>
-                              <TableCell className="font-medium">
-                                <Link
-                                  to={appRoutes.tenantRoute.to}
-                                  params={{ tenant: orgTenant.id }}
-                                  className="inline-flex min-w-0 items-center truncate text-foreground underline-offset-4 hover:underline"
-                                  title={detailedTenant?.name || orgTenant.id}
-                                >
-                                  {detailedTenant?.name || 'Loading…'}
-                                </Link>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono text-sm">
-                                    {orgTenant.id}
-                                  </span>
-                                  <CopyToClipboard text={orgTenant.id} />
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {detailedTenant?.slug || '-'}
-                              </TableCell>
-                              <TableCell>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0"
-                                    >
-                                      <EllipsisVerticalIcon className="size-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem
-                                      onClick={() => {
-                                        navigate({
-                                          to: appRoutes.tenantRoute.to,
-                                          params: { tenant: orgTenant.id },
-                                        });
-                                      }}
-                                    >
-                                      <ArrowRightIcon className="mr-2 size-4" />
-                                      View Tenant
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() =>
-                                        setTenantToArchive(orgTenant)
-                                      }
-                                    >
-                                      <TrashIcon className="mr-2 size-4" />
-                                      Archive Tenant
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Mobile Card View */}
-                <div className="space-y-4 md:hidden">
-                  {organization.tenants
-                    .filter(
-                      (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
-                    )
-                    .map((orgTenant) => {
-                      const detailedTenant = detailedTenants.find(
-                        (t) => t?.metadata.id === orgTenant.id,
-                      );
-                      return (
-                        <div
-                          key={orgTenant.id}
-                          className="space-y-3 rounded-lg border p-4"
-                        >
-                          <div className="flex items-center justify-between">
-                            <Link
-                              to={appRoutes.tenantRoute.to}
-                              params={{ tenant: orgTenant.id }}
-                              className="min-w-0 truncate font-medium text-foreground underline-offset-4 hover:underline"
-                              title={detailedTenant?.name || orgTenant.id}
-                            >
-                              {detailedTenant?.name || 'Loading…'}
-                            </Link>
-                            <Badge>{orgTenant.status}</Badge>
-                          </div>
-                          <div className="space-y-2 text-sm">
-                            <div>
-                              <span className="font-medium text-muted-foreground">
-                                Tenant ID:
-                              </span>
-                              <div className="mt-1 flex items-center gap-2">
+          {tenantsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loading />
+            </div>
+          ) : organization.tenants && organization.tenants.length > 0 ? (
+            <div className="space-y-4">
+              {/* Desktop Table View */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Slug</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {organization.tenants
+                      .filter(
+                        (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
+                      )
+                      .map((orgTenant) => {
+                        const detailedTenant = detailedTenants.find(
+                          (t) => t?.metadata.id === orgTenant.id,
+                        );
+                        return (
+                          <TableRow key={orgTenant.id}>
+                            <TableCell className="font-medium">
+                              <Link
+                                to={appRoutes.tenantRoute.to}
+                                params={{ tenant: orgTenant.id }}
+                                className="inline-flex min-w-0 items-center truncate text-foreground underline-offset-4 hover:underline"
+                                title={detailedTenant?.name || orgTenant.id}
+                              >
+                                {detailedTenant?.name || 'Loading…'}
+                              </Link>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
                                 <span className="font-mono text-sm">
                                   {orgTenant.id}
                                 </span>
                                 <CopyToClipboard text={orgTenant.id} />
                               </div>
-                            </div>
-                            <div>
-                              <span className="font-medium text-muted-foreground">
-                                Slug:
-                              </span>
-                              <span className="ml-2">
-                                {detailedTenant?.slug || '-'}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex justify-end">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <EllipsisVerticalIcon className="size-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    navigate({
-                                      to: appRoutes.tenantRoute.to,
-                                      params: { tenant: orgTenant.id },
-                                    });
-                                  }}
-                                >
-                                  <ArrowRightIcon className="mr-2 size-4" />
-                                  View Tenant
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => setTenantToArchive(orgTenant)}
-                                >
-                                  <TrashIcon className="mr-2 size-4" />
-                                  Archive Tenant
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-            ) : (
-              <div className="py-8 text-center">
-                <BuildingOffice2Icon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                <h3 className="mb-2 text-lg font-medium">No Tenants Yet</h3>
-                <p className="mb-4 text-muted-foreground">
-                  Add your first tenant to get started.
-                </p>
-                <Button
-                  onClick={() => {
-                    navigate({
-                      to: appRoutes.onboardingCreateTenantRoute.to,
-                      search: { organizationId: organization.metadata.id },
-                    });
-                  }}
-                  leftIcon={<PlusIcon className="size-4" />}
-                >
-                  Add Tenant
-                </Button>
-              </div>
-            )}
-        </OrganizationSectionCard>
-
-        {/* Members Section */}
-        <OrganizationSectionCard
-          title="Members"
-          description="Members with access to this organization"
-        >
-            {organization.members && organization.members.length > 0 ? (
-              <div className="space-y-4">
-                {/* Desktop Table View */}
-                <div className="hidden md:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {organization.members.map((member) => (
-                        <TableRow key={member.metadata.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm">
-                                {member.metadata.id}
-                              </span>
-                              <CopyToClipboard text={member.metadata.id} />
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {member.email}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{member.role}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <EllipsisVerticalIcon className="size-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                {currentUserQuery.data?.email ===
-                                member.email ? (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <DropdownMenuItem
-                                          disabled
-                                          className="cursor-not-allowed text-gray-400"
-                                        >
-                                          <TrashIcon className="mr-2 size-4" />
-                                          Remove Member
-                                        </DropdownMenuItem>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>Cannot remove yourself</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                ) : (
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {detailedTenant?.slug || '-'}
+                            </TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <EllipsisVerticalIcon className="size-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
                                   <DropdownMenuItem
-                                    onClick={() => setMemberToDelete(member)}
+                                    onClick={() => {
+                                      navigate({
+                                        to: appRoutes.tenantRoute.to,
+                                        params: { tenant: orgTenant.id },
+                                      });
+                                    }}
+                                  >
+                                    <ArrowRightIcon className="mr-2 size-4" />
+                                    View Tenant
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      setTenantToArchive(orgTenant)
+                                    }
                                   >
                                     <TrashIcon className="mr-2 size-4" />
-                                    Remove Member
+                                    Archive Tenant
                                   </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                  </TableBody>
+                </Table>
+              </div>
 
-                {/* Mobile Card View */}
-                <div className="space-y-4 md:hidden">
-                  {organization.members.map((member) => (
-                    <div
-                      key={member.metadata.id}
-                      className="space-y-3 rounded-lg border p-4"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm">
-                            {member.email}
-                          </span>
-                          <Badge variant="default">{member.role}</Badge>
+              {/* Mobile Card View */}
+              <div className="space-y-4 md:hidden">
+                {organization.tenants
+                  .filter(
+                    (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
+                  )
+                  .map((orgTenant) => {
+                    const detailedTenant = detailedTenants.find(
+                      (t) => t?.metadata.id === orgTenant.id,
+                    );
+                    return (
+                      <div
+                        key={orgTenant.id}
+                        className="space-y-3 rounded-lg border p-4"
+                      >
+                        <div className="flex items-center justify-between">
+                          <Link
+                            to={appRoutes.tenantRoute.to}
+                            params={{ tenant: orgTenant.id }}
+                            className="min-w-0 truncate font-medium text-foreground underline-offset-4 hover:underline"
+                            title={detailedTenant?.name || orgTenant.id}
+                          >
+                            {detailedTenant?.name || 'Loading…'}
+                          </Link>
+                          <Badge>{orgTenant.status}</Badge>
                         </div>
-                        {currentUserQuery.data?.email !== member.email && (
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <span className="font-medium text-muted-foreground">
+                              Tenant ID:
+                            </span>
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className="font-mono text-sm">
+                                {orgTenant.id}
+                              </span>
+                              <CopyToClipboard text={orgTenant.id} />
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-medium text-muted-foreground">
+                              Slug:
+                            </span>
+                            <span className="ml-2">
+                              {detailedTenant?.slug || '-'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex justify-end">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -577,51 +420,205 @@ export default function OrganizationPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
-                                onClick={() => setMemberToDelete(member)}
+                                onClick={() => {
+                                  navigate({
+                                    to: appRoutes.tenantRoute.to,
+                                    params: { tenant: orgTenant.id },
+                                  });
+                                }}
+                              >
+                                <ArrowRightIcon className="mr-2 size-4" />
+                                View Tenant
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setTenantToArchive(orgTenant)}
                               >
                                 <TrashIcon className="mr-2 size-4" />
-                                Remove Member
+                                Archive Tenant
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        )}
+                        </div>
                       </div>
-                      <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Member ID:
-                          </span>
-                          <div className="mt-1 flex items-center gap-2">
+                    );
+                  })}
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center">
+              <BuildingOffice2Icon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+              <h3 className="mb-2 text-lg font-medium">No Tenants Yet</h3>
+              <p className="mb-4 text-muted-foreground">
+                Add your first tenant to get started.
+              </p>
+              <Button
+                onClick={() => {
+                  navigate({
+                    to: appRoutes.onboardingCreateTenantRoute.to,
+                    search: { organizationId: organization.metadata.id },
+                  });
+                }}
+                leftIcon={<PlusIcon className="size-4" />}
+              >
+                Add Tenant
+              </Button>
+            </div>
+          )}
+        </OrganizationSectionCard>
+
+        {/* Members Section */}
+        <OrganizationSectionCard
+          title="Members"
+          description="Members with access to this organization"
+        >
+          {organization.members && organization.members.length > 0 ? (
+            <div className="space-y-4">
+              {/* Desktop Table View */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {organization.members.map((member) => (
+                      <TableRow key={member.metadata.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
                             <span className="font-mono text-sm">
                               {member.metadata.id}
                             </span>
                             <CopyToClipboard text={member.metadata.id} />
                           </div>
-                        </div>
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Member Since:
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {member.email}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{member.role}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                              >
+                                <EllipsisVerticalIcon className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {currentUserQuery.data?.email === member.email ? (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <DropdownMenuItem
+                                        disabled
+                                        className="cursor-not-allowed text-gray-400"
+                                      >
+                                        <TrashIcon className="mr-2 size-4" />
+                                        Remove Member
+                                      </DropdownMenuItem>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Cannot remove yourself</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : (
+                                <DropdownMenuItem
+                                  onClick={() => setMemberToDelete(member)}
+                                >
+                                  <TrashIcon className="mr-2 size-4" />
+                                  Remove Member
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="space-y-4 md:hidden">
+                {organization.members.map((member) => (
+                  <div
+                    key={member.metadata.id}
+                    className="space-y-3 rounded-lg border p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm">
+                          {member.email}
+                        </span>
+                        <Badge variant="default">{member.role}</Badge>
+                      </div>
+                      {currentUserQuery.data?.email !== member.email && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                            >
+                              <EllipsisVerticalIcon className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => setMemberToDelete(member)}
+                            >
+                              <TrashIcon className="mr-2 size-4" />
+                              Remove Member
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="font-medium text-muted-foreground">
+                          Member ID:
+                        </span>
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="font-mono text-sm">
+                            {member.metadata.id}
                           </span>
-                          <span className="ml-2">
-                            {new Date(
-                              member.metadata.createdAt,
-                            ).toLocaleDateString()}
-                          </span>
+                          <CopyToClipboard text={member.metadata.id} />
                         </div>
                       </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">
+                          Member Since:
+                        </span>
+                        <span className="ml-2">
+                          {new Date(
+                            member.metadata.createdAt,
+                          ).toLocaleDateString()}
+                        </span>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <div className="py-8 text-center">
-                <UserIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                <h3 className="mb-2 text-lg font-medium">No Members Yet</h3>
-                <p className="mb-4 text-muted-foreground">
-                  Members will appear here when they join this organization.
-                </p>
-              </div>
-            )}
+            </div>
+          ) : (
+            <div className="py-8 text-center">
+              <UserIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+              <h3 className="mb-2 text-lg font-medium">No Members Yet</h3>
+              <p className="mb-4 text-muted-foreground">
+                Members will appear here when they join this organization.
+              </p>
+            </div>
+          )}
         </OrganizationSectionCard>
 
         {/* Organization Invites Section */}
@@ -639,187 +636,185 @@ export default function OrganizationPage() {
             </Button>
           }
         >
-            {organizationInvitesQuery.isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loading />
-              </div>
-            ) : organizationInvitesQuery.data &&
-              organizationInvitesQuery.data.rows &&
-              organizationInvitesQuery.data.rows.length > 0 ? (
-              <div className="space-y-4">
-                {/* Desktop Table View */}
-                <div className="hidden md:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Expiry</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {organizationInvitesQuery.data.rows
-                        .filter(
-                          (invite) =>
-                            invite.status ===
-                              OrganizationInviteStatus.PENDING ||
-                            invite.status === OrganizationInviteStatus.EXPIRED,
-                        )
-                        .map((invite) => (
-                          <TableRow key={invite.metadata.id}>
-                            <TableCell className="font-mono text-sm">
-                              {invite.inviteeEmail}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{invite.role}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  invite.status ===
-                                  OrganizationInviteStatus.PENDING
-                                    ? 'secondary'
-                                    : invite.status ===
-                                        OrganizationInviteStatus.ACCEPTED
-                                      ? 'default'
-                                      : 'destructive'
-                                }
-                              >
-                                {invite.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {formatExpirationDate(invite.expires)}
-                            </TableCell>
-                            <TableCell>
-                              {invite.status ===
-                                OrganizationInviteStatus.PENDING && (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0"
-                                    >
-                                      <EllipsisVerticalIcon className="size-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem
-                                      onClick={() => setInviteToCancel(invite)}
-                                    >
-                                      <TrashIcon className="mr-2 size-4" />
-                                      Cancel Invitation
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Mobile Card View */}
-                <div className="space-y-4 md:hidden">
-                  {organizationInvitesQuery.data.rows.map((invite) => (
-                    <div
-                      key={invite.metadata.id}
-                      className="space-y-3 rounded-lg border p-4"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm">
+          {organizationInvitesQuery.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loading />
+            </div>
+          ) : organizationInvitesQuery.data &&
+            organizationInvitesQuery.data.rows &&
+            organizationInvitesQuery.data.rows.length > 0 ? (
+            <div className="space-y-4">
+              {/* Desktop Table View */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Expiry</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {organizationInvitesQuery.data.rows
+                      .filter(
+                        (invite) =>
+                          invite.status === OrganizationInviteStatus.PENDING ||
+                          invite.status === OrganizationInviteStatus.EXPIRED,
+                      )
+                      .map((invite) => (
+                        <TableRow key={invite.metadata.id}>
+                          <TableCell className="font-mono text-sm">
                             {invite.inviteeEmail}
-                          </span>
-                          <Badge variant="outline">{invite.role}</Badge>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={
-                              invite.status === OrganizationInviteStatus.PENDING
-                                ? 'secondary'
-                                : invite.status ===
-                                    OrganizationInviteStatus.ACCEPTED
-                                  ? 'default'
-                                  : 'destructive'
-                            }
-                          >
-                            {invite.status}
-                          </Badge>
-                          {invite.status ===
-                            OrganizationInviteStatus.PENDING && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <EllipsisVerticalIcon className="size-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => setInviteToCancel(invite)}
-                                >
-                                  <TrashIcon className="mr-2 size-4" />
-                                  Cancel Invitation
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
-                      </div>
-                      <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Invite ID:
-                          </span>
-                          <div className="mt-1 flex items-center gap-2">
-                            <span className="font-mono text-sm">
-                              {invite.metadata.id}
-                            </span>
-                            <CopyToClipboard text={invite.metadata.id} />
-                          </div>
-                        </div>
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Invited By:
-                          </span>
-                          <span className="ml-2">{invite.inviterEmail}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Expires:
-                          </span>
-                          <span className="ml-2">
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{invite.role}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                invite.status ===
+                                OrganizationInviteStatus.PENDING
+                                  ? 'secondary'
+                                  : invite.status ===
+                                      OrganizationInviteStatus.ACCEPTED
+                                    ? 'default'
+                                    : 'destructive'
+                              }
+                            >
+                              {invite.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
                             {formatExpirationDate(invite.expires)}
-                          </span>
-                        </div>
+                          </TableCell>
+                          <TableCell>
+                            {invite.status ===
+                              OrganizationInviteStatus.PENDING && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <EllipsisVerticalIcon className="size-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => setInviteToCancel(invite)}
+                                  >
+                                    <TrashIcon className="mr-2 size-4" />
+                                    Cancel Invitation
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="space-y-4 md:hidden">
+                {organizationInvitesQuery.data.rows.map((invite) => (
+                  <div
+                    key={invite.metadata.id}
+                    className="space-y-3 rounded-lg border p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm">
+                          {invite.inviteeEmail}
+                        </span>
+                        <Badge variant="outline">{invite.role}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={
+                            invite.status === OrganizationInviteStatus.PENDING
+                              ? 'secondary'
+                              : invite.status ===
+                                  OrganizationInviteStatus.ACCEPTED
+                                ? 'default'
+                                : 'destructive'
+                          }
+                        >
+                          {invite.status}
+                        </Badge>
+                        {invite.status === OrganizationInviteStatus.PENDING && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                              >
+                                <EllipsisVerticalIcon className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => setInviteToCancel(invite)}
+                              >
+                                <TrashIcon className="mr-2 size-4" />
+                                Cancel Invitation
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
                     </div>
-                  ))}
-                </div>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="font-medium text-muted-foreground">
+                          Invite ID:
+                        </span>
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="font-mono text-sm">
+                            {invite.metadata.id}
+                          </span>
+                          <CopyToClipboard text={invite.metadata.id} />
+                        </div>
+                      </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">
+                          Invited By:
+                        </span>
+                        <span className="ml-2">{invite.inviterEmail}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">
+                          Expires:
+                        </span>
+                        <span className="ml-2">
+                          {formatExpirationDate(invite.expires)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <div className="py-8 text-center">
-                <EnvelopeIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                <h3 className="mb-2 text-lg font-medium">No Pending Invites</h3>
-                <p className="mb-4 text-muted-foreground">
-                  Invite members to join this organization.
-                </p>
-                <Button
-                  onClick={() => setShowInviteMemberModal(true)}
-                  leftIcon={<PlusIcon className="size-4" />}
-                >
-                  Invite Member
-                </Button>
-              </div>
-            )}
+            </div>
+          ) : (
+            <div className="py-8 text-center">
+              <EnvelopeIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+              <h3 className="mb-2 text-lg font-medium">No Pending Invites</h3>
+              <p className="mb-4 text-muted-foreground">
+                Invite members to join this organization.
+              </p>
+              <Button
+                onClick={() => setShowInviteMemberModal(true)}
+                leftIcon={<PlusIcon className="size-4" />}
+              >
+                Invite Member
+              </Button>
+            </div>
+          )}
         </OrganizationSectionCard>
 
         {/* Management Tokens Section */}
@@ -837,82 +832,43 @@ export default function OrganizationPage() {
             </Button>
           }
         >
-            {managementTokensQuery.isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loading />
-              </div>
-            ) : managementTokensQuery.data &&
-              managementTokensQuery.data.rows &&
-              managementTokensQuery.data.rows.length > 0 ? (
-              <div className="space-y-4">
-                {/* Desktop Table View */}
-                <div className="hidden md:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Expiry</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {managementTokensQuery.data.rows.map((token) => (
-                        <TableRow key={token.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm">
-                                {token.id}
-                              </span>
-                              <CopyToClipboard text={token.id} />
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {token.name}
-                          </TableCell>
-                          <TableCell>
-                            {formatExpirationDate(token.expiresAt)}
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <EllipsisVerticalIcon className="size-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => setTokenToDelete(token)}
-                                >
-                                  <TrashIcon className="mr-2 size-4" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Mobile Card View */}
-                <div className="space-y-4 md:hidden">
-                  {managementTokensQuery.data.rows.map((token) => (
-                    <div
-                      key={token.id}
-                      className="space-y-3 rounded-lg border p-4"
-                    >
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium">{token.name}</h4>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">
-                            {formatExpirationDate(token.expiresAt)}
-                          </Badge>
+          {managementTokensQuery.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loading />
+            </div>
+          ) : managementTokensQuery.data &&
+            managementTokensQuery.data.rows &&
+            managementTokensQuery.data.rows.length > 0 ? (
+            <div className="space-y-4">
+              {/* Desktop Table View */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Expiry</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {managementTokensQuery.data.rows.map((token) => (
+                      <TableRow key={token.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm">
+                              {token.id}
+                            </span>
+                            <CopyToClipboard text={token.id} />
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {token.name}
+                        </TableCell>
+                        <TableCell>
+                          {formatExpirationDate(token.expiresAt)}
+                        </TableCell>
+                        <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -932,43 +888,77 @@ export default function OrganizationPage() {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="space-y-4 md:hidden">
+                {managementTokensQuery.data.rows.map((token) => (
+                  <div
+                    key={token.id}
+                    className="space-y-3 rounded-lg border p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">{token.name}</h4>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">
+                          {formatExpirationDate(token.expiresAt)}
+                        </Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                            >
+                              <EllipsisVerticalIcon className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => setTokenToDelete(token)}
+                            >
+                              <TrashIcon className="mr-2 size-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                      <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Token ID:
-                          </span>
-                          <div className="mt-1 flex items-center gap-2">
-                            <span className="font-mono text-sm">
-                              {token.id}
-                            </span>
-                            <CopyToClipboard text={token.id} />
-                          </div>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="font-medium text-muted-foreground">
+                          Token ID:
+                        </span>
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="font-mono text-sm">{token.id}</span>
+                          <CopyToClipboard text={token.id} />
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <div className="py-8 text-center">
-                <KeyIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                <h3 className="mb-2 text-lg font-medium">
-                  No Management Tokens
-                </h3>
-                <p className="mb-4 text-muted-foreground">
-                  Create API tokens to manage this organization
-                  programmatically.
-                </p>
-                <Button
-                  onClick={() => setShowCreateTokenModal(true)}
-                  leftIcon={<PlusIcon className="size-4" />}
-                >
-                  Create Token
-                </Button>
-              </div>
-            )}
+            </div>
+          ) : (
+            <div className="py-8 text-center">
+              <KeyIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+              <h3 className="mb-2 text-lg font-medium">No Management Tokens</h3>
+              <p className="mb-4 text-muted-foreground">
+                Create API tokens to manage this organization programmatically.
+              </p>
+              <Button
+                onClick={() => setShowCreateTokenModal(true)}
+                leftIcon={<PlusIcon className="size-4" />}
+              >
+                Create Token
+              </Button>
+            </div>
+          )}
         </OrganizationSectionCard>
 
         {/* Invite Member Modal */}
