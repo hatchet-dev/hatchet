@@ -319,7 +319,7 @@ export function useOrganizations() {
   return {
     organizations,
     organizationData: organizationListQuery.data,
-    isCloudEnabled,
+    enabled: isCloudEnabled,
     getOrganizationForTenant,
     getOrganizationIdForTenant,
     isTenantArchivedInOrg,

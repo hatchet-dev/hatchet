@@ -1,12 +1,8 @@
-import { Button } from '@/components/v1/ui/button';
-import {
-  Command,
-  CommandEmpty,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from '@/components/v1/ui/command';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
+import { CreateOrganizationDialog } from '@/components/v1/molecules/nav-bar/create-organization-dialog';
+import { TenantSwitcherLoadingButton } from '@/components/v1/molecules/nav-bar/tenant-switcher-loading';
+import { TenantSwitcherMenu } from '@/components/v1/molecules/nav-bar/tenant-switcher-menu';
+import { TenantSwitcherTriggerButton } from '@/components/v1/molecules/nav-bar/tenant-switcher-trigger';
+import { useTenantSwitcherGroups } from '@/components/v1/molecules/nav-bar/use-tenant-switcher-groups';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { TenantMember } from '@/lib/api';
@@ -14,39 +10,30 @@ import { cn } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { appRoutes } from '@/router';
 import {
-  // ChartBarSquareIcon,
-  CheckIcon,
-} from '@heroicons/react/24/outline';
-import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
-import {
   PopoverTrigger,
   Popover,
   PopoverContent,
   PopoverPortal,
 } from '@radix-ui/react-popover';
-import { Link } from '@tanstack/react-router';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import React from 'react';
-import invariant from 'tiny-invariant';
 
 interface TenantSwitcherProps {
   className?: string;
   memberships: TenantMember[];
-}
-
-const DEFAULT_TENANT_COLOR = '#3B82F6';
-
-function TenantColorDot({ color }: { color?: string }) {
-  return (
-    <span
-      aria-hidden
-      className="size-3 shrink-0 rounded-full"
-      style={{ backgroundColor: color || DEFAULT_TENANT_COLOR }}
-    />
-  );
+  /**
+   * When true, tenants will be grouped under organizations (if org data exists).
+   * Intended for cloud mode.
+   */
+  enableOrganizations?: boolean;
+  /** When true, the trigger button stretches to full width (used in some headers). */
+  fullWidth?: boolean;
 }
 export function TenantSwitcher({
   className,
   memberships,
+  enableOrganizations = true,
+  fullWidth,
 }: TenantSwitcherProps) {
   const { meta } = useApiMeta();
   const {
@@ -55,120 +42,125 @@ export function TenantSwitcher({
     tenant,
   } = useTenantDetails();
   const [open, setOpen] = React.useState(false);
-  const { hasOrganizations } = useOrganizations();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [showCreateOrgModal, setShowCreateOrgModal] = React.useState(false);
+  const [orgName, setOrgName] = React.useState('');
+  const {
+    organizations,
+    getOrganizationForTenant,
+    isTenantArchivedInOrg,
+    handleCreateOrganization,
+    createOrganizationLoading,
+    isLoading: isOrganizationsLoading,
+    hasOrganizations,
+  } = useOrganizations();
+
+  const shouldGroupByOrganization =
+    Boolean(enableOrganizations) && Boolean(hasOrganizations);
+
+  const handleNavigate = (nav: {
+    to: string;
+    params?: Record<string, string>;
+  }) => {
+    if (!nav.to) {
+      return;
+    }
+
+    // Store the current path before navigating to org settings
+    sessionStorage.setItem('orgSettingsPreviousPath', location.pathname);
+    navigate({ to: nav.to, params: nav.params, replace: false });
+  };
+
+  const { orgGroups, standaloneTenants } = useTenantSwitcherGroups({
+    shouldGroupByOrganization,
+    memberships,
+    organizations,
+    getOrganizationForTenant,
+    isTenantArchivedInOrg,
+  });
+
+  const triggerDisabled =
+    isTenantLoading ||
+    (shouldGroupByOrganization && isOrganizationsLoading) ||
+    memberships.length === 0;
 
   if (!tenant) {
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        aria-label="Loading tenant"
-        className={cn(
-          'min-w-0 justify-between gap-2 bg-muted/20 shadow-none',
-          className,
-        )}
-        style={{ borderColor: DEFAULT_TENANT_COLOR }}
-        disabled
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-          <TenantColorDot />
-          <span className="min-w-0 flex-1 truncate text-muted-foreground">
-            Loading tenant…
-          </span>
-        </div>
-        <Spinner className="mr-0" />
-      </Button>
+      <TenantSwitcherLoadingButton
+        className={className}
+        fullWidth={fullWidth}
+      />
     );
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          role="combobox"
-          aria-expanded={open}
-          aria-label="Select a tenant"
-          className={cn(
-            'min-w-0 justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
-            open && 'bg-muted/30',
-            className,
-          )}
-          style={{ borderColor: tenant.color || DEFAULT_TENANT_COLOR }}
-          disabled={isTenantLoading || memberships.length === 0}
-        >
-          <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-            <TenantColorDot color={tenant.color} />
-            <span className="min-w-0 flex-1 truncate">{tenant.name}</span>
-          </div>
-          {isTenantLoading ? (
-            <Spinner className="mr-0" />
-          ) : (
-            <CaretSortIcon className="size-4 shrink-0 opacity-50" />
-          )}
-        </Button>
-      </PopoverTrigger>
-      {/* Portal so the popover can render above the mobile sidebar overlay (header is z-50). */}
-      <PopoverPortal>
-        <PopoverContent
-          side="bottom"
-          align="start"
-          sideOffset={8}
-          // Must render above the mobile sidebar overlay (`side-nav` uses z-[100]).
-          className="z-[300] w-56 p-0"
-        >
-          <Command className="">
-            <CommandList data-cy="tenant-switcher-list">
-              <CommandEmpty>No tenants found.</CommandEmpty>
-              {memberships.map((membership) => (
-                <CommandItem
-                  key={membership.metadata.id}
-                  onSelect={() => {
-                    invariant(membership.tenant);
-                    setCurrTenant(membership.tenant);
-                    setOpen(false);
-                  }}
-                  value={membership.tenant?.slug}
-                  data-cy={
-                    membership.tenant?.slug
-                      ? `tenant-switcher-item-${membership.tenant.slug}`
-                      : undefined
-                  }
-                  className="cursor-pointer text-sm gap-2"
-                >
-                  <TenantColorDot color={membership.tenant?.color} />
-                  {membership.tenant?.name}
-                  <CheckIcon
-                    className={cn(
-                      'ml-auto size-4',
-                      tenant?.slug === membership.tenant?.slug
-                        ? 'opacity-100'
-                        : 'opacity-0',
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandList>
-            {meta?.allowCreateTenant && !hasOrganizations && (
-              <>
-                <CommandSeparator />
-                <CommandList>
-                  <Link
-                    to={appRoutes.onboardingCreateTenantRoute.to}
-                    data-cy="new-tenant"
-                  >
-                    <CommandItem className="cursor-pointer text-sm">
-                      <PlusCircledIcon className="mr-2 size-4" />
-                      New Tenant
-                    </CommandItem>
-                  </Link>
-                </CommandList>
-              </>
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <TenantSwitcherTriggerButton
+            className={className}
+            fullWidth={fullWidth}
+            open={open}
+            tenantName={tenant.name}
+            tenantColor={tenant.color}
+            shouldGroupByOrganization={shouldGroupByOrganization}
+            disabled={triggerDisabled}
+            showSpinner={
+              (isTenantLoading ||
+                (shouldGroupByOrganization && isOrganizationsLoading)) &&
+              !open
+            }
+          />
+        </PopoverTrigger>
+        {/* Portal so the popover can render above the mobile sidebar overlay (header is z-50). */}
+        <PopoverPortal>
+          <PopoverContent
+            side="bottom"
+            align="start"
+            sideOffset={8}
+            // Must render above the mobile sidebar overlay (`side-nav` uses z-[100]).
+            className={cn(
+              'z-[300] p-0',
+              shouldGroupByOrganization
+                ? 'w-[680px] max-w-[calc(100vw-2rem)]'
+                : 'w-56',
             )}
-          </Command>
-        </PopoverContent>
-      </PopoverPortal>
-    </Popover>
+          >
+            <TenantSwitcherMenu
+              shouldGroupByOrganization={shouldGroupByOrganization}
+              memberships={memberships}
+              tenantSlug={tenant.slug}
+              orgGroups={orgGroups}
+              standaloneTenants={standaloneTenants}
+              onSelectTenant={(t) => setCurrTenant(t)}
+              onClose={() => setOpen(false)}
+              onManageOrganizations={() =>
+                handleNavigate({ to: appRoutes.organizationsRoute.to })
+              }
+              onCreateOrganizationClick={() => setShowCreateOrgModal(true)}
+              allowCreateTenant={Boolean(meta?.allowCreateTenant)}
+              hasOrganizations={hasOrganizations}
+            />
+          </PopoverContent>
+        </PopoverPortal>
+      </Popover>
+
+      {shouldGroupByOrganization && (
+        <CreateOrganizationDialog
+          open={showCreateOrgModal}
+          onOpenChange={setShowCreateOrgModal}
+          orgName={orgName}
+          setOrgName={setOrgName}
+          createOrganizationLoading={createOrganizationLoading}
+          onCreate={(name) => {
+            handleCreateOrganization(name, () => {
+              setShowCreateOrgModal(false);
+              setOrgName('');
+            });
+          }}
+        />
+      )}
+    </>
   );
 }

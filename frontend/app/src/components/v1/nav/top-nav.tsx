@@ -1,15 +1,7 @@
+import { TenantBreadcrumbs } from './tenant-breadcrumbs';
+import { TenantSwitcher } from './tenant-switcher';
 import { useSidebar } from '@/components/hooks/use-sidebar';
 import { useTheme } from '@/components/hooks/use-theme';
-import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
-import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/v1/ui/breadcrumb';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -21,13 +13,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
-import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { TenantMember, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
@@ -149,7 +139,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
     collapsed: storedCollapsed,
     setCollapsed: setStoredCollapsed,
   } = useSidebar();
-  const breadcrumbs = useBreadcrumbs();
+  // const breadcrumbs = useBreadcrumbs();
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
   const params = useParams({ strict: false }) as { tenant?: string };
@@ -186,7 +176,6 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
     setStoredCollapsed(!storedCollapsed);
   };
 
-  const { isCloudEnabled } = useCloud();
   const { tenant } = useTenantDetails();
   const showTenantSwitcher =
     !!user && tenantMemberships?.length > 0 && !!tenant;
@@ -215,12 +204,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         </div>
 
         <div className="flex ml-auto items-center justify-end gap-2">
-          {showTenantSwitcher &&
-            (isCloudEnabled ? (
-              <OrganizationSelector memberships={tenantMemberships} />
-            ) : (
-              <TenantSwitcher memberships={tenantMemberships} />
-            ))}
+          {showTenantSwitcher && <TenantSwitcher />}
           <AccountDropdown user={user} />
         </div>
       </div>
@@ -265,7 +249,10 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
             </button>
           )}
         </div>
-
+        <div className="min-w-0">
+          <TenantBreadcrumbs />
+        </div>
+        {/* TODO this should go somewhere else
         <div className="min-w-0 px-8">
           {breadcrumbs.length > 0 && (
             <Breadcrumb>
@@ -287,15 +274,10 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
               </BreadcrumbList>
             </Breadcrumb>
           )}
-        </div>
+        </div> */}
 
         <div className="flex items-center justify-end gap-2 pr-4">
-          {showTenantSwitcher &&
-            (isCloudEnabled ? (
-              <OrganizationSelector memberships={tenantMemberships} />
-            ) : (
-              <TenantSwitcher memberships={tenantMemberships} />
-            ))}
+          {showTenantSwitcher && <TenantSwitcher />}
           <AccountDropdown user={user} />
         </div>
       </div>
