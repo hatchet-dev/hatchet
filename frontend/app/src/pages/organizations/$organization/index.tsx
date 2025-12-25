@@ -4,15 +4,10 @@ import { DeleteMemberModal } from './components/delete-member-modal';
 import { DeleteTenantModal } from './components/delete-tenant-modal';
 import { DeleteTokenModal } from './components/delete-token-modal';
 import { InviteMemberModal } from './components/invite-member-modal';
+import { OrganizationPageHeader } from './components/organization-page-header';
+import { OrganizationSectionCard } from './components/organization-section-card';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/v1/ui/card';
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 import {
   DropdownMenu,
@@ -55,14 +50,11 @@ import {
   UserIcon,
   KeyIcon,
   EnvelopeIcon,
-  PencilIcon,
-  CheckIcon,
-  XMarkIcon,
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import { EllipsisVerticalIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useState } from 'react';
@@ -112,14 +104,6 @@ export default function OrganizationPage() {
       // Invalidate and refetch the organization query to get updated data
       queryClient.invalidateQueries({ queryKey: ['organization:get', orgId] });
     });
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSaveEdit();
-    } else if (e.key === 'Escape') {
-      handleCancelEdit();
-    }
   };
 
   const formatExpirationDate = (expiresDate: string) => {
@@ -242,99 +226,51 @@ export default function OrganizationPage() {
   const organization = organizationQuery.data;
 
   return (
-    <div className="max-h-full overflow-y-auto">
-      <div className="mx-auto max-w-6xl space-y-6 p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2">
-              {isEditingName ? (
-                <>
-                  <Input
-                    value={editedName}
-                    onChange={(e) => setEditedName(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    className="h-10 px-3 text-2xl font-bold"
-                    autoFocus
-                    disabled={updateOrganizationLoading}
-                  />
-                  <Button
-                    size="sm"
-                    onClick={handleSaveEdit}
-                    disabled={updateOrganizationLoading || !editedName.trim()}
-                  >
-                    <CheckIcon className="size-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleCancelEdit}
-                    disabled={updateOrganizationLoading}
-                  >
-                    <XMarkIcon className="size-4" />
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <h1 className="text-2xl font-bold">{organization.name}</h1>
-                </>
-              )}
-              {!isEditingName && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleStartEdit}
-                  className="h-6 w-6 p-0"
-                  disabled={updateOrganizationLoading}
-                  style={{ opacity: updateOrganizationLoading ? 0.3 : 1 }}
-                >
-                  <PencilIcon className="size-3" />
-                </Button>
-              )}
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              const previousPath = sessionStorage.getItem(
-                'orgSettingsPreviousPath',
-              );
-              if (previousPath) {
-                sessionStorage.removeItem('orgSettingsPreviousPath');
-                navigate({ to: previousPath, replace: false });
-              } else {
-                window.history.back();
-              }
-            }}
-            className="h-8 w-8 p-0"
-          >
-            <XMarkIcon className="size-4" />
-          </Button>
-        </div>
+    <div className="h-full w-full">
+      <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
+        <OrganizationPageHeader
+          orgId={organization.metadata.id}
+          orgName={organization.name}
+          isEditingName={isEditingName}
+          editedName={editedName}
+          onEditedNameChange={setEditedName}
+          onStartEdit={handleStartEdit}
+          onCancelEdit={handleCancelEdit}
+          onSaveEdit={handleSaveEdit}
+          saving={updateOrganizationLoading}
+          onClose={() => {
+            const previousPath = sessionStorage.getItem(
+              'orgSettingsPreviousPath',
+            );
+            if (previousPath) {
+              sessionStorage.removeItem('orgSettingsPreviousPath');
+              navigate({ to: previousPath, replace: false });
+            } else {
+              window.history.back();
+            }
+          }}
+        />
 
         {/* Tenants Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Tenants
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  navigate({
-                    to: appRoutes.onboardingCreateTenantRoute.to,
-                    search: { organizationId: organization.metadata.id },
-                  });
-                }}
-                leftIcon={<PlusIcon className="size-4" />}
-              >
-                Add Tenant
-              </Button>
-            </CardTitle>
-            <CardDescription>Tenants within this organization</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <OrganizationSectionCard
+          title="Tenants"
+          description="Tenants within this organization"
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                navigate({
+                  to: appRoutes.onboardingCreateTenantRoute.to,
+                  search: { organizationId: organization.metadata.id },
+                });
+              }}
+              leftIcon={<PlusIcon className="size-4" />}
+            >
+              Add Tenant
+            </Button>
+          }
+        >
             {tenantsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loading />
@@ -365,7 +301,14 @@ export default function OrganizationPage() {
                           return (
                             <TableRow key={orgTenant.id}>
                               <TableCell className="font-medium">
-                                {detailedTenant?.name || 'Loading...'}
+                                <Link
+                                  to={appRoutes.tenantRoute.to}
+                                  params={{ tenant: orgTenant.id }}
+                                  className="inline-flex min-w-0 items-center truncate text-foreground underline-offset-4 hover:underline"
+                                  title={detailedTenant?.name || orgTenant.id}
+                                >
+                                  {detailedTenant?.name || 'Loading…'}
+                                </Link>
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
@@ -435,9 +378,14 @@ export default function OrganizationPage() {
                           className="space-y-3 rounded-lg border p-4"
                         >
                           <div className="flex items-center justify-between">
-                            <h4 className="font-medium">
-                              {detailedTenant?.name || 'Loading...'}
-                            </h4>
+                            <Link
+                              to={appRoutes.tenantRoute.to}
+                              params={{ tenant: orgTenant.id }}
+                              className="min-w-0 truncate font-medium text-foreground underline-offset-4 hover:underline"
+                              title={detailedTenant?.name || orgTenant.id}
+                            >
+                              {detailedTenant?.name || 'Loading…'}
+                            </Link>
                             <Badge>{orgTenant.status}</Badge>
                           </div>
                           <div className="space-y-2 text-sm">
@@ -518,20 +466,13 @@ export default function OrganizationPage() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+        </OrganizationSectionCard>
 
         {/* Members Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Members
-            </CardTitle>
-            <CardDescription>
-              Members with access to this organization
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <OrganizationSectionCard
+          title="Members"
+          description="Members with access to this organization"
+        >
             {organization.members && organization.members.length > 0 ? (
               <div className="space-y-4">
                 {/* Desktop Table View */}
@@ -681,28 +622,23 @@ export default function OrganizationPage() {
                 </p>
               </div>
             )}
-          </CardContent>
-        </Card>
+        </OrganizationSectionCard>
 
         {/* Organization Invites Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Invites
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowInviteMemberModal(true)}
-                leftIcon={<PlusIcon className="size-4" />}
-              >
-                Invite Member
-              </Button>
-            </CardTitle>
-            <CardDescription>
-              Pending invitations to join this organization
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <OrganizationSectionCard
+          title="Invites"
+          description="Pending invitations to join this organization"
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowInviteMemberModal(true)}
+              leftIcon={<PlusIcon className="size-4" />}
+            >
+              Invite Member
+            </Button>
+          }
+        >
             {organizationInvitesQuery.isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loading />
@@ -884,28 +820,23 @@ export default function OrganizationPage() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+        </OrganizationSectionCard>
 
         {/* Management Tokens Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Management Tokens
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCreateTokenModal(true)}
-                leftIcon={<PlusIcon className="size-4" />}
-              >
-                Create Token
-              </Button>
-            </CardTitle>
-            <CardDescription>
-              API tokens for managing this organization
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <OrganizationSectionCard
+          title="Management Tokens"
+          description="API tokens for managing this organization"
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCreateTokenModal(true)}
+              leftIcon={<PlusIcon className="size-4" />}
+            >
+              Create Token
+            </Button>
+          }
+        >
             {managementTokensQuery.isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loading />
@@ -1038,8 +969,7 @@ export default function OrganizationPage() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+        </OrganizationSectionCard>
 
         {/* Invite Member Modal */}
         {orgId && organization && (

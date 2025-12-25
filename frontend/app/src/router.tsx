@@ -81,7 +81,7 @@ const onboardingVerifyRoute = createRoute({
 });
 
 const organizationsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: 'organizations/$organization',
   component: lazyRouteComponent(
     () => import('./pages/organizations/$organization'),
@@ -566,11 +566,11 @@ const tenantRoutes = [
 const routeTree = rootRoute.addChildren([
   authRoute.addChildren([authLoginRoute, authRegisterRoute]),
   onboardingVerifyRoute,
-  organizationsRoute,
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
     onboardingGetStartedRoute,
     onboardingInvitesRoute,
+    organizationsRoute,
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
   ]),
   v1RedirectRoute,
