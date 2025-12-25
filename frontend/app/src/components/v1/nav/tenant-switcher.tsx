@@ -24,7 +24,7 @@ import {
   // ChartBarSquareIcon,
   CheckIcon,
 } from '@heroicons/react/24/outline';
-import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
+import { CaretSortIcon, GearIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
@@ -239,22 +239,58 @@ export function TenantSwitcher({
                       onSelect={() => {
                         // setTenant(org.tenants?.[0]);
                         setOpen(false);
+                        reset();
+                        void navigate({
+                          to: appRoutes.organizationsRoute.to,
+                          params: { organization: org.metadata.id },
+                        });
                       }}
                       value={org.name}
                       data-cy={`organization-switcher-item-${org.name}`}
-                      className="cursor-pointer gap-2 text-sm min-w-0"
+                      className="cursor-pointer gap-2 text-sm min-w-0 group"
                     >
                       <span className="min-w-0 flex-1 truncate">
                         {org.name}
                       </span>
-                      <CheckIcon
-                        className={cn(
-                          'ml-auto size-4',
-                          activeOrganization?.metadata.id === org.metadata.id
-                            ? 'opacity-100'
-                            : 'opacity-0',
-                        )}
-                      />
+                      <div className="ml-auto flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="icon"
+                          size="icon"
+                          hoverText="Organization settings"
+                          className={cn(
+                            'h-7 w-7 shrink-0',
+                            'opacity-0 pointer-events-none transition-opacity',
+                            'group-hover:opacity-100 group-hover:pointer-events-auto',
+                            'group-aria-selected:opacity-100 group-aria-selected:pointer-events-auto',
+                          )}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setOpen(false);
+                            reset();
+                            void navigate({
+                              to: appRoutes.organizationsRoute.to,
+                              params: { organization: org.metadata.id },
+                            });
+                          }}
+                          aria-label="Organization settings"
+                        >
+                          <GearIcon className="size-4" />
+                        </Button>
+                        <CheckIcon
+                          className={cn(
+                            'size-4',
+                            activeOrganization?.metadata.id === org.metadata.id
+                              ? 'opacity-100'
+                              : 'opacity-0',
+                          )}
+                        />
+                      </div>
                     </CommandItem>
                   ))
                 )}
@@ -340,21 +376,54 @@ export function TenantSwitcher({
                         }}
                         value={membership.tenant?.slug}
                         data-cy={`tenant-switcher-item-${membership.tenant?.slug}`}
-                        className="cursor-pointer gap-2 text-sm min-w-0"
+                        className="cursor-pointer gap-2 text-sm min-w-0 group"
                       >
                         <TenantColorDot color={membership.tenant?.color} />
                         <span className="min-w-0 flex-1 truncate">
                           {membership.tenant?.name}
                         </span>
-                        <CheckIcon
-                          className={cn(
-                            'ml-auto size-4',
-                            tenant?.metadata.id ===
-                              membership.tenant?.metadata.id
-                              ? 'opacity-100'
-                              : 'opacity-0',
+                        <div className="ml-auto flex items-center gap-1">
+                          {membership.tenant?.metadata.id && (
+                            <Button
+                              type="button"
+                              variant="icon"
+                              size="icon"
+                              hoverText="Tenant settings"
+                              className={cn(
+                                'h-7 w-7 shrink-0',
+                                'opacity-0 pointer-events-none transition-opacity',
+                                'group-hover:opacity-100 group-hover:pointer-events-auto',
+                                'group-aria-selected:opacity-100 group-aria-selected:pointer-events-auto',
+                              )}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setOpen(false);
+                                reset();
+                                void navigate({
+                                  to: appRoutes.tenantSettingsOverviewRoute.to,
+                                  params: { tenant: membership.tenant.metadata.id },
+                                });
+                              }}
+                              aria-label="Tenant settings"
+                            >
+                              <GearIcon className="size-4" />
+                            </Button>
                           )}
-                        />
+                          <CheckIcon
+                            className={cn(
+                              'size-4',
+                              tenant?.metadata.id ===
+                                membership.tenant?.metadata.id
+                                ? 'opacity-100'
+                                : 'opacity-0',
+                            )}
+                          />
+                        </div>
                       </CommandItem>
                     ))
                   )}
@@ -419,20 +488,54 @@ export function TenantSwitcher({
                       }}
                       value={membership.tenant?.slug}
                       data-cy={`tenant-switcher-item-${membership.tenant?.slug}`}
-                      className="cursor-pointer gap-2 text-sm min-w-0"
+                      className="cursor-pointer gap-2 text-sm min-w-0 group"
                     >
                       <TenantColorDot color={membership.tenant?.color} />
                       <span className="min-w-0 flex-1 truncate">
                         {membership.tenant?.name}
                       </span>
-                      <CheckIcon
-                        className={cn(
-                          'ml-auto size-4',
-                          tenant?.metadata.id === membership.tenant?.metadata.id
-                            ? 'opacity-100'
-                            : 'opacity-0',
+                      <div className="ml-auto flex items-center gap-1">
+                        {membership.tenant?.metadata.id && (
+                          <Button
+                            type="button"
+                            variant="icon"
+                            size="icon"
+                            hoverText="Tenant settings"
+                            className={cn(
+                              'h-7 w-7 shrink-0',
+                              'opacity-0 pointer-events-none transition-opacity',
+                              'group-hover:opacity-100 group-hover:pointer-events-auto',
+                              'group-aria-selected:opacity-100 group-aria-selected:pointer-events-auto',
+                            )}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setOpen(false);
+                              reset();
+                              void navigate({
+                                to: appRoutes.tenantSettingsOverviewRoute.to,
+                                params: { tenant: membership.tenant.metadata.id },
+                              });
+                            }}
+                            aria-label="Tenant settings"
+                          >
+                            <GearIcon className="size-4" />
+                          </Button>
                         )}
-                      />
+                        <CheckIcon
+                          className={cn(
+                            'size-4',
+                            tenant?.metadata.id ===
+                              membership.tenant?.metadata.id
+                              ? 'opacity-100'
+                              : 'opacity-0',
+                          )}
+                        />
+                      </div>
                     </CommandItem>
                   ))
                 )}

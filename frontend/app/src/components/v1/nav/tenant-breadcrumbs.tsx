@@ -4,11 +4,13 @@ import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
-  BreadcrumbPage,
+  BreadcrumbLink,
   BreadcrumbSeparator,
 } from '@/components/v1/ui/breadcrumb';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
 
 export function TenantBreadcrumbs() {
   const { tenant } = useTenantDetails();
@@ -27,16 +29,19 @@ export function TenantBreadcrumbs() {
   return (
     <Breadcrumb className="min-w-0">
       <BreadcrumbList className="min-w-0 flex-nowrap overflow-hidden">
-        {activeOrganization && (
+        {activeOrganization?.metadata?.id && (
           <>
             <BreadcrumbItem className="min-w-0">
               <span className="group flex min-w-0 items-center gap-2">
-                <span
-                  className="min-w-0 truncate"
-                  title={activeOrganization.name}
-                >
-                  {activeOrganization.name}
-                </span>
+                <BreadcrumbLink asChild className="min-w-0 truncate">
+                  <Link
+                    to={appRoutes.organizationsRoute.to}
+                    params={{ organization: activeOrganization.metadata.id }}
+                    title={activeOrganization.name}
+                  >
+                    {activeOrganization.name}
+                  </Link>
+                </BreadcrumbLink>
                 <TenantSwitcher
                   tone="chromeless"
                   className="shrink-0 group-hover:bg-muted/30"
@@ -47,20 +52,24 @@ export function TenantBreadcrumbs() {
           </>
         )}
 
-        {tenant && (
+        {tenant?.metadata?.id && (
           <BreadcrumbItem className="min-w-0">
-            <BreadcrumbPage className="min-w-0">
-              <span className="group flex min-w-0 items-center gap-2">
-                <TenantColorDot color={tenant?.color} size="md" />
-                <span className="min-w-0 truncate" title={tenant?.name}>
-                  {tenant?.name ?? 'Loading tenant…'}
-                </span>
-                <TenantSwitcher
-                  tone="chromeless"
-                  className="shrink-0 group-hover:bg-muted/30"
-                />
-              </span>
-            </BreadcrumbPage>
+            <span className="group flex min-w-0 items-center gap-2">
+              <TenantColorDot color={tenant.color} size="md" />
+              <BreadcrumbLink asChild className="min-w-0 truncate">
+                <Link
+                  to={appRoutes.tenantRoute.to}
+                  params={{ tenant: tenant.metadata.id }}
+                  title={tenant.name}
+                >
+                  {tenant.name}
+                </Link>
+              </BreadcrumbLink>
+              <TenantSwitcher
+                tone="chromeless"
+                className="shrink-0 group-hover:bg-muted/30"
+              />
+            </span>
           </BreadcrumbItem>
         )}
       </BreadcrumbList>
