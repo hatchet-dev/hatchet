@@ -277,7 +277,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         </div> */}
 
         <div className="flex items-center justify-end gap-2 pr-4">
-          {showTenantSwitcher && <TenantSwitcher />}
+          {/* Tenant switching lives in `TenantBreadcrumbs` on desktop */}
           <AccountDropdown user={user} />
         </div>
       </div>

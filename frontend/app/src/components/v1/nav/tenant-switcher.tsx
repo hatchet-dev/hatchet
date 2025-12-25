@@ -33,6 +33,12 @@ import invariant from 'tiny-invariant';
 
 interface TenantSwitcherProps {
   className?: string;
+  /**
+   * Visual style for the trigger button.
+   * - default: shows a subtle background even when idle (good for toolbars).
+   * - chromeless: transparent until the surrounding UI applies hover styles (good for breadcrumbs).
+   */
+  tone?: 'default' | 'chromeless';
 }
 
 const DEFAULT_TENANT_COLOR = '#3B82F6';
@@ -46,7 +52,10 @@ function TenantColorDot({ color }: { color?: string }) {
     />
   );
 }
-export function TenantSwitcher({ className }: TenantSwitcherProps) {
+export function TenantSwitcher({
+  className,
+  tone = 'default',
+}: TenantSwitcherProps) {
   const { meta } = useApiMeta();
   const { isLoading: isTenantLoading, tenant, setTenant } = useTenantDetails();
   const [open, setOpen] = React.useState(false);
@@ -58,7 +67,7 @@ export function TenantSwitcher({ className }: TenantSwitcherProps) {
   const {
     enabled: organizationsEnabled,
     organizations,
-    getOrganizationForTenant,
+    activeOrganization,
     handleCreateOrganization,
     createOrganizationLoading,
     error: organizationsError,
@@ -97,17 +106,9 @@ export function TenantSwitcher({ className }: TenantSwitcherProps) {
     'create-organization' | undefined
   >(undefined);
 
-  const selectedOrg = useMemo(() => {
-    const tenantId = tenant?.metadata.id;
-
-    if (!tenantId) {
-      return undefined;
-    }
-
-    return getOrganizationForTenant(tenantId);
-  }, [getOrganizationForTenant, tenant?.metadata.id]);
-
-  const activeOrg = hoveredAction ? undefined : (hoveredOrg ?? selectedOrg);
+  const activeOrg = hoveredAction
+    ? undefined
+    : (hoveredOrg ?? activeOrganization);
 
   const activeOrgMemberships = useMemo(() => {
     if (!activeOrg) {
@@ -125,6 +126,23 @@ export function TenantSwitcher({ className }: TenantSwitcherProps) {
   }, [setHoveredOrg, setHoveredAction]);
 
   if (!tenant) {
+    if (tone === 'chromeless') {
+      return (
+        <Button
+          variant="icon"
+          size="sm"
+          aria-label="Loading tenant"
+          className={cn(
+            'min-w-0 justify-between gap-2 bg-transparent shadow-none hover:bg-transparent',
+            className,
+          )}
+          disabled
+        >
+          <Spinner className="mr-0" />
+        </Button>
+      );
+    }
+
     return (
       <Button
         variant="outline"
@@ -160,28 +178,21 @@ export function TenantSwitcher({ className }: TenantSwitcherProps) {
     >
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
+          variant="icon"
           size="sm"
           role="combobox"
           aria-expanded={open}
           aria-label="Select a tenant"
           className={cn(
-            'min-w-0 justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
+            tone === 'chromeless'
+              ? 'min-w-0 justify-between gap-2 bg-transparent shadow-none hover:bg-transparent'
+              : 'min-w-0 justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
             open && 'bg-muted/30',
             className,
           )}
-          style={{ borderColor: tenant.color || DEFAULT_TENANT_COLOR }}
           disabled={isTenantLoading || memberships.length === 0}
         >
-          <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-            <TenantColorDot color={tenant.color} />
-            <span className="min-w-0 flex-1 truncate">{tenant.name}</span>
-          </div>
-          {isTenantLoading ? (
-            <Spinner className="mr-0" />
-          ) : (
-            <CaretSortIcon className="size-4 shrink-0 opacity-50" />
-          )}
+          <CaretSortIcon className="size-4 opacity-50" />
         </Button>
       </PopoverTrigger>
       {organizationsSupported ? (
@@ -239,7 +250,7 @@ export function TenantSwitcher({ className }: TenantSwitcherProps) {
                       <CheckIcon
                         className={cn(
                           'ml-auto size-4',
-                          selectedOrg?.metadata.id === org.metadata.id
+                          activeOrganization?.metadata.id === org.metadata.id
                             ? 'opacity-100'
                             : 'opacity-0',
                         )}

@@ -1,3 +1,4 @@
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
 import {
   CreateManagementTokenResponse,
@@ -13,6 +14,7 @@ import { useMemo, useCallback } from 'react';
 export function useOrganizations() {
   const { isCloudEnabled } = useCloud();
   const { handleApiError } = useApiError({});
+  const { tenantId } = useTenantDetails();
 
   const organizationListQuery = useQuery({
     queryKey: ['organization:list'],
@@ -36,6 +38,14 @@ export function useOrganizations() {
     },
     [organizations],
   );
+
+  const activeOrganization = useMemo(() => {
+    if (!isCloudEnabled || !tenantId) {
+      return undefined;
+    }
+
+    return getOrganizationForTenant(tenantId);
+  }, [getOrganizationForTenant, tenantId, isCloudEnabled]);
 
   const getOrganizationIdForTenant = useCallback(
     (tenantId: string) => {
@@ -320,6 +330,7 @@ export function useOrganizations() {
     organizations,
     organizationData: organizationListQuery.data,
     enabled: isCloudEnabled,
+    activeOrganization,
     getOrganizationForTenant,
     getOrganizationIdForTenant,
     isTenantArchivedInOrg,
