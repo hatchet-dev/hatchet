@@ -428,21 +428,21 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 	}()
 
 	switch msgId {
-	case "task-completed":
+	case msgqueue.MsgIDTaskCompleted:
 		return tc.handleTaskCompleted(context.Background(), tenantId, payloads)
-	case "task-failed":
+	case msgqueue.MsgIDTaskFailed:
 		return tc.handleTaskFailed(context.Background(), tenantId, payloads)
-	case "task-cancelled":
+	case msgqueue.MsgIDTaskCancelled:
 		return tc.handleTaskCancelled(context.Background(), tenantId, payloads)
-	case "cancel-tasks":
+	case msgqueue.MsgIDCancelTasks:
 		return tc.handleCancelTasks(context.Background(), tenantId, payloads)
-	case "replay-tasks":
+	case msgqueue.MsgIDReplayTasks:
 		return tc.handleReplayTasks(context.Background(), tenantId, payloads)
-	case "user-event":
+	case msgqueue.MsgIDUserEvent:
 		return tc.handleProcessUserEvents(context.Background(), tenantId, payloads)
-	case "internal-event":
+	case msgqueue.MsgIDInternalEvent:
 		return tc.handleProcessInternalEvents(context.Background(), tenantId, payloads)
-	case "task-trigger":
+	case msgqueue.MsgIDTaskTrigger:
 		return tc.handleProcessTaskTrigger(context.Background(), tenantId, payloads)
 	}
 
@@ -767,7 +767,7 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId s
 	return queueutils.BatchLinear(BULK_MSG_BATCH_SIZE, pubPayloads, func(pubPayloads []tasktypes.CancelledTaskPayload) error {
 		msg, err := msgqueue.NewTenantMessage(
 			tenantId,
-			"task-cancelled",
+			msgqueue.MsgIDTaskCancelled,
 			false,
 			true,
 			pubPayloads...,
@@ -905,7 +905,7 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 	for dispatcherId, payloads := range dispatcherIdsToPayloads {
 		msg, err := msgqueue.NewTenantMessage(
 			tenantId,
-			"task-cancelled",
+			msgqueue.MsgIDTaskCancelled,
 			false,
 			true,
 			payloads...,
@@ -969,7 +969,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 
 	msg, err := msgqueue.NewTenantMessage(
 		tenantId,
-		"workflow-run-finished-candidate",
+		msgqueue.MsgIDWorkflowRunFinishedCandidate,
 		true,
 		false,
 		payloads...,
