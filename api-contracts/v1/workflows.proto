@@ -13,6 +13,7 @@ service AdminService {
     rpc CancelTasks(CancelTasksRequest) returns (CancelTasksResponse);
     rpc ReplayTasks(ReplayTasksRequest) returns (ReplayTasksResponse);
     rpc TriggerWorkflowRun(TriggerWorkflowRunRequest) returns (TriggerWorkflowRunResponse);
+    rpc GetRunPayloads(GetRunPayloadsRequest) returns (GetRunPayloadsResponse);
 }
 
 message CancelTasksRequest {
@@ -172,4 +173,13 @@ message CreateTaskRateLimit {
 message CreateWorkflowVersionResponse {
     string id = 1;
     string workflow_id = 2;
+}
+
+message GetRunPayloadsRequest {
+    string external_id = 1; // (required) the external id (uuid) of the workflow run
+}
+
+message GetRunPayloadsResponse {
+    bytes input = 1; // the input payload for the workflow run
+    bytes output = 2; // (optional) the output payload for the workflow run
 }
