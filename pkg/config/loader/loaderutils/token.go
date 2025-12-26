@@ -1,19 +1,21 @@
-package loader
+package loaderutils
 
 import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
-type tokenConf struct {
-	serverURL            string
-	grpcBroadcastAddress string
-	tenantId             string
+type TokenConf struct {
+	ExpiresAt            time.Time
+	ServerURL            string
+	GrpcBroadcastAddress string
+	TenantId             string
 }
 
-func getConfFromJWT(token string) (*tokenConf, error) {
+func GetConfFromJWT(token string) (*TokenConf, error) {
 	claims, err := extractClaimsFromJWT(token)
 	if err != nil {
 		return nil, err
@@ -29,16 +31,25 @@ func getConfFromJWT(token string) (*tokenConf, error) {
 		return nil, fmt.Errorf("grpc_broadcast_address claim not found")
 	}
 
+	// parse the exp claim
+	expiresAtFloat, ok := claims["exp"].(float64)
+	if !ok {
+		return nil, fmt.Errorf("exp claim not found")
+	}
+
+	expiresAt := time.Unix(int64(expiresAtFloat), 0)
+
 	tenantId, ok := claims["sub"].(string)
 
 	if !ok {
 		return nil, fmt.Errorf("sub claim not found")
 	}
 
-	return &tokenConf{
-		serverURL:            serverURL,
-		grpcBroadcastAddress: grpcBroadcastAddress,
-		tenantId:             tenantId,
+	return &TokenConf{
+		ExpiresAt:            expiresAt,
+		ServerURL:            serverURL,
+		GrpcBroadcastAddress: grpcBroadcastAddress,
+		TenantId:             tenantId,
 	}, nil
 }
 
