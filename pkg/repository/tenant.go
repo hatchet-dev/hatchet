@@ -77,6 +77,9 @@ type GetQueueMetricsResponse struct {
 }
 
 type TenantAPIRepository interface {
+	// RegisterCreateCallback registers a callback to be called when a tenant is created
+	RegisterCreateCallback(callback UnscopedCallback[*dbsqlc.Tenant])
+
 	// CreateTenant creates a new tenant.
 	CreateTenant(ctx context.Context, opts *CreateTenantOpts) (*dbsqlc.Tenant, error)
 

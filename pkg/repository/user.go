@@ -37,8 +37,11 @@ type UpdateUserOpts struct {
 	OAuth    *OAuthOpts `validate:"omitempty,required_without=Password,excluded_with=Password"`
 }
 
+// UserCreateCallback is a callback that receives both the opts and created user
+type UserCreateCallback func(opts *CreateUserOpts, user *dbsqlc.User) error
+
 type UserRepository interface {
-	RegisterCreateCallback(callback UnscopedCallback[*dbsqlc.User])
+	RegisterCreateCallback(callback UserCreateCallback)
 
 	// GetUserByID returns the user with the given id
 	GetUserByID(ctx context.Context, id string) (*dbsqlc.User, error)

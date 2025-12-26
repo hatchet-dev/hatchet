@@ -25,6 +25,8 @@ type tenantAPIRepository struct {
 
 	cache                cache.Cacheable
 	defaultTenantVersion dbsqlc.TenantMajorEngineVersion
+
+	createCallbacks []repository.UnscopedCallback[*dbsqlc.Tenant]
 }
 
 func NewTenantAPIRepository(shared *sharedRepository, cache cache.Cacheable, defaultTenantVersion dbsqlc.TenantMajorEngineVersion) repository.TenantAPIRepository {
@@ -33,6 +35,14 @@ func NewTenantAPIRepository(shared *sharedRepository, cache cache.Cacheable, def
 		cache:                cache,
 		defaultTenantVersion: defaultTenantVersion,
 	}
+}
+
+func (r *tenantAPIRepository) RegisterCreateCallback(callback repository.UnscopedCallback[*dbsqlc.Tenant]) {
+	if r.createCallbacks == nil {
+		r.createCallbacks = make([]repository.UnscopedCallback[*dbsqlc.Tenant], 0)
+	}
+
+	r.createCallbacks = append(r.createCallbacks, callback)
 }
 
 func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository.CreateTenantOpts) (*dbsqlc.Tenant, error) {
@@ -122,6 +132,10 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
+	}
+
+	for _, cb := range r.createCallbacks {
+		cb.Do(r.l, createTenant)
 	}
 
 	return createTenant, nil
