@@ -169,6 +169,38 @@ class Task(Generic[TWorkflowInput, R]):
             step_output=TypeAdapter(normalize_validator(return_type)),
         )
 
+    async def _parse_maybe_cm_param(
+        self,
+        parsed: DependencyToInject,
+        cms_to_exit: (
+            list[AbstractAsyncContextManager[Any] | AbstractContextManager[Any]] | None
+        ),
+    ) -> tuple[
+        Any, AbstractAsyncContextManager[Any] | AbstractContextManager[Any] | None
+    ]:
+        value = parsed.value
+        to_exit: (
+            AbstractAsyncContextManager[Any] | AbstractContextManager[Any] | None
+        ) = None
+
+        if is_async_context_manager(value):
+            entered_value: Any = await value.__aenter__()
+
+            if cms_to_exit is not None:
+                to_exit = value
+
+            return entered_value, to_exit
+
+        if is_sync_context_manager(value):
+            entered_value = await asyncio.to_thread(value.__enter__)
+
+            if cms_to_exit is not None:
+                to_exit = value
+
+            return entered_value, to_exit
+
+        return value, to_exit
+
     async def _resolve_function_dependencies(
         self,
         fn: Callable[..., Any],
@@ -202,20 +234,13 @@ class Task(Generic[TWorkflowInput, R]):
                     name, param, input, ctx, resolution_stack, cms_to_exit
                 )
                 if parsed is not None:
-                    value = parsed.value
+                    value, to_exit = await self._parse_maybe_cm_param(
+                        parsed, cms_to_exit
+                    )
 
-                    if is_async_context_manager(value):
-                        entered_value: Any = await value.__aenter__()
-                        if cms_to_exit is not None:
-                            cms_to_exit.append(value)
-                        dependencies[parsed.name] = entered_value
-                    elif is_sync_context_manager(value):
-                        entered_value = await asyncio.to_thread(value.__enter__)
-                        if cms_to_exit is not None:
-                            cms_to_exit.append(value)
-                        dependencies[parsed.name] = entered_value
-                    else:
-                        dependencies[parsed.name] = value
+                    dependencies[parsed.name] = value
+                    if to_exit is not None and cms_to_exit is not None:
+                        cms_to_exit.append(to_exit)
 
             return dependencies
         finally:
@@ -289,18 +314,13 @@ class Task(Generic[TWorkflowInput, R]):
                     n, p, input, ctx, None, cms_to_exit
                 )
                 if parsed is not None:
-                    value = parsed.value
+                    value, to_exit = await self._parse_maybe_cm_param(
+                        parsed, cms_to_exit
+                    )
 
-                    if is_async_context_manager(value):
-                        entered_value: Any = await value.__aenter__()
-                        cms_to_exit.append(value)
-                        dependencies[parsed.name] = entered_value
-                    elif is_sync_context_manager(value):
-                        entered_value = await asyncio.to_thread(value.__enter__)
-                        cms_to_exit.append(value)
-                        dependencies[parsed.name] = entered_value
-                    else:
-                        dependencies[parsed.name] = value
+                    dependencies[parsed.name] = value
+                    if to_exit is not None:
+                        cms_to_exit.append(to_exit)
 
             yield dependencies
         finally:
