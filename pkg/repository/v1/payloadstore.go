@@ -812,6 +812,48 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 	tempPartitionName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
 	sourcePartitionName := fmt.Sprintf("v1_payload_%s", partitionDate.String())
 
+	reconciliationDoneChan := make(chan struct{})
+	reconciliationCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-reconciliationCtx.Done():
+				return
+			case <-reconciliationDoneChan:
+				return
+			case <-ticker.C:
+				tx, commit, rollback, err := sqlchelpers.PrepareTx(reconciliationCtx, p.pool, p.l, 10000)
+
+				if err != nil {
+					p.l.Error().Err(err).Msg("failed to prepare transaction for extending cutover job lease during reconciliation")
+					return
+				}
+
+				defer rollback()
+
+				lease, err := p.acquireOrExtendJobLease(reconciliationCtx, tx, processId, partitionDate, pagination)
+
+				if err != nil {
+					return
+				}
+
+				if err := commit(reconciliationCtx); err != nil {
+					p.l.Error().Err(err).Msg("failed to commit extend cutover job lease transaction during reconciliation")
+					return
+				}
+
+				if !lease.ShouldRun {
+					return
+				}
+			}
+		}
+	}()
+
 	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
 
 	if err != nil {
@@ -859,6 +901,8 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 			return fmt.Errorf("row counts still do not match between temp and source partitions for date %s after inserting missing rows", partitionDate.String())
 		}
 	}
+
+	close(reconciliationDoneChan)
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
