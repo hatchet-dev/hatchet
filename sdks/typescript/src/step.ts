@@ -735,12 +735,14 @@ export function mapRateLimit(limits: CreateStep<any, any>['rate_limits']): Creat
         }
         limitExpression = l.limit;
       }
-    } else {
-      limitExpression = `-1`;
     }
 
     if (keyExpression !== undefined && limitExpression === undefined) {
       throw new Error('CEL based keys requires limit to be set');
+    }
+
+    if (limitExpression === undefined) {
+      limitExpression = `-1`;
     }
 
     return {
