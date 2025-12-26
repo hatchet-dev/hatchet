@@ -181,5 +181,7 @@ message GetRunPayloadsRequest {
 
 message GetRunPayloadsResponse {
     bytes input = 1; // the input payload for the workflow run
-    bytes output = 2; // (optional) the output payload for the workflow run
+    optional bytes output = 2; // (optional) the output payload for the workflow run
+    bool completed = 3; // whether the workflow run is completed
+    optional string error = 4; // (optional) error message if the workflow run failed
 }

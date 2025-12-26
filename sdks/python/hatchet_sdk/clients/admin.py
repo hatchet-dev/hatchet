@@ -62,6 +62,11 @@ class WorkflowRunTriggerConfig(BaseModel):
     key: str | None = None
 
 
+class RunPayloads(BaseModel):
+    input: JSONSerializableMapping | None = None
+    output: JSONSerializableMapping | None = None
+
+
 class AdminClient:
     def __init__(
         self,
@@ -478,4 +483,33 @@ class AdminClient:
             workflow_run_id=workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
+        )
+
+    def get_payloads(self, external_id: str) -> RunPayloads:
+        if self.client is None:
+            conn = new_conn(self.config, False)
+            self.client = AdminServiceStub(conn)
+
+        get_run_payloads = tenacity_retry(
+            self.client.GetRunPayloads, self.config.tenacity
+        )
+
+        response = cast(
+            workflow_protos.GetRunPayloadsResponse,
+            get_run_payloads(
+                external_id,
+                metadata=get_metadata(self.token),
+            ),
+        )
+
+        input_payload = (
+            json.loads(response.input.decode("utf-8")) if response.input else None
+        )
+        output_payload = (
+            json.loads(response.output.decode("utf-8")) if response.output else None
+        )
+
+        return RunPayloads(
+            input=cast(JSONSerializableMapping, input_payload),
+            output=cast(JSONSerializableMapping, output_payload),
         )

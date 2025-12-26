@@ -852,3 +852,6 @@ class RunsClient(BaseRestClient):
         async for chunk in ref.stream():
             if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
                 yield chunk.payload
+
+    def get_payloads(self, external_id: str) -> None:
+        pass
