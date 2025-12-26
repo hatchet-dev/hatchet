@@ -132,7 +132,7 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 
 		if rateLimit.LimitValueExpr == nil {
 			negOne := "-1"
-			rateLimit.LimitValueExpr = &negOne
+			rlContract.LimitValuesExpr = &negOne
 		}
 
 		if rateLimit.Units != nil {
