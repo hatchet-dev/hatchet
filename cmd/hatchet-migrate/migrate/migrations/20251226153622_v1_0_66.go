@@ -10,17 +10,17 @@ import (
 )
 
 func init() {
-	goose.AddMigrationNoTxContext(up20251216160649, down20251216160649)
+	goose.AddMigrationNoTxContext(up20251226153622, down20251226153622)
 }
 
 const (
 	v1RunsOlapTable = "v1_runs_olap"
 )
 
-// up20251216160649 creates an index concurrently on each leaf partition of v1_runs_olap.
+// up20251226153622 creates an index concurrently on each leaf partition of v1_runs_olap.
 // Postgres 15 cannot create indexes concurrently on a partitioned parent table, so we
 // must build them per-partition.
-func up20251216160649(ctx context.Context, db *sql.DB) error {
+func up20251226153622(ctx context.Context, db *sql.DB) error {
 	partitions, err := listLeafPartitions(ctx, db, v1RunsOlapTable, 2)
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func up20251216160649(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-func down20251216160649(ctx context.Context, db *sql.DB) error {
+func down20251226153622(ctx context.Context, db *sql.DB) error {
 	partitions, err := listLeafPartitions(ctx, db, v1RunsOlapTable, 2)
 	if err != nil {
 		return err
