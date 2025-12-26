@@ -733,6 +733,7 @@ export function mapRateLimit(limits: CreateStep<any, any>['rate_limits']): Creat
         if (!validateCelExpression(l.limit)) {
           throw new Error(`Invalid CEL expression: ${l.limit}`);
         }
+
         limitExpression = l.limit;
       }
     }
