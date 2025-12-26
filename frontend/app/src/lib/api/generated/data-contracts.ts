@@ -283,6 +283,7 @@ export enum V1TaskEventType {
   CREATED = "CREATED",
   QUEUED = "QUEUED",
   SKIPPED = "SKIPPED",
+  COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER",
 }
 
 export enum V1WorkflowType {

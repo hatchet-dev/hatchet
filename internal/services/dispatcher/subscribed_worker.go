@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -25,6 +26,8 @@ type subscribedWorker struct {
 	backlogSizeMu sync.Mutex
 
 	maxBacklogSize int64
+
+	pubBuffer *msgqueue.MQPubBuffer
 }
 
 func newSubscribedWorker(
@@ -32,6 +35,7 @@ func newSubscribedWorker(
 	fin chan<- bool,
 	workerId string,
 	maxBacklogSize int64,
+	pubBuffer *msgqueue.MQPubBuffer,
 ) *subscribedWorker {
 	if maxBacklogSize <= 0 {
 		maxBacklogSize = 20
@@ -42,6 +46,7 @@ func newSubscribedWorker(
 		finished:       fin,
 		workerId:       workerId,
 		maxBacklogSize: maxBacklogSize,
+		pubBuffer:      pubBuffer,
 	}
 }
 
