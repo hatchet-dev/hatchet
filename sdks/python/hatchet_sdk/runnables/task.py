@@ -175,10 +175,9 @@ class Task(Generic[TWorkflowInput, R]):
         input: TWorkflowInput,
         ctx: Context | DurableContext,
         resolution_stack: set[str] | None = None,  # detect cycles
-        cms_to_exit: list[
-            AbstractAsyncContextManager[Any] | AbstractContextManager[Any]
-        ]
-        | None = None,
+        cms_to_exit: (
+            list[AbstractAsyncContextManager[Any] | AbstractContextManager[Any]] | None
+        ) = None,
     ) -> dict[str, Any]:
         if resolution_stack is None:
             resolution_stack = set()
@@ -229,10 +228,9 @@ class Task(Generic[TWorkflowInput, R]):
         input: TWorkflowInput,
         ctx: Context | DurableContext,
         resolution_stack: set[str] | None = None,
-        cms_to_exit: list[
-            AbstractAsyncContextManager[Any] | AbstractContextManager[Any]
-        ]
-        | None = None,
+        cms_to_exit: (
+            list[AbstractAsyncContextManager[Any] | AbstractContextManager[Any]] | None
+        ) = None,
     ) -> DependencyToInject | None:
         annotation = param.annotation
 
