@@ -3164,8 +3164,7 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	tempPartitionName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
 	sourcePartitionName := fmt.Sprintf("v1_payloads_olap_%s", partitionDate.String())
 
-	isPerformingReconciliation := true
-
+	isReconciliationDone := make(chan struct{})
 	reconciliationCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -3177,11 +3176,9 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 			select {
 			case <-reconciliationCtx.Done():
 				return
+			case <-isReconciliationDone:
+				return
 			case <-ticker.C:
-				if !isPerformingReconciliation {
-					return
-				}
-
 				tx, commit, rollback, err := sqlchelpers.PrepareTx(reconciliationCtx, p.pool, p.l, 10000)
 
 				if err != nil {
@@ -3255,7 +3252,7 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 		}
 	}
 
-	isPerformingReconciliation = false
+	close(isReconciliationDone)
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
