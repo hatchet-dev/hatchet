@@ -3166,36 +3166,45 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 
 	isPerformingReconciliation := true
 
+	reconciliationCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+
 		for {
-			if !isPerformingReconciliation {
+			select {
+			case <-reconciliationCtx.Done():
 				return
-			}
+			case <-ticker.C:
+				if !isPerformingReconciliation {
+					return
+				}
 
-			time.Sleep(15 * time.Second)
+				tx, commit, rollback, err := sqlchelpers.PrepareTx(reconciliationCtx, p.pool, p.l, 10000)
 
-			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+				if err != nil {
+					p.l.Error().Err(err).Msg("failed to prepare transaction for extending cutover job lease during reconciliation")
+					return
+				}
 
-			if err != nil {
-				p.l.Error().Err(err).Msg("failed to prepare transaction for extending cutover job lease during reconciliation")
-				return
-			}
+				defer rollback()
 
-			defer rollback()
+				lease, err := p.acquireOrExtendJobLease(reconciliationCtx, tx, processId, partitionDate, pagination)
 
-			lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, pagination)
+				if err != nil {
+					return
+				}
 
-			if err != nil {
-				return
-			}
+				if err := commit(reconciliationCtx); err != nil {
+					p.l.Error().Err(err).Msg("failed to commit extend cutover job lease transaction during reconciliation")
+					return
+				}
 
-			if err := commit(ctx); err != nil {
-				p.l.Error().Err(err).Msg("failed to commit extend cutover job lease transaction during reconciliation")
-				return
-			}
-
-			if !lease.ShouldRun {
-				return
+				if !lease.ShouldRun {
+					return
+				}
 			}
 		}
 	}()
