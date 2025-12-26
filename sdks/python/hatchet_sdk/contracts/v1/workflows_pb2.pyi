@@ -247,3 +247,17 @@ class CreateWorkflowVersionResponse(_message.Message):
     id: str
     workflow_id: str
     def __init__(self, id: _Optional[str] = ..., workflow_id: _Optional[str] = ...) -> None: ...
+
+class GetRunPayloadsRequest(_message.Message):
+    __slots__ = ("external_id",)
+    EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    external_id: str
+    def __init__(self, external_id: _Optional[str] = ...) -> None: ...
+
+class GetRunPayloadsResponse(_message.Message):
+    __slots__ = ("input", "output")
+    INPUT_FIELD_NUMBER: _ClassVar[int]
+    OUTPUT_FIELD_NUMBER: _ClassVar[int]
+    input: bytes
+    output: bytes
+    def __init__(self, input: _Optional[bytes] = ..., output: _Optional[bytes] = ...) -> None: ...
