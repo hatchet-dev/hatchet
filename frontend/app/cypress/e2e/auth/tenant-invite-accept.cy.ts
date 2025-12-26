@@ -15,8 +15,13 @@ describe('Tenant Invite: accept', () => {
           .should('be.enabled')
           .click();
       });
-    cy.location('pathname', { timeout: 30000 }).should('match', /\/tenants\/.+/);
-    cy.get('button[aria-label="Select a tenant"]').filter(':visible').should('exist');
+    cy.location('pathname', { timeout: 30000 }).should(
+      'match',
+      /\/tenants\/.+/,
+    );
+    cy.get('button[aria-label="Select a tenant"]')
+      .filter(':visible')
+      .should('exist');
 
     // Switch to Tenant 2
     cy.get('button[aria-label="Select a tenant"]')
