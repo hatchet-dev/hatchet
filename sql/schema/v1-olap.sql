@@ -214,6 +214,7 @@ CREATE TABLE v1_runs_olap (
 SELECT create_v1_olap_partition_with_date_and_status('v1_runs_olap', CURRENT_DATE);
 
 CREATE INDEX ix_v1_runs_olap_parent_task_external_id ON v1_runs_olap (parent_task_external_id) WHERE parent_task_external_id IS NOT NULL;
+CREATE INDEX ix_v1_runs_olap_tenant_id ON v1_runs_olap (tenant_id, inserted_at, id, readable_status, kind);
 
 -- LOOKUP TABLES --
 CREATE TABLE v1_lookup_table_olap (
