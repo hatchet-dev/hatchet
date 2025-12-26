@@ -97,7 +97,7 @@ class ClientConfig(BaseSettings):
     log_queue_size: int = 1000
     grpc_enable_fork_support: bool = False
     force_shutdown_on_shutdown_signal: bool = False
-    tenacity: TenacityConfig = Field(default_factory=lambda: TenacityConfig())
+    tenacity: TenacityConfig = TenacityConfig()
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":
