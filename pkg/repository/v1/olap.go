@@ -3164,6 +3164,42 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	tempPartitionName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
 	sourcePartitionName := fmt.Sprintf("v1_payloads_olap_%s", partitionDate.String())
 
+	isPerformingReconciliation := true
+
+	go func() {
+		for {
+			if !isPerformingReconciliation {
+				return
+			}
+
+			time.Sleep(15 * time.Second)
+
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+
+			if err != nil {
+				p.l.Error().Err(err).Msg("failed to prepare transaction for extending cutover job lease during reconciliation")
+				return
+			}
+
+			defer rollback()
+
+			lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, pagination)
+
+			if err != nil {
+				return
+			}
+
+			if err := commit(ctx); err != nil {
+				p.l.Error().Err(err).Msg("failed to commit extend cutover job lease transaction during reconciliation")
+				return
+			}
+
+			if !lease.ShouldRun {
+				return
+			}
+		}
+	}()
+
 	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
 
 	if err != nil {
@@ -3209,6 +3245,8 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 			return fmt.Errorf("row counts still do not match between temp and source partitions for date %s after inserting missing rows", partitionDate.String())
 		}
 	}
+
+	isPerformingReconciliation = false
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
