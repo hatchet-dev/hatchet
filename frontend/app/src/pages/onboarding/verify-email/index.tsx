@@ -46,9 +46,9 @@ export default function VerifyEmail() {
   }
 
   return (
-    <div className="flex h-full w-full flex-1 flex-row">
+    <div className="flex h-full w-full flex-1 flex-col">
       <TopNav user={res.user} tenantMemberships={[]} />
-      <div className="container relative hidden flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
+      <div className="container relative hidden flex-1 flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0 -mt-48">
         <div className="mx-auto w-screen lg:p-8">
           <div className="mx-auto flex w-40 flex-col justify-center space-y-6 sm:w-[350px]">
             <div className="flex flex-col space-y-2 text-center">
