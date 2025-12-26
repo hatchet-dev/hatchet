@@ -10,7 +10,8 @@ from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
 from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
     V1UpdateFilterRequest,
 )
-from hatchet_sdk.clients.v1.api_client import BaseRestClient, retry
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.clients.v1.api_client import BaseRestClient
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -41,7 +42,6 @@ class FiltersClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.list, limit, offset, workflow_ids, scopes)
 
-    @retry
     def list(
         self,
         limit: int | None = None,
@@ -60,7 +60,10 @@ class FiltersClient(BaseRestClient):
         :return: A list of filters matching the specified criteria.
         """
         with self.client() as client:
-            return self._fa(client).v1_filter_list(
+            v1_filter_list = tenacity_retry(
+                self._fa(client).v1_filter_list, self.client_config.tenacity
+            )
+            return v1_filter_list(
                 tenant=self.tenant_id,
                 limit=limit,
                 offset=offset,
@@ -68,7 +71,6 @@ class FiltersClient(BaseRestClient):
                 scopes=scopes,
             )
 
-    @retry
     def get(
         self,
         filter_id: str,
@@ -81,7 +83,10 @@ class FiltersClient(BaseRestClient):
         :return: The filter with the specified ID.
         """
         with self.client() as client:
-            return self._fa(client).v1_filter_get(
+            v1_filter_get = tenacity_retry(
+                self._fa(client).v1_filter_get, self.client_config.tenacity
+            )
+            return v1_filter_get(
                 tenant=self.tenant_id,
                 v1_filter=filter_id,
             )

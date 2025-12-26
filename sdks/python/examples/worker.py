@@ -30,6 +30,7 @@ from examples.dependency_injection.worker import (
     durable_sync_task_with_dependencies,
     sync_task_with_dependencies,
 )
+from examples.dict_input.worker import say_hello_unsafely
 from examples.durable.worker import durable_workflow, wait_for_sleep_twice
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
@@ -94,6 +95,7 @@ def main() -> None:
             durable_async_task_with_dependencies,
             durable_sync_task_with_dependencies,
             say_hello,
+            say_hello_unsafely,
         ],
         lifespan=lifespan,
     )
