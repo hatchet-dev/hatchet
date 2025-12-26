@@ -683,11 +683,9 @@ class Hatchet:
                 concurrency=_concurrency,
             )
 
-            created_task = task_wrapper(func)
-
             return Standalone[TWorkflowInput, R](
                 workflow=workflow,
-                task=created_task,
+                task=task_wrapper(func),
             )
 
         return inner
