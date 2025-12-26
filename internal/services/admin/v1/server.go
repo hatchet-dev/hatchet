@@ -406,6 +406,33 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}, nil
 }
 
+func (a *AdminServiceImpl) GetRunPayloads(ctx context.Context, req *contracts.GetRunPayloadsRequest) (*contracts.GetRunPayloadsResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	externalId, err := uuid.Parse(req.ExternalId)
+
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid external id")
+	}
+
+	runs, err := a.repo.Tasks().FlattenExternalIds(ctx, tenantId, []string{externalId.String()})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch tasks for workflow run: %w", err)
+	}
+
+	for _, run := range runs {
+		rj, _ := json.MarshalIndent(run, "", "  ")
+		fmt.Println(string(rj))
+	}
+
+	return &contracts.GetRunPayloadsResponse{
+		Input:  []byte{},
+		Output: []byte{},
+	}, nil
+}
+
 func (i *AdminServiceImpl) newTriggerOpt(
 	ctx context.Context,
 	tenantId string,
