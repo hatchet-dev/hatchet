@@ -3031,7 +3031,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 }
 
 func (p *OLAPRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId pgtype.UUID, partitionDate PartitionDate, pagination OLAPPaginationParams) (*OLAPCutoverJobRunMetadata, error) {
-	leaseInterval := 10 * time.Minute
+	leaseInterval := 2 * time.Minute
 	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
 
 	lease, err := p.queries.AcquireOrExtendOLAPCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendOLAPCutoverJobLeaseParams{
