@@ -7,7 +7,6 @@ from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.schedule_workflow_run_request import (
     ScheduleWorkflowRunRequest,
 )
-from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
 from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflows
 from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_filter import (
     ScheduledWorkflowsBulkDeleteFilter,
@@ -183,7 +182,6 @@ class ScheduledClient(BaseRestClient):
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
         parent_step_run_id: str | None = None,
-        statuses: list[ScheduledRunStatus] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
     ) -> ScheduledWorkflowsBulkDeleteResponse:
         """
@@ -192,13 +190,12 @@ class ScheduledClient(BaseRestClient):
         Provide either:
         - `scheduled_ids` (explicit list of scheduled run IDs), or
         - one or more filter fields (`workflow_id`, `parent_workflow_run_id`, `parent_step_run_id`,
-          `statuses`, `additional_metadata`)
+          `additional_metadata`)
 
         :param scheduled_ids: Explicit list of scheduled workflow run IDs to delete.
         :param workflow_id: Filter by workflow ID.
         :param parent_workflow_run_id: Filter by parent workflow run ID.
         :param parent_step_run_id: Filter by parent step run ID.
-        :param statuses: Filter by scheduled run statuses.
         :param additional_metadata: Filter by additional metadata key/value pairs.
         :return: The bulk delete response containing deleted IDs and per-item errors.
         :raises ValueError: If neither `scheduled_ids` nor any filter field is provided.
@@ -209,7 +206,6 @@ class ScheduledClient(BaseRestClient):
                 workflow_id,
                 parent_workflow_run_id,
                 parent_step_run_id,
-                statuses,
                 additional_metadata,
             )
         )
@@ -226,7 +222,6 @@ class ScheduledClient(BaseRestClient):
                 parentWorkflowRunId=parent_workflow_run_id,
                 parentStepRunId=parent_step_run_id,
                 additionalMetadata=maybe_additional_metadata_to_kv(additional_metadata),
-                statuses=statuses,
             )
 
         with self.client() as client:
@@ -245,7 +240,6 @@ class ScheduledClient(BaseRestClient):
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
         parent_step_run_id: str | None = None,
-        statuses: list[ScheduledRunStatus] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
     ) -> ScheduledWorkflowsBulkDeleteResponse:
         """
@@ -255,7 +249,6 @@ class ScheduledClient(BaseRestClient):
         :param workflow_id: Filter by workflow ID.
         :param parent_workflow_run_id: Filter by parent workflow run ID.
         :param parent_step_run_id: Filter by parent step run ID.
-        :param statuses: Filter by scheduled run statuses.
         :param additional_metadata: Filter by additional metadata key/value pairs.
         :return: The bulk delete response containing deleted IDs and per-item errors.
         :raises ValueError: If neither `scheduled_ids` nor any filter field is provided.
@@ -266,7 +259,6 @@ class ScheduledClient(BaseRestClient):
                 workflow_id,
                 parent_workflow_run_id,
                 parent_step_run_id,
-                statuses,
                 additional_metadata,
             )
         )
@@ -282,7 +274,6 @@ class ScheduledClient(BaseRestClient):
             workflow_id=workflow_id,
             parent_workflow_run_id=parent_workflow_run_id,
             parent_step_run_id=parent_step_run_id,
-            statuses=statuses,
             additional_metadata=additional_metadata,
         )
 
@@ -339,7 +330,6 @@ class ScheduledClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
-        statuses: list[ScheduledRunStatus] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         order_by_field: ScheduledWorkflowsOrderByField | None = None,
         order_by_direction: WorkflowRunOrderByDirection | None = None,
@@ -351,7 +341,6 @@ class ScheduledClient(BaseRestClient):
         :param limit: The maximum number of scheduled workflows to return.
         :param workflow_id: The ID of the workflow to filter by.
         :param parent_workflow_run_id: The ID of the parent workflow run to filter by.
-        :param statuses: A list of statuses to filter by.
         :param additional_metadata: Additional metadata to filter by.
         :param order_by_field: The field to order the results by.
         :param order_by_direction: The direction to order the results by.
@@ -367,7 +356,6 @@ class ScheduledClient(BaseRestClient):
             order_by_field=order_by_field,
             order_by_direction=order_by_direction,
             parent_workflow_run_id=parent_workflow_run_id,
-            statuses=statuses,
         )
 
     @retry
@@ -377,7 +365,6 @@ class ScheduledClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
-        statuses: list[ScheduledRunStatus] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         order_by_field: ScheduledWorkflowsOrderByField | None = None,
         order_by_direction: WorkflowRunOrderByDirection | None = None,
@@ -389,7 +376,6 @@ class ScheduledClient(BaseRestClient):
         :param limit: The maximum number of scheduled workflows to return.
         :param workflow_id: The ID of the workflow to filter by.
         :param parent_workflow_run_id: The ID of the parent workflow run to filter by.
-        :param statuses: A list of statuses to filter by.
         :param additional_metadata: Additional metadata to filter by.
         :param order_by_field: The field to order the results by.
         :param order_by_direction: The direction to order the results by.
@@ -408,7 +394,6 @@ class ScheduledClient(BaseRestClient):
                     additional_metadata
                 ),
                 parent_workflow_run_id=parent_workflow_run_id,
-                statuses=statuses,
             )
 
     @retry

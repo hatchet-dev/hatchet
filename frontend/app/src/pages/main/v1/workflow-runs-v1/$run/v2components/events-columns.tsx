@@ -19,6 +19,84 @@ import {
 import { Link } from '@tanstack/react-router';
 import { createColumnHelper } from '@tanstack/react-table';
 
+type BatchEventPayload = {
+  status?: string;
+  batchId?: string;
+  batchGroupKey?: string;
+  batchMaxIntervalMs?: number;
+  nextFlushAt?: string;
+  pending?: number;
+  expectedSize?: number;
+  batchMaxSize?: number;
+  batchGroupMaxRuns?: number;
+  triggerReason?: string;
+  triggeredAt?: string;
+  activeRuns?: number;
+};
+
+function parseBatchEventPayload(
+  payload?: string | null,
+): BatchEventPayload | null {
+  if (!payload) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(payload) as unknown;
+
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as BatchEventPayload;
+    }
+  } catch (err) {
+    // swallow JSON parse errors — we'll just skip metadata rendering
+  }
+
+  return null;
+}
+
+function renderBatchMetadataBadges(
+  meta: BatchEventPayload | null,
+): JSX.Element[] {
+  if (!meta) {
+    return [];
+  }
+
+  const badges: JSX.Element[] = [];
+
+  const entries: Array<[string, string | number | undefined]> = [
+    ['Status', meta.status],
+    ['Batch ID', meta.batchId],
+    ['Batch group key', meta.batchGroupKey],
+    ['Pending', meta.pending],
+    ['Expected size', meta.expectedSize],
+    ['Batch max size', meta.batchMaxSize],
+    ['Active runs', meta.activeRuns],
+    ['Batch max interval (ms)', meta.batchMaxIntervalMs],
+    ['Next flush at', meta.nextFlushAt],
+    ['Group max runs', meta.batchGroupMaxRuns],
+    ['Reason', meta.triggerReason],
+    ['Triggered at', meta.triggeredAt],
+  ];
+
+  entries.forEach(([label, value]) => {
+    if (value === undefined || value === null || value === '') {
+      return;
+    }
+
+    badges.push(
+      <Badge
+        key={`${label}-${value}`}
+        variant="outline"
+        className="font-mono text-xs py-1 tracking-tight"
+      >
+        {label}: {value}
+      </Badge>,
+    );
+  });
+
+  return badges;
+}
+
 function eventTypeToSeverity(
   eventType: V1TaskEventType | undefined,
 ): StepRunEventSeverity {
@@ -35,6 +113,8 @@ function eventTypeToSeverity(
     case V1TaskEventType.RETRIED_BY_USER:
     case V1TaskEventType.RETRYING:
       return StepRunEventSeverity.WARNING;
+    case V1TaskEventType.WAITING_FOR_BATCH:
+      return StepRunEventSeverity.INFO;
     default:
       return StepRunEventSeverity.INFO;
   }
@@ -118,6 +198,9 @@ export const columns = ({
       cell: ({ row }) => {
         const items: JSX.Element[] = [];
         const event = row.original;
+        const batchMetaBadges = renderBatchMetadataBadges(
+          parseBatchEventPayload(event.eventPayload),
+        );
 
         if (event.eventType === V1TaskEventType.FAILED) {
           items.push(<ErrorWithHoverCard key="error" event={row.original} />);
@@ -149,6 +232,11 @@ export const columns = ({
             >
               {event.message}
             </div>
+            {batchMetaBadges.length > 0 && (
+              <div key="batch-meta" className="flex flex-wrap gap-2 mt-2">
+                {batchMetaBadges}
+              </div>
+            )}
             {items.length > 0 && (
               <div key="items" className="mt-2 flex flex-col items-start gap-2">
                 {items}
@@ -205,6 +293,10 @@ function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
       return 'Queued';
     case V1TaskEventType.SKIPPED:
       return 'Skipped';
+    case V1TaskEventType.WAITING_FOR_BATCH:
+      return 'Waiting for batch';
+    case V1TaskEventType.BATCH_FLUSHED:
+      return 'Batch flushed to worker';
     case undefined:
       return 'Unknown';
     default:

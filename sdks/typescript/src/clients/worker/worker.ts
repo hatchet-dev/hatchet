@@ -602,6 +602,10 @@ export class V0Worker {
       await this.handleCancelStepRun(action);
     } else if (type === ActionType.START_GET_GROUP_KEY) {
       await this.handleStartGroupKeyRun(action);
+    } else if (type === ActionType.START_BATCH) {
+      this.logger.warn(
+        `Worker ${this.name} received START_BATCH for action ${action.actionId}, but legacy workers do not support explicit batch coordination.`
+      );
     } else {
       this.logger.error(`Worker ${this.name} received unknown action type ${type}`);
     }

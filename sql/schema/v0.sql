@@ -34,7 +34,7 @@ CREATE TYPE "JobRunStatus" AS ENUM (
 );
 
 -- CreateEnum
-CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE', 'CONCURRENCY_STRATEGY');
+CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE', 'CONCURRENCY_STRATEGY', 'BATCH');
 
 -- CreateEnum
 CREATE TYPE "LimitResource" AS ENUM (
@@ -455,6 +455,10 @@ CREATE TABLE "Step" (
     -- the maximum amount of time in seconds to wait between retries
     "retryMaxBackoff" INTEGER,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
+    "batch_max_size" INTEGER,
+    "batch_max_interval" INTEGER,
+    "batch_group_key" TEXT,
+    "batch_group_max_runs" INTEGER,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );

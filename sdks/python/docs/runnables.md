@@ -12,6 +12,7 @@
       inherited_members: true
       members:
         - task
+        - batch_task
         - durable_task
         - on_failure_task
         - on_success_task

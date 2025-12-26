@@ -1,5 +1,6 @@
 import json
 from dataclasses import field
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -49,6 +50,15 @@ class ActionPayload(BaseModel):
 class ActionType(str, Enum):
     START_STEP_RUN = "START_STEP_RUN"
     CANCEL_STEP_RUN = "CANCEL_STEP_RUN"
+    START_BATCH = "START_BATCH"
+
+
+class BatchStartPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    expected_size: int
+    trigger_reason: str
+    trigger_time: datetime | None = None
 
 
 class Action(BaseModel):
@@ -69,6 +79,13 @@ class Action(BaseModel):
     retry_count: int
     action_payload: ActionPayload
     additional_metadata: JSONSerializableMapping = field(default_factory=dict)
+
+    # Batch metadata (populated for batched tasks / START_BATCH coordination)
+    batch_id: str | None = None
+    batch_size: int | None = None
+    batch_index: int | None = None
+    batch_key: str | None = None
+    batch_start: BatchStartPayload | None = None
 
     child_workflow_index: int | None = None
     child_workflow_key: str | None = None
@@ -118,4 +135,8 @@ class Action(BaseModel):
         It's used when storing references to a task, a context, etc. in a dictionary so that
         we can look up those items in the dictionary by a unique key.
         """
+        if self.action_type == ActionType.START_BATCH:
+            # START_BATCH does not correspond to a unique step_run_id; key it by batch id.
+            batch_key = self.batch_id or self.action_id or "unknown"
+            return f"{batch_key}/{self.retry_count or 0}"
         return f"{self.step_run_id}/{self.retry_count}"

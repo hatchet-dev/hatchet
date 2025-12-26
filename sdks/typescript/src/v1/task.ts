@@ -54,6 +54,44 @@ export type TaskFn<
   C = Context<I>,
 > = (input: I, ctx: C) => O | Promise<O>;
 
+export type BatchTaskItem<I extends InputType = UnknownInputType> = readonly [I, Context<I>];
+
+/**
+ * Batch task handler signature (zip-style).
+ *
+ * Each item is a tuple of (input, context). This avoids parallel arrays and accidental index drift.
+ */
+export type BatchTaskFn<I extends InputType = UnknownInputType, O extends OutputType = void> = (
+  tasks: BatchTaskItem<I>[]
+) => O[] | Promise<O[]>;
+
+export type BatchTaskConfig<I extends InputType = UnknownInputType, O extends OutputType = void> = {
+  /**
+   * The maximum number of items to accumulate before invoking the batch handler.
+   * Must be a positive integer.
+   */
+  batchMaxSize: number;
+  /**
+   * Optional maximum interval to wait before flushing a batch.
+   * Uses Go duration string format.
+   */
+  batchMaxInterval?: Duration;
+  /**
+   * Optional partition key expression for batch fairness.
+   * Inputs producing the same key will be buffered together (prevents mixing tenants).
+   */
+  batchGroupKey?: string;
+  /**
+   * Optional maximum number of concurrently running batches per unique group key.
+   */
+  batchGroupMaxRuns?: number;
+  /**
+   * The batch handler invoked with buffered items.
+   * The returned array must match the number of tasks in the batch.
+   */
+  fn: BatchTaskFn<I, O>;
+};
+
 export type DurableTaskFn<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,

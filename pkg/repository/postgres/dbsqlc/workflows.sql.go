@@ -382,7 +382,11 @@ INSERT INTO "Step" (
     "retries",
     "scheduleTimeout",
     "retryBackoffFactor",
-    "retryMaxBackoff"
+    "retryMaxBackoff",
+    "batch_max_size",
+    "batch_max_interval",
+    "batch_group_key",
+    "batch_group_max_runs"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -397,8 +401,12 @@ INSERT INTO "Step" (
     coalesce($11::integer, 0),
     coalesce($12::text, '5m'),
     $13,
-    $14
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout"
+    $14,
+    $15::integer,
+    $16::integer,
+    $17::text,
+    $18::integer
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout", batch_max_size, batch_max_interval, batch_group_key, batch_group_max_runs
 `
 
 type CreateStepParams struct {
@@ -416,6 +424,10 @@ type CreateStepParams struct {
 	ScheduleTimeout    pgtype.Text      `json:"scheduleTimeout"`
 	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
+	BatchMaxSize       pgtype.Int4      `json:"batchMaxSize"`
+	BatchMaxInterval   pgtype.Int4      `json:"batchMaxInterval"`
+	BatchGroupKey      pgtype.Text      `json:"batchGroupKey"`
+	BatchGroupMaxRuns  pgtype.Int4      `json:"batchGroupMaxRuns"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -434,6 +446,10 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.ScheduleTimeout,
 		arg.RetryBackoffFactor,
 		arg.RetryMaxBackoff,
+		arg.BatchMaxSize,
+		arg.BatchMaxInterval,
+		arg.BatchGroupKey,
+		arg.BatchGroupMaxRuns,
 	)
 	var i Step
 	err := row.Scan(
@@ -451,6 +467,10 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.RetryBackoffFactor,
 		&i.RetryMaxBackoff,
 		&i.ScheduleTimeout,
+		&i.BatchMaxSize,
+		&i.BatchMaxInterval,
+		&i.BatchGroupKey,
+		&i.BatchGroupMaxRuns,
 	)
 	return &i, err
 }

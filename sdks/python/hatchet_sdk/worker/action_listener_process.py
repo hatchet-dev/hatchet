@@ -206,6 +206,9 @@ class WorkerActionListenerProcess:
                     )
                 case ActionType.CANCEL_STEP_RUN:
                     logger.debug("unimplemented event send")
+                case ActionType.START_BATCH:
+                    # START_BATCH is a coordination signal; it does not emit step action events.
+                    logger.debug("skipping event send for START_BATCH")
                 case _:
                     logger.error("unknown action type for event send")
         except Exception:
@@ -256,6 +259,10 @@ class WorkerActionListenerProcess:
 
                     case ActionType.CANCEL_STEP_RUN:
                         logger.info(f"rx: cancel step run: {action.step_run_id}")
+                    case ActionType.START_BATCH:
+                        logger.info(
+                            f"rx: start batch: {action.action_id}/{action.batch_id} expected={action.batch_start.expected_size if action.batch_start else None}"
+                        )
                     case _:
                         logger.error(
                             f"rx: unknown action type ({action.action_type}): {action.action_type}"

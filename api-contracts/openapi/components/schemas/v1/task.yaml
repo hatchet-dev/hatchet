@@ -236,6 +236,9 @@ V1TaskEvent:
       $ref: "#/V1TaskEventType"
     message:
       type: string
+    eventPayload:
+      type: string
+      description: Optional structured metadata for the event encoded as JSON.
     errorMessage:
       type: string
     output:
@@ -290,6 +293,8 @@ V1TaskEventType:
     - CREATED
     - QUEUED
     - SKIPPED
+    - WAITING_FOR_BATCH
+    - BATCH_FLUSHED
 
 V1TaskRunMetrics:
   type: array
