@@ -3,12 +3,6 @@ import { seededUsers } from '../../support/seeded-users.generated';
 describe('Tenant Invite: accept', () => {
   let tenant2Id: string;
 
-    beforeEach(() => {
-      cy.clearAllLocalStorage();
-      cy.login('owner');
-      cy.visit('/');
-    });
-
   it('should redirect to tenant page after accepting invite', () => {
     cy.visit('/auth/login');
     cy.get('input#email').type(seededUsers.owner.email);
