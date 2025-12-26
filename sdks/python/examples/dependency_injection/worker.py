@@ -11,6 +11,8 @@ SYNC_DEPENDENCY_VALUE = "sync_dependency_value"
 ASYNC_DEPENDENCY_VALUE = "async_dependency_value"
 SYNC_CM_DEPENDENCY_VALUE = "sync_cm_dependency_value"
 ASYNC_CM_DEPENDENCY_VALUE = "async_cm_dependency_value"
+CHAINED_CM_VALUE = "chained_cm_value"
+CHAINED_ASYNC_CM_VALUE = "chained_async_cm_value"
 
 
 # > Declare dependencies
@@ -42,6 +44,38 @@ def sync_cm_dep(
         pass
 
 
+@contextmanager
+def base_cm_dep(input: EmptyModel, ctx: Context) -> Generator[str, None, None]:
+    try:
+        yield CHAINED_CM_VALUE
+    finally:
+        pass
+
+
+def chained_dep(
+    input: EmptyModel, ctx: Context, base_cm: Annotated[str, Depends(base_cm_dep)]
+) -> str:
+    return "chained_" + base_cm
+
+
+@asynccontextmanager
+async def base_async_cm_dep(
+    input: EmptyModel, ctx: Context
+) -> AsyncGenerator[str, None]:
+    try:
+        yield CHAINED_ASYNC_CM_VALUE
+    finally:
+        pass
+
+
+async def chained_async_dep(
+    input: EmptyModel,
+    ctx: Context,
+    base_async_cm: Annotated[str, Depends(base_async_cm_dep)],
+) -> str:
+    return "chained_" + base_async_cm
+
+
 # !!
 
 
@@ -50,6 +84,8 @@ class Output(BaseModel):
     async_dep: str
     async_cm_dep: str
     sync_cm_dep: str
+    chained_dep: str
+    chained_async_dep: str
 
 
 # > Inject dependencies
@@ -61,12 +97,16 @@ async def async_task_with_dependencies(
     sync_dep: Annotated[str, Depends(sync_dep)],
     async_cm_dep: Annotated[str, Depends(async_cm_dep)],
     sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
+    chained_dep: Annotated[str, Depends(chained_dep)],
+    chained_async_dep: Annotated[str, Depends(chained_async_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
         async_cm_dep=async_cm_dep,
         sync_cm_dep=sync_cm_dep,
+        chained_dep=chained_dep,
+        chained_async_dep=chained_async_dep,
     )
 
 
@@ -81,12 +121,16 @@ def sync_task_with_dependencies(
     sync_dep: Annotated[str, Depends(sync_dep)],
     async_cm_dep: Annotated[str, Depends(async_cm_dep)],
     sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
+    chained_dep: Annotated[str, Depends(chained_dep)],
+    chained_async_dep: Annotated[str, Depends(chained_async_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
         async_cm_dep=async_cm_dep,
         sync_cm_dep=sync_cm_dep,
+        chained_dep=chained_dep,
+        chained_async_dep=chained_async_dep,
     )
 
 
@@ -98,12 +142,16 @@ async def durable_async_task_with_dependencies(
     sync_dep: Annotated[str, Depends(sync_dep)],
     async_cm_dep: Annotated[str, Depends(async_cm_dep)],
     sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
+    chained_dep: Annotated[str, Depends(chained_dep)],
+    chained_async_dep: Annotated[str, Depends(chained_async_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
         async_cm_dep=async_cm_dep,
         sync_cm_dep=sync_cm_dep,
+        chained_dep=chained_dep,
+        chained_async_dep=chained_async_dep,
     )
 
 
@@ -115,12 +163,16 @@ def durable_sync_task_with_dependencies(
     sync_dep: Annotated[str, Depends(sync_dep)],
     async_cm_dep: Annotated[str, Depends(async_cm_dep)],
     sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
+    chained_dep: Annotated[str, Depends(chained_dep)],
+    chained_async_dep: Annotated[str, Depends(chained_async_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
         async_cm_dep=async_cm_dep,
         sync_cm_dep=sync_cm_dep,
+        chained_dep=chained_dep,
+        chained_async_dep=chained_async_dep,
     )
 
 
@@ -137,12 +189,16 @@ async def wf_async_task_with_dependencies(
     sync_dep: Annotated[str, Depends(sync_dep)],
     async_cm_dep: Annotated[str, Depends(async_cm_dep)],
     sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
+    chained_dep: Annotated[str, Depends(chained_dep)],
+    chained_async_dep: Annotated[str, Depends(chained_async_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
         async_cm_dep=async_cm_dep,
         sync_cm_dep=sync_cm_dep,
+        chained_dep=chained_dep,
+        chained_async_dep=chained_async_dep,
     )
 
 
@@ -154,12 +210,16 @@ def wf_sync_task_with_dependencies(
     sync_dep: Annotated[str, Depends(sync_dep)],
     async_cm_dep: Annotated[str, Depends(async_cm_dep)],
     sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
+    chained_dep: Annotated[str, Depends(chained_dep)],
+    chained_async_dep: Annotated[str, Depends(chained_async_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
         async_cm_dep=async_cm_dep,
         sync_cm_dep=sync_cm_dep,
+        chained_dep=chained_dep,
+        chained_async_dep=chained_async_dep,
     )
 
 
@@ -171,12 +231,16 @@ async def wf_durable_async_task_with_dependencies(
     sync_dep: Annotated[str, Depends(sync_dep)],
     async_cm_dep: Annotated[str, Depends(async_cm_dep)],
     sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
+    chained_dep: Annotated[str, Depends(chained_dep)],
+    chained_async_dep: Annotated[str, Depends(chained_async_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
         async_cm_dep=async_cm_dep,
         sync_cm_dep=sync_cm_dep,
+        chained_dep=chained_dep,
+        chained_async_dep=chained_async_dep,
     )
 
 
@@ -188,12 +252,16 @@ def wf_durable_sync_task_with_dependencies(
     sync_dep: Annotated[str, Depends(sync_dep)],
     async_cm_dep: Annotated[str, Depends(async_cm_dep)],
     sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
+    chained_dep: Annotated[str, Depends(chained_dep)],
+    chained_async_dep: Annotated[str, Depends(chained_async_dep)],
 ) -> Output:
     return Output(
         sync_dep=sync_dep,
         async_dep=async_dep,
         async_cm_dep=async_cm_dep,
         sync_cm_dep=sync_cm_dep,
+        chained_dep=chained_dep,
+        chained_async_dep=chained_async_dep,
     )
 
 

@@ -175,6 +175,10 @@ class Task(Generic[TWorkflowInput, R]):
         input: TWorkflowInput,
         ctx: Context | DurableContext,
         resolution_stack: set[str] | None = None,  # detect cycles
+        cms_to_exit: list[
+            AbstractAsyncContextManager[Any] | AbstractContextManager[Any]
+        ]
+        | None = None,
     ) -> dict[str, Any]:
         if resolution_stack is None:
             resolution_stack = set()
@@ -196,10 +200,23 @@ class Task(Generic[TWorkflowInput, R]):
 
             for name, param in params[2:]:  # first two params are input and ctx
                 parsed = await self._parse_parameter(
-                    name, param, input, ctx, resolution_stack
+                    name, param, input, ctx, resolution_stack, cms_to_exit
                 )
                 if parsed is not None:
-                    dependencies[parsed.name] = parsed.value
+                    value = parsed.value
+
+                    if is_async_context_manager(value):
+                        entered_value: Any = await value.__aenter__()
+                        if cms_to_exit is not None:
+                            cms_to_exit.append(value)
+                        dependencies[parsed.name] = entered_value
+                    elif is_sync_context_manager(value):
+                        entered_value = await asyncio.to_thread(value.__enter__)
+                        if cms_to_exit is not None:
+                            cms_to_exit.append(value)
+                        dependencies[parsed.name] = entered_value
+                    else:
+                        dependencies[parsed.name] = value
 
             return dependencies
         finally:
@@ -212,6 +229,10 @@ class Task(Generic[TWorkflowInput, R]):
         input: TWorkflowInput,
         ctx: Context | DurableContext,
         resolution_stack: set[str] | None = None,
+        cms_to_exit: list[
+            AbstractAsyncContextManager[Any] | AbstractContextManager[Any]
+        ]
+        | None = None,
     ) -> DependencyToInject | None:
         annotation = param.annotation
 
@@ -226,7 +247,7 @@ class Task(Generic[TWorkflowInput, R]):
             for item in metadata:
                 if isinstance(item, Depends):
                     deps = await self._resolve_function_dependencies(
-                        item.fn, input, ctx, resolution_stack
+                        item.fn, input, ctx, resolution_stack, cms_to_exit
                     )
 
                     if iscoroutinefunction(item.fn):
@@ -266,7 +287,9 @@ class Task(Generic[TWorkflowInput, R]):
 
         try:
             for n, p in sig.parameters.items():
-                parsed = await self._parse_parameter(n, p, input, ctx)
+                parsed = await self._parse_parameter(
+                    n, p, input, ctx, None, cms_to_exit
+                )
                 if parsed is not None:
                     value = parsed.value
 
