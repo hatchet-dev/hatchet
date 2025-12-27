@@ -446,8 +446,9 @@ func (a *AdminServiceImpl) GetRunPayloads(ctx context.Context, req *contracts.Ge
 	}
 
 	return &contracts.GetRunPayloadsResponse{
-		Input:    details.InputPayload,
-		TaskRuns: taskRunDetails,
+		Input:       details.InputPayload,
+		TaskRuns:    taskRunDetails,
+		AllFinished: details.AllFinished,
 	}, nil
 }
 
