@@ -3934,10 +3934,6 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		return nil, fmt.Errorf("failed to list finalized workflow runs: %w", err)
 	}
 
-	if len(flat) > 0 && len(finalizedWorkflowRuns) == 0 {
-		return &WorkflowRunDetails{}, nil
-	}
-
 	if len(flat) == 0 {
 		return nil, fmt.Errorf("workflow run not found for external id: %s", externalId)
 	}
@@ -3970,6 +3966,12 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	}
 
 	input := payloads[inputRetrieveOpt]
+
+	if len(flat) > 0 && len(finalizedWorkflowRuns) == 0 {
+		return &WorkflowRunDetails{
+			InputPayload: input,
+		}, nil
+	}
 
 	outputs := make(map[string][]byte)
 	errors := make(map[string]string)
