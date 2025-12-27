@@ -65,6 +65,8 @@ class WorkflowRunTriggerConfig(BaseModel):
 class RunPayloads(BaseModel):
     input: JSONSerializableMapping | None = None
     output: JSONSerializableMapping | None = None
+    completed: bool = False
+    error: str | None = None
 
 
 class AdminClient:
@@ -344,7 +346,7 @@ class AdminClient:
             workflow_run_id=resp.workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
-            runs_client=self.runs_client,
+            admin_client=self,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -378,7 +380,7 @@ class AdminClient:
             runs_client=self.runs_client,
             workflow_run_id=resp.workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
-            workflow_run_listener=self.workflow_run_listener,
+            admin_client=self,
         )
 
     def chunk(self, xs: list[T], n: int) -> Generator[list[T], None, None]:
@@ -469,7 +471,7 @@ class AdminClient:
                         workflow_run_id=workflow_run_id,
                         workflow_run_event_listener=self.workflow_run_event_listener,
                         workflow_run_listener=self.workflow_run_listener,
-                        runs_client=self.runs_client,
+                        admin_client=self,
                     )
                     for workflow_run_id in resp.workflow_run_ids
                 ]
@@ -479,7 +481,7 @@ class AdminClient:
 
     def get_workflow_run(self, workflow_run_id: str) -> WorkflowRunRef:
         return WorkflowRunRef(
-            runs_client=self.runs_client,
+            admin_client=self,
             workflow_run_id=workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
@@ -512,4 +514,6 @@ class AdminClient:
         return RunPayloads(
             input=cast(JSONSerializableMapping, input_payload),
             output=cast(JSONSerializableMapping, output_payload),
+            completed=response.completed,
+            error=response.error if response.error else None,
         )

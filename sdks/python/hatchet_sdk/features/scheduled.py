@@ -226,7 +226,6 @@ class ScheduledClient(BaseRestClient):
                 parentWorkflowRunId=parent_workflow_run_id,
                 parentStepRunId=parent_step_run_id,
                 additionalMetadata=maybe_additional_metadata_to_kv(additional_metadata),
-                statuses=statuses,
             )
 
         with self.client() as client:
