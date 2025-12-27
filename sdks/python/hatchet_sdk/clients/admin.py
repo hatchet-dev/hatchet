@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import Generator
 from datetime import datetime
-from typing import TypeVar, cast
+from typing import Literal, TypeVar, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
@@ -18,7 +18,6 @@ from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.exceptions import DedupeViolationError
-from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.runnables.contextvars import (
@@ -62,16 +61,30 @@ class WorkflowRunTriggerConfig(BaseModel):
     key: str | None = None
 
 
+class TaskRunDetail(BaseModel):
+    external_id: str
+    readable_id: str
+    output: JSONSerializableMapping | None = None
+    error: str | None = None
+    in_terminal_state: bool = False
+    terminal_status: Literal["COMPLETED", "CANCELLED", "FAILED"] | None = None
+
+
+class WorkflowRunDetail(BaseModel):
+    external_id: str
+    all_finished: bool = False
+    input: JSONSerializableMapping | None = None
+    task_runs: dict[str, TaskRunDetail]
+
+
 class AdminClient:
     def __init__(
         self,
         config: ClientConfig,
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
-        runs_client: RunsClient,
     ):
         self.config = config
-        self.runs_client = runs_client
         self.token = config.token
         self.namespace = config.namespace
 
@@ -339,7 +352,7 @@ class AdminClient:
             workflow_run_id=resp.workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
-            runs_client=self.runs_client,
+            admin_client=self,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -370,10 +383,10 @@ class AdminClient:
             raise e
 
         return WorkflowRunRef(
-            runs_client=self.runs_client,
             workflow_run_id=resp.workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
+            admin_client=self,
         )
 
     def chunk(self, xs: list[T], n: int) -> Generator[list[T], None, None]:
@@ -417,7 +430,7 @@ class AdminClient:
                         workflow_run_id=workflow_run_id,
                         workflow_run_event_listener=self.workflow_run_event_listener,
                         workflow_run_listener=self.workflow_run_listener,
-                        runs_client=self.runs_client,
+                        admin_client=self,
                     )
                     for workflow_run_id in resp.workflow_run_ids
                 ]
@@ -464,7 +477,7 @@ class AdminClient:
                         workflow_run_id=workflow_run_id,
                         workflow_run_event_listener=self.workflow_run_event_listener,
                         workflow_run_listener=self.workflow_run_listener,
-                        runs_client=self.runs_client,
+                        admin_client=self,
                     )
                     for workflow_run_id in resp.workflow_run_ids
                 ]
@@ -474,8 +487,61 @@ class AdminClient:
 
     def get_workflow_run(self, workflow_run_id: str) -> WorkflowRunRef:
         return WorkflowRunRef(
-            runs_client=self.runs_client,
+            admin_client=self,
             workflow_run_id=workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
+        )
+
+    def _proto_to_terminal_status(
+        self, proto_status: workflow_protos.WorkflowRunTerminalStatus
+    ) -> Literal["COMPLETED", "CANCELLED", "FAILED"] | None:
+        if proto_status == workflow_protos.WorkflowRunTerminalStatus.COMPLETED:
+            return "COMPLETED"
+        if proto_status == workflow_protos.WorkflowRunTerminalStatus.CANCELLED:
+            return "CANCELLED"
+        if proto_status == workflow_protos.WorkflowRunTerminalStatus.FAILED:
+            return "FAILED"
+        return None
+
+    def get_payloads(self, external_id: str) -> WorkflowRunDetail:
+        if self.client is None:
+            conn = new_conn(self.config, False)
+            self.client = AdminServiceStub(conn)
+
+        get_run_payloads = tenacity_retry(
+            self.client.GetRunPayloads, self.config.tenacity
+        )
+
+        response = cast(
+            workflow_protos.GetRunPayloadsResponse,
+            get_run_payloads(
+                workflow_protos.GetRunPayloadsRequest(external_id=external_id),
+                metadata=get_metadata(self.token),
+            ),
+        )
+
+        return WorkflowRunDetail(
+            external_id=external_id,
+            input=(
+                json.loads(response.input.decode("utf-8")) if response.input else None
+            ),
+            all_finished=response.all_finished,
+            task_runs={
+                readable_id: TaskRunDetail(
+                    readable_id=readable_id,
+                    external_id=details.external_id,
+                    output=(
+                        json.loads(details.output.decode("utf-8"))
+                        if details.output
+                        else None
+                    ),
+                    error=details.error if details.error else None,
+                    in_terminal_state=details.in_terminal_state,
+                    terminal_status=self._proto_to_terminal_status(
+                        details.terminal_status
+                    ),
+                )
+                for readable_id, details in response.task_runs.items()
+            },
         )

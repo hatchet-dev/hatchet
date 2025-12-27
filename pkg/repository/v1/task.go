@@ -264,7 +264,11 @@ type TaskRepository interface {
 	GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error)
 
 	FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error)
+
 	FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error)
+
+	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
+	GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunDetails, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -3887,4 +3891,98 @@ func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*tim
 	}
 
 	return &t.InsertedAt.Time, nil
+}
+
+type TaskRunDetails struct {
+	OutputPayload     []byte
+	IsInTerminalState bool
+	TerminalStatus    string
+	Error             *string
+	ExternalId        string
+}
+
+type StepReadableId string
+
+type WorkflowRunDetails struct {
+	InputPayload        []byte
+	AllFinished         bool
+	ReadableIdToDetails map[StepReadableId]TaskRunDetails
+}
+
+func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunDetails, error) {
+	flat, err := r.FlattenExternalIds(ctx, tenantId, []string{externalId})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to flatten external ids: %w", err)
+	}
+
+	finalizedWorkflowRuns, err := r.ListFinalizedWorkflowRuns(ctx, tenantId, []string{externalId})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list finalized workflow runs: %w", err)
+	}
+
+	if len(flat) == 0 {
+		return nil, fmt.Errorf("workflow run not found for external id: %s", externalId)
+	}
+
+	isDag := len(flat) > 1
+
+	var inputRetrieveOpt RetrievePayloadOpts
+	firstTask := flat[0]
+
+	if isDag {
+		inputRetrieveOpt = RetrievePayloadOpts{
+			Id:         firstTask.DagID.Int64,
+			InsertedAt: firstTask.DagInsertedAt,
+			Type:       sqlcv1.V1PayloadTypeDAGINPUT,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+	} else {
+		inputRetrieveOpt = RetrievePayloadOpts{
+			Id:         firstTask.ID,
+			InsertedAt: firstTask.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+	}
+
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, inputRetrieveOpt)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads: %w", err)
+	}
+
+	input := payloads[inputRetrieveOpt]
+
+	if len(flat) > 0 && len(finalizedWorkflowRuns) == 0 {
+		return &WorkflowRunDetails{
+			InputPayload: input,
+			AllFinished:  false,
+		}, nil
+	}
+
+	outputs := make(map[string][]byte)
+	errors := make(map[string]string)
+	finalizedRun := finalizedWorkflowRuns[0]
+	taskRunDetails := make(map[StepReadableId]TaskRunDetails)
+
+	for _, r := range finalizedRun.OutputEvents {
+		outputs[r.StepReadableID] = r.Output
+		errors[r.StepReadableID] = r.ErrorMessage
+
+		taskRunDetails[StepReadableId(r.StepReadableID)] = TaskRunDetails{
+			OutputPayload:     r.Output,
+			IsInTerminalState: true,
+			TerminalStatus:    string(r.EventType),
+			Error:             &r.ErrorMessage,
+			ExternalId:        r.TaskExternalId,
+		}
+	}
+
+	return &WorkflowRunDetails{
+		InputPayload:        input,
+		AllFinished:         true,
+		ReadableIdToDetails: taskRunDetails,
+	}, nil
 }

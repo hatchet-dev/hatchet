@@ -407,6 +407,53 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}, nil
 }
 
+func (a *AdminServiceImpl) GetRunPayloads(ctx context.Context, req *contracts.GetRunPayloadsRequest) (*contracts.GetRunPayloadsResponse, error) {
+	fmt.Println("GetRunPayloads called with ExternalId:", req.ExternalId)
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	externalId, err := uuid.Parse(req.ExternalId)
+
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid external id")
+	}
+
+	details, err := a.repo.Tasks().GetWorkflowRunResultDetails(ctx, tenantId, externalId.String())
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get workflow run result details: %w", err)
+	}
+
+	taskRunDetails := make(map[string]*contracts.TaskRunDetail)
+	for readableId, details := range details.ReadableIdToDetails {
+		var terminalStatus *contracts.WorkflowRunTerminalStatus
+
+		switch details.TerminalStatus {
+		case "COMPLETED":
+			terminalStatus = contracts.WorkflowRunTerminalStatus_COMPLETED.Enum()
+		case "FAILED":
+			terminalStatus = contracts.WorkflowRunTerminalStatus_FAILED.Enum()
+		case "CANCELLED":
+			terminalStatus = contracts.WorkflowRunTerminalStatus_CANCELLED.Enum()
+		}
+
+		taskRunDetails[string(readableId)] = &contracts.TaskRunDetail{
+			InTerminalState: details.IsInTerminalState,
+			TerminalStatus:  terminalStatus,
+			Error:           details.Error,
+			Output:          details.OutputPayload,
+			ReadableId:      string(readableId),
+			ExternalId:      details.ExternalId,
+		}
+	}
+
+	return &contracts.GetRunPayloadsResponse{
+		Input:       details.InputPayload,
+		TaskRuns:    taskRunDetails,
+		AllFinished: details.AllFinished,
+	}, nil
+}
+
 func (i *AdminServiceImpl) newTriggerOpt(
 	ctx context.Context,
 	tenantId string,
