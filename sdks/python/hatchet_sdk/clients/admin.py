@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import Generator
 from datetime import datetime
-from typing import TypeVar, cast
+from typing import Literal, TypeVar, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
@@ -67,7 +67,7 @@ class TaskRunDetail(BaseModel):
     output: JSONSerializableMapping | None = None
     error: str | None = None
     in_terminal_state: bool = False
-    terminal_status: workflow_protos.WorkflowRunTerminalStatus | None = None
+    terminal_status: Literal["COMPLETED", "CANCELLED", "FAILED"] | None = None
 
 
 class WorkflowRunDetail(BaseModel):
@@ -492,6 +492,17 @@ class AdminClient:
             workflow_run_listener=self.workflow_run_listener,
         )
 
+    def _proto_to_terminal_status(
+        self, proto_status: workflow_protos.WorkflowRunTerminalStatus
+    ) -> Literal["COMPLETED", "CANCELLED", "FAILED"] | None:
+        if proto_status == workflow_protos.WorkflowRunTerminalStatus.COMPLETED:
+            return "COMPLETED"
+        if proto_status == workflow_protos.WorkflowRunTerminalStatus.CANCELLED:
+            return "CANCELLED"
+        if proto_status == workflow_protos.WorkflowRunTerminalStatus.FAILED:
+            return "FAILED"
+        return None
+
     def get_payloads(self, external_id: str) -> WorkflowRunDetail:
         if self.client is None:
             conn = new_conn(self.config, False)
@@ -511,19 +522,23 @@ class AdminClient:
 
         return WorkflowRunDetail(
             external_id=external_id,
-            input=json.loads(response.input.decode("utf-8"))
-            if response.input
-            else None,
+            input=(
+                json.loads(response.input.decode("utf-8")) if response.input else None
+            ),
             task_runs={
                 readable_id: TaskRunDetail(
                     readable_id=readable_id,
                     external_id=details.external_id,
-                    output=json.loads(details.output.decode("utf-8"))
-                    if details.output
-                    else None,
+                    output=(
+                        json.loads(details.output.decode("utf-8"))
+                        if details.output
+                        else None
+                    ),
                     error=details.error,
                     in_terminal_state=details.in_terminal_state,
-                    terminal_status=details.terminal_status,
+                    terminal_status=self._proto_to_terminal_status(
+                        details.terminal_status
+                    ),
                 )
                 for readable_id, details in response.task_runs.items()
             },

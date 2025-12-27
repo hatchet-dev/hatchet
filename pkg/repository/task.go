@@ -3974,25 +3974,24 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	outputs := make(map[string][]byte)
 	errors := make(map[string]string)
 	finalizedRun := finalizedWorkflowRuns[0]
+	taskRunDetails := make(map[StepReadableId]TaskRunDetails)
 
 	for _, r := range finalizedRun.OutputEvents {
+		rj, _ := json.MarshalIndent((r), "", "  ")
+		fmt.Println("output event", string(rj))
 		outputs[r.StepReadableID] = r.Output
 		errors[r.StepReadableID] = r.ErrorMessage
-	}
 
-	var outputJson []byte
-
-	if len(outputs) > 0 {
-		outputJson, err = json.Marshal(outputs)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal output payloads: %w", err)
+		taskRunDetails[StepReadableId(r.StepReadableID)] = TaskRunDetails{
+			OutputPayload:     r.Output,
+			IsInTerminalState: true,
+			TerminalStatus:    string(r.EventType),
+			Error:             &r.ErrorMessage,
 		}
 	}
 
-	r.l.Info().Str("outputs", string(outputJson)).Msg("workflow run outputs")
-
 	return &WorkflowRunDetails{
-		InputPayload: input,
+		InputPayload:        input,
+		ReadableIdToDetails: taskRunDetails,
 	}, nil
 }
