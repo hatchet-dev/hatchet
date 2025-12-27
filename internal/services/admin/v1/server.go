@@ -443,6 +443,7 @@ func (a *AdminServiceImpl) GetRunPayloads(ctx context.Context, req *contracts.Ge
 			Error:           details.Error,
 			Output:          details.OutputPayload,
 			ReadableId:      string(readableId),
+			ExternalId:      details.ExternalId,
 		}
 	}
 
