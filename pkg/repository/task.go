@@ -3915,10 +3915,87 @@ type WorkflowRunResultDetails struct {
 }
 
 func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunResultDetails, error) {
+	flat, err := r.FlattenExternalIds(ctx, tenantId, []string{externalId})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to flatten external ids: %w", err)
+	}
+
+	if len(flat) == 0 {
+		return nil, fmt.Errorf("could not find workflow with external id: %s", externalId)
+	}
+
+	isDag := len(flat) == 1
+	payloadRetireveOpts := make([]RetrievePayloadOpts, 0)
+	var inputRetrieveOpt RetrievePayloadOpts
+	firstTask := flat[0]
+
+	if isDag {
+		inputRetrieveOpt = RetrievePayloadOpts{
+			Id:         firstTask.DagID.Int64,
+			InsertedAt: firstTask.DagInsertedAt,
+			Type:       sqlcv1.V1PayloadTypeDAGINPUT,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+	} else {
+		inputRetrieveOpt = RetrievePayloadOpts{
+			Id:         firstTask.ID,
+			InsertedAt: firstTask.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+	}
+
+	payloadRetireveOpts = append(payloadRetireveOpts, inputRetrieveOpt)
+
+	for _, t := range flat {
+		payloadRetireveOpts = append(payloadRetireveOpts, RetrievePayloadOpts{
+			Id:         t.ID,
+			InsertedAt: t.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKOUTPUT,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		})
+	}
+
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, payloadRetireveOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads: %w", err)
+	}
+
+	input := payloads[inputRetrieveOpt]
+	outputs := make(map[string][]byte)
+
+	for _, t := range flat {
+		outputOpt := RetrievePayloadOpts{
+			Id:         t.ID,
+			InsertedAt: t.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKOUTPUT,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+
+		output, ok := payloads[outputOpt]
+
+		if !ok {
+			continue
+		}
+
+		outputs[sqlchelpers.UUIDToStr(t.ExternalID)] = output
+	}
+
+	var outputJson []byte
+
+	if len(outputs) > 0 {
+		outputJson, err = json.Marshal(outputs)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal output payloads: %w", err)
+		}
+	}
 
 	return &WorkflowRunResultDetails{
-		InputPayload:   nil,
-		OutputPayloads: nil,
+		InputPayload:   input,
+		OutputPayloads: outputJson,
 		IsCompleted:    false,
 		Errors:         nil,
 	}, nil
