@@ -255,13 +255,13 @@ class GetRunPayloadsRequest(_message.Message):
     def __init__(self, external_id: _Optional[str] = ...) -> None: ...
 
 class GetRunPayloadsResponse(_message.Message):
-    __slots__ = ("input", "output", "completed", "error")
+    __slots__ = ("input", "output", "completed", "errors")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
     COMPLETED_FIELD_NUMBER: _ClassVar[int]
-    ERROR_FIELD_NUMBER: _ClassVar[int]
+    ERRORS_FIELD_NUMBER: _ClassVar[int]
     input: bytes
     output: bytes
     completed: bool
-    error: str
-    def __init__(self, input: _Optional[bytes] = ..., output: _Optional[bytes] = ..., completed: bool = ..., error: _Optional[str] = ...) -> None: ...
+    errors: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, input: _Optional[bytes] = ..., output: _Optional[bytes] = ..., completed: bool = ..., errors: _Optional[_Iterable[str]] = ...) -> None: ...

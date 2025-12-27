@@ -7,7 +7,6 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
 )
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
 
 
@@ -47,7 +46,7 @@ class WorkflowRunRef:
 
         while True:
             try:
-                details = self.runs_client.get(self.workflow_run_id)
+                details = self.admin_client.get_payloads(self.workflow_run_id)
             except Exception as e:
                 retries += 1
 
@@ -59,31 +58,15 @@ class WorkflowRunRef:
                 time.sleep(1)
                 continue
 
-            match details.run.status:
-                case V1TaskStatus.RUNNING:
-                    time.sleep(1)
-                case V1TaskStatus.FAILED:
-                    raise FailedTaskRunExceptionGroup(
-                        f"Workflow run {self.workflow_run_id} failed.",
-                        [
-                            TaskRunError.deserialize(t.error_message)
-                            for t in details.tasks
-                            if t.error_message
-                        ],
-                    )
-                case V1TaskStatus.COMPLETED:
-                    return {
-                        name: t.output
-                        for t in details.tasks
-                        if (name := self._safely_get_action_name(t.action_id))
-                    }
-                case V1TaskStatus.QUEUED:
-                    time.sleep(1)
-                case V1TaskStatus.CANCELLED:
-                    raise ValueError(
-                        f"Workflow run cancelled: {details.run.error_message}"
-                    )
-                case _:
-                    raise ValueError(
-                        f"Unknown workflow run status: {details.run.status}"
-                    )
+            if details.errors:
+                raise FailedTaskRunExceptionGroup(
+                    f"Workflow run {self.workflow_run_id} failed.",
+                    [TaskRunError.deserialize(e) for e in details.errors if e],
+                )
+
+            if details.completed:
+                return details.output
+
+            raise ValueError(
+                f"Workflow run {self.workflow_run_id} has not completed yet."
+            )

@@ -7,6 +7,7 @@ from warnings import warn
 
 from pydantic import BaseModel, model_validator
 
+from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
     StepRunEventType,
@@ -109,11 +110,13 @@ class RunsClient(BaseRestClient):
         config: ClientConfig,
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
+        admin_client: AdminClient,
     ) -> None:
         super().__init__(config)
 
         self.workflow_run_listener = workflow_run_listener
         self.workflow_run_event_listener = workflow_run_event_listener
+        self.admin_client = admin_client
 
     def _wra(self, client: ApiClient) -> WorkflowRunsApi:
         return WorkflowRunsApi(client)
@@ -840,7 +843,7 @@ class RunsClient(BaseRestClient):
             workflow_run_id=workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
-            runs_client=self,
+            admin_client=self.admin_client,
         )
 
     async def subscribe_to_stream(
