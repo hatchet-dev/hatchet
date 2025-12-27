@@ -3930,7 +3930,6 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 
 	isDag := len(flat) > 1
 
-	payloadRetireveOpts := make([]RetrievePayloadOpts, 0)
 	var inputRetrieveOpt RetrievePayloadOpts
 	firstTask := flat[0]
 
@@ -3950,13 +3949,14 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		}
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, payloadRetireveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, inputRetrieveOpt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads: %w", err)
 	}
 
 	input := payloads[inputRetrieveOpt]
+
 	outputs := make(map[string][]byte)
 	errors := make(map[string]string)
 	finalizedRun := finalizedWorkflowRuns[0]
