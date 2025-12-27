@@ -3921,11 +3921,27 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		return nil, fmt.Errorf("failed to flatten external ids: %w", err)
 	}
 
-	if len(flat) == 0 {
-		return nil, fmt.Errorf("could not find workflow with external id: %s", externalId)
+	finalizedWorkflowRuns, err := r.ListFinalizedWorkflowRuns(ctx, tenantId, []string{externalId})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list finalized workflow runs: %w", err)
 	}
 
-	isDag := len(flat) == 1
+	if len(flat) > 0 && len(finalizedWorkflowRuns) == 0 {
+		return &WorkflowRunResultDetails{
+			InputPayload:   nil,
+			OutputPayloads: nil,
+			IsCompleted:    false,
+			Errors:         nil,
+		}, nil
+	}
+
+	if len(flat) == 0 {
+		return nil, fmt.Errorf("workflow run not found for external id: %s", externalId)
+	}
+
+	isDag := len(flat) > 1
+
 	payloadRetireveOpts := make([]RetrievePayloadOpts, 0)
 	var inputRetrieveOpt RetrievePayloadOpts
 	firstTask := flat[0]
@@ -3946,17 +3962,6 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		}
 	}
 
-	payloadRetireveOpts = append(payloadRetireveOpts, inputRetrieveOpt)
-
-	for _, t := range flat {
-		payloadRetireveOpts = append(payloadRetireveOpts, RetrievePayloadOpts{
-			Id:         t.ID,
-			InsertedAt: t.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKOUTPUT,
-			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
-		})
-	}
-
 	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, payloadRetireveOpts...)
 
 	if err != nil {
@@ -3965,22 +3970,12 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 
 	input := payloads[inputRetrieveOpt]
 	outputs := make(map[string][]byte)
+	errors := make(map[string]string)
+	finalizedRun := finalizedWorkflowRuns[0]
 
-	for _, t := range flat {
-		outputOpt := RetrievePayloadOpts{
-			Id:         t.ID,
-			InsertedAt: t.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKOUTPUT,
-			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
-		}
-
-		output, ok := payloads[outputOpt]
-
-		if !ok {
-			continue
-		}
-
-		outputs[sqlchelpers.UUIDToStr(t.ExternalID)] = output
+	for _, r := range finalizedRun.OutputEvents {
+		outputs[r.StepReadableID] = r.Output
+		errors[r.StepReadableID] = r.ErrorMessage
 	}
 
 	var outputJson []byte

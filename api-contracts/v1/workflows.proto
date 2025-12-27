@@ -68,6 +68,13 @@ enum RateLimitDuration {
     YEAR = 6;
 }
 
+enum WorkflowRunTerminalStatus {
+    COMPLETED = 0;
+    FAILED = 1;
+    CANCELLED = 2;
+}
+
+
 // CreateWorkflowVersionRequest represents options to create a workflow version.
 message CreateWorkflowVersionRequest {
     string name = 1; // (required) the workflow name
@@ -179,9 +186,16 @@ message GetRunPayloadsRequest {
     string external_id = 1; // (required) the external id (uuid) of the workflow run
 }
 
+message TaskRunDetail {
+    string external_id = 1; // the external id (uuid) of the task run
+    bool in_terminal_state = 2; // whether the task run is in a terminal state
+    optional WorkflowRunTerminalStatus terminal_status = 3; // (optional) the terminal status of the task run, if in terminal state
+    optional string error = 4; // (optional) error message from the task run, if any
+    optional bytes output = 5; // (optional) the output payload for the task run
+    string readable_id = 6; // the readable id of the task
+}
+
 message GetRunPayloadsResponse {
     bytes input = 1; // the input payload for the workflow run
-    optional bytes output = 2; // (optional) the output payload for the workflow run
-    bool completed = 3; // whether the workflow run is completed
-    repeated string errors = 4; // (optional) error messages from failing tasks, if any
+    map<string, TaskRunDetail> task_runs = 2; // map of task run external ids to their details
 }
