@@ -280,7 +280,7 @@ class TaskRunDetail(_message.Message):
     def __init__(self, external_id: _Optional[str] = ..., in_terminal_state: bool = ..., terminal_status: _Optional[_Union[WorkflowRunTerminalStatus, str]] = ..., error: _Optional[str] = ..., output: _Optional[bytes] = ..., readable_id: _Optional[str] = ...) -> None: ...
 
 class GetRunPayloadsResponse(_message.Message):
-    __slots__ = ("input", "task_runs")
+    __slots__ = ("input", "all_finished", "task_runs")
     class TaskRunsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -289,7 +289,9 @@ class GetRunPayloadsResponse(_message.Message):
         value: TaskRunDetail
         def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[TaskRunDetail, _Mapping]] = ...) -> None: ...
     INPUT_FIELD_NUMBER: _ClassVar[int]
+    ALL_FINISHED_FIELD_NUMBER: _ClassVar[int]
     TASK_RUNS_FIELD_NUMBER: _ClassVar[int]
     input: bytes
+    all_finished: bool
     task_runs: _containers.MessageMap[str, TaskRunDetail]
-    def __init__(self, input: _Optional[bytes] = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ...) -> None: ...
+    def __init__(self, input: _Optional[bytes] = ..., all_finished: bool = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ...) -> None: ...
