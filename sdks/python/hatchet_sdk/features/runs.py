@@ -7,7 +7,7 @@ from warnings import warn
 
 from pydantic import BaseModel, model_validator
 
-from hatchet_sdk.clients.admin import AdminClient
+from hatchet_sdk.clients.admin import AdminClient, RunPayloads
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
     StepRunEventType,
@@ -856,5 +856,5 @@ class RunsClient(BaseRestClient):
             if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
                 yield chunk.payload
 
-    def get_payloads(self, external_id: str) -> None:
-        pass
+    def get_payloads(self, external_id: str) -> RunPayloads:
+        return self.admin_client.get_payloads(external_id=external_id)

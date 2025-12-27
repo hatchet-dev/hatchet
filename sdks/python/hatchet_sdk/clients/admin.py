@@ -496,7 +496,7 @@ class AdminClient:
         response = cast(
             workflow_protos.GetRunPayloadsResponse,
             get_run_payloads(
-                external_id,
+                workflow_protos.GetRunPayloadsRequest(external_id=external_id),
                 metadata=get_metadata(self.token),
             ),
         )
