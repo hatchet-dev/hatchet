@@ -65,7 +65,7 @@ class WorkflowRunRef:
                 )
 
             if details.completed:
-                return details.output
+                return details.output or {}
 
             raise ValueError(
                 f"Workflow run {self.workflow_run_id} has not completed yet."

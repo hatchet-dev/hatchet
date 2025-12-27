@@ -18,7 +18,6 @@ from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.exceptions import DedupeViolationError
-from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.runnables.contextvars import (
@@ -66,7 +65,7 @@ class RunPayloads(BaseModel):
     input: JSONSerializableMapping | None = None
     output: JSONSerializableMapping | None = None
     completed: bool = False
-    error: str | None = None
+    errors: list[str] = Field(default_factory=list)
 
 
 class AdminClient:
@@ -75,10 +74,8 @@ class AdminClient:
         config: ClientConfig,
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
-        runs_client: RunsClient,
     ):
         self.config = config
-        self.runs_client = runs_client
         self.token = config.token
         self.namespace = config.namespace
 
@@ -377,9 +374,9 @@ class AdminClient:
             raise e
 
         return WorkflowRunRef(
-            runs_client=self.runs_client,
             workflow_run_id=resp.workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
+            workflow_run_listener=self.workflow_run_listener,
             admin_client=self,
         )
 
@@ -424,7 +421,7 @@ class AdminClient:
                         workflow_run_id=workflow_run_id,
                         workflow_run_event_listener=self.workflow_run_event_listener,
                         workflow_run_listener=self.workflow_run_listener,
-                        runs_client=self.runs_client,
+                        admin_client=self,
                     )
                     for workflow_run_id in resp.workflow_run_ids
                 ]
@@ -515,5 +512,5 @@ class AdminClient:
             input=cast(JSONSerializableMapping, input_payload),
             output=cast(JSONSerializableMapping, output_payload),
             completed=response.completed,
-            error=response.error if response.error else None,
+            errors=list(response.errors),
         )
