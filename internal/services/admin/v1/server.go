@@ -407,6 +407,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 }
 
 func (a *AdminServiceImpl) GetRunPayloads(ctx context.Context, req *contracts.GetRunPayloadsRequest) (*contracts.GetRunPayloadsResponse, error) {
+	fmt.Println("GetRunPayloads called with ExternalId:", req.ExternalId)
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -416,22 +417,17 @@ func (a *AdminServiceImpl) GetRunPayloads(ctx context.Context, req *contracts.Ge
 		return nil, status.Error(codes.InvalidArgument, "invalid external id")
 	}
 
-	runs, err := a.repo.Tasks().FlattenExternalIds(ctx, tenantId, []string{externalId.String()})
+	details, err := a.repo.Tasks().GetWorkflowRunResultDetails(ctx, tenantId, externalId.String())
 
 	if err != nil {
-		return nil, fmt.Errorf("could not fetch tasks for workflow run: %w", err)
-	}
-
-	for _, run := range runs {
-		rj, _ := json.MarshalIndent(run, "", "  ")
-		fmt.Println(string(rj))
+		return nil, fmt.Errorf("could not get workflow run result details: %w", err)
 	}
 
 	return &contracts.GetRunPayloadsResponse{
-		Input:     []byte{},
-		Output:    []byte{},
-		Completed: false,
-		Error:     nil,
+		Input:     details.InputPayload,
+		Output:    details.OutputPayloads,
+		Completed: details.IsCompleted,
+		Errors:    details.Errors,
 	}, nil
 }
 

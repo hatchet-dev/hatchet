@@ -264,7 +264,11 @@ type TaskRepository interface {
 	GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error)
 
 	FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error)
+
 	FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error)
+
+	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
+	GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunResultDetails, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -3901,4 +3905,16 @@ func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*tim
 	}
 
 	return &t.InsertedAt.Time, nil
+}
+
+type WorkflowRunResultDetails struct {
+	InputPayload   []byte
+	OutputPayloads []byte
+	IsCompleted    bool
+	Errors         []string
+}
+
+func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunResultDetails, error) {
+
+	return nil, nil
 }
