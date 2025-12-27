@@ -26,6 +26,12 @@ class RateLimitDuration(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     MONTH: _ClassVar[RateLimitDuration]
     YEAR: _ClassVar[RateLimitDuration]
 
+class WorkflowRunTerminalStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    COMPLETED: _ClassVar[WorkflowRunTerminalStatus]
+    FAILED: _ClassVar[WorkflowRunTerminalStatus]
+    CANCELLED: _ClassVar[WorkflowRunTerminalStatus]
+
 class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     CANCEL_IN_PROGRESS: _ClassVar[ConcurrencyLimitStrategy]
@@ -51,6 +57,9 @@ DAY: RateLimitDuration
 WEEK: RateLimitDuration
 MONTH: RateLimitDuration
 YEAR: RateLimitDuration
+COMPLETED: WorkflowRunTerminalStatus
+FAILED: WorkflowRunTerminalStatus
+CANCELLED: WorkflowRunTerminalStatus
 CANCEL_IN_PROGRESS: ConcurrencyLimitStrategy
 DROP_NEWEST: ConcurrencyLimitStrategy
 QUEUE_NEWEST: ConcurrencyLimitStrategy
@@ -254,14 +263,33 @@ class GetRunPayloadsRequest(_message.Message):
     external_id: str
     def __init__(self, external_id: _Optional[str] = ...) -> None: ...
 
-class GetRunPayloadsResponse(_message.Message):
-    __slots__ = ("input", "output", "completed", "errors")
-    INPUT_FIELD_NUMBER: _ClassVar[int]
+class TaskRunDetail(_message.Message):
+    __slots__ = ("external_id", "in_terminal_state", "terminal_status", "error", "output", "readable_id")
+    EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    IN_TERMINAL_STATE_FIELD_NUMBER: _ClassVar[int]
+    TERMINAL_STATUS_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
-    COMPLETED_FIELD_NUMBER: _ClassVar[int]
-    ERRORS_FIELD_NUMBER: _ClassVar[int]
-    input: bytes
+    READABLE_ID_FIELD_NUMBER: _ClassVar[int]
+    external_id: str
+    in_terminal_state: bool
+    terminal_status: WorkflowRunTerminalStatus
+    error: str
     output: bytes
-    completed: bool
-    errors: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, input: _Optional[bytes] = ..., output: _Optional[bytes] = ..., completed: bool = ..., errors: _Optional[_Iterable[str]] = ...) -> None: ...
+    readable_id: str
+    def __init__(self, external_id: _Optional[str] = ..., in_terminal_state: bool = ..., terminal_status: _Optional[_Union[WorkflowRunTerminalStatus, str]] = ..., error: _Optional[str] = ..., output: _Optional[bytes] = ..., readable_id: _Optional[str] = ...) -> None: ...
+
+class GetRunPayloadsResponse(_message.Message):
+    __slots__ = ("input", "task_runs")
+    class TaskRunsEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: TaskRunDetail
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[TaskRunDetail, _Mapping]] = ...) -> None: ...
+    INPUT_FIELD_NUMBER: _ClassVar[int]
+    TASK_RUNS_FIELD_NUMBER: _ClassVar[int]
+    input: bytes
+    task_runs: _containers.MessageMap[str, TaskRunDetail]
+    def __init__(self, input: _Optional[bytes] = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ...) -> None: ...
