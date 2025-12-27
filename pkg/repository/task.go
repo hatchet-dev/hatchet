@@ -3918,6 +3918,7 @@ type StepReadableId string
 
 type WorkflowRunDetails struct {
 	InputPayload        []byte
+	AllFinished         bool
 	ReadableIdToDetails map[StepReadableId]TaskRunDetails
 }
 
@@ -3970,6 +3971,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	if len(flat) > 0 && len(finalizedWorkflowRuns) == 0 {
 		return &WorkflowRunDetails{
 			InputPayload: input,
+			AllFinished:  false,
 		}, nil
 	}
 
@@ -3994,6 +3996,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 
 	return &WorkflowRunDetails{
 		InputPayload:        input,
+		AllFinished:         true,
 		ReadableIdToDetails: taskRunDetails,
 	}, nil
 }

@@ -72,6 +72,7 @@ class TaskRunDetail(BaseModel):
 
 class WorkflowRunDetail(BaseModel):
     external_id: str
+    all_finished: bool = False
     input: JSONSerializableMapping | None = None
     task_runs: dict[str, TaskRunDetail]
 
@@ -525,6 +526,7 @@ class AdminClient:
             input=(
                 json.loads(response.input.decode("utf-8")) if response.input else None
             ),
+            all_finished=response.all_finished,
             task_runs={
                 readable_id: TaskRunDetail(
                     readable_id=readable_id,
