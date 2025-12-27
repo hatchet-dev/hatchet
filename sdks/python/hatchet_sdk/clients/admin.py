@@ -534,7 +534,7 @@ class AdminClient:
                         if details.output
                         else None
                     ),
-                    error=details.error,
+                    error=details.error if details.error else None,
                     in_terminal_state=details.in_terminal_state,
                     terminal_status=self._proto_to_terminal_status(
                         details.terminal_status
