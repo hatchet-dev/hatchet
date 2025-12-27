@@ -268,7 +268,7 @@ type TaskRepository interface {
 	FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error)
 
 	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
-	GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunResultDetails, error)
+	GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunDetails, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -3907,14 +3907,21 @@ func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*tim
 	return &t.InsertedAt.Time, nil
 }
 
-type WorkflowRunResultDetails struct {
-	InputPayload   []byte
-	OutputPayloads []byte
-	IsCompleted    bool
-	Errors         []string
+type TaskRunDetails struct {
+	OutputPayload     []byte
+	IsInTerminalState bool
+	TerminalStatus    string
+	Error             *string
 }
 
-func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunResultDetails, error) {
+type StepReadableId string
+
+type WorkflowRunDetails struct {
+	InputPayload        []byte
+	ReadableIdToDetails map[StepReadableId]TaskRunDetails
+}
+
+func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunDetails, error) {
 	flat, err := r.FlattenExternalIds(ctx, tenantId, []string{externalId})
 
 	if err != nil {
@@ -3928,12 +3935,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	}
 
 	if len(flat) > 0 && len(finalizedWorkflowRuns) == 0 {
-		return &WorkflowRunResultDetails{
-			InputPayload:   nil,
-			OutputPayloads: nil,
-			IsCompleted:    false,
-			Errors:         nil,
-		}, nil
+		return &WorkflowRunDetails{}, nil
 	}
 
 	if len(flat) == 0 {
@@ -3988,10 +3990,9 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		}
 	}
 
-	return &WorkflowRunResultDetails{
-		InputPayload:   input,
-		OutputPayloads: outputJson,
-		IsCompleted:    false,
-		Errors:         nil,
+	r.l.Info().Str("outputs", string(outputJson)).Msg("workflow run outputs")
+
+	return &WorkflowRunDetails{
+		InputPayload: input,
 	}, nil
 }

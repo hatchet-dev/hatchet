@@ -61,11 +61,19 @@ class WorkflowRunTriggerConfig(BaseModel):
     key: str | None = None
 
 
-class RunPayloads(BaseModel):
-    input: JSONSerializableMapping | None = None
+class TaskRunDetail(BaseModel):
+    external_id: str
+    readable_id: str
     output: JSONSerializableMapping | None = None
-    completed: bool = False
-    errors: list[str] = Field(default_factory=list)
+    error: str | None = None
+    in_terminal_state: bool = False
+    terminal_status: workflow_protos.WorkflowRunTerminalStatus | None = None
+
+
+class WorkflowRunDetail(BaseModel):
+    external_id: str
+    input: JSONSerializableMapping | None = None
+    task_runs: dict[str, TaskRunDetail]
 
 
 class AdminClient:
@@ -484,7 +492,7 @@ class AdminClient:
             workflow_run_listener=self.workflow_run_listener,
         )
 
-    def get_payloads(self, external_id: str) -> RunPayloads:
+    def get_payloads(self, external_id: str) -> WorkflowRunDetail:
         if self.client is None:
             conn = new_conn(self.config, False)
             self.client = AdminServiceStub(conn)
@@ -501,16 +509,22 @@ class AdminClient:
             ),
         )
 
-        input_payload = (
-            json.loads(response.input.decode("utf-8")) if response.input else None
-        )
-        output_payload = (
-            json.loads(response.output.decode("utf-8")) if response.output else None
-        )
-
-        return RunPayloads(
-            input=cast(JSONSerializableMapping, input_payload),
-            output=cast(JSONSerializableMapping, output_payload),
-            completed=response.completed,
-            errors=list(response.errors),
+        return WorkflowRunDetail(
+            external_id=external_id,
+            input=json.loads(response.input.decode("utf-8"))
+            if response.input
+            else None,
+            task_runs={
+                readable_id: TaskRunDetail(
+                    readable_id=readable_id,
+                    external_id=details.external_id,
+                    output=json.loads(details.output.decode("utf-8"))
+                    if details.output
+                    else None,
+                    error=details.error,
+                    in_terminal_state=details.in_terminal_state,
+                    terminal_status=details.terminal_status,
+                )
+                for readable_id, details in response.task_runs.items()
+            },
         )
