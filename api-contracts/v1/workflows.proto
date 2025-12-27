@@ -197,5 +197,6 @@ message TaskRunDetail {
 
 message GetRunPayloadsResponse {
     bytes input = 1; // the input payload for the workflow run
-    map<string, TaskRunDetail> task_runs = 2; // map of task run external ids to their details
+    bool all_finished = 2; // whether all task runs are finished
+    map<string, TaskRunDetail> task_runs = 3; // map of task run external ids to their details
 }
