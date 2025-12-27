@@ -3916,5 +3916,10 @@ type WorkflowRunResultDetails struct {
 
 func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunResultDetails, error) {
 
-	return nil, nil
+	return &WorkflowRunResultDetails{
+		InputPayload:   nil,
+		OutputPayloads: nil,
+		IsCompleted:    false,
+		Errors:         nil,
+	}, nil
 }
