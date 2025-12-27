@@ -1,5 +1,5 @@
 import time
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
@@ -10,6 +10,7 @@ from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
 
 if TYPE_CHECKING:
     from hatchet_sdk.clients.admin import AdminClient
+
 
 class WorkflowRunRef:
     def __init__(
