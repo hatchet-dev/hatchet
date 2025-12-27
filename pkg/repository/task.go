@@ -3912,6 +3912,7 @@ type TaskRunDetails struct {
 	IsInTerminalState bool
 	TerminalStatus    string
 	Error             *string
+	ExternalId        string
 }
 
 type StepReadableId string
@@ -3981,8 +3982,6 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	taskRunDetails := make(map[StepReadableId]TaskRunDetails)
 
 	for _, r := range finalizedRun.OutputEvents {
-		rj, _ := json.MarshalIndent((r), "", "  ")
-		fmt.Println("output event", string(rj))
 		outputs[r.StepReadableID] = r.Output
 		errors[r.StepReadableID] = r.ErrorMessage
 
@@ -3991,6 +3990,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 			IsInTerminalState: true,
 			TerminalStatus:    string(r.EventType),
 			Error:             &r.ErrorMessage,
+			ExternalId:        r.TaskExternalId,
 		}
 	}
 
