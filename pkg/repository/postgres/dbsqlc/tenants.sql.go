@@ -83,7 +83,7 @@ WITH active_controller_partitions AS (
     WHERE
         "lastHeartbeat" > NOW() - INTERVAL '1 minute'
 )
-INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version", "uiVersion", "onboardingData", "environment")
+INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version", "onboardingData", "environment")
 VALUES (
     $1::uuid,
     $2::text,
@@ -99,9 +99,8 @@ VALUES (
     ),
     COALESCE($4::text, '720h'),
     COALESCE($5::"TenantMajorEngineVersion", 'V0'),
-    COALESCE($6::"TenantMajorUIVersion", 'V0'),
-    $7::jsonb,
-    $8::"TenantEnvironment"
+    $6::jsonb,
+    $7::"TenantEnvironment"
 )
 RETURNING id, "createdAt", "updatedAt", "deletedAt", version, name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 `
@@ -112,7 +111,6 @@ type CreateTenantParams struct {
 	Slug                string                       `json:"slug"`
 	DataRetentionPeriod pgtype.Text                  `json:"dataRetentionPeriod"`
 	Version             NullTenantMajorEngineVersion `json:"version"`
-	UiVersion           interface{}                  `json:"uiVersion"`
 	OnboardingData      []byte                       `json:"onboardingData"`
 	Environment         NullTenantEnvironment        `json:"environment"`
 }
@@ -124,7 +122,6 @@ func (q *Queries) CreateTenant(ctx context.Context, db DBTX, arg CreateTenantPar
 		arg.Slug,
 		arg.DataRetentionPeriod,
 		arg.Version,
-		arg.UiVersion,
 		arg.OnboardingData,
 		arg.Environment,
 	)
@@ -1457,10 +1454,9 @@ SET
     "name" = COALESCE($1::text, "name"),
     "analyticsOptOut" = COALESCE($2::boolean, "analyticsOptOut"),
     "alertMemberEmails" = COALESCE($3::boolean, "alertMemberEmails"),
-    "version" = COALESCE($4::"TenantMajorEngineVersion", "version"),
-    "uiVersion" = COALESCE($5::"TenantMajorUIVersion", "uiVersion")
+    "version" = COALESCE($4::"TenantMajorEngineVersion", "version")
 WHERE
-    "id" = $6::uuid
+    "id" = $5::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", version, name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 `
 
@@ -1469,7 +1465,6 @@ type UpdateTenantParams struct {
 	AnalyticsOptOut   pgtype.Bool                  `json:"analyticsOptOut"`
 	AlertMemberEmails pgtype.Bool                  `json:"alertMemberEmails"`
 	Version           NullTenantMajorEngineVersion `json:"version"`
-	UiVersion         interface{}                  `json:"uiVersion"`
 	ID                pgtype.UUID                  `json:"id"`
 }
 
@@ -1479,7 +1474,6 @@ func (q *Queries) UpdateTenant(ctx context.Context, db DBTX, arg UpdateTenantPar
 		arg.AnalyticsOptOut,
 		arg.AlertMemberEmails,
 		arg.Version,
-		arg.UiVersion,
 		arg.ID,
 	)
 	var i Tenant
