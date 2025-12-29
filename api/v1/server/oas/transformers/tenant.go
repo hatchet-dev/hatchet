@@ -10,8 +10,6 @@ import (
 )
 
 func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
-	uiVersion := gen.TenantUIVersion(tenant.UiVersion)
-
 	var environment *gen.TenantEnvironment
 	if tenant.Environment.Valid {
 		env := gen.TenantEnvironment(tenant.Environment.TenantEnvironment)
@@ -25,7 +23,6 @@ func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
 		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
 		AlertMemberEmails: &tenant.AlertMemberEmails,
 		Version:           gen.TenantVersion(tenant.Version),
-		UiVersion:         &uiVersion,
 		Environment:       environment,
 	}
 }

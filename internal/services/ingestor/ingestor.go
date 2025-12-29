@@ -6,18 +6,12 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -38,7 +32,6 @@ type IngestorOpts struct {
 	logRepository          repository.LogsEngineRepository
 	entitlementsRepository repository.EntitlementsRepository
 	stepRunRepository      repository.StepRunEngineRepository
-	mq                     msgqueue.MessageQueue
 	mqv1                   msgqueuev1.MessageQueue
 	repov1                 v1.Repository
 	isLogIngestionEnabled  bool
@@ -65,12 +58,6 @@ func WithLogRepository(r repository.LogsEngineRepository) IngestorOptFunc {
 func WithEntitlementsRepository(r repository.EntitlementsRepository) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.entitlementsRepository = r
-	}
-}
-
-func WithMessageQueue(mq msgqueue.MessageQueue) IngestorOptFunc {
-	return func(opts *IngestorOpts) {
-		opts.mq = mq
 	}
 }
 
@@ -114,7 +101,6 @@ type IngestorImpl struct {
 	stepRunRepository        repository.StepRunEngineRepository
 	steprunTenantLookupCache *lru.Cache[string, string]
 
-	mq     msgqueue.MessageQueue
 	mqv1   msgqueuev1.MessageQueue
 	v      validator.Validator
 	repov1 v1.Repository
@@ -139,10 +125,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 
 	if opts.logRepository == nil {
 		return nil, fmt.Errorf("log repository is required. use WithLogRepository")
-	}
-
-	if opts.mq == nil {
-		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
 	if opts.mqv1 == nil {
@@ -171,7 +153,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		stepRunRepository:        opts.stepRunRepository,
 		steprunTenantLookupCache: stepRunCache,
 		logRepository:            opts.logRepository,
-		mq:                       opts.mq,
 		mqv1:                     opts.mqv1,
 		v:                        validator.NewDefaultValidator(),
 		repov1:                   opts.repov1,
@@ -180,172 +161,19 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 }
 
 func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
-	switch tenant.Version {
-	case dbsqlc.TenantMajorEngineVersionV0:
-		return i.ingestEventV0(ctx, tenant, key, data, metadata)
-	case dbsqlc.TenantMajorEngineVersionV1:
-		return i.ingestEventV1(ctx, tenant, key, data, metadata, priority, scope, triggeringWebhookName)
-	default:
-		return nil, fmt.Errorf("unsupported tenant version: %s", tenant.Version)
-	}
+	return i.ingestEventV1(ctx, tenant, key, data, metadata, priority, scope, triggeringWebhookName)
 }
 
 func (i *IngestorImpl) IngestWebhookValidationFailure(ctx context.Context, tenant *dbsqlc.Tenant, webhookName, errorText string) error {
 	return i.ingestWebhookValidationFailure(tenant.ID.String(), webhookName, errorText)
 }
 
-func (i *IngestorImpl) ingestEventV0(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {
-	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
-	defer span.End()
-
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
-		TenantId:           tenantId,
-		Key:                key,
-		Data:               data,
-		AdditionalMetadata: metadata,
-	})
-
-	if err == metered.ErrResourceExhausted {
-		return nil, metered.ErrResourceExhausted
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create events: %w", err)
-	}
-
-	telemetry.WithAttributes(span, telemetry.AttributeKV{
-		Key:   "event.id",
-		Value: event.ID,
-	})
-
-	err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
-	if err != nil {
-		return nil, fmt.Errorf("could not add event to task queue: %w", err)
-
-	}
-
-	return event, nil
-}
-
 func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
-
-	switch tenant.Version {
-	case dbsqlc.TenantMajorEngineVersionV0:
-		return i.bulkIngestEventV0(ctx, tenant, eventOpts)
-	case dbsqlc.TenantMajorEngineVersionV1:
-		return i.bulkIngestEventV1(ctx, tenant, eventOpts)
-	default:
-		return nil, fmt.Errorf("unsupported tenant version: %s", tenant.Version)
-	}
-}
-
-func (i *IngestorImpl) bulkIngestEventV0(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
-	ctx, span := telemetry.NewSpan(ctx, "bulk-ingest-event")
-	defer span.End()
-
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	events, err := i.eventRepository.BulkCreateEvent(ctx, &repository.BulkCreateEventOpts{
-		Events:   eventOpts,
-		TenantId: tenantId,
-	})
-
-	if err == metered.ErrResourceExhausted {
-		return nil, metered.ErrResourceExhausted
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create events: %w", err)
-	}
-
-	// TODO any attributes we want to add here? could jam in all the event ids? but could be a lot
-
-	// telemetry.WithAttributes(span, telemetry.AttributeKV{
-	// 	Key:   "event_id",
-	// 	Value: event.ID,
-	// })
-
-	for _, event := range events.Events {
-		err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
-		if err != nil {
-			return nil, fmt.Errorf("could not add event to task queue: %w", err)
-		}
-	}
-
-	return events.Events, nil
+	return i.bulkIngestEventV1(ctx, tenant, eventOpts)
 }
 
 func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
-
-	switch tenant.Version {
-	case dbsqlc.TenantMajorEngineVersionV0:
-		return i.ingestReplayedEventV0(ctx, tenant, replayedEvent)
-	case dbsqlc.TenantMajorEngineVersionV1:
-		return i.ingestReplayedEventV1(ctx, tenant, replayedEvent)
-	default:
-		return nil, fmt.Errorf("unsupported tenant version: %s", tenant.Version)
-	}
-}
-
-func (i *IngestorImpl) ingestReplayedEventV0(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
-	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
-	defer span.End()
-
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	replayedId := sqlchelpers.UUIDToStr(replayedEvent.ID)
-
-	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
-		TenantId:           tenantId,
-		Key:                replayedEvent.Key,
-		Data:               replayedEvent.Data,
-		AdditionalMetadata: replayedEvent.AdditionalMetadata,
-		ReplayedEvent:      &replayedId,
-	})
-
-	if err == metered.ErrResourceExhausted {
-		return nil, metered.ErrResourceExhausted
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create event: %w", err)
-	}
-
-	err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
-
-	if err != nil {
-		return nil, fmt.Errorf("could not add event to task queue: %w", err)
-	}
-
-	return event, nil
-}
-
-func eventToTask(e *dbsqlc.Event) *msgqueue.Message {
-	eventId := sqlchelpers.UUIDToStr(e.ID)
-	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
-
-	payloadTyped := tasktypes.EventTaskPayload{
-		EventId:                 eventId,
-		EventKey:                e.Key,
-		EventData:               string(e.Data),
-		EventAdditionalMetadata: string(e.AdditionalMetadata),
-	}
-
-	payload, _ := datautils.ToJSONMap(payloadTyped)
-
-	metadata, _ := datautils.ToJSONMap(tasktypes.EventTaskMetadata{
-		EventKey: e.Key,
-		TenantId: tenantId,
-	})
-
-	return &msgqueue.Message{
-		ID:       "event",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
-	}
+	return i.ingestReplayedEventV1(ctx, tenant, replayedEvent)
 }
 
 func (i *IngestorImpl) IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {

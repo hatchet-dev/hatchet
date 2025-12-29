@@ -63,15 +63,6 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		createOpts.DataRetentionPeriod = &t.config.Runtime.Limits.DefaultTenantRetentionPeriod
 	}
 
-	uiVersion := dbsqlc.TenantMajorUIVersionV0
-
-	if request.Body.UiVersion != nil {
-		ver := *request.Body.UiVersion
-		uiVersion = dbsqlc.TenantMajorUIVersion(ver)
-	}
-
-	createOpts.UIVersion = &uiVersion
-
 	var engineVersion *dbsqlc.TenantMajorEngineVersion
 
 	if request.Body.EngineVersion != nil {

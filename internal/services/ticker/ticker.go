@@ -12,7 +12,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -24,7 +23,6 @@ type Ticker interface {
 }
 
 type TickerImpl struct {
-	mq   msgqueue.MessageQueue
 	mqv1 msgqueuev1.MessageQueue
 	l    *zerolog.Logger
 
@@ -52,7 +50,6 @@ type TickerImpl struct {
 type TickerOpt func(*TickerOpts)
 
 type TickerOpts struct {
-	mq   msgqueue.MessageQueue
 	mqv1 msgqueuev1.MessageQueue
 	l    *zerolog.Logger
 
@@ -71,12 +68,6 @@ func defaultTickerOpts() *TickerOpts {
 		l:        &logger,
 		tickerId: uuid.New().String(),
 		dv:       datautils.NewDataDecoderValidator(),
-	}
-}
-
-func WithMessageQueue(mq msgqueue.MessageQueue) TickerOpt {
-	return func(opts *TickerOpts) {
-		opts.mq = mq
 	}
 }
 
@@ -123,10 +114,6 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		f(opts)
 	}
 
-	if opts.mq == nil {
-		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
-	}
-
 	if opts.mqv1 == nil {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
@@ -157,7 +144,6 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 	}
 
 	return &TickerImpl{
-		mq:                     opts.mq,
 		mqv1:                   opts.mqv1,
 		l:                      opts.l,
 		repo:                   opts.repo,
@@ -190,18 +176,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 		gocron.DurationJob(time.Second*5),
 		gocron.NewTask(
 			t.runUpdateHeartbeat(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
-	}
-
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Second*1),
-		gocron.NewTask(
-			t.runPollGetGroupKeyRuns(ctx),
 		),
 	)
 

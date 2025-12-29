@@ -22,7 +22,7 @@ func (u *MetadataService) collectHealthErrors(ctx context.Context) []error {
 		errs = append(errs, errors.New("engine repository is not healthy"))
 	}
 
-	if !u.config.MessageQueue.IsReady() {
+	if !u.config.MessageQueueV1.IsReady() {
 		errs = append(errs, errors.New("task queue is not healthy"))
 	}
 
