@@ -17,7 +17,7 @@ require (
 	github.com/hatchet-dev/timediff v0.0.4
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
 	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb
-	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jackc/pgx/v5 v5.8.0
 	github.com/jackc/pgxlisten v0.0.0-20241106001234-1d6f6656415c
 	github.com/jackc/puddle/v2 v2.2.2
 	github.com/labstack/echo/v4 v4.14.0
