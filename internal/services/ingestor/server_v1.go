@@ -30,7 +30,7 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tena
 
 	msg, err := msgqueue.NewTenantMessage(
 		tenantId,
-		"task-stream-event",
+		msgqueue.MsgIDTaskStreamEvent,
 		true,
 		false,
 		tasktypes.StreamEventPayload{

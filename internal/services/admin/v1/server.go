@@ -130,7 +130,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 
 	msg, err := msgqueue.NewTenantMessage(
 		sqlchelpers.UUIDToStr(tenant.ID),
-		"cancel-tasks",
+		msgqueue.MsgIDCancelTasks,
 		false,
 		true,
 		toCancel,
@@ -310,7 +310,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 		msg, err := msgqueue.NewTenantMessage(
 			sqlchelpers.UUIDToStr(tenant.ID),
-			"replay-tasks",
+			msgqueue.MsgIDReplayTasks,
 			false,
 			true,
 			toReplay,

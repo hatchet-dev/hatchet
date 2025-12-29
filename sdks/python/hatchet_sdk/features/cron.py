@@ -16,10 +16,10 @@ from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
 from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
     WorkflowRunOrderByDirection,
 )
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
-    retry,
 )
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -202,7 +202,6 @@ class CronClient(BaseRestClient):
             cron_name=cron_name,
         )
 
-    @retry
     def list(
         self,
         offset: int | None = None,
@@ -229,7 +228,11 @@ class CronClient(BaseRestClient):
         :return: A list of cron workflows.
         """
         with self.client() as client:
-            return self._wa(client).cron_workflow_list(
+            cron_workflow_list = tenacity_retry(
+                self._wa(client).cron_workflow_list,
+                self.client_config.tenacity,
+            )
+            return cron_workflow_list(
                 tenant=self.client_config.tenant_id,
                 offset=offset,
                 limit=limit,
@@ -243,7 +246,6 @@ class CronClient(BaseRestClient):
                 cron_name=cron_name,
             )
 
-    @retry
     def get(self, cron_id: str) -> CronWorkflows:
         """
         Retrieve a specific workflow cron trigger by ID.
@@ -252,7 +254,10 @@ class CronClient(BaseRestClient):
         :return: The requested cron workflow instance.
         """
         with self.client() as client:
-            return self._wa(client).workflow_cron_get(
+            workflow_cron_get = tenacity_retry(
+                self._wa(client).workflow_cron_get, self.client_config.tenacity
+            )
+            return workflow_cron_get(
                 tenant=self.client_config.tenant_id, cron_workflow=str(cron_id)
             )
 

@@ -1,6 +1,6 @@
 import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import stepRunNode, { NodeData } from './step-run-node';
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '@/components/hooks/use-theme';
 import { V1TaskStatus } from '@/lib/api';
 import dagre from 'dagre';
 import { useMemo } from 'react';

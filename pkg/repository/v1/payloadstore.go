@@ -677,7 +677,7 @@ type CutoverJobRunMetadata struct {
 }
 
 func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId pgtype.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverJobRunMetadata, error) {
-	leaseInterval := 10 * time.Minute
+	leaseInterval := 2 * time.Minute
 	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
 
 	lease, err := p.queries.AcquireOrExtendCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendCutoverJobLeaseParams{
@@ -812,6 +812,48 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 	tempPartitionName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
 	sourcePartitionName := fmt.Sprintf("v1_payload_%s", partitionDate.String())
 
+	reconciliationDoneChan := make(chan struct{})
+	reconciliationCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-reconciliationCtx.Done():
+				return
+			case <-reconciliationDoneChan:
+				return
+			case <-ticker.C:
+				tx, commit, rollback, err := sqlchelpers.PrepareTx(reconciliationCtx, p.pool, p.l, 10000)
+
+				if err != nil {
+					p.l.Error().Err(err).Msg("failed to prepare transaction for extending cutover job lease during reconciliation")
+					return
+				}
+
+				defer rollback()
+
+				lease, err := p.acquireOrExtendJobLease(reconciliationCtx, tx, processId, partitionDate, pagination)
+
+				if err != nil {
+					return
+				}
+
+				if err := commit(reconciliationCtx); err != nil {
+					p.l.Error().Err(err).Msg("failed to commit extend cutover job lease transaction during reconciliation")
+					return
+				}
+
+				if !lease.ShouldRun {
+					return
+				}
+			}
+		}
+	}()
+
 	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
 
 	if err != nil {
@@ -860,6 +902,8 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 		}
 	}
 
+	close(reconciliationDoneChan)
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
 
 	if err != nil {
@@ -900,7 +944,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 	}
 
 	mostRecentPartitionToOffload := pgtype.Date{
-		Time:  time.Now().Add(-1 * *p.inlineStoreTTL),
+		Time:  time.Now().Add(-1 * (*p.inlineStoreTTL + 12*time.Hour)),
 		Valid: true,
 	}
 
@@ -908,22 +952,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 
 	if err != nil {
 		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
-	}
-
-	partitionDatesToKeep := make([]pgtype.Date, len(partitions))
-
-	for i, partition := range partitions {
-		partitionDatesToKeep[i] = pgtype.Date{
-			Time:  partition.PartitionDate.Time,
-			Valid: true,
-		}
-	}
-
-	// don't need a tx for this since we're just doing cleanup
-	err = p.queries.CleanUpCutoverJobOffsets(ctx, p.pool, partitionDatesToKeep)
-
-	if err != nil {
-		return fmt.Errorf("failed to clean up cutover job offsets: %w", err)
 	}
 
 	processId := sqlchelpers.UUIDFromStr(uuid.NewString())

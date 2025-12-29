@@ -20,7 +20,7 @@ type UserEventTaskPayload struct {
 func NewInternalEventMessage(tenantId string, timestamp time.Time, events ...v1.InternalTaskEvent) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"internal-event",
+		msgqueue.MsgIDInternalEvent,
 		false,
 		true,
 		events...,

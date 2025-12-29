@@ -6,7 +6,8 @@ from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
-from hatchet_sdk.clients.v1.api_client import BaseRestClient, retry
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.clients.v1.api_client import BaseRestClient
 
 
 class WorkflowsClient(BaseRestClient):
@@ -31,7 +32,6 @@ class WorkflowsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.get, workflow_id)
 
-    @retry
     def get(self, workflow_id: str) -> Workflow:
         """
         Get a workflow by its ID.
@@ -40,9 +40,11 @@ class WorkflowsClient(BaseRestClient):
         :return: The workflow.
         """
         with self.client() as client:
-            return self._wa(client).workflow_get(workflow_id)
+            workflow_get = tenacity_retry(
+                self._wa(client).workflow_get, self.client_config.tenacity
+            )
+            return workflow_get(workflow_id)
 
-    @retry
     def list(
         self,
         workflow_name: str | None = None,
@@ -59,7 +61,10 @@ class WorkflowsClient(BaseRestClient):
         :return: A list of workflows.
         """
         with self.client() as client:
-            return self._wa(client).workflow_list(
+            workflow_list = tenacity_retry(
+                self._wa(client).workflow_list, self.client_config.tenacity
+            )
+            return workflow_list(
                 tenant=self.client_config.tenant_id,
                 limit=limit,
                 offset=offset,
@@ -83,7 +88,6 @@ class WorkflowsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.list, workflow_name, limit, offset)
 
-    @retry
     def get_version(
         self, workflow_id: str, version: str | None = None
     ) -> WorkflowVersion:
@@ -95,7 +99,10 @@ class WorkflowsClient(BaseRestClient):
         :return: The workflow version.
         """
         with self.client() as client:
-            return self._wa(client).workflow_version_get(workflow_id, version)
+            workflow_get_version = tenacity_retry(
+                self._wa(client).workflow_version_get, self.client_config.tenacity
+            )
+            return workflow_get_version(workflow_id, version)
 
     async def aio_get_version(
         self, workflow_id: str, version: str | None = None

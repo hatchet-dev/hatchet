@@ -1,5 +1,5 @@
 import CopyToClipboard from './copy-to-clipboard';
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '@/components/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';

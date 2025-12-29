@@ -154,7 +154,7 @@ func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta [
 
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"user-event",
+		msgqueue.MsgIDUserEvent,
 		false,
 		true,
 		payloadTyped,
@@ -169,7 +169,7 @@ func createWebhookValidationFailureMsg(tenantId, webhookName, errorText string) 
 
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"failed-webhook-validation",
+		msgqueue.MsgIDFailedWebhookValidation,
 		false,
 		true,
 		payloadTyped,

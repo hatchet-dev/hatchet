@@ -102,7 +102,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 		for tenantId, payloads := range tenantIdToPayloads {
 			msg, err := msgqueue.NewTenantMessage(
 				tenantId.String(),
-				"workflow-run-finished",
+				msgqueue.MsgIDWorkflowRunFinished,
 				true,
 				false,
 				payloads...,

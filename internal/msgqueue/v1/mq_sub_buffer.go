@@ -251,7 +251,8 @@ type msgIdBuffer struct {
 	// waiting on the timer.
 	disableImmediateFlush bool
 
-	semaphore chan struct{}
+	semaphore        chan struct{}
+	semaphoreRelease chan time.Duration
 
 	dst DstFunc
 
@@ -267,18 +268,21 @@ func newMsgIDBuffer(ctx context.Context, tenantID, msgID string, dst DstFunc, fl
 		dst:                   dst,
 		disableImmediateFlush: disableImmediateFlush,
 		semaphore:             make(chan struct{}, maxConcurrency),
+		semaphoreRelease:      make(chan time.Duration, maxConcurrency),
 		flushInterval:         flushInterval,
 	}
 
 	b.startFlusher(ctx)
+	b.startSemaphoreReleaser(ctx)
 
 	return b
 }
 
 func (m *msgIdBuffer) startFlusher(ctx context.Context) {
-	ticker := time.NewTicker(m.flushInterval)
-
 	go func() {
+		ticker := time.NewTicker(m.flushInterval)
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -289,6 +293,26 @@ func (m *msgIdBuffer) startFlusher(ctx context.Context) {
 				if !m.disableImmediateFlush {
 					go m.flush()
 				}
+			}
+		}
+	}()
+}
+
+func (m *msgIdBuffer) startSemaphoreReleaser(ctx context.Context) {
+	go func() {
+		timer := time.NewTimer(0)
+		defer timer.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case delay := <-m.semaphoreRelease:
+				if delay > 0 {
+					timer.Reset(delay)
+					<-timer.C
+				}
+				<-m.semaphore
 			}
 		}
 	}()
@@ -305,8 +329,8 @@ func (m *msgIdBuffer) flush() {
 
 	defer func() {
 		go func() {
-			<-time.After(m.flushInterval - time.Since(startedFlush))
-			<-m.semaphore
+			delay := m.flushInterval - time.Since(startedFlush)
+			m.semaphoreRelease <- delay
 		}()
 	}()
 

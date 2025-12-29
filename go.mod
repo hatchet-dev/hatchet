@@ -23,7 +23,7 @@ require (
 	github.com/hatchet-dev/timediff v0.0.4
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
 	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb
-	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jackc/pgx/v5 v5.8.0
 	github.com/jackc/pgxlisten v0.0.0-20241106001234-1d6f6656415c
 	github.com/jackc/puddle/v2 v2.2.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
@@ -206,7 +206,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/getsentry/sentry-go v0.40.0
 	github.com/go-chi/chi v1.5.5
-	github.com/go-playground/validator/v10 v10.30.0
+	github.com/go-playground/validator/v10 v10.30.1
 	github.com/goccy/go-json v0.10.5
 	github.com/google/cel-go v0.26.1
 	github.com/google/uuid v1.6.0
@@ -236,7 +236,7 @@ require (
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251213004720-97cd9d5aeac2 // indirect
-	google.golang.org/grpc v1.77.0
+	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 )

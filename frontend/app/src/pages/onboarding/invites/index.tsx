@@ -1,10 +1,11 @@
 import { Button } from '@/components/v1/ui/button';
 import { useOrganizations } from '@/hooks/use-organizations';
-import api from '@/lib/api';
+import { useTenantDetails } from '@/hooks/use-tenant';
+import api, { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import { appRoutes } from '@/router';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { redirect, useLoaderData, useNavigate } from '@tanstack/react-router';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -52,7 +53,9 @@ export async function loader(_args: { request: Request }) {
 
 export default function Invites() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { handleApiError } = useApiError({});
+  const { setTenant } = useTenantDetails();
   const { acceptOrgInviteMutation, rejectOrgInviteMutation } =
     useOrganizations();
 
@@ -70,10 +73,23 @@ export default function Invites() {
       return data.tenantId;
     },
     onSuccess: async (tenantId: string) => {
-      navigate({
-        to: appRoutes.tenantRunsRoute.to,
-        params: { tenant: tenantId },
+      await queryClient.invalidateQueries({
+        queryKey: queries.user.listTenantMemberships.queryKey,
       });
+
+      const memberships = await queryClient.fetchQuery(
+        queries.user.listTenantMemberships,
+      );
+
+      const membership = memberships.rows?.find(
+        (m) => m.tenant?.metadata.id === tenantId,
+      );
+
+      if (membership?.tenant) {
+        setTenant(membership.tenant);
+      } else {
+        throw new Error('Tenant not found after accepting invite');
+      }
     },
     onError: handleApiError,
   });

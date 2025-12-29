@@ -2,7 +2,7 @@ import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools';
 import { useRouter } from '@tanstack/react-router';
-import { TanStackRouterDevtoolsPanel } from '@tanstack/router-devtools';
+import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
 import { useState } from 'react';
 
 export default function DevtoolsFooter() {
