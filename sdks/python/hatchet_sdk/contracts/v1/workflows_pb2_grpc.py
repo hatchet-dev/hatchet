@@ -55,10 +55,10 @@ class AdminServiceStub(object):
                 request_serializer=v1_dot_workflows__pb2.TriggerWorkflowRunRequest.SerializeToString,
                 response_deserializer=v1_dot_workflows__pb2.TriggerWorkflowRunResponse.FromString,
                 _registered_method=True)
-        self.GetRunPayloads = channel.unary_unary(
-                '/v1.AdminService/GetRunPayloads',
-                request_serializer=v1_dot_workflows__pb2.GetRunPayloadsRequest.SerializeToString,
-                response_deserializer=v1_dot_workflows__pb2.GetRunPayloadsResponse.FromString,
+        self.GetRunDetails = channel.unary_unary(
+                '/v1.AdminService/GetRunDetails',
+                request_serializer=v1_dot_workflows__pb2.GetRunDetailsRequest.SerializeToString,
+                response_deserializer=v1_dot_workflows__pb2.GetRunDetailsResponse.FromString,
                 _registered_method=True)
 
 
@@ -90,7 +90,7 @@ class AdminServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetRunPayloads(self, request, context):
+    def GetRunDetails(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -119,10 +119,10 @@ def add_AdminServiceServicer_to_server(servicer, server):
                     request_deserializer=v1_dot_workflows__pb2.TriggerWorkflowRunRequest.FromString,
                     response_serializer=v1_dot_workflows__pb2.TriggerWorkflowRunResponse.SerializeToString,
             ),
-            'GetRunPayloads': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetRunPayloads,
-                    request_deserializer=v1_dot_workflows__pb2.GetRunPayloadsRequest.FromString,
-                    response_serializer=v1_dot_workflows__pb2.GetRunPayloadsResponse.SerializeToString,
+            'GetRunDetails': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetRunDetails,
+                    request_deserializer=v1_dot_workflows__pb2.GetRunDetailsRequest.FromString,
+                    response_serializer=v1_dot_workflows__pb2.GetRunDetailsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -245,7 +245,7 @@ class AdminService(object):
             _registered_method=True)
 
     @staticmethod
-    def GetRunPayloads(request,
+    def GetRunDetails(request,
             target,
             options=(),
             channel_credentials=None,
@@ -258,9 +258,9 @@ class AdminService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/v1.AdminService/GetRunPayloads',
-            v1_dot_workflows__pb2.GetRunPayloadsRequest.SerializeToString,
-            v1_dot_workflows__pb2.GetRunPayloadsResponse.FromString,
+            '/v1.AdminService/GetRunDetails',
+            v1_dot_workflows__pb2.GetRunDetailsRequest.SerializeToString,
+            v1_dot_workflows__pb2.GetRunDetailsResponse.FromString,
             options,
             channel_credentials,
             insecure,

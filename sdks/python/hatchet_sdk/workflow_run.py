@@ -9,7 +9,7 @@ from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunLis
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
 
 if TYPE_CHECKING:
-    from hatchet_sdk.clients.admin import AdminClient
+    from hatchet_sdk.clients.admin import AdminClient, RunStatus
 
 
 class WorkflowRunRef:
@@ -48,7 +48,7 @@ class WorkflowRunRef:
 
         while True:
             try:
-                details = self.admin_client.get_payloads(self.workflow_run_id)
+                details = self.admin_client.get_details(self.workflow_run_id)
             except Exception as e:
                 retries += 1
 
@@ -60,14 +60,25 @@ class WorkflowRunRef:
                 time.sleep(1)
                 continue
 
-            if details.errors:
+            if details.status in [RunStatus.QUEUED, RunStatus.RUNNING]:
+                time.sleep(1)
+                continue
+
+            if details.status == RunStatus.FAILED:
                 raise FailedTaskRunExceptionGroup(
                     f"Workflow run {self.workflow_run_id} failed.",
-                    [TaskRunError.deserialize(e) for e in details.errors if e],
+                    [
+                        TaskRunError.deserialize(run.error)
+                        for run in details.task_runs.values()
+                        if run.error
+                    ],
                 )
 
-            if details.completed:
-                return details.output or {}
+            if details.status == RunStatus.COMPLETED:
+                return {
+                    readable_id: run.output
+                    for readable_id, run in details.task_runs.items()
+                } or {}
 
             raise ValueError(
                 f"Workflow run {self.workflow_run_id} has not completed yet."

@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import Generator
 from datetime import datetime
-from typing import Literal, TypeVar, cast
+from typing import TypeVar, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
@@ -36,6 +37,8 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 T = TypeVar("T")
 
 MAX_BULK_WORKFLOW_RUN_BATCH_SIZE = 1000
+
+RunStatus = V1TaskStatus
 
 
 class ScheduleTriggerWorkflowOptions(BaseModel):
@@ -66,13 +69,12 @@ class TaskRunDetail(BaseModel):
     readable_id: str
     output: JSONSerializableMapping | None = None
     error: str | None = None
-    in_terminal_state: bool = False
-    terminal_status: Literal["COMPLETED", "CANCELLED", "FAILED"] | None = None
+    status: V1TaskStatus
 
 
 class WorkflowRunDetail(BaseModel):
     external_id: str
-    all_finished: bool = False
+    status: RunStatus
     input: JSONSerializableMapping | None = None
     task_runs: dict[str, TaskRunDetail]
 
@@ -493,30 +495,34 @@ class AdminClient:
             workflow_run_listener=self.workflow_run_listener,
         )
 
-    def _proto_to_terminal_status(
-        self, proto_status: workflow_protos.WorkflowRunTerminalStatus
-    ) -> Literal["COMPLETED", "CANCELLED", "FAILED"] | None:
-        if proto_status == workflow_protos.WorkflowRunTerminalStatus.COMPLETED:
-            return "COMPLETED"
-        if proto_status == workflow_protos.WorkflowRunTerminalStatus.CANCELLED:
-            return "CANCELLED"
-        if proto_status == workflow_protos.WorkflowRunTerminalStatus.FAILED:
-            return "FAILED"
-        return None
+    def _proto_to_run_status(
+        self, proto_status: workflow_protos.RunStatus
+    ) -> RunStatus:
+        if proto_status == workflow_protos.RunStatus.COMPLETED:
+            return RunStatus.COMPLETED
+        if proto_status == workflow_protos.RunStatus.CANCELLED:
+            return RunStatus.CANCELLED
+        if proto_status == workflow_protos.RunStatus.FAILED:
+            return RunStatus.FAILED
+        if proto_status == workflow_protos.RunStatus.RUNNING:
+            return RunStatus.RUNNING
+        if proto_status == workflow_protos.RunStatus.QUEUED:
+            return RunStatus.QUEUED
+        raise ValueError(f"Unknown proto status: {proto_status}")
 
-    def get_payloads(self, external_id: str) -> WorkflowRunDetail:
+    def get_details(self, external_id: str) -> WorkflowRunDetail:
         if self.client is None:
             conn = new_conn(self.config, False)
             self.client = AdminServiceStub(conn)
 
         get_run_payloads = tenacity_retry(
-            self.client.GetRunPayloads, self.config.tenacity
+            self.client.GetRunDetails, self.config.tenacity
         )
 
         response = cast(
-            workflow_protos.GetRunPayloadsResponse,
+            workflow_protos.GetRunDetailsResponse,
             get_run_payloads(
-                workflow_protos.GetRunPayloadsRequest(external_id=external_id),
+                workflow_protos.GetRunDetailsRequest(external_id=external_id),
                 metadata=get_metadata(self.token),
             ),
         )
@@ -526,7 +532,7 @@ class AdminClient:
             input=(
                 json.loads(response.input.decode("utf-8")) if response.input else None
             ),
-            all_finished=response.all_finished,
+            status=self._proto_to_run_status(response.status),
             task_runs={
                 readable_id: TaskRunDetail(
                     readable_id=readable_id,
@@ -537,10 +543,7 @@ class AdminClient:
                         else None
                     ),
                     error=details.error if details.error else None,
-                    in_terminal_state=details.in_terminal_state,
-                    terminal_status=self._proto_to_terminal_status(
-                        details.terminal_status
-                    ),
+                    status=self._proto_to_run_status(details.status),
                 )
                 for readable_id, details in response.task_runs.items()
             },
