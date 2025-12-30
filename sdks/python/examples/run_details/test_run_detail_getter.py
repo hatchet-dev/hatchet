@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from examples.run_details.worker import MockInput, hatchet, run_detail_test_workflow
+from examples.run_details.worker import MockInput, run_detail_test_workflow
 from hatchet_sdk import Hatchet, V1TaskStatus
 
 

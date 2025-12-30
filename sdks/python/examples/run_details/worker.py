@@ -45,7 +45,7 @@ async def fail_step(input: MockInput, ctx: Context) -> None:
 
 @run_detail_test_workflow.task()
 async def step2(input: MockInput, ctx: Context) -> StepOutput:
-    time.sleep(5)
+    await asyncio.sleep(5)
     return StepOutput(random_number=random.randint(1, 100))
 
 
