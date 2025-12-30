@@ -116,7 +116,8 @@
   },
   "pnpm": {
     "overrides": {
-      "prismjs": "^1.30.0"
+      "prismjs": "^1.30.0",
+      "js-yaml": "^4.1.1"
     }
   }
 }
