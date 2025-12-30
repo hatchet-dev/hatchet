@@ -62,7 +62,10 @@ class WorkflowRunRef:
                 time.sleep(1)
                 continue
 
-            if details.status in [RunStatus.QUEUED, RunStatus.RUNNING]:
+            if (
+                details.status in [RunStatus.QUEUED, RunStatus.RUNNING]
+                or details.done is False
+            ):
                 time.sleep(1)
                 continue
 
