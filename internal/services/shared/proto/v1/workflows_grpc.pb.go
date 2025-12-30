@@ -26,7 +26,7 @@ type AdminServiceClient interface {
 	CancelTasks(ctx context.Context, in *CancelTasksRequest, opts ...grpc.CallOption) (*CancelTasksResponse, error)
 	ReplayTasks(ctx context.Context, in *ReplayTasksRequest, opts ...grpc.CallOption) (*ReplayTasksResponse, error)
 	TriggerWorkflowRun(ctx context.Context, in *TriggerWorkflowRunRequest, opts ...grpc.CallOption) (*TriggerWorkflowRunResponse, error)
-	GetRunPayloads(ctx context.Context, in *GetRunPayloadsRequest, opts ...grpc.CallOption) (*GetRunPayloadsResponse, error)
+	GetRunDetails(ctx context.Context, in *GetRunDetailsRequest, opts ...grpc.CallOption) (*GetRunDetailsResponse, error)
 }
 
 type adminServiceClient struct {
@@ -73,9 +73,9 @@ func (c *adminServiceClient) TriggerWorkflowRun(ctx context.Context, in *Trigger
 	return out, nil
 }
 
-func (c *adminServiceClient) GetRunPayloads(ctx context.Context, in *GetRunPayloadsRequest, opts ...grpc.CallOption) (*GetRunPayloadsResponse, error) {
-	out := new(GetRunPayloadsResponse)
-	err := c.cc.Invoke(ctx, "/v1.AdminService/GetRunPayloads", in, out, opts...)
+func (c *adminServiceClient) GetRunDetails(ctx context.Context, in *GetRunDetailsRequest, opts ...grpc.CallOption) (*GetRunDetailsResponse, error) {
+	out := new(GetRunDetailsResponse)
+	err := c.cc.Invoke(ctx, "/v1.AdminService/GetRunDetails", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ type AdminServiceServer interface {
 	CancelTasks(context.Context, *CancelTasksRequest) (*CancelTasksResponse, error)
 	ReplayTasks(context.Context, *ReplayTasksRequest) (*ReplayTasksResponse, error)
 	TriggerWorkflowRun(context.Context, *TriggerWorkflowRunRequest) (*TriggerWorkflowRunResponse, error)
-	GetRunPayloads(context.Context, *GetRunPayloadsRequest) (*GetRunPayloadsResponse, error)
+	GetRunDetails(context.Context, *GetRunDetailsRequest) (*GetRunDetailsResponse, error)
 	mustEmbedUnimplementedAdminServiceServer()
 }
 
@@ -110,8 +110,8 @@ func (UnimplementedAdminServiceServer) ReplayTasks(context.Context, *ReplayTasks
 func (UnimplementedAdminServiceServer) TriggerWorkflowRun(context.Context, *TriggerWorkflowRunRequest) (*TriggerWorkflowRunResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TriggerWorkflowRun not implemented")
 }
-func (UnimplementedAdminServiceServer) GetRunPayloads(context.Context, *GetRunPayloadsRequest) (*GetRunPayloadsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetRunPayloads not implemented")
+func (UnimplementedAdminServiceServer) GetRunDetails(context.Context, *GetRunDetailsRequest) (*GetRunDetailsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRunDetails not implemented")
 }
 func (UnimplementedAdminServiceServer) mustEmbedUnimplementedAdminServiceServer() {}
 
@@ -198,20 +198,20 @@ func _AdminService_TriggerWorkflowRun_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AdminService_GetRunPayloads_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetRunPayloadsRequest)
+func _AdminService_GetRunDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRunDetailsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AdminServiceServer).GetRunPayloads(ctx, in)
+		return srv.(AdminServiceServer).GetRunDetails(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/v1.AdminService/GetRunPayloads",
+		FullMethod: "/v1.AdminService/GetRunDetails",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AdminServiceServer).GetRunPayloads(ctx, req.(*GetRunPayloadsRequest))
+		return srv.(AdminServiceServer).GetRunDetails(ctx, req.(*GetRunDetailsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -240,8 +240,8 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AdminService_TriggerWorkflowRun_Handler,
 		},
 		{
-			MethodName: "GetRunPayloads",
-			Handler:    _AdminService_GetRunPayloads_Handler,
+			MethodName: "GetRunDetails",
+			Handler:    _AdminService_GetRunDetails_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -13,7 +13,7 @@ service AdminService {
     rpc CancelTasks(CancelTasksRequest) returns (CancelTasksResponse);
     rpc ReplayTasks(ReplayTasksRequest) returns (ReplayTasksResponse);
     rpc TriggerWorkflowRun(TriggerWorkflowRunRequest) returns (TriggerWorkflowRunResponse);
-    rpc GetRunPayloads(GetRunPayloadsRequest) returns (GetRunPayloadsResponse);
+    rpc GetRunDetails(GetRunDetailsRequest) returns (GetRunDetailsResponse);
 }
 
 message CancelTasksRequest {
@@ -184,7 +184,7 @@ message CreateWorkflowVersionResponse {
     string workflow_id = 2;
 }
 
-message GetRunPayloadsRequest {
+message GetRunDetailsRequest {
     string external_id = 1; // (required) the external id (uuid) of the workflow run
 }
 
@@ -196,7 +196,7 @@ message TaskRunDetail {
     string readable_id = 5; // the readable id of the task
 }
 
-message GetRunPayloadsResponse {
+message GetRunDetailsResponse {
     bytes input = 1; // the input payload for the workflow run
     RunStatus status = 2; // the status of the workflow run
     map<string, TaskRunDetail> task_runs = 3; // map of task run external ids to their details
