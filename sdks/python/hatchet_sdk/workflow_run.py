@@ -80,6 +80,9 @@ class WorkflowRunRef:
                     for readable_id, run in details.task_runs.items()
                 } or {}
 
+            if details.status == RunStatus.CANCELLED:
+                raise ValueError(f"Workflow run {self.workflow_run_id} was cancelled.")
+
             raise ValueError(
                 f"Workflow run {self.workflow_run_id} has not completed yet."
             )
