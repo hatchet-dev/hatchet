@@ -3924,10 +3924,9 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		return nil, nil
 	}
 
-	isDag := len(flat) > 1
-
 	var inputRetrieveOpt RetrievePayloadOpts
 	firstTask := flat[0]
+	isDag := firstTask.DagID.Valid
 
 	if isDag {
 		inputRetrieveOpt = RetrievePayloadOpts{
