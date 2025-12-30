@@ -3908,18 +3908,16 @@ func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*tim
 }
 
 type TaskRunDetails struct {
-	OutputPayload     []byte
-	IsInTerminalState bool
-	Status            string
-	Error             *string
-	ExternalId        string
+	OutputPayload []byte
+	Status        string
+	Error         *string
+	ExternalId    string
 }
 
 type StepReadableId string
 
 type WorkflowRunDetails struct {
 	InputPayload        []byte
-	AllFinished         bool
 	ReadableIdToDetails map[StepReadableId]TaskRunDetails
 }
 
@@ -3929,6 +3927,8 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	if err != nil {
 		return nil, fmt.Errorf("failed to flatten external ids: %w", err)
 	}
+
+	fmt.Println("found n tasks in workflow run:", len(flat))
 
 	finalizedWorkflowRuns, err := r.ListFinalizedWorkflowRuns(ctx, tenantId, []string{externalId})
 
@@ -3968,35 +3968,44 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	}
 
 	input := payloads[inputRetrieveOpt]
+	taskRunDetails := make(map[StepReadableId]TaskRunDetails)
+
+	for _, task := range flat {
+		// default everything to QUEUED
+		// we'll overwrite later with more information if available
+		taskRunDetails[StepReadableId(task.StepReadableID)] = TaskRunDetails{
+			OutputPayload: nil,
+			Status:        "QUEUED",
+			Error:         nil,
+			ExternalId:    task.ExternalID.String(),
+		}
+	}
 
 	if len(flat) > 0 && len(finalizedWorkflowRuns) == 0 {
 		return &WorkflowRunDetails{
 			InputPayload: input,
-			AllFinished:  false,
 		}, nil
 	}
 
 	outputs := make(map[string][]byte)
 	errors := make(map[string]string)
 	finalizedRun := finalizedWorkflowRuns[0]
-	taskRunDetails := make(map[StepReadableId]TaskRunDetails)
 
 	for _, r := range finalizedRun.OutputEvents {
+		fmt.Println("processing output for step readable id:", r.StepReadableID, "with event type:", r.EventType)
 		outputs[r.StepReadableID] = r.Output
 		errors[r.StepReadableID] = r.ErrorMessage
 
 		taskRunDetails[StepReadableId(r.StepReadableID)] = TaskRunDetails{
-			OutputPayload:     r.Output,
-			IsInTerminalState: true,
-			Status:            string(r.EventType),
-			Error:             &r.ErrorMessage,
-			ExternalId:        r.TaskExternalId,
+			OutputPayload: r.Output,
+			Status:        string(r.EventType),
+			Error:         &r.ErrorMessage,
+			ExternalId:    r.TaskExternalId,
 		}
 	}
 
 	return &WorkflowRunDetails{
 		InputPayload:        input,
-		AllFinished:         true,
 		ReadableIdToDetails: taskRunDetails,
 	}, nil
 }
