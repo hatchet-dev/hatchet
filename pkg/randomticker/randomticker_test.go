@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/scheduling/v0/randomticker"
+	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 )
 
 func TestRandomTicker(t *testing.T) {

@@ -12,7 +12,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -25,7 +24,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
-	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -607,8 +605,6 @@ type ServerConfig struct {
 
 	Namespaces []string
 
-	MessageQueue msgqueue.MessageQueue
-
 	MessageQueueV1 msgqueuev1.MessageQueue
 
 	Logger *zerolog.Logger
@@ -634,8 +630,6 @@ type ServerConfig struct {
 	TenantAlerter *alerting.TenantAlertManager
 
 	AdditionalOAuthConfigs map[string]*oauth2.Config
-
-	SchedulingPool *v0.SchedulingPool
 
 	SchedulingPoolV1 *v1.SchedulingPool
 

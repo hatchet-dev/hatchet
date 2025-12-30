@@ -21,9 +21,6 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/analytics/posthog"
@@ -46,7 +43,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
-	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -407,7 +403,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create session store: %w", err)
 	}
 
-	var mq msgqueue.MessageQueue
 	var mqv1 msgqueuev1.MessageQueue
 	cleanup1 := func() error {
 		return nil
@@ -418,14 +413,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	if cf.MessageQueue.Enabled {
 		switch strings.ToLower(cf.MessageQueue.Kind) {
 		case "postgres":
-			var cleanupv0 func() error
 			var cleanupv1 func() error
-
-			cleanupv0, mq = postgres.NewPostgresMQ(
-				dc.EngineRepository.MessageQueue(),
-				postgres.WithLogger(&l),
-				postgres.WithQos(cf.MessageQueue.Postgres.Qos),
-			)
 
 			cleanupv1, mqv1, err = pgmqv1.NewPostgresMQ(
 				dc.EngineRepository.MessageQueue(),
@@ -438,10 +426,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			}
 
 			cleanup1 = func() error {
-				if err := cleanupv0(); err != nil {
-					return err
-				}
-
 				return cleanupv1()
 			}
 		case "rabbitmq":
@@ -449,16 +433,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				return nil, nil, fmt.Errorf("using RabbitMQ as message queue requires a URL to be set")
 			}
 
-			var cleanupv0 func() error
 			var cleanupv1 func() error
-
-			cleanupv0, mq = rabbitmq.New(
-				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
-				rabbitmq.WithLogger(&l),
-				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
-				rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
-				rabbitmq.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
-			)
 
 			cleanupv1, mqv1, err = rabbitmqv1.New(
 				rabbitmqv1.WithURL(cf.MessageQueue.RabbitMQ.URL),
@@ -479,10 +454,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			}
 
 			cleanup1 = func() error {
-				if err := cleanupv0(); err != nil {
-					return err
-				}
-
 				return cleanupv1()
 			}
 		}
@@ -491,7 +462,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			ingestor.WithEventRepository(dc.EngineRepository.Event()),
 			ingestor.WithStreamEventsRepository(dc.EngineRepository.StreamEvent()),
 			ingestor.WithLogRepository(dc.EngineRepository.Log()),
-			ingestor.WithMessageQueue(mq),
 			ingestor.WithMessageQueueV1(mqv1),
 			ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
 			ingestor.WithStepRunRepository(dc.EngineRepository.StepRun()),
@@ -648,16 +618,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	v := validator.NewDefaultValidator()
 
-	schedulingPool, cleanupSchedulingPool, err := v0.NewSchedulingPool(
-		dc.EngineRepository.Scheduler(),
-		&queueLogger,
-		cf.Runtime.SingleQueueLimit,
-	)
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not create scheduling pool: %w", err)
-	}
-
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
 		&queueLogger,
@@ -675,10 +635,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
-
-		if err := cleanupSchedulingPool(); err != nil {
-			return fmt.Errorf("error cleaning up scheduling pool: %w", err)
-		}
 
 		if err := cleanupSchedulingPoolV1(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
@@ -724,7 +680,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Auth:                   auth,
 		Encryption:             encryptionSvc,
 		Layer:                  dc,
-		MessageQueue:           mq,
 		MessageQueueV1:         mqv1,
 		Services:               services,
 		PausedControllers:      pausedControllers,
@@ -742,7 +697,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		AdditionalLoggers:      cf.AdditionalLoggers,
 		EnableDataRetention:    cf.EnableDataRetention,
 		EnableWorkerRetention:  cf.EnableWorkerRetention,
-		SchedulingPool:         schedulingPool,
 		SchedulingPoolV1:       schedulingPoolV1,
 		Version:                version,
 		Sampling:               cf.Sampling,
