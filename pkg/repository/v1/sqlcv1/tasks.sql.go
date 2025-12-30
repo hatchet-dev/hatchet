@@ -581,13 +581,11 @@ WITH lookup_rows AS (
         t.child_index,
         t.child_key,
         t.step_readable_id,
-        d.external_id AS workflow_run_external_id
+        l.external_id AS workflow_run_external_id
     FROM
         lookup_rows l
     JOIN
-        v1_dag d ON d.id = l.dag_id AND d.inserted_at = l.inserted_at
-    JOIN
-        v1_dag_to_task dt ON dt.dag_id = d.id AND dt.dag_inserted_at = d.inserted_at
+        v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
     JOIN
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     WHERE
