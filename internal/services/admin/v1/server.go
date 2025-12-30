@@ -428,6 +428,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 	derivedWorkflowRunStatus := contracts.RunStatus_COMPLETED
 	allQueued := true
 	allCancelled := true
+	done := false
 
 	for readableId, details := range details.ReadableIdToDetails {
 		var status *contracts.RunStatus
@@ -436,24 +437,29 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		case "QUEUED":
 			status = contracts.RunStatus_QUEUED.Enum()
 			allCancelled = false
+			done = false
 		case "RUNNING":
 			status = contracts.RunStatus_RUNNING.Enum()
 			derivedWorkflowRunStatus = contracts.RunStatus_RUNNING
 			allQueued = false
 			allCancelled = false
+			done = false
 		case "COMPLETED":
 			status = contracts.RunStatus_COMPLETED.Enum()
 			allQueued = false
 			allCancelled = false
+			done = true
 		case "FAILED":
 			status = contracts.RunStatus_FAILED.Enum()
 			derivedWorkflowRunStatus = contracts.RunStatus_FAILED
 			allQueued = false
 			allCancelled = false
+			done = true
 		case "CANCELLED":
 			status = contracts.RunStatus_CANCELLED.Enum()
 			derivedWorkflowRunStatus = contracts.RunStatus_FAILED
 			allQueued = false
+			done = true
 		}
 
 		taskRunDetails[string(readableId)] = &contracts.TaskRunDetail{
@@ -477,6 +483,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		Input:    details.InputPayload,
 		TaskRuns: taskRunDetails,
 		Status:   derivedWorkflowRunStatus,
+		Done:     done,
 	}, nil
 }
 
