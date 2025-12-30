@@ -1,6 +1,6 @@
 //go:build !e2e && !load && !rampup && !integration
 
-package postgres
+package v1
 
 import (
 	"sync"
@@ -8,14 +8,12 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 func TestMultiplexedListener_SubscribeUnsubscribe(t *testing.T) {
 	logger := zerolog.Nop()
 	m := &multiplexedListener{
-		subscribers: make(map[string][]chan *repository.PubSubMessage),
+		subscribers: make(map[string][]chan *PubSubMessage),
 		l:           &logger,
 	}
 
@@ -65,7 +63,7 @@ func TestMultiplexedListener_SubscribeUnsubscribe(t *testing.T) {
 func TestMultiplexedListener_MultipleSubscribers(t *testing.T) {
 	logger := zerolog.Nop()
 	m := &multiplexedListener{
-		subscribers: make(map[string][]chan *repository.PubSubMessage),
+		subscribers: make(map[string][]chan *PubSubMessage),
 		l:           &logger,
 	}
 
@@ -120,7 +118,7 @@ func TestMultiplexedListener_MultipleSubscribers(t *testing.T) {
 func TestMultiplexedListener_PublishToSubscribers(t *testing.T) {
 	logger := zerolog.Nop()
 	m := &multiplexedListener{
-		subscribers: make(map[string][]chan *repository.PubSubMessage),
+		subscribers: make(map[string][]chan *PubSubMessage),
 		l:           &logger,
 	}
 
@@ -132,7 +130,7 @@ func TestMultiplexedListener_PublishToSubscribers(t *testing.T) {
 	ch2 := m.subscribe(queueName)
 
 	// Create a test message
-	msg := &repository.PubSubMessage{
+	msg := &PubSubMessage{
 		QueueName: queueName,
 		Payload:   testPayload,
 	}
@@ -173,12 +171,12 @@ func TestMultiplexedListener_PublishToSubscribers(t *testing.T) {
 func TestMultiplexedListener_PublishToNonExistentQueue(t *testing.T) {
 	logger := zerolog.Nop()
 	m := &multiplexedListener{
-		subscribers: make(map[string][]chan *repository.PubSubMessage),
+		subscribers: make(map[string][]chan *PubSubMessage),
 		l:           &logger,
 	}
 
 	// Create a test message for a queue with no subscribers
-	msg := &repository.PubSubMessage{
+	msg := &PubSubMessage{
 		QueueName: "non-existent-queue",
 		Payload:   []byte("test-payload"),
 	}
@@ -190,7 +188,7 @@ func TestMultiplexedListener_PublishToNonExistentQueue(t *testing.T) {
 func TestMultiplexedListener_ConcurrentAccess(t *testing.T) {
 	logger := zerolog.Nop()
 	m := &multiplexedListener{
-		subscribers: make(map[string][]chan *repository.PubSubMessage),
+		subscribers: make(map[string][]chan *PubSubMessage),
 		l:           &logger,
 	}
 
@@ -238,7 +236,7 @@ func TestMultiplexedListener_ConcurrentAccess(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for range messagesPerGoroutine {
-			msg := &repository.PubSubMessage{
+			msg := &PubSubMessage{
 				QueueName: queueName,
 				Payload:   []byte("test-payload"),
 			}

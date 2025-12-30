@@ -1,4 +1,4 @@
-package postgres
+package v1
 
 import (
 	"context"
@@ -12,8 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgxlisten"
 	"github.com/rs/zerolog"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 // multiplexChannel is a single channel used for all multiplexed messages.
@@ -29,7 +27,7 @@ type multiplexedListener struct {
 
 	l *zerolog.Logger
 
-	subscribers   map[string][]chan *repository.PubSubMessage
+	subscribers   map[string][]chan *PubSubMessage
 	subscribersMu sync.RWMutex
 
 	listenerCtx context.Context
@@ -41,7 +39,7 @@ func newMultiplexedListener(l *zerolog.Logger, pool *pgxpool.Pool) *multiplexedL
 
 	return &multiplexedListener{
 		pool:        pool,
-		subscribers: make(map[string][]chan *repository.PubSubMessage),
+		subscribers: make(map[string][]chan *PubSubMessage),
 		cancel:      cancel,
 		listenerCtx: listenerCtx,
 		l:           l,
@@ -76,7 +74,7 @@ func (m *multiplexedListener) startListening() {
 			return nil
 		}
 
-		pubSubMsg := &repository.PubSubMessage{}
+		pubSubMsg := &PubSubMessage{}
 
 		err := json.Unmarshal([]byte(notification.Payload), pubSubMsg)
 
@@ -108,7 +106,7 @@ func (m *multiplexedListener) startListening() {
 	m.isListening = true
 }
 
-func (m *multiplexedListener) publishToSubscribers(msg *repository.PubSubMessage) {
+func (m *multiplexedListener) publishToSubscribers(msg *PubSubMessage) {
 	m.subscribersMu.RLock()
 	defer m.subscribersMu.RUnlock()
 
@@ -124,16 +122,16 @@ func (m *multiplexedListener) publishToSubscribers(msg *repository.PubSubMessage
 	}
 }
 
-func (m *multiplexedListener) subscribe(queueName string) chan *repository.PubSubMessage {
+func (m *multiplexedListener) subscribe(queueName string) chan *PubSubMessage {
 	m.subscribersMu.Lock()
 	defer m.subscribersMu.Unlock()
 
-	ch := make(chan *repository.PubSubMessage, 100) // Buffered channel
+	ch := make(chan *PubSubMessage, 100) // Buffered channel
 	m.subscribers[queueName] = append(m.subscribers[queueName], ch)
 	return ch
 }
 
-func (m *multiplexedListener) unsubscribe(queueName string, ch chan *repository.PubSubMessage) {
+func (m *multiplexedListener) unsubscribe(queueName string, ch chan *PubSubMessage) {
 	m.subscribersMu.Lock()
 	defer m.subscribersMu.Unlock()
 
@@ -152,7 +150,7 @@ func (m *multiplexedListener) unsubscribe(queueName string, ch chan *repository.
 }
 
 // NOTE: name is the target channel, not the global multiplex channel
-func (m *multiplexedListener) listen(ctx context.Context, name string, f func(ctx context.Context, notification *repository.PubSubMessage) error) error {
+func (m *multiplexedListener) listen(ctx context.Context, name string, f func(ctx context.Context, notification *PubSubMessage) error) error {
 	m.startListening()
 
 	// Subscribe to the channel for the specific queue
@@ -167,7 +165,7 @@ func (m *multiplexedListener) listen(ctx context.Context, name string, f func(ct
 				return nil
 			}
 			// Spawn handler as goroutine to avoid blocking message processing
-			go func(msg *repository.PubSubMessage) {
+			go func(msg *PubSubMessage) {
 				err := f(ctx, msg)
 				if err != nil {
 					m.l.Error().Err(err).Msg("error processing notification")
@@ -181,7 +179,7 @@ func (m *multiplexedListener) listen(ctx context.Context, name string, f func(ct
 
 // notify sends a notification through the Postgres channel.
 func (m *multiplexedListener) notify(ctx context.Context, name string, payload string) error {
-	pubSubMsg := &repository.PubSubMessage{
+	pubSubMsg := &PubSubMessage{
 		QueueName: name,
 		Payload:   []byte(payload),
 	}

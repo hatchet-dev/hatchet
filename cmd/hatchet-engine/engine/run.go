@@ -325,7 +325,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if sc.HasService("retention") {
 		rc, err := retention.New(
 			retention.WithAlerter(sc.Alerter),
-			retention.WithRepository(sc.EngineRepository),
+			retention.WithRepository(sc.V1),
 			retention.WithLogger(sc.Logger),
 			retention.WithTenantAlerter(sc.TenantAlerter),
 			retention.WithPartition(p),
@@ -586,7 +586,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		rc, err := retention.New(
 			retention.WithAlerter(sc.Alerter),
-			retention.WithRepository(sc.EngineRepository),
+			retention.WithRepository(sc.V1),
 			retention.WithLogger(sc.Logger),
 			retention.WithTenantAlerter(sc.TenantAlerter),
 			retention.WithPartition(p),

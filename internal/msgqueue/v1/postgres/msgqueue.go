@@ -16,13 +16,13 @@ import (
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type PostgresMessageQueue struct {
-	repo repository.MessageQueueRepository
+	repo v1.MessageQueueRepository
 	l    *zerolog.Logger
 	qos  int
 
@@ -62,7 +62,7 @@ func WithQos(qos int) MessageQueueImplOpt {
 	}
 }
 
-func NewPostgresMQ(repo repository.MessageQueueRepository, fs ...MessageQueueImplOpt) (func() error, *PostgresMessageQueue, error) {
+func NewPostgresMQ(repo v1.MessageQueueRepository, fs ...MessageQueueImplOpt) (func() error, *PostgresMessageQueue, error) {
 	opts := defaultMessageQueueImplOpts()
 
 	for _, f := range fs {
@@ -235,7 +235,7 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		return nil
 	}
 
-	do := func(messages []*dbsqlc.ReadMessagesRow) error {
+	do := func(messages []*sqlcv1.ReadMessagesRow) error {
 		eg := &errgroup.Group{}
 
 		for _, message := range messages {
@@ -289,7 +289,7 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 
 	// start the listener
 	go func() {
-		err := p.repo.Listen(subscribeCtx, queue.Name(), func(ctx context.Context, notification *repository.PubSubMessage) error {
+		err := p.repo.Listen(subscribeCtx, queue.Name(), func(ctx context.Context, notification *v1.PubSubMessage) error {
 			// if this is not a durable queue, and the message starts with JSON '{', then we process the message directly
 			if !queue.Durable() && len(notification.Payload) >= 1 && notification.Payload[0] == '{' {
 				var task msgqueue.Message

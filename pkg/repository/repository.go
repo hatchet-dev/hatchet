@@ -33,7 +33,6 @@ type EngineRepository interface {
 	StreamEvent() StreamEventsEngineRepository
 	RateLimit() RateLimitEngineRepository
 	WebhookWorker() WebhookWorkerEngineRepository
-	MessageQueue() MessageQueueRepository
 }
 
 type EntitlementsRepository interface {

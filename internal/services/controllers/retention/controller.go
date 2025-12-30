@@ -13,7 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 type RetentionController interface {
@@ -22,7 +22,7 @@ type RetentionController interface {
 
 type RetentionControllerImpl struct {
 	l               *zerolog.Logger
-	repo            repository.EngineRepository
+	repo            v1.Repository
 	dv              datautils.DataDecoderValidator
 	s               gocron.Scheduler
 	tenantAlerter   *alerting.TenantAlertManager
@@ -37,7 +37,7 @@ type RetentionControllerOpt func(*RetentionControllerOpts)
 
 type RetentionControllerOpts struct {
 	l               *zerolog.Logger
-	repo            repository.EngineRepository
+	repo            v1.Repository
 	dv              datautils.DataDecoderValidator
 	ta              *alerting.TenantAlertManager
 	alerter         hatcheterrors.Alerter
@@ -67,7 +67,7 @@ func WithLogger(l *zerolog.Logger) RetentionControllerOpt {
 	}
 }
 
-func WithRepository(r repository.EngineRepository) RetentionControllerOpt {
+func WithRepository(r v1.Repository) RetentionControllerOpt {
 	return func(opts *RetentionControllerOpts) {
 		opts.repo = r
 	}
@@ -158,22 +158,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 	rc.l.Debug().Msg("starting retention controller")
 
 	ctx, cancel := context.WithCancel(context.Background())
-
-	if rc.workerRetention {
-		workerInterval := time.Hour * 60 // run every 1 hour
-
-		_, err := rc.s.NewJob(
-			gocron.DurationJob(workerInterval),
-			gocron.NewTask(
-				rc.runDeleteOldWorkers(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteOldWorkers: %w", err)
-		}
-	}
 
 	if rc.queueRetention {
 		queueInterval := time.Second * 60

@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -21,6 +22,7 @@ type Repository interface {
 	APIToken() APITokenRepository
 	Dispatcher() DispatcherRepository
 	Health() HealthRepository
+	MessageQueue() MessageQueueRepository
 	Triggers() TriggerRepository
 	Tasks() TaskRepository
 	Scheduler() SchedulerRepository
@@ -45,6 +47,7 @@ type repositoryImpl struct {
 	apiToken     APITokenRepository
 	dispatcher   DispatcherRepository
 	health       HealthRepository
+	messageQueue MessageQueueRepository
 	triggers     TriggerRepository
 	tasks        TaskRepository
 	scheduler    SchedulerRepository
@@ -76,10 +79,13 @@ func NewRepository(
 
 	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, payloadStoreOpts)
 
+	mq, cleanupMq := newMessageQueueRepository(shared)
+
 	impl := &repositoryImpl{
 		apiToken:     newAPITokenRepository(shared),
 		dispatcher:   newDispatcherRepository(shared),
 		health:       newHealthRepository(shared),
+		messageQueue: mq,
 		triggers:     newTriggerRepository(shared),
 		tasks:        newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler:    newSchedulerRepository(shared),
@@ -98,7 +104,17 @@ func NewRepository(
 	}
 
 	return impl, func() error {
-		return cleanupShared()
+		var multiErr error
+
+		if err := cleanupMq(); err != nil {
+			multiErr = fmt.Errorf("failed to cleanup message queue repository: %w", err)
+		}
+
+		if err := cleanupShared(); err != nil {
+			multiErr = fmt.Errorf("failed to cleanup shared repository: %w", err)
+		}
+
+		return multiErr
 	}
 }
 
@@ -116,6 +132,10 @@ func (r *repositoryImpl) Health() HealthRepository {
 
 func (r *repositoryImpl) Triggers() TriggerRepository {
 	return r.triggers
+}
+
+func (r *repositoryImpl) MessageQueue() MessageQueueRepository {
+	return r.messageQueue
 }
 
 func (r *repositoryImpl) Tasks() TaskRepository {

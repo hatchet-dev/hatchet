@@ -1,18 +1,40 @@
-package postgres
+package v1
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
+
+type PubSubMessage struct {
+	QueueName string `json:"queue_name"`
+	Payload   []byte `json:"payload"`
+}
+
+type MessageQueueRepository interface {
+	// PubSub
+	Listen(ctx context.Context, name string, f func(ctx context.Context, notification *PubSubMessage) error) error
+	Notify(ctx context.Context, name string, payload string) error
+
+	// Queues
+	BindQueue(ctx context.Context, queue string, durable, autoDeleted, exclusive bool, exclusiveConsumer *string) error
+	UpdateQueueLastActive(ctx context.Context, queue string) error
+	CleanupQueues(ctx context.Context) error
+
+	// Messages
+	AddMessage(ctx context.Context, queue string, payload []byte) error
+	ReadMessages(ctx context.Context, queue string, qos int) ([]*sqlcv1.ReadMessagesRow, error)
+	AckMessage(ctx context.Context, id int64) error
+	CleanupMessageQueueItems(ctx context.Context) error
+}
 
 type messageQueueRepository struct {
 	*sharedRepository
@@ -20,7 +42,7 @@ type messageQueueRepository struct {
 	m *multiplexedListener
 }
 
-func NewMessageQueueRepository(shared *sharedRepository) (*messageQueueRepository, func() error) {
+func newMessageQueueRepository(shared *sharedRepository) (*messageQueueRepository, func() error) {
 	m := newMultiplexedListener(shared.l, shared.pool)
 
 	return &messageQueueRepository{
@@ -32,7 +54,7 @@ func NewMessageQueueRepository(shared *sharedRepository) (*messageQueueRepositor
 		}
 }
 
-func (mq *messageQueueRepository) Listen(ctx context.Context, name string, f func(ctx context.Context, notification *repository.PubSubMessage) error) error {
+func (mq *messageQueueRepository) Listen(ctx context.Context, name string, f func(ctx context.Context, notification *PubSubMessage) error) error {
 	return mq.m.listen(ctx, name, f)
 }
 
@@ -41,11 +63,19 @@ func (mq *messageQueueRepository) Notify(ctx context.Context, name string, paylo
 }
 
 func (m *messageQueueRepository) AddMessage(ctx context.Context, queue string, payload []byte) error {
-	// NOTE: hack for tenant, just passing in an empty string for now
-	_, err := m.bulkAddMQBuffer.FireAndWait(ctx, "", addMessage{
-		queue:   queue,
-		payload: payload,
+	p := []sqlcv1.BulkAddMessageParams{}
+
+	p = append(p, sqlcv1.BulkAddMessageParams{
+		QueueId: pgtype.Text{
+			String: queue,
+			Valid:  true,
+		},
+		Payload:   payload,
+		ExpiresAt: sqlchelpers.TimestampFromTime(time.Now().UTC().Add(5 * time.Minute)),
+		ReadAfter: sqlchelpers.TimestampFromTime(time.Now().UTC()),
 	})
+
+	_, err := m.queries.BulkAddMessage(ctx, m.pool, p)
 
 	return err
 }
@@ -56,7 +86,7 @@ func (m *messageQueueRepository) BindQueue(ctx context.Context, queue string, du
 		return errors.New("exclusive queue must have exclusive consumer")
 	}
 
-	params := dbsqlc.UpsertMessageQueueParams{
+	params := sqlcv1.UpsertMessageQueueParams{
 		Name:        queue,
 		Durable:     durable,
 		Autodeleted: autoDeleted,
@@ -80,19 +110,18 @@ func (m *messageQueueRepository) CleanupQueues(ctx context.Context) error {
 	return m.queries.CleanupMessageQueue(ctx, m.pool)
 }
 
-func (m *messageQueueRepository) ReadMessages(ctx context.Context, queue string, qos int) ([]*dbsqlc.ReadMessagesRow, error) {
+func (m *messageQueueRepository) ReadMessages(ctx context.Context, queue string, qos int) ([]*sqlcv1.ReadMessagesRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "pgmq-read-messages")
 	defer span.End()
 
-	return m.queries.ReadMessages(ctx, m.pool, dbsqlc.ReadMessagesParams{
+	return m.queries.ReadMessages(ctx, m.pool, sqlcv1.ReadMessagesParams{
 		Queueid: queue,
 		Limit:   pgtype.Int4{Int32: int32(qos), Valid: true}, // nolint: gosec
 	})
 }
 
 func (m *messageQueueRepository) AckMessage(ctx context.Context, id int64) error {
-	// NOTE: hack for tenant, just passing in an empty string for now
-	return m.bulkAckMQBuffer.FireForget("", id)
+	return m.queries.BulkAckMessages(ctx, m.pool, []int64{id})
 }
 
 func (m *messageQueueRepository) CleanupMessageQueueItems(ctx context.Context) error {
@@ -140,7 +169,7 @@ func (m *messageQueueRepository) CleanupMessageQueueItems(ctx context.Context) e
 		}
 
 		// get the next batch of queue items
-		err := m.queries.CleanupMessageQueueItems(ctx, m.pool, dbsqlc.CleanupMessageQueueItemsParams{
+		err := m.queries.CleanupMessageQueueItems(ctx, m.pool, sqlcv1.CleanupMessageQueueItemsParams{
 			Minid: minId,
 			Maxid: minId + batchSize*currBatch,
 		})

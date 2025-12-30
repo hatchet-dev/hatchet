@@ -401,7 +401,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			var cleanupv1 func() error
 
 			cleanupv1, mqv1, err = pgmqv1.NewPostgresMQ(
-				dc.EngineRepository.MessageQueue(),
+				dc.V1.MessageQueue(),
 				pgmqv1.WithLogger(&l),
 				pgmqv1.WithQos(cf.MessageQueue.Postgres.Qos),
 			)

@@ -187,7 +187,6 @@ type engineRepository struct {
 	streamEvent    repository.StreamEventsEngineRepository
 	rateLimit      repository.RateLimitEngineRepository
 	webhookWorker  repository.WebhookWorkerEngineRepository
-	mq             repository.MessageQueueRepository
 }
 
 func (r *engineRepository) StepRun() repository.StepRunEngineRepository {
@@ -234,10 +233,6 @@ func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineReposit
 	return r.webhookWorker
 }
 
-func (r *engineRepository) MessageQueue() repository.MessageQueueRepository {
-	return r.mq
-}
-
 func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PostgresRepositoryOpt) (func() error, repository.EngineRepository, error) {
 	opts := defaultPostgresRepositoryOpts()
 
@@ -263,16 +258,9 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 		return nil, nil, err
 	}
 
-	mq, cleanupMQ := NewMessageQueueRepository(shared)
-
 	return func() error {
 			rlCache.Stop()
 			queueCache.Stop()
-			if cleanupMQ != nil {
-				if err := cleanupMQ(); err != nil {
-					opts.l.Error().Err(err).Msg("error cleaning up message queue repository")
-				}
-			}
 
 			return cleanup()
 		}, &engineRepository{
@@ -287,7 +275,6 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
 			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
-			mq:             mq,
 		},
 		err
 }
