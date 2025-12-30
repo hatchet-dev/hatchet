@@ -5,7 +5,6 @@ import (
 )
 
 type APIRepository interface {
-	Event() EventAPIRepository
 	Tenant() TenantAPIRepository
 	TenantAlertingSettings() TenantAlertingRepository
 	TenantInvite() TenantInviteRepository
@@ -24,7 +23,6 @@ type APIRepository interface {
 }
 
 type EngineRepository interface {
-	Event() EventEngineRepository
 	GetGroupKeyRun() GetGroupKeyRunEngineRepository
 	JobRun() JobRunEngineRepository
 	StepRun() StepRunEngineRepository

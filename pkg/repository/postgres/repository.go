@@ -17,7 +17,6 @@ import (
 )
 
 type apiRepository struct {
-	event          repository.EventAPIRepository
 	tenant         repository.TenantAPIRepository
 	tenantAlerting repository.TenantAlertingRepository
 	tenantInvite   repository.TenantInviteRepository
@@ -104,7 +103,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 	}
 
 	return &apiRepository{
-		event:          NewEventAPIRepository(shared),
 		tenant:         NewTenantAPIRepository(shared, opts.cache, defaultEngineVersion),
 		tenantAlerting: NewTenantAlertingRepository(shared, opts.cache),
 		tenantInvite:   NewTenantInviteRepository(shared),
@@ -121,10 +119,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 		securityCheck:  NewSecurityCheckRepository(shared),
 		webhookWorker:  NewWebhookWorkerRepository(shared),
 	}, cleanup, err
-}
-
-func (r *apiRepository) Event() repository.EventAPIRepository {
-	return r.event
 }
 
 func (r *apiRepository) Tenant() repository.TenantAPIRepository {
@@ -188,7 +182,6 @@ func (r *apiRepository) WebhookWorker() repository.WebhookWorkerRepository {
 }
 
 type engineRepository struct {
-	event          repository.EventEngineRepository
 	getGroupKeyRun repository.GetGroupKeyRunEngineRepository
 	jobRun         repository.JobRunEngineRepository
 	step           repository.StepRepository
@@ -204,10 +197,6 @@ type engineRepository struct {
 	rateLimit      repository.RateLimitEngineRepository
 	webhookWorker  repository.WebhookWorkerEngineRepository
 	mq             repository.MessageQueueRepository
-}
-
-func (r *engineRepository) Event() repository.EventEngineRepository {
-	return r.event
 }
 
 func (r *engineRepository) GetGroupKeyRun() repository.GetGroupKeyRunEngineRepository {
@@ -308,7 +297,6 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 			return cleanup()
 		}, &engineRepository{
-			event:          NewEventEngineRepository(shared, opts.metered, cf.EventBuffer),
 			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 			jobRun:         NewJobRunEngineRepository(shared),
 			stepRun:        NewStepRunEngineRepository(shared, cf, rlCache, queueCache),

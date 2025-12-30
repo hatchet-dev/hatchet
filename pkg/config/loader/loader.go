@@ -451,7 +451,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		}
 
 		ing, err = ingestor.NewIngestor(
-			ingestor.WithEventRepository(dc.EngineRepository.Event()),
 			ingestor.WithMessageQueueV1(mqv1),
 			ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
 			ingestor.WithStepRunRepository(dc.EngineRepository.StepRun()),

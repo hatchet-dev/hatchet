@@ -27,18 +27,11 @@ type Ingestor interface {
 type IngestorOptFunc func(*IngestorOpts)
 
 type IngestorOpts struct {
-	eventRepository        repository.EventEngineRepository
 	entitlementsRepository repository.EntitlementsRepository
 	stepRunRepository      repository.StepRunEngineRepository
 	mqv1                   msgqueuev1.MessageQueue
 	repov1                 v1.Repository
 	isLogIngestionEnabled  bool
-}
-
-func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
-	return func(opts *IngestorOpts) {
-		opts.eventRepository = r
-	}
 }
 
 func WithEntitlementsRepository(r repository.EntitlementsRepository) IngestorOptFunc {
@@ -98,10 +91,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 
 	for _, f := range fs {
 		f(opts)
-	}
-
-	if opts.eventRepository == nil {
-		return nil, fmt.Errorf("event repository is required. use WithEventRepository")
 	}
 
 	if opts.mqv1 == nil {

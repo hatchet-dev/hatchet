@@ -384,9 +384,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
-			ingestor.WithEventRepository(
-				sc.EngineRepository.Event(),
-			),
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
@@ -754,9 +751,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
-			ingestor.WithEventRepository(
-				sc.EngineRepository.Event(),
-			),
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
