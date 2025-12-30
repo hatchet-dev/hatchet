@@ -31,7 +31,6 @@ type apiRepository struct {
 	worker         repository.WorkerAPIRepository
 	userSession    repository.UserSessionRepository
 	user           repository.UserRepository
-	health         repository.HealthRepository
 	securityCheck  repository.SecurityCheckRepository
 	webhookWorker  repository.WebhookWorkerRepository
 }
@@ -119,14 +118,9 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 		worker:         NewWorkerAPIRepository(shared, opts.metered),
 		userSession:    NewUserSessionRepository(shared),
 		user:           NewUserRepository(shared),
-		health:         NewHealthAPIRepository(shared),
 		securityCheck:  NewSecurityCheckRepository(shared),
 		webhookWorker:  NewWebhookWorkerRepository(shared),
 	}, cleanup, err
-}
-
-func (r *apiRepository) Health() repository.HealthRepository {
-	return r.health
 }
 
 func (r *apiRepository) Event() repository.EventAPIRepository {
@@ -194,7 +188,6 @@ func (r *apiRepository) WebhookWorker() repository.WebhookWorkerRepository {
 }
 
 type engineRepository struct {
-	health         repository.HealthRepository
 	event          repository.EventEngineRepository
 	getGroupKeyRun repository.GetGroupKeyRunEngineRepository
 	jobRun         repository.JobRunEngineRepository
@@ -211,10 +204,6 @@ type engineRepository struct {
 	rateLimit      repository.RateLimitEngineRepository
 	webhookWorker  repository.WebhookWorkerEngineRepository
 	mq             repository.MessageQueueRepository
-}
-
-func (r *engineRepository) Health() repository.HealthRepository {
-	return r.health
 }
 
 func (r *engineRepository) Event() repository.EventEngineRepository {
@@ -319,7 +308,6 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 			return cleanup()
 		}, &engineRepository{
-			health:         NewHealthEngineRepository(pool, opts.l),
 			event:          NewEventEngineRepository(shared, opts.metered, cf.EventBuffer),
 			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 			jobRun:         NewJobRunEngineRepository(shared),

@@ -5,7 +5,6 @@ import (
 )
 
 type APIRepository interface {
-	Health() HealthRepository
 	Event() EventAPIRepository
 	Tenant() TenantAPIRepository
 	TenantAlertingSettings() TenantAlertingRepository
@@ -25,7 +24,6 @@ type APIRepository interface {
 }
 
 type EngineRepository interface {
-	Health() HealthRepository
 	Event() EventEngineRepository
 	GetGroupKeyRun() GetGroupKeyRunEngineRepository
 	JobRun() JobRunEngineRepository

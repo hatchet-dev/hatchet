@@ -20,6 +20,7 @@ type TaskOperationLimits struct {
 type Repository interface {
 	APIToken() APITokenRepository
 	Dispatcher() DispatcherRepository
+	Health() HealthRepository
 	Triggers() TriggerRepository
 	Tasks() TaskRepository
 	Scheduler() SchedulerRepository
@@ -43,6 +44,7 @@ type Repository interface {
 type repositoryImpl struct {
 	apiToken     APITokenRepository
 	dispatcher   DispatcherRepository
+	health       HealthRepository
 	triggers     TriggerRepository
 	tasks        TaskRepository
 	scheduler    SchedulerRepository
@@ -77,6 +79,7 @@ func NewRepository(
 	impl := &repositoryImpl{
 		apiToken:     newAPITokenRepository(shared),
 		dispatcher:   newDispatcherRepository(shared),
+		health:       newHealthRepository(shared),
 		triggers:     newTriggerRepository(shared),
 		tasks:        newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler:    newSchedulerRepository(shared),
@@ -105,6 +108,10 @@ func (r *repositoryImpl) APIToken() APITokenRepository {
 
 func (r *repositoryImpl) Dispatcher() DispatcherRepository {
 	return r.dispatcher
+}
+
+func (r *repositoryImpl) Health() HealthRepository {
+	return r.health
 }
 
 func (r *repositoryImpl) Triggers() TriggerRepository {
