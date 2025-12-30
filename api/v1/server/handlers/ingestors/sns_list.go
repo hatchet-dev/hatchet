@@ -14,7 +14,7 @@ func (i *IngestorsService) SnsList(ctx echo.Context, req gen.SnsListRequestObjec
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// create the SNS integration
-	snsIntegrations, err := i.config.APIRepository.SNS().ListSNSIntegrations(ctx.Request().Context(), tenantId)
+	snsIntegrations, err := i.config.V1.SNS().ListSNSIntegrations(ctx.Request().Context(), tenantId)
 
 	if err != nil {
 		return nil, err

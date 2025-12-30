@@ -23,6 +23,7 @@ sql:
       - security_check.sql
       - slack.sql
       - sleep.sql
+      - sns.sql
       - ticker.sql
       - filters.sql
       - payload-store.sql

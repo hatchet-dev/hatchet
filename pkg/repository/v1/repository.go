@@ -44,6 +44,7 @@ type Repository interface {
 	PGHealth() PGHealthRepository
 	SecurityCheck() SecurityCheckRepository
 	Slack() SlackRepository
+	SNS() SNSRepository
 }
 
 type repositoryImpl struct {
@@ -69,6 +70,7 @@ type repositoryImpl struct {
 	pgHealth      PGHealthRepository
 	securityCheck SecurityCheckRepository
 	slack         SlackRepository
+	sns           SNSRepository
 }
 
 func NewRepository(
@@ -110,6 +112,7 @@ func NewRepository(
 		pgHealth:      newPGHealthRepository(shared),
 		securityCheck: newSecurityCheckRepository(shared),
 		slack:         newSlackRepository(shared),
+		sns:           newSNSRepository(shared),
 	}
 
 	return impl, func() error {
@@ -225,4 +228,8 @@ func (r *repositoryImpl) SecurityCheck() SecurityCheckRepository {
 
 func (r *repositoryImpl) Slack() SlackRepository {
 	return r.slack
+}
+
+func (r *repositoryImpl) SNS() SNSRepository {
+	return r.sns
 }

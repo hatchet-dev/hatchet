@@ -6,9 +6,9 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 func (i *IngestorsService) SnsCreate(ctx echo.Context, req gen.SnsCreateRequestObject) (gen.SnsCreateResponseObject, error) {
@@ -22,12 +22,12 @@ func (i *IngestorsService) SnsCreate(ctx echo.Context, req gen.SnsCreateRequestO
 		return gen.SnsCreate400JSONResponse(*apiErrors), nil
 	}
 
-	opts := &repository.CreateSNSIntegrationOpts{
+	opts := &v1.CreateSNSIntegrationOpts{
 		TopicArn: req.Body.TopicArn,
 	}
 
 	// create the SNS integration
-	snsIntegration, err := i.config.APIRepository.SNS().CreateSNSIntegration(ctx.Request().Context(), tenantId, opts)
+	snsIntegration, err := i.config.V1.SNS().CreateSNSIntegration(ctx.Request().Context(), tenantId, opts)
 
 	if err != nil {
 		return nil, err

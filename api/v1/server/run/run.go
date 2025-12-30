@@ -315,7 +315,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		snsIntegration, err := config.APIRepository.SNS().GetSNSIntegrationById(timeoutCtx, id)
+		snsIntegration, err := config.V1.SNS().GetSNSIntegrationById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err

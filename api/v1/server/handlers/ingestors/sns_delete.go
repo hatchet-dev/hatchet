@@ -15,7 +15,7 @@ func (i *IngestorsService) SnsDelete(ctx echo.Context, req gen.SnsDeleteRequestO
 	sns := ctx.Get("sns").(*dbsqlc.SNSIntegration)
 
 	// create the SNS integration
-	err := i.config.APIRepository.SNS().DeleteSNSIntegration(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(sns.ID))
+	err := i.config.V1.SNS().DeleteSNSIntegration(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(sns.ID))
 
 	if err != nil {
 		return nil, err

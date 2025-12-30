@@ -24,7 +24,6 @@ type apiRepository struct {
 	workflowRun    repository.WorkflowRunAPIRepository
 	stepRun        repository.StepRunAPIRepository
 	step           repository.StepRepository
-	sns            repository.SNSRepository
 	worker         repository.WorkerAPIRepository
 	userSession    repository.UserSessionRepository
 	user           repository.UserRepository
@@ -107,7 +106,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 		workflowRun:    NewWorkflowRunRepository(shared, opts.metered, cf),
 		stepRun:        NewStepRunAPIRepository(shared),
 		step:           NewStepRepository(pool, opts.v, opts.l),
-		sns:            NewSNSRepository(shared),
 		worker:         NewWorkerAPIRepository(shared, opts.metered),
 		userSession:    NewUserSessionRepository(shared),
 		user:           NewUserRepository(shared),
@@ -137,10 +135,6 @@ func (r *apiRepository) WorkflowRun() repository.WorkflowRunAPIRepository {
 
 func (r *apiRepository) StepRun() repository.StepRunAPIRepository {
 	return r.stepRun
-}
-
-func (r *apiRepository) SNS() repository.SNSRepository {
-	return r.sns
 }
 
 func (r *apiRepository) Step() repository.StepRepository {

@@ -11,7 +11,6 @@ type APIRepository interface {
 	Workflow() WorkflowAPIRepository
 	WorkflowRun() WorkflowRunAPIRepository
 	StepRun() StepRunAPIRepository
-	SNS() SNSRepository
 	Step() StepRepository
 	Worker() WorkerAPIRepository
 	UserSession() UserSessionRepository
