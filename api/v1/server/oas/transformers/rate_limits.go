@@ -2,10 +2,10 @@ package transformers
 
 import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-func ToRateLimitFromSQLC(rl *dbsqlc.ListRateLimitsForTenantNoMutateRow) (*gen.RateLimit, error) {
+func ToRateLimitFromSQLC(rl *sqlcv1.ListRateLimitsForTenantNoMutateRow) (*gen.RateLimit, error) {
 	res := &gen.RateLimit{
 		Key:        rl.Key,
 		TenantId:   pgUUIDToStr(rl.TenantId),

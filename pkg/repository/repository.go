@@ -31,7 +31,6 @@ type EngineRepository interface {
 	Workflow() WorkflowEngineRepository
 	WorkflowRun() WorkflowRunEngineRepository
 	StreamEvent() StreamEventsEngineRepository
-	RateLimit() RateLimitEngineRepository
 	WebhookWorker() WebhookWorkerEngineRepository
 }
 

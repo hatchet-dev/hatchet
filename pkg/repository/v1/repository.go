@@ -23,6 +23,7 @@ type Repository interface {
 	Dispatcher() DispatcherRepository
 	Health() HealthRepository
 	MessageQueue() MessageQueueRepository
+	RateLimit() RateLimitRepository
 	Triggers() TriggerRepository
 	Tasks() TaskRepository
 	Scheduler() SchedulerRepository
@@ -48,6 +49,7 @@ type repositoryImpl struct {
 	dispatcher   DispatcherRepository
 	health       HealthRepository
 	messageQueue MessageQueueRepository
+	rateLimit    RateLimitRepository
 	triggers     TriggerRepository
 	tasks        TaskRepository
 	scheduler    SchedulerRepository
@@ -86,6 +88,7 @@ func NewRepository(
 		dispatcher:   newDispatcherRepository(shared),
 		health:       newHealthRepository(shared),
 		messageQueue: mq,
+		rateLimit:    newRateLimitRepository(shared),
 		triggers:     newTriggerRepository(shared),
 		tasks:        newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler:    newSchedulerRepository(shared),
@@ -136,6 +139,10 @@ func (r *repositoryImpl) Triggers() TriggerRepository {
 
 func (r *repositoryImpl) MessageQueue() MessageQueueRepository {
 	return r.messageQueue
+}
+
+func (r *repositoryImpl) RateLimit() RateLimitRepository {
+	return r.rateLimit
 }
 
 func (r *repositoryImpl) Tasks() TaskRepository {

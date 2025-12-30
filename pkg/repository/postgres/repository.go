@@ -185,7 +185,6 @@ type engineRepository struct {
 	workflow       repository.WorkflowEngineRepository
 	workflowRun    repository.WorkflowRunEngineRepository
 	streamEvent    repository.StreamEventsEngineRepository
-	rateLimit      repository.RateLimitEngineRepository
 	webhookWorker  repository.WebhookWorkerEngineRepository
 }
 
@@ -223,10 +222,6 @@ func (r *engineRepository) WorkflowRun() repository.WorkflowRunEngineRepository 
 
 func (r *engineRepository) StreamEvent() repository.StreamEventsEngineRepository {
 	return r.streamEvent
-}
-
-func (r *engineRepository) RateLimit() repository.RateLimitEngineRepository {
-	return r.rateLimit
 }
 
 func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineRepository {
@@ -273,7 +268,6 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 			workflow:       NewWorkflowEngineRepository(shared, opts.metered, opts.cache),
 			workflowRun:    NewWorkflowRunEngineRepository(shared, opts.metered, cf),
 			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
-			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
 			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
 		},
 		err

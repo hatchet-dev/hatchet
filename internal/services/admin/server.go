@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
@@ -249,12 +250,12 @@ func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutR
 	limit := int(req.Limit)
 	duration := req.Duration.String()
 
-	createOpts := &repository.UpsertRateLimitOpts{
+	createOpts := &v1.UpsertRateLimitOpts{
 		Limit:    limit,
 		Duration: &duration,
 	}
 
-	_, err := a.repo.RateLimit().UpsertRateLimit(ctx, tenantId, req.Key, createOpts)
+	_, err := a.repov1.RateLimit().UpsertRateLimit(ctx, tenantId, req.Key, createOpts)
 
 	if err != nil {
 		return nil, err
