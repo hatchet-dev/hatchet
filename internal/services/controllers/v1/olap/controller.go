@@ -713,6 +713,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
 		case sqlcv1.V1EventTypeOlapSKIPPED:
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapCOMPLETED)
+		case sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
 		}
 	}
 
