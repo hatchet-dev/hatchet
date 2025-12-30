@@ -3967,13 +3967,46 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 
 	input := payloads[inputRetrieveOpt]
 	taskRunDetails := make(map[StepReadableId]TaskRunDetails)
+	taskIds := make([]int64, 0)
+	taskInsertedAts := make([]pgtype.Timestamptz, 0)
+	taskRetryCounts := make([]int32, 0)
 
 	for _, task := range flat {
+		taskIds = append(taskIds, task.ID)
+		taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+		taskRetryCounts = append(taskRetryCounts, task.RetryCount)
+	}
+
+	taskStats, err := r.queries.ListTaskRunningStatuses(ctx, r.pool, sqlcv1.ListTaskRunningStatusesParams{
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Taskretrycounts: taskRetryCounts,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list task running statuses: %w", err)
+	}
+
+	externalIdToIsRunning := make(map[string]bool)
+
+	for _, stat := range taskStats {
+		externalIdToIsRunning[sqlchelpers.UUIDToStr(stat.ExternalID)] = stat.IsRunning
+	}
+
+	for _, task := range flat {
+		isRunning := externalIdToIsRunning[task.ExternalID.String()]
+		status := "QUEUED"
+
+		if isRunning {
+			status = "RUNNING"
+		}
+
 		// default everything to QUEUED
 		// we'll overwrite later with more information if available
 		taskRunDetails[StepReadableId(task.StepReadableID)] = TaskRunDetails{
 			OutputPayload: nil,
-			Status:        "QUEUED",
+			Status:        status,
 			Error:         nil,
 			ExternalId:    task.ExternalID.String(),
 		}
