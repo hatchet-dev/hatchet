@@ -18,6 +18,7 @@ type TaskOperationLimits struct {
 }
 
 type Repository interface {
+	APIToken() APITokenRepository
 	Triggers() TriggerRepository
 	Tasks() TaskRepository
 	Scheduler() SchedulerRepository
@@ -39,6 +40,7 @@ type Repository interface {
 }
 
 type repositoryImpl struct {
+	apiToken     APITokenRepository
 	triggers     TriggerRepository
 	tasks        TaskRepository
 	scheduler    SchedulerRepository
@@ -71,6 +73,7 @@ func NewRepository(
 	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, payloadStoreOpts)
 
 	impl := &repositoryImpl{
+		apiToken:     newAPITokenRepository(shared),
 		triggers:     newTriggerRepository(shared),
 		tasks:        newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler:    newSchedulerRepository(shared),
@@ -91,6 +94,10 @@ func NewRepository(
 	return impl, func() error {
 		return cleanupShared()
 	}
+}
+
+func (r *repositoryImpl) APIToken() APITokenRepository {
+	return r.apiToken
 }
 
 func (r *repositoryImpl) Triggers() TriggerRepository {

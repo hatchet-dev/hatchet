@@ -39,7 +39,7 @@ func (p *Proxy[in, out]) Do(ctx context.Context, tenant *dbsqlc.Tenant, input *i
 		defer cancel()
 
 		// delete the API token
-		err = p.config.APIRepository.APIToken().DeleteAPIToken(deleteCtx, tenantId, tok.TokenId)
+		err = p.config.V1.APIToken().DeleteAPIToken(deleteCtx, tenantId, tok.TokenId)
 
 		if err != nil {
 			p.config.Logger.Error().Err(err).Msg("failed to delete API token")

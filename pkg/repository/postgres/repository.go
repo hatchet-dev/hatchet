@@ -17,7 +17,6 @@ import (
 )
 
 type apiRepository struct {
-	apiToken       repository.APITokenRepository
 	event          repository.EventAPIRepository
 	tenant         repository.TenantAPIRepository
 	tenantAlerting repository.TenantAlertingRepository
@@ -106,7 +105,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 	}
 
 	return &apiRepository{
-		apiToken:       NewAPITokenRepository(shared, opts.cache),
 		event:          NewEventAPIRepository(shared),
 		tenant:         NewTenantAPIRepository(shared, opts.cache, defaultEngineVersion),
 		tenantAlerting: NewTenantAlertingRepository(shared, opts.cache),
@@ -129,10 +127,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 
 func (r *apiRepository) Health() repository.HealthRepository {
 	return r.health
-}
-
-func (r *apiRepository) APIToken() repository.APITokenRepository {
-	return r.apiToken
 }
 
 func (r *apiRepository) Event() repository.EventAPIRepository {
@@ -336,7 +330,6 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 			return cleanup()
 		}, &engineRepository{
 			health:         NewHealthEngineRepository(pool, opts.l),
-			apiToken:       NewAPITokenRepository(shared, opts.cache),
 			dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
 			event:          NewEventEngineRepository(shared, opts.metered, cf.EventBuffer),
 			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),

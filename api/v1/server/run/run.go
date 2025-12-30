@@ -256,7 +256,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		apiToken, err := config.APIRepository.APIToken().GetAPITokenById(ctxTimeout, id)
+		apiToken, err := config.V1.APIToken().GetAPITokenById(ctxTimeout, id)
 
 		if err != nil {
 			return nil, "", err

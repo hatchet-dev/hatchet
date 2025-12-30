@@ -6,7 +6,6 @@ import (
 
 type APIRepository interface {
 	Health() HealthRepository
-	APIToken() APITokenRepository
 	Event() EventAPIRepository
 	Tenant() TenantAPIRepository
 	TenantAlertingSettings() TenantAlertingRepository
@@ -27,7 +26,6 @@ type APIRepository interface {
 
 type EngineRepository interface {
 	Health() HealthRepository
-	APIToken() APITokenRepository
 	Dispatcher() DispatcherEngineRepository
 	Event() EventEngineRepository
 	GetGroupKeyRun() GetGroupKeyRunEngineRepository

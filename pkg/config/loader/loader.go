@@ -573,7 +573,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	// create a new JWT manager
-	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.EngineRepository.APIToken(), &token.TokenOpts{
+	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.V1.APIToken(), &token.TokenOpts{
 		Issuer:               cf.Runtime.ServerURL,
 		Audience:             cf.Runtime.ServerURL,
 		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,

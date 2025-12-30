@@ -13,7 +13,7 @@ func (a *APITokenService) ApiTokenList(ctx echo.Context, request gen.ApiTokenLis
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	tokens, err := a.config.APIRepository.APIToken().ListAPITokensByTenant(ctx.Request().Context(), tenantId)
+	tokens, err := a.config.V1.APIToken().ListAPITokensByTenant(ctx.Request().Context(), tenantId)
 
 	if err != nil {
 		return nil, err

@@ -20,7 +20,7 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 		), nil
 	}
 
-	err := a.config.APIRepository.APIToken().RevokeAPIToken(ctx.Request().Context(), sqlchelpers.UUIDToStr(apiToken.ID))
+	err := a.config.V1.APIToken().RevokeAPIToken(ctx.Request().Context(), sqlchelpers.UUIDToStr(apiToken.ID))
 
 	if err != nil {
 		return nil, err

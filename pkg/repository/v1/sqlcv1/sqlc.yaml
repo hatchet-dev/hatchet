@@ -4,6 +4,7 @@ sql:
     # database:
     #   uri: "postgres://hatchet:hatchet@localhost:5431/hatchet"
     queries:
+      - api_token.sql
       - concurrency.sql
       - dags.sql
       - tasks.sql
