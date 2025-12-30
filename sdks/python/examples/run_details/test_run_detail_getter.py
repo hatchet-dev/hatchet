@@ -29,10 +29,8 @@ async def test_run(hatchet: Hatchet) -> None:
     assert "step4" not in details.task_runs
     assert details.done is False
 
-    try:
+    with pytest.raises(Exception):
         await ref.aio_result()
-    except Exception:
-        pass
 
     details = hatchet.runs.get_details(ref.workflow_run_id)
 
