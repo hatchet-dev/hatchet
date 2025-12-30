@@ -2,6 +2,7 @@ import asyncio
 import json
 from collections.abc import Generator
 from datetime import datetime
+from enum import Enum
 from typing import TypeVar, cast
 
 import grpc
@@ -38,7 +39,58 @@ T = TypeVar("T")
 
 MAX_BULK_WORKFLOW_RUN_BATCH_SIZE = 1000
 
-RunStatus = V1TaskStatus
+
+class RunStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
+
+    @staticmethod
+    def from_proto(proto_status: workflow_protos.RunStatus) -> "RunStatus":
+        if proto_status == workflow_protos.RunStatus.COMPLETED:
+            return RunStatus.COMPLETED
+        if proto_status == workflow_protos.RunStatus.CANCELLED:
+            return RunStatus.CANCELLED
+        if proto_status == workflow_protos.RunStatus.FAILED:
+            return RunStatus.FAILED
+        if proto_status == workflow_protos.RunStatus.RUNNING:
+            return RunStatus.RUNNING
+        if proto_status == workflow_protos.RunStatus.QUEUED:
+            return RunStatus.QUEUED
+        raise ValueError(f"Unknown proto status: {proto_status}")
+
+    @staticmethod
+    def from_v1_task_status(
+        v1_task_status: V1TaskStatus,
+    ) -> "RunStatus":
+        if v1_task_status == V1TaskStatus.COMPLETED:
+            return RunStatus.COMPLETED
+        if v1_task_status == V1TaskStatus.CANCELLED:
+            return RunStatus.CANCELLED
+        if v1_task_status == V1TaskStatus.FAILED:
+            return RunStatus.FAILED
+        if v1_task_status == V1TaskStatus.RUNNING:
+            return RunStatus.RUNNING
+        if v1_task_status == V1TaskStatus.QUEUED:
+            return RunStatus.QUEUED
+
+        raise ValueError(f"Unknown V1TaskStatus: {v1_task_status}")
+
+    def to_v1_task_status(self) -> V1TaskStatus:
+        if self == RunStatus.COMPLETED:
+            return V1TaskStatus.COMPLETED
+        if self == RunStatus.CANCELLED:
+            return V1TaskStatus.CANCELLED
+        if self == RunStatus.FAILED:
+            return V1TaskStatus.FAILED
+        if self == RunStatus.RUNNING:
+            return V1TaskStatus.RUNNING
+        if self == RunStatus.QUEUED:
+            return V1TaskStatus.QUEUED
+
+        raise ValueError(f"Unknown RunStatus: {self}")
 
 
 class ScheduleTriggerWorkflowOptions(BaseModel):
@@ -496,21 +548,6 @@ class AdminClient:
             workflow_run_listener=self.workflow_run_listener,
         )
 
-    def _proto_to_run_status(
-        self, proto_status: workflow_protos.RunStatus
-    ) -> RunStatus:
-        if proto_status == workflow_protos.RunStatus.COMPLETED:
-            return RunStatus.COMPLETED
-        if proto_status == workflow_protos.RunStatus.CANCELLED:
-            return RunStatus.CANCELLED
-        if proto_status == workflow_protos.RunStatus.FAILED:
-            return RunStatus.FAILED
-        if proto_status == workflow_protos.RunStatus.RUNNING:
-            return RunStatus.RUNNING
-        if proto_status == workflow_protos.RunStatus.QUEUED:
-            return RunStatus.QUEUED
-        raise ValueError(f"Unknown proto status: {proto_status}")
-
     def get_details(self, external_id: str) -> WorkflowRunDetail:
         if self.client is None:
             conn = new_conn(self.config, False)
@@ -533,7 +570,7 @@ class AdminClient:
             input=(
                 json.loads(response.input.decode("utf-8")) if response.input else None
             ),
-            status=self._proto_to_run_status(response.status),
+            status=RunStatus.from_proto(response.status),
             task_runs={
                 readable_id: TaskRunDetail(
                     readable_id=readable_id,
@@ -544,7 +581,7 @@ class AdminClient:
                         else None
                     ),
                     error=details.error if details.error else None,
-                    status=self._proto_to_run_status(details.status),
+                    status=RunStatus.from_proto(details.status).to_v1_task_status(),
                 )
                 for readable_id, details in response.task_runs.items()
             },
