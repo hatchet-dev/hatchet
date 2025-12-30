@@ -427,6 +427,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 	// derives the workflow run status based on its component task runs
 	derivedWorkflowRunStatus := contracts.RunStatus_COMPLETED
 	allQueued := true
+	allCancelled := true
 
 	for readableId, details := range details.ReadableIdToDetails {
 		var status *contracts.RunStatus
@@ -434,17 +435,21 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		switch details.Status {
 		case "QUEUED":
 			status = contracts.RunStatus_QUEUED.Enum()
+			allCancelled = false
 		case "RUNNING":
 			status = contracts.RunStatus_RUNNING.Enum()
 			derivedWorkflowRunStatus = contracts.RunStatus_RUNNING
 			allQueued = false
+			allCancelled = false
 		case "COMPLETED":
 			status = contracts.RunStatus_COMPLETED.Enum()
 			allQueued = false
+			allCancelled = false
 		case "FAILED":
 			status = contracts.RunStatus_FAILED.Enum()
 			derivedWorkflowRunStatus = contracts.RunStatus_FAILED
 			allQueued = false
+			allCancelled = false
 		case "CANCELLED":
 			status = contracts.RunStatus_CANCELLED.Enum()
 			derivedWorkflowRunStatus = contracts.RunStatus_FAILED
@@ -462,6 +467,10 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 
 	if allQueued && derivedWorkflowRunStatus == contracts.RunStatus_COMPLETED {
 		derivedWorkflowRunStatus = contracts.RunStatus_QUEUED
+	}
+
+	if allCancelled && derivedWorkflowRunStatus == contracts.RunStatus_FAILED {
+		derivedWorkflowRunStatus = contracts.RunStatus_CANCELLED
 	}
 
 	return &contracts.GetRunDetailsResponse{
