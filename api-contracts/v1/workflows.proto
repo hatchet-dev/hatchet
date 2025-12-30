@@ -68,10 +68,12 @@ enum RateLimitDuration {
     YEAR = 6;
 }
 
-enum WorkflowRunTerminalStatus {
-    COMPLETED = 0;
-    FAILED = 1;
-    CANCELLED = 2;
+enum RunStatus {
+    QUEUED = 0;
+    RUNNING = 1;
+    COMPLETED = 2;
+    FAILED = 3;
+    CANCELLED = 4;
 }
 
 
@@ -188,11 +190,10 @@ message GetRunPayloadsRequest {
 
 message TaskRunDetail {
     string external_id = 1; // the external id (uuid) of the task run
-    bool in_terminal_state = 2; // whether the task run is in a terminal state
-    optional WorkflowRunTerminalStatus terminal_status = 3; // (optional) the terminal status of the task run, if in terminal state
-    optional string error = 4; // (optional) error message from the task run, if any
-    optional bytes output = 5; // (optional) the output payload for the task run
-    string readable_id = 6; // the readable id of the task
+    optional RunStatus status = 2; // (optional) the status of the task run
+    optional string error = 3; // (optional) error message from the task run, if any
+    optional bytes output = 4; // (optional) the output payload for the task run
+    string readable_id = 5; // the readable id of the task
 }
 
 message GetRunPayloadsResponse {
