@@ -1409,7 +1409,7 @@ FROM v1_task t
 LEFT JOIN v1_task_runtime tr ON (t.id, t.inserted_at, t.retry_count) = (tr.task_id, tr.task_inserted_at, tr.retry_count)
 WHERE
     t.tenant_id = $1::uuid
-    AND (t.id, t.task_inserted_at, t.retry_count) IN (
+    AND (t.id, t.inserted_at, t.retry_count) IN (
         SELECT task_id, task_inserted_at, task_retry_count
         FROM inputs
     )
