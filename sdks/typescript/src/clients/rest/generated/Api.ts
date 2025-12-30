@@ -11,12 +11,11 @@
  */
 
 import {
-  AcceptInviteRequest,
   APIError,
   APIErrors,
   APIMeta,
+  AcceptInviteRequest,
   BulkCreateEventRequest,
-  BulkCreateEventResponse,
   CancelEventRequest,
   CreateAPITokenRequest,
   CreateAPITokenResponse,
@@ -37,10 +36,11 @@ import {
   EventOrderByDirection,
   EventOrderByField,
   EventSearch,
+  Events,
   ListAPIMetaIntegration,
   ListAPITokensResponse,
-  ListSlackWebhooks,
   ListSNSIntegrations,
+  ListSlackWebhooks,
   LogLineLevelField,
   LogLineList,
   LogLineOrderByDirection,
@@ -54,6 +54,8 @@ import {
   ReplayWorkflowRunsRequest,
   ReplayWorkflowRunsResponse,
   RerunStepRunRequest,
+  SNSIntegration,
+  ScheduleWorkflowRunRequest,
   ScheduledRunStatus,
   ScheduledWorkflows,
   ScheduledWorkflowsBulkDeleteRequest,
@@ -62,8 +64,6 @@ import {
   ScheduledWorkflowsBulkUpdateResponse,
   ScheduledWorkflowsList,
   ScheduledWorkflowsOrderByField,
-  ScheduleWorkflowRunRequest,
-  SNSIntegration,
   StepRun,
   StepRunArchiveList,
   StepRunEventList,
@@ -92,10 +92,10 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
-  V1CancelledTasks,
-  V1CancelTaskRequest,
   V1CELDebugRequest,
   V1CELDebugResponse,
+  V1CancelTaskRequest,
+  V1CancelledTasks,
   V1CreateFilterRequest,
   V1CreateWebhookRequest,
   V1DagChildren,
@@ -104,8 +104,8 @@ import {
   V1Filter,
   V1FilterList,
   V1LogLineList,
-  V1ReplayedTasks,
   V1ReplayTaskRequest,
+  V1ReplayedTasks,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -122,8 +122,8 @@ import {
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
   V1WorkflowRunExternalIdList,
-  WebhookWorkerCreated,
   WebhookWorkerCreateRequest,
+  WebhookWorkerCreated,
   WebhookWorkerListResponse,
   WebhookWorkerRequestListResponse,
   Worker,
@@ -137,11 +137,11 @@ import {
   WorkflowRunList,
   WorkflowRunOrderByDirection,
   WorkflowRunOrderByField,
-  WorkflowRunsCancelRequest,
   WorkflowRunShape,
-  WorkflowRunsMetrics,
   WorkflowRunStatus,
   WorkflowRunStatusList,
+  WorkflowRunsCancelRequest,
+  WorkflowRunsMetrics,
   WorkflowUpdateRequest,
   WorkflowVersion,
   WorkflowWorkersCount,
@@ -1851,7 +1851,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   eventCreateBulk = (tenant: string, data: BulkCreateEventRequest, params: RequestParams = {}) =>
-    this.request<BulkCreateEventResponse, APIErrors>({
+    this.request<Events, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events/bulk`,
       method: 'POST',
       body: data,
@@ -3239,7 +3239,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   tenantGetPrometheusMetrics = (tenant: string, params: RequestParams = {}) =>
-    this.request<EventSearch, APIErrors>({
+    this.request<EventKey, APIErrors>({
       path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
       method: 'GET',
       secure: true,
