@@ -212,31 +212,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
 	}
 
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Minute*5),
-		gocron.NewTask(
-			t.runStreamEventCleanup(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule stream event cleanup: %w", err)
-	}
-
-	// poll for tenant alerts every minute, since minimum alerting frequency is 5 minutes
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Minute*1),
-		gocron.NewTask(
-			t.runPollTenantAlerts(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule tenant alert polling: %w", err)
-	}
-
 	// poll for expiring tokens every 15 minutes
 	_, err = t.s.NewJob(
 		gocron.DurationJob(time.Minute*15),
@@ -318,21 +293,6 @@ func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 
 		if err != nil {
 			t.l.Err(err).Msg("could not update heartbeat")
-		}
-	}
-}
-
-func (t *TickerImpl) runStreamEventCleanup(ctx context.Context) func() {
-	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-
-		t.l.Debug().Msgf("ticker: cleaning up stream event")
-
-		err := t.repo.StreamEvent().CleanupStreamEvents(ctx)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not cleanup stream events")
 		}
 	}
 }

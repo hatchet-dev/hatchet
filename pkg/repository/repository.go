@@ -8,7 +8,6 @@ type APIRepository interface {
 	Health() HealthRepository
 	APIToken() APITokenRepository
 	Event() EventAPIRepository
-	Log() LogsAPIRepository
 	Tenant() TenantAPIRepository
 	TenantAlertingSettings() TenantAlertingRepository
 	TenantInvite() TenantInviteRepository
@@ -42,10 +41,8 @@ type EngineRepository interface {
 	Workflow() WorkflowEngineRepository
 	WorkflowRun() WorkflowRunEngineRepository
 	StreamEvent() StreamEventsEngineRepository
-	Log() LogsEngineRepository
 	RateLimit() RateLimitEngineRepository
 	WebhookWorker() WebhookWorkerEngineRepository
-	Scheduler() SchedulerRepository
 	MessageQueue() MessageQueueRepository
 }
 

@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -75,7 +74,7 @@ func (w *workerAPIRepository) GetWorkerWorkflowsByWorkerId(tenantid string, work
 	})
 }
 
-func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error) {
+func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, error) {
 	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, dbsqlc.ListSemaphoreSlotsWithStateForWorkerParams{
 		Workerid: sqlchelpers.UUIDFromStr(workerId),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
@@ -86,63 +85,10 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 	})
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not list worker slot state: %w", err)
+		return nil, fmt.Errorf("could not list worker slot state: %w", err)
 	}
 
-	// get recent assignment events
-	assignedEvents, err := w.queries.ListRecentAssignedEventsForWorker(context.Background(), w.pool, dbsqlc.ListRecentAssignedEventsForWorkerParams{
-		Workerid: sqlchelpers.UUIDFromStr(workerId),
-		Limit: pgtype.Int4{
-			Int32: int32(maxRuns), // nolint: gosec
-			Valid: true,
-		},
-	})
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not list worker recent assigned events: %w", err)
-	}
-
-	// construct unique array of recent step run ids
-	uniqueStepRunIds := make(map[string]bool)
-
-	for _, event := range assignedEvents {
-		// unmarshal to string array
-		var stepRunIds []string
-
-		if err := json.Unmarshal(event.AssignedStepRuns, &stepRunIds); err != nil {
-			return nil, nil, fmt.Errorf("could not unmarshal assigned step runs: %w", err)
-		}
-
-		for _, stepRunId := range stepRunIds {
-			if _, ok := uniqueStepRunIds[stepRunId]; ok {
-				continue
-			}
-
-			// just do 20 for now
-			if len(uniqueStepRunIds) > 20 {
-				break
-			}
-
-			uniqueStepRunIds[stepRunId] = true
-		}
-	}
-
-	stepRunIds := make([]pgtype.UUID, 0, len(uniqueStepRunIds))
-
-	for stepRunId := range uniqueStepRunIds {
-		stepRunIds = append(stepRunIds, sqlchelpers.UUIDFromStr(stepRunId))
-	}
-
-	recent, err := w.queries.GetStepRunForEngine(context.Background(), w.pool, dbsqlc.GetStepRunForEngineParams{
-		Ids:      stepRunIds,
-		TenantId: sqlchelpers.UUIDFromStr(tenantId),
-	})
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not list worker recent step runs: %w", err)
-	}
-
-	return slots, recent, nil
+	return slots, nil
 }
 
 func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithSlotCountRow, error) {

@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -17,7 +16,7 @@ import (
 type WorkerRepository interface {
 	ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
 	GetWorkerById(workerId string) (*sqlcv1.GetWorkerByIdRow, error)
-	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error)
+	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error)
 	CountActiveSlotsPerTenant() (map[string]int64, error)
 	CountActiveWorkersPerTenant() (map[string]int64, error)
 	ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error)
@@ -76,7 +75,7 @@ func (w *workerRepository) GetWorkerById(workerId string) (*sqlcv1.GetWorkerById
 	return w.queries.GetWorkerById(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
 }
 
-func (w *workerRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error) {
+func (w *workerRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error) {
 	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, sqlcv1.ListSemaphoreSlotsWithStateForWorkerParams{
 		Workerid: sqlchelpers.UUIDFromStr(workerId),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
@@ -87,10 +86,10 @@ func (w *workerRepository) ListWorkerState(tenantId, workerId string, maxRuns in
 	})
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not list worker slot state: %w", err)
+		return nil, fmt.Errorf("could not list worker slot state: %w", err)
 	}
 
-	return slots, []*dbsqlc.GetStepRunForEngineRow{}, nil
+	return slots, nil
 }
 
 func (w *workerRepository) CountActiveSlotsPerTenant() (map[string]int64, error) {

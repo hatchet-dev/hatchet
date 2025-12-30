@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -336,13 +335,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflowRun, err := config.APIRepository.WorkflowRun().GetWorkflowRunById(context.Background(), parentId, id)
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.TenantId), nil
+		return nil, "", fmt.Errorf("deprecated: use 'v1-workflow-run' getter with parent tenant id")
 	})
 
 	populatorMW.RegisterGetter("scheduled-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -374,48 +367,32 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		stepRun, err := config.APIRepository.StepRun().GetStepRunById(id)
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		if parentId != "" && sqlchelpers.UUIDToStr(stepRun.TenantId) != parentId {
-			return nil, "", fmt.Errorf("tenant id mismatch when populating step run")
-		}
-
-		return stepRun, sqlchelpers.UUIDToStr(stepRun.TenantId), nil
+		return nil, "", fmt.Errorf("deprecated: use 'v1-task' getter with parent tenant id")
 	})
 
 	populatorMW.RegisterGetter("event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		event, err := config.APIRepository.Event().GetEventById(timeoutCtx, id)
+		v1Event, err := t.config.V1.OLAP().GetEvent(timeoutCtx, id)
 
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		if err != nil {
 			return nil, "", err
-		} else if errors.Is(err, pgx.ErrNoRows) {
-			v1Event, err := t.config.V1.OLAP().GetEvent(timeoutCtx, id)
+		}
 
-			if err != nil {
-				return nil, "", err
-			}
+		payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID.String(), v1Event.ExternalID)
 
-			payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID.String(), v1Event.ExternalID)
+		if err != nil {
+			return nil, "", err
+		}
 
-			if err != nil {
-				return nil, "", err
-			}
-
-			event = &dbsqlc.Event{
-				ID:                 v1Event.ExternalID,
-				TenantId:           v1Event.TenantID,
-				Data:               payload,
-				CreatedAt:          pgtype.Timestamp(v1Event.SeenAt),
-				AdditionalMetadata: v1Event.AdditionalMetadata,
-				Key:                v1Event.Key,
-			}
+		event := &dbsqlc.Event{
+			ID:                 v1Event.ExternalID,
+			TenantId:           v1Event.TenantID,
+			Data:               payload,
+			CreatedAt:          pgtype.Timestamp(v1Event.SeenAt),
+			AdditionalMetadata: v1Event.AdditionalMetadata,
+			Key:                v1Event.Key,
 		}
 
 		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
@@ -426,29 +403,19 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		event, err := config.APIRepository.Event().GetEventById(timeoutCtx, id)
+		v1Event, err := t.config.V1.OLAP().GetEventWithPayload(timeoutCtx, id, parentId)
 
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		if err != nil {
 			return nil, "", err
-		} else if errors.Is(err, pgx.ErrNoRows) {
-			v1Event, err := t.config.V1.OLAP().GetEventWithPayload(timeoutCtx, id, parentId)
-
-			if err != nil {
-				return nil, "", err
-			}
-
-			event = &dbsqlc.Event{
-				ID:                 v1Event.EventExternalID,
-				TenantId:           v1Event.TenantID,
-				Data:               v1Event.Payload,
-				CreatedAt:          pgtype.Timestamp(v1Event.EventSeenAt),
-				AdditionalMetadata: v1Event.EventAdditionalMetadata,
-				Key:                v1Event.EventKey,
-			}
 		}
 
-		if event == nil {
-			return nil, "", fmt.Errorf("event not found")
+		event := &dbsqlc.Event{
+			ID:                 v1Event.EventExternalID,
+			TenantId:           v1Event.TenantID,
+			Data:               v1Event.Payload,
+			CreatedAt:          pgtype.Timestamp(v1Event.EventSeenAt),
+			AdditionalMetadata: v1Event.EventAdditionalMetadata,
+			Key:                v1Event.EventKey,
 		}
 
 		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
@@ -465,15 +432,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		webhookWorker, err := config.APIRepository.WebhookWorker().GetWebhookWorkerByID(timeoutCtx, id)
-		if err != nil {
-			return nil, "", err
-		}
-
-		return webhookWorker, sqlchelpers.UUIDToStr(webhookWorker.TenantId), nil
+		return nil, "", fmt.Errorf("deprecated: do not use")
 	})
 
 	populatorMW.RegisterGetter("task", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {

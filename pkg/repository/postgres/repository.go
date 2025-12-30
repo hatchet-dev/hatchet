@@ -19,7 +19,6 @@ import (
 type apiRepository struct {
 	apiToken       repository.APITokenRepository
 	event          repository.EventAPIRepository
-	log            repository.LogsAPIRepository
 	tenant         repository.TenantAPIRepository
 	tenantAlerting repository.TenantAlertingRepository
 	tenantInvite   repository.TenantInviteRepository
@@ -41,12 +40,10 @@ type apiRepository struct {
 type PostgresRepositoryOpt func(*PostgresRepositoryOpts)
 
 type PostgresRepositoryOpts struct {
-	v                    validator.Validator
-	l                    *zerolog.Logger
-	cache                cache.Cacheable
-	metered              *metered.Metered
-	logsEngineRepository repository.LogsEngineRepository
-	logsAPIRepository    repository.LogsAPIRepository
+	v       validator.Validator
+	l       *zerolog.Logger
+	cache   cache.Cacheable
+	metered *metered.Metered
 }
 
 func defaultPostgresRepositoryOpts() *PostgresRepositoryOpts {
@@ -79,18 +76,6 @@ func WithMetered(metered *metered.Metered) PostgresRepositoryOpt {
 	}
 }
 
-func WithLogsEngineRepository(newLogsEngine repository.LogsEngineRepository) PostgresRepositoryOpt {
-	return func(opts *PostgresRepositoryOpts) {
-		opts.logsEngineRepository = newLogsEngine
-	}
-}
-
-func WithLogsAPIRepository(newLogsAPI repository.LogsAPIRepository) PostgresRepositoryOpt {
-	return func(opts *PostgresRepositoryOpts) {
-		opts.logsAPIRepository = newLogsAPI
-	}
-}
-
 func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PostgresRepositoryOpt) (repository.APIRepository, func() error, error) {
 	opts := defaultPostgresRepositoryOpts()
 
@@ -110,13 +95,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 	if err != nil {
 		return nil, nil, err
 	}
-	var logsAPIRepo repository.LogsAPIRepository
-
-	if opts.logsAPIRepository == nil {
-		logsAPIRepo = NewLogAPIRepository(pool, opts.v, opts.l)
-	} else {
-		logsAPIRepo = opts.logsAPIRepository.WithAdditionalConfig(opts.v, opts.l)
-	}
 
 	defaultEngineVersion := dbsqlc.TenantMajorEngineVersionV0
 
@@ -130,7 +108,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 	return &apiRepository{
 		apiToken:       NewAPITokenRepository(shared, opts.cache),
 		event:          NewEventAPIRepository(shared),
-		log:            logsAPIRepo,
 		tenant:         NewTenantAPIRepository(shared, opts.cache, defaultEngineVersion),
 		tenantAlerting: NewTenantAlertingRepository(shared, opts.cache),
 		tenantInvite:   NewTenantInviteRepository(shared),
@@ -160,10 +137,6 @@ func (r *apiRepository) APIToken() repository.APITokenRepository {
 
 func (r *apiRepository) Event() repository.EventAPIRepository {
 	return r.event
-}
-
-func (r *apiRepository) Log() repository.LogsAPIRepository {
-	return r.log
 }
 
 func (r *apiRepository) Tenant() repository.TenantAPIRepository {
@@ -245,7 +218,6 @@ type engineRepository struct {
 	log            repository.LogsEngineRepository
 	rateLimit      repository.RateLimitEngineRepository
 	webhookWorker  repository.WebhookWorkerEngineRepository
-	scheduler      repository.SchedulerRepository
 	mq             repository.MessageQueueRepository
 }
 
@@ -321,10 +293,6 @@ func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineReposit
 	return r.webhookWorker
 }
 
-func (r *engineRepository) Scheduler() repository.SchedulerRepository {
-	return r.scheduler
-}
-
 func (r *engineRepository) MessageQueue() repository.MessageQueueRepository {
 	return r.mq
 }
@@ -352,13 +320,6 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 	if err != nil {
 		return nil, nil, err
-	}
-	var logRepo repository.LogsEngineRepository
-
-	if opts.logsEngineRepository == nil {
-		logRepo = NewLogEngineRepository(pool, opts.v, opts.l)
-	} else {
-		logRepo = opts.logsEngineRepository.WithAdditionalConfig(opts.v, opts.l)
 	}
 
 	mq, cleanupMQ := NewMessageQueueRepository(shared)
@@ -389,10 +350,8 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 			workflow:       NewWorkflowEngineRepository(shared, opts.metered, opts.cache),
 			workflowRun:    NewWorkflowRunEngineRepository(shared, opts.metered, cf),
 			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
-			log:            logRepo,
 			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
 			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
-			scheduler:      newSchedulerRepository(shared),
 			mq:             mq,
 		},
 		err

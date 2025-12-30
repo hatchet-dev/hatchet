@@ -263,6 +263,32 @@ type UpdateCronOpts struct {
 	Enabled *bool
 }
 
+type ListCronWorkflowsOpts struct {
+	// (optional) number of events to skip
+	Offset *int
+
+	// (optional) number of events to return
+	Limit *int
+
+	// (optional) the order by field
+	OrderBy *string `validate:"omitempty,oneof=createdAt name"`
+
+	// (optional) the order direction
+	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
+
+	// (optional) the workflow id
+	WorkflowId *string `validate:"omitempty,uuid"`
+
+	// (optional) additional metadata for the workflow run
+	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
+
+	// (optional) the name of the cron to filter by
+	CronName *string `validate:"omitempty"`
+
+	// (optional) the name of the workflow to filter by
+	WorkflowName *string `validate:"omitempty"`
+}
+
 type WorkflowAPIRepository interface {
 	// ListWorkflows returns all workflows for a given tenant.
 	ListWorkflows(tenantId string, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
@@ -333,10 +359,6 @@ type WorkflowEngineRepository interface {
 
 	// GetWorkflowsByName returns all workflows by their name. It will return db.ErrNotFound if the workflow does not exist.
 	GetWorkflowsByNames(ctx context.Context, tenantId string, workflowNames []string) ([]*dbsqlc.Workflow, error)
-
-	// ListWorkflowsForEvent returns the latest workflow versions for a given tenant that are triggered by the
-	// given event.
-	ListWorkflowsForEvent(ctx context.Context, tenantId, eventKey string) ([]*dbsqlc.GetWorkflowVersionForEngineRow, error)
 
 	// GetWorkflowVersionById returns a workflow version by its id. It will return db.ErrNotFound if the workflow
 	// version does not exist.

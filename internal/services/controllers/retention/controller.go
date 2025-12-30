@@ -159,58 +159,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	if rc.dataRetention {
-		dataInterval := time.Second * 60 // run every 60 seconds
-
-		_, err := rc.s.NewJob(
-			gocron.DurationJob(dataInterval),
-			gocron.NewTask(
-				rc.runDeleteExpiredWorkflowRuns(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteExpiredWorkflowRuns: %w", err)
-		}
-
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(dataInterval),
-			gocron.NewTask(
-				rc.runDeleteExpiredEvents(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteExpiredEvents: %w", err)
-		}
-
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(dataInterval),
-			gocron.NewTask(
-				rc.runDeleteExpiredStepRuns(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteExpiredStepRuns: %w", err)
-		}
-
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(dataInterval),
-			gocron.NewTask(
-				rc.runDeleteExpiredJobRuns(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteExpiredJobRuns: %w", err)
-		}
-	}
-
 	if rc.workerRetention {
 		workerInterval := time.Hour * 60 // run every 1 hour
 
@@ -231,42 +179,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 		queueInterval := time.Second * 60
 
 		_, err := rc.s.NewJob(
-			gocron.DurationJob(queueInterval),
-			gocron.NewTask(
-				rc.runDeleteQueueItems(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteQueueItems: %w", err)
-		}
-
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(queueInterval),
-			gocron.NewTask(
-				rc.runDeleteInternalQueueItems(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteInternalQueueItems: %w", err)
-		}
-
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(queueInterval),
-			gocron.NewTask(
-				rc.runDeleteRetryQueueItems(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteRetryQueueItems: %w", err)
-		}
-
-		_, err = rc.s.NewJob(
 			gocron.DurationJob(queueInterval),
 			gocron.NewTask(
 				rc.runDeleteMessageQueueItems(ctx),

@@ -9,38 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
-func (t *TickerImpl) runPollTenantAlerts(ctx context.Context) func() {
-	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
-		defer cancel()
-
-		t.l.Debug().Msgf("ticker: polling tenant alerts")
-
-		alerts, err := t.repo.Ticker().PollTenantAlerts(ctx, t.tickerId)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not poll tenant alerts")
-			return
-		}
-
-		for _, alert := range alerts {
-			tenantId := sqlchelpers.UUIDToStr(alert.TenantId)
-
-			t.l.Debug().Msgf("ticker: handling alert for tenant %s", tenantId)
-
-			innerErr := t.ta.SendWorkflowRunAlert(tenantId, alert.PrevLastAlertedAt.Time)
-
-			if innerErr != nil {
-				err = multierror.Append(err, innerErr)
-			}
-		}
-
-		if err != nil {
-			t.l.Err(err).Msg("could not handle tenant alerts")
-		}
-	}
-}
-
 func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(ctx, 300*time.Second) // only runs once per day, so long context timeout
