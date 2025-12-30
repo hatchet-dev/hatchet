@@ -3914,8 +3914,6 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		return nil, fmt.Errorf("failed to flatten external ids: %w", err)
 	}
 
-	fmt.Println("found n tasks in workflow run:", len(flat))
-
 	finalizedWorkflowRuns, err := r.ListFinalizedWorkflowRuns(ctx, tenantId, []string{externalId})
 
 	if err != nil {
@@ -3969,7 +3967,8 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 
 	if len(flat) > 0 && len(finalizedWorkflowRuns) == 0 {
 		return &WorkflowRunDetails{
-			InputPayload: input,
+			InputPayload:        input,
+			ReadableIdToDetails: taskRunDetails,
 		}, nil
 	}
 
@@ -3978,7 +3977,6 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	finalizedRun := finalizedWorkflowRuns[0]
 
 	for _, r := range finalizedRun.OutputEvents {
-		fmt.Println("processing output for step readable id:", r.StepReadableID, "with event type:", r.EventType)
 		outputs[r.StepReadableID] = r.Output
 		errors[r.StepReadableID] = r.ErrorMessage
 
