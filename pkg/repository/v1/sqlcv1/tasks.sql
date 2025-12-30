@@ -1152,3 +1152,24 @@ WHERE s.schemaname = 'public'
     AND c.relkind = 'r'
 ORDER BY s.last_autovacuum ASC NULLS LAST
 ;
+
+-- name: ListTaskRunningStatuses :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@taskRetryCounts::integer[]) AS task_retry_count
+)
+
+SELECT
+    t.external_id,
+    (tr.task_id IS NOT NULL)::BOOLEAN AS is_running
+FROM v1_task t
+LEFT JOIN v1_task_runtime tr ON (t.id, t.inserted_at, t.retry_count) = (tr.task_id, tr.task_inserted_at, tr.retry_count)
+WHERE
+    t.tenant_id = @tenantId::uuid
+    AND (t.id, t.task_inserted_at, t.retry_count) IN (
+        SELECT task_id, task_inserted_at, task_retry_count
+        FROM inputs
+    )
+;
