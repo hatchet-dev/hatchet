@@ -42,29 +42,31 @@ type Repository interface {
 	Idempotency() IdempotencyRepository
 	IntervalSettings() IntervalSettingsRepository
 	PGHealth() PGHealthRepository
+	SecurityCheck() SecurityCheckRepository
 }
 
 type repositoryImpl struct {
-	apiToken     APITokenRepository
-	dispatcher   DispatcherRepository
-	health       HealthRepository
-	messageQueue MessageQueueRepository
-	rateLimit    RateLimitRepository
-	triggers     TriggerRepository
-	tasks        TaskRepository
-	scheduler    SchedulerRepository
-	matches      MatchRepository
-	olap         OLAPRepository
-	logs         LogLineRepository
-	workers      WorkerRepository
-	workflows    WorkflowRepository
-	ticker       TickerRepository
-	filters      FilterRepository
-	webhooks     WebhookRepository
-	payloadStore PayloadStoreRepository
-	idempotency  IdempotencyRepository
-	intervals    IntervalSettingsRepository
-	pgHealth     PGHealthRepository
+	apiToken      APITokenRepository
+	dispatcher    DispatcherRepository
+	health        HealthRepository
+	messageQueue  MessageQueueRepository
+	rateLimit     RateLimitRepository
+	triggers      TriggerRepository
+	tasks         TaskRepository
+	scheduler     SchedulerRepository
+	matches       MatchRepository
+	olap          OLAPRepository
+	logs          LogLineRepository
+	workers       WorkerRepository
+	workflows     WorkflowRepository
+	ticker        TickerRepository
+	filters       FilterRepository
+	webhooks      WebhookRepository
+	payloadStore  PayloadStoreRepository
+	idempotency   IdempotencyRepository
+	intervals     IntervalSettingsRepository
+	pgHealth      PGHealthRepository
+	securityCheck SecurityCheckRepository
 }
 
 func NewRepository(
@@ -84,26 +86,27 @@ func NewRepository(
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
 	impl := &repositoryImpl{
-		apiToken:     newAPITokenRepository(shared),
-		dispatcher:   newDispatcherRepository(shared),
-		health:       newHealthRepository(shared),
-		messageQueue: mq,
-		rateLimit:    newRateLimitRepository(shared),
-		triggers:     newTriggerRepository(shared),
-		tasks:        newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
-		scheduler:    newSchedulerRepository(shared),
-		matches:      newMatchRepository(shared),
-		olap:         newOLAPRepository(shared, olapRetentionPeriod, true, statusUpdateBatchSizeLimits),
-		logs:         newLogLineRepository(shared),
-		workers:      newWorkerRepository(shared),
-		workflows:    newWorkflowRepository(shared),
-		ticker:       newTickerRepository(shared),
-		filters:      newFilterRepository(shared),
-		webhooks:     newWebhookRepository(shared),
-		payloadStore: shared.payloadStore,
-		idempotency:  newIdempotencyRepository(shared),
-		intervals:    newIntervalSettingsRepository(shared),
-		pgHealth:     newPGHealthRepository(shared),
+		apiToken:      newAPITokenRepository(shared),
+		dispatcher:    newDispatcherRepository(shared),
+		health:        newHealthRepository(shared),
+		messageQueue:  mq,
+		rateLimit:     newRateLimitRepository(shared),
+		triggers:      newTriggerRepository(shared),
+		tasks:         newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
+		scheduler:     newSchedulerRepository(shared),
+		matches:       newMatchRepository(shared),
+		olap:          newOLAPRepository(shared, olapRetentionPeriod, true, statusUpdateBatchSizeLimits),
+		logs:          newLogLineRepository(shared),
+		workers:       newWorkerRepository(shared),
+		workflows:     newWorkflowRepository(shared),
+		ticker:        newTickerRepository(shared),
+		filters:       newFilterRepository(shared),
+		webhooks:      newWebhookRepository(shared),
+		payloadStore:  shared.payloadStore,
+		idempotency:   newIdempotencyRepository(shared),
+		intervals:     newIntervalSettingsRepository(shared),
+		pgHealth:      newPGHealthRepository(shared),
+		securityCheck: NewSecurityCheckRepository(shared),
 	}
 
 	return impl, func() error {
@@ -211,4 +214,8 @@ func (r *repositoryImpl) IntervalSettings() IntervalSettingsRepository {
 
 func (r *repositoryImpl) PGHealth() PGHealthRepository {
 	return r.pgHealth
+}
+
+func (r *repositoryImpl) SecurityCheck() SecurityCheckRepository {
+	return r.securityCheck
 }

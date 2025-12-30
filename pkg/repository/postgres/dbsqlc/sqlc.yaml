@@ -10,9 +10,7 @@ sql:
       - tickers.sql
       - workers.sql
       - tenants.sql
-      - rate_limits.sql
       - tenant_limits.sql
-      - security_check.sql
       - slack.sql
       - sns.sql
       - tenant_invites.sql

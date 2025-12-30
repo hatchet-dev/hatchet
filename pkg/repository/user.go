@@ -59,10 +59,6 @@ type UserRepository interface {
 	ListTenantMemberships(ctx context.Context, userId string) ([]*dbsqlc.PopulateTenantMembersRow, error)
 }
 
-type SecurityCheckRepository interface {
-	GetIdent() (string, error)
-}
-
 func HashPassword(pw string) (*string, error) {
 	// hash the new password using bcrypt
 	hashedPw, err := bcrypt.GenerateFromPassword([]byte(pw), 10)

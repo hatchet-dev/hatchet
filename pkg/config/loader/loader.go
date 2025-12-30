@@ -477,7 +477,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			Endpoint: cf.SecurityCheck.Endpoint,
 			Logger:   &l,
 			Version:  version,
-		}, dc.APIRepository.SecurityCheck())
+		}, dc.V1.SecurityCheck())
 
 		defer securityCheck.Check()
 	}

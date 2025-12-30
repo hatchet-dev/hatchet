@@ -17,7 +17,6 @@ type APIRepository interface {
 	Worker() WorkerAPIRepository
 	UserSession() UserSessionRepository
 	User() UserRepository
-	SecurityCheck() SecurityCheckRepository
 	WebhookWorker() WebhookWorkerRepository
 }
 

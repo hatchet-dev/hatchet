@@ -20,6 +20,7 @@ sql:
       - olap.sql
       - rate_limits.sql
       - log_line.sql
+      - security_check.sql
       - sleep.sql
       - ticker.sql
       - filters.sql

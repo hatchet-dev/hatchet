@@ -29,7 +29,6 @@ type apiRepository struct {
 	worker         repository.WorkerAPIRepository
 	userSession    repository.UserSessionRepository
 	user           repository.UserRepository
-	securityCheck  repository.SecurityCheckRepository
 	webhookWorker  repository.WebhookWorkerRepository
 }
 
@@ -114,7 +113,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 		worker:         NewWorkerAPIRepository(shared, opts.metered),
 		userSession:    NewUserSessionRepository(shared),
 		user:           NewUserRepository(shared),
-		securityCheck:  NewSecurityCheckRepository(shared),
 		webhookWorker:  NewWebhookWorkerRepository(shared),
 	}, cleanup, err
 }
@@ -165,10 +163,6 @@ func (r *apiRepository) UserSession() repository.UserSessionRepository {
 
 func (r *apiRepository) User() repository.UserRepository {
 	return r.user
-}
-
-func (r *apiRepository) SecurityCheck() repository.SecurityCheckRepository {
-	return r.securityCheck
 }
 
 func (r *apiRepository) WebhookWorker() repository.WebhookWorkerRepository {

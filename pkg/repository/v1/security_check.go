@@ -1,17 +1,20 @@
-package postgres
+package v1
 
 import (
 	"context"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
+
+type SecurityCheckRepository interface {
+	GetIdent() (string, error)
+}
 
 type securityCheckRepository struct {
 	*sharedRepository
 }
 
-func NewSecurityCheckRepository(shared *sharedRepository) repository.SecurityCheckRepository {
+func NewSecurityCheckRepository(shared *sharedRepository) SecurityCheckRepository {
 	return &securityCheckRepository{
 		sharedRepository: shared,
 	}

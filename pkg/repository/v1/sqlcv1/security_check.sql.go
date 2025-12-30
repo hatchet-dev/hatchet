@@ -3,7 +3,7 @@
 //   sqlc v1.29.0
 // source: security_check.sql
 
-package dbsqlc
+package sqlcv1
 
 import (
 	"context"
