@@ -48,9 +48,6 @@ func init() {
 		"the tenant ID to associate with the token",
 	)
 
-	// require the tenant ID
-	tokenCreateAPICmd.MarkPersistentFlagRequired("tenant-id") // nolint: errcheck
-
 	tokenCreateAPICmd.PersistentFlags().StringVar(
 		&tokenName,
 		"name",
