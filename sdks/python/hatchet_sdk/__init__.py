@@ -1,4 +1,5 @@
 from hatchet_sdk.clients.admin import (
+    RunStatus,
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
 )
@@ -242,6 +243,7 @@ __all__ = [
     "RerunStepRunRequest",
     "RunEventListener",
     "RunFilter",
+    "RunStatus",
     "ScheduleTriggerWorkflowOptions",
     "SleepCondition",
     "StepRun",
