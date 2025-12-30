@@ -406,6 +406,80 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}, nil
 }
 
+func (a *AdminServiceImpl) uniq(statuses []string) []string {
+	seen := make(map[string]struct{})
+	result := make([]string, 0)
+
+	for _, status := range statuses {
+		if _, ok := seen[status]; !ok {
+			seen[status] = struct{}{}
+			result = append(result, status)
+		}
+	}
+
+	return result
+}
+
+func (a *AdminServiceImpl) any(statuses []string, target string) bool {
+	for _, status := range statuses {
+		if status == target {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (a *AdminServiceImpl) all(statuses []string, target string) bool {
+	for _, status := range statuses {
+		if status != target {
+			return false
+		}
+	}
+	return true
+}
+
+func (a *AdminServiceImpl) runStatusToProto(status string) contracts.RunStatus {
+	switch status {
+	case "QUEUED":
+		return contracts.RunStatus_QUEUED
+	case "RUNNING":
+		return contracts.RunStatus_RUNNING
+	case "COMPLETED":
+		return contracts.RunStatus_COMPLETED
+	case "FAILED":
+		return contracts.RunStatus_FAILED
+	case "CANCELLED":
+		return contracts.RunStatus_CANCELLED
+	default:
+		// should never hit this case, here to avoid panics
+		return contracts.RunStatus_COMPLETED
+	}
+}
+
+func (a *AdminServiceImpl) deriveWorkflowRunStatus(ctx context.Context, statuses []string) contracts.RunStatus {
+	uniqueStatuses := a.uniq(statuses)
+
+	if len(uniqueStatuses) == 1 {
+		return a.runStatusToProto(uniqueStatuses[0])
+	}
+
+	if a.any(uniqueStatuses, "FAILED") {
+		return a.runStatusToProto("FAILED")
+	}
+
+	if a.any(uniqueStatuses, "RUNNING") || a.any(uniqueStatuses, "QUEUED") {
+		return a.runStatusToProto("RUNNING")
+	}
+
+	if a.any(uniqueStatuses, "CANCELLED") {
+		return a.runStatusToProto("CANCELLED")
+	}
+
+	// should never hit this case, here to avoid panics
+	return a.runStatusToProto("COMPLETED")
+}
+
 func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.GetRunDetailsRequest) (*contracts.GetRunDetailsResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
@@ -424,46 +498,14 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 
 	taskRunDetails := make(map[string]*contracts.TaskRunDetail)
 
-	// derives the workflow run status based on its component task runs
-	derivedWorkflowRunStatus := contracts.RunStatus_COMPLETED
-	allQueued := true
-	allCancelled := true
-	done := false
+	statuses := make([]string, 0)
 
 	for readableId, details := range details.ReadableIdToDetails {
-		var status *contracts.RunStatus
-
-		switch details.Status {
-		case "QUEUED":
-			status = contracts.RunStatus_QUEUED.Enum()
-			allCancelled = false
-			done = false
-		case "RUNNING":
-			status = contracts.RunStatus_RUNNING.Enum()
-			derivedWorkflowRunStatus = contracts.RunStatus_RUNNING
-			allQueued = false
-			allCancelled = false
-			done = false
-		case "COMPLETED":
-			status = contracts.RunStatus_COMPLETED.Enum()
-			allQueued = false
-			allCancelled = false
-			done = true
-		case "FAILED":
-			status = contracts.RunStatus_FAILED.Enum()
-			derivedWorkflowRunStatus = contracts.RunStatus_FAILED
-			allQueued = false
-			allCancelled = false
-			done = true
-		case "CANCELLED":
-			status = contracts.RunStatus_CANCELLED.Enum()
-			derivedWorkflowRunStatus = contracts.RunStatus_FAILED
-			allQueued = false
-			done = true
-		}
+		status := a.runStatusToProto(details.Status)
+		statuses = append(statuses, details.Status)
 
 		taskRunDetails[string(readableId)] = &contracts.TaskRunDetail{
-			Status:     *status,
+			Status:     status,
 			Error:      details.Error,
 			Output:     details.OutputPayload,
 			ReadableId: string(readableId),
@@ -471,13 +513,8 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		}
 	}
 
-	if allQueued && derivedWorkflowRunStatus == contracts.RunStatus_COMPLETED {
-		derivedWorkflowRunStatus = contracts.RunStatus_QUEUED
-	}
-
-	if allCancelled && derivedWorkflowRunStatus == contracts.RunStatus_FAILED {
-		derivedWorkflowRunStatus = contracts.RunStatus_CANCELLED
-	}
+	done := a.all(statuses, "COMPLETED") || a.all(statuses, "FAILED") || a.all(statuses, "CANCELLED")
+	derivedWorkflowRunStatus := a.deriveWorkflowRunStatus(ctx, statuses)
 
 	return &contracts.GetRunDetailsResponse{
 		Input:    details.InputPayload,
