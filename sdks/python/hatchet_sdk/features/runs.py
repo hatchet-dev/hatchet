@@ -856,5 +856,5 @@ class RunsClient(BaseRestClient):
             if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
                 yield chunk.payload
 
-    def get_payloads(self, external_id: str) -> WorkflowRunDetail:
-        return self.admin_client.get_payloads(external_id=external_id)
+    def get_details(self, external_id: str) -> WorkflowRunDetail:
+        return self.admin_client.get_details(external_id=external_id)

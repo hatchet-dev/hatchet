@@ -26,11 +26,13 @@ class RateLimitDuration(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     MONTH: _ClassVar[RateLimitDuration]
     YEAR: _ClassVar[RateLimitDuration]
 
-class WorkflowRunTerminalStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+class RunStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
-    COMPLETED: _ClassVar[WorkflowRunTerminalStatus]
-    FAILED: _ClassVar[WorkflowRunTerminalStatus]
-    CANCELLED: _ClassVar[WorkflowRunTerminalStatus]
+    QUEUED: _ClassVar[RunStatus]
+    RUNNING: _ClassVar[RunStatus]
+    COMPLETED: _ClassVar[RunStatus]
+    FAILED: _ClassVar[RunStatus]
+    CANCELLED: _ClassVar[RunStatus]
 
 class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -57,9 +59,11 @@ DAY: RateLimitDuration
 WEEK: RateLimitDuration
 MONTH: RateLimitDuration
 YEAR: RateLimitDuration
-COMPLETED: WorkflowRunTerminalStatus
-FAILED: WorkflowRunTerminalStatus
-CANCELLED: WorkflowRunTerminalStatus
+QUEUED: RunStatus
+RUNNING: RunStatus
+COMPLETED: RunStatus
+FAILED: RunStatus
+CANCELLED: RunStatus
 CANCEL_IN_PROGRESS: ConcurrencyLimitStrategy
 DROP_NEWEST: ConcurrencyLimitStrategy
 QUEUE_NEWEST: ConcurrencyLimitStrategy
@@ -257,30 +261,28 @@ class CreateWorkflowVersionResponse(_message.Message):
     workflow_id: str
     def __init__(self, id: _Optional[str] = ..., workflow_id: _Optional[str] = ...) -> None: ...
 
-class GetRunPayloadsRequest(_message.Message):
+class GetRunDetailsRequest(_message.Message):
     __slots__ = ("external_id",)
     EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     external_id: str
     def __init__(self, external_id: _Optional[str] = ...) -> None: ...
 
 class TaskRunDetail(_message.Message):
-    __slots__ = ("external_id", "in_terminal_state", "terminal_status", "error", "output", "readable_id")
+    __slots__ = ("external_id", "status", "error", "output", "readable_id")
     EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
-    IN_TERMINAL_STATE_FIELD_NUMBER: _ClassVar[int]
-    TERMINAL_STATUS_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
     READABLE_ID_FIELD_NUMBER: _ClassVar[int]
     external_id: str
-    in_terminal_state: bool
-    terminal_status: WorkflowRunTerminalStatus
+    status: RunStatus
     error: str
     output: bytes
     readable_id: str
-    def __init__(self, external_id: _Optional[str] = ..., in_terminal_state: bool = ..., terminal_status: _Optional[_Union[WorkflowRunTerminalStatus, str]] = ..., error: _Optional[str] = ..., output: _Optional[bytes] = ..., readable_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, external_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., error: _Optional[str] = ..., output: _Optional[bytes] = ..., readable_id: _Optional[str] = ...) -> None: ...
 
-class GetRunPayloadsResponse(_message.Message):
-    __slots__ = ("input", "all_finished", "task_runs")
+class GetRunDetailsResponse(_message.Message):
+    __slots__ = ("input", "status", "task_runs")
     class TaskRunsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -289,9 +291,9 @@ class GetRunPayloadsResponse(_message.Message):
         value: TaskRunDetail
         def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[TaskRunDetail, _Mapping]] = ...) -> None: ...
     INPUT_FIELD_NUMBER: _ClassVar[int]
-    ALL_FINISHED_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
     TASK_RUNS_FIELD_NUMBER: _ClassVar[int]
     input: bytes
-    all_finished: bool
+    status: RunStatus
     task_runs: _containers.MessageMap[str, TaskRunDetail]
-    def __init__(self, input: _Optional[bytes] = ..., all_finished: bool = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ...) -> None: ...
+    def __init__(self, input: _Optional[bytes] = ..., status: _Optional[_Union[RunStatus, str]] = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ...) -> None: ...
