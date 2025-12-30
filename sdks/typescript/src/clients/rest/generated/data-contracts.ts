@@ -218,8 +218,6 @@ export interface Tenant {
   alertMemberEmails?: boolean;
   /** The version of the tenant. */
   version: 'V0' | 'V1';
-  /** The UI of the tenant. */
-  uiVersion?: 'V0' | 'V1';
   /** The environment type of the tenant. */
   environment?: TenantEnvironment;
 }
@@ -372,6 +370,8 @@ export interface TaskStatusStat {
   total?: number;
   queues?: Record<string, number>;
   concurrency?: ConcurrencyStat[];
+  /** @format date-time */
+  oldest?: string;
 }
 
 export interface ConcurrencyStat {
@@ -433,8 +433,6 @@ export interface CreateTenantRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
-  /** The UI version of the tenant. Defaults to V0. */
-  uiVersion?: any;
   /** The engine version of the tenant. Defaults to V0. */
   engineVersion?: any;
   /** The environment type of the tenant. */
@@ -460,8 +458,6 @@ export interface UpdateTenantRequest {
   maxAlertingFrequency?: string;
   /** The version of the tenant. */
   version?: any;
-  /** The UI of the tenant. */
-  uiVersion?: any;
 }
 
 export interface Event {
@@ -569,73 +565,75 @@ export interface EventList {
   rows?: Event[];
 }
 
+export interface V1Event {
+  metadata: APIResourceMeta;
+  /** The key for the event. */
+  key: string;
+  /** The tenant associated with this event. */
+  tenant?: Tenant;
+  /** The ID of the tenant associated with this event. */
+  tenantId: string;
+  /** The workflow run summary for this event. */
+  workflowRunSummary: {
+    /**
+     * The number of running runs.
+     * @format int64
+     */
+    running: number;
+    /**
+     * The number of queued runs.
+     * @format int64
+     */
+    queued: number;
+    /**
+     * The number of succeeded runs.
+     * @format int64
+     */
+    succeeded: number;
+    /**
+     * The number of failed runs.
+     * @format int64
+     */
+    failed: number;
+    /**
+     * The number of cancelled runs.
+     * @format int64
+     */
+    cancelled: number;
+  };
+  /** Additional metadata for the event. */
+  additionalMetadata?: object;
+  /** The payload of the event, which can be any JSON-serializable object. */
+  payload?: object;
+  /** The scope of the event, which can be used to filter or categorize events. */
+  scope?: string;
+  /**
+   * The timestamp when the event was seen.
+   * @format date-time
+   */
+  seenAt?: string;
+  /** The external IDs of the runs that were triggered by this event. */
+  triggeredRuns?: {
+    /**
+     * The external ID of the triggered run.
+     * @format uuid
+     * @minLength 36
+     * @maxLength 36
+     */
+    workflowRunId: string;
+    /**
+     * The ID of the filter that triggered the run, if applicable.
+     * @format uuid
+     */
+    filterId?: string;
+  }[];
+  /** The name of the webhook that triggered this event, if applicable. */
+  triggeringWebhookName?: string;
+}
+
 export interface V1EventList {
   pagination?: PaginationResponse;
-  rows?: {
-    metadata: APIResourceMeta;
-    /** The key for the event. */
-    key: string;
-    /** The tenant associated with this event. */
-    tenant?: Tenant;
-    /** The ID of the tenant associated with this event. */
-    tenantId: string;
-    /** The workflow run summary for this event. */
-    workflowRunSummary: {
-      /**
-       * The number of running runs.
-       * @format int64
-       */
-      running: number;
-      /**
-       * The number of queued runs.
-       * @format int64
-       */
-      queued: number;
-      /**
-       * The number of succeeded runs.
-       * @format int64
-       */
-      succeeded: number;
-      /**
-       * The number of failed runs.
-       * @format int64
-       */
-      failed: number;
-      /**
-       * The number of cancelled runs.
-       * @format int64
-       */
-      cancelled: number;
-    };
-    /** Additional metadata for the event. */
-    additionalMetadata?: object;
-    /** The payload of the event, which can be any JSON-serializable object. */
-    payload?: object;
-    /** The scope of the event, which can be used to filter or categorize events. */
-    scope?: string;
-    /**
-     * The timestamp when the event was seen.
-     * @format date-time
-     */
-    seenAt?: string;
-    /** The external IDs of the runs that were triggered by this event. */
-    triggeredRuns?: {
-      /**
-       * The external ID of the triggered run.
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      workflowRunId: string;
-      /**
-       * The ID of the filter that triggered the run, if applicable.
-       * @format uuid
-       */
-      filterId?: string;
-    }[];
-    /** The name of the webhook that triggered this event, if applicable. */
-    triggeringWebhookName?: string;
-  }[];
+  rows?: V1Event[];
 }
 
 export interface V1FilterList {
@@ -991,81 +989,6 @@ export interface ScheduledWorkflowsList {
   pagination?: PaginationResponse;
 }
 
-export interface UpdateScheduledWorkflowRunRequest {
-  /** @format date-time */
-  triggerAt: string;
-}
-
-export interface ScheduledWorkflowsBulkDeleteFilter {
-  /**
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   */
-  workflowId?: string;
-  /**
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   */
-  parentWorkflowRunId?: string;
-  /**
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   */
-  parentStepRunId?: string;
-  /**
-   * A list of metadata key value pairs to filter by
-   * @example ["key1:value1","key2:value2"]
-   */
-  additionalMetadata?: string[];
-  /** A list of scheduled run statuses to filter by */
-  statuses?: ScheduledRunStatus[];
-}
-
-export interface ScheduledWorkflowsBulkDeleteRequest {
-  /** @maxItems 500 */
-  scheduledWorkflowRunIds?: string[];
-  filter?: ScheduledWorkflowsBulkDeleteFilter;
-}
-
-export interface ScheduledWorkflowsBulkError {
-  /**
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   */
-  id?: string;
-  error: string;
-}
-
-export interface ScheduledWorkflowsBulkDeleteResponse {
-  deletedIds: string[];
-  errors: ScheduledWorkflowsBulkError[];
-}
-
-export interface ScheduledWorkflowsBulkUpdateItem {
-  /**
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   */
-  id: string;
-  /** @format date-time */
-  triggerAt: string;
-}
-
-export interface ScheduledWorkflowsBulkUpdateRequest {
-  /** @maxItems 500 */
-  updates: ScheduledWorkflowsBulkUpdateItem[];
-}
-
-export interface ScheduledWorkflowsBulkUpdateResponse {
-  updatedIds: string[];
-  errors: ScheduledWorkflowsBulkError[];
-}
-
 export enum ScheduledWorkflowsOrderByField {
   TriggerAt = 'triggerAt',
   CreatedAt = 'createdAt',
@@ -1079,6 +1002,79 @@ export enum ScheduledRunStatus {
   CANCELLED = 'CANCELLED',
   QUEUED = 'QUEUED',
   SCHEDULED = 'SCHEDULED',
+}
+
+export interface UpdateScheduledWorkflowRunRequest {
+  /** @format date-time */
+  triggerAt: string;
+}
+
+export interface ScheduledWorkflowsBulkDeleteRequest {
+  /**
+   * @maxItems 500
+   * @minItems 1
+   */
+  scheduledWorkflowRunIds?: string[];
+  filter?: {
+    /**
+     * @format uuid
+     * @minLength 36
+     * @maxLength 36
+     */
+    workflowId?: string;
+    /**
+     * @format uuid
+     * @minLength 36
+     * @maxLength 36
+     */
+    parentWorkflowRunId?: string;
+    /**
+     * @format uuid
+     * @minLength 36
+     * @maxLength 36
+     */
+    parentStepRunId?: string;
+    /**
+     * A list of metadata key value pairs to filter by
+     * @example ["key1:value1","key2:value2"]
+     */
+    additionalMetadata?: string[];
+  };
+}
+
+export interface ScheduledWorkflowsBulkDeleteResponse {
+  deletedIds: string[];
+  errors: {
+    /**
+     * @format uuid
+     * @minLength 36
+     * @maxLength 36
+     */
+    id?: string;
+    error: string;
+  }[];
+}
+
+export interface ScheduledWorkflowsBulkUpdateRequest {
+  /**
+   * @maxItems 500
+   * @minItems 1
+   */
+  updates: {
+    /**
+     * @format uuid
+     * @minLength 36
+     * @maxLength 36
+     */
+    id: string;
+    /** @format date-time */
+    triggerAt: string;
+  }[];
+}
+
+export interface ScheduledWorkflowsBulkUpdateResponse {
+  updatedIds: string[];
+  errors: any[];
 }
 
 export interface CronWorkflows {
@@ -1856,7 +1852,8 @@ export interface V1TaskEventList {
       | 'ACKNOWLEDGED'
       | 'CREATED'
       | 'QUEUED'
-      | 'SKIPPED';
+      | 'SKIPPED'
+      | 'COULD_NOT_SEND_TO_WORKER';
     message: string;
     errorMessage?: string;
     output?: string;
