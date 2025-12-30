@@ -77,6 +77,7 @@ class WorkflowRunDetail(BaseModel):
     status: RunStatus
     input: JSONSerializableMapping | None = None
     task_runs: dict[str, TaskRunDetail]
+    done: bool = False
 
 
 class AdminClient:
@@ -547,4 +548,5 @@ class AdminClient:
                 )
                 for readable_id, details in response.task_runs.items()
             },
+            done=response.done,
         )

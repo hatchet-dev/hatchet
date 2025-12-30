@@ -282,7 +282,7 @@ class TaskRunDetail(_message.Message):
     def __init__(self, external_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., error: _Optional[str] = ..., output: _Optional[bytes] = ..., readable_id: _Optional[str] = ...) -> None: ...
 
 class GetRunDetailsResponse(_message.Message):
-    __slots__ = ("input", "status", "task_runs")
+    __slots__ = ("input", "status", "task_runs", "done")
     class TaskRunsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -293,7 +293,9 @@ class GetRunDetailsResponse(_message.Message):
     INPUT_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     TASK_RUNS_FIELD_NUMBER: _ClassVar[int]
+    DONE_FIELD_NUMBER: _ClassVar[int]
     input: bytes
     status: RunStatus
     task_runs: _containers.MessageMap[str, TaskRunDetail]
-    def __init__(self, input: _Optional[bytes] = ..., status: _Optional[_Union[RunStatus, str]] = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ...) -> None: ...
+    done: bool
+    def __init__(self, input: _Optional[bytes] = ..., status: _Optional[_Union[RunStatus, str]] = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ..., done: bool = ...) -> None: ...
