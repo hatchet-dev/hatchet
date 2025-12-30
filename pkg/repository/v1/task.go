@@ -1862,29 +1862,26 @@ func (r *sharedRepository) insertTasks(
 				taskConcurrencyKeys := make([]string, 0)
 				var failTaskError error
 
-				for _, strat := range strats {
-					var additionalMeta map[string]interface{}
+				var additionalMeta map[string]interface{}
+				if len(additionalMetadatas[i]) > 0 {
+					if err := json.Unmarshal(additionalMetadatas[i], &additionalMeta); err != nil {
+						failTaskError = fmt.Errorf("failed to process additional metadata: not a json object")
+					}
+				}
 
-					if len(additionalMetadatas[i]) > 0 {
-						if err := json.Unmarshal(additionalMetadatas[i], &additionalMeta); err != nil {
-							failTaskError = fmt.Errorf("failed to process additional metadata: not a json object")
+				if failTaskError == nil {
+					for _, strat := range strats {
+						if task.Input == nil {
+							failTaskError = fmt.Errorf("failed to parse step expression (%s): input is nil", strat.Expression)
 							break
 						}
-					}
 
-					if task.Input == nil {
-						failTaskError = fmt.Errorf("failed to parse step expression (%s): input is nil", strat.Expression)
-						break
-					}
-
-					// Make sure to fail the task with a user-friendly error if we can't parse the CEL for priority
-					// Can set fail task error which will insert with an initial state of failed
-					res, err := r.celParser.ParseAndEvalStepRun(strat.Expression, cel.NewInput(
-						cel.WithInput(task.Input.Input),
-						cel.WithAdditionalMetadata(additionalMeta),
-						cel.WithWorkflowRunID(task.ExternalId),
-						cel.WithParents(task.Input.TriggerData),
-					))
+						res, err := r.celParser.ParseAndEvalStepRun(strat.Expression, cel.NewInput(
+							cel.WithInput(task.Input.Input),
+							cel.WithAdditionalMetadata(additionalMeta),
+							cel.WithWorkflowRunID(task.ExternalId),
+							cel.WithParents(task.Input.TriggerData),
+						))
 
 					if err != nil {
 						failTaskError = fmt.Errorf("failed to parse step expression (%s): %w", strat.Expression, err)
@@ -1904,10 +1901,10 @@ func (r *sharedRepository) insertTasks(
 					}
 
 					taskConcurrencyKeys = append(taskConcurrencyKeys, *res.String)
+					}
 				}
 
 				if failTaskError != nil {
-					// place the task into a failed state
 					initialStates[i] = string(sqlcv1.V1TaskInitialStateFAILED)
 
 					initialStateReasons[i] = pgtype.Text{
@@ -1915,7 +1912,6 @@ func (r *sharedRepository) insertTasks(
 						Valid:  true,
 					}
 
-					// set to "FAILED" for each strategy to maintain cardinality in multi-dimensional array
 					failedKeys := make([]string, len(strats))
 					for j := range failedKeys {
 						failedKeys[j] = "FAILED"

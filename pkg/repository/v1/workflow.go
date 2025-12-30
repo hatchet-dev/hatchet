@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
-	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -1010,14 +1009,13 @@ func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersion
 		}
 	}
 
-	// compute a checksum for the workflow
-	declaredValues, err := datautils.ToJSONMap(opts)
+	optsBytes, err := json.Marshal(opts)
 
 	if err != nil {
 		return "", opts, err
 	}
 
-	workflowChecksum, err := digest.DigestValues(declaredValues)
+	workflowChecksum, err := digest.DigestBytes(optsBytes)
 
 	if err != nil {
 		return "", opts, err

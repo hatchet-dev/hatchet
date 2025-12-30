@@ -53,48 +53,32 @@ func (m *MatchData) TriggerDataValue(key string) map[string]interface{} {
 	values := m.triggerDataKeys[key]
 
 	for _, v := range values {
-		// convert the values to a byte array, then to a map
-		vBytes, err := json.Marshal(v)
-
-		if err != nil {
-			continue
+		if data, ok := v.(map[string]interface{}); ok {
+			return data
 		}
-
-		data := map[string]interface{}{}
-
-		err = json.Unmarshal(vBytes, &data)
-
-		if err != nil {
-			continue
-		}
-
-		return data
 	}
 
 	return nil
 }
 
-// Helper function for internal events
 func (m *MatchData) DataValueAsTaskOutputEvent(key string) *TaskOutputEvent {
 	values := m.dataKeys[key]
 
 	for _, v := range values {
-		// convert the values to a byte array, then to a TaskOutputEvent
-		vBytes, err := json.Marshal(v)
-
-		if err != nil {
-			continue
+		if event, ok := v.(*TaskOutputEvent); ok {
+			return event
 		}
-
-		event := &TaskOutputEvent{}
-
-		err = json.Unmarshal(vBytes, event)
-
-		if err != nil {
-			continue
+		if eventMap, ok := v.(map[string]interface{}); ok {
+			event := &TaskOutputEvent{}
+			vBytes, err := json.Marshal(eventMap)
+			if err != nil {
+				continue
+			}
+			if err := json.Unmarshal(vBytes, event); err != nil {
+				continue
+			}
+			return event
 		}
-
-		return event
 	}
 
 	return nil

@@ -1,7 +1,8 @@
 package dagutils
 
 import (
-	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"encoding/json"
+
 	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
@@ -23,14 +24,13 @@ func Checksum(opts *repository.CreateWorkflowVersionOpts) (string, error) {
 		}
 	}
 
-	// compute a checksum for the workflow
-	declaredValues, err := datautils.ToJSONMap(opts)
+	optsBytes, err := json.Marshal(opts)
 
 	if err != nil {
 		return "", err
 	}
 
-	workflowChecksum, err := digest.DigestValues(declaredValues)
+	workflowChecksum, err := digest.DigestBytes(optsBytes)
 
 	if err != nil {
 		return "", err
