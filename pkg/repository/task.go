@@ -3935,7 +3935,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	}
 
 	if len(flat) == 0 {
-		return nil, fmt.Errorf("workflow run not found for external id: %s", externalId)
+		return nil, nil
 	}
 
 	isDag := len(flat) > 1

@@ -496,6 +496,10 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		return nil, fmt.Errorf("could not get workflow run result details: %w", err)
 	}
 
+	if details == nil {
+		return &contracts.GetRunDetailsResponse{}, nil
+	}
+
 	taskRunDetails := make(map[string]*contracts.TaskRunDetail)
 
 	statuses := make([]string, 0)
