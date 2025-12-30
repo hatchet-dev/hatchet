@@ -190,7 +190,7 @@ message GetRunPayloadsRequest {
 
 message TaskRunDetail {
     string external_id = 1; // the external id (uuid) of the task run
-    optional RunStatus status = 2; // (optional) the status of the task run
+    RunStatus status = 2; // the status of the task run
     optional string error = 3; // (optional) error message from the task run, if any
     optional bytes output = 4; // (optional) the output payload for the task run
     string readable_id = 5; // the readable id of the task
@@ -198,6 +198,6 @@ message TaskRunDetail {
 
 message GetRunPayloadsResponse {
     bytes input = 1; // the input payload for the workflow run
-    bool all_finished = 2; // whether all task runs are finished
+    RunStatus status = 2; // the status of the workflow run
     map<string, TaskRunDetail> task_runs = 3; // map of task run external ids to their details
 }
