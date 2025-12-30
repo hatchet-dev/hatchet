@@ -1,3 +1,7 @@
+# /!/bin/bash
+
+set -eo pipefail
+
 echo "\nLinting with ruff"
 poetry run ruff check . --fix
 
