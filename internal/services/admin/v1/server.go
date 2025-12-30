@@ -513,7 +513,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		}
 	}
 
-	done := a.all(statuses, "COMPLETED") || a.all(statuses, "FAILED") || a.all(statuses, "CANCELLED")
+	done := !a.any(statuses, "QUEUED") && !a.any(statuses, "RUNNING")
 	derivedWorkflowRunStatus := a.deriveWorkflowRunStatus(ctx, statuses)
 
 	return &contracts.GetRunDetailsResponse{
