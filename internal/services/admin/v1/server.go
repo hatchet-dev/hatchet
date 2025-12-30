@@ -406,8 +406,8 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}, nil
 }
 
-func (a *AdminServiceImpl) GetRunPayloads(ctx context.Context, req *contracts.GetRunPayloadsRequest) (*contracts.GetRunPayloadsResponse, error) {
-	fmt.Println("GetRunPayloads called with ExternalId:", req.ExternalId)
+func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.GetRunDetailsRequest) (*contracts.GetRunDetailsResponse, error) {
+	fmt.Println("GetRunDetails called with ExternalId:", req.ExternalId)
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -446,7 +446,7 @@ func (a *AdminServiceImpl) GetRunPayloads(ctx context.Context, req *contracts.Ge
 		}
 	}
 
-	return &contracts.GetRunPayloadsResponse{
+	return &contracts.GetRunDetailsResponse{
 		Input:       details.InputPayload,
 		TaskRuns:    taskRunDetails,
 		AllFinished: details.AllFinished,
