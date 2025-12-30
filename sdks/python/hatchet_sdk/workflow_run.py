@@ -9,7 +9,7 @@ from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunLis
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
 
 if TYPE_CHECKING:
-    from hatchet_sdk.clients.admin import AdminClient, RunStatus
+    from hatchet_sdk.clients.admin import AdminClient
 
 
 class WorkflowRunRef:
@@ -44,6 +44,8 @@ class WorkflowRunRef:
             return None
 
     def result(self) -> dict[str, Any]:
+        from hatchet_sdk.clients.admin import RunStatus
+
         retries = 0
 
         while True:
