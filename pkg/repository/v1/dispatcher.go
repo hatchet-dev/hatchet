@@ -1,37 +1,46 @@
-package postgres
+package v1
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/validator"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-type dispatcherRepository struct {
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	queries *dbsqlc.Queries
-	l       *zerolog.Logger
+type CreateDispatcherOpts struct {
+	ID string `validate:"required,uuid"`
 }
 
-func NewDispatcherRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.DispatcherEngineRepository {
-	queries := dbsqlc.New()
+type UpdateDispatcherOpts struct {
+	LastHeartbeatAt *time.Time
+}
 
+type DispatcherRepository interface {
+	// CreateNewDispatcher creates a new dispatcher for a given tenant.
+	CreateNewDispatcher(ctx context.Context, opts *CreateDispatcherOpts) (*sqlcv1.Dispatcher, error)
+
+	// UpdateDispatcher updates a dispatcher for a given tenant.
+	UpdateDispatcher(ctx context.Context, dispatcherId string, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error)
+
+	Delete(ctx context.Context, dispatcherId string) error
+
+	UpdateStaleDispatchers(ctx context.Context, onStale func(dispatcherId string, getValidDispatcherId func() string) error) error
+}
+
+type dispatcherRepository struct {
+	*sharedRepository
+}
+
+func newDispatcherRepository(shared *sharedRepository) DispatcherRepository {
 	return &dispatcherRepository{
-		pool:    pool,
-		queries: queries,
-		v:       v,
-		l:       l,
+		sharedRepository: shared,
 	}
 }
 
-func (d *dispatcherRepository) CreateNewDispatcher(ctx context.Context, opts *repository.CreateDispatcherOpts) (*dbsqlc.Dispatcher, error) {
+func (d *dispatcherRepository) CreateNewDispatcher(ctx context.Context, opts *CreateDispatcherOpts) (*sqlcv1.Dispatcher, error) {
 	if err := d.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -39,12 +48,12 @@ func (d *dispatcherRepository) CreateNewDispatcher(ctx context.Context, opts *re
 	return d.queries.CreateDispatcher(ctx, d.pool, sqlchelpers.UUIDFromStr(opts.ID))
 }
 
-func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherId string, opts *repository.UpdateDispatcherOpts) (*dbsqlc.Dispatcher, error) {
+func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherId string, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error) {
 	if err := d.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	return d.queries.UpdateDispatcher(ctx, d.pool, dbsqlc.UpdateDispatcherParams{
+	return d.queries.UpdateDispatcher(ctx, d.pool, sqlcv1.UpdateDispatcherParams{
 		ID:              sqlchelpers.UUIDFromStr(dispatcherId),
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
 	})

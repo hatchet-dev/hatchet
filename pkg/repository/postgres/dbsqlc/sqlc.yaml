@@ -9,7 +9,6 @@ sql:
       - workflows.sql
       - step_runs.sql
       - tickers.sql
-      - dispatchers.sql
       - workers.sql
       - tenants.sql
       - rate_limits.sql

@@ -195,8 +195,6 @@ func (r *apiRepository) WebhookWorker() repository.WebhookWorkerRepository {
 
 type engineRepository struct {
 	health         repository.HealthRepository
-	apiToken       repository.APITokenRepository
-	dispatcher     repository.DispatcherEngineRepository
 	event          repository.EventEngineRepository
 	getGroupKeyRun repository.GetGroupKeyRunEngineRepository
 	jobRun         repository.JobRunEngineRepository
@@ -217,14 +215,6 @@ type engineRepository struct {
 
 func (r *engineRepository) Health() repository.HealthRepository {
 	return r.health
-}
-
-func (r *engineRepository) APIToken() repository.APITokenRepository {
-	return r.apiToken
-}
-
-func (r *engineRepository) Dispatcher() repository.DispatcherEngineRepository {
-	return r.dispatcher
 }
 
 func (r *engineRepository) Event() repository.EventEngineRepository {
@@ -330,7 +320,6 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 			return cleanup()
 		}, &engineRepository{
 			health:         NewHealthEngineRepository(pool, opts.l),
-			dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
 			event:          NewEventEngineRepository(shared, opts.metered, cf.EventBuffer),
 			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 			jobRun:         NewJobRunEngineRepository(shared),

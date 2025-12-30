@@ -7,6 +7,7 @@ sql:
       - api_token.sql
       - concurrency.sql
       - dags.sql
+      - dispatcher.sql
       - tasks.sql
       - queue.sql
       - triggers.sql

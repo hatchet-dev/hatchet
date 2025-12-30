@@ -277,7 +277,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	d.sharedBufferedReaderv1 = msgqueuev1.NewSharedBufferedTenantReader(d.mqv1)
 
 	// register the dispatcher by creating a new dispatcher in the database
-	dispatcher, err := d.repo.Dispatcher().CreateNewDispatcher(ctx, &repository.CreateDispatcherOpts{
+	dispatcher, err := d.repov1.Dispatcher().CreateNewDispatcher(ctx, &v1.CreateDispatcherOpts{
 		ID: d.dispatcherId,
 	})
 
@@ -360,7 +360,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer deleteCancel()
 
-		err = d.repo.Dispatcher().Delete(deleteCtx, dispatcherId)
+		err = d.repov1.Dispatcher().Delete(deleteCtx, dispatcherId)
 		if err != nil {
 			return fmt.Errorf("could not delete dispatcher: %w", err)
 		}
@@ -404,7 +404,7 @@ func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		now := time.Now().UTC()
 
 		// update the heartbeat
-		_, err := d.repo.Dispatcher().UpdateDispatcher(ctx, d.dispatcherId, &repository.UpdateDispatcherOpts{
+		_, err := d.repov1.Dispatcher().UpdateDispatcher(ctx, d.dispatcherId, &v1.UpdateDispatcherOpts{
 			LastHeartbeatAt: &now,
 		})
 
