@@ -289,7 +289,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		slackWebhook, err := config.APIRepository.Slack().GetSlackWebhookById(timeoutCtx, id)
+		slackWebhook, err := config.V1.Slack().GetSlackWebhookById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err

@@ -43,6 +43,7 @@ type Repository interface {
 	IntervalSettings() IntervalSettingsRepository
 	PGHealth() PGHealthRepository
 	SecurityCheck() SecurityCheckRepository
+	Slack() SlackRepository
 }
 
 type repositoryImpl struct {
@@ -67,6 +68,7 @@ type repositoryImpl struct {
 	intervals     IntervalSettingsRepository
 	pgHealth      PGHealthRepository
 	securityCheck SecurityCheckRepository
+	slack         SlackRepository
 }
 
 func NewRepository(
@@ -106,7 +108,8 @@ func NewRepository(
 		idempotency:   newIdempotencyRepository(shared),
 		intervals:     newIntervalSettingsRepository(shared),
 		pgHealth:      newPGHealthRepository(shared),
-		securityCheck: NewSecurityCheckRepository(shared),
+		securityCheck: newSecurityCheckRepository(shared),
+		slack:         newSlackRepository(shared),
 	}
 
 	return impl, func() error {
@@ -218,4 +221,8 @@ func (r *repositoryImpl) PGHealth() PGHealthRepository {
 
 func (r *repositoryImpl) SecurityCheck() SecurityCheckRepository {
 	return r.securityCheck
+}
+
+func (r *repositoryImpl) Slack() SlackRepository {
+	return r.slack
 }

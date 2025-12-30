@@ -14,7 +14,7 @@ func (i *SlackAppService) SlackWebhookDelete(ctx echo.Context, req gen.SlackWebh
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	slack := ctx.Get("slack").(*dbsqlc.SlackAppWebhook)
 
-	err := i.config.APIRepository.Slack().DeleteSlackWebhook(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(slack.ID))
+	err := i.config.V1.Slack().DeleteSlackWebhook(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(slack.ID))
 
 	if err != nil {
 		return nil, err

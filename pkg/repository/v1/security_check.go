@@ -14,7 +14,7 @@ type securityCheckRepository struct {
 	*sharedRepository
 }
 
-func NewSecurityCheckRepository(shared *sharedRepository) SecurityCheckRepository {
+func newSecurityCheckRepository(shared *sharedRepository) SecurityCheckRepository {
 	return &securityCheckRepository{
 		sharedRepository: shared,
 	}

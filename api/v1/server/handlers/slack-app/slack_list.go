@@ -13,7 +13,7 @@ func (s *SlackAppService) SlackWebhookList(ctx echo.Context, req gen.SlackWebhoo
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	webhooks, err := s.config.APIRepository.Slack().ListSlackWebhooks(ctx.Request().Context(), tenantId)
+	webhooks, err := s.config.V1.Slack().ListSlackWebhooks(ctx.Request().Context(), tenantId)
 
 	if err != nil {
 		return nil, err

@@ -21,6 +21,7 @@ sql:
       - rate_limits.sql
       - log_line.sql
       - security_check.sql
+      - slack.sql
       - sleep.sql
       - ticker.sql
       - filters.sql

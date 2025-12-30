@@ -24,7 +24,6 @@ type apiRepository struct {
 	workflowRun    repository.WorkflowRunAPIRepository
 	stepRun        repository.StepRunAPIRepository
 	step           repository.StepRepository
-	slack          repository.SlackRepository
 	sns            repository.SNSRepository
 	worker         repository.WorkerAPIRepository
 	userSession    repository.UserSessionRepository
@@ -108,7 +107,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 		workflowRun:    NewWorkflowRunRepository(shared, opts.metered, cf),
 		stepRun:        NewStepRunAPIRepository(shared),
 		step:           NewStepRepository(pool, opts.v, opts.l),
-		slack:          NewSlackRepository(shared),
 		sns:            NewSNSRepository(shared),
 		worker:         NewWorkerAPIRepository(shared, opts.metered),
 		userSession:    NewUserSessionRepository(shared),
@@ -139,10 +137,6 @@ func (r *apiRepository) WorkflowRun() repository.WorkflowRunAPIRepository {
 
 func (r *apiRepository) StepRun() repository.StepRunAPIRepository {
 	return r.stepRun
-}
-
-func (r *apiRepository) Slack() repository.SlackRepository {
-	return r.slack
 }
 
 func (r *apiRepository) SNS() repository.SNSRepository {
