@@ -3910,7 +3910,7 @@ func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*tim
 type TaskRunDetails struct {
 	OutputPayload     []byte
 	IsInTerminalState bool
-	TerminalStatus    string
+	Status            string
 	Error             *string
 	ExternalId        string
 }
@@ -3988,7 +3988,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		taskRunDetails[StepReadableId(r.StepReadableID)] = TaskRunDetails{
 			OutputPayload:     r.Output,
 			IsInTerminalState: true,
-			TerminalStatus:    string(r.EventType),
+			Status:            string(r.EventType),
 			Error:             &r.ErrorMessage,
 			ExternalId:        r.TaskExternalId,
 		}

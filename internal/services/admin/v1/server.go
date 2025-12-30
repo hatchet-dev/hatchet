@@ -424,32 +424,51 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 	}
 
 	taskRunDetails := make(map[string]*contracts.TaskRunDetail)
-	for readableId, details := range details.ReadableIdToDetails {
-		var terminalStatus *contracts.WorkflowRunTerminalStatus
 
-		switch details.TerminalStatus {
+	// derives the workflow run status based on its component task runs
+	derivedWorkflowRunStatus := contracts.RunStatus_COMPLETED
+	allQueued := true
+
+	for readableId, details := range details.ReadableIdToDetails {
+		var status *contracts.RunStatus
+
+		switch details.Status {
+		case "QUEUED":
+			status = contracts.RunStatus_QUEUED.Enum()
+		case "RUNNING":
+			status = contracts.RunStatus_RUNNING.Enum()
+			derivedWorkflowRunStatus = contracts.RunStatus_RUNNING
+			allQueued = false
 		case "COMPLETED":
-			terminalStatus = contracts.WorkflowRunTerminalStatus_COMPLETED.Enum()
+			status = contracts.RunStatus_COMPLETED.Enum()
+			allQueued = false
 		case "FAILED":
-			terminalStatus = contracts.WorkflowRunTerminalStatus_FAILED.Enum()
+			status = contracts.RunStatus_FAILED.Enum()
+			derivedWorkflowRunStatus = contracts.RunStatus_FAILED
+			allQueued = false
 		case "CANCELLED":
-			terminalStatus = contracts.WorkflowRunTerminalStatus_CANCELLED.Enum()
+			status = contracts.RunStatus_CANCELLED.Enum()
+			derivedWorkflowRunStatus = contracts.RunStatus_FAILED
+			allQueued = false
 		}
 
 		taskRunDetails[string(readableId)] = &contracts.TaskRunDetail{
-			InTerminalState: details.IsInTerminalState,
-			TerminalStatus:  terminalStatus,
-			Error:           details.Error,
-			Output:          details.OutputPayload,
-			ReadableId:      string(readableId),
-			ExternalId:      details.ExternalId,
+			Status:     *status,
+			Error:      details.Error,
+			Output:     details.OutputPayload,
+			ReadableId: string(readableId),
+			ExternalId: details.ExternalId,
 		}
 	}
 
+	if allQueued && derivedWorkflowRunStatus == contracts.RunStatus_COMPLETED {
+		derivedWorkflowRunStatus = contracts.RunStatus_QUEUED
+	}
+
 	return &contracts.GetRunDetailsResponse{
-		Input:       details.InputPayload,
-		TaskRuns:    taskRunDetails,
-		AllFinished: details.AllFinished,
+		Input:    details.InputPayload,
+		TaskRuns: taskRunDetails,
+		Status:   derivedWorkflowRunStatus,
 	}, nil
 }
 
