@@ -200,4 +200,5 @@ message GetRunDetailsResponse {
     bytes input = 1; // the input payload for the workflow run
     RunStatus status = 2; // the status of the workflow run
     map<string, TaskRunDetail> task_runs = 3; // map of task run external ids to their details
+    bool done = 4; // indicates if the workflow run is done
 }
