@@ -22,7 +22,6 @@ type apiRepository struct {
 	tenantInvite   repository.TenantInviteRepository
 	workflow       repository.WorkflowAPIRepository
 	workflowRun    repository.WorkflowRunAPIRepository
-	jobRun         repository.JobRunAPIRepository
 	stepRun        repository.StepRunAPIRepository
 	step           repository.StepRepository
 	slack          repository.SlackRepository
@@ -108,7 +107,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 		tenantInvite:   NewTenantInviteRepository(shared),
 		workflow:       NewWorkflowRepository(shared),
 		workflowRun:    NewWorkflowRunRepository(shared, opts.metered, cf),
-		jobRun:         NewJobRunAPIRepository(shared),
 		stepRun:        NewStepRunAPIRepository(shared),
 		step:           NewStepRepository(pool, opts.v, opts.l),
 		slack:          NewSlackRepository(shared),
@@ -139,10 +137,6 @@ func (r *apiRepository) Workflow() repository.WorkflowAPIRepository {
 
 func (r *apiRepository) WorkflowRun() repository.WorkflowRunAPIRepository {
 	return r.workflowRun
-}
-
-func (r *apiRepository) JobRun() repository.JobRunAPIRepository {
-	return r.jobRun
 }
 
 func (r *apiRepository) StepRun() repository.StepRunAPIRepository {
@@ -182,8 +176,6 @@ func (r *apiRepository) WebhookWorker() repository.WebhookWorkerRepository {
 }
 
 type engineRepository struct {
-	getGroupKeyRun repository.GetGroupKeyRunEngineRepository
-	jobRun         repository.JobRunEngineRepository
 	step           repository.StepRepository
 	stepRun        repository.StepRunEngineRepository
 	tenant         repository.TenantEngineRepository
@@ -193,18 +185,9 @@ type engineRepository struct {
 	workflow       repository.WorkflowEngineRepository
 	workflowRun    repository.WorkflowRunEngineRepository
 	streamEvent    repository.StreamEventsEngineRepository
-	log            repository.LogsEngineRepository
 	rateLimit      repository.RateLimitEngineRepository
 	webhookWorker  repository.WebhookWorkerEngineRepository
 	mq             repository.MessageQueueRepository
-}
-
-func (r *engineRepository) GetGroupKeyRun() repository.GetGroupKeyRunEngineRepository {
-	return r.getGroupKeyRun
-}
-
-func (r *engineRepository) JobRun() repository.JobRunEngineRepository {
-	return r.jobRun
 }
 
 func (r *engineRepository) StepRun() repository.StepRunEngineRepository {
@@ -241,10 +224,6 @@ func (r *engineRepository) WorkflowRun() repository.WorkflowRunEngineRepository 
 
 func (r *engineRepository) StreamEvent() repository.StreamEventsEngineRepository {
 	return r.streamEvent
-}
-
-func (r *engineRepository) Log() repository.LogsEngineRepository {
-	return r.log
 }
 
 func (r *engineRepository) RateLimit() repository.RateLimitEngineRepository {
@@ -297,8 +276,6 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 			return cleanup()
 		}, &engineRepository{
-			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
-			jobRun:         NewJobRunEngineRepository(shared),
 			stepRun:        NewStepRunEngineRepository(shared, cf, rlCache, queueCache),
 			step:           NewStepRepository(pool, opts.v, opts.l),
 			tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),

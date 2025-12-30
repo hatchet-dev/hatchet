@@ -13,7 +13,6 @@ sql:
       - rate_limits.sql
       - tenant_limits.sql
       - security_check.sql
-      - lease.sql
       - mq.sql
       - slack.sql
       - sns.sql

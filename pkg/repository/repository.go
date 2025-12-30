@@ -10,7 +10,6 @@ type APIRepository interface {
 	TenantInvite() TenantInviteRepository
 	Workflow() WorkflowAPIRepository
 	WorkflowRun() WorkflowRunAPIRepository
-	JobRun() JobRunAPIRepository
 	StepRun() StepRunAPIRepository
 	Slack() SlackRepository
 	SNS() SNSRepository
@@ -23,8 +22,6 @@ type APIRepository interface {
 }
 
 type EngineRepository interface {
-	GetGroupKeyRun() GetGroupKeyRunEngineRepository
-	JobRun() JobRunEngineRepository
 	StepRun() StepRunEngineRepository
 	Step() StepRepository
 	Tenant() TenantEngineRepository

@@ -38,7 +38,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
@@ -73,14 +72,8 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 	return configFile, err
 }
 
-type RepositoryOverrides struct {
-	LogsEngineRepository repository.LogsEngineRepository
-	LogsAPIRepository    repository.LogsAPIRepository
-}
-
 type ConfigLoader struct {
-	directory           string
-	RepositoryOverrides RepositoryOverrides
+	directory string
 }
 
 func NewConfigLoader(directory string) *ConfigLoader {

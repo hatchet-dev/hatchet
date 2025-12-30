@@ -73,7 +73,6 @@ func defaultIngestorOpts() *IngestorOpts {
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
-	logRepository            repository.LogsEngineRepository
 	streamEventRepository    repository.StreamEventsEngineRepository
 	entitlementsRepository   repository.EntitlementsRepository
 	stepRunRepository        repository.StepRunEngineRepository
