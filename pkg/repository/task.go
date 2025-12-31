@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/internal/statusutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -3909,7 +3910,7 @@ func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*tim
 
 type TaskRunDetails struct {
 	OutputPayload []byte
-	Status        string
+	Status        statusutils.V1RunStatus
 	Error         *string
 	ExternalId    string
 }
@@ -4007,10 +4008,10 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 
 	for _, task := range flat {
 		isRunning := externalIdToIsRunning[task.ExternalID.String()]
-		status := "QUEUED"
+		status := statusutils.V1RunStatusQueued
 
 		if isRunning {
-			status = "RUNNING"
+			status = statusutils.V1RunStatusRunning
 		}
 
 		// default everything to QUEUED
@@ -4034,15 +4035,23 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	errors := make(map[string]string)
 	finalizedRun := finalizedWorkflowRuns[0]
 
-	for _, r := range finalizedRun.OutputEvents {
-		outputs[r.StepReadableID] = r.Output
-		errors[r.StepReadableID] = r.ErrorMessage
+	for _, event := range finalizedRun.OutputEvents {
+		outputs[event.StepReadableID] = event.Output
+		errors[event.StepReadableID] = event.ErrorMessage
 
-		taskRunDetails[StepReadableId(r.StepReadableID)] = TaskRunDetails{
-			OutputPayload: r.Output,
-			Status:        string(r.EventType),
-			Error:         &r.ErrorMessage,
-			ExternalId:    r.TaskExternalId,
+		status, err := statusutils.V1RunStatusFromEventType(event.EventType)
+
+		if err != nil {
+			r.l.Warn().Msgf("failed to parse event type %s: %v", event.EventType, err)
+			statusPtr := statusutils.V1RunStatusQueued
+			status = &statusPtr
+		}
+
+		taskRunDetails[StepReadableId(event.StepReadableID)] = TaskRunDetails{
+			OutputPayload: event.Output,
+			Status:        *status,
+			Error:         &event.ErrorMessage,
+			ExternalId:    event.TaskExternalId,
 		}
 	}
 
