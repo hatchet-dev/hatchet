@@ -24,9 +24,7 @@ const noAuthMiddleware = async () => {
     } else if (isAxiosError(error)) {
       const axiosErr = error as AxiosError;
 
-      if (axiosErr.response?.status === 403) {
-        return;
-      } else {
+      if (axiosErr.response?.status !== 403) {
         throw error;
       }
     }

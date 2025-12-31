@@ -129,7 +129,9 @@ export function SecretCopier({
         onClick={() => {
           textareaRef.current?.focus();
           // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-          onClick && onClick();
+          if (onClick) {
+            onClick();
+          }
         }}
         className="relative flex rounded-lg bg-muted"
       >

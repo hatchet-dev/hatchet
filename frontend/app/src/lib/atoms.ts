@@ -9,11 +9,7 @@ const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
     return JSON.parse(item) as T;
   }
 
-  if (defaultValue !== undefined) {
-    return defaultValue;
-  }
-
-  return;
+  return defaultValue;
 };
 
 type Plan = 'free' | 'starter' | 'growth';

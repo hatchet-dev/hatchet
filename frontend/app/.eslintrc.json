@@ -68,7 +68,7 @@
 
     "@typescript-eslint/prefer-optional-chain": "error",
     "@typescript-eslint/no-non-null-assertion": "error",
-    "@typescript-eslint/no-unnecessary-type-assertion": "error"
+    "@typescript-eslint/no-unnecessary-type-assertion": "error",
 
     // // We should turn this back on to help get rid of tri-boolean handling
     // // "@typescript-eslint/strict-boolean-expressions": "error",
@@ -90,10 +90,10 @@
     // "no-sequences": "error",
     // "no-throw-literal": "error",
     // "no-unmodified-loop-condition": "error",
-    // "no-unused-expressions": "error",
-    // "no-useless-call": "error",
-    // "no-useless-concat": "error",
-    // "no-useless-return": "error",
+    "no-unused-expressions": "error",
+    "no-useless-call": "error",
+    "no-useless-concat": "error",
+    "no-useless-return": "error"
     // "prefer-promise-reject-errors": "error",
 
     // "react/jsx-no-bind": [

@@ -32,7 +32,10 @@ const CopyToClipboard: React.FC<Props> = ({
         navigator.clipboard.writeText(text);
         setSuccessCopy(true);
         // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-        onCopy && onCopy();
+        if (onCopy) {
+          onCopy();
+        }
+
         setTimeout(() => {
           setSuccessCopy(false);
         }, 2000);
