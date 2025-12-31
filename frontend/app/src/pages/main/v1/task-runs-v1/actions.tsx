@@ -311,12 +311,14 @@ const BaseActionButton = ({
   icon,
   label,
   showModal,
+  showLabel,
   className,
 }: {
   disabled: boolean;
   params: TaskRunActionsParams;
   icon: JSX.Element;
   label: string;
+  showLabel: boolean;
   showModal: boolean;
   className?: string;
 }) => {
@@ -332,7 +334,7 @@ const BaseActionButton = ({
   return (
     <Button
       size={'sm'}
-      className={cn('text-sm', className)}
+      className={cn('text-sm gap-2', className)}
       variant={'outline'}
       disabled={disabled}
       onClick={() => {
@@ -346,9 +348,9 @@ const BaseActionButton = ({
 
         setIsActionModalOpen(true);
       }}
-      leftIcon={icon}
     >
-      {label}
+      {icon}
+      {showLabel && label}
     </Button>
   );
 };
@@ -358,12 +360,14 @@ export const TaskRunActionButton = ({
   disabled,
   paramOverrides,
   showModal,
+  showLabel,
   className,
 }: {
   actionType: ActionType;
   disabled: boolean;
   paramOverrides?: BaseTaskRunActionParams;
   showModal: boolean;
+  showLabel: boolean;
   className?: string;
 }) => {
   const { actionModalParams } = useRunsContext();
@@ -379,6 +383,7 @@ export const TaskRunActionButton = ({
           label={'Cancel'}
           showModal={showModal}
           className={className}
+          showLabel={showLabel}
         />
       );
     case 'replay':
@@ -390,6 +395,7 @@ export const TaskRunActionButton = ({
           label={'Replay'}
           showModal={showModal}
           className={className}
+          showLabel={showLabel}
         />
       );
     default:

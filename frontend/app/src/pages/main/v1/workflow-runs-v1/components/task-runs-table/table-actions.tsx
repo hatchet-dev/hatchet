@@ -1,21 +1,14 @@
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { useRunsContext } from '../../hooks/runs-provider';
 import { Button } from '@/components/v1/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
-import { ChevronDownIcon } from '@radix-ui/react-icons';
-import { Play, Command } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Play } from 'lucide-react';
+import { useMemo } from 'react';
 
 interface TableActionsProps {
   onTriggerWorkflow: () => void;
 }
 
 export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
-  const [shouldDelayClose, setShouldDelayClose] = useState(false);
   const {
     isActionDropdownOpen,
     actions: { setIsActionDropdownOpen },
@@ -25,33 +18,10 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
   const actions = useMemo(() => {
     let baseActions = [
       !hideCancelAndReplayButtons && (
-        <DropdownMenu
-          key="actions"
-          open={isActionDropdownOpen}
-          onOpenChange={(open) => {
-            if (open) {
-              setIsActionDropdownOpen(true);
-              setShouldDelayClose(false);
-            } else if (shouldDelayClose) {
-              setTimeout(() => setIsActionDropdownOpen(false), 150);
-              setShouldDelayClose(false);
-            } else {
-              setIsActionDropdownOpen(false);
-            }
-          }}
-        >
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Command className="cq-xl:hidden size-4" />
-              <span className="cq-xl:inline hidden text-sm">Actions</span>
-              <ChevronDownIcon className="cq-xl:inline ml-2 hidden size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="z-[70]">
-            <CancelMenuItem />
-            <ReplayMenuItem />
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex flex-row gap-x-1">
+          <CancelMenuItem />
+          <ReplayMenuItem />
+        </div>
       ),
     ];
 
@@ -73,7 +43,6 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
     hideCancelAndReplayButtons,
     setIsActionDropdownOpen,
     isActionDropdownOpen,
-    shouldDelayClose,
   ]);
 
   return <>{actions}</>;
@@ -86,7 +55,7 @@ const CancelMenuItem = () => {
         actionType="cancel"
         disabled={false}
         showModal
-        className="h-8 w-full justify-start rounded-sm border-0 bg-transparent px-2 py-1.5 font-normal hover:bg-accent hover:text-accent-foreground"
+        showLabel={false}
       />
     </div>
   );
@@ -94,13 +63,11 @@ const CancelMenuItem = () => {
 
 const ReplayMenuItem = () => {
   return (
-    <div className="w-full">
-      <TaskRunActionButton
-        actionType="replay"
-        disabled={false}
-        showModal
-        className="h-8 w-full justify-start rounded-sm border-0 bg-transparent px-2 py-1.5 font-normal hover:bg-accent hover:text-accent-foreground"
-      />
-    </div>
+    <TaskRunActionButton
+      actionType="replay"
+      disabled={false}
+      showModal
+      showLabel={false}
+    />
   );
 };
