@@ -4,12 +4,14 @@ import {
   RefetchIntervalOption,
   LabeledRefetchInterval,
 } from '@/lib/api/refetch-interval';
+import { useLocation } from '@tanstack/react-router';
 import {
   createContext,
   useCallback,
   useContext,
   useMemo,
   ReactNode,
+  useEffect,
 } from 'react';
 
 interface RefetchIntervalContextType {
@@ -33,6 +35,7 @@ const STORAGE_KEY = 'app-default-refetch-interval';
 export const RefetchIntervalProvider = ({
   children,
 }: RefetchIntervalProviderProps) => {
+  const { pathname } = useLocation();
   const [storedInterval, setStoredInterval] =
     useLocalStorageState<RefetchIntervalOption>(STORAGE_KEY, '10s');
   const [isFrozen, setIsFrozen] = useLocalStorageState<boolean>(
@@ -83,6 +86,12 @@ export const RefetchIntervalProvider = ({
       userRefetchIntervalPreference,
     ],
   );
+
+  useEffect(() => {
+    if (isFrozen) {
+      setIsFrozen(false);
+    }
+  }, [pathname]);
 
   return (
     <RefetchIntervalContext.Provider value={value}>
