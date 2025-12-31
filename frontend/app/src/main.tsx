@@ -41,4 +41,9 @@ if (root) {
       <Router />
     </QueryClientProvider>,
   );
+} else {
+  console.error(
+    'Failed to initialize application: root element with id "root" not found.',
+  );
+  Sentry.captureMessage('Root element with id "root" not found', 'error');
 }
