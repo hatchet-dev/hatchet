@@ -52,38 +52,40 @@ type Repository interface {
 	Tenant() TenantRepository
 	User() UserRepository
 	UserSession() UserSessionRepository
+	WorkflowSchedules() WorkflowScheduleRepository
 }
 
 type repositoryImpl struct {
-	apiToken       APITokenRepository
-	dispatcher     DispatcherRepository
-	health         HealthRepository
-	messageQueue   MessageQueueRepository
-	rateLimit      RateLimitRepository
-	triggers       TriggerRepository
-	tasks          TaskRepository
-	scheduler      SchedulerRepository
-	matches        MatchRepository
-	olap           OLAPRepository
-	logs           LogLineRepository
-	workers        WorkerRepository
-	workflows      WorkflowRepository
-	ticker         TickerRepository
-	filters        FilterRepository
-	webhooks       WebhookRepository
-	payloadStore   PayloadStoreRepository
-	idempotency    IdempotencyRepository
-	intervals      IntervalSettingsRepository
-	pgHealth       PGHealthRepository
-	securityCheck  SecurityCheckRepository
-	slack          SlackRepository
-	sns            SNSRepository
-	tenantInvite   TenantInviteRepository
-	tenantLimit    TenantLimitRepository
-	tenantAlerting TenantAlertingRepository
-	tenant         TenantRepository
-	user           UserRepository
-	userSession    UserSessionRepository
+	apiToken          APITokenRepository
+	dispatcher        DispatcherRepository
+	health            HealthRepository
+	messageQueue      MessageQueueRepository
+	rateLimit         RateLimitRepository
+	triggers          TriggerRepository
+	tasks             TaskRepository
+	scheduler         SchedulerRepository
+	matches           MatchRepository
+	olap              OLAPRepository
+	logs              LogLineRepository
+	workers           WorkerRepository
+	workflows         WorkflowRepository
+	ticker            TickerRepository
+	filters           FilterRepository
+	webhooks          WebhookRepository
+	payloadStore      PayloadStoreRepository
+	idempotency       IdempotencyRepository
+	intervals         IntervalSettingsRepository
+	pgHealth          PGHealthRepository
+	securityCheck     SecurityCheckRepository
+	slack             SlackRepository
+	sns               SNSRepository
+	tenantInvite      TenantInviteRepository
+	tenantLimit       TenantLimitRepository
+	tenantAlerting    TenantAlertingRepository
+	tenant            TenantRepository
+	user              UserRepository
+	userSession       UserSessionRepository
+	workflowSchedules WorkflowScheduleRepository
 }
 
 func NewRepository(
@@ -104,35 +106,36 @@ func NewRepository(
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
 	impl := &repositoryImpl{
-		apiToken:       newAPITokenRepository(shared),
-		dispatcher:     newDispatcherRepository(shared),
-		health:         newHealthRepository(shared),
-		messageQueue:   mq,
-		rateLimit:      newRateLimitRepository(shared),
-		triggers:       newTriggerRepository(shared),
-		tasks:          newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
-		scheduler:      newSchedulerRepository(shared),
-		matches:        newMatchRepository(shared),
-		olap:           newOLAPRepository(shared, olapRetentionPeriod, true, statusUpdateBatchSizeLimits),
-		logs:           newLogLineRepository(shared),
-		workers:        newWorkerRepository(shared),
-		workflows:      newWorkflowRepository(shared),
-		ticker:         newTickerRepository(shared),
-		filters:        newFilterRepository(shared),
-		webhooks:       newWebhookRepository(shared),
-		payloadStore:   shared.payloadStore,
-		idempotency:    newIdempotencyRepository(shared),
-		intervals:      newIntervalSettingsRepository(shared),
-		pgHealth:       newPGHealthRepository(shared),
-		securityCheck:  newSecurityCheckRepository(shared),
-		slack:          newSlackRepository(shared),
-		sns:            newSNSRepository(shared),
-		tenantInvite:   newTenantInviteRepository(shared),
-		tenantLimit:    newTenantLimitRepository(shared, tenantLimitConfig, enforceLimits),
-		tenantAlerting: newTenantAlertingRepository(shared),
-		tenant:         newTenantRepository(shared, sqlcv1.TenantMajorEngineVersionV1),
-		user:           newUserRepository(shared),
-		userSession:    newUserSessionRepository(shared),
+		apiToken:          newAPITokenRepository(shared),
+		dispatcher:        newDispatcherRepository(shared),
+		health:            newHealthRepository(shared),
+		messageQueue:      mq,
+		rateLimit:         newRateLimitRepository(shared),
+		triggers:          newTriggerRepository(shared),
+		tasks:             newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
+		scheduler:         newSchedulerRepository(shared),
+		matches:           newMatchRepository(shared),
+		olap:              newOLAPRepository(shared, olapRetentionPeriod, true, statusUpdateBatchSizeLimits),
+		logs:              newLogLineRepository(shared),
+		workers:           newWorkerRepository(shared),
+		workflows:         newWorkflowRepository(shared),
+		ticker:            newTickerRepository(shared),
+		filters:           newFilterRepository(shared),
+		webhooks:          newWebhookRepository(shared),
+		payloadStore:      shared.payloadStore,
+		idempotency:       newIdempotencyRepository(shared),
+		intervals:         newIntervalSettingsRepository(shared),
+		pgHealth:          newPGHealthRepository(shared),
+		securityCheck:     newSecurityCheckRepository(shared),
+		slack:             newSlackRepository(shared),
+		sns:               newSNSRepository(shared),
+		tenantInvite:      newTenantInviteRepository(shared),
+		tenantLimit:       newTenantLimitRepository(shared, tenantLimitConfig, enforceLimits),
+		tenantAlerting:    newTenantAlertingRepository(shared),
+		tenant:            newTenantRepository(shared, sqlcv1.TenantMajorEngineVersionV1),
+		user:              newUserRepository(shared),
+		userSession:       newUserSessionRepository(shared),
+		workflowSchedules: newWorkflowScheduleRepository(shared),
 	}
 
 	return impl, func() error {
@@ -276,4 +279,8 @@ func (r *repositoryImpl) User() UserRepository {
 
 func (r *repositoryImpl) UserSession() UserSessionRepository {
 	return r.userSession
+}
+
+func (r *repositoryImpl) WorkflowSchedules() WorkflowScheduleRepository {
+	return r.workflowSchedules
 }

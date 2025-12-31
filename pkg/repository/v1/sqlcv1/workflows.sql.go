@@ -883,6 +883,45 @@ func (q *Queries) GetWorkflowByName(ctx context.Context, db DBTX, arg GetWorkflo
 	return &i, err
 }
 
+const getWorkflowShape = `-- name: GetWorkflowShape :many
+SELECT
+    s.id AS parentStepId,
+    s."readableId" AS stepName,
+    array_remove(ARRAY_AGG(so."B"), NULL)::uuid[] AS childrenStepIds
+FROM "WorkflowVersion" v
+JOIN "Job" j ON v."id" = j."workflowVersionId"
+JOIN "Step" s ON j."id" = s."jobId"
+LEFT JOIN "_StepOrder" so ON so."A" = s.id
+WHERE v.id = $1::uuid
+GROUP BY s.id, s."readableId"
+`
+
+type GetWorkflowShapeRow struct {
+	Parentstepid    pgtype.UUID   `json:"parentstepid"`
+	Stepname        pgtype.Text   `json:"stepname"`
+	Childrenstepids []pgtype.UUID `json:"childrenstepids"`
+}
+
+func (q *Queries) GetWorkflowShape(ctx context.Context, db DBTX, workflowversionid pgtype.UUID) ([]*GetWorkflowShapeRow, error) {
+	rows, err := db.Query(ctx, getWorkflowShape, workflowversionid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetWorkflowShapeRow
+	for rows.Next() {
+		var i GetWorkflowShapeRow
+		if err := rows.Scan(&i.Parentstepid, &i.Stepname, &i.Childrenstepids); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
     workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority", workflowversions."createWorkflowVersionOpts",

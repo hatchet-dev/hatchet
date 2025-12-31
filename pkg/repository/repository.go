@@ -6,13 +6,10 @@ import (
 
 type APIRepository interface {
 	Workflow() WorkflowAPIRepository
-	WorkflowRun() WorkflowRunAPIRepository
 }
 
 type EngineRepository interface {
 	Workflow() WorkflowEngineRepository
-	WorkflowRun() WorkflowRunEngineRepository
-	StreamEvent() StreamEventsEngineRepository
 }
 
 func BoolPtr(b bool) *bool {

@@ -76,7 +76,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
 
-	shape, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunShape(
+	shape, err := t.config.V1.Workflows().GetWorkflowShape(
 		ctx, workflowVersionId,
 	)
 

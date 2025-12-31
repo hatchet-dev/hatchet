@@ -33,7 +33,7 @@ func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	err := t.config.APIRepository.WorkflowRun().UpdateScheduledWorkflow(
+	err := t.config.V1.WorkflowSchedules().UpdateScheduledWorkflow(
 		dbCtx,
 		sqlchelpers.UUIDToStr(scheduled.TenantId),
 		request.ScheduledWorkflowRun.String(),
@@ -43,7 +43,7 @@ func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.
 		return nil, err
 	}
 
-	updated, err := t.config.APIRepository.WorkflowRun().GetScheduledWorkflow(
+	updated, err := t.config.V1.WorkflowSchedules().GetScheduledWorkflow(
 		dbCtx,
 		sqlchelpers.UUIDToStr(scheduled.TenantId),
 		request.ScheduledWorkflowRun.String(),

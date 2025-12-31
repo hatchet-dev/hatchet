@@ -586,3 +586,16 @@ ORDER BY
     "order" DESC
 LIMIT 1
 FOR UPDATE;
+
+-- name: GetWorkflowShape :many
+SELECT
+    s.id AS parentStepId,
+    s."readableId" AS stepName,
+    array_remove(ARRAY_AGG(so."B"), NULL)::uuid[] AS childrenStepIds
+FROM "WorkflowVersion" v
+JOIN "Job" j ON v."id" = j."workflowVersionId"
+JOIN "Step" s ON j."id" = s."jobId"
+LEFT JOIN "_StepOrder" so ON so."A" = s.id
+WHERE v.id = @workflowVersionId::uuid
+GROUP BY s.id, s."readableId"
+;

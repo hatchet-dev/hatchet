@@ -203,6 +203,7 @@ var allowedRateLimitDurations = []string{
 type WorkflowRepository interface {
 	ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []pgtype.UUID) (map[pgtype.UUID]string, error)
 	PutWorkflowVersion(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+	GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error)
 }
 
 type workflowRepository struct {
@@ -215,11 +216,11 @@ func newWorkflowRepository(shared *sharedRepository) WorkflowRepository {
 	}
 }
 
-func (w *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []pgtype.UUID) (map[pgtype.UUID]string, error) {
+func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []pgtype.UUID) (map[pgtype.UUID]string, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-workflow-names-by-ids")
 	defer span.End()
 
-	workflowNames, err := w.queries.ListWorkflowNamesByIds(ctx, w.pool, workflowIds)
+	workflowNames, err := r.queries.ListWorkflowNamesByIds(ctx, r.pool, workflowIds)
 
 	if err != nil {
 		return nil, err
@@ -978,6 +979,10 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 	}
 
 	return jobId, nil
+}
+
+func (r *workflowRepository) GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error) {
+	return r.queries.GetWorkflowShape(ctx, r.pool, sqlchelpers.UUIDFromStr(workflowVersionId.String()))
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {

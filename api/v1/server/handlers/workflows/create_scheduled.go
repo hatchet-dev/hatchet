@@ -7,8 +7,8 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -28,7 +28,7 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 		priority = *request.Body.Priority
 	}
 
-	scheduled, err := t.config.APIRepository.Workflow().CreateScheduledWorkflow(ctx.Request().Context(), tenantId, &repository.CreateScheduledWorkflowRunForWorkflowOpts{
+	scheduled, err := t.config.V1.WorkflowSchedules().CreateScheduledWorkflow(ctx.Request().Context(), tenantId, &v1.CreateScheduledWorkflowRunForWorkflowOpts{
 		ScheduledTrigger:   request.Body.TriggerAt,
 		Input:              request.Body.Input,
 		AdditionalMetadata: request.Body.AdditionalMetadata,

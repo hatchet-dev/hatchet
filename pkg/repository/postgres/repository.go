@@ -14,8 +14,7 @@ import (
 )
 
 type apiRepository struct {
-	workflow    repository.WorkflowAPIRepository
-	workflowRun repository.WorkflowRunAPIRepository
+	workflow repository.WorkflowAPIRepository
 }
 
 type PostgresRepositoryOpt func(*PostgresRepositoryOpts)
@@ -71,8 +70,7 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 	}
 
 	return &apiRepository{
-		workflow:    NewWorkflowRepository(shared),
-		workflowRun: NewWorkflowRunRepository(shared, cf),
+		workflow: NewWorkflowRepository(shared),
 	}, cleanup, err
 }
 
@@ -80,26 +78,12 @@ func (r *apiRepository) Workflow() repository.WorkflowAPIRepository {
 	return r.workflow
 }
 
-func (r *apiRepository) WorkflowRun() repository.WorkflowRunAPIRepository {
-	return r.workflowRun
-}
-
 type engineRepository struct {
-	workflow    repository.WorkflowEngineRepository
-	workflowRun repository.WorkflowRunEngineRepository
-	streamEvent repository.StreamEventsEngineRepository
+	workflow repository.WorkflowEngineRepository
 }
 
 func (r *engineRepository) Workflow() repository.WorkflowEngineRepository {
 	return r.workflow
-}
-
-func (r *engineRepository) WorkflowRun() repository.WorkflowRunEngineRepository {
-	return r.workflowRun
-}
-
-func (r *engineRepository) StreamEvent() repository.StreamEventsEngineRepository {
-	return r.streamEvent
 }
 
 func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PostgresRepositoryOpt) (func() error, repository.EngineRepository, error) {
@@ -133,9 +117,7 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 			return cleanup()
 		}, &engineRepository{
-			workflow:    NewWorkflowEngineRepository(shared, opts.cache),
-			workflowRun: NewWorkflowRunEngineRepository(shared, cf),
-			streamEvent: NewStreamEventsEngineRepository(pool, opts.v, opts.l),
+			workflow: NewWorkflowEngineRepository(shared, opts.cache),
 		},
 		err
 }

@@ -341,7 +341,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID
 func ToWorkflowRunDetails(
 	taskRunEvents []*v1.TaskEventWithPayloads,
 	workflowRun *v1.WorkflowRunData,
-	shape []*dbsqlc.GetWorkflowRunShapeRow,
+	shape []*sqlcv1.GetWorkflowShapeRow,
 	tasks []*v1.TaskWithPayloads,
 	stepIdToTaskExternalId map[pgtype.UUID]pgtype.UUID,
 	workflowVersion *dbsqlc.GetWorkflowVersionByIdRow,

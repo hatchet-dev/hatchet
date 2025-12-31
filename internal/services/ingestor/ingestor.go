@@ -8,7 +8,6 @@ import (
 
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -59,7 +58,6 @@ func defaultIngestorOpts() *IngestorOpts {
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
-	streamEventRepository    repository.StreamEventsEngineRepository
 	steprunTenantLookupCache *lru.Cache[string, string]
 
 	mqv1   msgqueuev1.MessageQueue
