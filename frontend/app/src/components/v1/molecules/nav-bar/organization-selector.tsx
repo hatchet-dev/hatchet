@@ -270,7 +270,7 @@ export function OrganizationSelector({
         if (!orgMap.has(orgId)) {
           orgMap.set(orgId, []);
         }
-        orgMap.get(orgId)!.push(membership);
+        orgMap.get(orgId)?.push(membership);
       } else {
         standalone.push(membership);
       }

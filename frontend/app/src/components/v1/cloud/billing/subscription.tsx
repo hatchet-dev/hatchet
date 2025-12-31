@@ -147,9 +147,11 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         }
         submitLabel={'Change Plan'}
         onSubmit={async () => {
-          await subscriptionMutation.mutateAsync({
-            plan_code: isChangeConfirmOpen!.plan_code,
-          });
+          if (isChangeConfirmOpen) {
+            await subscriptionMutation.mutateAsync({
+              plan_code: isChangeConfirmOpen?.plan_code,
+            });
+          }
           setLoading(undefined);
           setChangeConfirmOpen(undefined);
         }}

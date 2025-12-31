@@ -38,7 +38,7 @@ describe('Tenant Invite: accept', () => {
       .should('match', /\/tenants\/([^/]+)/)
       .then((pathname) => {
         const match = pathname.match(/\/tenants\/([^/]+)/);
-        tenant2Id = match![1];
+        tenant2Id = (match || [])[1];
         cy.wrap(tenant2Id).as('tenant2Id');
 
         // Create a tenant invite for the member user to join Tenant 2

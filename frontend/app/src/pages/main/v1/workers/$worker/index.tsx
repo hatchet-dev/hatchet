@@ -116,12 +116,17 @@ export default function ExpandedWorkflowRun() {
 
   const updateWorker = useMutation({
     mutationKey: ['worker:update', worker?.metadata.id],
-    mutationFn: async (data: UpdateWorkerRequest) =>
-      (await api.workerUpdate(worker!.metadata.id, data)).data,
+    mutationFn: async (data: UpdateWorkerRequest) => {
+      if (worker) {
+        return (await api.workerUpdate(worker.metadata.id, data)).data;
+      }
+    },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queries.workers.get(worker!.metadata.id).queryKey,
-      });
+      if (worker) {
+        await queryClient.invalidateQueries({
+          queryKey: queries.workers.get(worker.metadata.id).queryKey,
+        });
+      }
     },
     onError: handleApiError,
   });

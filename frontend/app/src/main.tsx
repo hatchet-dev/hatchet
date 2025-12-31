@@ -33,8 +33,12 @@ if (ref) {
   localStorage.setItem('ref', ref);
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <QueryClientProvider client={queryClient}>
-    <Router />
-  </QueryClientProvider>,
-);
+const root = document.getElementById('root');
+
+if (root) {
+  ReactDOM.createRoot(root).render(
+    <QueryClientProvider client={queryClient}>
+      <Router />
+    </QueryClientProvider>,
+  );
+}

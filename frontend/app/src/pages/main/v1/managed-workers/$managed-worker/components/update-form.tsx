@@ -376,7 +376,10 @@ export default function UpdateWorkerForm({
     // Split secrets into add/update/delete
     const toAdd = secrets.filter((s) => !s.id && !s.deleted);
     const toUpdate = secrets.filter((s) => s.id && !s.deleted && s.isEditing);
-    const toDelete = secrets.filter((s) => s.id && s.deleted).map((s) => s.id!);
+    const toDelete = secrets
+      .filter((s) => s.id && s.deleted)
+      // can't hit this case because of filter above
+      .map((s) => s.id || '');
 
     setValue(
       'secrets.add',
@@ -389,7 +392,7 @@ export default function UpdateWorkerForm({
     setValue(
       'secrets.update',
       toUpdate.map((s) => ({
-        id: s.id!,
+        id: s.id || '',
         key: s.key,
         value: s.value,
       })),
