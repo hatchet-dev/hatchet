@@ -136,8 +136,6 @@ const StatusBadge = ({
   variant: BadgeProps['variant'];
   text: string;
   className?: string;
-  overrideVariant?: BadgeProps['variant'];
-  overrideText?: string;
 }) => (
   <Badge variant={variant} className={className}>
     {capitalize(text)}
