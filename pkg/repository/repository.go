@@ -10,8 +10,6 @@ type APIRepository interface {
 	TenantInvite() TenantInviteRepository
 	Workflow() WorkflowAPIRepository
 	WorkflowRun() WorkflowRunAPIRepository
-	StepRun() StepRunAPIRepository
-	Step() StepRepository
 	Worker() WorkerAPIRepository
 	UserSession() UserSessionRepository
 	User() UserRepository
@@ -19,8 +17,6 @@ type APIRepository interface {
 }
 
 type EngineRepository interface {
-	StepRun() StepRunEngineRepository
-	Step() StepRepository
 	Tenant() TenantEngineRepository
 	TenantAlertingSettings() TenantAlertingRepository
 	Ticker() TickerEngineRepository

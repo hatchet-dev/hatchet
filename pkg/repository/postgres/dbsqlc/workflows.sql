@@ -875,3 +875,34 @@ ORDER BY
     "order" DESC
 LIMIT 1
 FOR UPDATE;
+
+-- name: UpsertDesiredWorkerLabel :one
+INSERT INTO "StepDesiredWorkerLabel" (
+    "createdAt",
+    "updatedAt",
+    "stepId",
+    "key",
+    "intValue",
+    "strValue",
+    "required",
+    "weight",
+    "comparator"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    @stepId::uuid,
+    @key::text,
+    COALESCE(sqlc.narg('intValue')::int, NULL),
+    COALESCE(sqlc.narg('strValue')::text, NULL),
+    COALESCE(sqlc.narg('required')::boolean, false),
+    COALESCE(sqlc.narg('weight')::int, 100),
+    COALESCE(sqlc.narg('comparator')::"WorkerLabelComparator", 'EQUAL')
+) ON CONFLICT ("stepId", "key") DO UPDATE
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "intValue" = COALESCE(sqlc.narg('intValue')::int, null),
+    "strValue" = COALESCE(sqlc.narg('strValue')::text, null),
+    "required" = COALESCE(sqlc.narg('required')::boolean, false),
+    "weight" = COALESCE(sqlc.narg('weight')::int, 100),
+    "comparator" = COALESCE(sqlc.narg('comparator')::"WorkerLabelComparator", 'EQUAL')
+RETURNING *;

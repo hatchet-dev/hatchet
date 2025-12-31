@@ -22,8 +22,6 @@ type apiRepository struct {
 	tenantInvite   repository.TenantInviteRepository
 	workflow       repository.WorkflowAPIRepository
 	workflowRun    repository.WorkflowRunAPIRepository
-	stepRun        repository.StepRunAPIRepository
-	step           repository.StepRepository
 	worker         repository.WorkerAPIRepository
 	userSession    repository.UserSessionRepository
 	user           repository.UserRepository
@@ -104,8 +102,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 		tenantInvite:   NewTenantInviteRepository(shared),
 		workflow:       NewWorkflowRepository(shared),
 		workflowRun:    NewWorkflowRunRepository(shared, opts.metered, cf),
-		stepRun:        NewStepRunAPIRepository(shared),
-		step:           NewStepRepository(pool, opts.v, opts.l),
 		worker:         NewWorkerAPIRepository(shared, opts.metered),
 		userSession:    NewUserSessionRepository(shared),
 		user:           NewUserRepository(shared),
@@ -133,14 +129,6 @@ func (r *apiRepository) WorkflowRun() repository.WorkflowRunAPIRepository {
 	return r.workflowRun
 }
 
-func (r *apiRepository) StepRun() repository.StepRunAPIRepository {
-	return r.stepRun
-}
-
-func (r *apiRepository) Step() repository.StepRepository {
-	return r.step
-}
-
 func (r *apiRepository) Worker() repository.WorkerAPIRepository {
 	return r.worker
 }
@@ -158,8 +146,6 @@ func (r *apiRepository) WebhookWorker() repository.WebhookWorkerRepository {
 }
 
 type engineRepository struct {
-	step           repository.StepRepository
-	stepRun        repository.StepRunEngineRepository
 	tenant         repository.TenantEngineRepository
 	tenantAlerting repository.TenantAlertingRepository
 	ticker         repository.TickerEngineRepository
@@ -168,14 +154,6 @@ type engineRepository struct {
 	workflowRun    repository.WorkflowRunEngineRepository
 	streamEvent    repository.StreamEventsEngineRepository
 	webhookWorker  repository.WebhookWorkerEngineRepository
-}
-
-func (r *engineRepository) StepRun() repository.StepRunEngineRepository {
-	return r.stepRun
-}
-
-func (r *engineRepository) Step() repository.StepRepository {
-	return r.step
 }
 
 func (r *engineRepository) Tenant() repository.TenantEngineRepository {
@@ -241,8 +219,6 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 			return cleanup()
 		}, &engineRepository{
-			stepRun:        NewStepRunEngineRepository(shared, cf, rlCache, queueCache),
-			step:           NewStepRepository(pool, opts.v, opts.l),
 			tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 			tenantAlerting: NewTenantAlertingRepository(shared, opts.cache),
 			ticker:         NewTickerRepository(pool, opts.v, opts.l),

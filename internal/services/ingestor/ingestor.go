@@ -46,12 +46,6 @@ func WithMessageQueueV1(mq msgqueuev1.MessageQueue) IngestorOptFunc {
 	}
 }
 
-func WithStepRunRepository(r repository.StepRunEngineRepository) IngestorOptFunc {
-	return func(opts *IngestorOpts) {
-		opts.stepRunRepository = r
-	}
-}
-
 func WithRepositoryV1(r v1.Repository) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.repov1 = r
@@ -75,7 +69,6 @@ type IngestorImpl struct {
 
 	streamEventRepository    repository.StreamEventsEngineRepository
 	entitlementsRepository   repository.EntitlementsRepository
-	stepRunRepository        repository.StepRunEngineRepository
 	steprunTenantLookupCache *lru.Cache[string, string]
 
 	mqv1   msgqueuev1.MessageQueue
@@ -113,7 +106,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 
 	return &IngestorImpl{
 		entitlementsRepository:   opts.entitlementsRepository,
-		stepRunRepository:        opts.stepRunRepository,
 		steprunTenantLookupCache: stepRunCache,
 		mqv1:                     opts.mqv1,
 		v:                        validator.NewDefaultValidator(),

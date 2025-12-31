@@ -6,7 +6,6 @@ sql:
     queries:
       - workflow_runs.sql
       - workflows.sql
-      - step_runs.sql
       - tickers.sql
       - workers.sql
       - tenants.sql

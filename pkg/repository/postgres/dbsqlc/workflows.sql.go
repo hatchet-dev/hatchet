@@ -2175,6 +2175,74 @@ func (q *Queries) UpsertAction(ctx context.Context, db DBTX, arg UpsertActionPar
 	return &i, err
 }
 
+const upsertDesiredWorkerLabel = `-- name: UpsertDesiredWorkerLabel :one
+INSERT INTO "StepDesiredWorkerLabel" (
+    "createdAt",
+    "updatedAt",
+    "stepId",
+    "key",
+    "intValue",
+    "strValue",
+    "required",
+    "weight",
+    "comparator"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    $1::uuid,
+    $2::text,
+    COALESCE($3::int, NULL),
+    COALESCE($4::text, NULL),
+    COALESCE($5::boolean, false),
+    COALESCE($6::int, 100),
+    COALESCE($7::"WorkerLabelComparator", 'EQUAL')
+) ON CONFLICT ("stepId", "key") DO UPDATE
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "intValue" = COALESCE($3::int, null),
+    "strValue" = COALESCE($4::text, null),
+    "required" = COALESCE($5::boolean, false),
+    "weight" = COALESCE($6::int, 100),
+    "comparator" = COALESCE($7::"WorkerLabelComparator", 'EQUAL')
+RETURNING id, "createdAt", "updatedAt", "stepId", key, "strValue", "intValue", required, comparator, weight
+`
+
+type UpsertDesiredWorkerLabelParams struct {
+	Stepid     pgtype.UUID               `json:"stepid"`
+	Key        string                    `json:"key"`
+	IntValue   pgtype.Int4               `json:"intValue"`
+	StrValue   pgtype.Text               `json:"strValue"`
+	Required   pgtype.Bool               `json:"required"`
+	Weight     pgtype.Int4               `json:"weight"`
+	Comparator NullWorkerLabelComparator `json:"comparator"`
+}
+
+func (q *Queries) UpsertDesiredWorkerLabel(ctx context.Context, db DBTX, arg UpsertDesiredWorkerLabelParams) (*StepDesiredWorkerLabel, error) {
+	row := db.QueryRow(ctx, upsertDesiredWorkerLabel,
+		arg.Stepid,
+		arg.Key,
+		arg.IntValue,
+		arg.StrValue,
+		arg.Required,
+		arg.Weight,
+		arg.Comparator,
+	)
+	var i StepDesiredWorkerLabel
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StepId,
+		&i.Key,
+		&i.StrValue,
+		&i.IntValue,
+		&i.Required,
+		&i.Comparator,
+		&i.Weight,
+	)
+	return &i, err
+}
+
 const upsertWorkflowTag = `-- name: UpsertWorkflowTag :exec
 INSERT INTO "WorkflowTag" (
     "id",
