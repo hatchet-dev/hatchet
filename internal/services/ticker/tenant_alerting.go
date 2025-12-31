@@ -50,7 +50,7 @@ func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 
 		t.l.Debug().Msg("ticker: resolving tenant resource limits")
 
-		err := t.entitlements.TenantLimit().ResolveAllTenantResourceLimits(ctx)
+		err := t.repov1.TenantLimit().ResolveAllTenantResourceLimits(ctx)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not resolve tenant resource limits")

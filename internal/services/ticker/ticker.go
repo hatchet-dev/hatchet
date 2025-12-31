@@ -26,8 +26,6 @@ type TickerImpl struct {
 	mqv1 msgqueuev1.MessageQueue
 	l    *zerolog.Logger
 
-	entitlements repository.EntitlementsRepository
-
 	repo   repository.EngineRepository
 	repov1 v1.Repository
 	s      gocron.Scheduler
@@ -53,11 +51,10 @@ type TickerOpts struct {
 	mqv1 msgqueuev1.MessageQueue
 	l    *zerolog.Logger
 
-	entitlements repository.EntitlementsRepository
-	repo         repository.EngineRepository
-	repov1       v1.Repository
-	tickerId     string
-	ta           *alerting.TenantAlertManager
+	repo     repository.EngineRepository
+	repov1   v1.Repository
+	tickerId string
+	ta       *alerting.TenantAlertManager
 
 	dv datautils.DataDecoderValidator
 }
@@ -86,12 +83,6 @@ func WithRepository(r repository.EngineRepository) TickerOpt {
 func WithRepositoryV1(r v1.Repository) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.repov1 = r
-	}
-}
-
-func WithEntitlementsRepository(r repository.EntitlementsRepository) TickerOpt {
-	return func(opts *TickerOpts) {
-		opts.entitlements = r
 	}
 }
 
@@ -126,10 +117,6 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		return nil, fmt.Errorf("repository v1 is required. use WithRepositoryV1")
 	}
 
-	if opts.entitlements == nil {
-		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
-	}
-
 	if opts.ta == nil {
 		return nil, fmt.Errorf("tenant alerter is required. use WithTenantAlerter")
 	}
@@ -148,7 +135,6 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		l:                      opts.l,
 		repo:                   opts.repo,
 		repov1:                 opts.repov1,
-		entitlements:           opts.entitlements,
 		s:                      s,
 		dv:                     opts.dv,
 		tickerId:               opts.tickerId,

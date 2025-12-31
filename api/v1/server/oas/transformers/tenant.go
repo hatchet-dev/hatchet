@@ -7,6 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
@@ -27,7 +28,7 @@ func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
 	}
 }
 
-func ToTenantAlertingSettings(alerting *dbsqlc.TenantAlertingSettings) *gen.TenantAlertingSettings {
+func ToTenantAlertingSettings(alerting *sqlcv1.TenantAlertingSettings) *gen.TenantAlertingSettings {
 	res := &gen.TenantAlertingSettings{
 		Metadata:                        *toAPIMetadata(sqlchelpers.UUIDToStr(alerting.ID), alerting.CreatedAt.Time, alerting.UpdatedAt.Time),
 		MaxAlertingFrequency:            alerting.MaxFrequency,
@@ -43,7 +44,7 @@ func ToTenantAlertingSettings(alerting *dbsqlc.TenantAlertingSettings) *gen.Tena
 	return res
 }
 
-func ToTenantAlertEmailGroup(group *dbsqlc.TenantAlertEmailGroup) *gen.TenantAlertEmailGroup {
+func ToTenantAlertEmailGroup(group *sqlcv1.TenantAlertEmailGroup) *gen.TenantAlertEmailGroup {
 	emails := strings.Split(group.Emails, ",")
 
 	return &gen.TenantAlertEmailGroup{
@@ -52,7 +53,7 @@ func ToTenantAlertEmailGroup(group *dbsqlc.TenantAlertEmailGroup) *gen.TenantAle
 	}
 }
 
-func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit) *gen.TenantResourcePolicy {
+func ToTenantResourcePolicy(_limits []*sqlcv1.TenantResourceLimit) *gen.TenantResourcePolicy {
 
 	limits := make([]gen.TenantResourceLimit, len(_limits))
 

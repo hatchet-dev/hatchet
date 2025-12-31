@@ -17,21 +17,19 @@ type AdminService interface {
 type AdminServiceImpl struct {
 	contracts.UnimplementedWorkflowServiceServer
 
-	entitlements repository.EntitlementsRepository
-	repo         repository.EngineRepository
-	repov1       v1.Repository
-	mqv1         msgqueuev1.MessageQueue
-	v            validator.Validator
+	repo   repository.EngineRepository
+	repov1 v1.Repository
+	mqv1   msgqueuev1.MessageQueue
+	v      validator.Validator
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
 
 type AdminServiceOpts struct {
-	entitlements repository.EntitlementsRepository
-	repo         repository.EngineRepository
-	repov1       v1.Repository
-	mqv1         msgqueuev1.MessageQueue
-	v            validator.Validator
+	repo   repository.EngineRepository
+	repov1 v1.Repository
+	mqv1   msgqueuev1.MessageQueue
+	v      validator.Validator
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
@@ -51,12 +49,6 @@ func WithRepository(r repository.EngineRepository) AdminServiceOpt {
 func WithRepositoryV1(r v1.Repository) AdminServiceOpt {
 	return func(opts *AdminServiceOpts) {
 		opts.repov1 = r
-	}
-}
-
-func WithEntitlementsRepository(r repository.EntitlementsRepository) AdminServiceOpt {
-	return func(opts *AdminServiceOpts) {
-		opts.entitlements = r
 	}
 }
 
@@ -91,15 +83,10 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
-	if opts.entitlements == nil {
-		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
-	}
-
 	return &AdminServiceImpl{
-		repo:         opts.repo,
-		repov1:       opts.repov1,
-		entitlements: opts.entitlements,
-		mqv1:         opts.mqv1,
-		v:            opts.v,
+		repo:   opts.repo,
+		repov1: opts.repov1,
+		mqv1:   opts.mqv1,
+		v:      opts.v,
 	}, nil
 }

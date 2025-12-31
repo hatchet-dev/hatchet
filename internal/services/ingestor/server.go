@@ -12,9 +12,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
@@ -42,7 +42,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 
 	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority, req.Scope, nil)
 
-	if err == metered.ErrResourceExhausted {
+	if err == v1.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
 	}
 
@@ -140,7 +140,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 
 	createdEvents, err := i.BulkIngestEvent(ctx, tenant, events)
 
-	if err == metered.ErrResourceExhausted {
+	if err == v1.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
 	}
 	if err != nil {

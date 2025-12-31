@@ -27,17 +27,9 @@ type Ingestor interface {
 type IngestorOptFunc func(*IngestorOpts)
 
 type IngestorOpts struct {
-	entitlementsRepository repository.EntitlementsRepository
-	stepRunRepository      repository.StepRunEngineRepository
-	mqv1                   msgqueuev1.MessageQueue
-	repov1                 v1.Repository
-	isLogIngestionEnabled  bool
-}
-
-func WithEntitlementsRepository(r repository.EntitlementsRepository) IngestorOptFunc {
-	return func(opts *IngestorOpts) {
-		opts.entitlementsRepository = r
-	}
+	mqv1                  msgqueuev1.MessageQueue
+	repov1                v1.Repository
+	isLogIngestionEnabled bool
 }
 
 func WithMessageQueueV1(mq msgqueuev1.MessageQueue) IngestorOptFunc {
@@ -68,7 +60,6 @@ type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
 	streamEventRepository    repository.StreamEventsEngineRepository
-	entitlementsRepository   repository.EntitlementsRepository
 	steprunTenantLookupCache *lru.Cache[string, string]
 
 	mqv1   msgqueuev1.MessageQueue
@@ -93,10 +84,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("repository v1 is required. use WithRepositoryV1")
 	}
 
-	if opts.stepRunRepository == nil {
-		return nil, fmt.Errorf("step run repository is required. use WithStepRunRepository")
-	}
-
 	// estimate of 1000 * 2 * UUID string size (roughly 104kb max)
 	stepRunCache, err := lru.New[string, string](1000)
 
@@ -105,7 +92,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}
 
 	return &IngestorImpl{
-		entitlementsRepository:   opts.entitlementsRepository,
 		steprunTenantLookupCache: stepRunCache,
 		mqv1:                     opts.mqv1,
 		v:                        validator.NewDefaultValidator(),

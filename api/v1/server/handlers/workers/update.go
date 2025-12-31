@@ -5,13 +5,13 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *WorkerService) WorkerUpdate(ctx echo.Context, request gen.WorkerUpdateRequestObject) (gen.WorkerUpdateResponseObject, error) {
-	worker := ctx.Get("worker").(*dbsqlc.GetWorkerByIdRow)
+	worker := ctx.Get("worker").(*sqlcv1.GetWorkerByIdRow)
 
 	// validate the request
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
@@ -20,16 +20,18 @@ func (t *WorkerService) WorkerUpdate(ctx echo.Context, request gen.WorkerUpdateR
 		return gen.WorkerUpdate400JSONResponse(*apiErrors), nil
 	}
 
-	update := repository.ApiUpdateWorkerOpts{}
+	update := &v1.UpdateWorkerOpts{}
 
 	if request.Body.IsPaused != nil {
 		update.IsPaused = request.Body.IsPaused
 	}
 
-	updatedWorker, err := t.config.APIRepository.Worker().UpdateWorker(
+	updatedWorker, err := t.config.V1.Workers().UpdateWorker(
+		ctx.Request().Context(),
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
 		sqlchelpers.UUIDToStr(worker.Worker.ID),
-		update)
+		update,
+	)
 
 	if err != nil {
 		return nil, err

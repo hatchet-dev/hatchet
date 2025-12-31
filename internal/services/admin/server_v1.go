@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	"google.golang.org/grpc/codes"
@@ -27,9 +28,9 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	canCreateWR, wrLimit, err := a.entitlements.TenantLimit().CanCreate(
+	canCreateWR, wrLimit, err := a.repov1.TenantLimit().CanCreate(
 		ctx,
-		dbsqlc.LimitResourceWORKFLOWRUN,
+		sqlcv1.LimitResourceWORKFLOWRUN,
 		tenantId,
 		1,
 	)
@@ -45,9 +46,9 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 		)
 	}
 
-	canCreateTR, trLimit, err := a.entitlements.TenantLimit().CanCreate(
+	canCreateTR, trLimit, err := a.repov1.TenantLimit().CanCreate(
 		ctx,
-		dbsqlc.LimitResourceTASKRUN,
+		sqlcv1.LimitResourceTASKRUN,
 		tenantId,
 		// NOTE: this isn't actually the number of tasks per workflow run, but we're just checking to see
 		// if we've exceeded the limit

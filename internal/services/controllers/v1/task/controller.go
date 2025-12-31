@@ -28,7 +28,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -877,7 +876,7 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 		workerIds = append(workerIds, task.WorkerId)
 	}
 
-	dispatcherIdWorkerIds, err := tc.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+	dispatcherIdWorkerIds, err := tc.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 	if err != nil {
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
@@ -1146,7 +1145,7 @@ func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, ten
 	tasks, dags, err := tc.repov1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, msgs)
 
 	if err != nil {
-		if err == metered.ErrResourceExhausted {
+		if err == v1.ErrResourceExhausted {
 			tc.l.Warn().Str("tenantId", tenantId).Msg("resource exhausted while triggering workflows from names. Not retrying")
 
 			return nil

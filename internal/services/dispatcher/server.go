@@ -18,9 +18,10 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -36,16 +37,15 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		svcs = []string{"default"}
 	}
 
-	opts := &repository.CreateWorkerOpts{
+	opts := &v1.CreateWorkerOpts{
 		DispatcherId: s.dispatcherId,
 		Name:         request.WorkerName,
 		Actions:      request.Actions,
 		Services:     svcs,
-		WebhookId:    request.WebhookId,
 	}
 
 	if request.RuntimeInfo != nil {
-		opts.RuntimeInfo = &repository.RuntimeInfo{
+		opts.RuntimeInfo = &v1.RuntimeInfo{
 			SdkVersion:      request.RuntimeInfo.SdkVersion,
 			Language:        request.RuntimeInfo.Language,
 			LanguageVersion: request.RuntimeInfo.LanguageVersion,
@@ -66,9 +66,9 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	}
 
 	// create a worker in the database
-	worker, err := s.repo.Worker().CreateNewWorker(ctx, tenantId, opts)
+	worker, err := s.repov1.Workers().CreateNewWorker(ctx, tenantId, opts)
 
-	if err == metered.ErrResourceExhausted {
+	if err == v1.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: tenant worker limit or concurrency limit exceeded")
 	}
 
@@ -110,8 +110,8 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 	}, nil
 }
 
-func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId pgtype.UUID, request map[string]*contracts.WorkerLabels) ([]*dbsqlc.WorkerLabel, error) {
-	affinities := make([]repository.UpsertWorkerLabelOpts, 0, len(request))
+func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId pgtype.UUID, request map[string]*contracts.WorkerLabels) ([]*sqlcv1.WorkerLabel, error) {
+	affinities := make([]v1.UpsertWorkerLabelOpts, 0, len(request))
 
 	for key, config := range request {
 
@@ -121,14 +121,14 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId pgtype.UUID,
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid affinity config: %s", err.Error())
 		}
 
-		affinities = append(affinities, repository.UpsertWorkerLabelOpts{
+		affinities = append(affinities, v1.UpsertWorkerLabelOpts{
 			Key:      key,
 			IntValue: config.IntValue,
 			StrValue: config.StrValue,
 		})
 	}
 
-	res, err := s.repo.Worker().UpsertWorkerLabels(ctx, workerId, affinities)
+	res, err := s.repov1.Workers().UpsertWorkerLabels(ctx, workerId, affinities)
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not upsert worker affinities for worker %s", sqlchelpers.UUIDToStr(workerId))
@@ -148,7 +148,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	ctx := stream.Context()
 
-	worker, err := s.repo.Worker().GetWorkerForEngine(ctx, tenantId, request.WorkerId)
+	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, request.WorkerId)
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not get worker %s", request.WorkerId)
@@ -159,7 +159,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
-		_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+		_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, request.WorkerId, &v1.UpdateWorkerOpts{
 			DispatcherId: &s.dispatcherId,
 		})
 
@@ -207,7 +207,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
 					s.l.Debug().Msgf("updating worker %s heartbeat", request.WorkerId)
 
-					_, err := s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+					_, err := s.repov1.Workers().UpdateWorker(ctx, tenantId, request.WorkerId, &v1.UpdateWorkerOpts{
 						LastHeartbeatAt: &now,
 						IsActive:        repository.BoolPtr(true),
 					})
@@ -251,7 +251,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
-	worker, err := s.repo.Worker().GetWorkerForEngine(ctx, tenantId, request.WorkerId)
+	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, request.WorkerId)
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not get worker %s", request.WorkerId)
@@ -262,7 +262,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
-		_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+		_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, request.WorkerId, &v1.UpdateWorkerOpts{
 			DispatcherId: &s.dispatcherId,
 		})
 
@@ -278,7 +278,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	sessionEstablished := time.Now().UTC()
 
-	_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, true, sessionEstablished)
+	_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, true, sessionEstablished)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -315,7 +315,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		case <-fin:
 			s.l.Debug().Msgf("closing stream for worker id: %s", request.WorkerId)
 
-			_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
+			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
 
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				s.l.Error().Err(err).Msgf("could not update worker %s active status to false due to worker stream closing (session established %s)", request.WorkerId, sessionEstablished.String())
@@ -329,7 +329,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
+			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
 
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				s.l.Error().Err(err).Msgf("could not update worker %s active status due to worker disconnecting (session established %s)", request.WorkerId, sessionEstablished.String())
@@ -360,7 +360,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		s.l.Warn().Msgf("heartbeat time is greater than expected heartbeat interval")
 	}
 
-	worker, err := s.repo.Worker().GetWorkerForEngine(ctx, tenantId, req.WorkerId)
+	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, req.WorkerId)
 
 	if err != nil {
 		span.RecordError(err)
@@ -379,7 +379,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
 	}
 
-	err = s.repo.Worker().UpdateWorkerHeartbeat(ctx, tenantId, req.WorkerId, heartbeatAt)
+	err = s.repov1.Workers().UpdateWorkerHeartbeat(ctx, tenantId, req.WorkerId, heartbeatAt)
 
 	if err != nil {
 		span.RecordError(err)

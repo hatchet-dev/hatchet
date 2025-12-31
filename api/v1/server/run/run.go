@@ -302,7 +302,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		emailGroup, err := config.APIRepository.TenantAlertingSettings().GetTenantAlertGroupById(timeoutCtx, id)
+		emailGroup, err := config.V1.TenantAlertingSettings().GetTenantAlertGroupById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
@@ -422,7 +422,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("worker", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		worker, err := config.APIRepository.Worker().GetWorkerById(id)
+		worker, err := config.V1.Workers().GetWorkerById(id)
 
 		if err != nil {
 			return nil, "", err

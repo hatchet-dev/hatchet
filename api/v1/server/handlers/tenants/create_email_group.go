@@ -5,9 +5,9 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 func (t *TenantService) AlertEmailGroupCreate(ctx echo.Context, request gen.AlertEmailGroupCreateRequestObject) (gen.AlertEmailGroupCreateResponseObject, error) {
@@ -22,11 +22,11 @@ func (t *TenantService) AlertEmailGroupCreate(ctx echo.Context, request gen.Aler
 	}
 
 	// construct the database query
-	createOpts := &repository.CreateTenantAlertGroupOpts{
+	createOpts := &v1.CreateTenantAlertGroupOpts{
 		Emails: request.Body.Emails,
 	}
 
-	emailGroup, err := t.config.APIRepository.TenantAlertingSettings().CreateTenantAlertGroup(ctx.Request().Context(), tenantId, createOpts)
+	emailGroup, err := t.config.V1.TenantAlertingSettings().CreateTenantAlertGroup(ctx.Request().Context(), tenantId, createOpts)
 
 	if err != nil {
 		return nil, err

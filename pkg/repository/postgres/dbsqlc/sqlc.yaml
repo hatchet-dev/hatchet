@@ -7,9 +7,7 @@ sql:
       - workflow_runs.sql
       - workflows.sql
       - tickers.sql
-      - workers.sql
       - tenants.sql
-      - tenant_limits.sql
       - users.sql
     schema:
       - ../../../../sql/schema/v0.sql

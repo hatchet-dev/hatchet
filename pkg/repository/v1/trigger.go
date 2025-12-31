@@ -14,7 +14,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -223,7 +222,7 @@ type WorkflowAndScope struct {
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
-	pre, post := r.m.Meter(ctx, dbsqlc.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
+	pre, post := r.m.Meter(ctx, sqlcv1.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
 	if err := pre(); err != nil {
 		return nil, err
@@ -732,13 +731,13 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		countTasks += len(steps)
 	}
 
-	preWR, postWR := r.m.Meter(ctx, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, int32(countWorkflowRuns)) // nolint: gosec
+	preWR, postWR := r.m.Meter(ctx, sqlcv1.LimitResourceWORKFLOWRUN, tenantId, int32(countWorkflowRuns)) // nolint: gosec
 
 	if err := preWR(); err != nil {
 		return nil, nil, err
 	}
 
-	preTask, postTask := r.m.Meter(ctx, dbsqlc.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
+	preTask, postTask := r.m.Meter(ctx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
 
 	if err := preTask(); err != nil {
 		return nil, nil, err

@@ -16,7 +16,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -459,16 +458,14 @@ func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId
 
 type workflowEngineRepository struct {
 	*sharedRepository
-	m *metered.Metered
 
 	cache cache.Cacheable
 }
 
-func NewWorkflowEngineRepository(shared *sharedRepository, m *metered.Metered, cache cache.Cacheable) repository.WorkflowEngineRepository {
+func NewWorkflowEngineRepository(shared *sharedRepository, cache cache.Cacheable) repository.WorkflowEngineRepository {
 
 	return &workflowEngineRepository{
 		sharedRepository: shared,
-		m:                m,
 		cache:            cache,
 	}
 }

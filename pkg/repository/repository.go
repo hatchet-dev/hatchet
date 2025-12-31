@@ -6,28 +6,18 @@ import (
 
 type APIRepository interface {
 	Tenant() TenantAPIRepository
-	TenantAlertingSettings() TenantAlertingRepository
 	Workflow() WorkflowAPIRepository
 	WorkflowRun() WorkflowRunAPIRepository
-	Worker() WorkerAPIRepository
 	UserSession() UserSessionRepository
 	User() UserRepository
-	WebhookWorker() WebhookWorkerRepository
 }
 
 type EngineRepository interface {
 	Tenant() TenantEngineRepository
-	TenantAlertingSettings() TenantAlertingRepository
 	Ticker() TickerEngineRepository
-	Worker() WorkerEngineRepository
 	Workflow() WorkflowEngineRepository
 	WorkflowRun() WorkflowRunEngineRepository
 	StreamEvent() StreamEventsEngineRepository
-	WebhookWorker() WebhookWorkerEngineRepository
-}
-
-type EntitlementsRepository interface {
-	TenantLimit() TenantLimitRepository
 }
 
 func BoolPtr(b bool) *bool {

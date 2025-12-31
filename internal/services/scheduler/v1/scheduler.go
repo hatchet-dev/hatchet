@@ -385,7 +385,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 		var dispatcherIdWorkerIds map[string][]string
 
-		dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		dispatcherIdWorkerIds, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
@@ -800,7 +800,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	}
 
 	// since the dispatcher IDs may have changed since the previous send, we need to query them again
-	dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, msg.TenantID, workerIds)
+	dispatcherIdWorkerIds, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, msg.TenantID, workerIds)
 
 	if err != nil {
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)

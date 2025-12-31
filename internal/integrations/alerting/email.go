@@ -11,12 +11,13 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting/alerttypes"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-func (t *TenantAlertManager) sendEmailWorkflowRunAlert(tenant *dbsqlc.Tenant, emailGroup *repository.TenantAlertEmailGroupForSend, numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) error {
+func (t *TenantAlertManager) sendEmailWorkflowRunAlert(tenant *sqlcv1.Tenant, emailGroup *v1.TenantAlertEmailGroupForSend, numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -41,7 +42,7 @@ func (t *TenantAlertManager) sendEmailWorkflowRunAlert(tenant *dbsqlc.Tenant, em
 	)
 }
 
-func (t *TenantAlertManager) sendEmailExpiringTokenAlert(tenant *dbsqlc.Tenant, emailGroup *repository.TenantAlertEmailGroupForSend, payload *alerttypes.ExpiringTokenItem) error {
+func (t *TenantAlertManager) sendEmailExpiringTokenAlert(tenant *sqlcv1.Tenant, emailGroup *v1.TenantAlertEmailGroupForSend, payload *alerttypes.ExpiringTokenItem) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -64,7 +65,7 @@ func (t *TenantAlertManager) sendEmailExpiringTokenAlert(tenant *dbsqlc.Tenant, 
 	)
 }
 
-func (t *TenantAlertManager) sendEmailTenantResourceLimitAlert(tenant *dbsqlc.Tenant, emailGroup *repository.TenantAlertEmailGroupForSend, payload *alerttypes.ResourceLimitAlert) error {
+func (t *TenantAlertManager) sendEmailTenantResourceLimitAlert(tenant *sqlcv1.Tenant, emailGroup *v1.TenantAlertEmailGroupForSend, payload *alerttypes.ResourceLimitAlert) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

@@ -24,7 +24,9 @@ sql:
       - slack.sql
       - sleep.sql
       - sns.sql
+      - tenants.sql
       - tenant_invites.sql
+      - tenant_limits.sql
       - ticker.sql
       - filters.sql
       - payload-store.sql

@@ -342,9 +342,9 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	canCreateWR, wrLimit, err := a.entitlements.TenantLimit().CanCreate(
+	canCreateWR, wrLimit, err := a.repo.TenantLimit().CanCreate(
 		ctx,
-		dbsqlc.LimitResourceWORKFLOWRUN,
+		sqlcv1.LimitResourceWORKFLOWRUN,
 		tenantId,
 		1,
 	)
@@ -360,9 +360,9 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 		)
 	}
 
-	canCreateTR, trLimit, err := a.entitlements.TenantLimit().CanCreate(
+	canCreateTR, trLimit, err := a.repo.TenantLimit().CanCreate(
 		ctx,
-		dbsqlc.LimitResourceTASKRUN,
+		sqlcv1.LimitResourceTASKRUN,
 		tenantId,
 		// NOTE: this isn't actually the number of tasks per workflow run, but we're just checking to see
 		// if we've exceeded the limit

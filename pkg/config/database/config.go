@@ -69,8 +69,6 @@ type Layer struct {
 
 	EngineRepository repository.EngineRepository
 
-	EntitlementRepository repository.EntitlementsRepository
-
 	V1 v1.Repository
 
 	Seed SeedConfigFile

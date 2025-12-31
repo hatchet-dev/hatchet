@@ -9,9 +9,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
@@ -35,13 +34,18 @@ type sharedRepository struct {
 	celParser                 *cel.CELParser
 	env                       *celgo.Env
 	taskLookupCache           *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
-	m                         *metered.Metered
 	payloadStore              PayloadStoreRepository
+	m                         TenantLimitRepository
 }
 
-func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, entitlements repository.EntitlementsRepository, payloadStoreOpts PayloadStoreRepositoryOpts) (*sharedRepository, func() error) {
-	m := metered.NewMetered(entitlements, l)
-
+func newSharedRepository(
+	pool *pgxpool.Pool,
+	v validator.Validator,
+	l *zerolog.Logger,
+	payloadStoreOpts PayloadStoreRepositoryOpts,
+	c *limits.LimitConfigFile,
+	shouldEnforceLimits bool,
+) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
 	stepExpressionCache := cache.New(5 * time.Minute)
@@ -65,24 +69,29 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 		log.Fatalf("failed to create LRU cache: %v", err)
 	}
 
-	return &sharedRepository{
-			pool:                      pool,
-			v:                         v,
-			l:                         l,
-			queries:                   queries,
-			queueCache:                queueCache,
-			stepExpressionCache:       stepExpressionCache,
-			tenantIdWorkflowNameCache: tenantIdWorkflowNameCache,
-			celParser:                 celParser,
-			env:                       env,
-			taskLookupCache:           lookupCache,
-			m:                         m,
-			payloadStore:              payloadStore,
-		}, func() error {
-			queueCache.Stop()
-			stepExpressionCache.Stop()
-			tenantIdWorkflowNameCache.Stop()
-			m.Stop()
-			return nil
-		}
+	s := &sharedRepository{
+		pool:                      pool,
+		v:                         v,
+		l:                         l,
+		queries:                   queries,
+		queueCache:                queueCache,
+		stepExpressionCache:       stepExpressionCache,
+		tenantIdWorkflowNameCache: tenantIdWorkflowNameCache,
+		celParser:                 celParser,
+		env:                       env,
+		taskLookupCache:           lookupCache,
+		payloadStore:              payloadStore,
+	}
+
+	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits)
+
+	s.m = tenantLimitRepository
+
+	return s, func() error {
+		queueCache.Stop()
+		stepExpressionCache.Stop()
+		tenantIdWorkflowNameCache.Stop()
+		s.m.Stop()
+		return nil
+	}
 }

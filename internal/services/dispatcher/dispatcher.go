@@ -46,8 +46,6 @@ type DispatcherImpl struct {
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 
-	entitlements repository.EntitlementsRepository
-
 	dispatcherId string
 	workers      *workers
 	a            *hatcheterrors.Wrapped
@@ -122,7 +120,6 @@ type DispatcherOpts struct {
 	dv                          datautils.DataDecoderValidator
 	repo                        repository.EngineRepository
 	repov1                      v1.Repository
-	entitlements                repository.EntitlementsRepository
 	dispatcherId                string
 	alerter                     hatcheterrors.Alerter
 	cache                       cache.Cacheable
@@ -165,12 +162,6 @@ func WithRepository(r repository.EngineRepository) DispatcherOpt {
 func WithRepositoryV1(r v1.Repository) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.repov1 = r
-	}
-}
-
-func WithEntitlementsRepository(r repository.EntitlementsRepository) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.entitlements = r
 	}
 }
 
@@ -229,10 +220,6 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		return nil, fmt.Errorf("v1 repository is required. use WithRepositoryV1")
 	}
 
-	if opts.entitlements == nil {
-		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
-	}
-
 	if opts.cache == nil {
 		return nil, fmt.Errorf("cache is required. use WithCache")
 	}
@@ -260,7 +247,6 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		v:                           validator.NewDefaultValidator(),
 		repo:                        opts.repo,
 		repov1:                      opts.repov1,
-		entitlements:                opts.entitlements,
 		dispatcherId:                opts.dispatcherId,
 		workers:                     &workers{},
 		s:                           s,

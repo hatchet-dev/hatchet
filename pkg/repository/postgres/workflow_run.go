@@ -10,7 +10,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
@@ -18,16 +17,14 @@ import (
 type workflowRunAPIRepository struct {
 	*sharedRepository
 
-	m  *metered.Metered
 	cf *server.ConfigFileRuntime
 
 	createCallbacks []repository.TenantScopedCallback[*dbsqlc.WorkflowRun]
 }
 
-func NewWorkflowRunRepository(shared *sharedRepository, m *metered.Metered, cf *server.ConfigFileRuntime) repository.WorkflowRunAPIRepository {
+func NewWorkflowRunRepository(shared *sharedRepository, cf *server.ConfigFileRuntime) repository.WorkflowRunAPIRepository {
 	return &workflowRunAPIRepository{
 		sharedRepository: shared,
-		m:                m,
 		cf:               cf,
 	}
 }
@@ -283,17 +280,15 @@ func (w *workflowRunAPIRepository) GetStepsForJobs(ctx context.Context, tenantId
 type workflowRunEngineRepository struct {
 	*sharedRepository
 
-	m  *metered.Metered
 	cf *server.ConfigFileRuntime
 
 	createCallbacks []repository.TenantScopedCallback[*dbsqlc.WorkflowRun]
 	queuedCallbacks []repository.TenantScopedCallback[pgtype.UUID]
 }
 
-func NewWorkflowRunEngineRepository(shared *sharedRepository, m *metered.Metered, cf *server.ConfigFileRuntime, cbs ...repository.TenantScopedCallback[*dbsqlc.WorkflowRun]) repository.WorkflowRunEngineRepository {
+func NewWorkflowRunEngineRepository(shared *sharedRepository, cf *server.ConfigFileRuntime, cbs ...repository.TenantScopedCallback[*dbsqlc.WorkflowRun]) repository.WorkflowRunEngineRepository {
 	return &workflowRunEngineRepository{
 		sharedRepository: shared,
-		m:                m,
 		createCallbacks:  cbs,
 		cf:               cf,
 	}

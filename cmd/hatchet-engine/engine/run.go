@@ -243,7 +243,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
-			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 
 		if err != nil {
@@ -357,7 +356,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithRepository(sc.EngineRepository),
 			dispatcher.WithRepositoryV1(sc.V1),
 			dispatcher.WithLogger(sc.Logger),
-			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
@@ -385,7 +383,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
-			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 			ingestor.WithRepositoryV1(sc.V1),
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 		)
@@ -398,7 +395,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithRepository(sc.EngineRepository),
 			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
-			admin.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service: %w", err)
@@ -407,7 +403,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		adminv1Svc, err := adminv1.NewAdminService(
 			adminv1.WithRepository(sc.V1),
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
-			adminv1.WithEntitlementsRepository(sc.EntitlementRepository),
 			adminv1.WithAnalytics(sc.Analytics),
 		)
 
@@ -565,7 +560,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
-			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 
 		if err != nil {
@@ -722,7 +716,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithRepository(sc.EngineRepository),
 			dispatcher.WithRepositoryV1(sc.V1),
 			dispatcher.WithLogger(sc.Logger),
-			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
@@ -751,7 +744,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
-			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 			ingestor.WithRepositoryV1(sc.V1),
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 		)
@@ -764,7 +756,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithRepository(sc.EngineRepository),
 			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
-			admin.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 
 		if err != nil {
@@ -774,7 +765,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		adminv1Svc, err := adminv1.NewAdminService(
 			adminv1.WithRepository(sc.V1),
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
-			adminv1.WithEntitlementsRepository(sc.EntitlementRepository),
 			adminv1.WithAnalytics(sc.Analytics),
 		)
 

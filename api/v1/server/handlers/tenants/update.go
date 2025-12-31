@@ -8,6 +8,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateRequestObject) (gen.TenantUpdateResponseObject, error) {
@@ -71,10 +72,10 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		request.Body.EnableTenantResourceLimitAlerts != nil ||
 		request.Body.EnableWorkflowRunFailureAlerts != nil {
 
-		_, err = t.config.APIRepository.TenantAlertingSettings().UpsertTenantAlertingSettings(
+		_, err = t.config.V1.TenantAlertingSettings().UpsertTenantAlertingSettings(
 			ctx.Request().Context(),
 			tenantId,
-			&repository.UpsertTenantAlertingSettingsOpts{
+			&v1.UpsertTenantAlertingSettingsOpts{
 				MaxFrequency:                    request.Body.MaxAlertingFrequency,
 				EnableExpiringTokenAlerts:       request.Body.EnableExpiringTokenAlerts,
 				EnableWorkflowRunFailureAlerts:  request.Body.EnableWorkflowRunFailureAlerts,

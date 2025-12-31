@@ -11,29 +11,24 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type apiRepository struct {
-	tenant         repository.TenantAPIRepository
-	tenantAlerting repository.TenantAlertingRepository
-	workflow       repository.WorkflowAPIRepository
-	workflowRun    repository.WorkflowRunAPIRepository
-	worker         repository.WorkerAPIRepository
-	userSession    repository.UserSessionRepository
-	user           repository.UserRepository
-	webhookWorker  repository.WebhookWorkerRepository
+	tenant      repository.TenantAPIRepository
+	workflow    repository.WorkflowAPIRepository
+	workflowRun repository.WorkflowRunAPIRepository
+	userSession repository.UserSessionRepository
+	user        repository.UserRepository
 }
 
 type PostgresRepositoryOpt func(*PostgresRepositoryOpts)
 
 type PostgresRepositoryOpts struct {
-	v       validator.Validator
-	l       *zerolog.Logger
-	cache   cache.Cacheable
-	metered *metered.Metered
+	v     validator.Validator
+	l     *zerolog.Logger
+	cache cache.Cacheable
 }
 
 func defaultPostgresRepositoryOpts() *PostgresRepositoryOpts {
@@ -57,12 +52,6 @@ func WithLogger(l *zerolog.Logger) PostgresRepositoryOpt {
 func WithCache(cache cache.Cacheable) PostgresRepositoryOpt {
 	return func(opts *PostgresRepositoryOpts) {
 		opts.cache = cache
-	}
-}
-
-func WithMetered(metered *metered.Metered) PostgresRepositoryOpt {
-	return func(opts *PostgresRepositoryOpts) {
-		opts.metered = metered
 	}
 }
 
@@ -96,23 +85,16 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 	}
 
 	return &apiRepository{
-		tenant:         NewTenantAPIRepository(shared, opts.cache, defaultEngineVersion),
-		tenantAlerting: NewTenantAlertingRepository(shared, opts.cache),
-		workflow:       NewWorkflowRepository(shared),
-		workflowRun:    NewWorkflowRunRepository(shared, opts.metered, cf),
-		worker:         NewWorkerAPIRepository(shared, opts.metered),
-		userSession:    NewUserSessionRepository(shared),
-		user:           NewUserRepository(shared),
-		webhookWorker:  NewWebhookWorkerRepository(shared),
+		tenant:      NewTenantAPIRepository(shared, opts.cache, defaultEngineVersion),
+		workflow:    NewWorkflowRepository(shared),
+		workflowRun: NewWorkflowRunRepository(shared, cf),
+		userSession: NewUserSessionRepository(shared),
+		user:        NewUserRepository(shared),
 	}, cleanup, err
 }
 
 func (r *apiRepository) Tenant() repository.TenantAPIRepository {
 	return r.tenant
-}
-
-func (r *apiRepository) TenantAlertingSettings() repository.TenantAlertingRepository {
-	return r.tenantAlerting
 }
 
 func (r *apiRepository) Workflow() repository.WorkflowAPIRepository {
@@ -123,10 +105,6 @@ func (r *apiRepository) WorkflowRun() repository.WorkflowRunAPIRepository {
 	return r.workflowRun
 }
 
-func (r *apiRepository) Worker() repository.WorkerAPIRepository {
-	return r.worker
-}
-
 func (r *apiRepository) UserSession() repository.UserSessionRepository {
 	return r.userSession
 }
@@ -135,35 +113,20 @@ func (r *apiRepository) User() repository.UserRepository {
 	return r.user
 }
 
-func (r *apiRepository) WebhookWorker() repository.WebhookWorkerRepository {
-	return r.webhookWorker
-}
-
 type engineRepository struct {
-	tenant         repository.TenantEngineRepository
-	tenantAlerting repository.TenantAlertingRepository
-	ticker         repository.TickerEngineRepository
-	worker         repository.WorkerEngineRepository
-	workflow       repository.WorkflowEngineRepository
-	workflowRun    repository.WorkflowRunEngineRepository
-	streamEvent    repository.StreamEventsEngineRepository
-	webhookWorker  repository.WebhookWorkerEngineRepository
+	tenant      repository.TenantEngineRepository
+	ticker      repository.TickerEngineRepository
+	workflow    repository.WorkflowEngineRepository
+	workflowRun repository.WorkflowRunEngineRepository
+	streamEvent repository.StreamEventsEngineRepository
 }
 
 func (r *engineRepository) Tenant() repository.TenantEngineRepository {
 	return r.tenant
 }
 
-func (r *engineRepository) TenantAlertingSettings() repository.TenantAlertingRepository {
-	return r.tenantAlerting
-}
-
 func (r *engineRepository) Ticker() repository.TickerEngineRepository {
 	return r.ticker
-}
-
-func (r *engineRepository) Worker() repository.WorkerEngineRepository {
-	return r.worker
 }
 
 func (r *engineRepository) Workflow() repository.WorkflowEngineRepository {
@@ -176,10 +139,6 @@ func (r *engineRepository) WorkflowRun() repository.WorkflowRunEngineRepository 
 
 func (r *engineRepository) StreamEvent() repository.StreamEventsEngineRepository {
 	return r.streamEvent
-}
-
-func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineRepository {
-	return r.webhookWorker
 }
 
 func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PostgresRepositoryOpt) (func() error, repository.EngineRepository, error) {
@@ -213,41 +172,11 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 			return cleanup()
 		}, &engineRepository{
-			tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
-			tenantAlerting: NewTenantAlertingRepository(shared, opts.cache),
-			ticker:         NewTickerRepository(pool, opts.v, opts.l),
-			worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
-			workflow:       NewWorkflowEngineRepository(shared, opts.metered, opts.cache),
-			workflowRun:    NewWorkflowRunEngineRepository(shared, opts.metered, cf),
-			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
-			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
+			tenant:      NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
+			ticker:      NewTickerRepository(pool, opts.v, opts.l),
+			workflow:    NewWorkflowEngineRepository(shared, opts.cache),
+			workflowRun: NewWorkflowRunEngineRepository(shared, cf),
+			streamEvent: NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 		},
 		err
-}
-
-type entitlementRepository struct {
-	tenantLimit repository.TenantLimitRepository
-}
-
-func (r *entitlementRepository) TenantLimit() repository.TenantLimitRepository {
-	return r.tenantLimit
-}
-
-func NewEntitlementRepository(pool *pgxpool.Pool, s *server.ConfigFileRuntime, fs ...PostgresRepositoryOpt) repository.EntitlementsRepository {
-	opts := defaultPostgresRepositoryOpts()
-
-	for _, f := range fs {
-		f(opts)
-	}
-
-	newLogger := opts.l.With().Str("service", "database").Logger()
-	opts.l = &newLogger
-
-	if opts.cache == nil {
-		opts.cache = cache.New(1 * time.Millisecond)
-	}
-
-	return &entitlementRepository{
-		tenantLimit: NewTenantLimitRepository(pool, opts.v, opts.l, s),
-	}
 }

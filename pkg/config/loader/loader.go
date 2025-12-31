@@ -40,7 +40,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
@@ -247,13 +246,9 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	ch := cache.New(cf.CacheDuration)
 
-	entitlementRepo := postgresdb.NewEntitlementRepository(pool, &scf.Runtime, postgresdb.WithLogger(&l), postgresdb.WithCache(ch))
-
-	meter := metered.NewMetered(entitlementRepo, &l)
-
 	var opts []postgresdb.PostgresRepositoryOpt
 
-	opts = append(opts, postgresdb.WithLogger(&l), postgresdb.WithCache(ch), postgresdb.WithMetered(meter))
+	opts = append(opts, postgresdb.WithLogger(&l), postgresdb.WithCache(ch))
 
 	cleanupEngine, engineRepo, err := postgresdb.NewEngineRepository(pool, &scf.Runtime, opts...)
 
@@ -299,7 +294,18 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DAG:  int32(scf.OLAPStatusUpdates.DagBatchSizeLimit),
 	}
 
-	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, payloadStoreOpts, statusUpdateOpts)
+	v1, cleanupV1 := repov1.NewRepository(
+		pool,
+		&l,
+		retentionPeriod,
+		retentionPeriod,
+		scf.Runtime.MaxInternalRetryCount,
+		taskLimits,
+		payloadStoreOpts,
+		statusUpdateOpts,
+		scf.Runtime.Limits,
+		scf.Runtime.EnforceLimits,
+	)
 
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
@@ -318,7 +324,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			}
 
 			ch.Stop()
-			meter.Stop()
 
 			if err := cleanupV1(); err != nil {
 				return err
@@ -326,13 +331,12 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 			return cleanupApiRepo()
 		},
-		Pool:                  pool,
-		QueuePool:             pool,
-		APIRepository:         apiRepo,
-		EngineRepository:      engineRepo,
-		EntitlementRepository: entitlementRepo,
-		V1:                    v1,
-		Seed:                  cf.Seed,
+		Pool:             pool,
+		QueuePool:        pool,
+		APIRepository:    apiRepo,
+		EngineRepository: engineRepo,
+		V1:               v1,
+		Seed:             cf.Seed,
 	}, nil
 
 }
@@ -445,7 +449,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 		ing, err = ingestor.NewIngestor(
 			ingestor.WithMessageQueueV1(mqv1),
-			ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
 			ingestor.WithRepositoryV1(dc.V1),
 		)
 
@@ -673,7 +676,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		OpenTelemetry:          cf.OpenTelemetry,
 		Prometheus:             cf.Prometheus,
 		Email:                  emailSvc,
-		TenantAlerter:          alerting.New(dc.EngineRepository, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
+		TenantAlerter:          alerting.New(dc.V1, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,
 		AdditionalLoggers:      cf.AdditionalLoggers,
 		EnableDataRetention:    cf.EnableDataRetention,

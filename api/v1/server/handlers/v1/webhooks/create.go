@@ -17,7 +17,7 @@ import (
 func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1WebhookCreateRequestObject) (gen.V1WebhookCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
-	canCreate, _, err := w.config.EntitlementRepository.TenantLimit().CanCreate(ctx.Request().Context(), dbsqlc.LimitResourceINCOMINGWEBHOOK, tenant.ID.String(), 1)
+	canCreate, _, err := w.config.V1.TenantLimit().CanCreate(ctx.Request().Context(), sqlcv1.LimitResourceINCOMINGWEBHOOK, tenant.ID.String(), 1)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to check if webhook can be created: %w", err)

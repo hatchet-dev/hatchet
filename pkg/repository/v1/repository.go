@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,33 +46,37 @@ type Repository interface {
 	Slack() SlackRepository
 	SNS() SNSRepository
 	TenantInvite() TenantInviteRepository
+	TenantLimit() TenantLimitRepository
+	TenantAlertingSettings() TenantAlertingRepository
 }
 
 type repositoryImpl struct {
-	apiToken      APITokenRepository
-	dispatcher    DispatcherRepository
-	health        HealthRepository
-	messageQueue  MessageQueueRepository
-	rateLimit     RateLimitRepository
-	triggers      TriggerRepository
-	tasks         TaskRepository
-	scheduler     SchedulerRepository
-	matches       MatchRepository
-	olap          OLAPRepository
-	logs          LogLineRepository
-	workers       WorkerRepository
-	workflows     WorkflowRepository
-	ticker        TickerRepository
-	filters       FilterRepository
-	webhooks      WebhookRepository
-	payloadStore  PayloadStoreRepository
-	idempotency   IdempotencyRepository
-	intervals     IntervalSettingsRepository
-	pgHealth      PGHealthRepository
-	securityCheck SecurityCheckRepository
-	slack         SlackRepository
-	sns           SNSRepository
-	tenantInvite  TenantInviteRepository
+	apiToken       APITokenRepository
+	dispatcher     DispatcherRepository
+	health         HealthRepository
+	messageQueue   MessageQueueRepository
+	rateLimit      RateLimitRepository
+	triggers       TriggerRepository
+	tasks          TaskRepository
+	scheduler      SchedulerRepository
+	matches        MatchRepository
+	olap           OLAPRepository
+	logs           LogLineRepository
+	workers        WorkerRepository
+	workflows      WorkflowRepository
+	ticker         TickerRepository
+	filters        FilterRepository
+	webhooks       WebhookRepository
+	payloadStore   PayloadStoreRepository
+	idempotency    IdempotencyRepository
+	intervals      IntervalSettingsRepository
+	pgHealth       PGHealthRepository
+	securityCheck  SecurityCheckRepository
+	slack          SlackRepository
+	sns            SNSRepository
+	tenantInvite   TenantInviteRepository
+	tenantLimit    TenantLimitRepository
+	tenantAlerting TenantAlertingRepository
 }
 
 func NewRepository(
@@ -80,42 +84,45 @@ func NewRepository(
 	l *zerolog.Logger,
 	taskRetentionPeriod, olapRetentionPeriod time.Duration,
 	maxInternalRetryCount int32,
-	entitlements repository.EntitlementsRepository,
 	taskLimits TaskOperationLimits,
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
+	tenantLimitConfig *limits.LimitConfigFile,
+	enforceLimits bool,
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, payloadStoreOpts)
+	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
 	impl := &repositoryImpl{
-		apiToken:      newAPITokenRepository(shared),
-		dispatcher:    newDispatcherRepository(shared),
-		health:        newHealthRepository(shared),
-		messageQueue:  mq,
-		rateLimit:     newRateLimitRepository(shared),
-		triggers:      newTriggerRepository(shared),
-		tasks:         newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
-		scheduler:     newSchedulerRepository(shared),
-		matches:       newMatchRepository(shared),
-		olap:          newOLAPRepository(shared, olapRetentionPeriod, true, statusUpdateBatchSizeLimits),
-		logs:          newLogLineRepository(shared),
-		workers:       newWorkerRepository(shared),
-		workflows:     newWorkflowRepository(shared),
-		ticker:        newTickerRepository(shared),
-		filters:       newFilterRepository(shared),
-		webhooks:      newWebhookRepository(shared),
-		payloadStore:  shared.payloadStore,
-		idempotency:   newIdempotencyRepository(shared),
-		intervals:     newIntervalSettingsRepository(shared),
-		pgHealth:      newPGHealthRepository(shared),
-		securityCheck: newSecurityCheckRepository(shared),
-		slack:         newSlackRepository(shared),
-		sns:           newSNSRepository(shared),
-		tenantInvite:  newTenantInviteRepository(shared),
+		apiToken:       newAPITokenRepository(shared),
+		dispatcher:     newDispatcherRepository(shared),
+		health:         newHealthRepository(shared),
+		messageQueue:   mq,
+		rateLimit:      newRateLimitRepository(shared),
+		triggers:       newTriggerRepository(shared),
+		tasks:          newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
+		scheduler:      newSchedulerRepository(shared),
+		matches:        newMatchRepository(shared),
+		olap:           newOLAPRepository(shared, olapRetentionPeriod, true, statusUpdateBatchSizeLimits),
+		logs:           newLogLineRepository(shared),
+		workers:        newWorkerRepository(shared),
+		workflows:      newWorkflowRepository(shared),
+		ticker:         newTickerRepository(shared),
+		filters:        newFilterRepository(shared),
+		webhooks:       newWebhookRepository(shared),
+		payloadStore:   shared.payloadStore,
+		idempotency:    newIdempotencyRepository(shared),
+		intervals:      newIntervalSettingsRepository(shared),
+		pgHealth:       newPGHealthRepository(shared),
+		securityCheck:  newSecurityCheckRepository(shared),
+		slack:          newSlackRepository(shared),
+		sns:            newSNSRepository(shared),
+		tenantInvite:   newTenantInviteRepository(shared),
+		tenantLimit:    newTenantLimitRepository(shared, tenantLimitConfig, enforceLimits),
+		tenantAlerting: newTenantAlertingRepository(shared),
 	}
 
 	return impl, func() error {
@@ -239,4 +246,12 @@ func (r *repositoryImpl) SNS() SNSRepository {
 
 func (r *repositoryImpl) TenantInvite() TenantInviteRepository {
 	return r.tenantInvite
+}
+
+func (r *repositoryImpl) TenantLimit() TenantLimitRepository {
+	return r.tenantLimit
+}
+
+func (r *repositoryImpl) TenantAlertingSettings() TenantAlertingRepository {
+	return r.tenantAlerting
 }

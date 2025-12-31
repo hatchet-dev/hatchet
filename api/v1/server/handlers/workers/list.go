@@ -9,9 +9,9 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	transformersv1 "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -35,7 +35,7 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *dbsqlc.Tenant, re
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
-	opts := &repository.ListWorkersOpts{
+	opts := &v1.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
 	}
 
@@ -46,7 +46,7 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *dbsqlc.Tenant, re
 		telemetry.AttributeKV{Key: "tenant.id", Value: tenant.ID},
 	)
 
-	workers, err := t.config.APIRepository.Worker().ListWorkers(tenantId, opts)
+	workers, err := t.config.V1.Workers().ListWorkers(tenantId, opts)
 
 	if err != nil {
 		listSpan.RecordError(err)
@@ -79,7 +79,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, re
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
-	opts := &repository.ListWorkersOpts{
+	opts := &v1.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
 	}
 
@@ -119,7 +119,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, re
 		telemetry.AttributeKV{Key: "workers.unique_ids.count", Value: len(workerIds)},
 	)
 
-	workerIdToActionIds, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
+	workerIdToActionIds, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
 		sqlchelpers.UUIDToStr(tenant.ID),
 		workerIds,
 	)

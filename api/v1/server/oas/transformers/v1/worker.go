@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -61,7 +60,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 	return runtime
 }
 
-func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string, workflows *[]*dbsqlc.Workflow) *gen.Worker {
+func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string, workflows *[]*sqlcv1.Workflow) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(sqlchelpers.UUIDToStr(worker.DispatcherId))
 

@@ -32,9 +32,9 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant,
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	canCreateEvents, eLimit, err := i.entitlementsRepository.TenantLimit().CanCreate(
+	canCreateEvents, eLimit, err := i.repov1.TenantLimit().CanCreate(
 		ctx,
-		dbsqlc.LimitResourceEVENT,
+		sqlcv1.LimitResourceEVENT,
 		tenantId,
 		1,
 	)
@@ -98,9 +98,9 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 
 	count := len(eventOpts)
 
-	canCreateEvents, eLimit, err := i.entitlementsRepository.TenantLimit().CanCreate(
+	canCreateEvents, eLimit, err := i.repov1.TenantLimit().CanCreate(
 		ctx,
-		dbsqlc.LimitResourceEVENT,
+		sqlcv1.LimitResourceEVENT,
 		tenantId,
 		int32(count), // nolint: gosec
 	)
