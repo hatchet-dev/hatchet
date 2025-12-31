@@ -66,7 +66,7 @@ const GetWorkflowChart = () => {
 
   return (
     <ZoomableChart
-      kind="area"
+      kind="bar"
       data={
         workflowRunEventsMetricsQuery.data?.results?.map(
           (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
