@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
@@ -64,10 +63,6 @@ type Layer struct {
 	ReadReplicaPool *pgxpool.Pool
 
 	QueuePool *pgxpool.Pool
-
-	APIRepository repository.APIRepository
-
-	EngineRepository repository.EngineRepository
 
 	V1 v1.Repository
 

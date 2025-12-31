@@ -3,7 +3,7 @@ package v1
 import (
 	"context"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
 type SecurityCheckRepository interface {

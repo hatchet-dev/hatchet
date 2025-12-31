@@ -5,8 +5,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -16,8 +15,8 @@ func (t *TenantService) TenantInviteList(ctx echo.Context, request gen.TenantInv
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	tenantInvites, err := t.config.V1.TenantInvite().ListTenantInvitesByTenantId(ctx.Request().Context(), tenantId, &v1.ListTenantInvitesOpts{
-		Expired: repository.BoolPtr(false),
-		Status:  repository.StringPtr("PENDING"),
+		Expired: v1.BoolPtr(false),
+		Status:  v1.StringPtr("PENDING"),
 	})
 
 	if err != nil {

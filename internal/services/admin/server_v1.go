@@ -13,8 +13,7 @@ import (
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -71,11 +70,11 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
 
-	if err := repository.ValidateJSONB(opt.Data, "payload"); err != nil {
+	if err := v1.ValidateJSONB(opt.Data, "payload"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
-	if err := repository.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
+	if err := v1.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
@@ -129,11 +128,11 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 			return nil, fmt.Errorf("could not create trigger opt: %w", err)
 		}
 
-		if err := repository.ValidateJSONB(opt.Data, "payload"); err != nil {
+		if err := v1.ValidateJSONB(opt.Data, "payload"); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 		}
 
-		if err := repository.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
+		if err := v1.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 		}
 

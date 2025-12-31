@@ -17,7 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -54,19 +54,6 @@ type CreateWorkflowVersionOpts struct {
 	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
 
 	DefaultFilters []types.DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
-}
-
-type CreateCronWorkflowTriggerOpts struct {
-	// (required) the workflow id
-	WorkflowId string `validate:"required,uuid"`
-
-	// (required) the workflow name
-	Name string `validate:"required"`
-
-	Cron string `validate:"required,cron"`
-
-	Input              map[string]interface{}
-	AdditionalMetadata map[string]interface{}
 }
 
 type CreateConcurrencyOpts struct {
@@ -200,10 +187,57 @@ var allowedRateLimitDurations = []string{
 	"YEAR",
 }
 
+type ListWorkflowsOpts struct {
+	// (optional) number of workflows to skip
+	Offset *int
+
+	// (optional) number of workflows to return
+	Limit *int
+
+	// (optional) the workflow name to filter by
+	Name *string
+}
+
+type ListWorkflowsResult struct {
+	Rows  []*sqlcv1.Workflow
+	Count int
+}
+
+type WorkflowMetrics struct {
+	// the number of runs for a specific group key
+	GroupKeyRunsCount int `json:"groupKeyRunsCount,omitempty"`
+
+	// the total number of concurrency group keys
+	GroupKeyCount int `json:"groupKeyCount,omitempty"`
+}
+
 type WorkflowRepository interface {
 	ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []pgtype.UUID) (map[pgtype.UUID]string, error)
 	PutWorkflowVersion(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 	GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error)
+
+	// ListWorkflows returns all workflows for a given tenant.
+	ListWorkflows(tenantId string, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
+
+	// GetWorkflowById returns a workflow by its name. It will return db.ErrNotFound if the workflow does not exist.
+	GetWorkflowById(ctx context.Context, workflowId string) (*sqlcv1.GetWorkflowByIdRow, error)
+
+	// GetWorkflowVersionById returns a workflow version by its id. It will return db.ErrNotFound if the workflow
+	// version does not exist.
+	GetWorkflowVersionWithTriggers(ctx context.Context, tenantId, workflowVersionId string) (*sqlcv1.GetWorkflowVersionByIdRow,
+		[]*sqlcv1.WorkflowTriggerCronRef,
+		[]*sqlcv1.WorkflowTriggerEventRef,
+		[]*sqlcv1.WorkflowTriggerScheduledRef,
+		error)
+
+	GetWorkflowVersionById(ctx context.Context, tenantId, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+
+	// DeleteWorkflow deletes a workflow for a given tenant.
+	DeleteWorkflow(ctx context.Context, tenantId, workflowId string) (*sqlcv1.Workflow, error)
+
+	GetWorkflowByName(ctx context.Context, tenantId, workflowName string) (*sqlcv1.Workflow, error)
+
+	GetLatestWorkflowVersion(ctx context.Context, tenantId, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 }
 
 type workflowRepository struct {
@@ -983,6 +1017,193 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 func (r *workflowRepository) GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error) {
 	return r.queries.GetWorkflowShape(ctx, r.pool, sqlchelpers.UUIDFromStr(workflowVersionId.String()))
+}
+
+func (r *workflowRepository) ListWorkflows(tenantId string, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	res := &ListWorkflowsResult{}
+
+	pgTenantId := &pgtype.UUID{}
+
+	if err := pgTenantId.Scan(tenantId); err != nil {
+		return nil, err
+	}
+
+	queryParams := sqlcv1.ListWorkflowsParams{
+		Tenantid: *pgTenantId,
+	}
+
+	countParams := sqlcv1.CountWorkflowsParams{
+		TenantId: *pgTenantId,
+	}
+
+	if opts.Offset != nil {
+		queryParams.Offset = *opts.Offset
+	}
+
+	if opts.Limit != nil {
+		queryParams.Limit = *opts.Limit
+	}
+
+	if opts.Name != nil {
+		search := pgtype.Text{String: *opts.Name, Valid: true}
+		queryParams.Search = search
+		countParams.Search = search
+	}
+
+	orderByField := "createdAt"
+	orderByDirection := "DESC"
+
+	queryParams.Orderby = orderByField + " " + orderByDirection
+
+	tx, err := r.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
+
+	workflows, err := r.queries.ListWorkflows(context.Background(), tx, queryParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflows: %w", err)
+	}
+
+	count, err := r.queries.CountWorkflows(context.Background(), tx, countParams)
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	res.Count = int(count)
+
+	sqlcWorkflows := make([]*sqlcv1.Workflow, len(workflows))
+
+	for i := range workflows {
+		sqlcWorkflows[i] = &workflows[i].Workflow
+	}
+
+	res.Rows = sqlcWorkflows
+
+	return res, nil
+}
+
+func (r *workflowRepository) GetWorkflowById(ctx context.Context, workflowId string) (*sqlcv1.GetWorkflowByIdRow, error) {
+	return r.queries.GetWorkflowById(context.Background(), r.pool, sqlchelpers.UUIDFromStr(workflowId))
+
+}
+
+func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context, tenantId, workflowVersionId string) (
+	*sqlcv1.GetWorkflowVersionByIdRow,
+	[]*sqlcv1.WorkflowTriggerCronRef,
+	[]*sqlcv1.WorkflowTriggerEventRef,
+	[]*sqlcv1.WorkflowTriggerScheduledRef,
+	error,
+) {
+	pgWorkflowVersionId := sqlchelpers.UUIDFromStr(workflowVersionId)
+
+	row, err := r.queries.GetWorkflowVersionById(
+		ctx,
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch workflow version: %w", err)
+	}
+
+	crons, err := r.queries.GetWorkflowVersionCronTriggerRefs(
+		ctx,
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch cron triggers: %w", err)
+	}
+
+	events, err := r.queries.GetWorkflowVersionEventTriggerRefs(
+		ctx,
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch event triggers: %w", err)
+	}
+
+	scheduled, err := r.queries.GetWorkflowVersionScheduleTriggerRefs(
+		ctx,
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch scheduled triggers: %w", err)
+	}
+
+	return row, crons, events, scheduled, nil
+}
+
+func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantId, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
+	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, sqlcv1.GetWorkflowVersionForEngineParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(workflowId)},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflow version: %w", err)
+	}
+
+	if len(versions) != 1 {
+		return nil, fmt.Errorf("expected 1 workflow version when getting by id, got %d", len(versions))
+	}
+
+	return versions[0], nil
+}
+
+func (r *workflowRepository) DeleteWorkflow(ctx context.Context, tenantId, workflowId string) (*sqlcv1.Workflow, error) {
+	return r.queries.SoftDeleteWorkflow(ctx, r.pool, sqlchelpers.UUIDFromStr(workflowId))
+}
+
+func (r *workflowRepository) GetWorkflowByName(ctx context.Context, tenantId, workflowName string) (*sqlcv1.Workflow, error) {
+	return r.queries.GetWorkflowByName(ctx, r.pool, sqlcv1.GetWorkflowByNameParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Name:     workflowName,
+	})
+}
+
+func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenantId, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
+	versionId, err := r.queries.GetWorkflowLatestVersion(ctx, r.pool, sqlchelpers.UUIDFromStr(workflowId))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch latest version: %w", err)
+	}
+
+	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, sqlcv1.GetWorkflowVersionForEngineParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      []pgtype.UUID{versionId},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflow version: %w", err)
+	}
+
+	if len(versions) != 1 {
+		return nil, fmt.Errorf("expected 1 workflow version for latest, got %d", len(versions))
+	}
+
+	return versions[0], nil
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {

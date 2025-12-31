@@ -10,7 +10,7 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -94,7 +94,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCr
 
 	if err != nil {
 		if errors.Is(err, gocron.ErrCronJobParse) || errors.Is(err, gocron.ErrCronJobInvalid) {
-			deleteCronErr := t.repo.Workflow().DeleteInvalidCron(ctx, cron.ID)
+			deleteCronErr := t.repov1.WorkflowSchedules().DeleteInvalidCron(ctx, cron.ID)
 
 			if deleteCronErr != nil {
 				t.l.Error().Err(deleteCronErr).Msg("could not delete invalid cron from database")
@@ -118,7 +118,7 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
 
-		workflowVersion, err := t.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
+		workflowVersion, err := t.repov1.Workflows().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
 
 		if err != nil {
 			t.l.Error().Err(err).Msg("could not get workflow version")

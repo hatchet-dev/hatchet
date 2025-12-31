@@ -9,7 +9,7 @@ import (
 	"github.com/tink-crypto/tink-go/jwt"
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	repository "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 

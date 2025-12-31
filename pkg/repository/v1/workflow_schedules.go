@@ -3,11 +3,12 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -48,8 +49,8 @@ type CreateScheduledWorkflowRunForWorkflowOpts struct {
 
 	ScheduledTrigger time.Time
 
-	Input              map[string]interface{}
-	AdditionalMetadata map[string]interface{}
+	Input              []byte
+	AdditionalMetadata []byte
 
 	Priority *int32 `validate:"omitempty,min=1,max=3"`
 }
@@ -63,6 +64,52 @@ type ScheduledWorkflowMeta struct {
 type ScheduledWorkflowUpdate struct {
 	Id        string
 	TriggerAt time.Time
+}
+
+type UpdateCronOpts struct {
+	// (optional) a flag indicating whether or not the cron is enabled
+	Enabled *bool
+}
+
+type ListCronWorkflowsOpts struct {
+	// (optional) number of events to skip
+	Offset *int
+
+	// (optional) number of events to return
+	Limit *int
+
+	// (optional) the order by field
+	OrderBy *string `validate:"omitempty,oneof=createdAt name"`
+
+	// (optional) the order direction
+	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
+
+	// (optional) the workflow id
+	WorkflowId *string `validate:"omitempty,uuid"`
+
+	// (optional) additional metadata for the workflow run
+	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
+
+	// (optional) the name of the cron to filter by
+	CronName *string `validate:"omitempty"`
+
+	// (optional) the name of the workflow to filter by
+	WorkflowName *string `validate:"omitempty"`
+}
+
+type CreateCronWorkflowTriggerOpts struct {
+	// (required) the workflow id
+	WorkflowId string `validate:"required,uuid"`
+
+	// (required) the workflow name
+	Name string `validate:"required"`
+
+	Cron string `validate:"required,cron"`
+
+	Input              map[string]interface{}
+	AdditionalMetadata map[string]interface{}
+
+	Priority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type WorkflowScheduleRepository interface {
@@ -89,6 +136,23 @@ type WorkflowScheduleRepository interface {
 	BulkUpdateScheduledWorkflows(ctx context.Context, tenantId string, updates []ScheduledWorkflowUpdate) ([]string, error)
 
 	CreateScheduledWorkflow(ctx context.Context, tenantId string, opts *CreateScheduledWorkflowRunForWorkflowOpts) (*sqlcv1.ListScheduledWorkflowsRow, error)
+
+	// CreateCronWorkflow creates a cron trigger
+	CreateCronWorkflow(ctx context.Context, tenantId string, opts *CreateCronWorkflowTriggerOpts) (*sqlcv1.ListCronWorkflowsRow, error)
+
+	// List ScheduledWorkflows lists workflows by scheduled trigger
+	ListCronWorkflows(ctx context.Context, tenantId string, opts *ListCronWorkflowsOpts) ([]*sqlcv1.ListCronWorkflowsRow, int64, error)
+
+	// GetCronWorkflow gets a cron workflow run
+	GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*sqlcv1.ListCronWorkflowsRow, error)
+
+	// DeleteCronWorkflow deletes a cron workflow run
+	DeleteCronWorkflow(ctx context.Context, tenantId, id string) error
+
+	// UpdateCronWorkflow updates a cron workflow
+	UpdateCronWorkflow(ctx context.Context, tenantId, id string, opts *UpdateCronOpts) error
+
+	DeleteInvalidCron(ctx context.Context, id pgtype.UUID) error
 }
 
 type workflowScheduleRepository struct {
@@ -116,16 +180,7 @@ func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context
 		return nil, err
 	}
 
-	var input, additionalMetadata []byte
 	var err error
-
-	if opts.Input != nil {
-		input, err = json.Marshal(opts.Input)
-	}
-
-	if opts.AdditionalMetadata != nil {
-		additionalMetadata, err = json.Marshal(opts.AdditionalMetadata)
-	}
 
 	if err != nil {
 		return nil, err
@@ -140,8 +195,8 @@ func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context
 	createParams := sqlcv1.CreateWorkflowTriggerScheduledRefForWorkflowParams{
 		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
 		Scheduledtrigger:   sqlchelpers.TimestampFromTime(opts.ScheduledTrigger),
-		Input:              input,
-		Additionalmetadata: additionalMetadata,
+		Input:              opts.Input,
+		Additionalmetadata: opts.AdditionalMetadata,
 		Method: sqlcv1.NullWorkflowTriggerScheduledRefMethods{
 			Valid:                              true,
 			WorkflowTriggerScheduledRefMethods: sqlcv1.WorkflowTriggerScheduledRefMethodsAPI,
@@ -388,4 +443,192 @@ func (w *workflowScheduleRepository) BulkUpdateScheduledWorkflows(ctx context.Co
 	}
 
 	return updated, nil
+}
+
+func (w *workflowScheduleRepository) ListCronWorkflows(ctx context.Context, tenantId string, opts *ListCronWorkflowsOpts) ([]*sqlcv1.ListCronWorkflowsRow, int64, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	listOpts := sqlcv1.ListCronWorkflowsParams{
+		Tenantid: pgTenantId,
+	}
+
+	countOpts := sqlcv1.CountCronWorkflowsParams{
+		Tenantid: pgTenantId,
+	}
+
+	if opts.Limit != nil {
+		listOpts.Limit = pgtype.Int4{
+			Int32: int32(*opts.Limit), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	if opts.Offset != nil {
+		listOpts.Offset = pgtype.Int4{
+			Int32: int32(*opts.Offset), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	orderByField := "createdAt"
+
+	if opts.OrderBy != nil {
+		orderByField = *opts.OrderBy
+	}
+
+	orderByDirection := "DESC"
+
+	if opts.OrderDirection != nil {
+		orderByDirection = *opts.OrderDirection
+	}
+
+	listOpts.Orderby = orderByField + " " + orderByDirection
+
+	if opts.AdditionalMetadata != nil {
+		additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		listOpts.AdditionalMetadata = additionalMetadataBytes
+		countOpts.AdditionalMetadata = additionalMetadataBytes
+	}
+
+	if opts.WorkflowId != nil {
+		listOpts.Workflowid = sqlchelpers.UUIDFromStr(*opts.WorkflowId)
+		countOpts.Workflowid = sqlchelpers.UUIDFromStr(*opts.WorkflowId)
+	}
+
+	if opts.CronName != nil {
+		listOpts.CronName = sqlchelpers.TextFromStr(*opts.CronName)
+		countOpts.CronName = sqlchelpers.TextFromStr(*opts.CronName)
+	}
+
+	if opts.WorkflowName != nil {
+		listOpts.WorkflowName = sqlchelpers.TextFromStr(*opts.WorkflowName)
+		countOpts.WorkflowName = sqlchelpers.TextFromStr(*opts.WorkflowName)
+	}
+
+	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err := w.queries.CountCronWorkflows(ctx, w.pool, countOpts)
+
+	if err != nil {
+		return nil, count, err
+	}
+
+	return cronWorkflows, count, nil
+}
+
+func (w *workflowScheduleRepository) GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*sqlcv1.ListCronWorkflowsRow, error) {
+	listOpts := sqlcv1.ListCronWorkflowsParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Crontriggerid: sqlchelpers.UUIDFromStr(cronWorkflowId),
+	}
+
+	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(cronWorkflows) == 0 {
+		return nil, fmt.Errorf("cron workflow not found")
+	}
+
+	return cronWorkflows[0], nil
+}
+
+func (w *workflowScheduleRepository) DeleteCronWorkflow(ctx context.Context, tenantId, id string) error {
+	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, sqlchelpers.UUIDFromStr(id))
+}
+
+func (w *workflowScheduleRepository) UpdateCronWorkflow(ctx context.Context, tenantId, id string, opts *UpdateCronOpts) error {
+	params := sqlcv1.UpdateCronTriggerParams{
+		Crontriggerid: sqlchelpers.UUIDFromStr(id),
+	}
+
+	if opts.Enabled != nil {
+		params.Enabled = sqlchelpers.BoolFromBoolean(*opts.Enabled)
+	}
+
+	return w.queries.UpdateCronTrigger(ctx, w.pool, params)
+}
+
+func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, tenantId string, opts *CreateCronWorkflowTriggerOpts) (*sqlcv1.ListCronWorkflowsRow, error) {
+
+	var input, additionalMetadata []byte
+	var err error
+
+	if opts.Input != nil {
+		input, err = json.Marshal(opts.Input)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if opts.AdditionalMetadata != nil {
+		additionalMetadata, err = json.Marshal(opts.AdditionalMetadata)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var priority int32 = 1
+
+	if opts.Priority != nil {
+		priority = *opts.Priority
+	}
+
+	createParams := sqlcv1.CreateWorkflowTriggerCronRefForWorkflowParams{
+		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
+		Crontrigger:        opts.Cron,
+		Name:               sqlchelpers.TextFromStr(opts.Name),
+		Input:              input,
+		AdditionalMetadata: additionalMetadata,
+		Method: sqlcv1.NullWorkflowTriggerCronRefMethods{
+			Valid:                         true,
+			WorkflowTriggerCronRefMethods: sqlcv1.WorkflowTriggerCronRefMethodsAPI,
+		},
+		Priority: sqlchelpers.ToInt(priority),
+	}
+
+	cronTrigger, err := w.queries.CreateWorkflowTriggerCronRefForWorkflow(ctx, w.pool, createParams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := w.queries.ListCronWorkflows(ctx, w.pool, sqlcv1.ListCronWorkflowsParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Crontriggerid: cronTrigger.ID,
+		Limit:         1,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(row) == 0 {
+		return nil, fmt.Errorf("failed to fetch cron workflow")
+	}
+
+	return row[0], nil
+}
+
+func (r *workflowScheduleRepository) DeleteInvalidCron(ctx context.Context, id pgtype.UUID) error {
+	return r.queries.DeleteWorkflowTriggerCronRef(ctx, r.pool, id)
 }

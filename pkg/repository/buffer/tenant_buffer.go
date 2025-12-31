@@ -27,7 +27,7 @@ func SetDefaults(flushPeriodMilliseconds int, flushItemsThreshold int) {
 }
 
 // This is a wrapper around the IngestBuf to manage multiple tenants
-// An example would be T is eventOps and U is *dbsqlc.Event
+// An example would be T is eventOps and U is *sqlcv1.Event
 
 type TenantBufferManager[T any, U any] struct {
 	name        string // a human readable name for the buffer

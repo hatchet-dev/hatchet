@@ -40,7 +40,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
-	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -246,16 +245,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	ch := cache.New(cf.CacheDuration)
 
-	var opts []postgresdb.PostgresRepositoryOpt
-
-	opts = append(opts, postgresdb.WithLogger(&l), postgresdb.WithCache(ch))
-
-	cleanupEngine, engineRepo, err := postgresdb.NewEngineRepository(pool, &scf.Runtime, opts...)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create engine repository: %w", err)
-	}
-
 	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
 
 	if err != nil {
@@ -307,36 +296,20 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		scf.Runtime.EnforceLimits,
 	)
 
-	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create api repository: %w", err)
-	}
-
 	if readReplicaPool != nil {
 		v1.OLAP().SetReadReplicaPool(readReplicaPool)
 	}
 
 	return &database.Layer{
 		Disconnect: func() error {
-			if err := cleanupEngine(); err != nil {
-				return err
-			}
-
 			ch.Stop()
 
-			if err := cleanupV1(); err != nil {
-				return err
-			}
-
-			return cleanupApiRepo()
+			return cleanupV1()
 		},
-		Pool:             pool,
-		QueuePool:        pool,
-		APIRepository:    apiRepo,
-		EngineRepository: engineRepo,
-		V1:               v1,
-		Seed:             cf.Seed,
+		Pool:      pool,
+		QueuePool: pool,
+		V1:        v1,
+		Seed:      cf.Seed,
 	}, nil
 
 }

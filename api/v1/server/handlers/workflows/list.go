@@ -7,8 +7,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -40,13 +40,13 @@ func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowLis
 		offset = 0
 	}
 
-	listOpts := &repository.ListWorkflowsOpts{
+	listOpts := &v1.ListWorkflowsOpts{
 		Limit:  &limit,
 		Offset: &offset,
 		Name:   &name,
 	}
 
-	listResp, err := t.config.APIRepository.Workflow().ListWorkflows(tenantId, listOpts)
+	listResp, err := t.config.V1.Workflows().ListWorkflows(tenantId, listOpts)
 
 	if err != nil {
 		return nil, err

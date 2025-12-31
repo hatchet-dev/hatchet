@@ -47,7 +47,7 @@ const (
 	Static  BuffStrategy = "STATIC"
 )
 
-// e.g. T is eventOpts and U is *dbsqlc.Event
+// e.g. T is eventOpts and U is *sqlcv1.Event
 
 type IngestBuf[T any, U any] struct {
 	name       string // a human readable name for the buffer

@@ -599,3 +599,209 @@ LEFT JOIN "_StepOrder" so ON so."A" = s.id
 WHERE v.id = @workflowVersionId::uuid
 GROUP BY s.id, s."readableId"
 ;
+
+-- name: GetStepsForJobs :many
+SELECT
+	j."id" as "jobId",
+    sqlc.embed(s),
+    (
+        SELECT array_agg(so."A")::uuid[]  -- Casting the array_agg result to uuid[]
+        FROM "_StepOrder" so
+        WHERE so."B" = s."id"
+    ) AS "parents"
+FROM "Job" j
+JOIN "Step" s ON s."jobId" = j."id"
+WHERE
+    j."id" = ANY(@jobIds::uuid[])
+    AND j."tenantId" = @tenantId::uuid
+    AND j."deletedAt" IS NULL;
+
+-- name: UpdateCronTrigger :exec
+UPDATE "WorkflowTriggerCronRef"
+SET
+    "enabled" = COALESCE(sqlc.narg('enabled')::BOOLEAN, "enabled")
+WHERE "id" = @cronTriggerId::uuid
+;
+
+-- name: CreateWorkflowTriggerCronRefForWorkflow :one
+WITH latest_version AS (
+    SELECT "id" FROM "WorkflowVersion"
+    WHERE "workflowId" = @workflowId::uuid
+    ORDER BY "order" DESC
+    LIMIT 1
+),
+latest_trigger AS (
+    SELECT "id" FROM "WorkflowTriggers"
+    WHERE "workflowVersionId" = (SELECT "id" FROM latest_version)
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+)
+INSERT INTO "WorkflowTriggerCronRef" (
+    "parentId",
+    "cron",
+    "name",
+    "input",
+    "additionalMetadata",
+    "id",
+    "method",
+    "priority"
+) VALUES (
+    (SELECT "id" FROM latest_trigger),
+    @cronTrigger::text,
+    sqlc.narg('name')::text,
+    sqlc.narg('input')::jsonb,
+    sqlc.narg('additionalMetadata')::jsonb,
+    gen_random_uuid(),
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT'),
+    COALESCE(sqlc.narg('priority')::integer, 1)
+) RETURNING *;
+
+-- name: GetWorkflowById :one
+SELECT
+    sqlc.embed(w),
+    wv."id" as "workflowVersionId"
+FROM
+    "Workflow" as w
+LEFT JOIN "WorkflowVersion" as wv ON w."id" = wv."workflowId"
+WHERE
+    w."id" = @id::uuid AND
+    w."deletedAt" IS NULL
+ORDER BY
+    wv."order" DESC
+LIMIT 1;
+
+-- name: GetWorkflowVersionById :one
+SELECT
+    sqlc.embed(wv),
+    sqlc.embed(w),
+    wc."id" as "concurrencyId",
+    wc."maxRuns" as "concurrencyMaxRuns",
+    wc."getConcurrencyGroupId" as "concurrencyGroupId",
+    wc."limitStrategy" as "concurrencyLimitStrategy"
+FROM
+    "WorkflowVersion" as wv
+JOIN "Workflow" as w on w."id" = wv."workflowId"
+LEFT JOIN "WorkflowConcurrency" as wc ON wc."workflowVersionId" = wv."id"
+WHERE
+    wv."id" = @id::uuid AND
+    wv."deletedAt" IS NULL
+LIMIT 1;
+
+-- name: ListWorkflows :many
+SELECT
+    sqlc.embed(workflows)
+FROM
+    "Workflow" as workflows
+WHERE
+    workflows."tenantId" = @tenantId::uuid AND
+    workflows."deletedAt" IS NULL AND
+    (
+        sqlc.narg('search')::text IS NULL OR
+        workflows.name iLIKE concat('%', sqlc.narg('search')::TEXT, '%')
+    )
+ORDER BY
+    case when @orderBy = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
+    case when @orderBy = 'createdAt DESC' then workflows."createdAt" END DESC
+OFFSET
+    COALESCE(sqlc.narg('offset'), 0)
+LIMIT
+    COALESCE(sqlc.narg('limit'), 50);
+
+-- name: CountWorkflows :one
+SELECT COUNT(w.*)
+FROM "Workflow" w
+WHERE
+    w."tenantId" = $1
+    AND w."deletedAt" IS NULL
+    AND (
+        sqlc.narg('eventKey')::TEXT IS NULL OR
+        w."id" IN (
+            SELECT
+                DISTINCT ON(t1."workflowId") t1."workflowId"
+            FROM
+                "WorkflowVersion" AS t1
+                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
+            WHERE
+                (
+                    j2."id" IN (
+                        SELECT
+                            t3."parentId"
+                        FROM
+                            "WorkflowTriggerEventRef" AS t3
+                        WHERE
+                            t3."eventKey" = sqlc.narg('eventKey')::text
+                            AND t3."parentId" IS NOT NULL
+                    )
+                    AND j2."id" IS NOT NULL
+                    AND t1."workflowId" IS NOT NULL
+                )
+            ORDER BY
+                t1."workflowId" DESC, t1."order" DESC
+        )
+    )
+    AND (
+        sqlc.narg('search')::TEXT IS NULL
+        OR w.name ILIKE CONCAT('%', sqlc.narg('search')::TEXT, '%')
+    )
+;
+
+-- name: UpdateWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
+WHERE "id" = @id::uuid
+RETURNING *;
+
+-- name: GetWorkflowVersionCronTriggerRefs :many
+SELECT
+    wtc.*
+FROM
+    "WorkflowTriggerCronRef" as wtc
+JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
+WHERE
+    wt."workflowVersionId" = @workflowVersionId::uuid;
+
+-- name: GetWorkflowVersionEventTriggerRefs :many
+SELECT
+    wtc.*
+FROM
+    "WorkflowTriggerEventRef" as wtc
+JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
+WHERE
+    wt."workflowVersionId" = @workflowVersionId::uuid;
+
+-- name: GetWorkflowVersionScheduleTriggerRefs :many
+SELECT
+    wtc.*
+FROM
+    "WorkflowTriggerScheduledRef" as wtc
+JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
+WHERE
+    wt."workflowVersionId" = @workflowVersionId::uuid;
+
+-- name: SoftDeleteWorkflow :one
+WITH versions AS (
+    UPDATE "WorkflowVersion"
+    SET "deletedAt" = CURRENT_TIMESTAMP
+    WHERE "workflowId" = @id::uuid
+)
+UPDATE "Workflow"
+SET
+    -- set name to the current name plus a random suffix to avoid conflicts
+    "name" = "name" || '-' || gen_random_uuid(),
+    "deletedAt" = CURRENT_TIMESTAMP
+WHERE "id" = @id::uuid
+RETURNING *;
+
+-- name: GetWorkflowLatestVersion :one
+SELECT
+    "id"
+FROM
+    "WorkflowVersion" as workflowVersions
+WHERE
+    workflowVersions."workflowId" = @workflowId::uuid AND
+    workflowVersions."deletedAt" IS NULL
+ORDER BY
+    workflowVersions."order" DESC
+LIMIT 1;

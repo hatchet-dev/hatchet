@@ -15,9 +15,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
@@ -40,7 +39,6 @@ type DispatcherImpl struct {
 	l                           *zerolog.Logger
 	dv                          datautils.DataDecoderValidator
 	v                           validator.Validator
-	repo                        repository.EngineRepository
 	repov1                      v1.Repository
 	cache                       cache.Cacheable
 	payloadSizeThreshold        int
@@ -118,7 +116,6 @@ type DispatcherOpts struct {
 	mqv1                        msgqueuev1.MessageQueue
 	l                           *zerolog.Logger
 	dv                          datautils.DataDecoderValidator
-	repo                        repository.EngineRepository
 	repov1                      v1.Repository
 	dispatcherId                string
 	alerter                     hatcheterrors.Alerter
@@ -150,12 +147,6 @@ func WithMessageQueueV1(mqv1 msgqueuev1.MessageQueue) DispatcherOpt {
 func WithAlerter(a hatcheterrors.Alerter) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.alerter = a
-	}
-}
-
-func WithRepository(r repository.EngineRepository) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.repo = r
 	}
 }
 
@@ -212,10 +203,6 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		return nil, fmt.Errorf("v1 task queue is required. use WithMessageQueueV1")
 	}
 
-	if opts.repo == nil {
-		return nil, fmt.Errorf("repository is required. use WithRepository")
-	}
-
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("v1 repository is required. use WithRepositoryV1")
 	}
@@ -245,7 +232,6 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		l:                           opts.l,
 		dv:                          opts.dv,
 		v:                           validator.NewDefaultValidator(),
-		repo:                        opts.repo,
 		repov1:                      opts.repov1,
 		dispatcherId:                opts.dispatcherId,
 		workers:                     &workers{},

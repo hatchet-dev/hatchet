@@ -9,8 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
@@ -77,8 +76,8 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 
 	createOpts := &v1.CreateUserOpts{
 		Email:         string(request.Body.Email),
-		EmailVerified: repository.BoolPtr(u.config.Auth.ConfigFile.SetEmailVerified),
-		Name:          repository.StringPtr(request.Body.Name),
+		EmailVerified: v1.BoolPtr(u.config.Auth.ConfigFile.SetEmailVerified),
+		Name:          v1.StringPtr(request.Body.Name),
 		Password:      hashedPw,
 	}
 

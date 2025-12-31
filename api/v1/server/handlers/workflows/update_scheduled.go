@@ -9,19 +9,19 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.WorkflowScheduledUpdateRequestObject) (gen.WorkflowScheduledUpdateResponseObject, error) {
-	scheduled := ctx.Get("scheduled-workflow-run").(*dbsqlc.ListScheduledWorkflowsRow)
+	scheduled := ctx.Get("scheduled-workflow-run").(*sqlcv1.ListScheduledWorkflowsRow)
 
 	if request.Body == nil {
 		return gen.WorkflowScheduledUpdate400JSONResponse(apierrors.NewAPIErrors("Request body is required.")), nil
 	}
 
 	// Only allow updating scheduled runs created via API.
-	if scheduled.Method != dbsqlc.WorkflowTriggerScheduledRefMethodsAPI {
+	if scheduled.Method != sqlcv1.WorkflowTriggerScheduledRefMethodsAPI {
 		return gen.WorkflowScheduledUpdate403JSONResponse(apierrors.NewAPIErrors("Cannot update scheduled run created via code definition.")), nil
 	}
 

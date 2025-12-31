@@ -19,8 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
@@ -32,7 +31,6 @@ type SchedulerOpt func(*SchedulerOpts)
 type SchedulerOpts struct {
 	mq          msgqueue.MessageQueue
 	l           *zerolog.Logger
-	repo        repository.EngineRepository
 	repov1      repov1.Repository
 	dv          datautils.DataDecoderValidator
 	alerter     hatcheterrors.Alerter
@@ -80,13 +78,7 @@ func WithAlerter(a hatcheterrors.Alerter) SchedulerOpt {
 	}
 }
 
-func WithRepository(r repository.EngineRepository) SchedulerOpt {
-	return func(opts *SchedulerOpts) {
-		opts.repo = r
-	}
-}
-
-func WithV2Repository(r repov1.Repository) SchedulerOpt {
+func WithRepository(r repov1.Repository) SchedulerOpt {
 	return func(opts *SchedulerOpts) {
 		opts.repov1 = r
 	}
@@ -114,7 +106,6 @@ type Scheduler struct {
 	mq        msgqueue.MessageQueue
 	pubBuffer *msgqueue.MQPubBuffer
 	l         *zerolog.Logger
-	repo      repository.EngineRepository
 	repov1    repov1.Repository
 	dv        datautils.DataDecoderValidator
 	s         gocron.Scheduler
@@ -140,10 +131,6 @@ func New(
 
 	if opts.mq == nil {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
-	}
-
-	if opts.repo == nil {
-		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
 	if opts.repov1 == nil {
@@ -176,7 +163,6 @@ func New(
 		mq:                     opts.mq,
 		pubBuffer:              pubBuffer,
 		l:                      opts.l,
-		repo:                   opts.repo,
 		repov1:                 opts.repov1,
 		dv:                     opts.dv,
 		s:                      s,

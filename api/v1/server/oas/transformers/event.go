@@ -5,14 +5,14 @@ import (
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func ToEventList(events []*dbsqlc.Event) []gen.Event {
+func ToEventList(events []*sqlcv1.Event) []gen.Event {
 	res := make([]gen.Event, len(events))
 
 	for i, event := range events {
@@ -22,7 +22,7 @@ func ToEventList(events []*dbsqlc.Event) []gen.Event {
 	return res
 }
 
-func ToEvent(event *dbsqlc.Event) gen.Event {
+func ToEvent(event *sqlcv1.Event) gen.Event {
 	return gen.Event{
 		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(event.ID), event.CreatedAt.Time, event.UpdatedAt.Time),
 		Key:      event.Key,

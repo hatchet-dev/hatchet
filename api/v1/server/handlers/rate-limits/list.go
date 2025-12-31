@@ -10,8 +10,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -33,11 +32,11 @@ func (t *RateLimitService) RateLimitList(ctx echo.Context, request gen.RateLimit
 	}
 
 	if request.Params.OrderByField != nil {
-		listOpts.OrderBy = repository.StringPtr(string(*request.Params.OrderByField))
+		listOpts.OrderBy = v1.StringPtr(string(*request.Params.OrderByField))
 	}
 
 	if request.Params.OrderByDirection != nil {
-		listOpts.OrderDirection = repository.StringPtr(strings.ToUpper(string(*request.Params.OrderByDirection)))
+		listOpts.OrderDirection = v1.StringPtr(strings.ToUpper(string(*request.Params.OrderByDirection)))
 	}
 
 	if request.Params.Limit != nil {

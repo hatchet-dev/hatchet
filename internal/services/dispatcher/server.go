@@ -17,8 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -208,7 +207,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 					_, err := s.repov1.Workers().UpdateWorker(ctx, tenantId, request.WorkerId, &v1.UpdateWorkerOpts{
 						LastHeartbeatAt: &now,
-						IsActive:        repository.BoolPtr(true),
+						IsActive:        v1.BoolPtr(true),
 					})
 
 					if err != nil {
@@ -488,7 +487,7 @@ func (d *DispatcherImpl) cleanResults(results []*contracts.StepRunResult) []*con
 
 		// we only try to clean the error field at the moment, as modifying the output is more risky
 		if result.Error != nil && len(*result.Error) > fieldThreshold {
-			result.Error = repository.StringPtr("Error is too large to send over the Hatchet stream.")
+			result.Error = v1.StringPtr("Error is too large to send over the Hatchet stream.")
 		}
 
 		cleanedResults = append(cleanedResults, result)

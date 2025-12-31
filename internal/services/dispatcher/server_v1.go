@@ -18,8 +18,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -561,7 +560,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	}
 
 	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED {
-		if err := repository.ValidateJSONB([]byte(request.EventPayload), "taskOutput"); err != nil {
+		if err := v1.ValidateJSONB([]byte(request.EventPayload), "taskOutput"); err != nil {
 			request.EventPayload = err.Error()
 			request.EventType = contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED
 		}

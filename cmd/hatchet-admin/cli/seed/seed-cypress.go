@@ -13,8 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
@@ -101,8 +100,8 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 			if errors.Is(err, pgx.ErrNoRows) {
 				insertedUser, err = dc.V1.User().CreateUser(ctx, &v1.CreateUserOpts{
 					Email:         user.email,
-					Name:          repository.StringPtr(user.name),
-					EmailVerified: repository.BoolPtr(true),
+					Name:          v1.StringPtr(user.name),
+					EmailVerified: v1.BoolPtr(true),
 					Password:      hashedPw,
 				})
 

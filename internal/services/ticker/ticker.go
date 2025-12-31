@@ -14,7 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
@@ -26,7 +25,6 @@ type TickerImpl struct {
 	mqv1 msgqueuev1.MessageQueue
 	l    *zerolog.Logger
 
-	repo   repository.EngineRepository
 	repov1 v1.Repository
 	s      gocron.Scheduler
 	ta     *alerting.TenantAlertManager
@@ -51,7 +49,6 @@ type TickerOpts struct {
 	mqv1 msgqueuev1.MessageQueue
 	l    *zerolog.Logger
 
-	repo     repository.EngineRepository
 	repov1   v1.Repository
 	tickerId string
 	ta       *alerting.TenantAlertManager
@@ -71,12 +68,6 @@ func defaultTickerOpts() *TickerOpts {
 func WithMessageQueueV1(mq msgqueuev1.MessageQueue) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.mqv1 = mq
-	}
-}
-
-func WithRepository(r repository.EngineRepository) TickerOpt {
-	return func(opts *TickerOpts) {
-		opts.repo = r
 	}
 }
 
@@ -109,10 +100,6 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
-	if opts.repo == nil {
-		return nil, fmt.Errorf("repository is required. use WithRepository")
-	}
-
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("repository v1 is required. use WithRepositoryV1")
 	}
@@ -133,7 +120,6 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 	return &TickerImpl{
 		mqv1:                   opts.mqv1,
 		l:                      opts.l,
-		repo:                   opts.repo,
 		repov1:                 opts.repov1,
 		s:                      s,
 		dv:                     opts.dv,

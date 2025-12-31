@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -76,6 +76,10 @@ func HashPassword(pw string) (*string, error) {
 
 func StringPtr(s string) *string {
 	return &s
+}
+
+func BoolPtr(b bool) *bool {
+	return &b
 }
 
 func VerifyPassword(hashedPW, candidate string) (bool, error) {

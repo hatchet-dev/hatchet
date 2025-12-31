@@ -5,7 +5,6 @@ import (
 
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -17,7 +16,6 @@ type AdminService interface {
 type AdminServiceImpl struct {
 	contracts.UnimplementedWorkflowServiceServer
 
-	repo   repository.EngineRepository
 	repov1 v1.Repository
 	mqv1   msgqueuev1.MessageQueue
 	v      validator.Validator
@@ -26,7 +24,6 @@ type AdminServiceImpl struct {
 type AdminServiceOpt func(*AdminServiceOpts)
 
 type AdminServiceOpts struct {
-	repo   repository.EngineRepository
 	repov1 v1.Repository
 	mqv1   msgqueuev1.MessageQueue
 	v      validator.Validator
@@ -37,12 +34,6 @@ func defaultAdminServiceOpts() *AdminServiceOpts {
 
 	return &AdminServiceOpts{
 		v: v,
-	}
-}
-
-func WithRepository(r repository.EngineRepository) AdminServiceOpt {
-	return func(opts *AdminServiceOpts) {
-		opts.repo = r
 	}
 }
 
@@ -71,10 +62,6 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		f(opts)
 	}
 
-	if opts.repo == nil {
-		return nil, fmt.Errorf("repository is required. use WithRepository")
-	}
-
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("repository v1 is required. use WithRepositoryV1")
 	}
@@ -84,7 +71,6 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	}
 
 	return &AdminServiceImpl{
-		repo:   opts.repo,
 		repov1: opts.repov1,
 		mqv1:   opts.mqv1,
 		v:      opts.v,

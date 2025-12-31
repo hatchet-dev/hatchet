@@ -11,9 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -27,13 +25,13 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		additionalMeta = []byte(*req.AdditionalMetadata)
 	}
 
-	if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
+	if err := v1.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
 	payloadBytes := []byte(req.Payload)
 
-	if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+	if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
@@ -99,13 +97,13 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 			additionalMeta = []byte(*e.AdditionalMetadata)
 		}
 
-		if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
+		if err := v1.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 		}
 
 		payloadBytes := []byte(e.Payload)
 
-		if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+		if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 		}
 
@@ -195,7 +193,7 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 	return i.putLogV1(ctx, tenant, req)
 }
 
-func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
+func toEvent(e *sqlcv1.Event) (*contracts.Event, error) {
 	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
 	eventId := sqlchelpers.UUIDToStr(e.ID)
 

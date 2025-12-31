@@ -8,7 +8,6 @@ import (
 
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -16,10 +15,10 @@ import (
 
 type Ingestor interface {
 	contracts.EventsServiceServer
-	IngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventName string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error)
+	IngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventName string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error)
 	IngestWebhookValidationFailure(ctx context.Context, tenant *sqlcv1.Tenant, webhookName, errorText string) error
-	BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*dbsqlc.Event, error)
-	IngestReplayedEvent(ctx context.Context, tenant *sqlcv1.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
+	BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error)
+	IngestReplayedEvent(ctx context.Context, tenant *sqlcv1.Tenant, replayedEvent *sqlcv1.Event) (*sqlcv1.Event, error)
 	IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error
 }
 
@@ -98,7 +97,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}, nil
 }
 
-func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error) {
 	return i.ingestEventV1(ctx, tenant, key, data, metadata, priority, scope, triggeringWebhookName)
 }
 
@@ -106,11 +105,11 @@ func (i *IngestorImpl) IngestWebhookValidationFailure(ctx context.Context, tenan
 	return i.ingestWebhookValidationFailure(tenant.ID.String(), webhookName, errorText)
 }
 
-func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*dbsqlc.Event, error) {
+func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error) {
 	return i.bulkIngestEventV1(ctx, tenant, eventOpts)
 }
 
-func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenant *sqlcv1.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenant *sqlcv1.Tenant, replayedEvent *sqlcv1.Event) (*sqlcv1.Event, error) {
 	return i.ingestReplayedEventV1(ctx, tenant, replayedEvent)
 }
 

@@ -16,8 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -101,8 +100,8 @@ func (u *UserService) upsertGoogleUserFromToken(ctx context.Context, config *ser
 	switch err {
 	case nil:
 		user, err = u.config.V1.User().UpdateUser(ctx, sqlchelpers.UUIDToStr(user.ID), &v1.UpdateUserOpts{
-			EmailVerified: repository.BoolPtr(gInfo.EmailVerified),
-			Name:          repository.StringPtr(gInfo.Name),
+			EmailVerified: v1.BoolPtr(gInfo.EmailVerified),
+			Name:          v1.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,
 		})
 
@@ -112,8 +111,8 @@ func (u *UserService) upsertGoogleUserFromToken(ctx context.Context, config *ser
 	case pgx.ErrNoRows:
 		user, err = u.config.V1.User().CreateUser(ctx, &v1.CreateUserOpts{
 			Email:         gInfo.Email,
-			EmailVerified: repository.BoolPtr(gInfo.EmailVerified),
-			Name:          repository.StringPtr(gInfo.Name),
+			EmailVerified: v1.BoolPtr(gInfo.EmailVerified),
+			Name:          v1.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,
 		})
 

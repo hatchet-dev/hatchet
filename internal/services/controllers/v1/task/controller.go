@@ -27,8 +27,7 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -46,7 +45,6 @@ type TasksControllerImpl struct {
 	l                                     *zerolog.Logger
 	queueLogger                           *zerolog.Logger
 	pgxStatsLogger                        *zerolog.Logger
-	repo                                  repository.EngineRepository
 	repov1                                v1.Repository
 	dv                                    datautils.DataDecoderValidator
 	s                                     gocron.Scheduler
@@ -69,7 +67,6 @@ type TasksControllerOpt func(*TasksControllerOpts)
 type TasksControllerOpts struct {
 	mq                  msgqueue.MessageQueue
 	l                   *zerolog.Logger
-	repo                repository.EngineRepository
 	repov1              v1.Repository
 	dv                  datautils.DataDecoderValidator
 	alerter             hatcheterrors.Alerter
@@ -134,12 +131,6 @@ func WithAlerter(a hatcheterrors.Alerter) TasksControllerOpt {
 	}
 }
 
-func WithRepository(r repository.EngineRepository) TasksControllerOpt {
-	return func(opts *TasksControllerOpts) {
-		opts.repo = r
-	}
-}
-
 func WithV1Repository(r v1.Repository) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
 		opts.repov1 = r
@@ -192,10 +183,6 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		return nil, fmt.Errorf("v2 repository is required. use WithV2Repository")
 	}
 
-	if opts.repo == nil {
-		return nil, fmt.Errorf("repository is required. use WithRepository")
-	}
-
 	if opts.p == nil {
 		return nil, errors.New("partition is required. use WithPartition")
 	}
@@ -220,7 +207,6 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		l:                   opts.l,
 		queueLogger:         opts.queueLogger,
 		pgxStatsLogger:      opts.pgxStatsLogger,
-		repo:                opts.repo,
 		repov1:              opts.repov1,
 		dv:                  opts.dv,
 		s:                   s,

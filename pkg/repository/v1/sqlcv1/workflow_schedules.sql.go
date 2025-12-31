@@ -100,6 +100,65 @@ func (q *Queries) BulkUpdateScheduledWorkflows(ctx context.Context, db DBTX, arg
 	return items, nil
 }
 
+const countCronWorkflows = `-- name: CountCronWorkflows :one
+WITH latest_versions AS (
+    SELECT DISTINCT ON("workflowId")
+        workflowVersions."id" AS "workflowVersionId",
+        workflowVersions."workflowId"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    JOIN
+        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+    WHERE
+        workflow."tenantId" = $1::uuid
+        AND workflowVersions."deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+)
+SELECT
+    count(c.*)
+FROM
+    latest_versions
+JOIN
+    "WorkflowTriggers" as t ON t."workflowVersionId" = latest_versions."workflowVersionId"
+JOIN
+    "WorkflowTriggerCronRef" as c ON c."parentId" = t."id"
+JOIN
+    "Workflow" w on w."id" = latest_versions."workflowId"
+WHERE
+    t."deletedAt" IS NULL
+    AND w."tenantId" = $1::uuid
+    AND ($2::uuid IS NULL OR c."id" = $2::uuid)
+    AND ($3::uuid IS NULL OR w."id" = $3::uuid)
+    AND ($4::jsonb IS NULL OR
+        c."additionalMetadata" @> $4::jsonb)
+    AND ($5::TEXT IS NULL OR c."name" = $5::TEXT)
+    AND ($6::TEXT IS NULL OR w."name" = $6::TEXT)
+`
+
+type CountCronWorkflowsParams struct {
+	Tenantid           pgtype.UUID `json:"tenantid"`
+	Crontriggerid      pgtype.UUID `json:"crontriggerid"`
+	Workflowid         pgtype.UUID `json:"workflowid"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	CronName           pgtype.Text `json:"cronName"`
+	WorkflowName       pgtype.Text `json:"workflowName"`
+}
+
+// Get all of the latest workflow versions for the tenant
+func (q *Queries) CountCronWorkflows(ctx context.Context, db DBTX, arg CountCronWorkflowsParams) (int64, error) {
+	row := db.QueryRow(ctx, countCronWorkflows,
+		arg.Tenantid,
+		arg.Crontriggerid,
+		arg.Workflowid,
+		arg.AdditionalMetadata,
+		arg.CronName,
+		arg.WorkflowName,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countScheduledWorkflows = `-- name: CountScheduledWorkflows :one
 SELECT count(*)
 FROM "WorkflowTriggerScheduledRef" t
@@ -234,6 +293,17 @@ func (q *Queries) DeleteScheduledWorkflow(ctx context.Context, db DBTX, schedule
 	return err
 }
 
+const deleteWorkflowTriggerCronRef = `-- name: DeleteWorkflowTriggerCronRef :exec
+DELETE FROM "WorkflowTriggerCronRef"
+WHERE
+    "id" = $1::uuid
+`
+
+func (q *Queries) DeleteWorkflowTriggerCronRef(ctx context.Context, db DBTX, id pgtype.UUID) error {
+	_, err := db.Exec(ctx, deleteWorkflowTriggerCronRef, id)
+	return err
+}
+
 const getScheduledWorkflowMetaByIds = `-- name: GetScheduledWorkflowMetaByIds :many
 SELECT
     t."id",
@@ -272,6 +342,155 @@ func (q *Queries) GetScheduledWorkflowMetaByIds(ctx context.Context, db DBTX, ar
 	for rows.Next() {
 		var i GetScheduledWorkflowMetaByIdsRow
 		if err := rows.Scan(&i.ID, &i.Method, &i.HasTriggeredRun); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCronWorkflows = `-- name: ListCronWorkflows :many
+WITH latest_versions AS (
+    SELECT DISTINCT ON("workflowId")
+        workflowVersions."id" AS "workflowVersionId",
+        workflowVersions."workflowId"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    JOIN
+        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+    WHERE
+        workflow."tenantId" = $1::uuid
+        AND workflowVersions."deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+)
+SELECT
+    latest_versions."workflowVersionId",
+    w."name" as "workflowName",
+    w."id" as "workflowId",
+    w."tenantId",
+    t."id" as "triggerId",
+    c."id" as "cronId",
+    t.id, t."createdAt", t."updatedAt", t."deletedAt", t."workflowVersionId", t."tenantId",
+    c."parentId", c.cron, c."tickerId", c.input, c.enabled, c."additionalMetadata", c."createdAt", c."deletedAt", c."updatedAt", c.name, c.id, c.method, c.priority
+FROM
+    latest_versions
+JOIN
+    "WorkflowTriggers" as t ON t."workflowVersionId" = latest_versions."workflowVersionId"
+JOIN
+    "WorkflowTriggerCronRef" as c ON c."parentId" = t."id"
+JOIN
+    "Workflow" w on w."id" = latest_versions."workflowId"
+WHERE
+    t."deletedAt" IS NULL
+    AND w."tenantId" = $1::uuid
+    AND ($2::uuid IS NULL OR c."id" = $2::uuid)
+    AND ($3::uuid IS NULL OR w."id" = $3::uuid)
+    AND ($4::jsonb IS NULL OR
+        c."additionalMetadata" @> $4::jsonb)
+    AND ($5::TEXT IS NULL OR c."name" = $5::TEXT)
+    AND ($6::TEXT IS NULL OR w."name" = $6::TEXT)
+ORDER BY
+    case when $7 = 'name ASC' THEN w."name" END ASC,
+    case when $7 = 'name DESC' THEN w."name" END DESC,
+    case when $7 = 'createdAt ASC' THEN c."createdAt" END ASC ,
+    case when $7 = 'createdAt DESC' THEN c."createdAt" END DESC,
+    t."id" ASC
+OFFSET
+    COALESCE($8, 0)
+LIMIT
+    COALESCE($9, 50)
+`
+
+type ListCronWorkflowsParams struct {
+	Tenantid           pgtype.UUID `json:"tenantid"`
+	Crontriggerid      pgtype.UUID `json:"crontriggerid"`
+	Workflowid         pgtype.UUID `json:"workflowid"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	CronName           pgtype.Text `json:"cronName"`
+	WorkflowName       pgtype.Text `json:"workflowName"`
+	Orderby            interface{} `json:"orderby"`
+	Offset             interface{} `json:"offset"`
+	Limit              interface{} `json:"limit"`
+}
+
+type ListCronWorkflowsRow struct {
+	WorkflowVersionId   pgtype.UUID                   `json:"workflowVersionId"`
+	WorkflowName        string                        `json:"workflowName"`
+	WorkflowId          pgtype.UUID                   `json:"workflowId"`
+	TenantId            pgtype.UUID                   `json:"tenantId"`
+	TriggerId           pgtype.UUID                   `json:"triggerId"`
+	CronId              pgtype.UUID                   `json:"cronId"`
+	ID                  pgtype.UUID                   `json:"id"`
+	CreatedAt           pgtype.Timestamp              `json:"createdAt"`
+	UpdatedAt           pgtype.Timestamp              `json:"updatedAt"`
+	DeletedAt           pgtype.Timestamp              `json:"deletedAt"`
+	WorkflowVersionId_2 pgtype.UUID                   `json:"workflowVersionId_2"`
+	TenantId_2          pgtype.UUID                   `json:"tenantId_2"`
+	ParentId            pgtype.UUID                   `json:"parentId"`
+	Cron                string                        `json:"cron"`
+	TickerId            pgtype.UUID                   `json:"tickerId"`
+	Input               []byte                        `json:"input"`
+	Enabled             bool                          `json:"enabled"`
+	AdditionalMetadata  []byte                        `json:"additionalMetadata"`
+	CreatedAt_2         pgtype.Timestamp              `json:"createdAt_2"`
+	DeletedAt_2         pgtype.Timestamp              `json:"deletedAt_2"`
+	UpdatedAt_2         pgtype.Timestamp              `json:"updatedAt_2"`
+	Name                pgtype.Text                   `json:"name"`
+	ID_2                pgtype.UUID                   `json:"id_2"`
+	Method              WorkflowTriggerCronRefMethods `json:"method"`
+	Priority            int32                         `json:"priority"`
+}
+
+// Get all of the latest workflow versions for the tenant
+func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWorkflowsParams) ([]*ListCronWorkflowsRow, error) {
+	rows, err := db.Query(ctx, listCronWorkflows,
+		arg.Tenantid,
+		arg.Crontriggerid,
+		arg.Workflowid,
+		arg.AdditionalMetadata,
+		arg.CronName,
+		arg.WorkflowName,
+		arg.Orderby,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListCronWorkflowsRow
+	for rows.Next() {
+		var i ListCronWorkflowsRow
+		if err := rows.Scan(
+			&i.WorkflowVersionId,
+			&i.WorkflowName,
+			&i.WorkflowId,
+			&i.TenantId,
+			&i.TriggerId,
+			&i.CronId,
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.WorkflowVersionId_2,
+			&i.TenantId_2,
+			&i.ParentId,
+			&i.Cron,
+			&i.TickerId,
+			&i.Input,
+			&i.Enabled,
+			&i.AdditionalMetadata,
+			&i.CreatedAt_2,
+			&i.DeletedAt_2,
+			&i.UpdatedAt_2,
+			&i.Name,
+			&i.ID_2,
+			&i.Method,
+			&i.Priority,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

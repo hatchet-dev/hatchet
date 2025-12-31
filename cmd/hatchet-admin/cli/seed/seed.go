@@ -8,8 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
@@ -31,8 +30,8 @@ func SeedDatabase(dc *database.Layer) error {
 			if errors.Is(err, pgx.ErrNoRows) {
 				user, err = dc.V1.User().CreateUser(context.Background(), &v1.CreateUserOpts{
 					Email:         dc.Seed.AdminEmail,
-					Name:          repository.StringPtr(dc.Seed.AdminName),
-					EmailVerified: repository.BoolPtr(true),
+					Name:          v1.StringPtr(dc.Seed.AdminName),
+					EmailVerified: v1.BoolPtr(true),
 					Password:      hashedPw,
 				})
 

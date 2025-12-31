@@ -212,8 +212,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		sv1, err := schedulerv1.New(
 			schedulerv1.WithAlerter(sc.Alerter),
 			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
-			schedulerv1.WithRepository(sc.EngineRepository),
-			schedulerv1.WithV2Repository(sc.V1),
+			schedulerv1.WithRepository(sc.V1),
 			schedulerv1.WithLogger(sc.Logger),
 			schedulerv1.WithPartition(p),
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
@@ -239,7 +238,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if sc.HasService("ticker") {
 		t, err := ticker.New(
 			ticker.WithMessageQueueV1(sc.MessageQueueV1),
-			ticker.WithRepository(sc.EngineRepository),
 			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
@@ -263,7 +261,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		tasks, err := task.New(
 			task.WithAlerter(sc.Alerter),
 			task.WithMessageQueue(sc.MessageQueueV1),
-			task.WithRepository(sc.EngineRepository),
 			task.WithV1Repository(sc.V1),
 			task.WithLogger(sc.Logger),
 			task.WithPartition(p),
@@ -353,7 +350,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueueV1(sc.MessageQueueV1),
-			dispatcher.WithRepository(sc.EngineRepository),
 			dispatcher.WithRepositoryV1(sc.V1),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithCache(cacheInstance),
@@ -392,7 +388,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		}
 
 		adminSvc, err := admin.NewAdminService(
-			admin.WithRepository(sc.EngineRepository),
 			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 		)
@@ -556,7 +551,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		t, err := ticker.New(
 			ticker.WithMessageQueueV1(sc.MessageQueueV1),
-			ticker.WithRepository(sc.EngineRepository),
 			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
@@ -606,7 +600,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			tasks, err := task.New(
 				task.WithAlerter(sc.Alerter),
 				task.WithMessageQueue(sc.MessageQueueV1),
-				task.WithRepository(sc.EngineRepository),
 				task.WithV1Repository(sc.V1),
 				task.WithLogger(sc.Logger),
 				task.WithPartition(p),
@@ -713,7 +706,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueueV1(sc.MessageQueueV1),
-			dispatcher.WithRepository(sc.EngineRepository),
 			dispatcher.WithRepositoryV1(sc.V1),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithCache(cacheInstance),
@@ -753,7 +745,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		}
 
 		adminSvc, err := admin.NewAdminService(
-			admin.WithRepository(sc.EngineRepository),
 			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 		)
@@ -852,8 +843,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		sv1, err := schedulerv1.New(
 			schedulerv1.WithAlerter(sc.Alerter),
 			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
-			schedulerv1.WithRepository(sc.EngineRepository),
-			schedulerv1.WithV2Repository(sc.V1),
+			schedulerv1.WithRepository(sc.V1),
 			schedulerv1.WithLogger(sc.Logger),
 			schedulerv1.WithPartition(p),
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),

@@ -4,8 +4,8 @@ import (
 	"github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -37,7 +37,7 @@ func ToTenantMember(tenantMember *sqlcv1.PopulateTenantMembersRow) *gen.TenantMe
 		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(tenantMember.ID), tenantMember.CreatedAt.Time, tenantMember.UpdatedAt.Time),
 		User: gen.UserTenantPublic{
 			Email: types.Email(tenantMember.Email),
-			Name:  repository.StringPtr(tenantMember.Name.String),
+			Name:  v1.StringPtr(tenantMember.Name.String),
 		},
 		Tenant: &gen.Tenant{
 			Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(tenantMember.TenantId), tenantMember.TenantCreatedAt.Time, tenantMember.TenantUpdatedAt.Time),

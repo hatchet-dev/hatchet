@@ -9,8 +9,8 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -22,7 +22,7 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("cron name is required")), nil
 	}
 
-	workflow, err := t.config.EngineRepository.Workflow().GetWorkflowByName(ctx.Request().Context(), tenantId, request.Workflow)
+	workflow, err := t.config.V1.Workflows().GetWorkflowByName(ctx.Request().Context(), tenantId, request.Workflow)
 
 	if err != nil {
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("workflow not found")), nil
@@ -40,7 +40,7 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("invalid input format")), nil
 	}
 
-	if err := repository.ValidateJSONB(inputBytes, "input"); err != nil {
+	if err := v1.ValidateJSONB(inputBytes, "input"); err != nil {
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
 	}
 
@@ -50,12 +50,12 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("invalid additional metadata format")), nil
 	}
 
-	if err := repository.ValidateJSONB(additionalMetaBytes, "additionalMetadata"); err != nil {
+	if err := v1.ValidateJSONB(additionalMetaBytes, "additionalMetadata"); err != nil {
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
 	}
 
-	cronTrigger, err := t.config.APIRepository.Workflow().CreateCronWorkflow(
-		ctx.Request().Context(), tenantId, &repository.CreateCronWorkflowTriggerOpts{
+	cronTrigger, err := t.config.V1.WorkflowSchedules().CreateCronWorkflow(
+		ctx.Request().Context(), tenantId, &v1.CreateCronWorkflowTriggerOpts{
 			Name:               request.Body.CronName,
 			Cron:               request.Body.CronExpression,
 			Input:              request.Body.Input,

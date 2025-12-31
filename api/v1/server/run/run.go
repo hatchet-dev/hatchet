@@ -45,8 +45,8 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 type apiService struct {
@@ -325,7 +325,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflow, err := config.APIRepository.Workflow().GetWorkflowById(context.Background(), id)
+		workflow, err := config.V1.Workflows().GetWorkflowById(context.Background(), id)
 
 		if err != nil {
 			return nil, "", err
@@ -353,7 +353,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("cron-workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		scheduled, err := config.APIRepository.Workflow().GetCronWorkflow(context.Background(), parentId, id)
+		scheduled, err := config.V1.WorkflowSchedules().GetCronWorkflow(context.Background(), parentId, id)
 
 		if err != nil {
 			return nil, "", err
@@ -386,7 +386,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		event := &dbsqlc.Event{
+		event := &sqlcv1.Event{
 			ID:                 v1Event.ExternalID,
 			TenantId:           v1Event.TenantID,
 			Data:               payload,
@@ -409,7 +409,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		event := &dbsqlc.Event{
+		event := &sqlcv1.Event{
 			ID:                 v1Event.EventExternalID,
 			TenantId:           v1Event.TenantID,
 			Data:               v1Event.Payload,
