@@ -61,7 +61,7 @@ const GetWorkflowChart = () => {
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
-    return <Skeleton className="h-16 w-full" />;
+    return <Skeleton className="h-24 w-full" />;
   }
 
   return (
@@ -82,7 +82,7 @@ const GetWorkflowChart = () => {
       }}
       zoom={zoom}
       showYAxis={false}
-      className="h-16 min-h-16"
+      className="h-24 min-h-24"
     />
   );
 };
