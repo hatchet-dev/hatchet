@@ -61,12 +61,12 @@ const GetWorkflowChart = () => {
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
-    return <Skeleton className="h-36 w-full" />;
+    return <Skeleton className="h-16 w-full" />;
   }
 
   return (
     <ZoomableChart
-      kind="bar"
+      kind="area"
       data={
         workflowRunEventsMetricsQuery.data?.results?.map(
           (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
@@ -82,6 +82,7 @@ const GetWorkflowChart = () => {
       }}
       zoom={zoom}
       showYAxis={false}
+      className="h-16 min-h-16"
     />
   );
 };
