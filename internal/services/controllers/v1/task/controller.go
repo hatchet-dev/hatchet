@@ -933,7 +933,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 		return
 	}
 
-	tenant, err := tc.repo.Tenant().GetTenantByID(ctx, tenantId)
+	tenant, err := tc.repov1.Tenant().GetTenantByID(ctx, tenantId)
 
 	if err != nil {
 		tc.l.Err(err).Msg("could not get tenant")
@@ -1542,7 +1542,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 		queues[task.Queue] = struct{}{}
 	}
 
-	tenant, err := tc.repo.Tenant().GetTenantByID(ctx, tenantId)
+	tenant, err := tc.repov1.Tenant().GetTenantByID(ctx, tenantId)
 
 	if err != nil {
 		return err

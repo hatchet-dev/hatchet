@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -48,6 +49,9 @@ type Repository interface {
 	TenantInvite() TenantInviteRepository
 	TenantLimit() TenantLimitRepository
 	TenantAlertingSettings() TenantAlertingRepository
+	Tenant() TenantRepository
+	User() UserRepository
+	UserSession() UserSessionRepository
 }
 
 type repositoryImpl struct {
@@ -77,6 +81,9 @@ type repositoryImpl struct {
 	tenantInvite   TenantInviteRepository
 	tenantLimit    TenantLimitRepository
 	tenantAlerting TenantAlertingRepository
+	tenant         TenantRepository
+	user           UserRepository
+	userSession    UserSessionRepository
 }
 
 func NewRepository(
@@ -123,6 +130,9 @@ func NewRepository(
 		tenantInvite:   newTenantInviteRepository(shared),
 		tenantLimit:    newTenantLimitRepository(shared, tenantLimitConfig, enforceLimits),
 		tenantAlerting: newTenantAlertingRepository(shared),
+		tenant:         newTenantRepository(shared, sqlcv1.TenantMajorEngineVersionV1),
+		user:           newUserRepository(shared),
+		userSession:    newUserSessionRepository(shared),
 	}
 
 	return impl, func() error {
@@ -254,4 +264,16 @@ func (r *repositoryImpl) TenantLimit() TenantLimitRepository {
 
 func (r *repositoryImpl) TenantAlertingSettings() TenantAlertingRepository {
 	return r.tenantAlerting
+}
+
+func (r *repositoryImpl) Tenant() TenantRepository {
+	return r.tenant
+}
+
+func (r *repositoryImpl) User() UserRepository {
+	return r.user
+}
+
+func (r *repositoryImpl) UserSession() UserSessionRepository {
+	return r.userSession
 }

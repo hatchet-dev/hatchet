@@ -9,10 +9,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowCronDelete(ctx echo.Context, request gen.WorkflowCronDeleteRequestObject) (gen.WorkflowCronDeleteResponseObject, error) {
-	_ = ctx.Get("tenant").(*dbsqlc.Tenant)
+	_ = ctx.Get("tenant").(*sqlcv1.Tenant)
 	cron := ctx.Get("cron-workflow").(*dbsqlc.ListCronWorkflowsRow)
 
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)

@@ -9,19 +9,19 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	transformersv1 "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
 	switch tenant.Version {
-	case dbsqlc.TenantMajorEngineVersionV0:
+	case sqlcv1.TenantMajorEngineVersionV0:
 		return t.workerListV0(ctx, tenant, request)
-	case dbsqlc.TenantMajorEngineVersionV1:
+	case sqlcv1.TenantMajorEngineVersionV1:
 		return t.workerListV1(ctx, tenant, request)
 	default:
 		err := fmt.Errorf("unsupported tenant version: %s", string(tenant.Version))
@@ -29,7 +29,7 @@ func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListReque
 	}
 }
 
-func (t *WorkerService) workerListV0(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
+func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
 	reqCtx := ctx.Request().Context()
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -73,7 +73,7 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *dbsqlc.Tenant, re
 	), nil
 }
 
-func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
+func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
 	reqCtx := ctx.Request().Context()
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 

@@ -230,7 +230,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		tenant, err := config.APIRepository.Tenant().GetTenantByID(ctxTimeout, id)
+		tenant, err := config.V1.Tenant().GetTenantByID(ctxTimeout, id)
 
 		if err != nil {
 			return nil, "", err
@@ -243,7 +243,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		member, err := config.APIRepository.Tenant().GetTenantMemberByID(ctxTimeout, id)
+		member, err := config.V1.Tenant().GetTenantMemberByID(ctxTimeout, id)
 
 		if err != nil {
 			return nil, "", err

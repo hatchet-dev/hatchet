@@ -5,14 +5,13 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateRequestObject) (gen.TenantUpdateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// validate the request
@@ -39,7 +38,7 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		), nil
 	}
 	// construct the database query
-	updateOpts := &repository.UpdateTenantOpts{}
+	updateOpts := &v1.UpdateTenantOpts{}
 
 	if request.Body.AnalyticsOptOut != nil {
 		updateOpts.AnalyticsOptOut = request.Body.AnalyticsOptOut
@@ -53,15 +52,8 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		updateOpts.Name = request.Body.Name
 	}
 
-	if request.Body.Version != nil {
-		updateOpts.Version = &dbsqlc.NullTenantMajorEngineVersion{
-			Valid:                    true,
-			TenantMajorEngineVersion: dbsqlc.TenantMajorEngineVersion(*request.Body.Version),
-		}
-	}
-
 	// update the tenant
-	tenant, err := t.config.APIRepository.Tenant().UpdateTenant(ctx.Request().Context(), tenantId, updateOpts)
+	tenant, err := t.config.V1.Tenant().UpdateTenant(ctx.Request().Context(), tenantId, updateOpts)
 
 	if err != nil {
 		return nil, err

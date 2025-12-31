@@ -26,7 +26,7 @@ type EventResult struct {
 	AdditionalMetadata string
 }
 
-func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *sqlcv1.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
@@ -90,7 +90,7 @@ func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string
 	}, nil
 }
 
-func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*CreateEventOpts) ([]*dbsqlc.Event, error) {
+func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "bulk-ingest-event")
 	defer span.End()
 
@@ -131,7 +131,7 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 	return results, nil
 }
 
-func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *sqlcv1.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
 	defer span.End()
 

@@ -44,7 +44,7 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 	ctx = context.WithValue(ctx, "rate_limit_token", tokenUUID)
 
 	// get the tenant id
-	queriedTenant, err := a.config.EngineRepository.Tenant().GetTenantByID(ctx, tenantId)
+	queriedTenant, err := a.config.V1.Tenant().GetTenantByID(ctx, tenantId)
 
 	if err != nil {
 		a.l.Debug().Err(err).Msgf("error getting tenant by id: %s", err)

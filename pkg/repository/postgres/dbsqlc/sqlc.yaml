@@ -7,8 +7,6 @@ sql:
       - workflow_runs.sql
       - workflows.sql
       - tickers.sql
-      - tenants.sql
-      - users.sql
     schema:
       - ../../../../sql/schema/v0.sql
     strict_order_by: false

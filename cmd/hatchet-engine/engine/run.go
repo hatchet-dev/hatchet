@@ -159,7 +159,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		teardown = append(teardown, startPrometheus(l, sc.Prometheus))
 	}
 
-	p, err := partition.NewPartition(l, sc.EngineRepository.Tenant())
+	p, err := partition.NewPartition(l, sc.V1.Tenant())
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)
@@ -513,7 +513,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		teardown = append(teardown, startPrometheus(l, sc.Prometheus))
 	}
 
-	p, err := partition.NewPartition(l, sc.EngineRepository.Tenant())
+	p, err := partition.NewPartition(l, sc.V1.Tenant())
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)

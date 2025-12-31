@@ -1,28 +1,6 @@
-package repository
+package v1
 
-import (
-	"github.com/rs/zerolog"
-)
-
-type APIRepository interface {
-	Workflow() WorkflowAPIRepository
-	WorkflowRun() WorkflowRunAPIRepository
-}
-
-type EngineRepository interface {
-	Ticker() TickerEngineRepository
-	Workflow() WorkflowEngineRepository
-	WorkflowRun() WorkflowRunEngineRepository
-	StreamEvent() StreamEventsEngineRepository
-}
-
-func BoolPtr(b bool) *bool {
-	return &b
-}
-
-func StringPtr(s string) *string {
-	return &s
-}
+import "github.com/rs/zerolog"
 
 type TenantScopedCallback[T any] func(string, T) error
 

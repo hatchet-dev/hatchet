@@ -44,7 +44,7 @@ func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestO
 		return nil, fmt.Errorf("SNS integration not found for tenant %s and topic ARN %s", tenantId, payload.TopicArn)
 	}
 
-	tenant, err := i.config.APIRepository.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
+	tenant, err := i.config.V1.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
 
 	if err != nil {
 		return nil, err

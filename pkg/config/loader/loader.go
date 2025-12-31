@@ -381,7 +381,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	ss, err := cookie.NewUserSessionStore(
-		cookie.WithSessionRepository(dc.APIRepository.UserSession()),
+		cookie.WithSessionRepository(dc.V1.UserSession()),
 		cookie.WithCookieAllowInsecure(cf.Auth.Cookie.Insecure),
 		cookie.WithCookieDomain(cf.Auth.Cookie.Domain),
 		cookie.WithCookieName(cf.Auth.Cookie.Name),

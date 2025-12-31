@@ -11,7 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -67,10 +67,10 @@ func Prepare(t *testing.T) {
 	}
 
 	// check if tenant exists
-	_, err = server.APIRepository.Tenant().GetTenantByID(context.Background(), tenantId)
+	_, err = server.V1.Tenant().GetTenantByID(context.Background(), tenantId)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			_, err = server.APIRepository.Tenant().CreateTenant(context.Background(), &repository.CreateTenantOpts{
+			_, err = server.V1.Tenant().CreateTenant(context.Background(), &v1.CreateTenantOpts{
 				ID:   &tenantId,
 				Name: "test-tenant",
 				Slug: "test-tenant",

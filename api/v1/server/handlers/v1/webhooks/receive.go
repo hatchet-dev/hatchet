@@ -32,7 +32,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 
 	w.config.Logger.Debug().Str("webhook", webhookName).Str("tenant", tenantId).Str("method", ctx.Request().Method).Str("content_type", ctx.Request().Header.Get("Content-Type")).Msg("received webhook request")
 
-	tenant, err := w.config.APIRepository.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
+	tenant, err := w.config.V1.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
 
 	if err != nil || tenant == nil {
 		return gen.V1WebhookReceive400JSONResponse{

@@ -16,7 +16,7 @@ import (
 )
 
 func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInviteRejectRequestObject) (gen.TenantInviteRejectResponseObject, error) {
-	user := ctx.Get("user").(*dbsqlc.User)
+	user := ctx.Get("user").(*sqlcv1.User)
 	userId := sqlchelpers.UUIDToStr(user.ID)
 
 	// validate the request

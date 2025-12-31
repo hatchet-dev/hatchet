@@ -7,13 +7,14 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantMemberUpdateRequestObject) (gen.TenantMemberUpdateResponseObject, error) {
-	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
-	memberToUpdate := ctx.Get("member").(*dbsqlc.PopulateTenantMembersRow)
+	tenantMember := ctx.Get("tenant-member").(*sqlcv1.PopulateTenantMembersRow)
+	memberToUpdate := ctx.Get("member").(*sqlcv1.PopulateTenantMembersRow)
 
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
 		return nil, err
@@ -22,14 +23,14 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 	}
 
 	// Check if the user has permission to update roles
-	if tenantMember.Role == dbsqlc.TenantMemberRoleMEMBER {
+	if tenantMember.Role == sqlcv1.TenantMemberRoleMEMBER {
 		return gen.TenantMemberUpdate403JSONResponse(
 			apierrors.NewAPIErrors("Only admins and owners can update member roles"),
 		), nil
 	}
 
 	// if user is not an owner, they cannot change a role to owner or change owner roles
-	if tenantMember.Role != dbsqlc.TenantMemberRoleOWNER {
+	if tenantMember.Role != sqlcv1.TenantMemberRoleOWNER {
 		if request.Body.Role == gen.OWNER {
 			return gen.TenantMemberUpdate400JSONResponse(
 				apierrors.NewAPIErrors("only an owner can change a role to owner"),
@@ -37,7 +38,7 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 		}
 
 		// Cannot change role of an owner
-		if memberToUpdate.Role == dbsqlc.TenantMemberRoleOWNER {
+		if memberToUpdate.Role == sqlcv1.TenantMemberRoleOWNER {
 			return gen.TenantMemberUpdate400JSONResponse(
 				apierrors.NewAPIErrors("only an owner can change the role of another owner"),
 			), nil
@@ -51,11 +52,11 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 		), nil
 	}
 
-	updateOpts := &repository.UpdateTenantMemberOpts{
+	updateOpts := &v1.UpdateTenantMemberOpts{
 		Role: repository.StringPtr(string(request.Body.Role)),
 	}
 
-	updatedMember, err := t.config.APIRepository.Tenant().UpdateTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(memberToUpdate.ID), updateOpts)
+	updatedMember, err := t.config.V1.Tenant().UpdateTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(memberToUpdate.ID), updateOpts)
 
 	if err != nil {
 		return nil, err

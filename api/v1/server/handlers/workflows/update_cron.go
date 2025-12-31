@@ -10,10 +10,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowCronUpdate(ctx echo.Context, request gen.WorkflowCronUpdateRequestObject) (gen.WorkflowCronUpdateResponseObject, error) {
-	_ = ctx.Get("tenant").(*dbsqlc.Tenant)
+	_ = ctx.Get("tenant").(*sqlcv1.Tenant)
 	cron := ctx.Get("cron-workflow").(*dbsqlc.ListCronWorkflowsRow)
 
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)

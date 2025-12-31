@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,16 +10,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type apiRepository struct {
-	tenant      repository.TenantAPIRepository
 	workflow    repository.WorkflowAPIRepository
 	workflowRun repository.WorkflowRunAPIRepository
-	userSession repository.UserSessionRepository
-	user        repository.UserRepository
 }
 
 type PostgresRepositoryOpt func(*PostgresRepositoryOpts)
@@ -75,26 +70,10 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 		return nil, nil, err
 	}
 
-	defaultEngineVersion := dbsqlc.TenantMajorEngineVersionV0
-
-	switch strings.ToLower(cf.DefaultEngineVersion) {
-	case "v0":
-		defaultEngineVersion = dbsqlc.TenantMajorEngineVersionV0
-	case "v1":
-		defaultEngineVersion = dbsqlc.TenantMajorEngineVersionV1
-	}
-
 	return &apiRepository{
-		tenant:      NewTenantAPIRepository(shared, opts.cache, defaultEngineVersion),
 		workflow:    NewWorkflowRepository(shared),
 		workflowRun: NewWorkflowRunRepository(shared, cf),
-		userSession: NewUserSessionRepository(shared),
-		user:        NewUserRepository(shared),
 	}, cleanup, err
-}
-
-func (r *apiRepository) Tenant() repository.TenantAPIRepository {
-	return r.tenant
 }
 
 func (r *apiRepository) Workflow() repository.WorkflowAPIRepository {
@@ -105,24 +84,11 @@ func (r *apiRepository) WorkflowRun() repository.WorkflowRunAPIRepository {
 	return r.workflowRun
 }
 
-func (r *apiRepository) UserSession() repository.UserSessionRepository {
-	return r.userSession
-}
-
-func (r *apiRepository) User() repository.UserRepository {
-	return r.user
-}
-
 type engineRepository struct {
-	tenant      repository.TenantEngineRepository
 	ticker      repository.TickerEngineRepository
 	workflow    repository.WorkflowEngineRepository
 	workflowRun repository.WorkflowRunEngineRepository
 	streamEvent repository.StreamEventsEngineRepository
-}
-
-func (r *engineRepository) Tenant() repository.TenantEngineRepository {
-	return r.tenant
 }
 
 func (r *engineRepository) Ticker() repository.TickerEngineRepository {
@@ -172,7 +138,6 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 			return cleanup()
 		}, &engineRepository{
-			tenant:      NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 			ticker:      NewTickerRepository(pool, opts.v, opts.l),
 			workflow:    NewWorkflowEngineRepository(shared, opts.cache),
 			workflowRun: NewWorkflowRunEngineRepository(shared, cf),

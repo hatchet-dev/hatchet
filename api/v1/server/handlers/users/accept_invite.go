@@ -18,7 +18,7 @@ import (
 )
 
 func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInviteAcceptRequestObject) (gen.TenantInviteAcceptResponseObject, error) {
-	user := ctx.Get("user").(*dbsqlc.User)
+	user := ctx.Get("user").(*sqlcv1.User)
 	userId := sqlchelpers.UUIDToStr(user.ID)
 
 	// validate the request
@@ -57,7 +57,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// ensure the user is not already a member of the tenant
-	_, err = u.config.APIRepository.Tenant().GetTenantMemberByEmail(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.TenantId), user.Email)
+	_, err = u.config.V1.Tenant().GetTenantMemberByEmail(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.TenantId), user.Email)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
@@ -78,7 +78,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// add the user to the tenant
-	member, err := u.config.APIRepository.Tenant().CreateTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.TenantId), &repository.CreateTenantMemberOpts{
+	member, err := u.config.V1.Tenant().CreateTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.TenantId), &v1.CreateTenantMemberOpts{
 		UserId: userId,
 		Role:   string(invite.Role),
 	})
@@ -103,7 +103,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 
 	ctx.Set("tenant-member", member)
 
-	tenant, err := u.config.APIRepository.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
+	tenant, err := u.config.V1.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
 	if err != nil {
 		return nil, err
 	}
