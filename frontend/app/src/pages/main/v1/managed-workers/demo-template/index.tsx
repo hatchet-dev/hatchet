@@ -75,10 +75,13 @@ export default function DemoTemplate() {
         }
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error('Failed to create template:', error);
+      const err = error as {
+        response?: { data?: { errors?: Array<{ description?: string }> } };
+      };
       setDeploymentError(
-        error?.response?.data?.errors?.[0]?.description ||
+        err?.response?.data?.errors?.[0]?.description ||
           'Failed to create template',
       );
       setDeploying(false);
@@ -269,7 +272,7 @@ export default function DemoTemplate() {
       // Call the real API to generate a token
       api
         .apiTokenCreate(tenantId, { name: 'demo-template-token' })
-        .then((response: any) => {
+        .then((response) => {
           if (response.data && response.data.token) {
             setApiToken(response.data.token);
           } else {

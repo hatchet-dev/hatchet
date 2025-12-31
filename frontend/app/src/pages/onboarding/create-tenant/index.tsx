@@ -3,7 +3,11 @@ import { HearAboutUsForm } from './components/hear-about-us-form';
 import { StepProgress } from './components/step-progress';
 import { TenantCreateForm } from './components/tenant-create-form';
 import { WhatBuildingForm } from './components/what-building-form';
-import { OnboardingStepConfig, OnboardingFormData } from './types';
+import {
+  OnboardingStepConfig,
+  OnboardingFormData,
+  OnboardingStepProps,
+} from './types';
 import { Button } from '@/components/v1/ui/button';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useOrganizations } from '@/hooks/use-organizations';
@@ -169,18 +173,26 @@ export default function CreateTenant() {
 
   const steps: OnboardingStepConfig<
     string | string[] | { name: string; environment: TenantEnvironment },
-    any
+    unknown
   >[] = [
     {
       title: 'What are you building?',
       subtitle: 'Help us personalize your onboarding experience',
-      component: WhatBuildingForm,
+      component: WhatBuildingForm as React.ComponentType<
+        OnboardingStepProps<
+          string | string[] | { name: string; environment: TenantEnvironment }
+        >
+      >,
       canSkip: true,
       key: 'whatBuilding',
     },
     {
       title: 'Where did you hear about Hatchet?',
-      component: HearAboutUsForm,
+      component: HearAboutUsForm as React.ComponentType<
+        OnboardingStepProps<
+          string | string[] | { name: string; environment: TenantEnvironment }
+        >
+      >,
       canSkip: true,
       key: 'hearAboutUs',
     },
@@ -188,7 +200,11 @@ export default function CreateTenant() {
       title: 'Create a new tenant',
       subtitle:
         'A tenant is an isolated environment for your data and workflows.',
-      component: TenantCreateForm,
+      component: TenantCreateForm as React.ComponentType<
+        OnboardingStepProps<
+          string | string[] | { name: string; environment: TenantEnvironment }
+        >
+      >,
       canSkip: false,
       key: 'tenantData',
       buttonLabel: 'Create Tenant',
@@ -321,15 +337,22 @@ export default function CreateTenant() {
     });
   };
 
-  const updateFormData = (key: keyof OnboardingFormData, value: any) => {
+  const updateFormData = (
+    key: keyof OnboardingFormData,
+    value: OnboardingFormData[keyof OnboardingFormData],
+  ) => {
     setFormData({ ...formData, [key]: value });
 
     // Sync tenantData with name for backward compatibility
     if (key === 'tenantData') {
+      const tenantValue = value as {
+        name: string;
+        environment: TenantEnvironment;
+      };
       setFormData({
         ...formData,
-        [key]: value,
-        name: value.name,
+        [key]: tenantValue,
+        name: tenantValue.name,
       });
     }
   };

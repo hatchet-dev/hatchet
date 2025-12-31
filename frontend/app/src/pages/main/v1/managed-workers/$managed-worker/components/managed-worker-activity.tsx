@@ -189,7 +189,11 @@ function renderCardFooter(
   setDeployKey: (key: string) => void,
 ) {
   if (event.data) {
-    const data = event.data as any;
+    const data = event.data as {
+      build_id: string;
+      deploy_key: string;
+      commit_sha?: string;
+    };
 
     const buttons = [];
 

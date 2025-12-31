@@ -14,7 +14,7 @@ import { memo } from 'react';
 
 export interface AdditionalMetadataClick {
   key: string;
-  value: any;
+  value: unknown;
 }
 
 interface AdditionalMetadataProps {
@@ -117,7 +117,7 @@ export const AdditionalMetadata = memo(
   },
 );
 
-const getDisplayValue = (value: any): string => {
+const getDisplayValue = (value: unknown): string => {
   if (value === null) {
     return 'null';
   }

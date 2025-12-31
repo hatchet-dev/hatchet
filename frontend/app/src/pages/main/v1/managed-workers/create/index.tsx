@@ -11,11 +11,12 @@ import { appRoutes } from '@/router';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { AxiosError } from 'axios';
 import { useState } from 'react';
 
 export default function CreateWorker() {
   const navigate = useNavigate();
-  const { billing, can } = useTenantDetails();
+  const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
   const [portalLoading, setPortalLoading] = useState(false);
@@ -38,7 +39,7 @@ export default function CreateWorker() {
       const link = await cloudApi.billingPortalLinkGet(tenantId);
       window.open(link.data.url, '_blank');
     } catch (e) {
-      handleApiError(e as any);
+      handleApiError(e as AxiosError);
     } finally {
       setPortalLoading(false);
     }
@@ -69,7 +70,7 @@ export default function CreateWorker() {
   if (isBillingRequired) {
     return (
       <BillingRequired
-        tenant={tenantId}
+        tenant={tenant}
         billing={billing}
         manageClicked={manageClicked}
         portalLoading={portalLoading}

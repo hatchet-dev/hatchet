@@ -257,11 +257,9 @@ function transformToDataPoints(
       const isoDate = new Date(timestamp * 1000).toISOString();
 
       if (!dataPointsMap[isoDate]) {
-        const obj: any = {
+        dataPointsMap[isoDate] = {
           date: isoDate,
-        };
-
-        dataPointsMap[isoDate] = obj as DataPoint<string>;
+        } as DataPoint<string>;
       }
 
       let val = parseFloat(value);

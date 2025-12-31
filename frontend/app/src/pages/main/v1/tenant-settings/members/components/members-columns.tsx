@@ -12,7 +12,7 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import useCloud from '@/pages/auth/hooks/use-cloud';
 import queryClient from '@/query-client';
 import { useMutation } from '@tanstack/react-query';
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, Row } from '@tanstack/react-table';
 import { useState } from 'react';
 
 // Component for handling member actions
@@ -60,7 +60,7 @@ function MemberActions({
   return (
     <>
       <DataTableRowActions
-        row={{ original: member } as any}
+        row={{ original: member } as Row<TenantMember>}
         actions={[
           ...(canEditRole
             ? [

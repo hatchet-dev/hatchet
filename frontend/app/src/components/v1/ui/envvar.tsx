@@ -152,7 +152,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
             <Textarea
               placeholder={entry.hint}
               value={entry.isEditing ? entry.value : undefined}
-              onChange={(e: any) =>
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                 handleValueChange(i, 'value', e.target.value)
               }
               rows={entry.value?.split('\n').length || 0}

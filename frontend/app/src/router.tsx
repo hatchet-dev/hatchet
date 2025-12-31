@@ -461,16 +461,16 @@ const tenantTasksWorkflowRedirectRoute = createRoute({
 });
 
 // redirects for alerting - redirect old non-tenanted routes to tenanted routes
-// super janky using `any` since this breaks the types otherwise, since the routes
-// that might be landed on don't actually exist anymore in the route tree
 const workflowRunRedirectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'workflow-runs/$run',
   loader: ({ location, params }) => {
+    const search = location.search as Record<string, unknown>;
     const tenantId: string | null | undefined =
-      (location.search as any)?.tenantId || (location.search as any)?.tenant;
+      (typeof search?.tenantId === 'string' ? search.tenantId : null) ||
+      (typeof search?.tenant === 'string' ? search.tenant : null);
 
-    const run: string | null | undefined = (params as any)?.run;
+    const run: string | null | undefined = params?.run;
 
     if (!tenantId || !run || !validate(run)) {
       throw redirect({ to: appRoutes.authenticatedRoute.to });
@@ -487,8 +487,10 @@ const tenantSettingsRedirect = createRoute({
   getParentRoute: () => rootRoute,
   path: 'tenant-settings',
   loader: ({ location }) => {
+    const search = location.search as Record<string, unknown>;
     const tenantId: string | null | undefined =
-      (location.search as any)?.tenantId || (location.search as any)?.tenant;
+      (typeof search?.tenantId === 'string' ? search.tenantId : null) ||
+      (typeof search?.tenant === 'string' ? search.tenant : null);
 
     if (!tenantId) {
       throw redirect({ to: appRoutes.authenticatedRoute.to });
@@ -505,10 +507,15 @@ const tenantSettingsSubpathRedirect = createRoute({
   getParentRoute: () => rootRoute,
   path: 'tenant-settings/$',
   loader: ({ params, location }) => {
+    const search = location.search as Record<string, unknown>;
     const tenantId: string | null | undefined =
-      (location.search as any)?.tenantId || (location.search as any)?.tenant;
+      (typeof search?.tenantId === 'string' ? search.tenantId : null) ||
+      (typeof search?.tenant === 'string' ? search.tenant : null);
 
-    const subpath: string | null | undefined = (params as any)?._splat || '';
+    const routeParams = params as Record<string, unknown>;
+    const subpath: string | null | undefined =
+      (typeof routeParams?._splat === 'string' ? routeParams._splat : null) ||
+      '';
     const allowedSubpaths = [
       tenantSettingsAlertingRoute.path,
       tenantSettingsApiTokensRoute.path,
@@ -524,8 +531,8 @@ const tenantSettingsSubpathRedirect = createRoute({
     }
 
     throw redirect({
-      to: `/tenants/${tenantId}/tenant-settings/${subpath}`,
-    } as any);
+      to: `/tenants/${tenantId}/tenant-settings/${subpath}` as string,
+    });
   },
 });
 

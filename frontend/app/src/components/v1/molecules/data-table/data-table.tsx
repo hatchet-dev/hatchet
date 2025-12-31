@@ -92,11 +92,13 @@ type RefetchProps = {
   onRefetch: () => void;
 };
 
-interface ExtraDataTableProps {
+interface ExtraDataTableProps<TData> {
   emptyState?: JSX.Element;
   card?: {
     containerStyle?: string;
-    component: React.FC<unknown> | ((data: unknown) => JSX.Element);
+    component:
+      | React.FC<{ data: TData }>
+      | ((props: { data: TData }) => JSX.Element);
   };
   columnKeyToName?: Record<string, string>;
   refetchProps?: RefetchProps;
@@ -137,7 +139,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   columnKeyToName,
   refetchProps,
   tableActions,
-}: DataTableProps<TData, TValue> & ExtraDataTableProps) {
+}: DataTableProps<TData, TValue> & ExtraDataTableProps<TData>) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
   const loadingNoData = isLoading && !data.length;
