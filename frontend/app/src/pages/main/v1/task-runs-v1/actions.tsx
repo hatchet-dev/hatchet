@@ -12,6 +12,18 @@ import {
   DialogContent,
   DialogHeader,
 } from '@/components/v1/ui/dialog';
+import {
+  PortalTooltip,
+  PortalTooltipContent,
+  PortalTooltipProvider,
+  PortalTooltipTrigger,
+} from '@/components/v1/ui/portal-tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   queries,
@@ -332,26 +344,33 @@ const BaseActionButton = ({
   } = useRunsContext();
 
   return (
-    <Button
-      size={'sm'}
-      className={cn('text-sm gap-2', className)}
-      variant={'outline'}
-      disabled={disabled}
-      onClick={() => {
-        setSelectedActionType(params.actionType);
-        setIsActionDropdownOpen(false);
+    <PortalTooltipProvider>
+      <PortalTooltip>
+        <PortalTooltipTrigger>
+          <Button
+            size={'sm'}
+            className={cn('text-sm gap-2', className)}
+            variant={'outline'}
+            disabled={disabled}
+            onClick={() => {
+              setSelectedActionType(params.actionType);
+              setIsActionDropdownOpen(false);
 
-        if (!showModal) {
-          handleTaskRunAction(params);
-          return;
-        }
+              if (!showModal) {
+                handleTaskRunAction(params);
+                return;
+              }
 
-        setIsActionModalOpen(true);
-      }}
-    >
-      {icon}
-      {showLabel && label}
-    </Button>
+              setIsActionModalOpen(true);
+            }}
+          >
+            {icon}
+            {showLabel && label}
+          </Button>
+        </PortalTooltipTrigger>
+        <PortalTooltipContent>{label}</PortalTooltipContent>
+      </PortalTooltip>
+    </PortalTooltipProvider>
   );
 };
 
