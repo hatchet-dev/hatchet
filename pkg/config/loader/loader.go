@@ -286,6 +286,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	v1, cleanupV1 := repov1.NewRepository(
 		pool,
 		&l,
+		cf.CacheDuration,
 		retentionPeriod,
 		retentionPeriod,
 		scf.Runtime.MaxInternalRetryCount,

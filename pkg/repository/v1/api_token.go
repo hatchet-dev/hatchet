@@ -41,8 +41,8 @@ type apiTokenRepository struct {
 	c cache.Cacheable
 }
 
-func newAPITokenRepository(shared *sharedRepository) APITokenRepository {
-	c := cache.New(5 * time.Second)
+func newAPITokenRepository(shared *sharedRepository, cacheDuration time.Duration) APITokenRepository {
+	c := cache.New(cacheDuration)
 
 	return &apiTokenRepository{
 		sharedRepository: shared,

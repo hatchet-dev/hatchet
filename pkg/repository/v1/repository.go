@@ -91,6 +91,7 @@ type repositoryImpl struct {
 func NewRepository(
 	pool *pgxpool.Pool,
 	l *zerolog.Logger,
+	cacheDuration time.Duration,
 	taskRetentionPeriod, olapRetentionPeriod time.Duration,
 	maxInternalRetryCount int32,
 	taskLimits TaskOperationLimits,
@@ -106,7 +107,7 @@ func NewRepository(
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
 	impl := &repositoryImpl{
-		apiToken:          newAPITokenRepository(shared),
+		apiToken:          newAPITokenRepository(shared, cacheDuration),
 		dispatcher:        newDispatcherRepository(shared),
 		health:            newHealthRepository(shared),
 		messageQueue:      mq,
