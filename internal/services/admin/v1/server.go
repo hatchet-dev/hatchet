@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -407,39 +408,6 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}, nil
 }
 
-func (a *AdminServiceImpl) uniq(statuses []string) []string {
-	seen := make(map[string]struct{})
-	result := make([]string, 0)
-
-	for _, status := range statuses {
-		if _, ok := seen[status]; !ok {
-			seen[status] = struct{}{}
-			result = append(result, status)
-		}
-	}
-
-	return result
-}
-
-func (a *AdminServiceImpl) any(statuses []string, target string) bool {
-	for _, status := range statuses {
-		if status == target {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (a *AdminServiceImpl) all(statuses []string, target string) bool {
-	for _, status := range statuses {
-		if status != target {
-			return false
-		}
-	}
-	return true
-}
-
 func (a *AdminServiceImpl) runStatusToProto(status string) contracts.RunStatus {
 	switch status {
 	case "QUEUED":
@@ -459,21 +427,21 @@ func (a *AdminServiceImpl) runStatusToProto(status string) contracts.RunStatus {
 }
 
 func (a *AdminServiceImpl) deriveWorkflowRunStatus(ctx context.Context, statuses []string) contracts.RunStatus {
-	uniqueStatuses := a.uniq(statuses)
+	uniqueStatuses := listutils.Uniq(statuses)
 
 	if len(uniqueStatuses) == 1 {
 		return a.runStatusToProto(uniqueStatuses[0])
 	}
 
-	if a.any(uniqueStatuses, "FAILED") {
+	if listutils.Any(uniqueStatuses, "FAILED") {
 		return a.runStatusToProto("FAILED")
 	}
 
-	if a.any(uniqueStatuses, "RUNNING") || a.any(uniqueStatuses, "QUEUED") {
+	if listutils.Any(uniqueStatuses, "RUNNING") || listutils.Any(uniqueStatuses, "QUEUED") {
 		return a.runStatusToProto("RUNNING")
 	}
 
-	if a.any(uniqueStatuses, "CANCELLED") {
+	if listutils.Any(uniqueStatuses, "CANCELLED") {
 		return a.runStatusToProto("CANCELLED")
 	}
 
@@ -518,7 +486,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		}
 	}
 
-	done := !a.any(statuses, "QUEUED") && !a.any(statuses, "RUNNING")
+	done := !listutils.Any(statuses, "QUEUED") && !listutils.Any(statuses, "RUNNING")
 	derivedWorkflowRunStatus := a.deriveWorkflowRunStatus(ctx, statuses)
 
 	return &contracts.GetRunDetailsResponse{
