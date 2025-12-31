@@ -10,7 +10,6 @@ sql:
       - workers.sql
       - tenants.sql
       - tenant_limits.sql
-      - tenant_invites.sql
       - users.sql
     schema:
       - ../../../../sql/schema/v0.sql

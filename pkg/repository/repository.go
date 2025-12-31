@@ -7,7 +7,6 @@ import (
 type APIRepository interface {
 	Tenant() TenantAPIRepository
 	TenantAlertingSettings() TenantAlertingRepository
-	TenantInvite() TenantInviteRepository
 	Workflow() WorkflowAPIRepository
 	WorkflowRun() WorkflowRunAPIRepository
 	Worker() WorkerAPIRepository

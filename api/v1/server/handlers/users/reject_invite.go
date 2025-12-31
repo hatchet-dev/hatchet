@@ -11,6 +11,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInviteRejectRequestObject) (gen.TenantInviteRejectResponseObject, error) {
@@ -31,7 +33,7 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 	}
 
 	// get the invite
-	invite, err := u.config.APIRepository.TenantInvite().GetTenantInvite(ctx.Request().Context(), inviteId)
+	invite, err := u.config.V1.TenantInvite().GetTenantInvite(ctx.Request().Context(), inviteId)
 
 	if err != nil {
 		return nil, err
@@ -48,17 +50,17 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 	}
 
 	// ensure invite is in a pending state
-	if invite.Status != dbsqlc.InviteLinkStatusPENDING {
+	if invite.Status != sqlcv1.InviteLinkStatusPENDING {
 		return gen.TenantInviteReject400JSONResponse(apierrors.NewAPIErrors("invite has already been used")), nil
 	}
 
 	// construct the database query
-	updateOpts := &repository.UpdateTenantInviteOpts{
+	updateOpts := &v1.UpdateTenantInviteOpts{
 		Status: repository.StringPtr(string(dbsqlc.InviteLinkStatusREJECTED)),
 	}
 
 	// update the invite
-	invite, err = u.config.APIRepository.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.ID), updateOpts)
+	invite, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.ID), updateOpts)
 
 	if err != nil {
 		return nil, err

@@ -45,6 +45,7 @@ type Repository interface {
 	SecurityCheck() SecurityCheckRepository
 	Slack() SlackRepository
 	SNS() SNSRepository
+	TenantInvite() TenantInviteRepository
 }
 
 type repositoryImpl struct {
@@ -71,6 +72,7 @@ type repositoryImpl struct {
 	securityCheck SecurityCheckRepository
 	slack         SlackRepository
 	sns           SNSRepository
+	tenantInvite  TenantInviteRepository
 }
 
 func NewRepository(
@@ -113,6 +115,7 @@ func NewRepository(
 		securityCheck: newSecurityCheckRepository(shared),
 		slack:         newSlackRepository(shared),
 		sns:           newSNSRepository(shared),
+		tenantInvite:  newTenantInviteRepository(shared),
 	}
 
 	return impl, func() error {
@@ -232,4 +235,8 @@ func (r *repositoryImpl) Slack() SlackRepository {
 
 func (r *repositoryImpl) SNS() SNSRepository {
 	return r.sns
+}
+
+func (r *repositoryImpl) TenantInvite() TenantInviteRepository {
+	return r.tenantInvite
 }

@@ -19,7 +19,6 @@ import (
 type apiRepository struct {
 	tenant         repository.TenantAPIRepository
 	tenantAlerting repository.TenantAlertingRepository
-	tenantInvite   repository.TenantInviteRepository
 	workflow       repository.WorkflowAPIRepository
 	workflowRun    repository.WorkflowRunAPIRepository
 	worker         repository.WorkerAPIRepository
@@ -99,7 +98,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 	return &apiRepository{
 		tenant:         NewTenantAPIRepository(shared, opts.cache, defaultEngineVersion),
 		tenantAlerting: NewTenantAlertingRepository(shared, opts.cache),
-		tenantInvite:   NewTenantInviteRepository(shared),
 		workflow:       NewWorkflowRepository(shared),
 		workflowRun:    NewWorkflowRunRepository(shared, opts.metered, cf),
 		worker:         NewWorkerAPIRepository(shared, opts.metered),
@@ -115,10 +113,6 @@ func (r *apiRepository) Tenant() repository.TenantAPIRepository {
 
 func (r *apiRepository) TenantAlertingSettings() repository.TenantAlertingRepository {
 	return r.tenantAlerting
-}
-
-func (r *apiRepository) TenantInvite() repository.TenantInviteRepository {
-	return r.tenantInvite
 }
 
 func (r *apiRepository) Workflow() repository.WorkflowAPIRepository {

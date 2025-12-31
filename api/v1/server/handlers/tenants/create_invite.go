@@ -10,9 +10,9 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantInviteCreateRequestObject) (gen.TenantInviteCreateResponseObject, error) {
@@ -52,7 +52,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}
 
 	// construct the database query
-	createOpts := &repository.CreateTenantInviteOpts{
+	createOpts := &v1.CreateTenantInviteOpts{
 		InviteeEmail: request.Body.Email,
 		InviterEmail: user.Email,
 		ExpiresAt:    time.Now().Add(7 * 24 * time.Hour), // 1 week expiration
@@ -61,7 +61,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}
 
 	// create the invite
-	invite, err := t.config.APIRepository.TenantInvite().CreateTenantInvite(ctx.Request().Context(), tenantId, createOpts)
+	invite, err := t.config.V1.TenantInvite().CreateTenantInvite(ctx.Request().Context(), tenantId, createOpts)
 
 	if err != nil {
 		t.config.Logger.Err(err).Msg("could not create tenant invite")

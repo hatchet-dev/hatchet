@@ -276,7 +276,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		tenantInvite, err := config.APIRepository.TenantInvite().GetTenantInvite(timeoutCtx, id)
+		tenantInvite, err := config.V1.TenantInvite().GetTenantInvite(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
