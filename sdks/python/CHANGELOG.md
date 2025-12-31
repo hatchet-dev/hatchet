@@ -5,6 +5,16 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.2] - 2025-12-31
+
+### Added
+
+- Crons can now be provided by alias, e.g. `@daily`
+
+### Changed
+
+- Failed workflow logs are only reported at the `exception` level either on the last retry attempt or if the task is marked as `non_retryable`, to avoid spamming e.g. Sentry with exceptions.
+
 ## [1.22.1] - 2025-12-30
 
 ### Changed
