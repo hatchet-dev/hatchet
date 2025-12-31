@@ -93,7 +93,7 @@ export function ZoomableChart<T extends string>({
     return keys.reduce<ChartConfig>((acc, key, index) => {
       let color = `hsl(${(index * 360) / keys.length}, 70%, 50%)`;
 
-      if (colors && colors[key]) {
+      if (colors?.[key]) {
         color = colors[key];
       }
 

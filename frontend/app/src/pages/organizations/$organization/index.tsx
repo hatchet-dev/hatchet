@@ -715,8 +715,7 @@ export default function OrganizationPage() {
               <div className="flex items-center justify-center py-8">
                 <Loading />
               </div>
-            ) : organizationInvitesQuery.data &&
-              organizationInvitesQuery.data.rows &&
+            ) : organizationInvitesQuery.data?.rows &&
               organizationInvitesQuery.data.rows.length > 0 ? (
               <div className="space-y-4">
                 {/* Desktop Table View */}
@@ -927,8 +926,7 @@ export default function OrganizationPage() {
               <div className="flex items-center justify-center py-8">
                 <Loading />
               </div>
-            ) : managementTokensQuery.data &&
-              managementTokensQuery.data.rows &&
+            ) : managementTokensQuery.data?.rows &&
               managementTokensQuery.data.rows.length > 0 ? (
               <div className="space-y-4">
                 {/* Desktop Table View */}

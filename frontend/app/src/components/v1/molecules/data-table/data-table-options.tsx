@@ -657,6 +657,7 @@ function ColumnsContent<TData>({
             )
             .map((column) => {
               const columnName =
+                // eslint-disable-next-line @typescript-eslint/prefer-optional-chain
                 (columnKeyToName ?? {})[
                   column.id as keyof typeof columnKeyToName
                 ] || column.id;

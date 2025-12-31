@@ -274,7 +274,7 @@ export default function DemoTemplate() {
       api
         .apiTokenCreate(tenantId, { name: 'demo-template-token' })
         .then((response) => {
-          if (response.data && response.data.token) {
+          if (response?.data?.token) {
             setApiToken(response.data.token);
           } else {
             console.error('Failed to get token from response');

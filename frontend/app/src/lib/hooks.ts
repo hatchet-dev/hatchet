@@ -40,7 +40,7 @@ export function useApiError(props: {
     const apiErrors = error.response?.data as APIErrors;
 
     if (error.response?.status === 400) {
-      if (apiErrors && apiErrors.errors && apiErrors.errors.length > 0) {
+      if (apiErrors?.errors?.length > 0) {
         const fieldErrors = getFieldErrors(apiErrors);
 
         if (Object.keys(fieldErrors).length != 0) {
@@ -58,7 +58,7 @@ export function useApiError(props: {
       }
     }
 
-    if (!apiErrors || !apiErrors.errors || apiErrors.errors.length === 0) {
+    if (!apiErrors?.errors || apiErrors.errors.length === 0) {
       handler(['An internal error occurred.']);
 
       return;

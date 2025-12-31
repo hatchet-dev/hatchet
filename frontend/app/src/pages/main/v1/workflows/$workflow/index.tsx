@@ -127,7 +127,7 @@ export default function ExpandedWorkflow() {
     return <Loading />;
   }
 
-  const currVersion = workflow.versions && workflow.versions[0].version;
+  const currVersion = workflow.versions?.[0].version;
 
   return (
     <div className="flex h-full w-full flex-grow flex-col gap-y-4 overflow-hidden">
@@ -211,10 +211,7 @@ export default function ExpandedWorkflow() {
         </div>
         <div className="mt-4 flex flex-row items-center justify-start">
           <div className="text-sm text-gray-700 dark:text-gray-300">
-            Updated{' '}
-            {relativeDate(
-              workflow.versions && workflow.versions[0].metadata.updatedAt,
-            )}
+            Updated {relativeDate(workflow.versions?.[0].metadata.updatedAt)}
           </div>
         </div>
         {workflow.description && (
