@@ -43,7 +43,6 @@ type RunsProviderProps = {
 type RunsContextType = {
   actions: {
     setIsActionModalOpen: (isOpen: boolean) => void;
-    setIsActionDropdownOpen: (isOpen: boolean) => void;
     setSelectedActionType: (actionType: ActionType | null) => void;
     refetchRuns: () => void;
     refetchMetrics: () => void;
@@ -69,7 +68,6 @@ type RunsContextType = {
   runStatusCounts: V1TaskRunMetrics;
   queueMetrics: object;
   isActionModalOpen: boolean;
-  isActionDropdownOpen: boolean;
   selectedActionType: ActionType | null;
   actionModalParams: BaseTaskRunActionParams;
   display: DisplayProps;
@@ -92,7 +90,6 @@ export const RunsProvider = ({
   runFilters,
 }: RunsProviderProps) => {
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
-  const [isActionDropdownOpen, setIsActionDropdownOpen] = useState(false);
   const [selectedActionType, setSelectedActionType] =
     useState<ActionType | null>(null);
 
@@ -210,7 +207,6 @@ export const RunsProvider = ({
       runStatusCounts,
       queueMetrics,
       isActionModalOpen,
-      isActionDropdownOpen,
       actionModalParams,
       selectedActionType,
       pagination,
@@ -230,7 +226,6 @@ export const RunsProvider = ({
       },
       actions: {
         setIsActionModalOpen,
-        setIsActionDropdownOpen,
         setSelectedActionType,
         refetchRuns,
         refetchMetrics,
@@ -257,7 +252,6 @@ export const RunsProvider = ({
       runStatusCounts,
       queueMetrics,
       isActionModalOpen,
-      isActionDropdownOpen,
       hideMetrics,
       hideCounts,
       hideDateFilter,
@@ -266,7 +260,6 @@ export const RunsProvider = ({
       actionModalParams,
       selectedActionType,
       setIsActionModalOpen,
-      setIsActionDropdownOpen,
       setSelectedActionType,
       refetchRuns,
       refetchMetrics,

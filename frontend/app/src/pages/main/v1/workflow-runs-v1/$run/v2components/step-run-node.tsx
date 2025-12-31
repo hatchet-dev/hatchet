@@ -1,11 +1,11 @@
 import { V1RunIndicator } from '../../components/run-statuses';
 import { TabOption } from './step-run-detail/step-run-detail';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
+  PortalTooltip,
+  PortalTooltipContent,
+  PortalTooltipProvider,
+  PortalTooltipTrigger,
+} from '@/components/v1/ui/portal-tooltip';
 import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { cn, formatDuration } from '@/lib/utils';
 import { memo } from 'react';
@@ -40,9 +40,9 @@ export default memo(({ data }: { data: NodeData }) => {
           isConnectable={false}
         />
       )}
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger>
+      <PortalTooltipProvider>
+        <PortalTooltip>
+          <PortalTooltipTrigger>
             <div
               className={cn(
                 `step-run-card mb-1 w-full rounded-sm px-2 py-3 font-mono text-xs font-semibold text-[#050c1c] shadow-md dark:text-[#ffffff]`,
@@ -82,10 +82,10 @@ export default memo(({ data }: { data: NodeData }) => {
                 />
               )}
             </div>
-          </TooltipTrigger>
-          <TooltipContent>{data.taskName}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+          </PortalTooltipTrigger>
+          <PortalTooltipContent>{data.taskName}</PortalTooltipContent>
+        </PortalTooltip>
+      </PortalTooltipProvider>
     </div>
   );
 });

@@ -175,12 +175,14 @@ export const TaskRunDetail = ({
                 paramOverrides={{ externalIds: [taskRunId] }}
                 disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
                 showModal={false}
+                showLabel
               />
               <TaskRunActionButton
                 actionType="cancel"
                 paramOverrides={{ externalIds: [taskRunId] }}
                 disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
                 showModal={false}
+                showLabel
               />
             </RunsProvider>
           </div>
