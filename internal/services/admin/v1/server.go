@@ -408,24 +408,6 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}, nil
 }
 
-func (a *AdminServiceImpl) runStatusToProto(status string) contracts.RunStatus {
-	switch status {
-	case "QUEUED":
-		return contracts.RunStatus_QUEUED
-	case "RUNNING":
-		return contracts.RunStatus_RUNNING
-	case "COMPLETED":
-		return contracts.RunStatus_COMPLETED
-	case "FAILED":
-		return contracts.RunStatus_FAILED
-	case "CANCELLED":
-		return contracts.RunStatus_CANCELLED
-	default:
-		// should never hit this case, here to avoid panics
-		return contracts.RunStatus_COMPLETED
-	}
-}
-
 func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.GetRunDetailsRequest) (*contracts.GetRunDetailsResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
