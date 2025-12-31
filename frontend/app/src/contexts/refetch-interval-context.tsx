@@ -61,6 +61,7 @@ export const RefetchIntervalProvider = ({
 
       if (key) {
         setStoredInterval(key);
+        setIsFrozen(false);
       }
     },
     [setStoredInterval],
