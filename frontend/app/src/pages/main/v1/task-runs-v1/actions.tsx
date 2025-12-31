@@ -18,12 +18,6 @@ import {
   PortalTooltipProvider,
   PortalTooltipTrigger,
 } from '@/components/v1/ui/portal-tooltip';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   queries,
@@ -336,11 +330,7 @@ const BaseActionButton = ({
 }) => {
   const { handleTaskRunAction } = useTaskRunActions();
   const {
-    actions: {
-      setIsActionModalOpen,
-      setSelectedActionType,
-      setIsActionDropdownOpen,
-    },
+    actions: { setIsActionModalOpen, setSelectedActionType },
   } = useRunsContext();
 
   return (
@@ -354,7 +344,6 @@ const BaseActionButton = ({
             disabled={disabled}
             onClick={() => {
               setSelectedActionType(params.actionType);
-              setIsActionDropdownOpen(false);
 
               if (!showModal) {
                 handleTaskRunAction(params);

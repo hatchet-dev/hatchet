@@ -10,8 +10,6 @@ interface TableActionsProps {
 
 export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
   const {
-    isActionDropdownOpen,
-    actions: { setIsActionDropdownOpen },
     display: { hideTriggerRunButton, hideCancelAndReplayButtons },
   } = useRunsContext();
 
@@ -37,13 +35,7 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
     }
 
     return baseActions;
-  }, [
-    onTriggerWorkflow,
-    hideTriggerRunButton,
-    hideCancelAndReplayButtons,
-    setIsActionDropdownOpen,
-    isActionDropdownOpen,
-  ]);
+  }, [onTriggerWorkflow, hideTriggerRunButton, hideCancelAndReplayButtons]);
 
   return <>{actions}</>;
 };
