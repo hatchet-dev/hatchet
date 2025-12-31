@@ -92,7 +92,9 @@ export const RefetchIntervalProvider = ({
     if (isFrozen) {
       setIsFrozen(false);
     }
-  }, [pathname, setIsFrozen, isFrozen]);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   return (
     <RefetchIntervalContext.Provider value={value}>
