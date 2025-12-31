@@ -67,7 +67,7 @@ export const RefetchIntervalProvider = ({
         setIsFrozen(false);
       }
     },
-    [setStoredInterval],
+    [setStoredInterval, setIsFrozen],
   );
 
   const value = useMemo<RefetchIntervalContextType>(
@@ -88,10 +88,11 @@ export const RefetchIntervalProvider = ({
   );
 
   useEffect(() => {
+    // unfreeze refetches on route change
     if (isFrozen) {
       setIsFrozen(false);
     }
-  }, [pathname]);
+  }, [pathname, setIsFrozen, isFrozen]);
 
   return (
     <RefetchIntervalContext.Provider value={value}>
