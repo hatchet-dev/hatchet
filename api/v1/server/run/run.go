@@ -45,8 +45,8 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 type apiService struct {
@@ -230,7 +230,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		tenant, err := config.APIRepository.Tenant().GetTenantByID(ctxTimeout, id)
+		tenant, err := config.V1.Tenant().GetTenantByID(ctxTimeout, id)
 
 		if err != nil {
 			return nil, "", err
@@ -243,7 +243,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		member, err := config.APIRepository.Tenant().GetTenantMemberByID(ctxTimeout, id)
+		member, err := config.V1.Tenant().GetTenantMemberByID(ctxTimeout, id)
 
 		if err != nil {
 			return nil, "", err
@@ -256,7 +256,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		apiToken, err := config.APIRepository.APIToken().GetAPITokenById(ctxTimeout, id)
+		apiToken, err := config.V1.APIToken().GetAPITokenById(ctxTimeout, id)
 
 		if err != nil {
 			return nil, "", err
@@ -276,7 +276,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		tenantInvite, err := config.APIRepository.TenantInvite().GetTenantInvite(timeoutCtx, id)
+		tenantInvite, err := config.V1.TenantInvite().GetTenantInvite(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
@@ -289,7 +289,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		slackWebhook, err := config.APIRepository.Slack().GetSlackWebhookById(timeoutCtx, id)
+		slackWebhook, err := config.V1.Slack().GetSlackWebhookById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
@@ -302,7 +302,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		emailGroup, err := config.APIRepository.TenantAlertingSettings().GetTenantAlertGroupById(timeoutCtx, id)
+		emailGroup, err := config.V1.TenantAlertingSettings().GetTenantAlertGroupById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
@@ -315,7 +315,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		snsIntegration, err := config.APIRepository.SNS().GetSNSIntegrationById(timeoutCtx, id)
+		snsIntegration, err := config.V1.SNS().GetSNSIntegrationById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
@@ -325,7 +325,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflow, err := config.APIRepository.Workflow().GetWorkflowById(context.Background(), id)
+		workflow, err := config.V1.Workflows().GetWorkflowById(context.Background(), id)
 
 		if err != nil {
 			return nil, "", err
@@ -339,7 +339,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("scheduled-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		scheduled, err := config.APIRepository.WorkflowRun().GetScheduledWorkflow(context.Background(), parentId, id)
+		scheduled, err := config.V1.WorkflowSchedules().GetScheduledWorkflow(context.Background(), parentId, id)
 
 		if err != nil {
 			return nil, "", err
@@ -353,7 +353,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("cron-workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		scheduled, err := config.APIRepository.Workflow().GetCronWorkflow(context.Background(), parentId, id)
+		scheduled, err := config.V1.WorkflowSchedules().GetCronWorkflow(context.Background(), parentId, id)
 
 		if err != nil {
 			return nil, "", err
@@ -386,7 +386,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		event := &dbsqlc.Event{
+		event := &sqlcv1.Event{
 			ID:                 v1Event.ExternalID,
 			TenantId:           v1Event.TenantID,
 			Data:               payload,
@@ -409,7 +409,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		event := &dbsqlc.Event{
+		event := &sqlcv1.Event{
 			ID:                 v1Event.EventExternalID,
 			TenantId:           v1Event.TenantID,
 			Data:               v1Event.Payload,
@@ -422,7 +422,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("worker", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		worker, err := config.APIRepository.Worker().GetWorkerById(id)
+		worker, err := config.V1.Workers().GetWorkerById(id)
 
 		if err != nil {
 			return nil, "", err

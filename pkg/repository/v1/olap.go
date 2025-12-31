@@ -21,8 +21,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -294,10 +294,19 @@ type OLAPRepositoryImpl struct {
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits
 }
 
-func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables bool, payloadStoreOpts PayloadStoreRepositoryOpts, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) (OLAPRepository, func() error) {
+func NewOLAPRepositoryFromPool(
+	pool *pgxpool.Pool,
+	l *zerolog.Logger,
+	olapRetentionPeriod time.Duration,
+	tenantLimitConfig limits.LimitConfigFile, enforceLimits bool,
+	shouldPartitionEventsTables bool,
+	payloadStoreOpts PayloadStoreRepositoryOpts,
+	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
+	cacheDuration time.Duration,
+) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, payloadStoreOpts)
+	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, statusUpdateBatchSizeLimits), cleanupShared
 }

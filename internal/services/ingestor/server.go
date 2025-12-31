@@ -11,14 +11,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
 	var additionalMeta []byte
 
@@ -26,13 +25,13 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		additionalMeta = []byte(*req.AdditionalMetadata)
 	}
 
-	if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
+	if err := v1.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
 	payloadBytes := []byte(req.Payload)
 
-	if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+	if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
@@ -42,7 +41,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 
 	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority, req.Scope, nil)
 
-	if err == metered.ErrResourceExhausted {
+	if err == v1.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
 	}
 
@@ -77,7 +76,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 }
 
 func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEventRequest) (*contracts.Events, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -98,13 +97,13 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 			additionalMeta = []byte(*e.AdditionalMetadata)
 		}
 
-		if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
+		if err := v1.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 		}
 
 		payloadBytes := []byte(e.Payload)
 
-		if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+		if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 		}
 
@@ -140,7 +139,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 
 	createdEvents, err := i.BulkIngestEvent(ctx, tenant, events)
 
-	if err == metered.ErrResourceExhausted {
+	if err == v1.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
 	}
 	if err != nil {
@@ -185,16 +184,16 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 }
 
 func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	return i.putStreamEventV1(ctx, tenant, req)
 }
 
 func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	return i.putLogV1(ctx, tenant, req)
 }
 
-func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
+func toEvent(e *sqlcv1.Event) (*contracts.Event, error) {
 	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
 	eventId := sqlchelpers.UUIDToStr(e.ID)
 

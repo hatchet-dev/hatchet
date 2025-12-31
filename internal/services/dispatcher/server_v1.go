@@ -18,9 +18,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -312,7 +310,7 @@ func (b *StreamEventBuffer) sendReadyEvents(stepRunId string) {
 
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
-	tenant := server.Context().Value("tenant").(*dbsqlc.Tenant)
+	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	s.l.Debug().Msgf("Received subscribe request for tenant: %s", tenantId)
@@ -542,7 +540,7 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId string, finalized
 }
 
 func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
 	// if there's no retry count, we need to read it from the task, so we can't skip the cache
 	skipCache := request.RetryCount == nil
@@ -562,7 +560,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	}
 
 	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED {
-		if err := repository.ValidateJSONB([]byte(request.EventPayload), "taskOutput"); err != nil {
+		if err := v1.ValidateJSONB([]byte(request.EventPayload), "taskOutput"); err != nil {
 			request.EventPayload = err.Error()
 			request.EventType = contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED
 		}
@@ -574,7 +572,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED:
 		// TODO: IMPLEMENT
 		return &contracts.ActionEventResponse{
-			TenantId: sqlchelpers.UUIDToStr(ctx.Value("tenant").(*dbsqlc.Tenant).ID),
+			TenantId: sqlchelpers.UUIDToStr(ctx.Value("tenant").(*sqlcv1.Tenant).ID),
 			WorkerId: request.WorkerId,
 		}, nil
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
@@ -587,7 +585,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 }
 
 func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
@@ -614,7 +612,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 }
 
 func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// if request.RetryCount == nil {
@@ -669,7 +667,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 }
 
 func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	shouldNotRetry := false
@@ -710,7 +708,7 @@ func (d *DispatcherImpl) getSingleTask(ctx context.Context, tenantId, taskExtern
 	return d.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, skipCache)
 }
 
-func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *dbsqlc.Tenant, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
+func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	opts := v1.RefreshTimeoutBy{
@@ -760,7 +758,7 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *dbsqlc.Te
 	}, nil
 }
 
-func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *dbsqlc.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
+func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, request.StepRunId)
@@ -807,7 +805,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsV1(request *contracts.Subscrib
 }
 
 func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunId string, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
-	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
+	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	ctx, cancel := context.WithCancel(stream.Context())
@@ -987,7 +985,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string, value string, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
-	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
+	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	ctx, cancel := context.WithCancel(stream.Context())

@@ -4,12 +4,12 @@ import (
 	"github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-func ToUser(user *dbsqlc.User, hasPassword bool, hashedEmail *string) *gen.User {
+func ToUser(user *sqlcv1.User, hasPassword bool, hashedEmail *string) *gen.User {
 	var name *string
 
 	if user.Name.Valid {
@@ -26,7 +26,7 @@ func ToUser(user *dbsqlc.User, hasPassword bool, hashedEmail *string) *gen.User 
 	}
 }
 
-func ToTenantMember(tenantMember *dbsqlc.PopulateTenantMembersRow) *gen.TenantMember {
+func ToTenantMember(tenantMember *sqlcv1.PopulateTenantMembersRow) *gen.TenantMember {
 	var environment *gen.TenantEnvironment
 	if tenantMember.TenantEnvironment.Valid {
 		env := gen.TenantEnvironment(tenantMember.TenantEnvironment.TenantEnvironment)
@@ -37,7 +37,7 @@ func ToTenantMember(tenantMember *dbsqlc.PopulateTenantMembersRow) *gen.TenantMe
 		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(tenantMember.ID), tenantMember.CreatedAt.Time, tenantMember.UpdatedAt.Time),
 		User: gen.UserTenantPublic{
 			Email: types.Email(tenantMember.Email),
-			Name:  repository.StringPtr(tenantMember.Name.String),
+			Name:  v1.StringPtr(tenantMember.Name.String),
 		},
 		Tenant: &gen.Tenant{
 			Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(tenantMember.TenantId), tenantMember.TenantCreatedAt.Time, tenantMember.TenantUpdatedAt.Time),

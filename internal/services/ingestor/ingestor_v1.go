@@ -11,8 +11,7 @@ import (
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -26,15 +25,15 @@ type EventResult struct {
 	AdditionalMetadata string
 }
 
-func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *sqlcv1.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	canCreateEvents, eLimit, err := i.entitlementsRepository.TenantLimit().CanCreate(
+	canCreateEvents, eLimit, err := i.repov1.TenantLimit().CanCreate(
 		ctx,
-		dbsqlc.LimitResourceEVENT,
+		sqlcv1.LimitResourceEVENT,
 		tenantId,
 		1,
 	)
@@ -53,7 +52,7 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant,
 	return i.ingestSingleton(ctx, tenantId, key, data, metadata, priority, scope, triggeringWebhookName)
 }
 
-func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error) {
 	eventId := uuid.New().String()
 
 	msg, err := eventToTaskV1(
@@ -79,7 +78,7 @@ func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string
 
 	now := time.Now().UTC()
 
-	return &dbsqlc.Event{
+	return &sqlcv1.Event{
 		ID:                 sqlchelpers.UUIDFromStr(eventId),
 		CreatedAt:          sqlchelpers.TimestampFromTime(now),
 		UpdatedAt:          sqlchelpers.TimestampFromTime(now),
@@ -90,7 +89,7 @@ func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string
 	}, nil
 }
 
-func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*CreateEventOpts) ([]*dbsqlc.Event, error) {
+func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "bulk-ingest-event")
 	defer span.End()
 
@@ -98,9 +97,9 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 
 	count := len(eventOpts)
 
-	canCreateEvents, eLimit, err := i.entitlementsRepository.TenantLimit().CanCreate(
+	canCreateEvents, eLimit, err := i.repov1.TenantLimit().CanCreate(
 		ctx,
-		dbsqlc.LimitResourceEVENT,
+		sqlcv1.LimitResourceEVENT,
 		tenantId,
 		int32(count), // nolint: gosec
 	)
@@ -116,7 +115,7 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 		)
 	}
 
-	results := make([]*dbsqlc.Event, 0, len(eventOpts))
+	results := make([]*sqlcv1.Event, 0, len(eventOpts))
 
 	for _, event := range eventOpts {
 		res, err := i.ingestSingleton(ctx, tenantId, event.Key, event.Data, event.AdditionalMetadata, event.Priority, event.Scope, event.TriggeringWebhookName)
@@ -131,7 +130,7 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 	return results, nil
 }
 
-func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *sqlcv1.Tenant, replayedEvent *sqlcv1.Event) (*sqlcv1.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
 	defer span.End()
 

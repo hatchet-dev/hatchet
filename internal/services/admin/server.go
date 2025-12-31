@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -12,12 +11,11 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
@@ -29,7 +27,7 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 }
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	createOpts, err := getCreateWorkflowOpts(req)
@@ -48,92 +46,26 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		)
 	}
 
-	// determine if workflow already exists
-	var workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow
-	var oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow
-
-	currWorkflow, err := a.repo.Workflow().GetWorkflowByName(
+	currWorkflow, err := a.repov1.Workflows().PutWorkflowVersion(
 		ctx,
 		tenantId,
-		req.Opts.Name,
+		createOpts,
 	)
 
 	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return nil, err
-		}
-
-		// workflow does not exist, create it
-		workflowVersion, err = a.repo.Workflow().CreateNewWorkflow(
-			ctx,
-			tenantId,
-			createOpts,
-		)
-
-		if err != nil {
-
-			if strings.Contains(err.Error(), "23503") {
-				return nil, status.Error(
-					codes.InvalidArgument,
-					"invalid rate limit, are you using a static key without first creating a rate limit with the same key?",
-				)
-			}
-
-			return nil, err
-		}
-	} else {
-
-		oldWorkflowVersion, err = a.repo.Workflow().GetLatestWorkflowVersion(
-			ctx,
-			tenantId,
-			sqlchelpers.UUIDToStr(currWorkflow.ID),
-		)
-
-		if err != nil {
-			return nil, err
-		}
-
-		// workflow exists, look at checksum
-		newCS, err := dagutils.Checksum(createOpts)
-
-		if err != nil {
-			return nil, err
-		}
-
-		if oldWorkflowVersion.WorkflowVersion.Checksum != newCS {
-			workflowVersion, err = a.repo.Workflow().CreateWorkflowVersion(
-				ctx,
-				tenantId,
-				createOpts,
-				oldWorkflowVersion,
-			)
-
-			if err != nil {
-
-				if strings.Contains(err.Error(), "23503") {
-					return nil, status.Error(
-						codes.InvalidArgument,
-						"invalid rate limit, are you using a static key without first creating a rate limit with the same key?",
-					)
-				}
-
-				return nil, err
-			}
-		} else {
-			workflowVersion = oldWorkflowVersion
-		}
+		return nil, err
 	}
 
-	resp := toWorkflowVersion(workflowVersion, nil)
+	resp := toWorkflowVersion(currWorkflow)
 
 	return resp, nil
 }
 
 func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.ScheduleWorkflowRequest) (*contracts.WorkflowVersion, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	workflow, err := a.repo.Workflow().GetWorkflowByName(
+	workflow, err := a.repov1.Workflows().GetWorkflowByName(
 		ctx,
 		tenantId,
 		req.Name,
@@ -152,7 +84,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 
 	workflowId := sqlchelpers.UUIDToStr(workflow.ID)
 
-	currWorkflow, err := a.repo.Workflow().GetLatestWorkflowVersion(
+	currWorkflow, err := a.repov1.Workflows().GetLatestWorkflowVersion(
 		ctx,
 		tenantId,
 		workflowId,
@@ -186,13 +118,11 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		// FIXME: should check whether the scheduled workflow already exists for this parent/child index combo
 	}
 
-	dbSchedules := make([]time.Time, len(req.Schedules))
+	scheduleTimes := make([]time.Time, len(req.Schedules))
 
 	for i, scheduledTrigger := range req.Schedules {
-		dbSchedules[i] = scheduledTrigger.AsTime()
+		scheduleTimes[i] = scheduledTrigger.AsTime()
 	}
-
-	workflowVersionId := sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID)
 
 	var additionalMetadata []byte
 
@@ -200,13 +130,13 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		additionalMetadata = []byte(*req.AdditionalMetadata)
 	}
 
-	if err := repository.ValidateJSONB(additionalMetadata, "additionalMetadata"); err != nil {
+	if err := v1.ValidateJSONB(additionalMetadata, "additionalMetadata"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
 	payloadBytes := []byte(req.Input)
 
-	if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+	if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
@@ -214,29 +144,35 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
 	}
 
-	scheduledRef, err := a.repo.Workflow().CreateSchedules(
-		ctx,
-		tenantId,
-		workflowVersionId,
-		&repository.CreateWorkflowSchedulesOpts{
-			ScheduledTriggers:  dbSchedules,
-			Input:              payloadBytes,
-			AdditionalMetadata: additionalMetadata,
-			Priority:           req.Priority,
-		},
-	)
+	dbSchedules := make([]*sqlcv1.ListScheduledWorkflowsRow, 0)
 
-	if err != nil {
-		return nil, err
+	for _, scheduleTime := range scheduleTimes {
+		scheduledRef, err := a.repov1.WorkflowSchedules().CreateScheduledWorkflow(
+			ctx,
+			tenantId,
+			&v1.CreateScheduledWorkflowRunForWorkflowOpts{
+				WorkflowId:         workflowId,
+				ScheduledTrigger:   scheduleTime,
+				Input:              payloadBytes,
+				AdditionalMetadata: additionalMetadata,
+				Priority:           req.Priority,
+			},
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		dbSchedules = append(dbSchedules, scheduledRef)
 	}
 
-	resp := toWorkflowVersion(currWorkflow, scheduledRef)
+	resp := toWorkflowVersionLegacy(currWorkflow, dbSchedules)
 
 	return resp, nil
 }
 
 func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	if req.Key == "" {
@@ -249,12 +185,12 @@ func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutR
 	limit := int(req.Limit)
 	duration := req.Duration.String()
 
-	createOpts := &repository.UpsertRateLimitOpts{
+	createOpts := &v1.UpsertRateLimitOpts{
 		Limit:    limit,
 		Duration: &duration,
 	}
 
-	_, err := a.repo.RateLimit().UpsertRateLimit(ctx, tenantId, req.Key, createOpts)
+	_, err := a.repov1.RateLimit().UpsertRateLimit(ctx, tenantId, req.Key, createOpts)
 
 	if err != nil {
 		return nil, err
@@ -263,75 +199,71 @@ func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutR
 	return &contracts.PutRateLimitResponse{}, nil
 }
 
-func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.CreateWorkflowVersionOpts, error) {
-	jobs := make([]repository.CreateWorkflowJobOpts, len(req.Opts.Jobs))
+func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflowVersionOpts, error) {
+	// Flatten Jobs[].Steps[] into a single list of tasks
+	allSteps := make([]*contracts.CreateWorkflowStepOpts, 0)
 
-	for i, job := range req.Opts.Jobs {
-		jobCp := job
-		res, err := getCreateJobOpts(jobCp, "DEFAULT")
-
-		if err != nil {
-
-			if errors.Is(err, repository.ErrDagParentNotFound) {
-				// Extract the additional error information
-				return nil, status.Error(
-					codes.InvalidArgument,
-					err.Error(),
-				)
-			}
-
-			return nil, err
+	for _, job := range req.Opts.Jobs {
+		if job == nil {
+			continue
 		}
-
-		jobs[i] = *res
+		allSteps = append(allSteps, job.Steps...)
 	}
 
-	var onFailureJob *repository.CreateWorkflowJobOpts
+	tasks, err := getCreateTaskOpts(allSteps, "DEFAULT")
+	if err != nil {
+		if errors.Is(err, v1.ErrDagParentNotFound) {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				err.Error(),
+			)
+		}
+		return nil, err
+	}
+
+	var onFailureTask *v1.CreateStepOpts
 
 	if req.Opts.OnFailureJob != nil {
-		onFailureJobCp, err := getCreateJobOpts(req.Opts.OnFailureJob, "ON_FAILURE")
-
+		onFailureTasks, err := getCreateTaskOpts(req.Opts.OnFailureJob.Steps, "ON_FAILURE")
 		if err != nil {
 			return nil, err
 		}
-
-		onFailureJob = onFailureJobCp
+		if len(onFailureTasks) > 0 {
+			onFailureTask = &onFailureTasks[0]
+		}
 	}
 
 	var sticky *string
 
 	if req.Opts.Sticky != nil {
-		sticky = repository.StringPtr(req.Opts.Sticky.String())
+		s := req.Opts.Sticky.String()
+		sticky = &s
 	}
 
-	scheduledTriggers := make([]time.Time, 0)
+	var concurrency []v1.CreateConcurrencyOpts
 
-	for _, trigger := range req.Opts.ScheduledTriggers {
-		scheduledTriggers = append(scheduledTriggers, trigger.AsTime())
-	}
-
-	var concurrency *repository.CreateWorkflowConcurrencyOpts
-
-	if req.Opts.Concurrency != nil {
-		if req.Opts.Concurrency.Action == nil && req.Opts.Concurrency.Expression == nil {
+	// we just skip setting concurrency if action is not nil, because this is deprecated in v1 and matches the
+	// behavior of the v1 PutWorkflow endpoint
+	if req.Opts.Concurrency != nil && req.Opts.Concurrency.Action == nil {
+		if req.Opts.Concurrency.Expression == nil {
 			return nil, status.Error(
 				codes.InvalidArgument,
-				"concurrency action or expression is required",
+				"CEL expression is required for concurrency",
 			)
 		}
 
 		var limitStrategy *string
 
 		if req.Opts.Concurrency.LimitStrategy != nil && req.Opts.Concurrency.LimitStrategy.String() != "" {
-			limitStrategy = repository.StringPtr(req.Opts.Concurrency.LimitStrategy.String())
+			s := req.Opts.Concurrency.LimitStrategy.String()
+			limitStrategy = &s
 		}
 
-		concurrency = &repository.CreateWorkflowConcurrencyOpts{
-			Action:        req.Opts.Concurrency.Action,
+		concurrency = append(concurrency, v1.CreateConcurrencyOpts{
 			LimitStrategy: limitStrategy,
-			Expression:    req.Opts.Concurrency.Expression,
+			Expression:    *req.Opts.Concurrency.Expression,
 			MaxRuns:       req.Opts.Concurrency.MaxRuns,
-		}
+		})
 	}
 
 	var cronInput []byte
@@ -340,62 +272,65 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		cronInput = []byte(*req.Opts.CronInput)
 	}
 
-	var kind *string
-
-	if req.Opts.Kind != nil {
-		kind = repository.StringPtr(req.Opts.Kind.String())
-	}
-
-	return &repository.CreateWorkflowVersionOpts{
-		Name:              req.Opts.Name,
-		Concurrency:       concurrency,
-		Description:       &req.Opts.Description,
-		Version:           &req.Opts.Version,
-		EventTriggers:     req.Opts.EventTriggers,
-		CronTriggers:      req.Opts.CronTriggers,
-		CronInput:         cronInput,
-		ScheduledTriggers: scheduledTriggers,
-		Jobs:              jobs,
-		OnFailureJob:      onFailureJob,
-		ScheduleTimeout:   req.Opts.ScheduleTimeout,
-		Sticky:            sticky,
-		Kind:              kind,
-		DefaultPriority:   req.Opts.DefaultPriority,
+	return &v1.CreateWorkflowVersionOpts{
+		Name:            req.Opts.Name,
+		Concurrency:     concurrency,
+		Description:     &req.Opts.Description,
+		EventTriggers:   req.Opts.EventTriggers,
+		CronTriggers:    req.Opts.CronTriggers,
+		CronInput:       cronInput,
+		Tasks:           tasks,
+		OnFailure:       onFailureTask,
+		Sticky:          sticky,
+		DefaultPriority: req.Opts.DefaultPriority,
 	}, nil
 }
 
-func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repository.CreateWorkflowJobOpts, error) {
-	steps := make([]repository.CreateWorkflowStepOpts, len(req.Steps))
+func getCreateTaskOpts(steps []*contracts.CreateWorkflowStepOpts, kind string) ([]v1.CreateStepOpts, error) {
+	if steps == nil {
+		return nil, fmt.Errorf("steps list cannot be nil")
+	}
 
+	tasks := make([]v1.CreateStepOpts, len(steps))
 	stepReadableIdMap := make(map[string]bool)
 
-	for j, step := range req.Steps {
-		stepCp := step
+	for j, step := range steps {
+		if step == nil {
+			return nil, fmt.Errorf("step at index %d is nil", j)
+		}
+
+		if step.Action == "" {
+			return nil, fmt.Errorf("step at index %d is missing required field 'Action'", j)
+		}
+
+		if step.ReadableId == "" {
+			return nil, fmt.Errorf("step at index %d is missing required field 'ReadableId'", j)
+		}
 
 		parsedAction, err := types.ParseActionID(step.Action)
-
 		if err != nil {
 			return nil, err
 		}
 
-		retries := int(stepCp.Retries)
+		retries := int(step.Retries)
+		stepReadableIdMap[step.ReadableId] = true
 
-		stepReadableIdMap[stepCp.ReadableId] = true
+		var affinity map[string]v1.DesiredWorkerLabelOpts
 
-		var affinity map[string]repository.DesiredWorkerLabelOpts
-
-		if stepCp.WorkerLabels != nil {
-			affinity = map[string]repository.DesiredWorkerLabelOpts{}
-			for k, v := range stepCp.WorkerLabels {
+		if step.WorkerLabels != nil {
+			affinity = map[string]v1.DesiredWorkerLabelOpts{}
+			for k, v := range step.WorkerLabels {
+				if v == nil {
+					continue
+				}
 
 				var c *string
-
 				if v.Comparator != nil {
 					cPtr := v.Comparator.String()
 					c = &cPtr
 				}
 
-				(affinity)[k] = repository.DesiredWorkerLabelOpts{
+				affinity[k] = v1.DesiredWorkerLabelOpts{
 					Key:        k,
 					StrValue:   v.StrValue,
 					IntValue:   v.IntValue,
@@ -406,75 +341,94 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 			}
 		}
 
-		steps[j] = repository.CreateWorkflowStepOpts{
-			ReadableId:          stepCp.ReadableId,
+		tasks[j] = v1.CreateStepOpts{
+			ReadableId:          step.ReadableId,
 			Action:              parsedAction.String(),
-			Parents:             stepCp.Parents,
+			Parents:             step.Parents,
 			Retries:             &retries,
 			DesiredWorkerLabels: affinity,
+			TriggerConditions:   make([]v1.CreateStepMatchConditionOpt, 0),
+			RateLimits:          make([]v1.CreateWorkflowStepRateLimitOpts, 0),
 		}
 
-		if stepCp.BackoffFactor != nil {
-			f64 := float64(*stepCp.BackoffFactor)
-			steps[j].RetryBackoffFactor = &f64
+		if step.Parents == nil {
+			tasks[j].Parents = []string{}
+		}
 
-			if stepCp.BackoffMaxSeconds != nil {
-				maxInt := int(*stepCp.BackoffMaxSeconds)
-				steps[j].RetryBackoffMaxSeconds = &maxInt
+		if step.BackoffFactor != nil {
+			f64 := float64(*step.BackoffFactor)
+			tasks[j].RetryBackoffFactor = &f64
+
+			if step.BackoffMaxSeconds != nil {
+				maxInt := int(*step.BackoffMaxSeconds)
+				tasks[j].RetryBackoffMaxSeconds = &maxInt
 			} else {
 				maxInt := 24 * 60 * 60
-				steps[j].RetryBackoffMaxSeconds = &maxInt
+				tasks[j].RetryBackoffMaxSeconds = &maxInt
 			}
 		}
 
-		if stepCp.Timeout != "" {
-			steps[j].Timeout = &stepCp.Timeout
+		if step.Timeout != "" {
+			tasks[j].Timeout = &step.Timeout
 		}
 
-		for _, rateLimit := range stepCp.RateLimits {
-			opt := repository.CreateWorkflowStepRateLimitOpts{
-				Key:       rateLimit.Key,
-				KeyExpr:   rateLimit.KeyExpr,
-				LimitExpr: rateLimit.LimitValuesExpr,
-				UnitsExpr: rateLimit.UnitsExpr,
+		if step.RateLimits != nil {
+			for _, rateLimit := range step.RateLimits {
+				if rateLimit == nil {
+					continue
+				}
+
+				opt := v1.CreateWorkflowStepRateLimitOpts{
+					Key:       rateLimit.Key,
+					KeyExpr:   rateLimit.KeyExpr,
+					LimitExpr: rateLimit.LimitValuesExpr,
+					UnitsExpr: rateLimit.UnitsExpr,
+				}
+
+				if rateLimit.Duration != nil {
+					dur := rateLimit.Duration.String()
+					opt.Duration = &dur
+				}
+
+				if rateLimit.Units != nil {
+					units := int(*rateLimit.Units)
+					opt.Units = &units
+				}
+
+				tasks[j].RateLimits = append(tasks[j].RateLimits, opt)
 			}
-
-			if rateLimit.Duration != nil {
-				dur := rateLimit.Duration.String()
-				opt.Duration = &dur
-			}
-
-			if rateLimit.Units != nil {
-				units := int(*rateLimit.Units)
-				opt.Units = &units
-			}
-
-			steps[j].RateLimits = append(steps[j].RateLimits, opt)
-		}
-
-		if stepCp.UserData != "" {
-			steps[j].UserData = &stepCp.UserData
 		}
 	}
 
 	// Check if parents are in the map
-	for _, step := range req.Steps {
-		for _, parent := range step.Parents {
+	for _, task := range tasks {
+		for _, parent := range task.Parents {
 			if !stepReadableIdMap[parent] {
-				return nil, fmt.Errorf("%w: parent step '%s' not found for step '%s'", repository.ErrDagParentNotFound, parent, step.ReadableId)
+				return nil, fmt.Errorf("%w: parent step '%s' not found for step '%s'", v1.ErrDagParentNotFound, parent, task.ReadableId)
 			}
 		}
 	}
 
-	return &repository.CreateWorkflowJobOpts{
-		Name:        req.Name,
-		Description: &req.Description,
-		Steps:       steps,
-		Kind:        kind,
-	}, nil
+	return tasks, nil
 }
 
-func toWorkflowVersion(workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, scheduledRefs []*dbsqlc.WorkflowTriggerScheduledRef) *contracts.WorkflowVersion {
+func toWorkflowVersion(workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) *contracts.WorkflowVersion {
+	version := &contracts.WorkflowVersion{
+		Id:         sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		CreatedAt:  timestamppb.New(workflowVersion.WorkflowVersion.CreatedAt.Time),
+		UpdatedAt:  timestamppb.New(workflowVersion.WorkflowVersion.UpdatedAt.Time),
+		Order:      workflowVersion.WorkflowVersion.Order,
+		WorkflowId: sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId),
+	}
+
+	if workflowVersion.WorkflowVersion.Version.String != "" {
+		version.Version = workflowVersion.WorkflowVersion.Version.String
+	}
+
+	return version
+}
+
+func toWorkflowVersionLegacy(workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, scheduledRefs []*sqlcv1.ListScheduledWorkflowsRow) *contracts.WorkflowVersion {
 	scheduledWorkflows := make([]*contracts.ScheduledWorkflow, len(scheduledRefs))
 
 	for i, ref := range scheduledRefs {
@@ -498,44 +452,4 @@ func toWorkflowVersion(workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, s
 	}
 
 	return version
-}
-
-// lets grab all of the workflows by name
-
-func getWorkflowsForWorkflowNames(ctx context.Context, tenantId string, reqs []*contracts.TriggerWorkflowRequest, a *AdminServiceImpl) (map[string]*dbsqlc.Workflow, error) {
-
-	workflowNames := make([]string, len(reqs))
-
-	for i, req := range reqs {
-		workflowNames[i] = req.Name
-	}
-
-	workflows, err := a.repo.Workflow().GetWorkflowsByNames(
-		ctx,
-		tenantId,
-		workflowNames,
-	)
-
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "could not get workflows by names: %v", err)
-	}
-
-	workflowMap := make(map[string]*dbsqlc.Workflow)
-
-	for _, w := range workflows {
-
-		workflowMap[w.Name] = w
-
-	}
-
-	return workflowMap, nil
-
-}
-
-func getChildKey(parentStepRunId string, childIndex int, childKey *string) string {
-	if childKey != nil {
-		return fmt.Sprintf("%s-%s", parentStepRunId, *childKey)
-	}
-
-	return fmt.Sprintf("%s-%d", parentStepRunId, childIndex)
 }

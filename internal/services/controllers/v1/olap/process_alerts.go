@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -17,7 +16,7 @@ func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() 
 		o.l.Debug().Msgf("partition: processing tenant alerts")
 
 		// list all tenants
-		tenants, err := o.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
+		tenants, err := o.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV1)
 
 		if err != nil {
 			o.l.Error().Err(err).Msg("could not list tenants")

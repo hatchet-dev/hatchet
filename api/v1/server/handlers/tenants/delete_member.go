@@ -6,17 +6,17 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantMemberDeleteRequestObject) (gen.TenantMemberDeleteResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
-	memberToDelete := ctx.Get("member").(*dbsqlc.PopulateTenantMembersRow)
+	tenantMember := ctx.Get("tenant-member").(*sqlcv1.PopulateTenantMembersRow)
+	memberToDelete := ctx.Get("member").(*sqlcv1.PopulateTenantMembersRow)
 
-	if tenantMember.Role != dbsqlc.TenantMemberRoleOWNER {
+	if tenantMember.Role != sqlcv1.TenantMemberRoleOWNER {
 		return gen.TenantMemberDelete403JSONResponse(
 			apierrors.NewAPIErrors("Only owners can delete members"),
 		), nil
@@ -34,7 +34,7 @@ func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantM
 		), nil
 	}
 
-	err := t.config.APIRepository.Tenant().DeleteTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(memberToDelete.ID))
+	err := t.config.V1.Tenant().DeleteTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(memberToDelete.ID))
 
 	if err != nil {
 		return nil, err

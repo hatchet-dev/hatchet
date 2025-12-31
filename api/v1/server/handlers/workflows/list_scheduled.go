@@ -12,13 +12,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.WorkflowScheduledListRequestObject) (gen.WorkflowScheduledListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	limit := 50
@@ -26,7 +26,7 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 	orderDirection := "DESC"
 	orderBy := "triggerAt"
 
-	listOpts := &repository.ListScheduledWorkflowsOpts{
+	listOpts := &v1.ListScheduledWorkflowsOpts{
 		Limit:          &limit,
 		Offset:         &offset,
 		OrderBy:        &orderBy,
@@ -59,10 +59,10 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 	}
 
 	if request.Params.Statuses != nil {
-		statuses := make([]dbsqlc.WorkflowRunStatus, len(*request.Params.Statuses))
+		statuses := make([]sqlcv1.WorkflowRunStatus, len(*request.Params.Statuses))
 
 		for i, status := range *request.Params.Statuses {
-			statuses[i] = dbsqlc.WorkflowRunStatus(status)
+			statuses[i] = sqlcv1.WorkflowRunStatus(status)
 		}
 
 		listOpts.Statuses = &statuses
@@ -88,7 +88,7 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	scheduled, count, err := t.config.APIRepository.WorkflowRun().ListScheduledWorkflows(dbCtx, tenantId, listOpts)
+	scheduled, count, err := t.config.V1.WorkflowSchedules().ListScheduledWorkflows(dbCtx, tenantId, listOpts)
 
 	if err != nil {
 		return nil, err

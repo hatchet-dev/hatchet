@@ -305,7 +305,7 @@ jobs:
     strategy:
       matrix:
         migrate-strategy: ["latest"]
-        rabbitmq-enabled: ["true"]
+        rabbitmq-enabled: ["true", "false"]
         pg-version: ["15-alpine"]
 
     steps:

@@ -5,7 +5,6 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -36,7 +35,7 @@ type SlotCp struct {
 }
 
 type SchedulerExtension interface {
-	SetTenants(tenants []*dbsqlc.Tenant)
+	SetTenants(tenants []*sqlcv1.Tenant)
 	ReportSnapshot(tenantId string, input *SnapshotInput)
 	PostAssign(tenantId string, input *PostAssignInput)
 	Cleanup() error
@@ -92,7 +91,7 @@ func (e *Extensions) Cleanup() error {
 	return eg.Wait()
 }
 
-func (e *Extensions) SetTenants(tenants []*dbsqlc.Tenant) {
+func (e *Extensions) SetTenants(tenants []*sqlcv1.Tenant) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 

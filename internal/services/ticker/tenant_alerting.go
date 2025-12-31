@@ -6,7 +6,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
 func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
@@ -16,7 +16,7 @@ func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
 
 		t.l.Debug().Msg("ticker: polling expiring tokens")
 
-		expiring_tokens, err := t.repo.Ticker().PollExpiringTokens(ctx)
+		expiring_tokens, err := t.repov1.Ticker().PollExpiringTokens(ctx)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not poll expiring tokens")
@@ -50,7 +50,7 @@ func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 
 		t.l.Debug().Msg("ticker: resolving tenant resource limits")
 
-		err := t.entitlements.TenantLimit().ResolveAllTenantResourceLimits(ctx)
+		err := t.repov1.TenantLimit().ResolveAllTenantResourceLimits(ctx)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not resolve tenant resource limits")
@@ -59,7 +59,7 @@ func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 
 		t.l.Debug().Msg("ticker: polling tenant resource limit alerts")
 
-		alerts, err := t.repo.Ticker().PollTenantResourceLimitAlerts(ctx)
+		alerts, err := t.repov1.Ticker().PollTenantResourceLimitAlerts(ctx)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not poll tenant resource limit alerts")

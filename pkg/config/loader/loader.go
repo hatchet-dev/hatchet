@@ -38,11 +38,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -73,14 +70,8 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 	return configFile, err
 }
 
-type RepositoryOverrides struct {
-	LogsEngineRepository repository.LogsEngineRepository
-	LogsAPIRepository    repository.LogsAPIRepository
-}
-
 type ConfigLoader struct {
-	directory           string
-	RepositoryOverrides RepositoryOverrides
+	directory string
 }
 
 func NewConfigLoader(directory string) *ConfigLoader {
@@ -254,20 +245,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	ch := cache.New(cf.CacheDuration)
 
-	entitlementRepo := postgresdb.NewEntitlementRepository(pool, &scf.Runtime, postgresdb.WithLogger(&l), postgresdb.WithCache(ch))
-
-	meter := metered.NewMetered(entitlementRepo, &l)
-
-	var opts []postgresdb.PostgresRepositoryOpt
-
-	opts = append(opts, postgresdb.WithLogger(&l), postgresdb.WithCache(ch), postgresdb.WithMetered(meter))
-
-	cleanupEngine, engineRepo, err := postgresdb.NewEngineRepository(pool, &scf.Runtime, opts...)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create engine repository: %w", err)
-	}
-
 	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
 
 	if err != nil {
@@ -306,13 +283,19 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DAG:  int32(scf.OLAPStatusUpdates.DagBatchSizeLimit),
 	}
 
-	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, payloadStoreOpts, statusUpdateOpts)
-
-	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create api repository: %w", err)
-	}
+	v1, cleanupV1 := repov1.NewRepository(
+		pool,
+		&l,
+		cf.CacheDuration,
+		retentionPeriod,
+		retentionPeriod,
+		scf.Runtime.MaxInternalRetryCount,
+		taskLimits,
+		payloadStoreOpts,
+		statusUpdateOpts,
+		scf.Runtime.Limits,
+		scf.Runtime.EnforceLimits,
+	)
 
 	if readReplicaPool != nil {
 		v1.OLAP().SetReadReplicaPool(readReplicaPool)
@@ -320,26 +303,14 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	return &database.Layer{
 		Disconnect: func() error {
-			if err := cleanupEngine(); err != nil {
-				return err
-			}
-
 			ch.Stop()
-			meter.Stop()
 
-			if err := cleanupV1(); err != nil {
-				return err
-			}
-
-			return cleanupApiRepo()
+			return cleanupV1()
 		},
-		Pool:                  pool,
-		QueuePool:             pool,
-		APIRepository:         apiRepo,
-		EngineRepository:      engineRepo,
-		EntitlementRepository: entitlementRepo,
-		V1:                    v1,
-		Seed:                  cf.Seed,
+		Pool:      pool,
+		QueuePool: pool,
+		V1:        v1,
+		Seed:      cf.Seed,
 	}, nil
 
 }
@@ -384,7 +355,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	ss, err := cookie.NewUserSessionStore(
-		cookie.WithSessionRepository(dc.APIRepository.UserSession()),
+		cookie.WithSessionRepository(dc.V1.UserSession()),
 		cookie.WithCookieAllowInsecure(cf.Auth.Cookie.Insecure),
 		cookie.WithCookieDomain(cf.Auth.Cookie.Domain),
 		cookie.WithCookieName(cf.Auth.Cookie.Name),
@@ -408,7 +379,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			var cleanupv1 func() error
 
 			cleanupv1, mqv1, err = pgmqv1.NewPostgresMQ(
-				dc.EngineRepository.MessageQueue(),
+				dc.V1.MessageQueue(),
 				pgmqv1.WithLogger(&l),
 				pgmqv1.WithQos(cf.MessageQueue.Postgres.Qos),
 			)
@@ -451,10 +422,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		}
 
 		ing, err = ingestor.NewIngestor(
-			ingestor.WithEventRepository(dc.EngineRepository.Event()),
 			ingestor.WithMessageQueueV1(mqv1),
-			ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
-			ingestor.WithStepRunRepository(dc.EngineRepository.StepRun()),
 			ingestor.WithRepositoryV1(dc.V1),
 		)
 
@@ -485,7 +453,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			Endpoint: cf.SecurityCheck.Endpoint,
 			Logger:   &l,
 			Version:  version,
-		}, dc.APIRepository.SecurityCheck())
+		}, dc.V1.SecurityCheck())
 
 		defer securityCheck.Check()
 	}
@@ -573,7 +541,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	// create a new JWT manager
-	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.EngineRepository.APIToken(), &token.TokenOpts{
+	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.V1.APIToken(), &token.TokenOpts{
 		Issuer:               cf.Runtime.ServerURL,
 		Audience:             cf.Runtime.ServerURL,
 		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
@@ -682,7 +650,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		OpenTelemetry:          cf.OpenTelemetry,
 		Prometheus:             cf.Prometheus,
 		Email:                  emailSvc,
-		TenantAlerter:          alerting.New(dc.EngineRepository, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
+		TenantAlerter:          alerting.New(dc.V1, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,
 		AdditionalLoggers:      cf.AdditionalLoggers,
 		EnableDataRetention:    cf.EnableDataRetention,

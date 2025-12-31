@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 
 	"github.com/rs/zerolog"
 )
@@ -77,7 +77,7 @@ func NewOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId st
 				// list all tenants
 				innerCtx, innerCancel := context.WithTimeout(outerCtx, 5*time.Second)
 
-				tenants, err := p.ListTenantsForController(innerCtx, dbsqlc.TenantMajorEngineVersionV1)
+				tenants, err := p.ListTenantsForController(innerCtx, sqlcv1.TenantMajorEngineVersionV1)
 
 				if err != nil {
 					innerCancel()
@@ -110,7 +110,7 @@ func (p *OperationPool) Cleanup() {
 	})
 }
 
-func (p *OperationPool) setTenants(tenants []*dbsqlc.Tenant) {
+func (p *OperationPool) setTenants(tenants []*sqlcv1.Tenant) {
 	tenantMap := make(map[string]bool)
 
 	for _, t := range tenants {

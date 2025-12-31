@@ -9,6 +9,41 @@ import (
 	"context"
 )
 
+// iteratorForBulkAddMessage implements pgx.CopyFromSource.
+type iteratorForBulkAddMessage struct {
+	rows                 []BulkAddMessageParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForBulkAddMessage) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForBulkAddMessage) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].Payload,
+		r.rows[0].QueueId,
+		r.rows[0].ReadAfter,
+		r.rows[0].ExpiresAt,
+	}, nil
+}
+
+func (r iteratorForBulkAddMessage) Err() error {
+	return nil
+}
+
+func (q *Queries) BulkAddMessage(ctx context.Context, db DBTX, arg []BulkAddMessageParams) (int64, error) {
+	return db.CopyFrom(ctx, []string{"MessageQueueItem"}, []string{"payload", "queueId", "readAfter", "expiresAt"}, &iteratorForBulkAddMessage{rows: arg})
+}
+
 // iteratorForBulkCreateEventTriggers implements pgx.CopyFromSource.
 type iteratorForBulkCreateEventTriggers struct {
 	rows                 []BulkCreateEventTriggersParams

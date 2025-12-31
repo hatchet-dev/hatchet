@@ -4,8 +4,11 @@ sql:
     # database:
     #   uri: "postgres://hatchet:hatchet@localhost:5431/hatchet"
     queries:
+      - api_token.sql
       - concurrency.sql
       - dags.sql
+      - dispatcher.sql
+      - health.sql
       - tasks.sql
       - queue.sql
       - triggers.sql
@@ -13,10 +16,17 @@ sql:
       - lease.sql
       - workers.sql
       - matches.sql
+      - mq.sql
       - olap.sql
       - rate_limits.sql
       - log_line.sql
+      - security_check.sql
+      - slack.sql
       - sleep.sql
+      - sns.sql
+      - tenants.sql
+      - tenant_invites.sql
+      - tenant_limits.sql
       - ticker.sql
       - filters.sql
       - payload-store.sql
@@ -24,6 +34,8 @@ sql:
       - idempotency-keys.sql
       - interval_settings.sql
       - pg_health.sql
+      - users.sql
+      - workflow_schedules.sql
     schema:
       - ../../../../sql/schema/v0.sql
       - ../../../../sql/schema/v1-core.sql

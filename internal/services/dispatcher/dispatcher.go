@@ -15,9 +15,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
@@ -40,13 +39,10 @@ type DispatcherImpl struct {
 	l                           *zerolog.Logger
 	dv                          datautils.DataDecoderValidator
 	v                           validator.Validator
-	repo                        repository.EngineRepository
 	repov1                      v1.Repository
 	cache                       cache.Cacheable
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
-
-	entitlements repository.EntitlementsRepository
 
 	dispatcherId string
 	workers      *workers
@@ -120,9 +116,7 @@ type DispatcherOpts struct {
 	mqv1                        msgqueuev1.MessageQueue
 	l                           *zerolog.Logger
 	dv                          datautils.DataDecoderValidator
-	repo                        repository.EngineRepository
 	repov1                      v1.Repository
-	entitlements                repository.EntitlementsRepository
 	dispatcherId                string
 	alerter                     hatcheterrors.Alerter
 	cache                       cache.Cacheable
@@ -156,21 +150,9 @@ func WithAlerter(a hatcheterrors.Alerter) DispatcherOpt {
 	}
 }
 
-func WithRepository(r repository.EngineRepository) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.repo = r
-	}
-}
-
 func WithRepositoryV1(r v1.Repository) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.repov1 = r
-	}
-}
-
-func WithEntitlementsRepository(r repository.EntitlementsRepository) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.entitlements = r
 	}
 }
 
@@ -221,16 +203,8 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		return nil, fmt.Errorf("v1 task queue is required. use WithMessageQueueV1")
 	}
 
-	if opts.repo == nil {
-		return nil, fmt.Errorf("repository is required. use WithRepository")
-	}
-
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("v1 repository is required. use WithRepositoryV1")
-	}
-
-	if opts.entitlements == nil {
-		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
 	}
 
 	if opts.cache == nil {
@@ -258,9 +232,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		l:                           opts.l,
 		dv:                          opts.dv,
 		v:                           validator.NewDefaultValidator(),
-		repo:                        opts.repo,
 		repov1:                      opts.repov1,
-		entitlements:                opts.entitlements,
 		dispatcherId:                opts.dispatcherId,
 		workers:                     &workers{},
 		s:                           s,
@@ -277,7 +249,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	d.sharedBufferedReaderv1 = msgqueuev1.NewSharedBufferedTenantReader(d.mqv1)
 
 	// register the dispatcher by creating a new dispatcher in the database
-	dispatcher, err := d.repo.Dispatcher().CreateNewDispatcher(ctx, &repository.CreateDispatcherOpts{
+	dispatcher, err := d.repov1.Dispatcher().CreateNewDispatcher(ctx, &v1.CreateDispatcherOpts{
 		ID: d.dispatcherId,
 	})
 
@@ -360,7 +332,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer deleteCancel()
 
-		err = d.repo.Dispatcher().Delete(deleteCtx, dispatcherId)
+		err = d.repov1.Dispatcher().Delete(deleteCtx, dispatcherId)
 		if err != nil {
 			return fmt.Errorf("could not delete dispatcher: %w", err)
 		}
@@ -404,7 +376,7 @@ func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		now := time.Now().UTC()
 
 		// update the heartbeat
-		_, err := d.repo.Dispatcher().UpdateDispatcher(ctx, d.dispatcherId, &repository.UpdateDispatcherOpts{
+		_, err := d.repov1.Dispatcher().UpdateDispatcher(ctx, d.dispatcherId, &v1.UpdateDispatcherOpts{
 			LastHeartbeatAt: &now,
 		})
 

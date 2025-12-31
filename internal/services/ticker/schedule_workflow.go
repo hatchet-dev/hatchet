@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
@@ -16,7 +16,7 @@ func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
 
 		t.l.Debug().Msgf("ticker: polling workflow schedules")
 
-		scheduledWorkflows, err := t.repo.Ticker().PollScheduledWorkflows(ctx, t.tickerId)
+		scheduledWorkflows, err := t.repov1.Ticker().PollScheduledWorkflows(ctx, t.tickerId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not poll workflow schedules")
@@ -61,7 +61,7 @@ func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
 	}
 }
 
-func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkflow *dbsqlc.PollScheduledWorkflowsRow) error {
+func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkflow *sqlcv1.PollScheduledWorkflowsRow) error {
 	t.l.Debug().Msg("ticker: scheduling workflow")
 
 	// parse trigger time
@@ -111,14 +111,14 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	return nil
 }
 
-func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId string, scheduled *dbsqlc.PollScheduledWorkflowsRow) func() {
+func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId string, scheduled *sqlcv1.PollScheduledWorkflowsRow) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
 
-		workflowVersion, err := t.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
+		workflowVersion, err := t.repov1.Workflows().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not get workflow version")

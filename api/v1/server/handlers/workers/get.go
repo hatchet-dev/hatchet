@@ -8,18 +8,18 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	transformersv1 "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
 	return t.workerGetV1(ctx, tenant, request)
 }
 
-func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
-	workerV0 := ctx.Get("worker").(*dbsqlc.GetWorkerByIdRow)
+func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
+	workerV0 := ctx.Get("worker").(*sqlcv1.GetWorkerByIdRow)
 
 	worker, err := t.config.V1.Workers().GetWorkerById(sqlchelpers.UUIDToStr(workerV0.Worker.ID))
 
@@ -37,7 +37,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		return nil, err
 	}
 
-	workerIdToActions, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
+	workerIdToActions, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
 		[]string{sqlchelpers.UUIDToStr(worker.Worker.ID)},
 	)
@@ -46,7 +46,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		return nil, err
 	}
 
-	workerWorkflows, err := t.config.APIRepository.Worker().GetWorkerWorkflowsByWorkerId(tenant.ID.String(), worker.Worker.ID.String())
+	workerWorkflows, err := t.config.V1.Workers().GetWorkerWorkflowsByWorkerId(tenant.ID.String(), worker.Worker.ID.String())
 
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 	workerResp.RecentStepRuns = &respStepRuns
 	workerResp.Slots = transformersv1.ToSlotState(slotState, slots)
 
-	affinity, err := t.config.APIRepository.Worker().ListWorkerLabels(
+	affinity, err := t.config.V1.Workers().ListWorkerLabels(
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
 		sqlchelpers.UUIDToStr(worker.Worker.ID),
 	)

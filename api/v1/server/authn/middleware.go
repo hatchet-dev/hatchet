@@ -13,8 +13,8 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 type AuthN struct {
@@ -169,7 +169,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		return forbidden
 	}
 
-	user, err := a.config.APIRepository.User().GetUserByID(c.Request().Context(), userID)
+	user, err := a.config.V1.User().GetUserByID(c.Request().Context(), userID)
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error getting user by id")
 
@@ -192,7 +192,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	// a tenant id must exist in the context in order for the bearer auth to succeed, since
 	// these tokens are tenant-scoped
-	queriedTenant, ok := c.Get("tenant").(*dbsqlc.Tenant)
+	queriedTenant, ok := c.Get("tenant").(*sqlcv1.Tenant)
 
 	if !ok {
 		a.l.Debug().Msgf("tenant not found in context")

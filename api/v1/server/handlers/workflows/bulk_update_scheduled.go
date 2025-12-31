@@ -8,13 +8,13 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request gen.WorkflowScheduledBulkUpdateRequestObject) (gen.WorkflowScheduledBulkUpdateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	if request.Body == nil {
@@ -45,12 +45,12 @@ func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request 
 			chunkUUIDByStr[idStr] = u.Id
 		}
 
-		metaById, err := t.config.APIRepository.WorkflowRun().ScheduledWorkflowMetaByIds(dbCtx, tenantId, chunkIds)
+		metaById, err := t.config.V1.WorkflowSchedules().ScheduledWorkflowMetaByIds(dbCtx, tenantId, chunkIds)
 		if err != nil {
 			return nil, err
 		}
 
-		toUpdate := make([]repository.ScheduledWorkflowUpdate, 0, len(chunk))
+		toUpdate := make([]v1.ScheduledWorkflowUpdate, 0, len(chunk))
 		for _, u := range chunk {
 			id := u.Id
 			idStr := id.String()
@@ -68,13 +68,13 @@ func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request 
 				continue
 			}
 
-			toUpdate = append(toUpdate, repository.ScheduledWorkflowUpdate{
+			toUpdate = append(toUpdate, v1.ScheduledWorkflowUpdate{
 				Id:        idStr,
 				TriggerAt: u.TriggerAt,
 			})
 		}
 
-		updatedIds, err := t.config.APIRepository.WorkflowRun().BulkUpdateScheduledWorkflows(dbCtx, tenantId, toUpdate)
+		updatedIds, err := t.config.V1.WorkflowSchedules().BulkUpdateScheduledWorkflows(dbCtx, tenantId, toUpdate)
 		if err != nil {
 			return nil, err
 		}

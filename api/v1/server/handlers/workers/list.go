@@ -9,19 +9,19 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	transformersv1 "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
 	switch tenant.Version {
-	case dbsqlc.TenantMajorEngineVersionV0:
+	case sqlcv1.TenantMajorEngineVersionV0:
 		return t.workerListV0(ctx, tenant, request)
-	case dbsqlc.TenantMajorEngineVersionV1:
+	case sqlcv1.TenantMajorEngineVersionV1:
 		return t.workerListV1(ctx, tenant, request)
 	default:
 		err := fmt.Errorf("unsupported tenant version: %s", string(tenant.Version))
@@ -29,13 +29,13 @@ func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListReque
 	}
 }
 
-func (t *WorkerService) workerListV0(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
+func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
 	reqCtx := ctx.Request().Context()
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
-	opts := &repository.ListWorkersOpts{
+	opts := &v1.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
 	}
 
@@ -46,7 +46,7 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *dbsqlc.Tenant, re
 		telemetry.AttributeKV{Key: "tenant.id", Value: tenant.ID},
 	)
 
-	workers, err := t.config.APIRepository.Worker().ListWorkers(tenantId, opts)
+	workers, err := t.config.V1.Workers().ListWorkers(tenantId, opts)
 
 	if err != nil {
 		listSpan.RecordError(err)
@@ -73,13 +73,13 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *dbsqlc.Tenant, re
 	), nil
 }
 
-func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
+func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
 	reqCtx := ctx.Request().Context()
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
-	opts := &repository.ListWorkersOpts{
+	opts := &v1.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
 	}
 
@@ -119,7 +119,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, re
 		telemetry.AttributeKV{Key: "workers.unique_ids.count", Value: len(workerIds)},
 	)
 
-	workerIdToActionIds, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
+	workerIdToActionIds, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
 		sqlchelpers.UUIDToStr(tenant.ID),
 		workerIds,
 	)

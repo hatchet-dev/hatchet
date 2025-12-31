@@ -6,14 +6,14 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdatePasswordRequestObject) (gen.UserUpdatePasswordResponseObject, error) {
 	// determine if the user exists before attempting to write the user
-	existingUser := ctx.Get("user").(*dbsqlc.User)
+	existingUser := ctx.Get("user").(*sqlcv1.User)
 
 	if !u.config.Runtime.AllowChangePassword {
 		return gen.UserUpdatePassword405JSONResponse(
@@ -37,27 +37,27 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 
 	userId := sqlchelpers.UUIDToStr(existingUser.ID)
 
-	userPass, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), userId)
+	userPass, err := u.config.V1.User().GetUserPassword(ctx.Request().Context(), userId)
 
 	if err != nil {
 		u.config.Logger.Err(err).Msg("failed to get user password")
 		return gen.UserUpdatePassword400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
-	if verified, err := repository.VerifyPassword(userPass.Hash, request.Body.Password); !verified || err != nil {
+	if verified, err := v1.VerifyPassword(userPass.Hash, request.Body.Password); !verified || err != nil {
 		return gen.UserUpdatePassword400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
 	// Update the user
 
-	newPass, err := repository.HashPassword(request.Body.NewPassword)
+	newPass, err := v1.HashPassword(request.Body.NewPassword)
 
 	if err != nil {
 		u.config.Logger.Err(err).Msg("failed to hash new password")
 		return gen.UserUpdatePassword400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
-	user, err := u.config.APIRepository.User().UpdateUser(ctx.Request().Context(), userId, &repository.UpdateUserOpts{
+	user, err := u.config.V1.User().UpdateUser(ctx.Request().Context(), userId, &v1.UpdateUserOpts{
 		Password: newPass,
 	})
 

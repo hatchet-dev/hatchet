@@ -8,8 +8,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/random"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 type SessionHelpers struct {
@@ -22,7 +22,7 @@ func NewSessionHelpers(config *server.ServerConfig) *SessionHelpers {
 	}
 }
 
-func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *dbsqlc.User) error {
+func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) error {
 	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
 
 	if err != nil {
