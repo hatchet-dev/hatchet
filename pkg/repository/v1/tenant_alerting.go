@@ -74,10 +74,10 @@ type tenantAlertingRepository struct {
 	cache cache.Cacheable
 }
 
-func newTenantAlertingRepository(shared *sharedRepository) TenantAlertingRepository {
+func newTenantAlertingRepository(shared *sharedRepository, cacheDuration time.Duration) TenantAlertingRepository {
 	return &tenantAlertingRepository{
 		sharedRepository: shared,
-		cache:            cache.New(30 * time.Second),
+		cache:            cache.New(cacheDuration),
 	}
 }
 

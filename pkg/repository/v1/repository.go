@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -102,7 +101,7 @@ func NewRepository(
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits)
+	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
@@ -131,9 +130,9 @@ func NewRepository(
 		slack:             newSlackRepository(shared),
 		sns:               newSNSRepository(shared),
 		tenantInvite:      newTenantInviteRepository(shared),
-		tenantLimit:       newTenantLimitRepository(shared, tenantLimitConfig, enforceLimits),
-		tenantAlerting:    newTenantAlertingRepository(shared),
-		tenant:            newTenantRepository(shared, sqlcv1.TenantMajorEngineVersionV1),
+		tenantLimit:       newTenantLimitRepository(shared, tenantLimitConfig, enforceLimits, cacheDuration),
+		tenantAlerting:    newTenantAlertingRepository(shared, cacheDuration),
+		tenant:            newTenantRepository(shared, cacheDuration),
 		user:              newUserRepository(shared),
 		userSession:       newUserSessionRepository(shared),
 		workflowSchedules: newWorkflowScheduleRepository(shared),

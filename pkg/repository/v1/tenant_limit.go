@@ -62,13 +62,13 @@ type tenantLimitRepository struct {
 	c             cache.Cacheable
 }
 
-func newTenantLimitRepository(shared *sharedRepository, s limits.LimitConfigFile, enforceLimits bool) TenantLimitRepository {
+func newTenantLimitRepository(shared *sharedRepository, s limits.LimitConfigFile, enforceLimits bool, cacheDuration time.Duration) TenantLimitRepository {
 	return &tenantLimitRepository{
 		sharedRepository: shared,
 		config:           s,
 		enforceLimits:    enforceLimits,
 		plans:            nil,
-		c:                cache.New(time.Second * 30),
+		c:                cache.New(cacheDuration),
 	}
 }
 

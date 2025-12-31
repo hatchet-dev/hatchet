@@ -176,11 +176,11 @@ type tenantRepository struct {
 	defaultTenantVersion sqlcv1.TenantMajorEngineVersion
 }
 
-func newTenantRepository(shared *sharedRepository, defaultTenantVersion sqlcv1.TenantMajorEngineVersion) TenantRepository {
+func newTenantRepository(shared *sharedRepository, cacheDuration time.Duration) TenantRepository {
 	return &tenantRepository{
 		sharedRepository:     shared,
-		cache:                cache.New(5 * time.Second),
-		defaultTenantVersion: defaultTenantVersion,
+		cache:                cache.New(cacheDuration),
+		defaultTenantVersion: sqlcv1.TenantMajorEngineVersionV1,
 	}
 }
 
