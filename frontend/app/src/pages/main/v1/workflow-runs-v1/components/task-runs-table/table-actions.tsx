@@ -17,8 +17,18 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
     let baseActions = [
       !hideCancelAndReplayButtons && (
         <div className="flex flex-row gap-x-1">
-          <CancelMenuItem />
-          <ReplayMenuItem />
+          <TaskRunActionButton
+            actionType="cancel"
+            disabled={false}
+            showModal
+            showLabel={false}
+          />
+          <TaskRunActionButton
+            actionType="replay"
+            disabled={false}
+            showModal
+            showLabel={false}
+          />
         </div>
       ),
     ];
@@ -38,28 +48,4 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
   }, [onTriggerWorkflow, hideTriggerRunButton, hideCancelAndReplayButtons]);
 
   return <>{actions}</>;
-};
-
-const CancelMenuItem = () => {
-  return (
-    <div className="w-full">
-      <TaskRunActionButton
-        actionType="cancel"
-        disabled={false}
-        showModal
-        showLabel={false}
-      />
-    </div>
-  );
-};
-
-const ReplayMenuItem = () => {
-  return (
-    <TaskRunActionButton
-      actionType="replay"
-      disabled={false}
-      showModal
-      showLabel={false}
-    />
-  );
 };
