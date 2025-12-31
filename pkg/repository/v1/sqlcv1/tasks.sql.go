@@ -580,13 +580,12 @@ WITH lookup_rows AS (
         t.parent_task_id,
         t.child_index,
         t.child_key,
-        d.external_id AS workflow_run_external_id
+        t.step_readable_id,
+        l.external_id AS workflow_run_external_id
     FROM
         lookup_rows l
     JOIN
-        v1_dag d ON d.id = l.dag_id AND d.inserted_at = l.inserted_at
-    JOIN
-        v1_dag_to_task dt ON dt.dag_id = d.id AND dt.dag_inserted_at = d.inserted_at
+        v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
     JOIN
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     WHERE
@@ -604,6 +603,7 @@ SELECT
     t.parent_task_id,
     t.child_index,
     t.child_key,
+    t.step_readable_id,
     t.external_id AS workflow_run_external_id
 FROM
     lookup_rows l
@@ -615,7 +615,7 @@ WHERE
 UNION ALL
 
 SELECT
-    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, workflow_run_external_id
+    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id
 FROM
     tasks_from_dags
 `
@@ -637,6 +637,7 @@ type FlattenExternalIdsRow struct {
 	ParentTaskID          pgtype.Int8        `json:"parent_task_id"`
 	ChildIndex            pgtype.Int8        `json:"child_index"`
 	ChildKey              pgtype.Text        `json:"child_key"`
+	StepReadableID        string             `json:"step_readable_id"`
 	WorkflowRunExternalID pgtype.UUID        `json:"workflow_run_external_id"`
 }
 
@@ -662,6 +663,7 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 			&i.ParentTaskID,
 			&i.ChildIndex,
 			&i.ChildKey,
+			&i.StepReadableID,
 			&i.WorkflowRunExternalID,
 		); err != nil {
 			return nil, err
@@ -1380,6 +1382,64 @@ func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTa
 			&i.WorkflowRunID,
 			&i.Output,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaskRunningStatuses = `-- name: ListTaskRunningStatuses :many
+WITH inputs AS (
+    SELECT
+        UNNEST($2::bigint[]) AS task_id,
+        UNNEST($3::timestamptz[]) AS task_inserted_at,
+        UNNEST($4::integer[]) AS task_retry_count
+)
+
+SELECT
+    t.external_id,
+    (tr.task_id IS NOT NULL)::BOOLEAN AS is_running
+FROM v1_task t
+LEFT JOIN v1_task_runtime tr ON (t.id, t.inserted_at, t.retry_count) = (tr.task_id, tr.task_inserted_at, tr.retry_count)
+WHERE
+    t.tenant_id = $1::uuid
+    AND (t.id, t.inserted_at, t.retry_count) IN (
+        SELECT task_id, task_inserted_at, task_retry_count
+        FROM inputs
+    )
+`
+
+type ListTaskRunningStatusesParams struct {
+	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
+}
+
+type ListTaskRunningStatusesRow struct {
+	ExternalID pgtype.UUID `json:"external_id"`
+	IsRunning  bool        `json:"is_running"`
+}
+
+func (q *Queries) ListTaskRunningStatuses(ctx context.Context, db DBTX, arg ListTaskRunningStatusesParams) ([]*ListTaskRunningStatusesRow, error) {
+	rows, err := db.Query(ctx, listTaskRunningStatuses,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Taskretrycounts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTaskRunningStatusesRow
+	for rows.Next() {
+		var i ListTaskRunningStatusesRow
+		if err := rows.Scan(&i.ExternalID, &i.IsRunning); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

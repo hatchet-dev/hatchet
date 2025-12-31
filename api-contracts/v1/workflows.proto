@@ -13,6 +13,7 @@ service AdminService {
     rpc CancelTasks(CancelTasksRequest) returns (CancelTasksResponse);
     rpc ReplayTasks(ReplayTasksRequest) returns (ReplayTasksResponse);
     rpc TriggerWorkflowRun(TriggerWorkflowRunRequest) returns (TriggerWorkflowRunResponse);
+    rpc GetRunDetails(GetRunDetailsRequest) returns (GetRunDetailsResponse);
 }
 
 message CancelTasksRequest {
@@ -66,6 +67,15 @@ enum RateLimitDuration {
     MONTH = 5;
     YEAR = 6;
 }
+
+enum RunStatus {
+    QUEUED = 0;
+    RUNNING = 1;
+    COMPLETED = 2;
+    FAILED = 3;
+    CANCELLED = 4;
+}
+
 
 // CreateWorkflowVersionRequest represents options to create a workflow version.
 message CreateWorkflowVersionRequest {
@@ -172,4 +182,23 @@ message CreateTaskRateLimit {
 message CreateWorkflowVersionResponse {
     string id = 1;
     string workflow_id = 2;
+}
+
+message GetRunDetailsRequest {
+    string external_id = 1; // (required) the external id (uuid) of the workflow run
+}
+
+message TaskRunDetail {
+    string external_id = 1; // the external id (uuid) of the task run
+    RunStatus status = 2; // the status of the task run
+    optional string error = 3; // (optional) error message from the task run, if any
+    optional bytes output = 4; // (optional) the output payload for the task run
+    string readable_id = 5; // the readable id of the task
+}
+
+message GetRunDetailsResponse {
+    bytes input = 1; // the input payload for the workflow run
+    RunStatus status = 2; // the status of the workflow run
+    map<string, TaskRunDetail> task_runs = 3; // map of task run external ids to their details
+    bool done = 4; // indicates if the workflow run is done
 }

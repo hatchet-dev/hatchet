@@ -123,6 +123,22 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 	}
 }
 
+func (r *sharedRepository) V1StepRunDataFromBytes(b []byte) (*V1StepRunData, error) {
+	if len(b) == 0 {
+		return nil, nil
+	}
+
+	out := &V1StepRunData{}
+
+	err := json.Unmarshal(b, out)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
 type V1StepRunData struct {
 	Input       map[string]interface{}            `json:"input"`
 	TriggeredBy string                            `json:"triggered_by"`
@@ -145,6 +161,20 @@ func (v1 *V1StepRunData) Bytes() []byte {
 
 	if err != nil {
 		return []byte("{}")
+	}
+
+	return out
+}
+
+func (v1 *V1StepRunData) InputBytes() []byte {
+	if v1 == nil {
+		return nil
+	}
+
+	out, err := json.Marshal(v1.Input)
+
+	if err != nil {
+		return nil
 	}
 
 	return out
