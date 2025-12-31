@@ -17,7 +17,7 @@ describe('Error pages', () => {
             match,
             `expected tenant in pathname: ${pathname}`,
           ).to.not.equal(null);
-          return match![1];
+          return (match || [])[1];
         });
     }
 

@@ -408,6 +408,7 @@ export function Waterfall({
     const processed = new Set<string>();
 
     while (taskQueue.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const currentTaskId = taskQueue.shift()!;
 
       if (processed.has(currentTaskId)) {
