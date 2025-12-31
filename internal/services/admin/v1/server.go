@@ -17,6 +17,7 @@ import (
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/internal/statusutils"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -426,29 +427,6 @@ func (a *AdminServiceImpl) runStatusToProto(status string) contracts.RunStatus {
 	}
 }
 
-func (a *AdminServiceImpl) deriveWorkflowRunStatus(ctx context.Context, statuses []string) contracts.RunStatus {
-	uniqueStatuses := listutils.Uniq(statuses)
-
-	if len(uniqueStatuses) == 1 {
-		return a.runStatusToProto(uniqueStatuses[0])
-	}
-
-	if listutils.Any(uniqueStatuses, "FAILED") {
-		return a.runStatusToProto("FAILED")
-	}
-
-	if listutils.Any(uniqueStatuses, "RUNNING") || listutils.Any(uniqueStatuses, "QUEUED") {
-		return a.runStatusToProto("RUNNING")
-	}
-
-	if listutils.Any(uniqueStatuses, "CANCELLED") {
-		return a.runStatusToProto("CANCELLED")
-	}
-
-	// should never hit this case, here to avoid panics
-	return a.runStatusToProto("COMPLETED")
-}
-
 func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.GetRunDetailsRequest) (*contracts.GetRunDetailsResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
@@ -471,14 +449,19 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 
 	taskRunDetails := make(map[string]*contracts.TaskRunDetail)
 
-	statuses := make([]string, 0)
+	statuses := make([]statusutils.V1RunStatus, 0)
 
 	for readableId, details := range details.ReadableIdToDetails {
-		status := a.runStatusToProto(details.Status)
+		status, err := details.Status.ToProto()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not convert status to proto: %w", err)
+		}
+
 		statuses = append(statuses, details.Status)
 
 		taskRunDetails[string(readableId)] = &contracts.TaskRunDetail{
-			Status:     status,
+			Status:     *status,
 			Error:      details.Error,
 			Output:     details.OutputPayload,
 			ReadableId: string(readableId),
@@ -487,12 +470,22 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 	}
 
 	done := !listutils.Any(statuses, "QUEUED") && !listutils.Any(statuses, "RUNNING")
-	derivedWorkflowRunStatus := a.deriveWorkflowRunStatus(ctx, statuses)
+	derivedWorkflowRunStatus, err := statusutils.DeriveWorkflowRunStatus(ctx, statuses)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not derive workflow run status: %w", err)
+	}
+
+	derivedStatusPtr, err := derivedWorkflowRunStatus.ToProto()
+
+	if err != nil {
+		return nil, fmt.Errorf("could not convert derived status to proto: %w", err)
+	}
 
 	return &contracts.GetRunDetailsResponse{
 		Input:    details.InputPayload,
 		TaskRuns: taskRunDetails,
-		Status:   derivedWorkflowRunStatus,
+		Status:   *derivedStatusPtr,
 		Done:     done,
 	}, nil
 }
