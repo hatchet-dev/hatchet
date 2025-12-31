@@ -25,7 +25,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Lint
         working-directory: frontend/app
-        run: npm run lint:check
+        run: pnpm lint:check
 
   build:
     runs-on: ubuntu-latest
