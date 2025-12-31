@@ -10,8 +10,8 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 // runPollCronSchedules acquires a list of cron schedules from the database and schedules any which are not
@@ -24,7 +24,7 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 
 		t.l.Debug().Msgf("ticker: polling cron schedules")
 
-		crons, err := t.repo.Ticker().PollCronSchedules(ctx, t.tickerId)
+		crons, err := t.repov1.Ticker().PollCronSchedules(ctx, t.tickerId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not poll cron schedules")
@@ -66,7 +66,7 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 	}
 }
 
-func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCronSchedulesRow) error {
+func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCronSchedulesRow) error {
 	t.l.Debug().Msg("ticker: scheduling cron")
 
 	tenantId := sqlchelpers.UUIDToStr(cron.TenantId)
@@ -160,11 +160,11 @@ func (t *TickerImpl) handleCancelCron(ctx context.Context, key string) error {
 	return nil
 }
 
-func getCronKey(cron *dbsqlc.PollCronSchedulesRow) string {
+func getCronKey(cron *sqlcv1.PollCronSchedulesRow) string {
 	workflowVersionId := sqlchelpers.UUIDToStr(cron.WorkflowVersionId)
 
 	switch cron.Method {
-	case dbsqlc.WorkflowTriggerCronRefMethodsAPI:
+	case sqlcv1.WorkflowTriggerCronRefMethodsAPI:
 		return fmt.Sprintf("API-%s-%s-%s", workflowVersionId, cron.Cron, cron.Name.String)
 	default:
 		return fmt.Sprintf("DEFAULT-%s-%s", workflowVersionId, cron.Cron)

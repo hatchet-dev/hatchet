@@ -85,14 +85,9 @@ func (r *apiRepository) WorkflowRun() repository.WorkflowRunAPIRepository {
 }
 
 type engineRepository struct {
-	ticker      repository.TickerEngineRepository
 	workflow    repository.WorkflowEngineRepository
 	workflowRun repository.WorkflowRunEngineRepository
 	streamEvent repository.StreamEventsEngineRepository
-}
-
-func (r *engineRepository) Ticker() repository.TickerEngineRepository {
-	return r.ticker
 }
 
 func (r *engineRepository) Workflow() repository.WorkflowEngineRepository {
@@ -138,7 +133,6 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 			return cleanup()
 		}, &engineRepository{
-			ticker:      NewTickerRepository(pool, opts.v, opts.l),
 			workflow:    NewWorkflowEngineRepository(shared, opts.cache),
 			workflowRun: NewWorkflowRunEngineRepository(shared, cf),
 			streamEvent: NewStreamEventsEngineRepository(pool, opts.v, opts.l),

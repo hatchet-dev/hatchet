@@ -10,7 +10,6 @@ type APIRepository interface {
 }
 
 type EngineRepository interface {
-	Ticker() TickerEngineRepository
 	Workflow() WorkflowEngineRepository
 	WorkflowRun() WorkflowRunEngineRepository
 	StreamEvent() StreamEventsEngineRepository

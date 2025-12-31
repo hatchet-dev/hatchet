@@ -10,9 +10,9 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting/alerttypes"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 
 	"github.com/hatchet-dev/timediff"
 )
@@ -104,7 +104,7 @@ func (t *TenantAlertManager) getFailedItemsV1(failedRuns []*v1.WorkflowRunData) 
 	return res
 }
 
-func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId string, token *dbsqlc.PollExpiringTokensRow) error {
+func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId string, token *sqlcv1.PollExpiringTokensRow) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -149,7 +149,7 @@ func (t *TenantAlertManager) sendExpiringTokenAlert(ctx context.Context, tenantA
 	return nil
 }
 
-func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId string, alert *dbsqlc.TenantResourceLimitAlert) error {
+func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId string, alert *sqlcv1.TenantResourceLimitAlert) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

@@ -149,7 +149,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 	t.l.Debug().Msgf("starting ticker %s", t.tickerId)
 
 	// register the ticker
-	_, err := t.repo.Ticker().CreateNewTicker(ctx, &repository.CreateTickerOpts{
+	_, err := t.repov1.Ticker().CreateNewTicker(ctx, &v1.CreateTickerOpts{
 		ID: t.tickerId,
 	})
 
@@ -253,7 +253,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		defer deleteCancel()
 
 		// delete the ticker
-		err = t.repo.Ticker().DeactivateTicker(deleteCtx, t.tickerId)
+		err = t.repov1.Ticker().DeactivateTicker(deleteCtx, t.tickerId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not delete ticker")
@@ -273,7 +273,7 @@ func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		now := time.Now().UTC()
 
 		// update the heartbeat
-		_, err := t.repo.Ticker().UpdateTicker(ctx, t.tickerId, &repository.UpdateTickerOpts{
+		_, err := t.repov1.Ticker().UpdateTicker(ctx, t.tickerId, &v1.UpdateTickerOpts{
 			LastHeartbeatAt: &now,
 		})
 
