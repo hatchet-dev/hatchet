@@ -175,6 +175,10 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
+        AND (
+            sqlc.narg('parentTaskExternalId')::UUID IS NULL
+            OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID
+        )
 		AND (
 			sqlc.narg('triggeringEventExternalId')::UUID IS NULL
 			OR (id, inserted_at) IN (
