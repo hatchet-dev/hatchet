@@ -3968,25 +3968,13 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 
 	if !isDag && len(input) > 0 {
 		// if it's a standalone task, we need to extract the "input" field from the payload
-		var parsedInput map[string]any
-
-		err = json.Unmarshal(input, &parsedInput)
+		stepRunData, err := r.V1StepRunDataFromBytes(input)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse task input payload: %w", err)
+			return nil, fmt.Errorf("failed to parse step run data: %w", err)
 		}
 
-		extractedInput, ok := parsedInput["input"]
-
-		if ok {
-			extractedInputBytes, err := json.Marshal(extractedInput)
-
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal extracted task input payload: %w", err)
-			}
-
-			input = extractedInputBytes
-		}
+		input = stepRunData.InputBytes()
 	}
 
 	taskRunDetails := make(map[StepReadableId]TaskRunDetails)
