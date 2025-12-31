@@ -231,7 +231,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         style={
           headerSidebarWidth
             ? ({
-                ['--v1-sidebar-width' as any]: `${headerSidebarWidth}px`,
+                '--v1-sidebar-width': `${headerSidebarWidth}px`,
               } as React.CSSProperties)
             : undefined
         }

@@ -4,6 +4,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
 import { TenantPaymentMethod } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
+import { AxiosError } from 'axios';
 import { useState } from 'react';
 import {
   FaCcAmex,
@@ -49,7 +50,7 @@ export function PaymentMethods({
         window.location.href = link.data.url;
       }
     } catch (e) {
-      handleApiError(e as any);
+      handleApiError(e as AxiosError);
     } finally {
       setLoading(false);
     }

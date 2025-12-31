@@ -18,7 +18,7 @@ import {
   Webhook,
 } from 'lucide-react';
 
-interface WhatBuildingFormProps
+export interface WhatBuildingFormProps
   extends OnboardingStepProps<string | string[]> {}
 
 export function WhatBuildingForm({

@@ -276,7 +276,7 @@ export default function DemoTemplate() {
             console.error('Failed to get token from response');
           }
         })
-        .catch((error: any) => {
+        .catch((error) => {
           console.error('Failed to generate token:', error);
         })
         .finally(() => {

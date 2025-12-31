@@ -13,6 +13,7 @@ import { appRoutes } from '@/router';
 import { PlusIcon, ArrowUpIcon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { AxiosError } from 'axios';
 import { useEffect, useState } from 'react';
 
 export default function ManagedWorkers() {
@@ -57,7 +58,7 @@ export default function ManagedWorkers() {
       const link = await cloudApi.billingPortalLinkGet(tenant!.metadata.id);
       window.open(link.data.url, '_blank');
     } catch (e) {
-      handleApiError(e as any);
+      handleApiError(e as AxiosError);
     } finally {
       setPortalLoading(false);
     }

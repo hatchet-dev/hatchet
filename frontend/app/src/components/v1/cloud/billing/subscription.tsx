@@ -23,6 +23,7 @@ import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
 import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import { useMutation } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface SubscriptionProps {
@@ -59,7 +60,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       const link = await cloudApi.billingPortalLinkGet(tenantId);
       window.open(link.data.url, '_blank');
     } catch (e) {
-      handleApiError(e as any);
+      handleApiError(e as AxiosError);
     } finally {
       setPortalLoading(false);
     }

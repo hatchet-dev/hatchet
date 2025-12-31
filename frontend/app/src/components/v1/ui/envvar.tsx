@@ -44,7 +44,11 @@ const EnvGroupArray: React.FC<PropsType> = ({
     }
   }, [setValues, values]);
 
-  const handleValueChange = (index: number, key: string, value: any) => {
+  const handleValueChange = (
+    index: number,
+    key: string,
+    value: string | boolean,
+  ) => {
     const newValues = [...values];
     const entry = newValues[index];
 
@@ -52,7 +56,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
     if (key === 'value' && entry.hint) {
       // Only set isEditing to true if the value is different from the hint
       // and not empty (which would be the case when no changes are made)
-      if (value !== entry.hint && value !== '') {
+      if (value !== entry.hint && value !== '' && typeof value === 'string') {
         newValues[index] = { ...entry, [key]: value, isEditing: true };
       }
     } else {

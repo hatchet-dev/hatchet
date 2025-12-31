@@ -12,7 +12,7 @@ export type Evaluate = (
   context: EvaluateContext,
 ) => [boolean, RejectReason | undefined];
 
-export type PermissionSet<K = any> = Record<string, (resource?: K) => Evaluate>;
+export type PermissionSet<K> = Record<string, (resource?: K) => Evaluate>;
 
 export enum RejectReason {
   BILLING_REQUIRED = 'BILLING_REQUIRED',

@@ -19,6 +19,8 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
+import { CategoricalChartFunc } from 'recharts/types/chart/generateCategoricalChart';
+import { CategoricalChartState } from 'recharts/types/chart/types';
 
 export type DataPoint<T extends string> = Record<T, number> & {
   date: string;
@@ -107,7 +109,7 @@ export function ZoomableChart<T extends string>({
     }, {});
   }, [data, colors]);
 
-  const handleMouseDown = (e: any) => {
+  const handleMouseDown = (e: CategoricalChartState) => {
     if (e.activeLabel) {
       setRefAreaLeft(e.activeLabel);
       setActualRefAreaLeft(getPrevActiveLabel(e.activeLabel, data));
@@ -115,7 +117,7 @@ export function ZoomableChart<T extends string>({
     }
   };
 
-  const handleMouseMove = (e: any) => {
+  const handleMouseMove = (e: CategoricalChartState) => {
     if (isSelecting && e.activeLabel) {
       setRefAreaRight(e.activeLabel);
       setActualRefAreaRight(getNextActiveLabel(e.activeLabel, data));
@@ -203,8 +205,8 @@ type ChildChartProps<T extends string> = {
   data: DataPoint<T>[];
   showYAxis?: boolean;
   formatXAxis: (tickItem: string) => string;
-  handleMouseDown: (e: any) => void;
-  handleMouseMove: (e: any) => void;
+  handleMouseDown: CategoricalChartFunc;
+  handleMouseMove: CategoricalChartFunc;
   handleMouseUp: () => void;
   refAreaLeft: string | null;
   refAreaRight: string | null;

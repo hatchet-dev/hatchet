@@ -167,7 +167,10 @@ export default function CreateTenant() {
     onError: handleApiError,
   });
 
-  const steps: OnboardingStepConfig[] = [
+  const steps: OnboardingStepConfig<
+    string | string[] | { name: string; environment: TenantEnvironment },
+    any
+  >[] = [
     {
       title: 'What are you building?',
       subtitle: 'Help us personalize your onboarding experience',

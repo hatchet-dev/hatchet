@@ -96,7 +96,7 @@ interface ExtraDataTableProps {
   emptyState?: JSX.Element;
   card?: {
     containerStyle?: string;
-    component: React.FC<any> | ((data: any) => JSX.Element);
+    component: React.FC<unknown> | ((data: unknown) => JSX.Element);
   };
   columnKeyToName?: Record<string, string>;
   refetchProps?: RefetchProps;

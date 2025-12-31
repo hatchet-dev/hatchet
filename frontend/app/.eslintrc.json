@@ -16,7 +16,11 @@
   "ignorePatterns": ["dist"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "project": ["./tsconfig.json", "./tsconfig.node.json", "./tsconfig.cypress.json"],
+    "project": [
+      "./tsconfig.json",
+      "./tsconfig.node.json",
+      "./tsconfig.cypress.json"
+    ],
     "warnOnUnsupportedTypeScriptVersion": false
   },
   "plugins": ["react-refresh", "import", "unused-imports", "prettier"],
@@ -41,7 +45,6 @@
     "@typescript-eslint/no-unused-vars": "error",
     "curly": "error",
     "import/prefer-default-export": "off",
-    "@typescript-eslint/no-explicit-any": "off",
     "no-case-declarations": "off",
     "import/no-extraneous-dependencies": [
       "error",
@@ -53,10 +56,10 @@
         ]
       }
     ],
-    "react-hooks/exhaustive-deps": "error"
+    "react-hooks/exhaustive-deps": "error",
 
     // We need to re-enable these and get rid of all the `any` types
-    // "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-explicit-any": "error"
     // "@typescript-eslint/no-unsafe-assignment": "error",
     // "@typescript-eslint/no-unsafe-call": "error",
     // "@typescript-eslint/no-unsafe-member-access": "error",

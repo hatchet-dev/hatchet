@@ -40,7 +40,7 @@ import { Column } from '@tanstack/react-table';
 import * as React from 'react';
 
 interface FilterControlProps<TData> {
-  column?: Column<TData, any>;
+  column?: Column<TData, unknown>;
   filter: {
     columnId: string;
     title: string;

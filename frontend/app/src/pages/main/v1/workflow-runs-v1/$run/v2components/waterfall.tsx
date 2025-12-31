@@ -596,7 +596,12 @@ export function Waterfall({
   ]);
 
   const handleBarClick = useCallback(
-    (data: any) => {
+    (data: {
+      id: string;
+      workflowRunId?: string;
+      isShowMoreEntry?: boolean;
+      parentId?: string;
+    }) => {
       if (data?.id) {
         // Handle "show more" entry clicks
         if (data.isShowMoreEntry) {
