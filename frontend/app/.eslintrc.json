@@ -93,18 +93,18 @@
     "no-unused-expressions": "error",
     "no-useless-call": "error",
     "no-useless-concat": "error",
-    "no-useless-return": "error"
+    "no-useless-return": "error",
     // "prefer-promise-reject-errors": "error",
 
-    // "react/jsx-no-bind": [
-    //   "error",
-    //   {
-    //     // We should turn this on later to enforce using `useCallback` instead of inline functions
-    //     "allowArrowFunctions": true,
-    //     "allowBind": false,
-    //     "allowFunctions": true
-    //   }
-    // ],
+    "react/jsx-no-bind": [
+      "error",
+      {
+        // We should turn this on later to enforce using `useCallback` instead of inline functions
+        "allowArrowFunctions": true,
+        "allowBind": false,
+        "allowFunctions": true
+      }
+    ]
     // "react/jsx-no-leaked-render": "error",
     // "react/jsx-no-useless-fragment": "error",
 
