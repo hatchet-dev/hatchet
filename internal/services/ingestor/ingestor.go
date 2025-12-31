@@ -19,7 +19,7 @@ type Ingestor interface {
 	contracts.EventsServiceServer
 	IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventName string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error)
 	IngestWebhookValidationFailure(ctx context.Context, tenant *dbsqlc.Tenant, webhookName, errorText string) error
-	BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
+	BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*CreateEventOpts) ([]*dbsqlc.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
 	IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error
 }
@@ -28,8 +28,6 @@ type IngestorOptFunc func(*IngestorOpts)
 
 type IngestorOpts struct {
 	eventRepository        repository.EventEngineRepository
-	streamEventRepository  repository.StreamEventsEngineRepository
-	logRepository          repository.LogsEngineRepository
 	entitlementsRepository repository.EntitlementsRepository
 	stepRunRepository      repository.StepRunEngineRepository
 	mqv1                   msgqueuev1.MessageQueue
@@ -40,18 +38,6 @@ type IngestorOpts struct {
 func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.eventRepository = r
-	}
-}
-
-func WithStreamEventsRepository(r repository.StreamEventsEngineRepository) IngestorOptFunc {
-	return func(opts *IngestorOpts) {
-		opts.streamEventRepository = r
-	}
-}
-
-func WithLogRepository(r repository.LogsEngineRepository) IngestorOptFunc {
-	return func(opts *IngestorOpts) {
-		opts.logRepository = r
 	}
 }
 
@@ -94,7 +80,6 @@ func defaultIngestorOpts() *IngestorOpts {
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
-	eventRepository          repository.EventEngineRepository
 	logRepository            repository.LogsEngineRepository
 	streamEventRepository    repository.StreamEventsEngineRepository
 	entitlementsRepository   repository.EntitlementsRepository
@@ -119,14 +104,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("event repository is required. use WithEventRepository")
 	}
 
-	if opts.streamEventRepository == nil {
-		return nil, fmt.Errorf("stream event repository is required. use WithStreamEventRepository")
-	}
-
-	if opts.logRepository == nil {
-		return nil, fmt.Errorf("log repository is required. use WithLogRepository")
-	}
-
 	if opts.mqv1 == nil {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
@@ -147,12 +124,9 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}
 
 	return &IngestorImpl{
-		eventRepository:          opts.eventRepository,
-		streamEventRepository:    opts.streamEventRepository,
 		entitlementsRepository:   opts.entitlementsRepository,
 		stepRunRepository:        opts.stepRunRepository,
 		steprunTenantLookupCache: stepRunCache,
-		logRepository:            opts.logRepository,
 		mqv1:                     opts.mqv1,
 		v:                        validator.NewDefaultValidator(),
 		repov1:                   opts.repov1,
@@ -168,7 +142,7 @@ func (i *IngestorImpl) IngestWebhookValidationFailure(ctx context.Context, tenan
 	return i.ingestWebhookValidationFailure(tenant.ID.String(), webhookName, errorText)
 }
 
-func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
+func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*CreateEventOpts) ([]*dbsqlc.Event, error) {
 	return i.bulkIngestEventV1(ctx, tenant, eventOpts)
 }
 

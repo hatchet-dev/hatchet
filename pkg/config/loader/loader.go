@@ -262,18 +262,10 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	opts = append(opts, postgresdb.WithLogger(&l), postgresdb.WithCache(ch), postgresdb.WithMetered(meter))
 
-	if c.RepositoryOverrides.LogsEngineRepository != nil {
-		opts = append(opts, postgresdb.WithLogsEngineRepository(c.RepositoryOverrides.LogsEngineRepository))
-	}
-
 	cleanupEngine, engineRepo, err := postgresdb.NewEngineRepository(pool, &scf.Runtime, opts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
-	}
-
-	if c.RepositoryOverrides.LogsAPIRepository != nil {
-		opts = append(opts, postgresdb.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
 	}
 
 	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
@@ -460,8 +452,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 		ing, err = ingestor.NewIngestor(
 			ingestor.WithEventRepository(dc.EngineRepository.Event()),
-			ingestor.WithStreamEventsRepository(dc.EngineRepository.StreamEvent()),
-			ingestor.WithLogRepository(dc.EngineRepository.Log()),
 			ingestor.WithMessageQueueV1(mqv1),
 			ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
 			ingestor.WithStepRunRepository(dc.EngineRepository.StepRun()),

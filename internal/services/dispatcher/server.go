@@ -547,29 +547,6 @@ func (s *DispatcherImpl) SendGroupKeyActionEvent(ctx context.Context, request *c
 }
 
 func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contracts.OverridesData) (*contracts.OverridesDataResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	// ensure step run id
-	if request.StepRunId == "" {
-		return nil, fmt.Errorf("step run id is required")
-	}
-
-	opts := &repository.UpdateStepRunOverridesDataOpts{
-		OverrideKey: request.Path,
-		Data:        []byte(request.Value),
-	}
-
-	if request.CallerFilename != "" {
-		opts.CallerFile = &request.CallerFilename
-	}
-
-	_, err := s.repo.StepRun().UpdateStepRunOverridesData(ctx, tenantId, request.StepRunId, opts)
-
-	if err != nil {
-		return nil, err
-	}
-
 	return &contracts.OverridesDataResponse{}, nil
 }
 

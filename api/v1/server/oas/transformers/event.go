@@ -30,37 +30,6 @@ func ToEvent(event *dbsqlc.Event) gen.Event {
 	}
 }
 
-func ToEventFromSQLC(eventRow *dbsqlc.ListEventsRow) (*gen.Event, error) {
-	event := eventRow.Event
-
-	var metadata map[string]interface{}
-
-	if event.AdditionalMetadata != nil {
-		err := json.Unmarshal(event.AdditionalMetadata, &metadata)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	res := &gen.Event{
-		Metadata:           *toAPIMetadata(pgUUIDToStr(event.ID), event.CreatedAt.Time, event.UpdatedAt.Time),
-		Key:                event.Key,
-		TenantId:           pgUUIDToStr(event.TenantId),
-		AdditionalMetadata: &metadata,
-	}
-
-	res.WorkflowRunSummary = &gen.EventWorkflowRunSummary{
-		Failed:    &eventRow.Failedruns,
-		Running:   &eventRow.Runningruns,
-		Succeeded: &eventRow.Succeededruns,
-		Pending:   &eventRow.Pendingruns,
-		Queued:    &eventRow.Queuedruns,
-		Cancelled: &eventRow.Cancelledruns,
-	}
-
-	return res, nil
-}
-
 func ToEventFromSQLCV1(event *v1.EventWithPayload) (*gen.Event, error) {
 	var metadata map[string]interface{}
 

@@ -78,7 +78,7 @@ type WorkerAPIRepository interface {
 	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithSlotCountRow, error)
 
 	// ListRecentWorkerStepRuns lists recent step runs for a given worker
-	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error)
+	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, error)
 
 	// GetWorkerActionsByWorkerId returns a list of actions for a worker
 	GetWorkerActionsByWorkerId(tenantid string, workerId []string) (map[string][]string, error)

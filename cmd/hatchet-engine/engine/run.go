@@ -24,7 +24,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
-	"github.com/hatchet-dev/hatchet/internal/services/webhooks"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
@@ -388,12 +387,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithEventRepository(
 				sc.EngineRepository.Event(),
 			),
-			ingestor.WithStreamEventsRepository(
-				sc.EngineRepository.StreamEvent(),
-			),
-			ingestor.WithLogRepository(
-				sc.EngineRepository.Log(),
-			),
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
@@ -488,31 +481,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		teardown = append(teardown, Teardown{
 			Name: "grpc",
 			Fn:   cleanup,
-		})
-	}
-
-	if sc.HasService("webhookscontroller") {
-		cleanup1, err := p.StartTenantWorkerPartition(ctx)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "tenant worker partition",
-			Fn:   cleanup1,
-		})
-
-		wh := webhooks.New(sc, p, l)
-
-		cleanup2, err := wh.Start()
-		if err != nil {
-			return nil, fmt.Errorf("could not create webhook worker: %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "webhook worker",
-			Fn:   cleanup2,
 		})
 	}
 
@@ -722,19 +690,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanup1,
 		})
 
-		wh := webhooks.New(sc, p, l)
-
-		cleanup2, err := wh.Start()
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create webhook worker: %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "webhook worker",
-			Fn:   cleanup2,
-		})
-
 		if sc.OpenTelemetry.MetricsEnabled && sc.OpenTelemetry.CollectorURL != "" {
 			mc, err := metricscontroller.New(
 				metricscontroller.WithLogger(sc.Logger),
@@ -801,12 +756,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		ei, err := ingestor.NewIngestor(
 			ingestor.WithEventRepository(
 				sc.EngineRepository.Event(),
-			),
-			ingestor.WithStreamEventsRepository(
-				sc.EngineRepository.StreamEvent(),
-			),
-			ingestor.WithLogRepository(
-				sc.EngineRepository.Log(),
 			),
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),

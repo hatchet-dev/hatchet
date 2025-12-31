@@ -11,7 +11,6 @@ import (
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -91,7 +90,7 @@ func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string
 	}, nil
 }
 
-func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
+func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*CreateEventOpts) ([]*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "bulk-ingest-event")
 	defer span.End()
 

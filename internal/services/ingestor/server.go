@@ -90,7 +90,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: too many events - %d is over maximum (1000)", len(req.Events))
 	}
 
-	events := make([]*repository.CreateEventOpts, 0)
+	events := make([]*CreateEventOpts, 0)
 
 	for _, e := range req.Events {
 		var additionalMeta []byte
@@ -112,7 +112,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *e.Priority)
 		}
 
-		events = append(events, &repository.CreateEventOpts{
+		events = append(events, &CreateEventOpts{
 			TenantId:           tenantId,
 			Key:                e.Key,
 			Data:               payloadBytes,
@@ -122,7 +122,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		})
 	}
 
-	opts := &repository.BulkCreateEventOpts{
+	opts := &BulkCreateEventOpts{
 		TenantId: tenantId,
 		Events:   events,
 	}
@@ -181,29 +181,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 }
 
 func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.ReplayEventRequest) (*contracts.Event, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	oldEvent, err := i.eventRepository.GetEventForEngine(ctx, tenantId, req.EventId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	newEvent, err := i.IngestReplayedEvent(ctx, tenant, oldEvent)
-
-	if err != nil {
-		return nil, err
-	}
-
-	e, err := toEvent(newEvent)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return e, nil
+	return nil, status.Errorf(codes.Unimplemented, "ReplaySingleEvent is not implemented")
 }
 
 func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
@@ -235,4 +213,35 @@ func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
 		EventTimestamp:     timestamppb.New(e.CreatedAt.Time),
 		AdditionalMetadata: additionalMeta,
 	}, nil
+}
+
+type BulkCreateEventOpts struct {
+	TenantId string `validate:"required,uuid"`
+	Events   []*CreateEventOpts
+}
+
+type CreateEventOpts struct {
+	// (required) the tenant id
+	TenantId string `validate:"required,uuid"`
+
+	// (required) the event key
+	Key string `validate:"required"`
+
+	// (optional) the event data
+	Data []byte
+
+	// (optional) the event that this event is replaying
+	ReplayedEvent *string `validate:"omitempty,uuid"`
+
+	// (optional) the event metadata
+	AdditionalMetadata []byte
+
+	// (optional) the event priority
+	Priority *int32 `validate:"omitempty,min=1,max=3"`
+
+	// (optional) the event scope
+	Scope *string `validate:"omitempty"`
+
+	// (optional) the triggering webhook name
+	TriggeringWebhookName *string `validate:"omitempty"`
 }

@@ -15,75 +15,7 @@ import (
 func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
-	switch tenant.Version {
-	case dbsqlc.TenantMajorEngineVersionV0:
-		return t.workerGetV0(ctx, tenant, request)
-	case dbsqlc.TenantMajorEngineVersionV1:
-		return t.workerGetV1(ctx, tenant, request)
-	default:
-		return nil, fmt.Errorf("unsupported tenant version: %s", string(tenant.Version))
-	}
-}
-
-func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
-	worker := ctx.Get("worker").(*dbsqlc.GetWorkerByIdRow)
-
-	slotState, recent, err := t.config.APIRepository.Worker().ListWorkerState(
-		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		sqlchelpers.UUIDToStr(worker.Worker.ID),
-		int(worker.Worker.MaxRuns),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	workerIdToActionIds, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
-		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		[]string{sqlchelpers.UUIDToStr(worker.Worker.ID)},
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	actions, ok := workerIdToActionIds[sqlchelpers.UUIDToStr(worker.Worker.ID)]
-
-	if !ok {
-		return nil, fmt.Errorf("worker %s has no actions", sqlchelpers.UUIDToStr(worker.Worker.ID))
-	}
-
-	respStepRuns := make([]gen.RecentStepRuns, len(recent))
-
-	for i := range recent {
-		genStepRun, err := transformers.ToRecentStepRun(recent[i])
-
-		if err != nil {
-			return nil, err
-		}
-
-		respStepRuns[i] = *genStepRun
-	}
-
-	slots := int(worker.RemainingSlots)
-
-	workerResp := *transformers.ToWorkerSqlc(&worker.Worker, &slots, &worker.WebhookUrl.String, actions)
-
-	workerResp.RecentStepRuns = &respStepRuns
-	workerResp.Slots = transformers.ToSlotState(slotState, slots)
-
-	affinity, err := t.config.APIRepository.Worker().ListWorkerLabels(
-		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		sqlchelpers.UUIDToStr(worker.Worker.ID),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	workerResp.Labels = transformers.ToWorkerLabels(affinity)
-
-	return gen.WorkerGet200JSONResponse(workerResp), nil
+	return t.workerGetV1(ctx, tenant, request)
 }
 
 func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
@@ -95,7 +27,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		return nil, err
 	}
 
-	slotState, recent, err := t.config.V1.Workers().ListWorkerState(
+	slotState, err := t.config.V1.Workers().ListWorkerState(
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
 		sqlchelpers.UUIDToStr(worker.Worker.ID),
 		int(worker.Worker.MaxRuns),
@@ -125,17 +57,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		return nil, fmt.Errorf("worker %s has no actions", sqlchelpers.UUIDToStr(worker.Worker.ID))
 	}
 
-	respStepRuns := make([]gen.RecentStepRuns, len(recent))
-
-	for i := range recent {
-		genStepRun, err := transformers.ToRecentStepRun(recent[i])
-
-		if err != nil {
-			return nil, err
-		}
-
-		respStepRuns[i] = *genStepRun
-	}
+	respStepRuns := make([]gen.RecentStepRuns, 0)
 
 	slots := int(worker.RemainingSlots)
 
