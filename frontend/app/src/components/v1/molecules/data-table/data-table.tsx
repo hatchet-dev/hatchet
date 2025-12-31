@@ -105,6 +105,8 @@ interface ExtraDataTableProps<TData> {
   tableActions?: ShowTableActionsProps;
 }
 
+const SkeletonRow = () => <Skeleton className="h-4 w-[100px]" />;
+
 export function DataTable<TData extends IDGetter<TData>, TValue>({
   columns,
   error,
@@ -154,7 +156,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
       loadingNoData
         ? columns.map((column) => ({
             ...column,
-            cell: () => <Skeleton className="h-4 w-[100px]" />,
+            cell: SkeletonRow,
           }))
         : columns,
     [loadingNoData, columns],

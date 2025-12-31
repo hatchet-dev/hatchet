@@ -8,8 +8,12 @@ import { useRuns } from './use-runs';
 import { useRunsTableFilters } from './use-runs-table-filters';
 import { useToolbarFilters } from './use-toolbar-filters';
 import { V1TaskRunMetrics, V1TaskSummary } from '@/lib/api';
-import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
-import { PaginationState, Updater } from '@tanstack/react-table';
+import {
+  RowSelectionState,
+  VisibilityState,
+  PaginationState,
+  Updater,
+} from '@tanstack/react-table';
 import { createContext, useContext, useMemo, useState } from 'react';
 
 type DisplayProps = {

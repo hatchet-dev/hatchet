@@ -102,27 +102,47 @@ export function RunStatus({
   const { text: overrideText, variant: overrideVariant } =
     (reason && RUN_STATUS_VARIANTS_REASON_OVERRIDES[reason]) || {};
 
-  const StatusBadge = () => (
-    <Badge variant={overrideVariant || variant} className={className}>
-      {capitalize(overrideText || text)}
-    </Badge>
-  );
-
   if (!reason) {
-    return <StatusBadge />;
+    return (
+      <StatusBadge
+        variant={overrideVariant || variant}
+        text={overrideText || text}
+        className={className}
+      />
+    );
   }
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger>
-          <StatusBadge />
+          <StatusBadge
+            variant={overrideVariant || variant}
+            text={overrideText || text}
+            className={className}
+          />
         </TooltipTrigger>
         <TooltipContent>{RUN_STATUS_REASONS[reason] || reason}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
 }
+
+const StatusBadge = ({
+  variant,
+  text,
+  className,
+}: {
+  variant: BadgeProps['variant'];
+  text: string;
+  className?: string;
+  overrideVariant?: BadgeProps['variant'];
+  overrideText?: string;
+}) => (
+  <Badge variant={variant} className={className}>
+    {capitalize(text)}
+  </Badge>
+);
 
 export function V1RunStatus({
   status,
@@ -135,20 +155,14 @@ export function V1RunStatus({
 }) {
   const { text, variant } = createV1RunStatusVariant(status);
 
-  const StatusBadge = () => (
-    <Badge variant={variant} className={className}>
-      {capitalize(text)}
-    </Badge>
-  );
-
   if (!errorMessage) {
-    return <StatusBadge />;
+    return <StatusBadge variant={variant} text={text} className={className} />;
   }
 
   return (
     <HoverCard>
       <HoverCardTrigger className="hover:cursor-help">
-        <StatusBadge />
+        <StatusBadge variant={variant} text={text} className={className} />
       </HoverCardTrigger>
       <HoverCardContent className="z-10 max-h-96 max-w-96 overflow-auto rounded-md border border-gray-600 border-opacity-50 bg-card p-4 shadow-xl lg:max-w-[500px]">
         <p className="text-xs">{errorMessage}</p>

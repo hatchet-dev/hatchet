@@ -99,23 +99,21 @@
     "react/jsx-no-bind": [
       "error",
       {
-        // We should turn this on later to enforce using `useCallback` instead of inline functions
         "allowArrowFunctions": true,
         "allowBind": false,
         "allowFunctions": true
       }
-    ]
+    ],
     // "react/jsx-no-leaked-render": "error",
     // "react/jsx-no-useless-fragment": "error",
 
     // // We should turn this on later
     // // "react/no-array-index-key": "error",
     // "react/no-object-type-as-default-prop": "error",
-    // "react/hook-use-state": "error",
-    // "react/no-unstable-nested-components": "error",
+    "react/no-unstable-nested-components": "error",
 
-    // "import/no-duplicates": "error",
-    // "import/no-self-import": "error",
-    // "import/no-useless-path-segments": "error"
+    "import/no-duplicates": "error",
+    "import/no-self-import": "error",
+    "import/no-useless-path-segments": "error"
   }
 }

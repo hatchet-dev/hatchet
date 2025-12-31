@@ -1,7 +1,7 @@
 import { TriggerWorkflowForm } from '../workflows/$workflow/components/trigger-workflow-form';
 import { DeleteCron } from './components/delete-cron';
-import { columns } from './components/recurring-columns';
 import {
+  columns,
   CronColumn,
   workflowKey,
   metadataKey,

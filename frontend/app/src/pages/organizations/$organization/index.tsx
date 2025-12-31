@@ -59,8 +59,9 @@ import {
   CheckIcon,
   XMarkIcon,
   ArrowRightIcon,
+  EllipsisVerticalIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
-import { EllipsisVerticalIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';

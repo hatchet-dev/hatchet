@@ -2,8 +2,8 @@ import { TriggerWorkflowForm } from '../workflows/$workflow/components/trigger-w
 import { BulkDeleteScheduledRuns } from './components/bulk-delete-scheduled-runs';
 import { BulkRescheduleScheduledRuns } from './components/bulk-reschedule-scheduled-runs';
 import { DeleteScheduledRun } from './components/delete-scheduled-runs';
-import { columns } from './components/scheduled-runs-columns';
 import {
+  columns,
   ScheduledRunColumn,
   workflowKey,
   metadataKey,

@@ -1,6 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
-import { ToolbarFilters } from './data-table-toolbar';
 import {
+  ToolbarFilters,
   ToolbarType,
   FilterOption,
   TimeRangeConfig,
@@ -33,10 +33,12 @@ import {
   timeWindowKey,
 } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 import { XCircleIcon } from '@heroicons/react/24/outline';
-import { Cross2Icon, MixerHorizontalIcon } from '@radix-ui/react-icons';
-import { ChevronDownIcon } from '@radix-ui/react-icons';
-import { ColumnFiltersState, Table } from '@tanstack/react-table';
-import { Column } from '@tanstack/react-table';
+import {
+  Cross2Icon,
+  MixerHorizontalIcon,
+  ChevronDownIcon,
+} from '@radix-ui/react-icons';
+import { ColumnFiltersState, Table, Column } from '@tanstack/react-table';
 import * as React from 'react';
 
 interface FilterControlProps<TData> {

@@ -27,8 +27,7 @@ import {
   ArrowPathIcon,
   KeyIcon,
 } from '@heroicons/react/24/outline';
-import { ArrowLeftIcon } from '@radix-ui/react-icons';
-import { GitHubLogoIcon } from '@radix-ui/react-icons';
+import { ArrowLeftIcon, GitHubLogoIcon } from '@radix-ui/react-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState, useEffect, useCallback } from 'react';

@@ -6,8 +6,8 @@ import {
   regions,
   ScalingType,
   scalingTypes,
+  UpgradeMessage,
 } from '../../create/components/create-worker-form';
-import { UpgradeMessage } from '../../create/components/create-worker-form';
 import {
   Accordion,
   AccordionContent,
