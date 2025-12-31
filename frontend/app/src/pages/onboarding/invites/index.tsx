@@ -59,6 +59,7 @@ export default function Invites() {
   const { acceptOrgInviteMutation, rejectOrgInviteMutation } =
     useOrganizations();
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
   const { tenantInvites, orgInvites } = useLoaderData({
     from: appRoutes.onboardingInvitesRoute.to,
   }) as Awaited<ReturnType<typeof loader>>;

@@ -48,7 +48,7 @@ export const columns: (tenantId: string) => ColumnDef<ManagedWorker>[] = (
     cell: ({ row }) => {
       return (
         <div className="whitespace-nowrap">
-          <RelativeDate date={row.original.metadata.createdAt as string} />
+          <RelativeDate date={row.original.metadata.createdAt} />
         </div>
       );
     },

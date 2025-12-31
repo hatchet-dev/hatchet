@@ -81,7 +81,7 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
     console.info('Initializing Analytics, opt out in settings.');
 
     posthog.init(config.apiKey, {
-      api_host: (config.apiHost || 'https://us.i.posthog.com') as string,
+      api_host: config.apiHost || 'https://us.i.posthog.com',
       person_profiles: 'identified_only',
       capture_pageleave: true,
       session_recording: {

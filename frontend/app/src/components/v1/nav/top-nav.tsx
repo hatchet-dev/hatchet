@@ -152,7 +152,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
   const breadcrumbs = useBreadcrumbs();
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
-  const params = useParams({ strict: false }) as { tenant?: string };
+  const params = useParams({ strict: false });
   const tenantParamInPath = params.tenant;
 
   const isOnTenantRoute = Boolean(

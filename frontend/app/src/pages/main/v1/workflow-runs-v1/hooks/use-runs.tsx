@@ -100,7 +100,7 @@ export const useRuns = ({
 
         return findRow(tableRows);
       })
-      .filter((row) => row !== undefined) as V1TaskSummary[];
+      .filter((row) => row !== undefined);
   }, [rowSelection, tableRows]);
 
   const getRowId = useCallback((row: V1TaskSummary) => {
