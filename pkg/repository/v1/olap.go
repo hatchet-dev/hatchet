@@ -298,7 +298,7 @@ func NewOLAPRepositoryFromPool(
 	pool *pgxpool.Pool,
 	l *zerolog.Logger,
 	olapRetentionPeriod time.Duration,
-	tenantLimitConfig *limits.LimitConfigFile, enforceLimits bool,
+	tenantLimitConfig limits.LimitConfigFile, enforceLimits bool,
 	shouldPartitionEventsTables bool,
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,

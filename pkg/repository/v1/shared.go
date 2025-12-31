@@ -43,7 +43,7 @@ func newSharedRepository(
 	v validator.Validator,
 	l *zerolog.Logger,
 	payloadStoreOpts PayloadStoreRepositoryOpts,
-	c *limits.LimitConfigFile,
+	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()

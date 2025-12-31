@@ -204,7 +204,7 @@ type ConfigFileRuntime struct {
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
 
 	// Default limit values
-	Limits *limits.LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
+	Limits limits.LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
 
 	// RequeueLimit is the number of times a message will be requeued in each attempt
 	RequeueLimit int `mapstructure:"requeueLimit" json:"requeueLimit,omitempty" default:"100"`

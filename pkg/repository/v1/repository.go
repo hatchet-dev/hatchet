@@ -96,7 +96,7 @@ func NewRepository(
 	taskLimits TaskOperationLimits,
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
-	tenantLimitConfig *limits.LimitConfigFile,
+	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()

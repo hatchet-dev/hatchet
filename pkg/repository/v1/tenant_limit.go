@@ -56,13 +56,13 @@ type TenantLimitRepository interface {
 
 type tenantLimitRepository struct {
 	*sharedRepository
-	config        *limits.LimitConfigFile
+	config        limits.LimitConfigFile
 	enforceLimits bool
 	plans         *PlanLimitMap
 	c             cache.Cacheable
 }
 
-func newTenantLimitRepository(shared *sharedRepository, s *limits.LimitConfigFile, enforceLimits bool) TenantLimitRepository {
+func newTenantLimitRepository(shared *sharedRepository, s limits.LimitConfigFile, enforceLimits bool) TenantLimitRepository {
 	return &tenantLimitRepository{
 		sharedRepository: shared,
 		config:           s,
