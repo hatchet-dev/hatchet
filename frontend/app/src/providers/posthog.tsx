@@ -38,8 +38,8 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
   const config = useMemo(() => {
     if (import.meta.env.DEV) {
       return {
-        apiKey: import.meta.env.VITE_PUBLIC_POSTHOG_KEY,
-        apiHost: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+        apiKey: import.meta.env.VITE_PUBLIC_POSTHOG_KEY as string | undefined,
+        apiHost: import.meta.env.VITE_PUBLIC_POSTHOG_HOST as string | undefined,
       };
     }
     return meta?.posthog;
@@ -81,7 +81,7 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
     console.info('Initializing Analytics, opt out in settings.');
 
     posthog.init(config.apiKey, {
-      api_host: config.apiHost || 'https://us.i.posthog.com',
+      api_host: (config.apiHost || 'https://us.i.posthog.com') as string,
       person_profiles: 'identified_only',
       capture_pageleave: true,
       session_recording: {

@@ -51,7 +51,7 @@ interface FilterControlProps<TData> {
 }
 
 function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
-  const value = column?.getFilterValue();
+  const value: unknown = column?.getFilterValue();
   const [searchTerm, setSearchTerm] = React.useState('');
   const keyInputRef = React.useRef<HTMLInputElement>(null);
   const valueInputRef = React.useRef<HTMLInputElement>(null);
@@ -163,10 +163,10 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
         </div>
       );
     case ToolbarType.KeyValue:
-      const currentKVPairs = Array.isArray(value)
-        ? value
+      const currentKVPairs: string[] = Array.isArray(value)
+        ? (value as string[])
         : value
-          ? [value]
+          ? [value as string]
           : [];
 
       const addKeyValue = () => {
@@ -267,10 +267,10 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
         </div>
       );
     case ToolbarType.Array:
-      const currentArrayValues = Array.isArray(value)
-        ? value
+      const currentArrayValues: string[] = Array.isArray(value)
+        ? (value as string[])
         : value
-          ? [value]
+          ? [value as string]
           : [];
 
       const addArrayValue = () => {
@@ -344,10 +344,10 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
         return null;
       }
 
-      const selectedValues = Array.isArray(value)
-        ? value
+      const selectedValues: string[] = Array.isArray(value)
+        ? (value as string[])
         : value
-          ? [value]
+          ? [value as string]
           : [];
       const filteredOptions = filter.options.filter((option) =>
         option.label.toLowerCase().includes(searchTerm.toLowerCase()),

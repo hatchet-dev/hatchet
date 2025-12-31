@@ -3,7 +3,10 @@ import CreateWorkerForm from './components/create-worker-form';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
-import { CreateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
+import {
+  CreateManagedWorkerRequest,
+  ManagedWorker,
+} from '@/lib/api/generated/cloud/data-contracts';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
 import { useApiError } from '@/lib/hooks';
@@ -57,10 +60,11 @@ export default function CreateWorker() {
       const res = await cloudApi.managedWorkerCreate(tenantId, dataCopy);
       return res.data;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: ManagedWorker) => {
+      const workerId = data.metadata.id;
       navigate({
         to: appRoutes.tenantManagedWorkerRoute.to,
-        params: { tenant: tenantId, managedWorker: data.metadata.id },
+        params: { tenant: tenantId, managedWorker: workerId },
       });
     },
     onError: handleApiError,

@@ -145,7 +145,10 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   const loadingNoData = isLoading && !data.length;
 
   const tableData = React.useMemo(
-    () => (loadingNoData ? Array(10).fill({ metadata: {} }) : data),
+    () =>
+      (loadingNoData
+        ? (Array(10).fill({ metadata: {} }) as TData[])
+        : data) as TData[],
     [loadingNoData, data],
   );
 

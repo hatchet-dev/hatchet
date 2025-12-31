@@ -10,6 +10,8 @@
  * ---------------------------------------------------------------
  */
 
+import type { APIResourceMeta } from '../data-contracts';
+
 export enum OrganizationInviteStatus {
   PENDING = "PENDING",
   ACCEPTED = "ACCEPTED",
@@ -116,8 +118,6 @@ export type APIErrors = any;
 export type APIError = any;
 
 type PaginationResponse = any;
-
-type APIResourceMeta = any;
 
 interface GithubBranch {
   branch_name: string;

@@ -83,7 +83,7 @@ export function ManagedWorkersTable() {
 
     return (
       <div
-        key={data.metadata?.id}
+        key={data.metadata?.id as string}
         className="overflow-hidden rounded-lg border shadow"
       >
         <div className="flex flex-col gap-1 px-4 py-5 sm:p-6">
@@ -94,7 +94,7 @@ export function ManagedWorkersTable() {
             </h3>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
-            Created <RelativeDate date={data.metadata?.createdAt} />
+            Created <RelativeDate date={data.metadata?.createdAt as string} />
           </p>
           {data.buildConfig && (
             <GithubButton
@@ -111,7 +111,10 @@ export function ManagedWorkersTable() {
           <div className="text-background-secondary text-sm">
             <Link
               to={appRoutes.tenantManagedWorkerRoute.to}
-              params={{ tenant: tenantId, managedWorker: data.metadata?.id }}
+              params={{
+                tenant: tenantId,
+                managedWorker: data.metadata?.id as string,
+              }}
             >
               <Button>View Compute Instance</Button>
             </Link>

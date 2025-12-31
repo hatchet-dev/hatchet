@@ -318,7 +318,9 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                 />
               </TabsContent>
               <TabsContent value="input">
-                <WorkflowRunInputDialog input={JSON.parse(inputData)} />
+                <WorkflowRunInputDialog
+                  input={JSON.parse(inputData) as Record<string, unknown>}
+                />
               </TabsContent>
               <TabsContent value="additional-metadata">
                 <CodeHighlighter

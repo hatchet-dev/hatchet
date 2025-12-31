@@ -88,7 +88,13 @@ export function SidebarProvider({
     try {
       // Back-compat: previous implementation stored this under `v1SidebarWidth`.
       const legacy = window.localStorage.getItem(SIDEBAR_WIDTH_LEGACY_KEY);
-      return legacy ? JSON.parse(legacy) : DEFAULT_EXPANDED_SIDEBAR_WIDTH;
+      if (!legacy) {
+        return DEFAULT_EXPANDED_SIDEBAR_WIDTH;
+      }
+      const parsed: unknown = JSON.parse(legacy);
+      return typeof parsed === 'number'
+        ? parsed
+        : DEFAULT_EXPANDED_SIDEBAR_WIDTH;
     } catch {
       return DEFAULT_EXPANDED_SIDEBAR_WIDTH;
     }

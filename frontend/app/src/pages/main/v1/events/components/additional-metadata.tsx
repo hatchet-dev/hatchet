@@ -75,7 +75,9 @@ export const AdditionalMetadata = memo(
                     <div
                       key={key}
                       className="group flex cursor-pointer flex-col gap-1 rounded border p-2 transition-colors hover:bg-muted/30"
-                      onClick={() => onClick?.({ key, value })}
+                      onClick={() =>
+                        onClick?.({ key, value: value as unknown })
+                      }
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-medium tracking-wide text-muted-foreground">

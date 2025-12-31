@@ -265,8 +265,8 @@ export function TriggerWorkflowForm({
       return;
     }
 
-    const inputObj = JSON.parse(input || '{}');
-    const addlMetaObj = JSON.parse(addlMeta || '{}');
+    const inputObj = JSON.parse(input || '{}') as object;
+    const addlMetaObj = JSON.parse(addlMeta || '{}') as object;
 
     if (timingOption === 'now') {
       triggerNowMutation.mutate({

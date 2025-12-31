@@ -33,7 +33,7 @@ const parseFilterParam = (searchParams: URLSearchParams, key: string) => {
     };
   }
 
-  const parsedFilterState = JSON.parse(rawFilterParamValue);
+  const parsedFilterState: unknown = JSON.parse(rawFilterParamValue);
 
   if (
     !parsedFilterState ||
@@ -47,7 +47,7 @@ const parseFilterParam = (searchParams: URLSearchParams, key: string) => {
     };
   }
 
-  const { w, s }: FilterQueryShape = parsedFilterState;
+  const { w, s }: FilterQueryShape = parsedFilterState as FilterQueryShape;
 
   return {
     w: Array.isArray(w) && w.length > 0 ? w : undefined,

@@ -322,9 +322,10 @@ export default function OrganizationPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
+                  const orgId = organization.metadata.id;
                   navigate({
                     to: appRoutes.onboardingCreateTenantRoute.to,
-                    search: { organizationId: organization.metadata.id },
+                    search: { organizationId: orgId },
                   });
                 }}
                 leftIcon={<PlusIcon className="size-4" />}
@@ -507,9 +508,10 @@ export default function OrganizationPage() {
                 </p>
                 <Button
                   onClick={() => {
+                    const orgId = organization.metadata.id;
                     navigate({
                       to: appRoutes.onboardingCreateTenantRoute.to,
-                      search: { organizationId: organization.metadata.id },
+                      search: { organizationId: orgId },
                     });
                   }}
                   leftIcon={<PlusIcon className="size-4" />}
@@ -546,23 +548,89 @@ export default function OrganizationPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {organization.members.map((member) => (
-                        <TableRow key={member.metadata.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm">
-                                {member.metadata.id}
-                              </span>
-                              <CopyToClipboard text={member.metadata.id} />
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {member.email}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{member.role}</Badge>
-                          </TableCell>
-                          <TableCell>
+                      {organization.members.map((member) => {
+                        const memberId = member.metadata.id;
+                        return (
+                          <TableRow key={memberId}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-sm">
+                                  {memberId}
+                                </span>
+                                <CopyToClipboard text={memberId} />
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {member.email}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{member.role}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <EllipsisVerticalIcon className="size-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {currentUserQuery.data?.email ===
+                                  member.email ? (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <DropdownMenuItem
+                                            disabled
+                                            className="cursor-not-allowed text-gray-400"
+                                          >
+                                            <TrashIcon className="mr-2 size-4" />
+                                            Remove Member
+                                          </DropdownMenuItem>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Cannot remove yourself</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  ) : (
+                                    <DropdownMenuItem
+                                      onClick={() => setMemberToDelete(member)}
+                                    >
+                                      <TrashIcon className="mr-2 size-4" />
+                                      Remove Member
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="space-y-4 md:hidden">
+                  {organization.members.map((member) => {
+                    const memberId = member.metadata.id;
+                    return (
+                      <div
+                        key={memberId}
+                        className="space-y-3 rounded-lg border p-4"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm">
+                              {member.email}
+                            </span>
+                            <Badge variant="default">{member.role}</Badge>
+                          </div>
+                          {currentUserQuery.data?.email !== member.email && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -574,102 +642,42 @@ export default function OrganizationPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {currentUserQuery.data?.email ===
-                                member.email ? (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <DropdownMenuItem
-                                          disabled
-                                          className="cursor-not-allowed text-gray-400"
-                                        >
-                                          <TrashIcon className="mr-2 size-4" />
-                                          Remove Member
-                                        </DropdownMenuItem>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>Cannot remove yourself</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                ) : (
-                                  <DropdownMenuItem
-                                    onClick={() => setMemberToDelete(member)}
-                                  >
-                                    <TrashIcon className="mr-2 size-4" />
-                                    Remove Member
-                                  </DropdownMenuItem>
-                                )}
+                                <DropdownMenuItem
+                                  onClick={() => setMemberToDelete(member)}
+                                >
+                                  <TrashIcon className="mr-2 size-4" />
+                                  Remove Member
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Mobile Card View */}
-                <div className="space-y-4 md:hidden">
-                  {organization.members.map((member) => (
-                    <div
-                      key={member.metadata.id}
-                      className="space-y-3 rounded-lg border p-4"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm">
-                            {member.email}
-                          </span>
-                          <Badge variant="default">{member.role}</Badge>
+                          )}
                         </div>
-                        {currentUserQuery.data?.email !== member.email && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                              >
-                                <EllipsisVerticalIcon className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => setMemberToDelete(member)}
-                              >
-                                <TrashIcon className="mr-2 size-4" />
-                                Remove Member
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </div>
-                      <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Member ID:
-                          </span>
-                          <div className="mt-1 flex items-center gap-2">
-                            <span className="font-mono text-sm">
-                              {member.metadata.id}
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <span className="font-medium text-muted-foreground">
+                              Member ID:
                             </span>
-                            <CopyToClipboard text={member.metadata.id} />
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className="font-mono text-sm">
+                                {memberId}
+                              </span>
+                              <CopyToClipboard text={memberId} />
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-medium text-muted-foreground">
+                              Member Since:
+                            </span>
+                            <span className="ml-2">
+                              {new Date(
+                                member.metadata.createdAt,
+                              ).toLocaleDateString()}
+                            </span>
                           </div>
                         </div>
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Member Since:
-                          </span>
-                          <span className="ml-2">
-                            {new Date(
-                              member.metadata.createdAt,
-                            ).toLocaleDateString()}
-                          </span>
-                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (
@@ -731,142 +739,151 @@ export default function OrganizationPage() {
                               OrganizationInviteStatus.PENDING ||
                             invite.status === OrganizationInviteStatus.EXPIRED,
                         )
-                        .map((invite) => (
-                          <TableRow key={invite.metadata.id}>
-                            <TableCell className="font-mono text-sm">
-                              {invite.inviteeEmail}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{invite.role}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  invite.status ===
-                                  OrganizationInviteStatus.PENDING
-                                    ? 'secondary'
-                                    : invite.status ===
-                                        OrganizationInviteStatus.ACCEPTED
-                                      ? 'default'
-                                      : 'destructive'
-                                }
-                              >
-                                {invite.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {formatExpirationDate(invite.expires)}
-                            </TableCell>
-                            <TableCell>
-                              {invite.status ===
-                                OrganizationInviteStatus.PENDING && (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0"
-                                    >
-                                      <EllipsisVerticalIcon className="size-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem
-                                      onClick={() => setInviteToCancel(invite)}
-                                    >
-                                      <TrashIcon className="mr-2 size-4" />
-                                      Cancel Invitation
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        .map((invite) => {
+                          const inviteId = invite.metadata.id;
+                          return (
+                            <TableRow key={inviteId}>
+                              <TableCell className="font-mono text-sm">
+                                {invite.inviteeEmail}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline">{invite.role}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={
+                                    invite.status ===
+                                    OrganizationInviteStatus.PENDING
+                                      ? 'secondary'
+                                      : invite.status ===
+                                          OrganizationInviteStatus.ACCEPTED
+                                        ? 'default'
+                                        : 'destructive'
+                                  }
+                                >
+                                  {invite.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {formatExpirationDate(invite.expires)}
+                              </TableCell>
+                              <TableCell>
+                                {invite.status ===
+                                  OrganizationInviteStatus.PENDING && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0"
+                                      >
+                                        <EllipsisVerticalIcon className="size-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem
+                                        onClick={() =>
+                                          setInviteToCancel(invite)
+                                        }
+                                      >
+                                        <TrashIcon className="mr-2 size-4" />
+                                        Cancel Invitation
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                     </TableBody>
                   </Table>
                 </div>
 
                 {/* Mobile Card View */}
                 <div className="space-y-4 md:hidden">
-                  {organizationInvitesQuery.data.rows.map((invite) => (
-                    <div
-                      key={invite.metadata.id}
-                      className="space-y-3 rounded-lg border p-4"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm">
-                            {invite.inviteeEmail}
-                          </span>
-                          <Badge variant="outline">{invite.role}</Badge>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={
-                              invite.status === OrganizationInviteStatus.PENDING
-                                ? 'secondary'
-                                : invite.status ===
-                                    OrganizationInviteStatus.ACCEPTED
-                                  ? 'default'
-                                  : 'destructive'
-                            }
-                          >
-                            {invite.status}
-                          </Badge>
-                          {invite.status ===
-                            OrganizationInviteStatus.PENDING && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <EllipsisVerticalIcon className="size-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => setInviteToCancel(invite)}
-                                >
-                                  <TrashIcon className="mr-2 size-4" />
-                                  Cancel Invitation
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
-                      </div>
-                      <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Invite ID:
-                          </span>
-                          <div className="mt-1 flex items-center gap-2">
+                  {organizationInvitesQuery.data.rows.map((invite) => {
+                    const inviteId = invite.metadata.id;
+                    return (
+                      <div
+                        key={inviteId}
+                        className="space-y-3 rounded-lg border p-4"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
                             <span className="font-mono text-sm">
-                              {invite.metadata.id}
+                              {invite.inviteeEmail}
                             </span>
-                            <CopyToClipboard text={invite.metadata.id} />
+                            <Badge variant="outline">{invite.role}</Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant={
+                                invite.status ===
+                                OrganizationInviteStatus.PENDING
+                                  ? 'secondary'
+                                  : invite.status ===
+                                      OrganizationInviteStatus.ACCEPTED
+                                    ? 'default'
+                                    : 'destructive'
+                              }
+                            >
+                              {invite.status}
+                            </Badge>
+                            {invite.status ===
+                              OrganizationInviteStatus.PENDING && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <EllipsisVerticalIcon className="size-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => setInviteToCancel(invite)}
+                                  >
+                                    <TrashIcon className="mr-2 size-4" />
+                                    Cancel Invitation
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                           </div>
                         </div>
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Invited By:
-                          </span>
-                          <span className="ml-2">{invite.inviterEmail}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Expires:
-                          </span>
-                          <span className="ml-2">
-                            {formatExpirationDate(invite.expires)}
-                          </span>
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <span className="font-medium text-muted-foreground">
+                              Invite ID:
+                            </span>
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className="font-mono text-sm">
+                                {inviteId}
+                              </span>
+                              <CopyToClipboard text={inviteId} />
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-medium text-muted-foreground">
+                              Invited By:
+                            </span>
+                            <span className="ml-2">{invite.inviterEmail}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-muted-foreground">
+                              Expires:
+                            </span>
+                            <span className="ml-2">
+                              {formatExpirationDate(invite.expires)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (

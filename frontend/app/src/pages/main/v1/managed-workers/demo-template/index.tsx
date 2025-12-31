@@ -15,6 +15,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import {
+  ManagedWorker,
   ManagedWorkerEventStatus,
   TemplateOptions,
 } from '@/lib/api/generated/cloud/data-contracts';
@@ -63,7 +64,7 @@ export default function DemoTemplate() {
       cloudApi.managedWorkerTemplateCreate(tenantId, {
         name: template,
       }),
-    onSuccess: (response) => {
+    onSuccess: (response: { data: ManagedWorker }) => {
       // Extract worker ID from the response
       const workerId = response.data.metadata?.id;
       if (workerId) {
