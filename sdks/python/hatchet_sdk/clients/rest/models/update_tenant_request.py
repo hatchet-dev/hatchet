@@ -22,7 +22,6 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.tenant_ui_version import TenantUIVersion
 from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 
 
@@ -67,9 +66,6 @@ class UpdateTenantRequest(BaseModel):
     version: Optional[TenantVersion] = Field(
         default=None, description="The version of the tenant."
     )
-    ui_version: Optional[TenantUIVersion] = Field(
-        default=None, description="The UI of the tenant.", alias="uiVersion"
-    )
     __properties: ClassVar[List[str]] = [
         "name",
         "analyticsOptOut",
@@ -79,7 +75,6 @@ class UpdateTenantRequest(BaseModel):
         "enableTenantResourceLimitAlerts",
         "maxAlertingFrequency",
         "version",
-        "uiVersion",
     ]
 
     model_config = ConfigDict(
@@ -144,7 +139,6 @@ class UpdateTenantRequest(BaseModel):
                 ),
                 "maxAlertingFrequency": obj.get("maxAlertingFrequency"),
                 "version": obj.get("version"),
-                "uiVersion": obj.get("uiVersion"),
             }
         )
         return _obj
