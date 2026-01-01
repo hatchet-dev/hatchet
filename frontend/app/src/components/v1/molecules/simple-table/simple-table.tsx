@@ -31,21 +31,23 @@ export function SimpleTable<
   },
 >({ columns, data }: SimpleTableProps<T>) {
   return (
-    <Table className="border">
-      <TableHeader>
-        {columns.map(({ columnLabel }) => (
-          <TableCell key={columnLabel}>{columnLabel}</TableCell>
-        ))}
-      </TableHeader>
-      <TableBody>
-        {data.map((row) => (
-          <TableRow key={row.metadata.id}>
-            {columns.map(({ columnLabel, cellRenderer }) => (
-              <TableCell key={columnLabel}>{cellRenderer(row)}</TableCell>
-            ))}
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <div className="overflow-hidden rounded-md border">
+      <Table>
+        <TableHeader>
+          {columns.map(({ columnLabel }) => (
+            <TableCell key={columnLabel}>{columnLabel}</TableCell>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {data.map((row) => (
+            <TableRow key={row.metadata.id}>
+              {columns.map(({ columnLabel, cellRenderer }) => (
+                <TableCell key={columnLabel}>{cellRenderer(row)}</TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
