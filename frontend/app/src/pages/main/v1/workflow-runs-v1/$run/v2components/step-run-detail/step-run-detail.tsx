@@ -312,14 +312,12 @@ export const TaskRunDetail = ({
         )}
       </Tabs>
       <Separator className="my-4" />
-      <div className="mb-8">
+      <div className="mb-2 flex flex-col gap-y-2">
         <h3 className="flex flex-row items-center gap-4 text-lg font-semibold leading-tight text-foreground">
           Events
         </h3>
-        {/* TODO: Real onclick callback here */}
         <StepRunEvents
           taskRunId={taskRunId}
-          onClick={() => {}}
           fallbackTaskDisplayName={taskRun.displayName}
         />
       </div>

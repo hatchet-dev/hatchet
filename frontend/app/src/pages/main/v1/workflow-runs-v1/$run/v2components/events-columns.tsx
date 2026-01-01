@@ -1,5 +1,4 @@
 import { EventWithMetadata } from './step-run-events-for-workflow-run';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
@@ -17,7 +16,6 @@ import {
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { Link } from '@tanstack/react-router';
-import { createColumnHelper } from '@tanstack/react-table';
 
 function eventTypeToSeverity(
   eventType: V1TaskEventType | undefined,
@@ -40,128 +38,99 @@ function eventTypeToSeverity(
   }
 }
 
-const columnHelper = createColumnHelper<EventWithMetadata>();
-
-export const columns = ({
-  tenantId,
-  onRowClick,
+export function TaskEventCell({
+  event,
   fallbackTaskDisplayName,
+  onRowClick,
 }: {
-  tenantId: string;
-  onRowClick: (row: EventWithMetadata) => void;
+  event: EventWithMetadata;
   fallbackTaskDisplayName: string;
-}) => {
-  return [
-    columnHelper.accessor((row) => row.id, {
-      id: 'task',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Task" />
-      ),
-      cell: ({ row }) => {
-        return (
-          <div className="min-w-[120px] max-w-[180px]">
-            <Badge
-              className="cursor-pointer border-[#050c1c] bg-[#ffffff] py-1 font-mono text-xs dark:border-gray-400 dark:bg-[#050c1c]"
-              variant="outline"
-              onClick={() => onRowClick(row.original)}
-            >
-              <ArrowLeftEndOnRectangleIcon className="mr-1 size-4" />
-              <div className="max-w-[150px] truncate">
-                {row.original.taskDisplayName || fallbackTaskDisplayName}
-              </div>
-            </Badge>
-          </div>
-        );
-      },
-      enableSorting: false,
-      enableHiding: false,
-    }),
-    columnHelper.accessor((row) => row.timestamp, {
-      id: 'timestamp',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Seen at" />
-      ),
-      cell: ({ row }) => (
-        <div className="w-fit min-w-[120px]">
-          <RelativeDate date={row.original.timestamp} />
+  onRowClick: (event: EventWithMetadata) => void;
+}) {
+  return (
+    <div className="min-w-[120px] max-w-[180px]">
+      <Badge
+        className="cursor-pointer border-[#050c1c] bg-[#ffffff] py-1 font-mono text-xs dark:border-gray-400 dark:bg-[#050c1c]"
+        variant="outline"
+        onClick={() => onRowClick(event)}
+      >
+        <ArrowLeftEndOnRectangleIcon className="mr-1 size-4" />
+        <div className="max-w-[150px] truncate">
+          {event.taskDisplayName || fallbackTaskDisplayName}
         </div>
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    }),
-    columnHelper.accessor((row) => eventTypeToSeverity(row.eventType), {
-      id: 'event',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Event" />
-      ),
-      cell: ({ row }) => {
-        const event = row.original;
-        const severity = eventTypeToSeverity(event.eventType);
+      </Badge>
+    </div>
+  );
+}
 
-        return (
-          <div className="flex flex-row items-center gap-2">
-            <EventIndicator severity={severity} />
-            <div className="flex flex-row gap-4 text-sm tracking-wide">
-              {mapEventTypeToTitle(event.eventType)}
-            </div>
-          </div>
-        );
-      },
-      enableSorting: false,
-      enableHiding: false,
-    }),
-    columnHelper.accessor((row) => row.workerId, {
-      id: 'description',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Description" />
-      ),
-      cell: ({ row }) => {
-        const items: JSX.Element[] = [];
-        const event = row.original;
+export function TimestampCell({ event }: { event: EventWithMetadata }) {
+  return (
+    <div className="w-fit min-w-[120px]">
+      <RelativeDate date={event.timestamp} />
+    </div>
+  );
+}
 
-        if (event.eventType === V1TaskEventType.FAILED) {
-          items.push(<ErrorWithHoverCard key="error" event={row.original} />);
-        }
+export function EventTypeCell({ event }: { event: EventWithMetadata }) {
+  const severity = eventTypeToSeverity(event.eventType);
 
-        if (event.workerId && event.workerId !== emptyGolangUUID) {
-          items.push(
-            <Link
-              to={appRoutes.tenantWorkerRoute.to}
-              params={{ tenant: tenantId, worker: event.workerId }}
-              key="worker"
-            >
-              <Button
-                variant="link"
-                size="xs"
-                leftIcon={<ServerStackIcon className="size-4" />}
-              >
-                View Worker
-              </Button>
-            </Link>,
-          );
-        }
+  return (
+    <div className="flex flex-row items-center gap-2">
+      <EventIndicator severity={severity} />
+      <div className="flex flex-row gap-4 text-sm tracking-wide">
+        {mapEventTypeToTitle(event.eventType)}
+      </div>
+    </div>
+  );
+}
 
-        return (
-          <div>
-            <div
-              key="message"
-              className="font-mono text-xs tracking-tight text-muted-foreground"
-            >
-              {event.message}
-            </div>
-            {items.length > 0 && (
-              <div key="items" className="mt-2 flex flex-col items-start gap-2">
-                {items}
-              </div>
-            )}
-          </div>
-        );
-      },
-      enableSorting: false,
-      enableHiding: false,
-    }),
-  ];
-};
+export function DescriptionCell({
+  event,
+  tenantId,
+}: {
+  event: EventWithMetadata;
+  tenantId: string;
+}) {
+  const items: JSX.Element[] = [];
+
+  if (event.eventType === V1TaskEventType.FAILED) {
+    items.push(<ErrorWithHoverCard key="error" event={event} />);
+  }
+
+  if (event.workerId && event.workerId !== emptyGolangUUID) {
+    items.push(
+      <Link
+        to={appRoutes.tenantWorkerRoute.to}
+        params={{ tenant: tenantId, worker: event.workerId }}
+        key="worker"
+      >
+        <Button
+          variant="link"
+          size="xs"
+          leftIcon={<ServerStackIcon className="size-4" />}
+        >
+          View Worker
+        </Button>
+      </Link>,
+    );
+  }
+
+  return (
+    <div>
+      <div
+        key="message"
+        className="font-mono text-xs tracking-tight text-muted-foreground"
+      >
+        {event.message}
+      </div>
+      {items.length > 0 && (
+        <div key="items" className="mt-2 flex flex-col items-start gap-2">
+          {items}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
   switch (eventType) {
