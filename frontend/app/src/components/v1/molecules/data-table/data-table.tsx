@@ -287,7 +287,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
             {!hasRows ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={columns.length} className="h-full">
-                  <div className="flex h-full w-full flex-col items-center justify-center">
+                  <div className="flex h-full w-full flex-col items-center justify-center pt-8">
                     {emptyState || (
                       <p className="text-lg font-semibold">No results.</p>
                     )}
