@@ -93,7 +93,6 @@ type RefetchProps = {
 
 interface ExtraDataTableProps {
   emptyState?: JSX.Element;
-  sparseContent?: JSX.Element;
   columnKeyToName?: Record<string, string>;
   refetchProps?: RefetchProps;
   tableActions?: ShowTableActionsProps;
@@ -123,7 +122,6 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   isLoading,
   getRowId,
   emptyState,
-  sparseContent,
   manualSorting = true,
   manualFiltering = true,
   getSubRows,
@@ -253,13 +251,6 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto relative">
-        {sparseContent &&
-          table.getRowModel().rows.length > 0 &&
-          table.getRowModel().rows.length <= 3 && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              {sparseContent}
-            </div>
-          )}
         <Table className="table-auto w-full relative z-10">
           <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
