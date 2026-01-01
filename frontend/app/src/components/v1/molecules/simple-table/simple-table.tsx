@@ -1,0 +1,51 @@
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from '../../ui/table';
+import React from 'react';
+
+type SimpleTableColumn<T> = {
+  columnLabel: string;
+  cellRenderer: (row: T) => React.ReactNode;
+};
+
+type SimpleTableProps<
+  T extends {
+    metadata: {
+      id: string;
+    };
+  },
+> = {
+  columns: SimpleTableColumn<T>[];
+  data: T[];
+};
+
+export function SimpleTable<
+  T extends {
+    metadata: {
+      id: string;
+    };
+  },
+>({ columns, data }: SimpleTableProps<T>) {
+  return (
+    <Table className="border">
+      <TableHeader>
+        {columns.map(({ columnLabel }) => (
+          <TableCell key={columnLabel}>{columnLabel}</TableCell>
+        ))}
+      </TableHeader>
+      <TableBody>
+        {data.map((row) => (
+          <TableRow key={row.metadata.id}>
+            {columns.map(({ columnLabel, cellRenderer }) => (
+              <TableCell key={columnLabel}>{cellRenderer(row)}</TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}

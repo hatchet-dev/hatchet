@@ -5,19 +5,14 @@ import {
 } from './components/resource-limit-columns';
 import { PaymentMethods, Subscription } from '@/components/v1/cloud/billing';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from '@/components/v1/ui/table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { queries } from '@/lib/api';
+import { queries, TenantResourceLimit } from '@/lib/api';
 import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
@@ -45,6 +40,53 @@ export default function ResourceLimits() {
       </div>
     );
   }
+
+  const resourceLimits = resourcePolicyQuery.data?.limits || [];
+
+  const resourceLimitColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Resource',
+        cellRenderer: (limit: TenantResourceLimit) => (
+          <div className="flex flex-row items-center gap-4">
+            <LimitIndicator
+              value={limit.value}
+              alarmValue={limit.alarmValue}
+              limitValue={limit.limitValue}
+            />
+            {limitedResources[limit.resource]}
+          </div>
+        ),
+      },
+      {
+        columnLabel: 'Current Value',
+        cellRenderer: (limit: TenantResourceLimit) => limit.value,
+      },
+      {
+        columnLabel: 'Limit Value',
+        cellRenderer: (limit: TenantResourceLimit) => limit.limitValue,
+      },
+      {
+        columnLabel: 'Alarm Value',
+        cellRenderer: (limit: TenantResourceLimit) => limit.alarmValue || 'N/A',
+      },
+      {
+        columnLabel: 'Meter Window',
+        cellRenderer: (limit: TenantResourceLimit) =>
+          (limit.window || '-') in limitDurationMap
+            ? limitDurationMap[limit.window || '-']
+            : limit.window,
+      },
+      {
+        columnLabel: 'Last Refill',
+        cellRenderer: (limit: TenantResourceLimit) =>
+          !limit.window
+            ? 'N/A'
+            : limit.lastRefill && <RelativeDate date={limit.lastRefill} />,
+      },
+    ],
+    [],
+  );
 
   return (
     <div className="h-full w-full flex-grow">
@@ -89,51 +131,7 @@ export default function ResourceLimits() {
           if you need to adjust your limits.
         </p>
 
-        <Table className="border">
-          <TableHeader>
-            {[
-              'Resource',
-              'Current Value',
-              'Limit Value',
-              'Alarm Value',
-              'Meter Window',
-              'Last Refill',
-            ].map((column) => (
-              <TableCell key={column}>{column}</TableCell>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {resourcePolicyQuery.data?.limits.map((limit) => (
-              <TableRow key={limit.metadata.id}>
-                <TableCell>
-                  <div className="flex flex-row items-center gap-4">
-                    <LimitIndicator
-                      value={limit.value}
-                      alarmValue={limit.alarmValue}
-                      limitValue={limit.limitValue}
-                    />
-                    {limitedResources[limit.resource]}
-                  </div>
-                </TableCell>
-                <TableCell>{limit.value}</TableCell>
-                <TableCell>{limit.limitValue}</TableCell>
-                <TableCell>{limit.alarmValue || 'N/A'}</TableCell>
-                <TableCell>
-                  {(limit.window || '-') in limitDurationMap
-                    ? limitDurationMap[limit.window || '-']
-                    : limit.window}
-                </TableCell>
-                <TableCell>
-                  {!limit.window
-                    ? 'N/A'
-                    : limit.lastRefill && (
-                        <RelativeDate date={limit.lastRefill} />
-                      )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <SimpleTable columns={resourceLimitColumns} data={resourceLimits} />
       </div>
     </div>
   );
