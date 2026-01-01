@@ -179,8 +179,9 @@ export default function WorkerDetail() {
 
   const availableSlots = worker.availableRuns ?? 0;
   const maxSlots = worker.maxRuns ?? 0;
-  const slotPercentage =
-    maxSlots > 0 ? Math.round((availableSlots / maxSlots) * 100) : 100;
+  const usedSlots = maxSlots - availableSlots;
+  const usedPercentage =
+    maxSlots > 0 ? Math.round((usedSlots / maxSlots) * 100) : 0;
 
   // dynamically set the max columns in the grid based on the presence of runtime info and labels
   const maxCols =
@@ -190,7 +191,7 @@ export default function WorkerDetail() {
 
   return (
     <div className="h-full w-full flex-grow">
-      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto p-4">
         <div className="flex flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
             <ServerStackIcon className="mt-1 h-6 w-6 text-foreground" />
@@ -284,14 +285,14 @@ export default function WorkerDetail() {
               </div>
               {maxSlots > 0 && (
                 <div className="space-y-1">
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-blue-100 dark:bg-blue-900">
                     <div
-                      className="h-full bg-blue-600 transition-all dark:bg-blue-500"
-                      style={{ width: `${slotPercentage}%` }}
+                      className="h-full bg-red-600 transition-all dark:bg-red-500"
+                      style={{ width: `${usedPercentage}%` }}
                     />
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {slotPercentage}% available
+                    {usedSlots} used, {availableSlots} available
                   </div>
                 </div>
               )}
