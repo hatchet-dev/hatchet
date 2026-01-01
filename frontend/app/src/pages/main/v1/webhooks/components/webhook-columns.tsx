@@ -1,7 +1,4 @@
 import { useWebhooks } from '../hooks/use-webhooks';
-import { AuthMethod } from './auth-method';
-import { SourceName } from './source-name';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -12,98 +9,17 @@ import {
 import { Input } from '@/components/v1/ui/input';
 import { V1Webhook } from '@/lib/api';
 import { DotsVerticalIcon } from '@radix-ui/react-icons';
-import { ColumnDef, Row } from '@tanstack/react-table';
 import { Check, Copy, Loader, Save, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
-export const WebhookColumn = {
-  name: 'Name',
-  sourceName: 'Source',
-  expression: 'Expression',
-  authType: 'Auth Method',
-  actions: 'Actions',
-};
-
-type WebhookColumnKeys = keyof typeof WebhookColumn;
-
-const nameKey: WebhookColumnKeys = 'name';
-const sourceNameKey: WebhookColumnKeys = 'sourceName';
-const expressionKey: WebhookColumnKeys = 'expression';
-const authTypeKey: WebhookColumnKeys = 'authType';
-const actionsKey: WebhookColumnKeys = 'actions';
-
-export const columns = (): ColumnDef<V1Webhook>[] => {
-  return [
-    {
-      accessorKey: nameKey,
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={WebhookColumn.name} />
-      ),
-      cell: ({ row }) => <div className="w-full">{row.original.name}</div>,
-      enableSorting: false,
-      enableHiding: true,
-    },
-    {
-      accessorKey: sourceNameKey,
-      header: ({ column }) => (
-        <DataTableColumnHeader
-          column={column}
-          title={WebhookColumn.sourceName}
-        />
-      ),
-      cell: ({ row }) => (
-        <div className="w-full">
-          <SourceName sourceName={row.original.sourceName} />
-        </div>
-      ),
-      enableSorting: false,
-      enableHiding: true,
-    },
-    {
-      accessorKey: expressionKey,
-      header: ({ column }) => (
-        <DataTableColumnHeader
-          column={column}
-          title={WebhookColumn.expression}
-        />
-      ),
-      cell: ({ row }) => <EditableExpressionCell row={row} />,
-      enableSorting: false,
-      enableHiding: true,
-    },
-    {
-      accessorKey: authTypeKey,
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={WebhookColumn.authType} />
-      ),
-      cell: ({ row }) => (
-        <div className="w-full">
-          <AuthMethod authMethod={row.original.authType} />
-        </div>
-      ),
-      enableSorting: false,
-      enableHiding: true,
-    },
-    {
-      accessorKey: actionsKey,
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={WebhookColumn.actions} />
-      ),
-      cell: ({ row }) => <WebhookActionsCell row={row} />,
-      enableSorting: false,
-      enableHiding: true,
-    },
-  ];
-};
-
-const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
+export const WebhookActionsCell = ({ webhook }: { webhook: V1Webhook }) => {
   const { mutations, createWebhookURL } = useWebhooks(() =>
     setIsDropdownOpen(false),
   );
   const [isCopied, setIsCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const webhookUrl = createWebhookURL(row.original.name);
+  const webhookUrl = createWebhookURL(webhook.name);
 
   const handleCopy = (url: string) => {
     navigator.clipboard.writeText(url);
@@ -140,7 +56,7 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
-            mutations.deleteWebhook({ webhookName: row.original.name });
+            mutations.deleteWebhook({ webhookName: webhook.name });
           }}
           disabled={mutations.isDeletePending}
         >
@@ -156,36 +72,36 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
   );
 };
 
-const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
+export const EditableExpressionCell = ({ webhook }: { webhook: V1Webhook }) => {
   const { mutations } = useWebhooks();
   const [isEditing, setIsEditing] = useState(false);
-  const [value, setValue] = useState(row.original.eventKeyExpression || '');
+  const [value, setValue] = useState(webhook.eventKeyExpression || '');
 
   const hasChanges =
-    value.trim() !== (row.original.eventKeyExpression || '').trim() &&
+    value.trim() !== (webhook.eventKeyExpression || '').trim() &&
     value.trim() !== '';
 
-  // Sync value when row data changes (e.g., after successful save) and there are no unsaved changes
+  // Sync value when webhook data changes (e.g., after successful save) and there are no unsaved changes
   useEffect(() => {
     if (!isEditing && !hasChanges) {
-      setValue(row.original.eventKeyExpression || '');
+      setValue(webhook.eventKeyExpression || '');
     }
-  }, [row.original.eventKeyExpression, isEditing, hasChanges]);
+  }, [webhook.eventKeyExpression, isEditing, hasChanges]);
 
   const handleSave = useCallback(() => {
-    if (value !== row.original.eventKeyExpression && value.trim()) {
+    if (value !== webhook.eventKeyExpression && value.trim()) {
       mutations.updateWebhook({
-        webhookName: row.original.name,
+        webhookName: webhook.name,
         webhookData: { eventKeyExpression: value.trim() },
       });
     }
     setIsEditing(false);
-  }, [value, row.original.eventKeyExpression, row.original.name, mutations]);
+  }, [value, webhook.eventKeyExpression, webhook.name, mutations]);
 
   const handleCancel = useCallback(() => {
-    setValue(row.original.eventKeyExpression || '');
+    setValue(webhook.eventKeyExpression || '');
     setIsEditing(false);
-  }, [row.original.eventKeyExpression, setIsEditing, setValue]);
+  }, [webhook.eventKeyExpression, setIsEditing, setValue]);
 
   const handleBlur = useCallback(() => {
     // Only auto-save if there are no changes, otherwise keep buttons visible
