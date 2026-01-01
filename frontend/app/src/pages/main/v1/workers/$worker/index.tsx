@@ -1,6 +1,7 @@
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { flattenDAGsKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
+import { DocsButton } from '@/components/v1/docs/docs-button';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
@@ -19,9 +20,11 @@ import {
 } from '@/components/v1/ui/portal-tooltip';
 import { Separator } from '@/components/v1/ui/separator';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
 import { shouldRetryQueryError } from '@/lib/error-utils';
+import { docsPages } from '@/lib/generated/docs';
 import { useApiError } from '@/lib/hooks';
 import { capitalize } from '@/lib/utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
@@ -182,14 +185,7 @@ export default function ExpandedWorkflowRun() {
           <div className="flex flex-row items-center gap-4">
             <ServerStackIcon className="mt-1 h-6 w-6 text-foreground" />
             <h2 className="text-2xl font-bold leading-tight text-foreground">
-              <Link
-                to={appRoutes.tenantWorkersRoute.to}
-                params={{ tenant: tenantId }}
-                className="hover:underline"
-              >
-                Workers/
-              </Link>
-              {worker.webhookUrl || worker.name}
+              {worker.name}
             </h2>
           </div>
           <div className="flex flex-row gap-2">
@@ -290,14 +286,11 @@ export default function ExpandedWorkflowRun() {
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Slots represent concurrent task runs.{' '}
-              <a
-                href="https://docs.hatchet.run/home/workers"
-                className="underline hover:text-gray-900 dark:hover:text-gray-100"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Learn more
-              </a>
+              <DocsButton
+                variant="text"
+                doc={docsPages.home.workers}
+                label="Learn more"
+              />
             </p>
           </div>
 
@@ -311,13 +304,11 @@ export default function ExpandedWorkflowRun() {
                   Runtime Info
                 </h3>
                 <div className="space-y-3 text-sm">
-                  {worker.runtimeInfo?.sdkVersion && (
+                  {worker.runtimeInfo?.os && (
                     <div>
-                      <div className="text-gray-500 dark:text-gray-400">
-                        Hatchet SDK
-                      </div>
+                      <div className="text-gray-500 dark:text-gray-400">OS</div>
                       <div className="font-medium text-gray-900 dark:text-gray-100">
-                        {worker.runtimeInfo.sdkVersion}
+                        {worker.runtimeInfo.os}
                       </div>
                     </div>
                   )}
@@ -331,12 +322,14 @@ export default function ExpandedWorkflowRun() {
                         {worker.runtimeInfo.languageVersion}
                       </div>
                     </div>
-                  )}
-                  {worker.runtimeInfo?.os && (
+                  )}{' '}
+                  {worker.runtimeInfo?.sdkVersion && (
                     <div>
-                      <div className="text-gray-500 dark:text-gray-400">OS</div>
+                      <div className="text-gray-500 dark:text-gray-400">
+                        Hatchet SDK
+                      </div>
                       <div className="font-medium text-gray-900 dark:text-gray-100">
-                        {worker.runtimeInfo.os}
+                        {worker.runtimeInfo.sdkVersion}
                       </div>
                     </div>
                   )}
@@ -365,8 +358,8 @@ export default function ExpandedWorkflowRun() {
               </h3>
               <div className="space-y-3 pl-1">
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Key-value pairs used to prioritize step assignment to
-                  specific workers.{' '}
+                  Key-value pairs used to prioritize step assignment to specific
+                  workers.{' '}
                   <a
                     className="underline hover:text-gray-900 dark:hover:text-gray-100"
                     href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
