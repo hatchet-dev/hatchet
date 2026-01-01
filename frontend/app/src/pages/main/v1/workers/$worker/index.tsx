@@ -18,7 +18,6 @@ import {
   PortalTooltipProvider,
   PortalTooltipTrigger,
 } from '@/components/v1/ui/portal-tooltip';
-import { Separator } from '@/components/v1/ui/separator';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
@@ -345,95 +344,83 @@ export default function ExpandedWorkflowRun() {
         </div>
 
         {worker.labels && worker.labels.length > 0 && (
-          <>
-            <Separator className="my-6" />
-            <div className="space-y-3">
-              <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
-                Worker Labels
-              </h3>
-              <div className="space-y-3 pl-1">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Key-value pairs used to prioritize step assignment to specific
-                  workers.{' '}
-                  <DocsButton
-                    variant="text"
-                    doc={docsPages.home['worker-affinity']}
-                    label="Learn more"
-                    scrollTo={'Specifying Worker Labels'}
-                  />
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {worker.labels.map(({ key, value }) => (
-                    <Badge key={key} variant="secondary">
-                      {key}: {value}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        <Separator className="my-6" />
-        <div className="space-y-3">
-          <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
-            Registered Workflows
-          </h3>
-          <div className="space-y-3 pl-1">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Workflows that this worker can execute
+          <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              Worker Labels
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Key-value pairs used to prioritize step assignment to specific
+              workers.{' '}
+              <DocsButton
+                variant="text"
+                doc={docsPages.home['worker-affinity']}
+                label="Learn more"
+                scrollTo={'Specifying Worker Labels'}
+              />
             </p>
             <div className="flex flex-wrap gap-2">
-              {filteredWorkflows.map((workflow) => (
-                <Link
-                  to={appRoutes.tenantWorkflowRoute.to}
-                  params={{ tenant: tenantId, workflow: workflow.id }}
-                  key={workflow.id}
-                >
-                  <Button variant="outline" size="sm">
-                    {workflow.name}
-                  </Button>
-                </Link>
+              {worker.labels.map(({ key, value }) => (
+                <Badge key={key} variant="secondary">
+                  {key}: {value}
+                </Badge>
               ))}
             </div>
-            {!showAllActions &&
-              registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
-                <div className="flex justify-start">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowAllActions(true)}
-                  >
-                    Show {registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
-                    more
-                  </Button>
-                </div>
-              )}
           </div>
+        )}
+
+        <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            Registered Workflows
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Workflows that this worker can execute
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {filteredWorkflows.map((workflow) => (
+              <Link
+                to={appRoutes.tenantWorkflowRoute.to}
+                params={{ tenant: tenantId, workflow: workflow.id }}
+                key={workflow.id}
+              >
+                <Button variant="outline" size="sm">
+                  {workflow.name}
+                </Button>
+              </Link>
+            ))}
+          </div>
+          {!showAllActions &&
+            registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
+              <div className="flex justify-start">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAllActions(true)}
+                >
+                  Show {registeredWorkflows.length - N_ACTIONS_TO_PREVIEW} more
+                </Button>
+              </div>
+            )}
         </div>
 
-        <Separator className="my-6" />
-        <div className="space-y-3">
-          <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
+        <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             Recent Task Runs
           </h3>
-          <div className="pl-1">
-            <RunsProvider
-              tableKey={`worker-${worker.metadata.id}`}
-              display={{
-                hideMetrics: true,
-                hideCounts: true,
-                hideTriggerRunButton: true,
-                hiddenFilters: [flattenDAGsKey],
-                hideCancelAndReplayButtons: true,
-              }}
-              runFilters={{
-                workerId: worker.metadata.id,
-              }}
-            >
-              <RunsTable />
-            </RunsProvider>
-          </div>
+          <RunsProvider
+            tableKey={`worker-${worker.metadata.id}`}
+            display={{
+              hideMetrics: true,
+              hideCounts: true,
+              hideTriggerRunButton: true,
+              hiddenFilters: [flattenDAGsKey],
+              hideCancelAndReplayButtons: true,
+            }}
+            runFilters={{
+              workerId: worker.metadata.id,
+            }}
+          >
+            <RunsTable />
+          </RunsProvider>
         </div>
       </div>
     </div>

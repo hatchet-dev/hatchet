@@ -124,22 +124,6 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
   tenantId,
 ) => [
   {
-    accessorKey: statusKey,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={WorkerColumn.status} />
-    ),
-    cell: ({ row }) => (
-      <Link
-        to={appRoutes.tenantWorkerRoute.to}
-        params={{ tenant: tenantId, worker: row.original.metadata.id }}
-      >
-        <WorkerStatusBadge status={row.original.status} />
-      </Link>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
     accessorKey: nameKey,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={WorkerColumn.name} />
@@ -152,6 +136,22 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
         <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
           {row.original.webhookUrl || row.original.name}
         </div>
+      </Link>
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: statusKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={WorkerColumn.status} />
+    ),
+    cell: ({ row }) => (
+      <Link
+        to={appRoutes.tenantWorkerRoute.to}
+        params={{ tenant: tenantId, worker: row.original.metadata.id }}
+      >
+        <WorkerStatusBadge status={row.original.status} />
       </Link>
     ),
     enableSorting: false,
