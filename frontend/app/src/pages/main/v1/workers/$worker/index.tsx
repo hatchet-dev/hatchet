@@ -290,6 +290,7 @@ export default function ExpandedWorkflowRun() {
                 variant="text"
                 doc={docsPages.home.workers}
                 label="Learn more"
+                scrollTo={'Understanding Slots'}
               />
             </p>
           </div>
