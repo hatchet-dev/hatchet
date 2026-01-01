@@ -5,13 +5,6 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/v1/ui/card';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -25,12 +18,6 @@ import {
   PortalTooltipTrigger,
 } from '@/components/v1/ui/portal-tooltip';
 import { Separator } from '@/components/v1/ui/separator';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
@@ -189,27 +176,21 @@ export default function ExpandedWorkflowRun() {
 
   return (
     <div className="h-full w-full flex-grow">
-      <div className="mx-auto flex flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg border bg-muted/50">
-              <ServerStackIcon className="h-6 w-6 text-foreground" />
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">
-                <Link
-                  to={appRoutes.tenantWorkersRoute.to}
-                  params={{ tenant: tenantId }}
-                  className="hover:underline"
-                >
-                  Workers
-                </Link>
-              </div>
-              <h1 className="text-2xl font-bold leading-tight text-foreground">
-                {worker.webhookUrl || worker.name}
-              </h1>
-            </div>
+            <ServerStackIcon className="mt-1 h-6 w-6 text-foreground" />
+            <h2 className="text-2xl font-bold leading-tight text-foreground">
+              <Link
+                to={appRoutes.tenantWorkersRoute.to}
+                params={{ tenant: tenantId }}
+                className="hover:underline"
+              >
+                Workers/
+              </Link>
+              {worker.webhookUrl || worker.name}
+            </h2>
           </div>
           <div className="flex flex-row gap-2">
             <WorkerStatus status={worker.status} health={healthy} />
@@ -236,33 +217,37 @@ export default function ExpandedWorkflowRun() {
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
-          {/* Connection Info Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Connection Info</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
+        {/* Info Grid */}
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          {/* Connection Info */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              Connection Info
+            </h3>
+            <div className="space-y-3 text-sm">
               <div>
-                <div className="text-muted-foreground">First Connected</div>
-                <div className="font-medium">
+                <div className="text-gray-500 dark:text-gray-400">
+                  First Connected
+                </div>
+                <div className="font-medium text-gray-900 dark:text-gray-100">
                   <RelativeDate date={worker.metadata?.createdAt} />
                 </div>
               </div>
               {worker.lastListenerEstablished && (
                 <div>
-                  <div className="text-muted-foreground">
+                  <div className="text-gray-500 dark:text-gray-400">
                     Last Listener Established
                   </div>
-                  <div className="font-medium">
+                  <div className="font-medium text-gray-900 dark:text-gray-100">
                     <RelativeDate date={worker.lastListenerEstablished} />
                   </div>
                 </div>
               )}
               <div>
-                <div className="text-muted-foreground">Last Heartbeat</div>
-                <div className="font-medium">
+                <div className="text-gray-500 dark:text-gray-400">
+                  Last Heartbeat
+                </div>
+                <div className="font-medium text-gray-900 dark:text-gray-100">
                   {worker.lastHeartbeatAt ? (
                     <RelativeDate date={worker.lastHeartbeatAt} />
                   ) : (
@@ -270,78 +255,78 @@ export default function ExpandedWorkflowRun() {
                   )}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          {/* Available Slots Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Available Run Slots</CardTitle>
-              <CardDescription>
-                Slots represent concurrent task runs on this worker
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-3xl font-bold">
-                    {maxSlots > 0 ? availableSlots : '∞'}
-                  </span>
-                  {maxSlots > 0 && (
-                    <span className="text-sm text-muted-foreground">
-                      / {maxSlots} total
-                    </span>
-                  )}
-                </div>
+          {/* Available Slots */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              Available Run Slots
+            </h3>
+            <div className="space-y-2">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                  {maxSlots > 0 ? availableSlots : '∞'}
+                </span>
                 {maxSlots > 0 && (
-                  <div className="space-y-1">
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full bg-primary transition-all"
-                        style={{ width: `${slotPercentage}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {slotPercentage}% available
-                    </div>
-                  </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    / {maxSlots} total
+                  </span>
                 )}
               </div>
-              <div className="mt-4">
-                <a
-                  href="https://docs.hatchet.run/home/workers"
-                  className="text-xs text-muted-foreground underline hover:text-foreground"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Learn more about slots
-                </a>
-              </div>
-            </CardContent>
-          </Card>
+              {maxSlots > 0 && (
+                <div className="space-y-1">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div
+                      className="h-full bg-blue-600 transition-all dark:bg-blue-500"
+                      style={{ width: `${slotPercentage}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {slotPercentage}% available
+                  </div>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Slots represent concurrent task runs.{' '}
+              <a
+                href="https://docs.hatchet.run/home/workers"
+                className="underline hover:text-gray-900 dark:hover:text-gray-100"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Learn more
+              </a>
+            </p>
+          </div>
 
-          {/* Runtime Info Card */}
+          {/* Runtime Info */}
           {worker.runtimeInfo &&
             (worker.runtimeInfo?.sdkVersion ||
               worker.runtimeInfo?.languageVersion ||
               worker.runtimeInfo?.os) && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Runtime Info</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
+              <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Runtime Info
+                </h3>
+                <div className="space-y-3 text-sm">
                   {worker.runtimeInfo?.sdkVersion && (
                     <div>
-                      <div className="text-muted-foreground">Hatchet SDK</div>
-                      <div className="font-medium">
+                      <div className="text-gray-500 dark:text-gray-400">
+                        Hatchet SDK
+                      </div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
                         {worker.runtimeInfo.sdkVersion}
                       </div>
                     </div>
                   )}
                   {worker.runtimeInfo?.languageVersion && (
                     <div>
-                      <div className="text-muted-foreground">Runtime</div>
-                      <div className="font-medium">
+                      <div className="text-gray-500 dark:text-gray-400">
+                        Runtime
+                      </div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
                         {capitalize(worker.runtimeInfo.language ?? '')}{' '}
                         {worker.runtimeInfo.languageVersion}
                       </div>
@@ -349,62 +334,70 @@ export default function ExpandedWorkflowRun() {
                   )}
                   {worker.runtimeInfo?.os && (
                     <div>
-                      <div className="text-muted-foreground">OS</div>
-                      <div className="font-medium">{worker.runtimeInfo.os}</div>
+                      <div className="text-gray-500 dark:text-gray-400">OS</div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
+                        {worker.runtimeInfo.os}
+                      </div>
                     </div>
                   )}
                   {worker.runtimeInfo?.runtimeExtra && (
                     <div>
-                      <div className="text-muted-foreground">Runtime Extra</div>
-                      <div className="font-medium">
+                      <div className="text-gray-500 dark:text-gray-400">
+                        Runtime Extra
+                      </div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
                         {worker.runtimeInfo.runtimeExtra}
                       </div>
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             )}
         </div>
 
         {/* Worker Labels */}
         {worker.labels && worker.labels.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Worker Labels</CardTitle>
-              <CardDescription>
-                Key-value pairs used to prioritize step assignment to specific
-                workers.{' '}
-                <a
-                  className="underline hover:text-foreground"
-                  href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Learn more
-                </a>
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {worker.labels.map(({ key, value }) => (
-                  <Badge key={key} variant="outline">
-                    {key}: {value}
-                  </Badge>
-                ))}
+          <>
+            <Separator className="my-6" />
+            <div className="space-y-3">
+              <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
+                Worker Labels
+              </h3>
+              <div className="space-y-3 pl-1">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Key-value pairs used to prioritize step assignment to
+                  specific workers.{' '}
+                  <a
+                    className="underline hover:text-gray-900 dark:hover:text-gray-100"
+                    href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Learn more
+                  </a>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {worker.labels.map(({ key, value }) => (
+                    <Badge key={key} variant="secondary">
+                      {key}: {value}
+                    </Badge>
+                  ))}
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </>
         )}
 
         {/* Registered Workflows */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Registered Workflows</CardTitle>
-            <CardDescription>
+        <Separator className="my-6" />
+        <div className="space-y-3">
+          <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
+            Registered Workflows
+          </h3>
+          <div className="space-y-3 pl-1">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Workflows that this worker can execute
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+            </p>
             <div className="flex flex-wrap gap-2">
               {filteredWorkflows.map((workflow) => (
                 <Link
@@ -420,7 +413,7 @@ export default function ExpandedWorkflowRun() {
             </div>
             {!showAllActions &&
               registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
-                <div className="mt-4 flex justify-center">
+                <div className="flex justify-start">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -431,15 +424,16 @@ export default function ExpandedWorkflowRun() {
                   </Button>
                 </div>
               )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Recent Task Runs */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Recent Task Runs</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
+        <Separator className="my-6" />
+        <div className="space-y-3">
+          <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
+            Recent Task Runs
+          </h3>
+          <div className="pl-1">
             <RunsProvider
               tableKey={`worker-${worker.metadata.id}`}
               display={{
@@ -455,8 +449,8 @@ export default function ExpandedWorkflowRun() {
             >
               <RunsTable />
             </RunsProvider>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
