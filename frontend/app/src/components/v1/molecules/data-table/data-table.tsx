@@ -220,14 +220,6 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
     );
   }
 
-  if (!hasRows) {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-        {emptyState || <p className="text-lg font-semibold">No results.</p>}
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full flex-col">
       <div className="shrink-0 h-10 flex flex-col size-full items-center pt-2 mb-2">
@@ -292,12 +284,25 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
             ))}
           </TableHeader>
           <TableBody className="w-full">
-            {table.getRowModel().rows.map((row) => (
-              <React.Fragment key={row.id}>
-                {getTableRow(row)}
-                {row.getIsExpanded() && row.subRows.map((r) => getTableRow(r))}
-              </React.Fragment>
-            ))}
+            {!hasRows ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columns.length} className="h-full">
+                  <div className="flex h-full w-full flex-col items-center justify-center">
+                    {emptyState || (
+                      <p className="text-lg font-semibold">No results.</p>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <React.Fragment key={row.id}>
+                  {getTableRow(row)}
+                  {row.getIsExpanded() &&
+                    row.subRows.map((r) => getTableRow(r))}
+                </React.Fragment>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
