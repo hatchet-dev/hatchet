@@ -260,7 +260,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   );
 
   return (
-    <div className="flex max-h-full flex-col space-y-4">
+    <div className="flex h-full flex-col overflow-hidden">
       {tableActions?.selectedActionType && (
         <ConfirmActionModal
           actionType={tableActions.selectedActionType}
@@ -291,11 +291,15 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
         {getTable()}
       </div>
       {pagination && (
-        <DataTablePagination
-          table={table}
-          onSetPageSize={onSetPageSize}
-          showSelectedRows={showSelectedRows}
-        />
+        <div className="shrink-0 h-10 flex items-center pt-2">
+          <div className="w-full">
+            <DataTablePagination
+              table={table}
+              onSetPageSize={onSetPageSize}
+              showSelectedRows={showSelectedRows}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
