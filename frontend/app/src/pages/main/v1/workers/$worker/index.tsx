@@ -104,7 +104,7 @@ const WorkerStatus = ({
 
 const N_ACTIONS_TO_PREVIEW = 10;
 
-export default function ExpandedWorkflowRun() {
+export default function WorkerDetail() {
   const { handleApiError } = useApiError({});
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
@@ -301,7 +301,7 @@ export default function ExpandedWorkflowRun() {
                   variant="text"
                   doc={docsPages.home.workers}
                   label="Learn more"
-                  scrollTo={'Understanding Slots'}
+                  scrollTo={'understanding-slots'}
                 />
               </p>
             </CardContent>
@@ -370,7 +370,7 @@ export default function ExpandedWorkflowRun() {
                     variant="text"
                     doc={docsPages.home['worker-affinity']}
                     label="Learn more"
-                    scrollTo={'Specifying Worker Labels'}
+                    scrollTo={'specifying-worker-labels'}
                   />
                 </CardDescription>
               </CardHeader>
@@ -425,10 +425,10 @@ export default function ExpandedWorkflowRun() {
         </Card>
 
         <Card variant="light" className="mt-4">
-          <CardHeader>
+          {/* <CardHeader>
             <CardTitle>Recent Task Runs</CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 max-h-48 overflow-y-auto">
+          </CardHeader> */}
+          <CardContent className="flex-1 h-96 overflow-y-auto">
             <RunsProvider
               tableKey={`worker-${worker.metadata.id}`}
               display={{
@@ -442,7 +442,7 @@ export default function ExpandedWorkflowRun() {
                 workerId: worker.metadata.id,
               }}
             >
-              <RunsTable />
+              <RunsTable leftLabel={'Recent runs'} />
             </RunsProvider>
           </CardContent>
         </Card>

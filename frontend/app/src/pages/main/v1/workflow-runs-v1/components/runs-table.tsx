@@ -82,7 +82,7 @@ const GetWorkflowChart = () => {
   );
 };
 
-export function RunsTable() {
+export function RunsTable({ leftLabel }: { leftLabel?: string }) {
   const { tenantId } = useCurrentTenantId();
   const sidePanel = useSidePanel();
   const { setIsFrozen } = useRefetchInterval();
@@ -196,6 +196,30 @@ export function RunsTable() {
   const hasLoaded = !isRunsLoading && !isStatusCountsLoading;
   const isFetching = !hasLoaded && (isRunsFetching || isStatusCountsFetching);
 
+  const leftActions = [
+    ...(!hideCounts
+      ? [
+          <div key="metrics" className="mr-auto flex justify-start">
+            {runStatusCounts.length > 0 ? (
+              <V1WorkflowRunsMetricsView />
+            ) : (
+              <Skeleton className="h-8 w-[40vw] max-w-[800px]" />
+            )}
+          </div>,
+        ]
+      : []),
+    ...(leftLabel
+      ? [
+          <span
+            key="left-label"
+            className="mr-auto flex justify-start font-medium"
+          >
+            {leftLabel}
+          </span>,
+        ]
+      : []),
+  ];
+
   return (
     <div className="flex h-full flex-col gap-y-2 overflow-hidden">
       <Toaster />
@@ -247,19 +271,7 @@ export function RunsTable() {
           setColumnVisibility={setColumnVisibility}
           data={tableRows}
           filters={toolbarFilters}
-          leftActions={[
-            ...(!hideCounts
-              ? [
-                  <div key="metrics" className="mr-auto flex justify-start">
-                    {runStatusCounts.length > 0 ? (
-                      <V1WorkflowRunsMetricsView />
-                    ) : (
-                      <Skeleton className="h-8 w-[40vw] max-w-[800px]" />
-                    )}
-                  </div>,
-                ]
-              : []),
-          ]}
+          leftActions={leftActions}
           columnFilters={filters.columnFilters}
           setColumnFilters={(updaterOrValue) => {
             if (typeof updaterOrValue === 'function') {
