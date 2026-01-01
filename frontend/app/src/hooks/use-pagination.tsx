@@ -13,6 +13,7 @@ type UsePaginationProps = {
 
 const parsePaginationParam = (searchParams: URLSearchParams, key: string) => {
   const rawPaginationParamValue = searchParams.get(key);
+  console.log('rawPaginationParamValue', rawPaginationParamValue, key);
 
   if (!rawPaginationParamValue) {
     return {

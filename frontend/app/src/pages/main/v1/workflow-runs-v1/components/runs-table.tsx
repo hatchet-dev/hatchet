@@ -29,10 +29,6 @@ import { docsPages } from '@/lib/generated/docs';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-interface RunsTableProps {
-  headerClassName?: string;
-}
-
 const GetWorkflowChart = () => {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
@@ -86,7 +82,7 @@ const GetWorkflowChart = () => {
   );
 };
 
-export function RunsTable({ headerClassName }: RunsTableProps) {
+export function RunsTable() {
   const { tenantId } = useCurrentTenantId();
   const sidePanel = useSidePanel();
   const { setIsFrozen } = useRefetchInterval();
@@ -111,13 +107,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     rowSelection,
     showTriggerWorkflow,
     showQueueMetrics,
-    display: {
-      hideMetrics,
-      hideCounts,
-      hideColumnToggle,
-      hidePagination,
-      hiddenFilters,
-    },
+    display: { hideMetrics, hideCounts, hideColumnToggle, hiddenFilters },
     actions: {
       refetchRuns,
       refetchMetrics,
@@ -278,16 +268,15 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
               filters.setColumnFilters(updaterOrValue);
             }
           }}
-          pagination={hidePagination ? undefined : pagination}
+          pagination={pagination}
           setPagination={setPagination}
           onSetPageSize={setPageSize}
           rowSelection={rowSelection}
           setRowSelection={setRowSelection}
-          pageCount={hidePagination ? undefined : numPages}
+          pageCount={numPages}
           showColumnToggle={!hideColumnToggle}
           getSubRows={(row) => row.children || []}
           getRowId={getRowId}
-          headerClassName={headerClassName}
           hiddenFilters={hiddenFilters}
           columnKeyToName={TaskRunColumn}
           refetchProps={{

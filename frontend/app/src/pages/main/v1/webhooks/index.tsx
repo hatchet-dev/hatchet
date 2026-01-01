@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { usePagination } from '@/hooks/use-pagination';
 import {
   V1CreateWebhookRequest,
   V1WebhookAuthType,
@@ -43,6 +44,9 @@ import { useForm } from 'react-hook-form';
 
 export default function Webhooks() {
   const { data, isLoading, error } = useWebhooks();
+  const { pagination, setPagination, setPageSize } = usePagination({
+    key: 'webhooks_table',
+  });
 
   return (
     <div>
@@ -66,6 +70,9 @@ export default function Webhooks() {
             </div>
           </div>
         }
+        pagination={pagination}
+        setPagination={setPagination}
+        onSetPageSize={setPageSize}
       />
     </div>
   );

@@ -1,8 +1,19 @@
-import { columns } from './components/resource-limit-columns';
+import {
+  limitDurationMap,
+  limitedResources,
+  LimitIndicator,
+} from './components/resource-limit-columns';
 import { PaymentMethods, Subscription } from '@/components/v1/cloud/billing';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from '@/components/v1/ui/table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import useCloud from '@/pages/auth/hooks/use-cloud';
@@ -21,8 +32,6 @@ export default function ResourceLimits() {
     ...queries.cloud.billing(tenantId),
     enabled: isCloudEnabled && !!cloud?.canBill,
   });
-
-  const cols = columns();
 
   const billingEnabled = isCloudEnabled && cloud?.canBill;
 
@@ -80,12 +89,51 @@ export default function ResourceLimits() {
           if you need to adjust your limits.
         </p>
 
-        <DataTable
-          isLoading={resourcePolicyQuery.isLoading}
-          columns={cols}
-          data={resourcePolicyQuery.data?.limits || []}
-          getRowId={(row) => row.metadata.id}
-        />
+        <Table className="border">
+          <TableHeader>
+            {[
+              'Resource',
+              'Current Value',
+              'Limit Value',
+              'Alarm Value',
+              'Meter Window',
+              'Last Refill',
+            ].map((column) => (
+              <TableCell key={column}>{column}</TableCell>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {resourcePolicyQuery.data?.limits.map((limit) => (
+              <TableRow key={limit.metadata.id}>
+                <TableCell>
+                  <div className="flex flex-row items-center gap-4">
+                    <LimitIndicator
+                      value={limit.value}
+                      alarmValue={limit.alarmValue}
+                      limitValue={limit.limitValue}
+                    />
+                    {limitedResources[limit.resource]}
+                  </div>
+                </TableCell>
+                <TableCell>{limit.value}</TableCell>
+                <TableCell>{limit.limitValue}</TableCell>
+                <TableCell>{limit.alarmValue || 'N/A'}</TableCell>
+                <TableCell>
+                  {(limit.window || '-') in limitDurationMap
+                    ? limitDurationMap[limit.window || '-']
+                    : limit.window}
+                </TableCell>
+                <TableCell>
+                  {!limit.window
+                    ? 'N/A'
+                    : limit.lastRefill && (
+                        <RelativeDate date={limit.lastRefill} />
+                      )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

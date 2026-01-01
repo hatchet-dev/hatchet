@@ -9,8 +9,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
 } from '@/components/v1/ui/table';
 import { cn } from '@/lib/utils';
@@ -60,8 +58,8 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   search?: string;
   columnFilters?: ColumnFiltersState;
   setColumnFilters?: OnChangeFn<ColumnFiltersState>;
-  pagination?: PaginationState;
-  setPagination?: OnChangeFn<PaginationState>;
+  pagination: PaginationState;
+  setPagination: OnChangeFn<PaginationState>;
   showSelectedRows?: boolean;
   pageCount?: number;
   onSetPageSize?: (pageSize: number) => void;
@@ -82,7 +80,6 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   manualSorting?: boolean;
   manualFiltering?: boolean;
   getSubRows?: (row: TData) => TData[];
-  headerClassName?: string;
   hiddenFilters?: string[];
   onResetFilters?: () => void;
 }
@@ -126,7 +123,6 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   manualSorting = true,
   manualFiltering = true,
   getSubRows,
-  headerClassName,
   hiddenFilters = [],
   onResetFilters,
   columnKeyToName,
@@ -210,85 +206,67 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
     );
   };
 
-  const getTable = () => (
-    <Table>
-      <TableHeader className="sticky top-0 z-10 bg-background">
-        {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow key={headerGroup.id}>
-            {headerGroup.headers.map((header) => {
-              return (
-                <TableHead
-                  key={header.id}
-                  colSpan={header.colSpan}
-                  className={cn('border-b bg-background', headerClassName)}
-                >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
-                </TableHead>
-              );
-            })}
-          </TableRow>
-        ))}
-      </TableHeader>
-      <TableBody>
-        {error ? (
-          <TableRow className="p-4 text-center text-red-500">
-            <TableCell colSpan={columns.length}>
-              {error.message || 'An error occurred.'}
-            </TableCell>
-          </TableRow>
-        ) : table.getRowModel().rows?.length ? (
-          table.getRowModel().rows.map((row) => (
-            <React.Fragment key={row.id}>
-              {getTableRow(row)}
-              {row.getIsExpanded() && row.subRows.map((r) => getTableRow(r))}
-            </React.Fragment>
-          ))
-        ) : (
-          <TableRow>
-            <TableCell colSpan={columns.length} className="h-24 text-center">
-              {emptyState || 'No results.'}
-            </TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
-  );
+  const hasRows = table.getRowModel().rows?.length > 0;
+
+  if (error) {
+    return (
+      <div className="p-4 text-center text-red-500">
+        {error.message || 'An error occurred.'}
+      </div>
+    );
+  }
+
+  if (!hasRows) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
+        {emptyState || <p className="text-lg font-semibold">No results.</p>}
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      {tableActions?.selectedActionType && (
-        <ConfirmActionModal
-          actionType={tableActions.selectedActionType}
-          params={tableActions.actionModalParams}
-          table={table}
-          columnKeyToName={columnKeyToName}
-          filters={filters}
-          hiddenFilters={[flattenDAGsKey]}
-          showColumnVisibility={false}
-        />
-      )}
-      {(leftActions || rightActions || filters.length > 0) && (
-        <DataTableToolbar
-          table={table}
-          filters={filters}
-          isLoading={isLoading}
-          leftActions={leftActions}
-          rightActions={rightActions}
-          showColumnToggle={showColumnToggle}
-          hiddenFilters={hiddenFilters}
-          columnKeyToName={columnKeyToName}
-          refetchProps={refetchProps}
-          tableActions={tableActions}
-          onResetFilters={onResetFilters}
-        />
-      )}
-      <div className={'min-h-0 flex-1 rounded-md border overflow-auto'}>
-        {getTable()}
+    <div className="flex h-full flex-col">
+      <div className="shrink-0 h-10 flex flex-col size-full items-center pt-2 mb-2">
+        <div className="w-full">
+          {tableActions?.selectedActionType && (
+            <ConfirmActionModal
+              actionType={tableActions.selectedActionType}
+              params={tableActions.actionModalParams}
+              table={table}
+              columnKeyToName={columnKeyToName}
+              filters={filters}
+              hiddenFilters={[flattenDAGsKey]}
+              showColumnVisibility={false}
+            />
+          )}
+          {(leftActions || rightActions || filters.length > 0) && (
+            <DataTableToolbar
+              table={table}
+              filters={filters}
+              isLoading={isLoading}
+              leftActions={leftActions}
+              rightActions={rightActions}
+              showColumnToggle={showColumnToggle}
+              hiddenFilters={hiddenFilters}
+              columnKeyToName={columnKeyToName}
+              refetchProps={refetchProps}
+              tableActions={tableActions}
+              onResetFilters={onResetFilters}
+            />
+          )}
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        <Table className="table-auto w-full">
+          <TableBody className="w-full">
+            {table.getRowModel().rows.map((row) => (
+              <React.Fragment key={row.id}>
+                {getTableRow(row)}
+                {row.getIsExpanded() && row.subRows.map((r) => getTableRow(r))}
+              </React.Fragment>
+            ))}
+          </TableBody>
+        </Table>
       </div>
       {pagination && (
         <div className="shrink-0 h-10 flex items-center pt-2">

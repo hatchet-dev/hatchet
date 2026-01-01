@@ -1,6 +1,7 @@
 import { columns } from './events-columns';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, V1TaskEvent } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
@@ -24,12 +25,15 @@ export function StepRunEvents({
 }) {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
+  const { pagination, setPagination, setPageSize } = usePagination({
+    key: `step-run-events-${workflowRunId || ''}-${taskRunId || ''}`,
+  });
 
   const eventsQuery = useQuery({
     ...queries.v1TaskEvents.list(
       tenantId,
       {
-        // TODO: Pagination here
+        // TODO: Pagination here - these params do nothing right now
         limit: 50,
         offset: 0,
       },
@@ -38,6 +42,8 @@ export function StepRunEvents({
     ),
     refetchInterval,
   });
+
+  const pageStartIx = pagination.pageIndex * pagination.pageSize;
 
   const events: EventWithMetadata[] =
     eventsQuery.data?.rows?.map((row) => ({
@@ -59,7 +65,11 @@ export function StepRunEvents({
         emptyState={<>No events found.</>}
         isLoading={eventsQuery.isLoading}
         columns={cols as any} // TODO: This is a hack, figure out how to type this properly later
-        data={events}
+        data={events.slice(pageStartIx, pageStartIx + pagination.pageSize)}
+        pagination={pagination}
+        setPagination={setPagination}
+        onSetPageSize={setPageSize}
+        pageCount={Math.ceil(events.length / pagination.pageSize)}
       />
     </div>
   );
