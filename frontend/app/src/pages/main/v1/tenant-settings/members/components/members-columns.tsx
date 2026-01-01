@@ -16,7 +16,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { useState } from 'react';
 
 // Component for handling member actions
-function MemberActions({
+export function MemberActions({
   member,
   onChangePasswordClick,
   onEditRoleClick,
