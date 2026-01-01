@@ -5,12 +5,25 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/v1/ui/card';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { Loading } from '@/components/v1/ui/loading.tsx';
+import {
+  PortalTooltip,
+  PortalTooltipContent,
+  PortalTooltipProvider,
+  PortalTooltipTrigger,
+} from '@/components/v1/ui/portal-tooltip';
 import { Separator } from '@/components/v1/ui/separator';
 import {
   Tooltip,
@@ -78,18 +91,18 @@ const WorkerStatus = ({
 
   return (
     <div className="item-center flex flex-row gap-2">
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger>
+      <PortalTooltipProvider>
+        <PortalTooltip>
+          <PortalTooltipTrigger>
             <Badge variant={variant[status]}>{label[status]}</Badge>
-          </TooltipTrigger>
-          <TooltipContent>
+          </PortalTooltipTrigger>
+          <PortalTooltipContent>
             {health.map((reason, i) => (
               <div key={i}>{reason}</div>
             ))}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+          </PortalTooltipContent>
+        </PortalTooltip>
+      </PortalTooltipProvider>
     </div>
   );
 };
@@ -169,31 +182,40 @@ export default function ExpandedWorkflowRun() {
     return <Loading />;
   }
 
+  const availableSlots = worker.availableRuns ?? 0;
+  const maxSlots = worker.maxRuns ?? 0;
+  const slotPercentage =
+    maxSlots > 0 ? Math.round((availableSlots / maxSlots) * 100) : 100;
+
   return (
     <div className="h-full w-full flex-grow">
-      <div className="mx-auto flex flex-col px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        {/* Header */}
         <div className="flex flex-row items-center justify-between">
-          <div className="flex flex-row items-center justify-between gap-4">
-            <ServerStackIcon className="mt-1 h-6 w-6 text-foreground" />
-            <h2 className="text-2xl font-bold leading-tight text-foreground">
-              <Link
-                to={appRoutes.tenantWorkersRoute.to}
-                params={{ tenant: tenantId }}
-              >
-                Workers/
-              </Link>
-              {worker.webhookUrl || worker.name}
-            </h2>
+          <div className="flex flex-row items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg border bg-muted/50">
+              <ServerStackIcon className="h-6 w-6 text-foreground" />
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">
+                <Link
+                  to={appRoutes.tenantWorkersRoute.to}
+                  params={{ tenant: tenantId }}
+                  className="hover:underline"
+                >
+                  Workers
+                </Link>
+              </div>
+              <h1 className="text-2xl font-bold leading-tight text-foreground">
+                {worker.webhookUrl || worker.name}
+              </h1>
+            </div>
           </div>
           <div className="flex flex-row gap-2">
             <WorkerStatus status={worker.status} health={healthy} />
             <DropdownMenu>
               <DropdownMenuTrigger>
-                <Button
-                  aria-label="Workflow Actions"
-                  size="icon"
-                  variant="ghost"
-                >
+                <Button aria-label="Worker Actions" size="icon" variant="ghost">
                   <BiDotsVertical />
                 </Button>
               </DropdownMenuTrigger>
@@ -213,149 +235,228 @@ export default function ExpandedWorkflowRun() {
             </DropdownMenu>
           </div>
         </div>
-        <Separator className="my-4" />
-        <p className="mt-1 max-w-2xl text-gray-700 dark:text-gray-300">
-          First Connected: <RelativeDate date={worker.metadata?.createdAt} />
-          {worker.lastListenerEstablished && (
-            <>
-              <br />
-              Last Listener Established:{' '}
-              <RelativeDate date={worker.lastListenerEstablished} />
-            </>
-          )}
-          <br />
-          Last Heartbeat:{' '}
-          {worker.lastHeartbeatAt ? (
-            <RelativeDate date={worker.lastHeartbeatAt} />
-          ) : (
-            'never'
-          )}
-          <br />
-        </p>
-        <Separator className="my-4" />
 
-        <div className="mb-4 flex flex-row items-center justify-between">
-          <h3 className="text-xl font-bold leading-tight text-foreground">
-            {(worker.maxRuns ?? 0) > 0
-              ? `${worker.availableRuns} / ${worker.maxRuns ?? 0}`
-              : '100'}{' '}
-            Available Run Slots
-          </h3>
-        </div>
-        <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-          A slot represents one task run on a worker to limit load.{' '}
-          <a href="https://docs.hatchet.run/home/workers" className="underline">
-            Learn more.
-          </a>
-        </div>
+        {/* Stats Cards */}
+        <div className="grid gap-4 md:grid-cols-3">
+          {/* Connection Info Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Connection Info</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div>
+                <div className="text-muted-foreground">First Connected</div>
+                <div className="font-medium">
+                  <RelativeDate date={worker.metadata?.createdAt} />
+                </div>
+              </div>
+              {worker.lastListenerEstablished && (
+                <div>
+                  <div className="text-muted-foreground">
+                    Last Listener Established
+                  </div>
+                  <div className="font-medium">
+                    <RelativeDate date={worker.lastListenerEstablished} />
+                  </div>
+                </div>
+              )}
+              <div>
+                <div className="text-muted-foreground">Last Heartbeat</div>
+                <div className="font-medium">
+                  {worker.lastHeartbeatAt ? (
+                    <RelativeDate date={worker.lastHeartbeatAt} />
+                  ) : (
+                    'Never'
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-        <Separator className="my-4" />
-        <div className="mb-4 flex flex-row items-center justify-between">
-          <h3 className="text-xl font-bold leading-tight text-foreground">
-            Recent Task Runs
-          </h3>
-        </div>
-        <RunsProvider
-          tableKey={`worker-${worker.metadata.id}`}
-          display={{
-            hideMetrics: true,
-            hideCounts: true,
-            hideTriggerRunButton: true,
-            hiddenFilters: [flattenDAGsKey],
-            hideCancelAndReplayButtons: true,
-          }}
-          runFilters={{
-            workerId: worker.metadata.id,
-          }}
-        >
-          <RunsTable />
-        </RunsProvider>
-        <Separator className="my-4" />
-        <h3 className="mb-4 text-xl font-bold leading-tight text-foreground">
-          Registered Workflows
-        </h3>
-        <div className="flex flex-row flex-wrap gap-4">
-          {filteredWorkflows.map((workflow) => {
-            return (
-              <Link
-                to={appRoutes.tenantWorkflowRoute.to}
-                params={{ tenant: tenantId, workflow: workflow.id }}
-                key={workflow.id}
-              >
-                <Button variant="outline">{workflow.name}</Button>
-              </Link>
-            );
-          })}
-        </div>
-        <div className="flex w-full flex-row items-center justify-center py-4">
-          {!showAllActions &&
-            registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
-              <Button variant="outline" onClick={() => setShowAllActions(true)}>
-                {`Show All (${registeredWorkflows.length - N_ACTIONS_TO_PREVIEW} more)`}
-              </Button>
-            )}
-        </div>
-        {worker.labels && worker.labels.length > 0 && (
-          <>
-            <Separator className="my-4" />
-            <h3 className="mb-4 text-xl font-bold leading-tight text-foreground">
-              Worker Labels
-            </h3>
-            <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-              Worker labels are key-value pairs that can be used to prioritize
-              assignment of steps to specific workers.{' '}
-              <a
-                className="underline"
-                href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
-              >
-                Learn more.
-              </a>
-            </div>
-            <div className="flex gap-2">
-              {worker.labels?.map(({ key, value }) => (
-                <Badge key={key}>
-                  {key}:{value}
-                </Badge>
-              ))}
-            </div>
-          </>
-        )}
-        {worker.runtimeInfo &&
-          (worker.runtimeInfo?.sdkVersion ||
-            worker.runtimeInfo?.languageVersion ||
-            worker.runtimeInfo?.os ||
-            worker.runtimeInfo?.runtimeExtra) && (
-            <>
-              <Separator className="my-4" />
-              <h3 className="mb-4 text-xl font-bold leading-tight text-foreground">
-                Worker Runtime Info
-              </h3>
-              <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-                {worker.runtimeInfo?.sdkVersion && (
-                  <div>
-                    <b>Hatchet SDK</b>: {worker.runtimeInfo?.sdkVersion}
-                  </div>
-                )}
-                {worker.runtimeInfo?.languageVersion && (
-                  <div>
-                    <b>Runtime</b>:{' '}
-                    {capitalize(worker.runtimeInfo?.language ?? '')}{' '}
-                    {worker.runtimeInfo?.languageVersion}
-                  </div>
-                )}
-                {worker.runtimeInfo?.os && (
-                  <div>
-                    <b>OS</b>: {worker.runtimeInfo?.os}
-                  </div>
-                )}
-                {worker.runtimeInfo?.runtimeExtra && (
-                  <div>
-                    <b>Runtime Extra</b>: {worker.runtimeInfo?.runtimeExtra}
+          {/* Available Slots Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Available Run Slots</CardTitle>
+              <CardDescription>
+                Slots represent concurrent task runs on this worker
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-3xl font-bold">
+                    {maxSlots > 0 ? availableSlots : '∞'}
+                  </span>
+                  {maxSlots > 0 && (
+                    <span className="text-sm text-muted-foreground">
+                      / {maxSlots} total
+                    </span>
+                  )}
+                </div>
+                {maxSlots > 0 && (
+                  <div className="space-y-1">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full bg-primary transition-all"
+                        style={{ width: `${slotPercentage}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {slotPercentage}% available
+                    </div>
                   </div>
                 )}
               </div>
-            </>
-          )}
+              <div className="mt-4">
+                <a
+                  href="https://docs.hatchet.run/home/workers"
+                  className="text-xs text-muted-foreground underline hover:text-foreground"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Learn more about slots
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Runtime Info Card */}
+          {worker.runtimeInfo &&
+            (worker.runtimeInfo?.sdkVersion ||
+              worker.runtimeInfo?.languageVersion ||
+              worker.runtimeInfo?.os) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Runtime Info</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  {worker.runtimeInfo?.sdkVersion && (
+                    <div>
+                      <div className="text-muted-foreground">Hatchet SDK</div>
+                      <div className="font-medium">
+                        {worker.runtimeInfo.sdkVersion}
+                      </div>
+                    </div>
+                  )}
+                  {worker.runtimeInfo?.languageVersion && (
+                    <div>
+                      <div className="text-muted-foreground">Runtime</div>
+                      <div className="font-medium">
+                        {capitalize(worker.runtimeInfo.language ?? '')}{' '}
+                        {worker.runtimeInfo.languageVersion}
+                      </div>
+                    </div>
+                  )}
+                  {worker.runtimeInfo?.os && (
+                    <div>
+                      <div className="text-muted-foreground">OS</div>
+                      <div className="font-medium">{worker.runtimeInfo.os}</div>
+                    </div>
+                  )}
+                  {worker.runtimeInfo?.runtimeExtra && (
+                    <div>
+                      <div className="text-muted-foreground">Runtime Extra</div>
+                      <div className="font-medium">
+                        {worker.runtimeInfo.runtimeExtra}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+        </div>
+
+        {/* Worker Labels */}
+        {worker.labels && worker.labels.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Worker Labels</CardTitle>
+              <CardDescription>
+                Key-value pairs used to prioritize step assignment to specific
+                workers.{' '}
+                <a
+                  className="underline hover:text-foreground"
+                  href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Learn more
+                </a>
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {worker.labels.map(({ key, value }) => (
+                  <Badge key={key} variant="outline">
+                    {key}: {value}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Registered Workflows */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Registered Workflows</CardTitle>
+            <CardDescription>
+              Workflows that this worker can execute
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {filteredWorkflows.map((workflow) => (
+                <Link
+                  to={appRoutes.tenantWorkflowRoute.to}
+                  params={{ tenant: tenantId, workflow: workflow.id }}
+                  key={workflow.id}
+                >
+                  <Button variant="outline" size="sm">
+                    {workflow.name}
+                  </Button>
+                </Link>
+              ))}
+            </div>
+            {!showAllActions &&
+              registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
+                <div className="mt-4 flex justify-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAllActions(true)}
+                  >
+                    Show {registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
+                    more
+                  </Button>
+                </div>
+              )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Task Runs */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recent Task Runs</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <RunsProvider
+              tableKey={`worker-${worker.metadata.id}`}
+              display={{
+                hideMetrics: true,
+                hideCounts: true,
+                hideTriggerRunButton: true,
+                hiddenFilters: [flattenDAGsKey],
+                hideCancelAndReplayButtons: true,
+              }}
+              runFilters={{
+                workerId: worker.metadata.id,
+              }}
+            >
+              <RunsTable />
+            </RunsProvider>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
