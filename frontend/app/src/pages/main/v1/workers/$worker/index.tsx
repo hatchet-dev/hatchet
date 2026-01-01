@@ -31,7 +31,7 @@ import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
 import { shouldRetryQueryError } from '@/lib/error-utils';
 import { docsPages } from '@/lib/generated/docs';
 import { useApiError } from '@/lib/hooks';
-import { capitalize } from '@/lib/utils';
+import { capitalize, cn } from '@/lib/utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
@@ -182,6 +182,12 @@ export default function ExpandedWorkflowRun() {
   const slotPercentage =
     maxSlots > 0 ? Math.round((availableSlots / maxSlots) * 100) : 100;
 
+  // dynamically set the max columns in the grid based on the presence of runtime info and labels
+  const maxCols =
+    2 +
+    Number(!!worker.runtimeInfo) +
+    Number((worker?.labels?.length ?? 0) > 0);
+
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
@@ -217,7 +223,12 @@ export default function ExpandedWorkflowRun() {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div
+          className={cn(
+            'mt-6 grid gap-4 md:grid-cols-2',
+            `lg:grid-cols-${maxCols}`,
+          )}
+        >
           <Card variant="light" className="h-52 overflow-y-auto">
             <CardHeader>
               <CardTitle>Connection Info</CardTitle>
