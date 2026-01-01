@@ -211,7 +211,7 @@ export default function ExpandedWorkflowRun() {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
               Connection Info
@@ -341,32 +341,34 @@ export default function ExpandedWorkflowRun() {
                 </div>
               </div>
             )}
-        </div>
 
-        {worker.labels && worker.labels.length > 0 && (
-          <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              Worker Labels
-            </h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Key-value pairs used to prioritize step assignment to specific
-              workers.{' '}
-              <DocsButton
-                variant="text"
-                doc={docsPages.home['worker-affinity']}
-                label="Learn more"
-                scrollTo={'Specifying Worker Labels'}
-              />
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {worker.labels.map(({ key, value }) => (
-                <Badge key={key} variant="secondary">
-                  {key}: {value}
-                </Badge>
-              ))}
+          {worker.labels && worker.labels.length > 0 && (
+            <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                Worker Labels
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Key-value pairs used to prioritize step assignment to specific
+                workers.{' '}
+                <DocsButton
+                  variant="text"
+                  doc={docsPages.home['worker-affinity']}
+                  label="Learn more"
+                  scrollTo={'Specifying Worker Labels'}
+                />
+              </p>
+              <div className="max-h-[200px] overflow-y-auto">
+                <div className="flex flex-wrap gap-2">
+                  {worker.labels.map(({ key, value }) => (
+                    <Badge key={key} variant="secondary">
+                      {key}: {value}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
