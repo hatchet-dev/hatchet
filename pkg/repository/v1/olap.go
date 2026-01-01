@@ -1028,6 +1028,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 	if opts.ParentTaskExternalId != nil {
 		params.ParentTaskExternalId = *opts.ParentTaskExternalId
+		countParams.ParentTaskExternalId = *opts.ParentTaskExternalId
 	}
 
 	if opts.TriggeringEventExternalId != nil {
