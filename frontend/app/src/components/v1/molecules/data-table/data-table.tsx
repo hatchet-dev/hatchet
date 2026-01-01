@@ -256,7 +256,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           )}
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto border rounded-md">
         <Table className="table-auto w-full">
           <TableBody className="w-full">
             {table.getRowModel().rows.map((row) => (
