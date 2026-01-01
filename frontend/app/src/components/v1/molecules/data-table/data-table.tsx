@@ -268,17 +268,15 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           </TableBody>
         </Table>
       </div>
-      {pagination && (
-        <div className="shrink-0 h-10 flex items-center pt-2">
-          <div className="w-full">
-            <DataTablePagination
-              table={table}
-              onSetPageSize={onSetPageSize}
-              showSelectedRows={showSelectedRows}
-            />
-          </div>
+      <div className="shrink-0 h-10 flex items-center pt-2">
+        <div className="w-full">
+          <DataTablePagination
+            table={table}
+            onSetPageSize={onSetPageSize}
+            showSelectedRows={showSelectedRows}
+          />
         </div>
-      )}
+      </div>
     </div>
   );
 }
