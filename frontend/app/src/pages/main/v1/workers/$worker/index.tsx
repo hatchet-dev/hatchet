@@ -26,7 +26,6 @@ import {
   PortalTooltipTrigger,
 } from '@/components/v1/ui/portal-tooltip';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
 import { shouldRetryQueryError } from '@/lib/error-utils';
