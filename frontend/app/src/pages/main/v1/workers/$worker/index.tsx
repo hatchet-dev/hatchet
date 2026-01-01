@@ -6,6 +6,13 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/v1/ui/card';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -212,11 +219,11 @@ export default function ExpandedWorkflowRun() {
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              Connection Info
-            </h3>
-            <div className="space-y-3 text-sm">
+          <Card variant="light" className="h-52 overflow-y-auto">
+            <CardHeader>
+              <CardTitle>Connection Info</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
               <div>
                 <div className="text-gray-500 dark:text-gray-400">
                   First Connected
@@ -247,14 +254,14 @@ export default function ExpandedWorkflowRun() {
                   )}
                 </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              Available Run Slots
-            </h3>
-            <div className="space-y-2">
+          <Card variant="light" className="h-52 overflow-y-auto">
+            <CardHeader>
+              <CardTitle>Available Run Slots</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-bold text-gray-900 dark:text-gray-100">
                   {maxSlots > 0 ? availableSlots : '∞'}
@@ -278,27 +285,27 @@ export default function ExpandedWorkflowRun() {
                   </div>
                 </div>
               )}
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Slots represent concurrent task runs.{' '}
-              <DocsButton
-                variant="text"
-                doc={docsPages.home.workers}
-                label="Learn more"
-                scrollTo={'Understanding Slots'}
-              />
-            </p>
-          </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Slots represent concurrent task runs.{' '}
+                <DocsButton
+                  variant="text"
+                  doc={docsPages.home.workers}
+                  label="Learn more"
+                  scrollTo={'Understanding Slots'}
+                />
+              </p>
+            </CardContent>
+          </Card>
 
           {worker.runtimeInfo &&
             (worker.runtimeInfo?.sdkVersion ||
               worker.runtimeInfo?.languageVersion ||
               worker.runtimeInfo?.os) && (
-              <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  Runtime Info
-                </h3>
-                <div className="space-y-3 text-sm">
+              <Card variant="light" className="h-52 overflow-y-auto">
+                <CardHeader>
+                  <CardTitle>Runtime Info</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
                   {worker.runtimeInfo?.os && (
                     <div>
                       <div className="text-gray-500 dark:text-gray-400">OS</div>
@@ -317,7 +324,7 @@ export default function ExpandedWorkflowRun() {
                         {worker.runtimeInfo.languageVersion}
                       </div>
                     </div>
-                  )}{' '}
+                  )}
                   {worker.runtimeInfo?.sdkVersion && (
                     <div>
                       <div className="text-gray-500 dark:text-gray-400">
@@ -338,26 +345,26 @@ export default function ExpandedWorkflowRun() {
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             )}
 
           {worker.labels && worker.labels.length > 0 && (
-            <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                Worker Labels
-              </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Key-value pairs used to prioritize step assignment to specific
-                workers.{' '}
-                <DocsButton
-                  variant="text"
-                  doc={docsPages.home['worker-affinity']}
-                  label="Learn more"
-                  scrollTo={'Specifying Worker Labels'}
-                />
-              </p>
-              <div className="max-h-[200px] overflow-y-auto">
+            <Card variant="light" className="h-52 overflow-y-auto">
+              <CardHeader>
+                <CardTitle>Worker Labels</CardTitle>
+                <CardDescription>
+                  Key-value pairs used to prioritize step assignment to specific
+                  workers.{' '}
+                  <DocsButton
+                    variant="text"
+                    doc={docsPages.home['worker-affinity']}
+                    label="Learn more"
+                    scrollTo={'Specifying Worker Labels'}
+                  />
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
                 <div className="flex flex-wrap gap-2">
                   {worker.labels.map(({ key, value }) => (
                     <Badge key={key} variant="secondary">
@@ -365,65 +372,70 @@ export default function ExpandedWorkflowRun() {
                     </Badge>
                   ))}
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
         </div>
 
-        <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            Registered Workflows
-          </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Workflows that this worker can execute
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {filteredWorkflows.map((workflow) => (
-              <Link
-                to={appRoutes.tenantWorkflowRoute.to}
-                params={{ tenant: tenantId, workflow: workflow.id }}
-                key={workflow.id}
-              >
-                <Button variant="outline" size="sm">
-                  {workflow.name}
-                </Button>
-              </Link>
-            ))}
-          </div>
-          {!showAllActions &&
-            registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
-              <div className="flex justify-start">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowAllActions(true)}
+        <Card variant="light" className="mt-4">
+          <CardHeader>
+            <CardTitle>Registered Workflows</CardTitle>
+            <CardDescription>
+              Workflows that this worker can execute
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {filteredWorkflows.map((workflow) => (
+                <Link
+                  to={appRoutes.tenantWorkflowRoute.to}
+                  params={{ tenant: tenantId, workflow: workflow.id }}
+                  key={workflow.id}
                 >
-                  Show {registeredWorkflows.length - N_ACTIONS_TO_PREVIEW} more
-                </Button>
-              </div>
-            )}
-        </div>
+                  <Button variant="outline" size="sm">
+                    {workflow.name}
+                  </Button>
+                </Link>
+              ))}
+            </div>
+            {!showAllActions &&
+              registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
+                <div className="mt-3 flex justify-start">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAllActions(true)}
+                  >
+                    Show {registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
+                    more
+                  </Button>
+                </div>
+              )}
+          </CardContent>
+        </Card>
 
-        <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/20">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            Recent Task Runs
-          </h3>
-          <RunsProvider
-            tableKey={`worker-${worker.metadata.id}`}
-            display={{
-              hideMetrics: true,
-              hideCounts: true,
-              hideTriggerRunButton: true,
-              hiddenFilters: [flattenDAGsKey],
-              hideCancelAndReplayButtons: true,
-            }}
-            runFilters={{
-              workerId: worker.metadata.id,
-            }}
-          >
-            <RunsTable />
-          </RunsProvider>
-        </div>
+        <Card variant="light" className="mt-4">
+          <CardHeader>
+            <CardTitle>Recent Task Runs</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RunsProvider
+              tableKey={`worker-${worker.metadata.id}`}
+              display={{
+                hideMetrics: true,
+                hideCounts: true,
+                hideTriggerRunButton: true,
+                hiddenFilters: [flattenDAGsKey],
+                hideCancelAndReplayButtons: true,
+              }}
+              runFilters={{
+                workerId: worker.metadata.id,
+              }}
+            >
+              <RunsTable />
+            </RunsProvider>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
