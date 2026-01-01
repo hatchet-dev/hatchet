@@ -33,14 +33,6 @@ export default function ResourceLimits() {
   const hasPaymentMethods =
     (billingState.data?.paymentMethods?.length || 0) > 0;
 
-  if (resourcePolicyQuery.isLoading || billingState.isLoading) {
-    return (
-      <div className="h-full w-full flex-grow px-4 sm:px-6 lg:px-8">
-        <Spinner />
-      </div>
-    );
-  }
-
   const resourceLimits = resourcePolicyQuery.data?.limits || [];
 
   const resourceLimitColumns = useMemo(
@@ -87,6 +79,14 @@ export default function ResourceLimits() {
     ],
     [],
   );
+
+  if (resourcePolicyQuery.isLoading || billingState.isLoading) {
+    return (
+      <div className="h-full w-full flex-grow px-4 sm:px-6 lg:px-8">
+        <Spinner />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full w-full flex-grow">

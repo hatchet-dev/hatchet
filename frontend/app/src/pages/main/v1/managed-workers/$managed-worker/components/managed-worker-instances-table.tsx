@@ -1,20 +1,18 @@
-import { columns } from './managed-worker-instances-columns';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from '@/components/v1/ui/card';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { queries } from '@/lib/api';
+import { Instance } from '@/lib/api/generated/cloud/data-contracts';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
-import { VisibilityState } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
+
+type InstanceWithMetadata = Instance & {
+  metadata: {
+    id: string;
+  };
+};
 
 export function ManagedWorkerInstancesTable({
   managedWorkerId,
@@ -22,7 +20,6 @@ export function ManagedWorkerInstancesTable({
   managedWorkerId: string;
 }) {
   const { refetchInterval } = useRefetchInterval();
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rotate, setRotate] = useState(false);
 
   const listManagedWorkerInstancesQuery = useQuery({
@@ -36,61 +33,70 @@ export function ManagedWorkerInstancesTable({
     return data;
   }, [listManagedWorkerInstancesQuery.data?.rows]);
 
-  if (listManagedWorkerInstancesQuery.isLoading) {
-    return <Loading />;
-  }
-
-  const emptyState = (
-    <Card className="w-full text-justify">
-      <CardHeader>
-        <CardTitle>No Instances</CardTitle>
-        <CardDescription>
-          <p className="mb-4 text-gray-700 dark:text-gray-300">
-            There are no instances currently active for this managed worker
-            pool.
-          </p>
-        </CardDescription>
-      </CardHeader>
-      <CardFooter></CardFooter>
-    </Card>
-  );
-
-  const actions = [
-    <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        listManagedWorkerInstancesQuery.refetch();
-        setRotate(!rotate);
-      }}
-      variant={'outline'}
-      aria-label="Refresh events list"
-    >
-      <ArrowPathIcon
-        className={`size-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-      />
-    </Button>,
-  ];
-
-  const dataWithMetadata = data.map((d) => ({
+  const dataWithMetadata: InstanceWithMetadata[] = data.map((d) => ({
     ...d,
     metadata: {
       id: d.instanceId,
     },
   }));
 
+  const instanceColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Name',
+        cellRenderer: (instance: InstanceWithMetadata) => (
+          <div className="text-md min-w-fit cursor-pointer whitespace-nowrap p-2 hover:underline">
+            {instance.name}
+          </div>
+        ),
+      },
+      {
+        columnLabel: 'State',
+        cellRenderer: (instance: InstanceWithMetadata) => (
+          <div className="whitespace-nowrap">{instance.state}</div>
+        ),
+      },
+      {
+        columnLabel: 'Commit',
+        cellRenderer: (instance: InstanceWithMetadata) => (
+          <div className="whitespace-nowrap">
+            {instance.commitSha.substring(0, 7)}
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
+
+  if (listManagedWorkerInstancesQuery.isLoading) {
+    return <Loading />;
+  }
+
   return (
-    <DataTable
-      columns={columns}
-      data={dataWithMetadata}
-      pageCount={1}
-      emptyState={emptyState}
-      columnVisibility={columnVisibility}
-      setColumnVisibility={setColumnVisibility}
-      manualSorting={false}
-      rightActions={actions}
-      manualFiltering={false}
-    />
+    <div>
+      <div className="mb-4 flex justify-end">
+        <Button
+          className="h-8 px-2 lg:px-3"
+          size="sm"
+          onClick={() => {
+            listManagedWorkerInstancesQuery.refetch();
+            setRotate(!rotate);
+          }}
+          variant={'outline'}
+          aria-label="Refresh instances list"
+        >
+          <ArrowPathIcon
+            className={`size-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+          />
+        </Button>
+      </div>
+      {dataWithMetadata.length > 0 ? (
+        <SimpleTable columns={instanceColumns} data={dataWithMetadata} />
+      ) : (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          There are no instances currently active for this managed worker pool.
+        </div>
+      )}
+    </div>
   );
 }
