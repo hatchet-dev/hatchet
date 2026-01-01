@@ -94,10 +94,6 @@ type RefetchProps = {
 
 interface ExtraDataTableProps {
   emptyState?: JSX.Element;
-  card?: {
-    containerStyle?: string;
-    component: React.FC<any> | ((data: any) => JSX.Element);
-  };
   columnKeyToName?: Record<string, string>;
   refetchProps?: RefetchProps;
   tableActions?: ShowTableActionsProps;
@@ -127,7 +123,6 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   isLoading,
   getRowId,
   emptyState,
-  card,
   manualSorting = true,
   manualFiltering = true,
   getSubRows,
@@ -264,27 +259,6 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
     </Table>
   );
 
-  const getCards = () => (
-    <div
-      className={
-        card?.containerStyle ||
-        'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'
-      }
-    >
-      {error
-        ? error.message || 'An error occurred.'
-        : table.getRowModel().rows?.length
-          ? table
-              .getRowModel()
-              .rows.map((row) =>
-                card?.component
-                  ? card?.component({ data: row.original })
-                  : null,
-              )
-          : emptyState || 'No results.'}
-    </div>
-  );
-
   return (
     <div className="flex max-h-full flex-col space-y-4">
       {tableActions?.selectedActionType && (
@@ -313,10 +287,8 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           onResetFilters={onResetFilters}
         />
       )}
-      <div
-        className={`min-h-0 flex-1 rounded-md ${!card && 'border'} ${!card && 'overflow-auto'}`}
-      >
-        {!card ? getTable() : getCards()}
+      <div className={'min-h-0 flex-1 rounded-md border overflow-auto'}>
+        {getTable()}
       </div>
       {pagination && (
         <DataTablePagination

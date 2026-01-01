@@ -417,7 +417,7 @@ export default function ExpandedWorkflowRun() {
           <CardHeader>
             <CardTitle>Recent Task Runs</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 max-h-48 overflow-y-auto">
             <RunsProvider
               tableKey={`worker-${worker.metadata.id}`}
               display={{
