@@ -230,7 +230,10 @@ export default function WorkerDetail() {
             `lg:grid-cols-${maxCols}`,
           )}
         >
-          <Card variant="light" className="h-52 overflow-y-auto">
+          <Card
+            variant="light"
+            className="h-52 overflow-y-auto bg-background border-none"
+          >
             <CardHeader>
               <CardTitle>Connection Info</CardTitle>
             </CardHeader>
@@ -268,7 +271,10 @@ export default function WorkerDetail() {
             </CardContent>
           </Card>
 
-          <Card variant="light" className="h-52 overflow-y-auto">
+          <Card
+            variant="light"
+            className="h-52 overflow-y-auto bg-background border-none"
+          >
             <CardHeader>
               <CardTitle>Available Run Slots</CardTitle>
             </CardHeader>
@@ -312,7 +318,10 @@ export default function WorkerDetail() {
             (worker.runtimeInfo?.sdkVersion ||
               worker.runtimeInfo?.languageVersion ||
               worker.runtimeInfo?.os) && (
-              <Card variant="light" className="h-52 overflow-y-auto">
+              <Card
+                variant="light"
+                className="h-52 overflow-y-auto bg-background border-none"
+              >
                 <CardHeader>
                   <CardTitle>Runtime Info</CardTitle>
                 </CardHeader>
@@ -361,7 +370,10 @@ export default function WorkerDetail() {
             )}
 
           {worker.labels && worker.labels.length > 0 && (
-            <Card variant="light" className="h-52 overflow-y-auto">
+            <Card
+              variant="light"
+              className="h-52 overflow-y-auto bg-background border-none"
+            >
               <CardHeader>
                 <CardTitle>Worker Labels</CardTitle>
                 <CardDescription>
@@ -388,7 +400,10 @@ export default function WorkerDetail() {
           )}
         </div>
 
-        <Card variant="light" className="mt-4">
+        <Card
+          variant="light"
+          className="mt-4 overflow-y-auto bg-background border-none"
+        >
           <CardHeader>
             <CardTitle>Registered Workflows</CardTitle>
             <CardDescription>
@@ -425,10 +440,7 @@ export default function WorkerDetail() {
           </CardContent>
         </Card>
 
-        <Card variant="light" className="mt-4">
-          {/* <CardHeader>
-            <CardTitle>Recent Task Runs</CardTitle>
-          </CardHeader> */}
+        <Card variant="light" className="mt-4 bg-primary border-none">
           <CardContent className="flex-1 h-96 overflow-y-auto">
             <RunsProvider
               tableKey={`worker-${worker.metadata.id}`}
