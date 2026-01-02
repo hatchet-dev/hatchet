@@ -441,7 +441,7 @@ export default function WorkerDetail() {
         </Card>
 
         <Card variant="light" className="mt-4 bg-primary border-none">
-          <CardContent className="flex-1 h-96 overflow-y-auto">
+          <CardContent className="flex-1 h-96 overflow-y-auto bg-background">
             <RunsProvider
               tableKey={`worker-${worker.metadata.id}`}
               display={{

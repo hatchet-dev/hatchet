@@ -32,7 +32,7 @@ export function SimpleTable<
   },
 >({ columns, data }: SimpleTableProps<T>) {
   return (
-    <div className="overflow-hidden rounded-md border">
+    <div className="overflow-hidden rounded-md border bg-background">
       <Table>
         <TableHeader>
           {columns.map(({ columnLabel }) => (
