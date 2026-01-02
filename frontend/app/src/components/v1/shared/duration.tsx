@@ -7,8 +7,7 @@ import {
 import { V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { intervalToDuration } from 'date-fns';
-import { Duration as DateFnsDuration } from 'date-fns';
+import { Duration as DateFnsDuration, intervalToDuration } from 'date-fns';
 import { Clock } from 'lucide-react';
 import * as React from 'react';
 

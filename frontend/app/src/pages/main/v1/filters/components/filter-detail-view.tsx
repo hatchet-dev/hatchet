@@ -68,11 +68,11 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
       }
 
       try {
-        let payloadObj;
+        let payloadObj: unknown;
         if (data.payload !== undefined) {
           try {
             const payloadText = data.payload.trim() || '{}';
-            payloadObj = JSON.parse(payloadText);
+            payloadObj = JSON.parse(payloadText) as unknown;
             setPayloadError(null);
           } catch (error) {
             if (error instanceof SyntaxError) {
@@ -84,7 +84,7 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
 
         await mutations.update.perform(filter.metadata.id, {
           ...data,
-          payload: payloadObj,
+          payload: payloadObj as Record<string, unknown> | undefined,
         });
         setIsEditing(false);
       } catch (error) {

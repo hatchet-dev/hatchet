@@ -21,7 +21,7 @@ const parsePaginationParam = (searchParams: URLSearchParams, key: string) => {
     };
   }
 
-  const parsedPaginationState = JSON.parse(rawPaginationParamValue);
+  const parsedPaginationState: unknown = JSON.parse(rawPaginationParamValue);
 
   if (
     !parsedPaginationState ||
@@ -35,7 +35,7 @@ const parsePaginationParam = (searchParams: URLSearchParams, key: string) => {
     };
   }
 
-  const { i, s }: PaginationQueryShape = parsedPaginationState;
+  const { i, s } = parsedPaginationState as PaginationQueryShape;
 
   return {
     pageIndex: i,

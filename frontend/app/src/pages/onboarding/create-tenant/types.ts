@@ -1,7 +1,7 @@
 import { TenantEnvironment } from '@/lib/api';
 
 // Base interface that all onboarding step components must implement
-export interface OnboardingStepProps<T = any> {
+export interface OnboardingStepProps<T> {
   value: T;
   onChange: (value: T) => void;
   onNext?: () => void;
@@ -24,14 +24,13 @@ export interface OnboardingFormData {
 }
 
 // Step configuration interface
-export interface OnboardingStepConfig {
+export interface OnboardingStepConfig<T, C> {
   title: string;
   subtitle?: string;
   component:
-    | React.ComponentType<OnboardingStepProps>
-    | React.ComponentType<any>;
+    | React.ComponentType<OnboardingStepProps<T>>
+    | React.ComponentType<C>;
   canSkip: boolean;
   key: keyof OnboardingFormData;
-  validate?: (value: any) => boolean;
   buttonLabel?: string;
 }

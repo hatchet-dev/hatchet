@@ -40,7 +40,7 @@ export function ManagedWorkerActivity({
   if (iacDeployKey) {
     return (
       <IaCDebug
-        managedWorkerId={managedWorker!.metadata.id}
+        managedWorkerId={managedWorker?.metadata.id || ''}
         deployKey={iacDeployKey}
         back={() => setIacDeployKey(undefined)}
       />
@@ -68,7 +68,7 @@ function EventList({
   const { refetchInterval } = useRefetchInterval();
 
   const getLogsQuery = useQuery({
-    ...queries.cloud.listManagedWorkerEvents(managedWorker!.metadata.id || ''),
+    ...queries.cloud.listManagedWorkerEvents(managedWorker?.metadata.id || ''),
     enabled: !!managedWorker,
     refetchInterval,
   });
@@ -189,7 +189,11 @@ function renderCardFooter(
   setDeployKey: (key: string) => void,
 ) {
   if (event.data) {
-    const data = event.data as any;
+    const data = event.data as {
+      build_id: string;
+      deploy_key: string;
+      commit_sha?: string;
+    };
 
     const buttons = [];
 

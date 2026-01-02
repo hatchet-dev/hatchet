@@ -4,6 +4,7 @@ import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, V1TaskEvent } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
+import { ColumnDef } from '@tanstack/react-table';
 
 export type EventWithMetadata = V1TaskEvent & {
   metadata: {
@@ -58,7 +59,7 @@ export function StepRunEvents({
       <DataTable
         emptyState={<>No events found.</>}
         isLoading={eventsQuery.isLoading}
-        columns={cols as any} // TODO: This is a hack, figure out how to type this properly later
+        columns={cols as ColumnDef<EventWithMetadata, unknown>[]}
         data={events}
       />
     </div>

@@ -486,7 +486,7 @@ function ChangePassword({
       onSuccess();
       setShowChangePasswordDialog(false);
     },
-    onError: (e: AxiosError<unknown, any>) => {
+    onError: (e: AxiosError<unknown, unknown>) => {
       return handleApiError(e);
     },
   });

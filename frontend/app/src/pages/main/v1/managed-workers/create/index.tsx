@@ -3,7 +3,10 @@ import CreateWorkerForm from './components/create-worker-form';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
-import { CreateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
+import {
+  CreateManagedWorkerRequest,
+  ManagedWorker,
+} from '@/lib/api/generated/cloud/data-contracts';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
 import { useApiError } from '@/lib/hooks';
@@ -11,11 +14,12 @@ import { appRoutes } from '@/router';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { AxiosError } from 'axios';
 import { useState } from 'react';
 
 export default function CreateWorker() {
   const navigate = useNavigate();
-  const { billing, can } = useTenantDetails();
+  const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
   const [portalLoading, setPortalLoading] = useState(false);
@@ -38,7 +42,7 @@ export default function CreateWorker() {
       const link = await cloudApi.billingPortalLinkGet(tenantId);
       window.open(link.data.url, '_blank');
     } catch (e) {
-      handleApiError(e as any);
+      handleApiError(e as AxiosError);
     } finally {
       setPortalLoading(false);
     }
@@ -56,10 +60,11 @@ export default function CreateWorker() {
       const res = await cloudApi.managedWorkerCreate(tenantId, dataCopy);
       return res.data;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: ManagedWorker) => {
+      const workerId = data.metadata.id;
       navigate({
         to: appRoutes.tenantManagedWorkerRoute.to,
-        params: { tenant: tenantId, managedWorker: data.metadata.id },
+        params: { tenant: tenantId, managedWorker: workerId },
       });
     },
     onError: handleApiError,
@@ -69,7 +74,7 @@ export default function CreateWorker() {
   if (isBillingRequired) {
     return (
       <BillingRequired
-        tenant={tenantId}
+        tenant={tenant}
         billing={billing}
         manageClicked={manageClicked}
         portalLoading={portalLoading}

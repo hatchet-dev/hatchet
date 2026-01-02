@@ -785,7 +785,6 @@ export default function CreateWorkerForm({
                       setScalingType('Static');
                       setValue('runtimeConfig.numReplicas', 1);
                       setValue('runtimeConfig.autoscaling', undefined);
-                      return;
                     } else {
                       setScalingType('Autoscaling');
                       setValue('runtimeConfig.numReplicas', undefined);

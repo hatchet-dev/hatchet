@@ -136,9 +136,9 @@ const useTaskRunActions = () => {
   );
 
   const handleTaskRunAction = useCallback(
-    (params: TaskRunActionsParams) => {
+    async (params: TaskRunActionsParams) => {
       if (params.externalIds?.length) {
-        handleTaskRunActionInner({
+        await handleTaskRunActionInner({
           actionType: params.actionType,
           externalIds: params.externalIds,
         });
@@ -146,7 +146,7 @@ const useTaskRunActions = () => {
         params.filter &&
         Object.values(params.filter).some((filter) => !!filter)
       ) {
-        handleTaskRunActionInner({
+        await handleTaskRunActionInner({
           actionType: params.actionType,
           filter: params.filter,
         });
@@ -294,8 +294,8 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
               Close
             </Button>
             <Button
-              onClick={() => {
-                handleTaskRunAction({
+              onClick={async () => {
+                await handleTaskRunAction({
                   ...params,
                   actionType,
                 });
@@ -342,11 +342,11 @@ const BaseActionButton = ({
             className={cn('text-sm gap-2', className)}
             variant={'outline'}
             disabled={disabled}
-            onClick={() => {
+            onClick={async () => {
               setSelectedActionType(params.actionType);
 
               if (!showModal) {
-                handleTaskRunAction(params);
+                await handleTaskRunAction(params);
                 return;
               }
 

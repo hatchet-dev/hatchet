@@ -33,8 +33,17 @@ if (ref) {
   localStorage.setItem('ref', ref);
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <QueryClientProvider client={queryClient}>
-    <Router />
-  </QueryClientProvider>,
-);
+const root = document.getElementById('root');
+
+if (root) {
+  ReactDOM.createRoot(root).render(
+    <QueryClientProvider client={queryClient}>
+      <Router />
+    </QueryClientProvider>,
+  );
+} else {
+  console.error(
+    'Failed to initialize application: root element with id "root" not found.',
+  );
+  Sentry.captureMessage('Root element with id "root" not found', 'error');
+}

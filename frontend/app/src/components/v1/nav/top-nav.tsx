@@ -152,7 +152,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
   const breadcrumbs = useBreadcrumbs();
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
-  const params = useParams({ strict: false }) as { tenant?: string };
+  const params = useParams({ strict: false });
   const tenantParamInPath = params.tenant;
 
   const isOnTenantRoute = Boolean(
@@ -231,7 +231,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         style={
           headerSidebarWidth
             ? ({
-                ['--v1-sidebar-width' as any]: `${headerSidebarWidth}px`,
+                '--v1-sidebar-width': `${headerSidebarWidth}px`,
               } as React.CSSProperties)
             : undefined
         }

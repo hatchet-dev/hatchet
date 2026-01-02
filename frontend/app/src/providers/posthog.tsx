@@ -38,8 +38,8 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
   const config = useMemo(() => {
     if (import.meta.env.DEV) {
       return {
-        apiKey: import.meta.env.VITE_PUBLIC_POSTHOG_KEY,
-        apiHost: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+        apiKey: import.meta.env.VITE_PUBLIC_POSTHOG_KEY as string | undefined,
+        apiHost: import.meta.env.VITE_PUBLIC_POSTHOG_HOST as string | undefined,
       };
     }
     return meta?.posthog;

@@ -115,6 +115,6 @@ export function getOptionalStringParam(
     return undefined;
   }
 
-  const value = Reflect.get(params, key);
+  const value: unknown = Reflect.get(params, key);
   return typeof value === 'string' ? value : undefined;
 }

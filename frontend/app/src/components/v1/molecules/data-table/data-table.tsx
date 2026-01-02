@@ -92,16 +92,20 @@ type RefetchProps = {
   onRefetch: () => void;
 };
 
-interface ExtraDataTableProps {
+interface ExtraDataTableProps<TData> {
   emptyState?: JSX.Element;
   card?: {
     containerStyle?: string;
-    component: React.FC<any> | ((data: any) => JSX.Element);
+    component:
+      | React.FC<{ data: TData }>
+      | ((props: { data: TData }) => JSX.Element);
   };
   columnKeyToName?: Record<string, string>;
   refetchProps?: RefetchProps;
   tableActions?: ShowTableActionsProps;
 }
+
+const SkeletonRow = () => <Skeleton className="h-4 w-[100px]" />;
 
 export function DataTable<TData extends IDGetter<TData>, TValue>({
   columns,
@@ -137,13 +141,13 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   columnKeyToName,
   refetchProps,
   tableActions,
-}: DataTableProps<TData, TValue> & ExtraDataTableProps) {
+}: DataTableProps<TData, TValue> & ExtraDataTableProps<TData>) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
   const loadingNoData = isLoading && !data.length;
 
   const tableData = React.useMemo(
-    () => (loadingNoData ? Array(10).fill({ metadata: {} }) : data),
+    () => (loadingNoData ? Array(10).fill({ metadata: {} }) : data) as TData[],
     [loadingNoData, data],
   );
 
@@ -152,7 +156,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
       loadingNoData
         ? columns.map((column) => ({
             ...column,
-            cell: () => <Skeleton className="h-4 w-[100px]" />,
+            cell: SkeletonRow,
           }))
         : columns,
     [loadingNoData, columns],

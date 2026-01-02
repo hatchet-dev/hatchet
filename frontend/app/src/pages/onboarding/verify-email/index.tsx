@@ -37,6 +37,7 @@ export async function loader({ request }: { request: Request }) {
 }
 
 export default function VerifyEmail() {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
   const res = useLoaderData({
     from: appRoutes.onboardingVerifyRoute.to,
   }) as Awaited<ReturnType<typeof loader>>;

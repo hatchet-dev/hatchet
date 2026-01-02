@@ -61,7 +61,13 @@ export function ManagedWorkerInstancesTable({
     </Card>
   );
 
-  const card: React.FC<{ data: Instance }> = ({ data }) => (
+  type InstanceWithMetadata = Instance & {
+    metadata: {
+      id: string;
+    };
+  };
+
+  const card: React.FC<{ data: InstanceWithMetadata }> = ({ data }) => (
     <div
       key={data.instanceId}
       className="overflow-hidden rounded-lg border shadow"

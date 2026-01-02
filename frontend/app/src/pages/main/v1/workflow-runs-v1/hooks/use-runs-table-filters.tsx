@@ -36,7 +36,7 @@ const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow): string => {
 
 export type AdditionalMetadataProp = {
   key: string;
-  value: string;
+  value: unknown;
 };
 
 type APIFilters = {
@@ -197,10 +197,10 @@ export const useRunsTableFilters = (
   );
 
   const setAdditionalMetadata = useCallback(
-    ({ key, value }: { key: string; value: string }) => {
+    ({ key, value }: { key: string; value: unknown }) => {
       const existing = selectedAdditionalMetadata || [];
       const filtered = existing.filter((m: string) => m.split(':')[0] !== key);
-      const newMetadata = [...filtered, `${key}:${value}`];
+      const newMetadata = [...filtered, `${key}:${String(value)}`];
 
       const newColumnFilters = columnFilters
         .filter((f) => f.id !== additionalMetadataKey)

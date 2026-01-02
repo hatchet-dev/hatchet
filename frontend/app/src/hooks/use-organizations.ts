@@ -38,7 +38,7 @@ export function useOrganizations() {
   );
 
   const getOrganizationIdForTenant = useCallback(
-    (tenantId: string) => {
+    (tenantId: string): string | null => {
       const org = getOrganizationForTenant(tenantId);
       return org?.metadata.id || null;
     },
@@ -222,7 +222,10 @@ export function useOrganizations() {
     ) => {
       if (member) {
         deleteMemberMutation.mutate(
-          { memberId: member.metadata.id, email: member.email },
+          {
+            memberId: member.metadata.id,
+            email: member.email,
+          },
           {
             onSuccess: () => {
               onSuccess();

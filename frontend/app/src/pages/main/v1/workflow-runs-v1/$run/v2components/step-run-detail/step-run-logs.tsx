@@ -183,7 +183,7 @@ export function StepRunLogs({
 
     return getLogsQuery.data.pages.flatMap(
       (page) =>
-        page?.rows?.map((row: any) => ({
+        page?.rows?.map((row) => ({
           timestamp: row.createdAt,
           line: row.message,
           instance: taskRun.displayName,

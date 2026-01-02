@@ -13,7 +13,55 @@ import { appRoutes } from '@/router';
 import { PlusIcon, ArrowUpIcon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { AxiosError } from 'axios';
 import { useEffect, useState } from 'react';
+
+const UpgradeModal = ({
+  showUpgradeModal,
+  setShowUpgradeModal,
+  workerPoolCount,
+  getWorkerPoolLimit,
+  tenantId,
+}: {
+  showUpgradeModal: boolean;
+  setShowUpgradeModal: (show: boolean) => void;
+  workerPoolCount: number;
+  getWorkerPoolLimit: () => number;
+  tenantId: string;
+}) => {
+  if (!showUpgradeModal) {
+    return null;
+  }
+
+  return (
+    // TODO use correct modal component
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
+      <div className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg">
+        <h3 className="mb-4 text-lg font-medium text-foreground">
+          Plan Upgrade Required
+        </h3>
+        <p className="mb-4 text-muted-foreground">
+          You've reached the maximum number of services ({workerPoolCount}/
+          {getWorkerPoolLimit()}) allowed on your current plan. Upgrade to
+          create more services.
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" onClick={() => setShowUpgradeModal(false)}>
+            Cancel
+          </Button>
+          <Link
+            to={appRoutes.tenantSettingsBillingRoute.to}
+            params={{ tenant: tenantId }}
+          >
+            <Button leftIcon={<ArrowUpIcon className="size-4" />}>
+              Upgrade Plan
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function ManagedWorkers() {
   const { tenant, billing, can } = useTenantDetails();
@@ -23,11 +71,11 @@ export default function ManagedWorkers() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const computeCostQuery = useQuery({
-    ...queries.cloud.getComputeCost(tenant!.metadata.id),
+    ...queries.cloud.getComputeCost(tenantId),
   });
 
   const listManagedWorkersQuery = useQuery({
-    ...queries.cloud.listManagedWorkers(tenant!.metadata.id),
+    ...queries.cloud.listManagedWorkers(tenantId),
   });
 
   // Check if the user can create more worker pools
@@ -54,10 +102,10 @@ export default function ManagedWorkers() {
       }
       setPortalLoading(true);
       billing?.setPollBilling(true);
-      const link = await cloudApi.billingPortalLinkGet(tenant!.metadata.id);
+      const link = await cloudApi.billingPortalLinkGet(tenantId);
       window.open(link.data.url, '_blank');
     } catch (e) {
-      handleApiError(e as any);
+      handleApiError(e as AxiosError);
     } finally {
       setPortalLoading(false);
     }
@@ -104,44 +152,6 @@ export default function ManagedWorkers() {
     }
   };
 
-  const UpgradeModal = () => {
-    if (!showUpgradeModal) {
-      return null;
-    }
-
-    return (
-      // TODO use correct modal component
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
-        <div className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg">
-          <h3 className="mb-4 text-lg font-medium text-foreground">
-            Plan Upgrade Required
-          </h3>
-          <p className="mb-4 text-muted-foreground">
-            You've reached the maximum number of services ({workerPoolCount}/
-            {getWorkerPoolLimit()}) allowed on your current plan. Upgrade to
-            create more services.
-          </p>
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setShowUpgradeModal(false)}
-            >
-              Cancel
-            </Button>
-            <Link
-              to={appRoutes.tenantSettingsBillingRoute.to}
-              params={{ tenant: tenantId }}
-            >
-              <Button leftIcon={<ArrowUpIcon className="size-4" />}>
-                Upgrade Plan
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
@@ -180,7 +190,13 @@ export default function ManagedWorkers() {
           />
         </div>
       </div>
-      <UpgradeModal />
+      <UpgradeModal
+        showUpgradeModal={showUpgradeModal}
+        setShowUpgradeModal={setShowUpgradeModal}
+        workerPoolCount={workerPoolCount}
+        getWorkerPoolLimit={getWorkerPoolLimit}
+        tenantId={tenantId}
+      />
     </div>
   );
 }

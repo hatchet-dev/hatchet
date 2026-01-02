@@ -15,6 +15,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import {
+  ManagedWorker,
   ManagedWorkerEventStatus,
   TemplateOptions,
 } from '@/lib/api/generated/cloud/data-contracts';
@@ -26,8 +27,7 @@ import {
   ArrowPathIcon,
   KeyIcon,
 } from '@heroicons/react/24/outline';
-import { ArrowLeftIcon } from '@radix-ui/react-icons';
-import { GitHubLogoIcon } from '@radix-ui/react-icons';
+import { ArrowLeftIcon, GitHubLogoIcon } from '@radix-ui/react-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState, useEffect, useCallback } from 'react';
@@ -63,7 +63,7 @@ export default function DemoTemplate() {
       cloudApi.managedWorkerTemplateCreate(tenantId, {
         name: template,
       }),
-    onSuccess: (response) => {
+    onSuccess: (response: { data: ManagedWorker }) => {
       // Extract worker ID from the response
       const workerId = response.data.metadata?.id;
       if (workerId) {
@@ -75,10 +75,13 @@ export default function DemoTemplate() {
         }
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error('Failed to create template:', error);
+      const err = error as {
+        response?: { data?: { errors?: Array<{ description?: string }> } };
+      };
       setDeploymentError(
-        error?.response?.data?.errors?.[0]?.description ||
+        err?.response?.data?.errors?.[0]?.description ||
           'Failed to create template',
       );
       setDeploying(false);
@@ -269,14 +272,14 @@ export default function DemoTemplate() {
       // Call the real API to generate a token
       api
         .apiTokenCreate(tenantId, { name: 'demo-template-token' })
-        .then((response: any) => {
-          if (response.data && response.data.token) {
+        .then((response) => {
+          if (response?.data?.token) {
             setApiToken(response.data.token);
           } else {
             console.error('Failed to get token from response');
           }
         })
-        .catch((error: any) => {
+        .catch((error) => {
           console.error('Failed to generate token:', error);
         })
         .finally(() => {

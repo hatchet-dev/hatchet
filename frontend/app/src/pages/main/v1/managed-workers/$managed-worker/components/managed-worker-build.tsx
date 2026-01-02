@@ -24,7 +24,8 @@ export function ManagedWorkerBuild({ buildId }: { buildId: string }) {
             Build ID: {build?.metadata?.id}
           </div>
           <div className="text-sm text-gray-700 dark:text-gray-300">
-            Created: <RelativeDate date={build?.metadata?.createdAt} />
+            Created:{' '}
+            <RelativeDate date={build?.metadata?.createdAt as string} />
           </div>
           {build?.finishTime && (
             <div className="text-sm text-gray-700 dark:text-gray-300">

@@ -60,7 +60,7 @@ export const useToolbarFilters = ({
   const timeRangeConfig: TimeRangeConfig = {
     onTimeWindowChange: (value: string) => {
       if (value !== 'custom') {
-        filterActions.setTimeWindow(value as any);
+        filterActions.setTimeWindow(value as '1h' | '6h' | '1d' | '7d');
       } else {
         filterActions.setCustomTimeRange({
           start:

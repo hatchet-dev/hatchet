@@ -74,7 +74,7 @@ function sortTasksPreorder(
       const sortedChildren = children
         .map((childId) => ({ childId, task: taskMap.get(childId) }))
         .filter(({ task }) => task !== undefined)
-        .sort((a, b) => (a.task!.taskId || 0) - (b.task!.taskId || 0))
+        .sort((a, b) => (a.task?.taskId || 0) - (b.task?.taskId || 0))
         .map(({ childId }) => childId);
 
       sortedChildren.forEach((childId) => {
@@ -87,7 +87,7 @@ function sortTasksPreorder(
   const sortedRootTasks = rootTasks
     .map((rootId) => ({ rootId, task: taskMap.get(rootId) }))
     .filter(({ task }) => task !== undefined)
-    .sort((a, b) => (a.task!.taskId || 0) - (b.task!.taskId || 0))
+    .sort((a, b) => (a.task?.taskId || 0) - (b.task?.taskId || 0))
     .map(({ rootId }) => rootId);
 
   sortedRootTasks.forEach((rootId) => {
@@ -408,6 +408,7 @@ export function Waterfall({
     const processed = new Set<string>();
 
     while (taskQueue.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const currentTaskId = taskQueue.shift()!;
 
       if (processed.has(currentTaskId)) {
@@ -596,7 +597,12 @@ export function Waterfall({
   ]);
 
   const handleBarClick = useCallback(
-    (data: any) => {
+    (data: {
+      id: string;
+      workflowRunId?: string;
+      isShowMoreEntry?: boolean;
+      parentId?: string;
+    }) => {
       if (data?.id) {
         // Handle "show more" entry clicks
         if (data.isShowMoreEntry) {

@@ -59,6 +59,7 @@ export default function Invites() {
   const { acceptOrgInviteMutation, rejectOrgInviteMutation } =
     useOrganizations();
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
   const { tenantInvites, orgInvites } = useLoaderData({
     from: appRoutes.onboardingInvitesRoute.to,
   }) as Awaited<ReturnType<typeof loader>>;
@@ -81,7 +82,8 @@ export default function Invites() {
         queries.user.listTenantMemberships,
       );
 
-      const membership = memberships.rows?.find(
+      const membershipsList = memberships.rows ?? [];
+      const membership = membershipsList.find(
         (m) => m.tenant?.metadata.id === tenantId,
       );
 
@@ -163,9 +165,10 @@ export default function Invites() {
               );
             })}
             {orgInvites.map((invite) => {
+              const inviteKey = invite.metadata.id;
               return (
                 <div
-                  key={invite.metadata.id}
+                  key={inviteKey}
                   className="flex flex-col space-y-2 text-center"
                 >
                   <p className="mb-4 text-sm text-gray-700 dark:text-gray-300">
@@ -177,9 +180,10 @@ export default function Invites() {
                       variant="outline"
                       className="w-full"
                       onClick={() => {
+                        const inviteId = invite.metadata.id;
                         rejectOrgInviteMutation.mutate(
                           {
-                            inviteId: invite.metadata.id,
+                            inviteId,
                           },
                           {
                             onSuccess: () =>
@@ -193,9 +197,10 @@ export default function Invites() {
                     <Button
                       className="w-full"
                       onClick={() => {
+                        const inviteId = invite.metadata.id;
                         acceptOrgInviteMutation.mutate(
                           {
-                            inviteId: invite.metadata.id,
+                            inviteId,
                           },
                           {
                             onSuccess: () =>

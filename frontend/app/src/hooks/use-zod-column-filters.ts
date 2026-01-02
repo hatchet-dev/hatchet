@@ -27,9 +27,9 @@ export function useZodColumnFilters<T extends z.ZodType>(
     }
 
     try {
-      const parsed =
+      const parsed: unknown =
         typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue;
-      const validated = schema.parse(parsed);
+      const validated = schema.parse(parsed) as z.infer<T>;
       return validated;
     } catch (e) {
       return schema.parse({});
@@ -87,8 +87,9 @@ export function useZodColumnFilters<T extends z.ZodType>(
           ([, columnId]) => columnId === filter.id,
         )?.[0];
 
-        if (schemaKey) {
-          newQueryState[schemaKey] = filter.value;
+        if (schemaKey && schemaKey in newQueryState) {
+          newQueryState[schemaKey] =
+            filter.value as z.infer<T>[keyof z.infer<T>];
         }
       });
 
@@ -98,7 +99,7 @@ export function useZodColumnFilters<T extends z.ZodType>(
   );
 
   const resetFilters = useCallback(() => {
-    const defaultState = schema.parse({});
+    const defaultState = schema.parse({}) as z.infer<T>;
     setQueryState(defaultState);
   }, [schema, setQueryState]);
 

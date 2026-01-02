@@ -213,11 +213,14 @@ export function TenantCreateForm({
               <SelectContent>
                 {organizationList.rows
                   ?.filter((org) => org.isOwner)
-                  .map((org) => (
-                    <SelectItem key={org.metadata.id} value={org.metadata.id}>
-                      {org.name}
-                    </SelectItem>
-                  ))}
+                  .map((org) => {
+                    const orgId = org.metadata.id;
+                    return (
+                      <SelectItem key={orgId} value={orgId}>
+                        {org.name}
+                      </SelectItem>
+                    );
+                  })}
               </SelectContent>
             </Select>
             {fieldErrors?.organizationId && (

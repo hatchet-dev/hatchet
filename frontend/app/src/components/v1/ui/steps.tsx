@@ -65,9 +65,12 @@ const Steps = React.forwardRef<
   <div ref={ref} className={cn(stepsVariants(), className)} {...props}>
     {React.Children.map(children, (child, index) =>
       React.isValidElement(child)
-        ? React.cloneElement(child as React.ReactElement<any>, {
-            stepNumber: index + 1,
-          })
+        ? React.cloneElement(
+            child as React.ReactElement<{ stepNumber?: number }>,
+            {
+              stepNumber: index + 1,
+            },
+          )
         : child,
     )}
   </div>

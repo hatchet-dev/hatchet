@@ -62,12 +62,12 @@ function FilterCreateForm({
   const onSubmit = async (data: CreateFilterFormData) => {
     try {
       const payloadText = data.payload.trim() || '{}';
-      const payloadObj = JSON.parse(payloadText);
+      const payloadObj: unknown = JSON.parse(payloadText);
       setPayloadError(null);
 
       await onCreate({
         ...data,
-        payload: payloadObj,
+        payload: payloadObj as Record<string, unknown>,
       });
       reset();
       onClose();

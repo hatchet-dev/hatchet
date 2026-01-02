@@ -1,4 +1,7 @@
-import { PermissionSet, RejectReason } from '../shared/permission.base';
+import {
+  type FlexiblePermissionSet,
+  RejectReason,
+} from '../shared/permission.base';
 
 export interface ComputeType {
   cpuKind: string;
@@ -24,7 +27,7 @@ const replicaLimits = {
   enterprise: 20,
 };
 
-export const managedCompute: PermissionSet = {
+export const managedCompute: FlexiblePermissionSet = {
   create: () => (context) => {
     const requireBillingForManagedCompute =
       context.meta?.requireBillingForManagedCompute;

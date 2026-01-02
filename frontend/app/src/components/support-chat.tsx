@@ -8,6 +8,22 @@ import React, {
   useMemo,
 } from 'react';
 
+interface PylonChatSettings {
+  app_id: string;
+  email: string;
+  name: string | undefined;
+  email_hash: string | undefined;
+}
+
+interface PylonWindow extends Window {
+  Pylon: (command: string, data?: Record<string, unknown>) => void;
+  pylon?: {
+    chat_settings: PylonChatSettings;
+  };
+}
+
+declare const window: PylonWindow;
+
 interface SupportChatProps {
   user?: User;
 }
@@ -16,7 +32,7 @@ export const usePylon = () => {
   const { meta } = useApiMeta();
 
   const show = useCallback(() => {
-    (window as any).Pylon('show');
+    window.Pylon('show');
   }, []);
 
   if (!meta?.pylonAppId) {
@@ -63,7 +79,7 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
       return;
     }
 
-    (window as any).pylon = {
+    window.pylon = {
       chat_settings: {
         app_id: APP_ID,
         email: user.email,
@@ -71,9 +87,9 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
         email_hash: user.emailHash,
       },
     };
-    (window as any).Pylon('hideChatBubble');
+    window.Pylon('hideChatBubble');
 
-    (window as any).Pylon('setNewIssueCustomFields', {
+    window.Pylon('setNewIssueCustomFields', {
       user_id: user.metadata.id,
       tenant_name: tenant?.name,
       tenant_slug: tenant?.slug,
