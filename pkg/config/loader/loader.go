@@ -485,20 +485,20 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	// Register analytics callbacks for user and tenant creation
-	dc.V1.User().RegisterCreateCallback(func(opts *repov1.CreateUserOpts, user *sqlcv1.User) error {
+	dc.V1.User().RegisterCreateCallback(func(opts *repov1.UserCreateCallbackOpts) error {
 		// Determine provider from opts
 		provider := "basic"
-		if opts.OAuth != nil {
-			provider = opts.OAuth.Provider
+		if opts.CreateOpts.OAuth != nil {
+			provider = opts.CreateOpts.OAuth.Provider
 		}
 
 		analyticsEmitter.Enqueue(
 			"user:create",
-			sqlchelpers.UUIDToStr(user.ID),
+			sqlchelpers.UUIDToStr(opts.ID),
 			nil,
 			map[string]interface{}{
-				"email":    user.Email,
-				"name":     user.Name.String,
+				"email":    opts.Email,
+				"name":     opts.Name.String,
 				"provider": provider,
 			},
 			nil,
