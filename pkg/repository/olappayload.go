@@ -1,8 +1,9 @@
 package repository
 
 import (
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 )
 
 type OLAPPayloadToOffload struct {

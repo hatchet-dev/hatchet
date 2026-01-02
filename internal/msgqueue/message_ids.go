@@ -1,4 +1,4 @@
-package v1
+package msgqueue
 
 // Message ID constants for tenant messages
 const (

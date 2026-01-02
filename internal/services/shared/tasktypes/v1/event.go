@@ -3,7 +3,7 @@ package v1
 import (
 	"time"
 
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 

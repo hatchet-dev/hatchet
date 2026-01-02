@@ -12,7 +12,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
@@ -22,7 +22,7 @@ type Ticker interface {
 }
 
 type TickerImpl struct {
-	mqv1 msgqueuev1.MessageQueue
+	mqv1 msgqueue.MessageQueue
 	l    *zerolog.Logger
 
 	repov1 v1.Repository
@@ -46,7 +46,7 @@ type TickerImpl struct {
 type TickerOpt func(*TickerOpts)
 
 type TickerOpts struct {
-	mqv1 msgqueuev1.MessageQueue
+	mqv1 msgqueue.MessageQueue
 	l    *zerolog.Logger
 
 	repov1   v1.Repository
@@ -65,7 +65,7 @@ func defaultTickerOpts() *TickerOpts {
 	}
 }
 
-func WithMessageQueueV1(mq msgqueuev1.MessageQueue) TickerOpt {
+func WithMessageQueueV1(mq msgqueue.MessageQueue) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.mqv1 = mq
 	}

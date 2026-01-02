@@ -3,7 +3,7 @@ package admin
 import (
 	"fmt"
 
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -17,7 +17,7 @@ type AdminServiceImpl struct {
 	contracts.UnimplementedWorkflowServiceServer
 
 	repov1 v1.Repository
-	mqv1   msgqueuev1.MessageQueue
+	mqv1   msgqueue.MessageQueue
 	v      validator.Validator
 }
 
@@ -25,7 +25,7 @@ type AdminServiceOpt func(*AdminServiceOpts)
 
 type AdminServiceOpts struct {
 	repov1 v1.Repository
-	mqv1   msgqueuev1.MessageQueue
+	mqv1   msgqueue.MessageQueue
 	v      validator.Validator
 }
 
@@ -43,7 +43,7 @@ func WithRepositoryV1(r v1.Repository) AdminServiceOpt {
 	}
 }
 
-func WithMessageQueueV1(mq msgqueuev1.MessageQueue) AdminServiceOpt {
+func WithMessageQueueV1(mq msgqueue.MessageQueue) AdminServiceOpt {
 	return func(opts *AdminServiceOpts) {
 		opts.mqv1 = mq
 	}
