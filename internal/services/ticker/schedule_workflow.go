@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {

@@ -9,8 +9,8 @@ import (
 	"github.com/tink-crypto/tink-go/jwt"
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
-	repository "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 type JWTManager interface {
@@ -28,11 +28,11 @@ type TokenOpts struct {
 type jwtManagerImpl struct {
 	encryption encryption.EncryptionService
 	opts       *TokenOpts
-	tokenRepo  repository.APITokenRepository
+	tokenRepo  v1.APITokenRepository
 	verifier   jwt.Verifier
 }
 
-func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo repository.APITokenRepository, opts *TokenOpts) (JWTManager, error) {
+func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APITokenRepository, opts *TokenOpts) (JWTManager, error) {
 	verifier, err := jwt.NewVerifier(encryptionSvc.GetPublicJWTHandle())
 
 	if err != nil {
@@ -89,7 +89,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name
 	}
 
 	// write the token to the database
-	_, err = j.tokenRepo.CreateAPIToken(ctx, &repository.CreateAPITokenOpts{
+	_, err = j.tokenRepo.CreateAPIToken(ctx, &v1.CreateAPITokenOpts{
 		ID:        token.TokenId,
 		ExpiresAt: token.ExpiresAt,
 		TenantId:  &tenantId,

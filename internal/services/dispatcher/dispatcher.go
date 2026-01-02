@@ -11,13 +11,13 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -32,10 +32,10 @@ type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
 	s                           gocron.Scheduler
-	mqv1                        msgqueuev1.MessageQueue
-	pubBuffer                   *msgqueuev1.MQPubBuffer
-	sharedNonBufferedReaderv1   *msgqueuev1.SharedTenantReader
-	sharedBufferedReaderv1      *msgqueuev1.SharedBufferedTenantReader
+	mqv1                        msgqueue.MessageQueue
+	pubBuffer                   *msgqueue.MQPubBuffer
+	sharedNonBufferedReaderv1   *msgqueue.SharedTenantReader
+	sharedBufferedReaderv1      *msgqueue.SharedBufferedTenantReader
 	l                           *zerolog.Logger
 	dv                          datautils.DataDecoderValidator
 	v                           validator.Validator
@@ -113,7 +113,7 @@ func (w *workers) Delete(workerId string) {
 type DispatcherOpt func(*DispatcherOpts)
 
 type DispatcherOpts struct {
-	mqv1                        msgqueuev1.MessageQueue
+	mqv1                        msgqueue.MessageQueue
 	l                           *zerolog.Logger
 	dv                          datautils.DataDecoderValidator
 	repov1                      v1.Repository
@@ -138,7 +138,7 @@ func defaultDispatcherOpts() *DispatcherOpts {
 	}
 }
 
-func WithMessageQueueV1(mqv1 msgqueuev1.MessageQueue) DispatcherOpt {
+func WithMessageQueueV1(mqv1 msgqueue.MessageQueue) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.mqv1 = mqv1
 	}
@@ -224,7 +224,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "dispatcher"})
 
-	pubBuffer := msgqueuev1.NewMQPubBuffer(opts.mqv1)
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
 	return &DispatcherImpl{
 		mqv1:                        opts.mqv1,
@@ -245,8 +245,8 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 func (d *DispatcherImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	d.sharedNonBufferedReaderv1 = msgqueuev1.NewSharedTenantReader(d.mqv1)
-	d.sharedBufferedReaderv1 = msgqueuev1.NewSharedBufferedTenantReader(d.mqv1)
+	d.sharedNonBufferedReaderv1 = msgqueue.NewSharedTenantReader(d.mqv1)
+	d.sharedBufferedReaderv1 = msgqueue.NewSharedBufferedTenantReader(d.mqv1)
 
 	// register the dispatcher by creating a new dispatcher in the database
 	dispatcher, err := d.repov1.Dispatcher().CreateNewDispatcher(ctx, &v1.CreateDispatcherOpts{
@@ -277,7 +277,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	// subscribe to a task queue with the dispatcher id
 	dispatcherId := sqlchelpers.UUIDToStr(dispatcher.ID)
 
-	fv1 := func(task *msgqueuev1.Message) error {
+	fv1 := func(task *msgqueue.Message) error {
 		wg.Add(1)
 		defer wg.Done()
 
@@ -291,7 +291,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	// subscribe to a task queue with the dispatcher id
-	cleanupQueueV1, err := d.mqv1.Subscribe(msgqueuev1.QueueTypeFromDispatcherID(dispatcherId), fv1, msgqueuev1.NoOpHook)
+	cleanupQueueV1, err := d.mqv1.Subscribe(msgqueue.QueueTypeFromDispatcherID(dispatcherId), fv1, msgqueue.NoOpHook)
 
 	if err != nil {
 		cancel()
@@ -346,7 +346,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueuev1.Message) (err error) {
+func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Message) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoverErr := recoveryutils.RecoverWithAlert(d.l, d.a, r)

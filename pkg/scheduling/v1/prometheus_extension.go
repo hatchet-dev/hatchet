@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type PrometheusExtension struct {

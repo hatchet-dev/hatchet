@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 func parseTriggeredRuns(triggeredRuns []byte) ([]gen.V1EventTriggeredRun, error) {

@@ -44,11 +44,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
-	pgmqv1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1/postgres"
-	rabbitmqv1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1/rabbitmq"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	pgmq "github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	clientv1 "github.com/hatchet-dev/hatchet/pkg/client/v1"
-	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -366,7 +366,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create session store: %w", err)
 	}
 
-	var mqv1 msgqueuev1.MessageQueue
+	var mqv1 msgqueue.MessageQueue
 	cleanup1 := func() error {
 		return nil
 	}
@@ -378,10 +378,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		case "postgres":
 			var cleanupv1 func() error
 
-			cleanupv1, mqv1, err = pgmqv1.NewPostgresMQ(
+			cleanupv1, mqv1, err = pgmq.NewPostgresMQ(
 				dc.V1.MessageQueue(),
-				pgmqv1.WithLogger(&l),
-				pgmqv1.WithQos(cf.MessageQueue.Postgres.Qos),
+				pgmq.WithLogger(&l),
+				pgmq.WithQos(cf.MessageQueue.Postgres.Qos),
 			)
 
 			if err != nil {
@@ -398,18 +398,18 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 			var cleanupv1 func() error
 
-			cleanupv1, mqv1, err = rabbitmqv1.New(
-				rabbitmqv1.WithURL(cf.MessageQueue.RabbitMQ.URL),
-				rabbitmqv1.WithLogger(&l),
-				rabbitmqv1.WithQos(cf.MessageQueue.RabbitMQ.Qos),
-				rabbitmqv1.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
-				rabbitmqv1.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
-				rabbitmqv1.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
-				rabbitmqv1.WithGzipCompression(
+			cleanupv1, mqv1, err = rabbitmq.New(
+				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
+				rabbitmq.WithLogger(&l),
+				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
+				rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
+				rabbitmq.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
+				rabbitmq.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
+				rabbitmq.WithGzipCompression(
 					cf.MessageQueue.RabbitMQ.CompressionEnabled,
 					cf.MessageQueue.RabbitMQ.CompressionThreshold,
 				),
-				rabbitmqv1.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
+				rabbitmq.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
 			)
 
 			if err != nil {

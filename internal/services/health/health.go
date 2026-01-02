@@ -11,8 +11,8 @@ import (
 
 	"github.com/rs/zerolog"
 
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type Health struct {
@@ -20,11 +20,11 @@ type Health struct {
 	version      string
 
 	repository v1.HealthRepository
-	queue      msgqueuev1.MessageQueue
+	queue      msgqueue.MessageQueue
 	l          *zerolog.Logger
 }
 
-func New(repo v1.HealthRepository, queue msgqueuev1.MessageQueue, version string, l *zerolog.Logger) *Health {
+func New(repo v1.HealthRepository, queue msgqueue.MessageQueue, version string, l *zerolog.Logger) *Health {
 	return &Health{
 		version:    version,
 		repository: repo,

@@ -12,7 +12,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
@@ -555,7 +555,7 @@ type ServerConfig struct {
 
 	Namespaces []string
 
-	MessageQueueV1 msgqueuev1.MessageQueue
+	MessageQueueV1 msgqueue.MessageQueue
 
 	Logger *zerolog.Logger
 

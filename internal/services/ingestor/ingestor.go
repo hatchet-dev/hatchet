@@ -6,10 +6,10 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -25,12 +25,12 @@ type Ingestor interface {
 type IngestorOptFunc func(*IngestorOpts)
 
 type IngestorOpts struct {
-	mqv1                  msgqueuev1.MessageQueue
+	mqv1                  msgqueue.MessageQueue
 	repov1                v1.Repository
 	isLogIngestionEnabled bool
 }
 
-func WithMessageQueueV1(mq msgqueuev1.MessageQueue) IngestorOptFunc {
+func WithMessageQueueV1(mq msgqueue.MessageQueue) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.mqv1 = mq
 	}
@@ -59,7 +59,7 @@ type IngestorImpl struct {
 
 	steprunTenantLookupCache *lru.Cache[string, string]
 
-	mqv1   msgqueuev1.MessageQueue
+	mqv1   msgqueue.MessageQueue
 	v      validator.Validator
 	repov1 v1.Repository
 
