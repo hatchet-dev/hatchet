@@ -37,10 +37,10 @@ sql:
       - users.sql
       - workflow_schedules.sql
     schema:
-      - ../../../../sql/schema/v0.sql
-      - ../../../../sql/schema/v1-core.sql
-      - ../../../../sql/schema/v1-olap.sql
-      - ../../../../sql/schema/pg-stubs.sql
+      - ../../../sql/schema/v0.sql
+      - ../../../sql/schema/v1-core.sql
+      - ../../../sql/schema/v1-olap.sql
+      - ../../../sql/schema/pg-stubs.sql
       - ./concurrency-additional-tables.sql
     strict_order_by: false
     gen:
