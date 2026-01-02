@@ -2,6 +2,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableHead,
   TableHeader,
   TableRow,
 } from '../../ui/table';
@@ -35,7 +36,7 @@ export function SimpleTable<
       <Table>
         <TableHeader>
           {columns.map(({ columnLabel }) => (
-            <TableCell key={columnLabel}>{columnLabel}</TableCell>
+            <TableHead key={columnLabel}>{columnLabel}</TableHead>
           ))}
         </TableHeader>
         <TableBody>
