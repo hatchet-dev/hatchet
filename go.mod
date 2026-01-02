@@ -20,7 +20,7 @@ require (
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/jackc/pgxlisten v0.0.0-20241106001234-1d6f6656415c
 	github.com/jackc/puddle/v2 v2.2.2
-	github.com/labstack/echo/v4 v4.14.0
+	github.com/labstack/echo/v4 v4.15.0
 	github.com/oapi-codegen/runtime v1.1.2
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/pingcap/errors v0.11.4
@@ -180,7 +180,6 @@ require (
 	github.com/getsentry/sentry-go v0.40.0
 	github.com/go-chi/chi v1.5.5
 	github.com/go-playground/validator/v10 v10.30.1
-	github.com/goccy/go-json v0.10.5
 	github.com/google/cel-go v0.26.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/schema v1.4.1
