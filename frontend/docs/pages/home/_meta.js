@@ -132,9 +132,4 @@ export default {
   lifespans: "Lifespans",
   "dependency-injection": "Dependency Injection",
   dataclasses: "Dataclass Support",
-  blog: {
-    title: "Blog",
-    type: "page",
-    href: "/blog",
-  },
 };
