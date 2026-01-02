@@ -4,21 +4,21 @@ import (
 	"sync"
 
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type PrometheusExtension struct {
 	mu      sync.RWMutex
-	tenants map[string]*dbsqlc.Tenant
+	tenants map[string]*sqlcv1.Tenant
 }
 
 func NewPrometheusExtension() *PrometheusExtension {
 	return &PrometheusExtension{
-		tenants: make(map[string]*dbsqlc.Tenant),
+		tenants: make(map[string]*sqlcv1.Tenant),
 	}
 }
 
-func (p *PrometheusExtension) SetTenants(tenants []*dbsqlc.Tenant) {
+func (p *PrometheusExtension) SetTenants(tenants []*sqlcv1.Tenant) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -75,6 +75,6 @@ func (p *PrometheusExtension) Cleanup() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.tenants = make(map[string]*dbsqlc.Tenant)
+	p.tenants = make(map[string]*sqlcv1.Tenant)
 	return nil
 }

@@ -33,7 +33,7 @@ func (c *ConfigLoader) LoadClientConfig(token *string) (res *client.ClientConfig
 		cf.Token = *token
 	}
 
-	return GetClientConfigFromConfigFile(cf)
+	return GetClientConfigFromConfigFile(token, cf)
 }
 
 // LoadClientConfigFile loads the worker config file via viper
@@ -46,13 +46,17 @@ func LoadClientConfigFile(files ...[]byte) (*client.ClientConfigFile, error) {
 	return configFile, err
 }
 
-func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.ClientConfig, err error) {
+func GetClientConfigFromConfigFile(tokenOverride *string, cf *client.ClientConfigFile) (res *client.ClientConfig, err error) {
 	f := client.BindAllEnv
 
 	_, err = loaderutils.LoadConfigFromViper(f, cf)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not load config from viper: %w", err)
+	}
+
+	if tokenOverride != nil {
+		cf.Token = *tokenOverride
 	}
 
 	// if token is empty, throw an error

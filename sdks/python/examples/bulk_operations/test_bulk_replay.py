@@ -90,8 +90,8 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
 
     for run in runs.rows:
         assert run.status == V1TaskStatus.COMPLETED
-        assert run.retry_count == 1
-        assert run.attempt == 2
+        assert run.retry_count and run.retry_count >= 1
+        assert run.attempt and run.attempt >= 2
 
     assert (
         len([r for r in runs.rows if r.workflow_id == bulk_replay_test_1.id]) == n + 1

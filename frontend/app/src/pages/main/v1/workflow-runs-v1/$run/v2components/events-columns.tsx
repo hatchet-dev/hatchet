@@ -205,6 +205,8 @@ function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
       return 'Queued';
     case V1TaskEventType.SKIPPED:
       return 'Skipped';
+    case V1TaskEventType.COULD_NOT_SEND_TO_WORKER:
+      return 'Could not send to worker';
     case undefined:
       return 'Unknown';
     default:

@@ -10,21 +10,21 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.WorkflowVersionGetRequestObject) (gen.WorkflowVersionGetResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
+	workflow := ctx.Get("workflow").(*sqlcv1.GetWorkflowByIdRow)
 
 	var workflowVersionId string
 
 	if request.Params.Version != nil {
 		workflowVersionId = request.Params.Version.String()
 	} else {
-		row, err := t.config.APIRepository.Workflow().GetWorkflowById(
+		row, err := t.config.V1.Workflows().GetWorkflowById(
 			ctx.Request().Context(),
 			sqlchelpers.UUIDToStr(workflow.Workflow.ID),
 		)
@@ -43,7 +43,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		workflowVersionId = sqlchelpers.UUIDToStr(row.WorkflowVersionId)
 	}
 
-	row, crons, events, scheduleT, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenantId, workflowVersionId)
+	row, crons, events, scheduleT, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), tenantId, workflowVersionId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

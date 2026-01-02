@@ -13,18 +13,17 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.CancelTasksRequest) (*contracts.CancelTasksResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
 	externalIds := req.ExternalIds
 
@@ -130,7 +129,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 
 	msg, err := msgqueue.NewTenantMessage(
 		sqlchelpers.UUIDToStr(tenant.ID),
-		"cancel-tasks",
+		msgqueue.MsgIDCancelTasks,
 		false,
 		true,
 		toCancel,
@@ -152,7 +151,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 }
 
 func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.ReplayTasksRequest) (*contracts.ReplayTasksResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
 	externalIds := req.ExternalIds
 
@@ -310,7 +309,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 		msg, err := msgqueue.NewTenantMessage(
 			sqlchelpers.UUIDToStr(tenant.ID),
-			"replay-tasks",
+			msgqueue.MsgIDReplayTasks,
 			false,
 			true,
 			toReplay,
@@ -339,12 +338,12 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 }
 
 func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contracts.TriggerWorkflowRunRequest) (*contracts.TriggerWorkflowRunResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	canCreateWR, wrLimit, err := a.entitlements.TenantLimit().CanCreate(
+	canCreateWR, wrLimit, err := a.repo.TenantLimit().CanCreate(
 		ctx,
-		dbsqlc.LimitResourceWORKFLOWRUN,
+		sqlcv1.LimitResourceWORKFLOWRUN,
 		tenantId,
 		1,
 	)
@@ -360,9 +359,9 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 		)
 	}
 
-	canCreateTR, trLimit, err := a.entitlements.TenantLimit().CanCreate(
+	canCreateTR, trLimit, err := a.repo.TenantLimit().CanCreate(
 		ctx,
-		dbsqlc.LimitResourceTASKRUN,
+		sqlcv1.LimitResourceTASKRUN,
 		tenantId,
 		// NOTE: this isn't actually the number of tasks per workflow run, but we're just checking to see
 		// if we've exceeded the limit
@@ -481,7 +480,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...
 }
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.CreateWorkflowVersionRequest) (*contracts.CreateWorkflowVersionResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	createOpts, err := getCreateWorkflowOpts(req)

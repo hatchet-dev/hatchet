@@ -245,11 +245,6 @@ export enum TenantEnvironment {
   Production = "production",
 }
 
-export enum TenantUIVersion {
-  V0 = "V0",
-  V1 = "V1",
-}
-
 export enum TenantVersion {
   V0 = "V0",
   V1 = "V1",
@@ -283,6 +278,7 @@ export enum V1TaskEventType {
   CREATED = "CREATED",
   QUEUED = "QUEUED",
   SKIPPED = "SKIPPED",
+  COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER",
 }
 
 export enum V1WorkflowType {
@@ -759,8 +755,6 @@ export interface Tenant {
   alertMemberEmails?: boolean;
   /** The version of the tenant. */
   version: TenantVersion;
-  /** The UI of the tenant. */
-  uiVersion?: TenantUIVersion;
   /** The environment type of the tenant. */
   environment?: TenantEnvironment;
 }
@@ -1266,8 +1260,6 @@ export interface CreateTenantRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
-  /** The UI version of the tenant. Defaults to V0. */
-  uiVersion?: TenantUIVersion;
   /** The engine version of the tenant. Defaults to V0. */
   engineVersion?: TenantVersion;
   /** The environment type of the tenant. */
@@ -1293,8 +1285,6 @@ export interface UpdateTenantRequest {
   maxAlertingFrequency?: string;
   /** The version of the tenant. */
   version?: TenantVersion;
-  /** The UI of the tenant. */
-  uiVersion?: TenantUIVersion;
 }
 
 export interface TenantAlertingSettings {
@@ -1625,6 +1615,85 @@ export interface ScheduledWorkflows {
 export interface ScheduledWorkflowsList {
   rows?: ScheduledWorkflows[];
   pagination?: PaginationResponse;
+}
+
+export interface UpdateScheduledWorkflowRunRequest {
+  /** @format date-time */
+  triggerAt: string;
+}
+
+export interface ScheduledWorkflowsBulkDeleteFilter {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId?: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentWorkflowRunId?: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentStepRunId?: string;
+  /**
+   * A list of metadata key value pairs to filter by
+   * @example ["key1:value1","key2:value2"]
+   */
+  additionalMetadata?: string[];
+}
+
+export interface ScheduledWorkflowsBulkDeleteRequest {
+  /**
+   * @maxItems 500
+   * @minItems 1
+   */
+  scheduledWorkflowRunIds?: string[];
+  filter?: ScheduledWorkflowsBulkDeleteFilter;
+}
+
+export interface ScheduledWorkflowsBulkError {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  id?: string;
+  error: string;
+}
+
+export interface ScheduledWorkflowsBulkDeleteResponse {
+  deletedIds: string[];
+  errors: ScheduledWorkflowsBulkError[];
+}
+
+export interface ScheduledWorkflowsBulkUpdateItem {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  id: string;
+  /** @format date-time */
+  triggerAt: string;
+}
+
+export interface ScheduledWorkflowsBulkUpdateRequest {
+  /**
+   * @maxItems 500
+   * @minItems 1
+   */
+  updates: ScheduledWorkflowsBulkUpdateItem[];
+}
+
+export interface ScheduledWorkflowsBulkUpdateResponse {
+  updatedIds: string[];
+  errors: ScheduledWorkflowsBulkError[];
 }
 
 export interface CreateCronWorkflowTriggerRequest {

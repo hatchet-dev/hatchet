@@ -16,8 +16,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/random"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
 func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tests
@@ -35,7 +35,7 @@ func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tes
 			t.Fatal(err.Error())
 		}
 
-		_, err = conf.APIRepository.Tenant().CreateTenant(context.Background(), &repository.CreateTenantOpts{
+		_, err = conf.V1.Tenant().CreateTenant(context.Background(), &v1.CreateTenantOpts{
 			ID:   &tenantId,
 			Name: "test-tenant",
 			Slug: fmt.Sprintf("test-tenant-%s", slugSuffix),
@@ -76,7 +76,7 @@ func TestRevokeTenantToken(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		_, err = conf.APIRepository.Tenant().CreateTenant(context.Background(), &repository.CreateTenantOpts{
+		_, err = conf.V1.Tenant().CreateTenant(context.Background(), &v1.CreateTenantOpts{
 			ID:   &tenantId,
 			Name: "test-tenant",
 			Slug: fmt.Sprintf("test-tenant-%s", slugSuffix),
@@ -98,14 +98,14 @@ func TestRevokeTenantToken(t *testing.T) {
 		assert.NoError(t, err)
 
 		// revoke the token
-		apiTokens, err := conf.APIRepository.APIToken().ListAPITokensByTenant(context.Background(), tenantId)
+		apiTokens, err := conf.V1.APIToken().ListAPITokensByTenant(context.Background(), tenantId)
 
 		if err != nil {
 			t.Fatal(err.Error())
 		}
 
 		assert.Len(t, apiTokens, 1)
-		err = conf.APIRepository.APIToken().RevokeAPIToken(context.Background(), sqlchelpers.UUIDToStr(apiTokens[0].ID))
+		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), sqlchelpers.UUIDToStr(apiTokens[0].ID))
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -136,7 +136,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		_, err = conf.APIRepository.Tenant().CreateTenant(context.Background(), &repository.CreateTenantOpts{
+		_, err = conf.V1.Tenant().CreateTenant(context.Background(), &v1.CreateTenantOpts{
 			ID:   &tenantId,
 			Name: "test-tenant",
 			Slug: fmt.Sprintf("test-tenant-%s", slugSuffix),
@@ -158,14 +158,14 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 		assert.NoError(t, err)
 
 		// revoke the token
-		apiTokens, err := conf.APIRepository.APIToken().ListAPITokensByTenant(context.Background(), tenantId)
+		apiTokens, err := conf.V1.APIToken().ListAPITokensByTenant(context.Background(), tenantId)
 
 		if err != nil {
 			t.Fatal(err.Error())
 		}
 
 		assert.Len(t, apiTokens, 1)
-		err = conf.APIRepository.APIToken().RevokeAPIToken(context.Background(), sqlchelpers.UUIDToStr(apiTokens[0].ID))
+		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), sqlchelpers.UUIDToStr(apiTokens[0].ID))
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -196,7 +196,7 @@ func getJWTManager(t *testing.T, conf *database.Layer) token.JWTManager {
 		t.Fatal(err.Error())
 	}
 
-	tokenRepo := conf.EngineRepository.APIToken()
+	tokenRepo := conf.V1.APIToken()
 
 	jwtManager, err := token.NewJWTManager(encryptionService, tokenRepo, &token.TokenOpts{
 		Issuer:   "hatchet",

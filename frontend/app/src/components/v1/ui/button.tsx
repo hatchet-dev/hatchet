@@ -47,6 +47,7 @@ export interface ButtonProps
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   hoverText?: string;
+  hoverTextSide?: 'top' | 'right' | 'bottom' | 'left';
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   fullWidth?: boolean;
@@ -60,6 +61,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       size,
       asChild = false,
       hoverText = undefined,
+      hoverTextSide = 'top',
       leftIcon,
       rightIcon,
       fullWidth,
@@ -95,7 +97,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
               {rightIcon && <span className="-mr-1 ml-2">{rightIcon}</span>}
             </Comp>
           </TooltipTrigger>
-          {hoverText && <TooltipContent>{hoverText}</TooltipContent>}
+          {hoverText && (
+            <TooltipContent side={hoverTextSide}>{hoverText}</TooltipContent>
+          )}
         </Tooltip>
       </TooltipProvider>
     );

@@ -21,9 +21,6 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/analytics/posthog"
@@ -41,23 +38,19 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
-	pgmqv1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1/postgres"
-	rabbitmqv1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1/rabbitmq"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	pgmq "github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	clientv1 "github.com/hatchet-dev/hatchet/pkg/client/v1"
-	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -79,14 +72,8 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 	return configFile, err
 }
 
-type RepositoryOverrides struct {
-	LogsEngineRepository repository.LogsEngineRepository
-	LogsAPIRepository    repository.LogsAPIRepository
-}
-
 type ConfigLoader struct {
-	directory           string
-	RepositoryOverrides RepositoryOverrides
+	directory string
 }
 
 func NewConfigLoader(directory string) *ConfigLoader {
@@ -260,28 +247,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	ch := cache.New(cf.CacheDuration)
 
-	entitlementRepo := postgresdb.NewEntitlementRepository(pool, &scf.Runtime, postgresdb.WithLogger(&l), postgresdb.WithCache(ch))
-
-	meter := metered.NewMetered(entitlementRepo, &l)
-
-	var opts []postgresdb.PostgresRepositoryOpt
-
-	opts = append(opts, postgresdb.WithLogger(&l), postgresdb.WithCache(ch), postgresdb.WithMetered(meter))
-
-	if c.RepositoryOverrides.LogsEngineRepository != nil {
-		opts = append(opts, postgresdb.WithLogsEngineRepository(c.RepositoryOverrides.LogsEngineRepository))
-	}
-
-	cleanupEngine, engineRepo, err := postgresdb.NewEngineRepository(pool, &scf.Runtime, opts...)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create engine repository: %w", err)
-	}
-
-	if c.RepositoryOverrides.LogsAPIRepository != nil {
-		opts = append(opts, postgresdb.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
-	}
-
 	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
 
 	if err != nil {
@@ -320,13 +285,19 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DAG:  int32(scf.OLAPStatusUpdates.DagBatchSizeLimit),
 	}
 
-	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, payloadStoreOpts, statusUpdateOpts)
-
-	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create api repository: %w", err)
-	}
+	v1, cleanupV1 := repov1.NewRepository(
+		pool,
+		&l,
+		cf.CacheDuration,
+		retentionPeriod,
+		retentionPeriod,
+		scf.Runtime.MaxInternalRetryCount,
+		taskLimits,
+		payloadStoreOpts,
+		statusUpdateOpts,
+		scf.Runtime.Limits,
+		scf.Runtime.EnforceLimits,
+	)
 
 	if readReplicaPool != nil {
 		v1.OLAP().SetReadReplicaPool(readReplicaPool)
@@ -334,26 +305,14 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	return &database.Layer{
 		Disconnect: func() error {
-			if err := cleanupEngine(); err != nil {
-				return err
-			}
-
 			ch.Stop()
-			meter.Stop()
 
-			if err := cleanupV1(); err != nil {
-				return err
-			}
-
-			return cleanupApiRepo()
+			return cleanupV1()
 		},
-		Pool:                  pool,
-		QueuePool:             pool,
-		APIRepository:         apiRepo,
-		EngineRepository:      engineRepo,
-		EntitlementRepository: entitlementRepo,
-		V1:                    v1,
-		Seed:                  cf.Seed,
+		Pool:      pool,
+		QueuePool: pool,
+		V1:        v1,
+		Seed:      cf.Seed,
 	}, nil
 
 }
@@ -398,7 +357,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	ss, err := cookie.NewUserSessionStore(
-		cookie.WithSessionRepository(dc.APIRepository.UserSession()),
+		cookie.WithSessionRepository(dc.V1.UserSession()),
 		cookie.WithCookieAllowInsecure(cf.Auth.Cookie.Insecure),
 		cookie.WithCookieDomain(cf.Auth.Cookie.Domain),
 		cookie.WithCookieName(cf.Auth.Cookie.Name),
@@ -409,8 +368,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create session store: %w", err)
 	}
 
-	var mq msgqueue.MessageQueue
-	var mqv1 msgqueuev1.MessageQueue
+	var mqv1 msgqueue.MessageQueue
 	cleanup1 := func() error {
 		return nil
 	}
@@ -420,19 +378,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	if cf.MessageQueue.Enabled {
 		switch strings.ToLower(cf.MessageQueue.Kind) {
 		case "postgres":
-			var cleanupv0 func() error
 			var cleanupv1 func() error
 
-			cleanupv0, mq = postgres.NewPostgresMQ(
-				dc.EngineRepository.MessageQueue(),
-				postgres.WithLogger(&l),
-				postgres.WithQos(cf.MessageQueue.Postgres.Qos),
-			)
-
-			cleanupv1, mqv1, err = pgmqv1.NewPostgresMQ(
-				dc.EngineRepository.MessageQueue(),
-				pgmqv1.WithLogger(&l),
-				pgmqv1.WithQos(cf.MessageQueue.Postgres.Qos),
+			cleanupv1, mqv1, err = pgmq.NewPostgresMQ(
+				dc.V1.MessageQueue(),
+				pgmq.WithLogger(&l),
+				pgmq.WithQos(cf.MessageQueue.Postgres.Qos),
 			)
 
 			if err != nil {
@@ -440,10 +391,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			}
 
 			cleanup1 = func() error {
-				if err := cleanupv0(); err != nil {
-					return err
-				}
-
 				return cleanupv1()
 			}
 		case "rabbitmq":
@@ -451,29 +398,20 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				return nil, nil, fmt.Errorf("using RabbitMQ as message queue requires a URL to be set")
 			}
 
-			var cleanupv0 func() error
 			var cleanupv1 func() error
 
-			cleanupv0, mq = rabbitmq.New(
+			cleanupv1, mqv1, err = rabbitmq.New(
 				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 				rabbitmq.WithLogger(&l),
 				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
 				rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
-				rabbitmq.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
-			)
-
-			cleanupv1, mqv1, err = rabbitmqv1.New(
-				rabbitmqv1.WithURL(cf.MessageQueue.RabbitMQ.URL),
-				rabbitmqv1.WithLogger(&l),
-				rabbitmqv1.WithQos(cf.MessageQueue.RabbitMQ.Qos),
-				rabbitmqv1.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
-				rabbitmqv1.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
-				rabbitmqv1.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
-				rabbitmqv1.WithGzipCompression(
+				rabbitmq.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
+				rabbitmq.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
+				rabbitmq.WithGzipCompression(
 					cf.MessageQueue.RabbitMQ.CompressionEnabled,
 					cf.MessageQueue.RabbitMQ.CompressionThreshold,
 				),
-				rabbitmqv1.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
+				rabbitmq.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
 			)
 
 			if err != nil {
@@ -481,22 +419,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			}
 
 			cleanup1 = func() error {
-				if err := cleanupv0(); err != nil {
-					return err
-				}
-
 				return cleanupv1()
 			}
 		}
 
 		ing, err = ingestor.NewIngestor(
-			ingestor.WithEventRepository(dc.EngineRepository.Event()),
-			ingestor.WithStreamEventsRepository(dc.EngineRepository.StreamEvent()),
-			ingestor.WithLogRepository(dc.EngineRepository.Log()),
-			ingestor.WithMessageQueue(mq),
 			ingestor.WithMessageQueueV1(mqv1),
-			ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
-			ingestor.WithStepRunRepository(dc.EngineRepository.StepRun()),
 			ingestor.WithRepositoryV1(dc.V1),
 		)
 
@@ -527,7 +455,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			Endpoint: cf.SecurityCheck.Endpoint,
 			Logger:   &l,
 			Version:  version,
-		}, dc.APIRepository.SecurityCheck())
+		}, dc.V1.SecurityCheck())
 
 		defer securityCheck.Check()
 	}
@@ -557,7 +485,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	// Register analytics callbacks for user and tenant creation
-	dc.APIRepository.User().RegisterCreateCallback(func(opts *repository.CreateUserOpts, user *dbsqlc.User) error {
+	dc.V1.User().RegisterCreateCallback(func(opts *repov1.CreateUserOpts, user *sqlcv1.User) error {
 		// Determine provider from opts
 		provider := "basic"
 		if opts.OAuth != nil {
@@ -578,7 +506,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil
 	})
 
-	dc.APIRepository.Tenant().RegisterCreateCallback(func(tenant *dbsqlc.Tenant) error {
+	dc.V1.Tenant().RegisterCreateCallback(func(tenant *sqlcv1.Tenant) error {
 		tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 		analyticsEmitter.Tenant(tenantId, map[string]interface{}{
@@ -660,7 +588,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	// create a new JWT manager
-	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.EngineRepository.APIToken(), &token.TokenOpts{
+	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.V1.APIToken(), &token.TokenOpts{
 		Issuer:               cf.Runtime.ServerURL,
 		Audience:             cf.Runtime.ServerURL,
 		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
@@ -695,16 +623,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	v := validator.NewDefaultValidator()
 
-	schedulingPool, cleanupSchedulingPool, err := v0.NewSchedulingPool(
-		dc.EngineRepository.Scheduler(),
-		&queueLogger,
-		cf.Runtime.SingleQueueLimit,
-	)
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not create scheduling pool: %w", err)
-	}
-
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
 		&queueLogger,
@@ -722,10 +640,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
-
-		if err := cleanupSchedulingPool(); err != nil {
-			return fmt.Errorf("error cleaning up scheduling pool: %w", err)
-		}
 
 		if err := cleanupSchedulingPoolV1(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
@@ -771,7 +685,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Auth:                   auth,
 		Encryption:             encryptionSvc,
 		Layer:                  dc,
-		MessageQueue:           mq,
 		MessageQueueV1:         mqv1,
 		Services:               services,
 		PausedControllers:      pausedControllers,
@@ -784,12 +697,11 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		OpenTelemetry:          cf.OpenTelemetry,
 		Prometheus:             cf.Prometheus,
 		Email:                  emailSvc,
-		TenantAlerter:          alerting.New(dc.EngineRepository, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
+		TenantAlerter:          alerting.New(dc.V1, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,
 		AdditionalLoggers:      cf.AdditionalLoggers,
 		EnableDataRetention:    cf.EnableDataRetention,
 		EnableWorkerRetention:  cf.EnableWorkerRetention,
-		SchedulingPool:         schedulingPool,
 		SchedulingPoolV1:       schedulingPoolV1,
 		Version:                version,
 		Sampling:               cf.Sampling,

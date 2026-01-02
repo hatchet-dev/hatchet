@@ -13,7 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type RetentionController interface {
@@ -22,7 +22,7 @@ type RetentionController interface {
 
 type RetentionControllerImpl struct {
 	l               *zerolog.Logger
-	repo            repository.EngineRepository
+	repo            v1.Repository
 	dv              datautils.DataDecoderValidator
 	s               gocron.Scheduler
 	tenantAlerter   *alerting.TenantAlertManager
@@ -37,7 +37,7 @@ type RetentionControllerOpt func(*RetentionControllerOpts)
 
 type RetentionControllerOpts struct {
 	l               *zerolog.Logger
-	repo            repository.EngineRepository
+	repo            v1.Repository
 	dv              datautils.DataDecoderValidator
 	ta              *alerting.TenantAlertManager
 	alerter         hatcheterrors.Alerter
@@ -67,7 +67,7 @@ func WithLogger(l *zerolog.Logger) RetentionControllerOpt {
 	}
 }
 
-func WithRepository(r repository.EngineRepository) RetentionControllerOpt {
+func WithRepository(r v1.Repository) RetentionControllerOpt {
 	return func(opts *RetentionControllerOpts) {
 		opts.repo = r
 	}
@@ -159,114 +159,10 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	if rc.dataRetention {
-		dataInterval := time.Second * 60 // run every 60 seconds
-
-		_, err := rc.s.NewJob(
-			gocron.DurationJob(dataInterval),
-			gocron.NewTask(
-				rc.runDeleteExpiredWorkflowRuns(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteExpiredWorkflowRuns: %w", err)
-		}
-
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(dataInterval),
-			gocron.NewTask(
-				rc.runDeleteExpiredEvents(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteExpiredEvents: %w", err)
-		}
-
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(dataInterval),
-			gocron.NewTask(
-				rc.runDeleteExpiredStepRuns(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteExpiredStepRuns: %w", err)
-		}
-
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(dataInterval),
-			gocron.NewTask(
-				rc.runDeleteExpiredJobRuns(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteExpiredJobRuns: %w", err)
-		}
-	}
-
-	if rc.workerRetention {
-		workerInterval := time.Hour * 60 // run every 1 hour
-
-		_, err := rc.s.NewJob(
-			gocron.DurationJob(workerInterval),
-			gocron.NewTask(
-				rc.runDeleteOldWorkers(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteOldWorkers: %w", err)
-		}
-	}
-
 	if rc.queueRetention {
 		queueInterval := time.Second * 60
 
 		_, err := rc.s.NewJob(
-			gocron.DurationJob(queueInterval),
-			gocron.NewTask(
-				rc.runDeleteQueueItems(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteQueueItems: %w", err)
-		}
-
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(queueInterval),
-			gocron.NewTask(
-				rc.runDeleteInternalQueueItems(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteInternalQueueItems: %w", err)
-		}
-
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(queueInterval),
-			gocron.NewTask(
-				rc.runDeleteRetryQueueItems(ctx),
-			),
-		)
-
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not set up runDeleteRetryQueueItems: %w", err)
-		}
-
-		_, err = rc.s.NewJob(
 			gocron.DurationJob(queueInterval),
 			gocron.NewTask(
 				rc.runDeleteMessageQueueItems(ctx),

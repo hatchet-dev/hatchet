@@ -188,6 +188,18 @@ ScheduledWorkflowsOrderByField:
   $ref: "./workflow_run.yaml#/ScheduledWorkflowsOrderByField"
 ScheduledRunStatus:
   $ref: "./workflow_run.yaml#/ScheduledRunStatus"
+UpdateScheduledWorkflowRunRequest:
+  $ref: "./workflow_run.yaml#/UpdateScheduledWorkflowRunRequest"
+ScheduledWorkflowsBulkDeleteRequest:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkDeleteRequest"
+ScheduledWorkflowsBulkDeleteFilter:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkDeleteFilter"
+ScheduledWorkflowsBulkDeleteResponse:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkDeleteResponse"
+ScheduledWorkflowsBulkUpdateRequest:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkUpdateRequest"
+ScheduledWorkflowsBulkUpdateResponse:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkUpdateResponse"
 CronWorkflows:
   $ref: "./workflow_run.yaml#/CronWorkflows"
 CronWorkflowsList:

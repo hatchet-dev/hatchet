@@ -5,20 +5,18 @@ import (
 	"encoding/json"
 	"time"
 
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
+func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// get single task
@@ -30,7 +28,7 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tena
 
 	msg, err := msgqueue.NewTenantMessage(
 		tenantId,
-		"task-stream-event",
+		msgqueue.MsgIDTaskStreamEvent,
 		true,
 		false,
 		tasktypes.StreamEventPayload{
@@ -61,7 +59,7 @@ func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternal
 	return i.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, skipCache)
 }
 
-func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
+func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	if !i.isLogIngestionEnabled {
@@ -120,7 +118,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req 
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
 	}
 
-	if err := repository.ValidateJSONB(opts.Metadata, "additionalMetadata"); err != nil {
+	if err := v1.ValidateJSONB(opts.Metadata, "additionalMetadata"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 

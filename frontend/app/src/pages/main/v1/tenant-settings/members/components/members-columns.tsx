@@ -9,7 +9,7 @@ import { UserContextType } from '@/lib/outlet';
 import { useOutletContext } from '@/lib/router-helpers';
 import { capitalize } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import queryClient from '@/query-client';
 import { useMutation } from '@tanstack/react-query';
 import { ColumnDef } from '@tanstack/react-table';
@@ -29,8 +29,8 @@ function MemberActions({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { handleApiError } = useApiError({});
   const { tenantId } = useCurrentTenantId();
-  const meta = useApiMeta();
-  const { isCloudEnabled } = useCloudApiMeta();
+  const { meta } = useApiMeta();
+  const { isCloudEnabled } = useCloud();
 
   const deleteMemberMutation = useMutation({
     mutationKey: ['tenant-member:delete', tenantId],
@@ -49,11 +49,11 @@ function MemberActions({
 
   const canDeleteMember =
     member.user.email !== user?.email &&
-    meta.data?.allowInvites &&
+    meta?.allowInvites &&
     !(isCloudEnabled && isOwnerRole); // Hide delete option for OWNER in cloud mode
 
   const canChangePassword =
-    member.user.email === user?.email && meta.data?.allowChangePassword;
+    member.user.email === user?.email && meta?.allowChangePassword;
 
   const canEditRole = member.user.email !== user?.email;
 

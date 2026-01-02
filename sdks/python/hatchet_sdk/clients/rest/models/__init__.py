@@ -128,6 +128,27 @@ from hatchet_sdk.clients.rest.models.schedule_workflow_run_request import (
 )
 from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
 from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflows
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_filter import (
+    ScheduledWorkflowsBulkDeleteFilter,
+)
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_request import (
+    ScheduledWorkflowsBulkDeleteRequest,
+)
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_response import (
+    ScheduledWorkflowsBulkDeleteResponse,
+)
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_error import (
+    ScheduledWorkflowsBulkError,
+)
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_item import (
+    ScheduledWorkflowsBulkUpdateItem,
+)
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_request import (
+    ScheduledWorkflowsBulkUpdateRequest,
+)
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_response import (
+    ScheduledWorkflowsBulkUpdateResponse,
+)
 from hatchet_sdk.clients.rest.models.scheduled_workflows_list import (
     ScheduledWorkflowsList,
 )
@@ -176,13 +197,15 @@ from hatchet_sdk.clients.rest.models.tenant_resource_policy import TenantResourc
 from hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics import (
     TenantStepRunQueueMetrics,
 )
-from hatchet_sdk.clients.rest.models.tenant_ui_version import TenantUIVersion
 from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 from hatchet_sdk.clients.rest.models.trigger_workflow_run_request import (
     TriggerWorkflowRunRequest,
 )
 from hatchet_sdk.clients.rest.models.update_cron_workflow_trigger_request import (
     UpdateCronWorkflowTriggerRequest,
+)
+from hatchet_sdk.clients.rest.models.update_scheduled_workflow_run_request import (
+    UpdateScheduledWorkflowRunRequest,
 )
 from hatchet_sdk.clients.rest.models.update_tenant_alert_email_group_request import (
     UpdateTenantAlertEmailGroupRequest,

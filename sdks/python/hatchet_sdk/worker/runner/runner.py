@@ -149,7 +149,9 @@ class Runner:
             self.running_tasks.add(t)
             t.add_done_callback(lambda task: self.running_tasks.discard(task))
 
-    def step_run_callback(self, action: Action) -> Callable[[asyncio.Task[Any]], None]:
+    def step_run_callback(
+        self, action: Action, t: Task[TWorkflowInput, R]
+    ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
             self.cleanup_run_id(action.key)
 
@@ -173,7 +175,11 @@ class Runner:
                     )
                 )
 
-                log_with_level = logger.info if should_not_retry else logger.exception
+                # log as info if we're going to retry or we explicitly should _not_ retry
+                # so that e.g. Sentry does not get reported multiple exceptions from multiple retries of a single task
+                log_as_info = should_not_retry or action.retry_count < t.retries
+
+                log_with_level = logger.info if log_as_info else logger.exception
 
                 log_with_level(
                     f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
@@ -238,59 +244,58 @@ class Runner:
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
 
-        dependencies = await task._unpack_dependencies(ctx)
+        async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
+            try:
+                if task.is_async_function:
+                    return await task.aio_call(ctx, dependencies)
 
-        try:
-            if task.is_async_function:
-                return await task.aio_call(ctx, dependencies)
+                pfunc = functools.partial(
+                    # we must copy the context vars to the new thread, as only asyncio natively supports
+                    # contextvars
+                    copy_context_vars,
+                    [
+                        ContextVarToCopy(
+                            var=ContextVarToCopyStr(
+                                name="ctx_step_run_id",
+                                value=action.step_run_id,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyStr(
+                                name="ctx_workflow_run_id",
+                                value=action.workflow_run_id,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyStr(
+                                name="ctx_worker_id",
+                                value=action.worker_id,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyStr(
+                                name="ctx_action_key",
+                                value=action.key,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyDict(
+                                name="ctx_additional_metadata",
+                                value=action.additional_metadata,
+                            )
+                        ),
+                    ],
+                    self.thread_action_func,
+                    ctx,
+                    task,
+                    action,
+                    dependencies,
+                )
 
-            pfunc = functools.partial(
-                # we must copy the context vars to the new thread, as only asyncio natively supports
-                # contextvars
-                copy_context_vars,
-                [
-                    ContextVarToCopy(
-                        var=ContextVarToCopyStr(
-                            name="ctx_step_run_id",
-                            value=action.step_run_id,
-                        )
-                    ),
-                    ContextVarToCopy(
-                        var=ContextVarToCopyStr(
-                            name="ctx_workflow_run_id",
-                            value=action.workflow_run_id,
-                        )
-                    ),
-                    ContextVarToCopy(
-                        var=ContextVarToCopyStr(
-                            name="ctx_worker_id",
-                            value=action.worker_id,
-                        )
-                    ),
-                    ContextVarToCopy(
-                        var=ContextVarToCopyStr(
-                            name="ctx_action_key",
-                            value=action.key,
-                        )
-                    ),
-                    ContextVarToCopy(
-                        var=ContextVarToCopyDict(
-                            name="ctx_additional_metadata",
-                            value=action.additional_metadata,
-                        )
-                    ),
-                ],
-                self.thread_action_func,
-                ctx,
-                task,
-                action,
-                dependencies,
-            )
-
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(self.thread_pool, pfunc)
-        finally:
-            self.cleanup_run_id(action.key)
+                loop = asyncio.get_event_loop()
+                return await loop.run_in_executor(self.thread_pool, pfunc)
+            finally:
+                self.cleanup_run_id(action.key)
 
     async def log_thread_pool_status(self) -> None:
         thread_pool_details = {
@@ -398,7 +403,7 @@ class Runner:
                 self.async_wrapped_action_func(context, action_func, action)
             )
 
-            task.add_done_callback(self.step_run_callback(action))
+            task.add_done_callback(self.step_run_callback(action, action_func))
             self.tasks[action.key] = task
 
             task_count.increment()

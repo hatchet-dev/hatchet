@@ -4,7 +4,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *EventService) EventDataGet(ctx echo.Context, request gen.EventDataGetRequestObject) (gen.EventDataGetResponseObject, error) {
@@ -13,7 +13,7 @@ func (t *EventService) EventDataGet(ctx echo.Context, request gen.EventDataGetRe
 		return nil, echo.NewHTTPError(404, "event not found")
 	}
 
-	event, ok := eventInterface.(*dbsqlc.Event)
+	event, ok := eventInterface.(*sqlcv1.Event)
 	if !ok {
 		return nil, echo.NewHTTPError(500, "invalid event type in context")
 	}
@@ -39,7 +39,7 @@ func (t *EventService) EventDataGetWithTenant(ctx echo.Context, request gen.Even
 		return nil, echo.NewHTTPError(404, "event not found")
 	}
 
-	event, ok := eventInterface.(*dbsqlc.Event)
+	event, ok := eventInterface.(*sqlcv1.Event)
 	if !ok {
 		return nil, echo.NewHTTPError(500, "invalid event type in context")
 	}
