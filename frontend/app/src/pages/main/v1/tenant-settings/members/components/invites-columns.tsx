@@ -1,4 +1,4 @@
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { TenantInvite } from '@/lib/api';
 
 export function InviteActions({
@@ -11,8 +11,8 @@ export function InviteActions({
   onDeleteClick: (invite: TenantInvite) => void;
 }) {
   return (
-    <DataTableRowActions
-      row={{ original: invite } as any}
+    <TableRowActions
+      row={invite}
       actions={[
         {
           label: 'Edit role',

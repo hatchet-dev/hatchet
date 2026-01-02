@@ -1,4 +1,4 @@
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { SlackWebhook } from '@/lib/api';
 
 export function SlackActions({
@@ -9,8 +9,8 @@ export function SlackActions({
   onDeleteClick: (webhook: SlackWebhook) => void;
 }) {
   return (
-    <DataTableRowActions
-      row={{ original: webhook } as any}
+    <TableRowActions
+      row={webhook}
       actions={[
         {
           label: 'Delete',

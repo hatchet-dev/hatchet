@@ -1,5 +1,5 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { TenantMember, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
@@ -55,8 +55,8 @@ export function MemberActions({
 
   return (
     <>
-      <DataTableRowActions
-        row={{ original: member } as any}
+      <TableRowActions
+        row={member}
         actions={[
           ...(canEditRole
             ? [

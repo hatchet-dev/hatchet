@@ -1,4 +1,4 @@
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { Button } from '@/components/v1/ui/button';
 import { SNSIntegration } from '@/lib/api';
 import { CheckIcon } from '@heroicons/react/24/outline';
@@ -38,8 +38,8 @@ export function SNSActions({
   onDeleteClick: (integration: SNSIntegration) => void;
 }) {
   return (
-    <DataTableRowActions
-      row={{ original: integration } as any}
+    <TableRowActions
+      row={integration}
       actions={[
         {
           label: 'Delete',

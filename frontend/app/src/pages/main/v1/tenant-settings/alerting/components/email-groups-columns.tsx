@@ -1,4 +1,4 @@
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { Badge } from '@/components/v1/ui/badge';
 import { TenantAlertEmailGroup } from '@/lib/api';
 
@@ -50,8 +50,8 @@ export function EmailGroupActions({
 }) {
   return (
     <div className="mr-4 flex items-center justify-end space-x-2">
-      <DataTableRowActions
-        row={{ original: group } as any}
+      <TableRowActions
+        row={group}
         actions={[
           group.metadata.id != 'default'
             ? {
