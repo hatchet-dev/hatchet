@@ -71,7 +71,7 @@ func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *z
 
 	commit := func(ctx context.Context) error {
 		// reset statement timeout
-		_, err = tx.Exec(ctx, "SET statement_timeout=0")
+		_, err = tx.Exec(ctx, "SET statement_timeout=30000")
 
 		if err != nil {
 			return err
