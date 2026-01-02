@@ -12,7 +12,39 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeoutMs int) (pgx.Tx, func(context.Context) error, func(), error) {
+func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger) (pgx.Tx, func(context.Context) error, func(), error) {
+	start := time.Now()
+
+	tx, err := pool.Begin(ctx)
+
+	if err != nil {
+		if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
+			l.Error().Dur(
+				"duration", sinceStart,
+			).Int(
+				"acquired_connections", int(pool.Stat().AcquiredConns()),
+			).Caller(1).Msgf("long transaction start with error: %v", err)
+		}
+
+		return nil, nil, nil, err
+	}
+
+	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
+		l.Warn().Dur(
+			"duration", sinceStart,
+		).Int(
+			"acquired_connections", int(pool.Stat().AcquiredConns()),
+		).Caller(1).Msg("long transaction start")
+	}
+
+	rollback := func() {
+		DeferRollback(ctx, l, tx.Rollback)
+	}
+
+	return tx, tx.Commit, rollback, nil
+}
+
+func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeoutMs int) (pgx.Tx, func(context.Context) error, func(), error) {
 	start := time.Now()
 
 	tx, err := pool.Begin(ctx)
