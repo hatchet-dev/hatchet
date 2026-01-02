@@ -45,7 +45,7 @@ export function ManagedWorkerInstancesTable({
       {
         columnLabel: 'Name',
         cellRenderer: (instance: InstanceWithMetadata) => (
-          <div className="text-md min-w-fit cursor-pointer whitespace-nowrap p-2 hover:underline">
+          <div className="text-md min-w-fit whitespace-nowrap p-2">
             {instance.name}
           </div>
         ),
