@@ -84,7 +84,6 @@ func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *z
 		DeferRollback(ctx, l, tx.Rollback)
 	}
 
-	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
 
 	if err != nil {
