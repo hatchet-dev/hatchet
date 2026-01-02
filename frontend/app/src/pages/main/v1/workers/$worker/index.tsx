@@ -291,9 +291,9 @@ export default function WorkerDetail() {
               </div>
               {maxSlots > 0 && (
                 <div className="space-y-1">
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-blue-100 dark:bg-blue-900">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-900">
                     <div
-                      className="h-full bg-red-600 transition-all dark:bg-red-500"
+                      className="h-full bg-gray-600 transition-all dark:bg-gray-500"
                       style={{ width: `${usedPercentage}%` }}
                     />
                   </div>
