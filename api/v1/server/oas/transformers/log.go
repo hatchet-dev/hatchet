@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func ToLogFromSQLC(log *sqlcv1.LogLine) *gen.LogLine {

@@ -7,7 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *TasksService) V1TaskCancel(ctx echo.Context, request gen.V1TaskCancelRequestObject) (gen.V1TaskCancelResponseObject, error) {

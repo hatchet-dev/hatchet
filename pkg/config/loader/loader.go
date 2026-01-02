@@ -48,7 +48,7 @@ import (
 	pgmqv1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1/postgres"
 	rabbitmqv1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1/rabbitmq"
 	clientv1 "github.com/hatchet-dev/hatchet/pkg/client/v1"
-	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
