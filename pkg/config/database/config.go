@@ -24,7 +24,7 @@ type ConfigFile struct {
 	ReadReplicaMinConns    int    `mapstructure:"readReplicaMinConns" json:"readReplicaMinConns,omitempty" default:"10"`
 
 	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"50"`
-	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"10"`
+	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"1"`
 
 	MaxQueueConns int `mapstructure:"maxQueueConns" json:"maxQueueConns,omitempty" default:"50"`
 	MinQueueConns int `mapstructure:"minQueueConns" json:"minQueueConns,omitempty" default:"10"`

@@ -24,7 +24,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
-	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -225,7 +224,6 @@ type ConfigFileRuntime struct {
 	AllowInvites bool `mapstructure:"allowInvites" json:"allowInvites,omitempty" default:"true"`
 
 	// Maximum number of pending invites an inviter can have
-
 	MaxPendingInvites int `mapstructure:"maxPendingInvites" json:"maxPendingInvites,omitempty" default:"100"`
 
 	// Allow new tenants to be created
@@ -237,9 +235,6 @@ type ConfigFileRuntime struct {
 	// Rate limiting configuration for API operations by IP
 	APIRateLimit       int           `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`
 	APIRateLimitWindow time.Duration `mapstructure:"apiRateLimitWindow" json:"apiRateLimitWindow,omitempty" default:"300s"`
-
-	// Buffer create workflow runs
-	BufferCreateWorkflowRuns bool `mapstructure:"bufferCreateWorkflowRuns" json:"bufferCreateWorkflowRuns,omitempty" default:"true"`
 
 	// DisableTenantPubs controls whether tenant pubsub is disabled
 	DisableTenantPubs bool `mapstructure:"disableTenantPubs" json:"disableTenantPubs,omitempty"`
@@ -258,21 +253,6 @@ type ConfigFileRuntime struct {
 
 	// FlushItemsThreshold is the default number of items to hold in memory until flushing to the database
 	FlushItemsThreshold int `mapstructure:"flushItemsThreshold" json:"flushItemsThreshold,omitempty" default:"100"`
-
-	// FlushStrategy is the strategy to use for flushing the buffer
-	FlushStrategy buffer.BuffStrategy `mapstructure:"flushStrategy" json:"flushStrategy" default:"DYNAMIC"`
-
-	// WorkflowRunBuffer represents the buffer settings for workflow runs
-	WorkflowRunBuffer buffer.ConfigFileBuffer `mapstructure:"workflowRunBuffer" json:"workflowRunBuffer,omitempty"`
-
-	// EventBuffer represents the buffer settings for step run events
-	EventBuffer buffer.ConfigFileBuffer `mapstructure:"eventBuffer" json:"eventBuffer,omitempty"`
-
-	// ReleaseSemaphoreBuffer represents the buffer settings for releasing semaphore slots
-	ReleaseSemaphoreBuffer buffer.ConfigFileBuffer `mapstructure:"releaseSemaphoreBuffer" json:"releaseSemaphoreBuffer,omitempty"`
-
-	// QueueStepRunBuffer represents the buffer settings for inserting step runs into the queue
-	QueueStepRunBuffer buffer.ConfigFileBuffer `mapstructure:"queueStepRunBuffer" json:"queueStepRunBuffer,omitempty"`
 
 	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
 
@@ -672,7 +652,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowChangePassword", "SERVER_ALLOW_CHANGE_PASSWORD")
 	_ = v.BindEnv("runtime.apiRateLimit", "SERVER_API_RATE_LIMIT")
 	_ = v.BindEnv("runtime.apiRateLimitWindow", "SERVER_API_RATE_LIMIT_WINDOW")
-	_ = v.BindEnv("runtime.bufferCreateWorkflowRuns", "SERVER_BUFFER_CREATE_WORKFLOW_RUNS")
 	_ = v.BindEnv("runtime.disableTenantPubs", "SERVER_DISABLE_TENANT_PUBS")
 	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
@@ -713,31 +692,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.limits.defaultIncomingWebhookLimit", "SERVER_LIMITS_DEFAULT_INCOMING_WEBHOOK_LIMIT")
 
 	// buffer options
-	_ = v.BindEnv("runtime.workflowRunBuffer.waitForFlush", "SERVER_WORKFLOWRUNBUFFER_WAIT_FOR_FLUSH")
-	_ = v.BindEnv("runtime.workflowRunBuffer.maxConcurrent", "SERVER_WORKFLOWRUNBUFFER_MAX_CONCURRENT")
-	_ = v.BindEnv("runtime.workflowRunBuffer.flushPeriodMilliseconds", "SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS")
-	_ = v.BindEnv("runtime.workflowRunBuffer.flushItemsThreshold", "SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD")
-	_ = v.BindEnv("runtime.workflowRunBuffer.flushStrategy", "SERVER_WORKFLOWRUNBUFFER_FLUSH_STRATEGY")
-
-	_ = v.BindEnv("runtime.eventBuffer.waitForFlush", "SERVER_EVENTBUFFER_WAIT_FOR_FLUSH")
-	_ = v.BindEnv("runtime.eventBuffer.maxConcurrent", "SERVER_EVENTBUFFER_MAX_CONCURRENT")
-	_ = v.BindEnv("runtime.eventBuffer.flushPeriodMilliseconds", "SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS")
-	_ = v.BindEnv("runtime.eventBuffer.flushItemsThreshold", "SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD")
-	_ = v.BindEnv("runtime.eventBuffer.serialBuffer", "SERVER_EVENTBUFFER_SERIAL_BUFFER")
-	_ = v.BindEnv("runtime.eventBuffer.flushStrategy", "SERVER_EVENTBUFFER_FLUSH_STRATEGY")
-
-	_ = v.BindEnv(("runtime.releaseSemaphoreBuffer.waitForFlush"), "SERVER_RELEASESEMAPHOREBUFFER_WAIT_FOR_FLUSH")
-	_ = v.BindEnv("runtime.releaseSemaphoreBuffer.maxConcurrent", "SERVER_RELEASESEMAPHOREBUFFER_MAX_CONCURRENT")
-	_ = v.BindEnv("runtime.releaseSemaphoreBuffer.flushPeriodMilliseconds", "SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS")
-	_ = v.BindEnv("runtime.releaseSemaphoreBuffer.flushItemsThreshold", "SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD")
-	_ = v.BindEnv("runtime.releaseSemaphoreBuffer.flushStrategy", "SERVER_RELEASESEMAPHOREBUFFER_FLUSH_STRATEGY")
-
-	_ = v.BindEnv("runtime.queueStepRunBuffer.waitForFlush", "SERVER_QUEUESTEPRUNBUFFER_WAIT_FOR_FLUSH")
-	_ = v.BindEnv("runtime.queueStepRunBuffer.maxConcurrent", "SERVER_QUEUESTEPRUNBUFFER_MAX_CONCURRENT")
-	_ = v.BindEnv("runtime.queueStepRunBuffer.flushPeriodMilliseconds", "SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS")
-	_ = v.BindEnv("runtime.queueStepRunBuffer.flushItemsThreshold", "SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD")
-	_ = v.BindEnv("runtime.queueStepRunBuffer.flushStrategy", "SERVER_QUEUESTEPRUNBUFFER_FLUSH_STRATEGY")
-
 	_ = v.BindEnv("runtime.waitForFlush", "SERVER_WAIT_FOR_FLUSH")
 	_ = v.BindEnv("runtime.maxConcurrent", "SERVER_MAX_CONCURRENT")
 	_ = v.BindEnv("runtime.flushPeriodMilliseconds", "SERVER_FLUSH_PERIOD_MILLISECONDS")
