@@ -124,8 +124,8 @@ func newWorkerRepository(shared *sharedRepository) WorkerRepository {
 	}
 }
 
-func (r *workerRepository) ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error) {
-	if err := r.v.Validate(opts); err != nil {
+func (w *workerRepository) ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error) {
+	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
@@ -150,7 +150,7 @@ func (r *workerRepository) ListWorkers(tenantId string, opts *ListWorkersOpts) (
 		}
 	}
 
-	workers, err := r.queries.ListWorkersWithSlotCount(context.Background(), r.pool, queryParams)
+	workers, err := w.queries.ListWorkersWithSlotCount(context.Background(), w.pool, queryParams)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -627,8 +627,8 @@ func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId pgty
 	return affinities, nil
 }
 
-func (r *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error) {
-	hasMore, err := r.queries.DeleteOldWorkers(ctx, r.pool, sqlcv1.DeleteOldWorkersParams{
+func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error) {
+	hasMore, err := w.queries.DeleteOldWorkers(ctx, w.pool, sqlcv1.DeleteOldWorkersParams{
 		Tenantid:            sqlchelpers.UUIDFromStr(tenantId),
 		Lastheartbeatbefore: sqlchelpers.TimestampFromTime(lastHeartbeatBefore),
 		Limit:               20,
@@ -645,14 +645,14 @@ func (r *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId string
 	return hasMore, nil
 }
 
-func (r *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId string, workerIds []string) (map[string][]string, error) {
+func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId string, workerIds []string) (map[string][]string, error) {
 	pgWorkerIds := make([]pgtype.UUID, len(workerIds))
 
 	for i, workerId := range workerIds {
 		pgWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)
 	}
 
-	rows, err := r.queries.ListDispatcherIdsForWorkers(ctx, r.pool, sqlcv1.ListDispatcherIdsForWorkersParams{
+	rows, err := w.queries.ListDispatcherIdsForWorkers(ctx, w.pool, sqlcv1.ListDispatcherIdsForWorkersParams{
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Workerids: sqlchelpers.UniqueSet(pgWorkerIds),
 	})

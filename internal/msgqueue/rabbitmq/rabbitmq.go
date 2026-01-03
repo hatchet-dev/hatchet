@@ -629,53 +629,6 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 	return name, nil
 }
 
-// deleteQueue is a helper function for removing durable queues which are used for tests.
-func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
-	poolCh, err := t.subChannels.Acquire(context.Background())
-
-	if err != nil {
-		t.l.Error().Msgf("[deleteQueue] cannot acquire channel for deleting queue: %v", err)
-		return err
-	}
-
-	ch := poolCh.Value()
-
-	if ch.IsClosed() {
-		poolCh.Destroy()
-		return fmt.Errorf("channel is closed")
-	}
-
-	defer poolCh.Release()
-
-	_, err = ch.QueueDelete(q.Name(), true, true, false)
-
-	if err != nil {
-		t.l.Error().Msgf("cannot delete queue: %q, %v", q.Name(), err)
-		return err
-	}
-
-	if q.DLQ().Name() != "" {
-		dlq1 := getTmpDLQName(q.DLQ().Name())
-		dlq2 := getProcDLQName(q.DLQ().Name())
-
-		_, err = ch.QueueDelete(dlq1, true, true, false)
-
-		if err != nil {
-			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", dlq1, err)
-			return err
-		}
-
-		_, err = ch.QueueDelete(dlq2, true, true, false)
-
-		if err != nil {
-			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", dlq2, err)
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (t *MessageQueueImpl) subscribe(
 	ctx context.Context,
 	subId string,

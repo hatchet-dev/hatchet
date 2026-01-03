@@ -54,12 +54,12 @@ func newMessageQueueRepository(shared *sharedRepository) (*messageQueueRepositor
 		}
 }
 
-func (mq *messageQueueRepository) Listen(ctx context.Context, name string, f func(ctx context.Context, notification *PubSubMessage) error) error {
-	return mq.m.listen(ctx, name, f)
+func (m *messageQueueRepository) Listen(ctx context.Context, name string, f func(ctx context.Context, notification *PubSubMessage) error) error {
+	return m.m.listen(ctx, name, f)
 }
 
-func (mq *messageQueueRepository) Notify(ctx context.Context, name string, payload string) error {
-	return mq.m.notify(ctx, name, payload)
+func (m *messageQueueRepository) Notify(ctx context.Context, name string, payload string) error {
+	return m.m.notify(ctx, name, payload)
 }
 
 func (m *messageQueueRepository) AddMessage(ctx context.Context, queue string, payload []byte) error {
