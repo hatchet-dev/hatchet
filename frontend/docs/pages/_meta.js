@@ -16,10 +16,6 @@ export default {
       toc: false,
     },
   },
-  blog: {
-    title: "Blog",
-    type: "page",
-  },
   contributing: {
     title: "Contributing",
     type: "page",
