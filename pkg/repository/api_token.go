@@ -87,7 +87,7 @@ func (a *apiTokenRepository) GetAPITokenById(ctx context.Context, id string) (*s
 }
 
 func (a *apiTokenRepository) DeleteAPIToken(ctx context.Context, tenantId, id string) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, a.pool, a.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, a.pool, a.l)
 
 	if err != nil {
 		return err

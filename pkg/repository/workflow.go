@@ -295,7 +295,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 		return nil, err
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
 		return nil, err

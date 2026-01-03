@@ -495,7 +495,7 @@ func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId string,
 		totalParams.WorkflowIds = uuids
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 60*1000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
 		return nil, err

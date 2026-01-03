@@ -620,7 +620,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		})
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
@@ -735,7 +735,7 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 		return nil, fmt.Errorf("inline store TTL is not set")
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
 	if err != nil {
 		return nil, err
@@ -827,7 +827,7 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 			case <-reconciliationDoneChan:
 				return
 			case <-ticker.C:
-				tx, commit, rollback, err := sqlchelpers.PrepareTx(reconciliationCtx, p.pool, p.l, 10000)
+				tx, commit, rollback, err := sqlchelpers.PrepareTx(reconciliationCtx, p.pool, p.l)
 
 				if err != nil {
 					p.l.Error().Err(err).Msg("failed to prepare transaction for extending cutover job lease during reconciliation")
@@ -904,7 +904,7 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 
 	close(reconciliationDoneChan)
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 10000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
 	if err != nil {
 		return fmt.Errorf("failed to prepare transaction for swapping payload cutover temp table: %w", err)
