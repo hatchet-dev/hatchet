@@ -1,10 +1,18 @@
 package hatchet
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
 
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/worker"
+	"github.com/hatchet-dev/hatchet/sdks/go/internal"
+	"github.com/hatchet-dev/hatchet/sdks/go/internal/task"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -283,4 +291,105 @@ func TestConvertInputToType_NumberTypesConversion(t *testing.T) {
 	}()
 
 	_ = convertInputToType(input, expectedType)
+}
+
+type structIn struct{ V string }
+type structOut struct{ V int }
+
+type mockDecl struct{}
+
+func (m *mockDecl) Name() string { return "test" }
+
+func (m *mockDecl) Task(opts create.WorkflowTask[any, any], fn func(ctx worker.HatchetContext, input any) (interface{}, error)) *task.TaskDeclaration[any] {
+	return &task.TaskDeclaration[any]{Name: opts.Name}
+}
+
+func (m *mockDecl) DurableTask(opts create.WorkflowTask[any, any], fn func(ctx worker.DurableHatchetContext, input any) (interface{}, error)) *task.DurableTaskDeclaration[any] {
+	return &task.DurableTaskDeclaration[any]{Name: opts.Name}
+}
+
+func (m *mockDecl) OnFailure(opts create.WorkflowOnFailureTask[any, any], fn func(ctx worker.HatchetContext, input any) (interface{}, error)) *task.OnFailureTaskDeclaration[any] {
+	return &task.OnFailureTaskDeclaration[any]{}
+}
+
+func (m *mockDecl) Cron(ctx context.Context, name string, cronExpr string, input any, opts ...v0Client.RunOptFunc) (*rest.CronWorkflows, error) {
+	return nil, nil
+}
+
+func (m *mockDecl) Schedule(ctx context.Context, triggerAt time.Time, input any, opts ...v0Client.RunOptFunc) (*rest.ScheduledWorkflows, error) {
+	return nil, nil
+}
+
+func (m *mockDecl) Get(ctx context.Context) (*rest.Workflow, error) { return nil, nil }
+
+func (m *mockDecl) Metrics(ctx context.Context, opts ...rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error) {
+	return nil, nil
+}
+
+func (m *mockDecl) QueueMetrics(ctx context.Context, opts ...rest.TenantGetQueueMetricsParams) (*rest.TenantQueueMetrics, error) {
+	return nil, nil
+}
+
+func (m *mockDecl) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
+	return nil, nil, nil, nil
+}
+
+func TestNewTask_AcceptsStructTypes_NoPanic(t *testing.T) {
+	w := &Workflow{}
+	// inject mock declaration to avoid nil deref later
+	w.declaration = &mockDecl{}
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("did not expect panic for struct types, got: %v", r)
+		}
+	}()
+
+	_ = w.NewTask("ok", func(ctx Context, in structIn) (structOut, error) {
+		return structOut{V: 1}, nil
+	})
+}
+
+func TestNewDurableTask_AcceptsStructTypes_NoPanic(t *testing.T) {
+	w := &Workflow{}
+	w.declaration = &mockDecl{}
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("did not expect panic for struct types (durable), got: %v", r)
+		}
+	}()
+
+	_ = w.NewDurableTask("ok-durable", func(ctx DurableContext, in structIn) (structOut, error) {
+		return structOut{V: 2}, nil
+	})
+}
+
+func TestOnFailure_AcceptsStructTypes_NoPanic(t *testing.T) {
+	w := &Workflow{}
+	w.declaration = &mockDecl{}
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("did not expect panic for struct types in OnFailure, got: %v", r)
+		}
+	}()
+
+	w.OnFailure(func(ctx Context, in structIn) (structOut, error) {
+		return structOut{V: 3}, nil
+	})
+}
+
+func TestNewTask_RejectsPrimitiveTypes(t *testing.T) {
+	w := &Workflow{}
+
+	// primitive input
+	assert.Panics(t, func() {
+		w.NewTask("bad-in", func(ctx Context, in int) (structOut, error) { return structOut{}, nil })
+	})
+
+	// primitive output
+	assert.Panics(t, func() {
+		w.NewTask("bad-out", func(ctx Context, in structIn) (int, error) { return 0, nil })
+	})
 }
