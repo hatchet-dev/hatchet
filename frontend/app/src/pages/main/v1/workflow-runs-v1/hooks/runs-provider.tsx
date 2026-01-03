@@ -20,7 +20,6 @@ type DisplayProps = {
   hideCancelAndReplayButtons?: boolean;
   hideColumnToggle?: boolean;
   hiddenFilters?: TaskRunColumnKeys[];
-  hidePagination?: boolean;
 };
 
 type RunFilteringProps = {
@@ -33,7 +32,6 @@ type RunFilteringProps = {
 type RunsProviderProps = {
   tableKey: string;
   children: React.ReactNode;
-  disableTaskRunPagination?: boolean;
   initColumnVisibility?: Record<string, boolean>;
   filterVisibility?: Record<string, boolean>;
   display?: DisplayProps;
@@ -83,7 +81,6 @@ const RunsContext = createContext<RunsContextType | null>(null);
 export const RunsProvider = ({
   tableKey,
   children,
-  disableTaskRunPagination = false,
   initColumnVisibility = {},
   filterVisibility = {},
   display,
@@ -156,7 +153,6 @@ export const RunsProvider = ({
       filters.apiFilters.workflowIds || (workflow ? [workflow] : undefined),
     parentTaskExternalId,
     triggeringEventExternalId,
-    disablePagination: disableTaskRunPagination,
     onlyTasks: !!workerId || flattenDAGs,
   });
 
@@ -221,7 +217,6 @@ export const RunsProvider = ({
         hideTriggerRunButton,
         hideCancelAndReplayButtons,
         hideColumnToggle,
-        hidePagination: disableTaskRunPagination,
         hiddenFilters,
       },
       actions: {
@@ -269,7 +264,6 @@ export const RunsProvider = ({
       setPagination,
       hideCancelAndReplayButtons,
       hideColumnToggle,
-      disableTaskRunPagination,
       isRefetching,
       setShowQueueMetrics,
       showQueueMetrics,

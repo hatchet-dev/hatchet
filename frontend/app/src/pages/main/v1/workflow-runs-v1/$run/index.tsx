@@ -309,8 +309,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                 </TabsTrigger>
                 {/* <TabsTrigger value="logs">App Logs</TabsTrigger> */}
               </TabsList>
-              <TabsContent value="activity">
-                <div className="h-4" />
+              <TabsContent value="activity" className="py-4">
                 <StepRunEvents
                   workflowRunId={id}
                   fallbackTaskDisplayName={workflowRun.displayName}

@@ -1,6 +1,6 @@
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -187,8 +187,8 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div className="flex flex-row justify-center">
-          <DataTableRowActions
-            row={row}
+          <TableRowActions
+            row={row.original}
             actions={[
               {
                 label: 'Delete',

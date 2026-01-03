@@ -11,15 +11,15 @@ import {
 
 type SidebarState = 'open' | 'closed';
 
-export const SIDEBAR_WIDTH_LEGACY_KEY = 'v1SidebarWidth';
-export const SIDEBAR_WIDTH_EXPANDED_KEY = 'v1SidebarWidthExpanded';
-export const SIDEBAR_COLLAPSED_KEY = 'v1SidebarCollapsed';
+const SIDEBAR_WIDTH_LEGACY_KEY = 'v1SidebarWidth';
+const SIDEBAR_WIDTH_EXPANDED_KEY = 'v1SidebarWidthExpanded';
+const SIDEBAR_COLLAPSED_KEY = 'v1SidebarCollapsed';
 
 // Tailwind's `md` breakpoint (px). Used to decide when the v1 sidebar is a persistent column.
-export const WIDE_BREAKPOINT_PX = 768;
+const WIDE_BREAKPOINT_PX = 768;
 
 // Widths (px)
-export const DEFAULT_EXPANDED_SIDEBAR_WIDTH = 200;
+const DEFAULT_EXPANDED_SIDEBAR_WIDTH = 200;
 export const MIN_EXPANDED_SIDEBAR_WIDTH = 200;
 export const MAX_EXPANDED_SIDEBAR_WIDTH = 520;
 export const COLLAPSED_SIDEBAR_WIDTH = 56;
