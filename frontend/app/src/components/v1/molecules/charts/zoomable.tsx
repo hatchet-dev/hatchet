@@ -397,14 +397,13 @@ function ChildAreaChart<T extends string>({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
       >
-        <CartesianGrid vertical={false} />
         <XAxis
           dataKey="date"
           tickFormatter={formatXAxis}
           tickLine={false}
           axisLine={false}
           tickMargin={4}
-          minTickGap={16}
+          minTickGap={48}
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
         {showYAxis && (
