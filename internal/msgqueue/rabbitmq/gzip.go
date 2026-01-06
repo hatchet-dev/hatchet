@@ -3,12 +3,13 @@ package rabbitmq
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 )
 
 type CompressionResult struct {
-	Payloads       [][]byte
+	Payloads       []json.RawMessage
 	WasCompressed  bool
 	OriginalSize   int
 	CompressedSize int
@@ -17,7 +18,7 @@ type CompressionResult struct {
 	CompressionRatio float64
 }
 
-func getPayloadSize(payloads [][]byte) int {
+func getPayloadSize(payloads []json.RawMessage) int {
 	totalSize := 0
 	for _, payload := range payloads {
 		totalSize += len(payload)
@@ -27,7 +28,7 @@ func getPayloadSize(payloads [][]byte) int {
 
 // compressPayloads compresses message payloads using gzip if they exceed the minimum size threshold.
 // Returns compression results including the compressed payloads and compression statistics.
-func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResult, error) {
+func (t *MessageQueueImpl) compressPayloads(payloads []json.RawMessage) (*CompressionResult, error) {
 	result := &CompressionResult{
 		Payloads:      payloads,
 		WasCompressed: false,
@@ -48,14 +49,14 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 		return result, nil
 	}
 
-	compressed := make([][]byte, len(payloads))
+	compressed := make([]json.RawMessage, len(payloads))
 	compressedSize := 0
 
 	for i, payload := range payloads {
 		var buf bytes.Buffer
 		gzipWriter := gzip.NewWriter(&buf)
 
-		if _, err := gzipWriter.Write(payload); err != nil {
+		if _, err := gzipWriter.Write([]byte(payload)); err != nil {
 			gzipWriter.Close()
 			return nil, fmt.Errorf("failed to write to gzip writer: %w", err)
 		}
@@ -64,7 +65,7 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 			return nil, fmt.Errorf("failed to close gzip writer: %w", err)
 		}
 
-		compressed[i] = buf.Bytes()
+		compressed[i] = json.RawMessage(buf.Bytes())
 		compressedSize += len(compressed[i])
 	}
 
@@ -81,15 +82,15 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 }
 
 // decompressPayloads decompresses message payloads using gzip.
-func (t *MessageQueueImpl) decompressPayloads(payloads [][]byte) ([][]byte, error) {
+func (t *MessageQueueImpl) decompressPayloads(payloads []json.RawMessage) ([]json.RawMessage, error) {
 	if len(payloads) == 0 {
 		return payloads, nil
 	}
 
-	decompressed := make([][]byte, len(payloads))
+	decompressed := make([]json.RawMessage, len(payloads))
 
 	for i, payload := range payloads {
-		reader, err := gzip.NewReader(bytes.NewReader(payload))
+		reader, err := gzip.NewReader(bytes.NewReader([]byte(payload)))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader for payload %d: %w", i, err)
 		}
@@ -104,7 +105,7 @@ func (t *MessageQueueImpl) decompressPayloads(payloads [][]byte) ([][]byte, erro
 			return nil, fmt.Errorf("failed to close gzip reader for payload %d: %w", i, err)
 		}
 
-		decompressed[i] = decompressedData
+		decompressed[i] = json.RawMessage(decompressedData)
 	}
 
 	return decompressed, nil

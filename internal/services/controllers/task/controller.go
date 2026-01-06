@@ -443,7 +443,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	opts := make([]v1.CompleteTaskOpts, 0)
 	idsToData := make(map[int64][]byte)
 
-	msgs := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
+	msgs := msgqueue.JSONConvertBytes[tasktypes.CompletedTaskPayload](payloads)
 
 	for _, msg := range msgs {
 		opts = append(opts, v1.CompleteTaskOpts{
@@ -486,7 +486,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 
 	opts := make([]v1.FailTaskOpts, 0)
 
-	msgs := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
+	msgs := msgqueue.JSONConvertBytes[tasktypes.FailedTaskPayload](payloads)
 	idsToErrorMsg := make(map[int64]string)
 
 	for _, msg := range msgs {
@@ -623,7 +623,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	opts := make([]v1.TaskIdInsertedAtRetryCount, 0)
 
-	msgs := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
+	msgs := msgqueue.JSONConvertBytes[tasktypes.CancelledTaskPayload](payloads)
 	shouldTasksNotify := make(map[int64]bool)
 
 	for _, msg := range msgs {
@@ -732,7 +732,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
 	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
 	// problem that we don't have a clean way to solve (yet)
-	msgs := msgqueue.JSONConvert[tasktypes.CancelTasksPayload](payloads)
+	msgs := msgqueue.JSONConvertBytes[tasktypes.CancelTasksPayload](payloads)
 	pubPayloads := make([]tasktypes.CancelledTaskPayload, 0)
 
 	for _, msg := range msgs {
@@ -778,7 +778,7 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 
 	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
 	// problem that we don't have a clean way to solve (yet)
-	msgs := msgqueue.JSONConvert[tasktypes.ReplayTasksPayload](payloads)
+	msgs := msgqueue.JSONConvertBytes[tasktypes.ReplayTasksPayload](payloads)
 
 	taskIdRetryCounts := make([]tasktypes.TaskIdInsertedAtRetryCountWithExternalId, 0)
 
@@ -984,7 +984,7 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	msgs := msgqueue.JSONConvert[tasktypes.UserEventTaskPayload](payloads)
+	msgs := msgqueue.JSONConvertBytes[tasktypes.UserEventTaskPayload](payloads)
 
 	eg := &errgroup.Group{}
 
@@ -1120,14 +1120,14 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	msgs := msgqueue.JSONConvert[v1.InternalTaskEvent](payloads)
+	msgs := msgqueue.JSONConvertBytes[v1.InternalTaskEvent](payloads)
 
 	return tc.processInternalEvents(ctx, tenantId, msgs)
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads)
+	msgs := msgqueue.JSONConvertBytes[v1.WorkflowNameTriggerOpts](payloads)
 	tasks, dags, err := tc.repov1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, msgs)
 
 	if err != nil {

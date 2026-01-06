@@ -457,7 +457,7 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId string, payloads [][]byte) error {
 	offloads := make([]v1.OffloadPayloadOpts, 0)
 
-	msgs := msgqueue.JSONConvert[v1.OLAPPayloadsToOffload](payloads)
+	msgs := msgqueue.JSONConvertBytes[v1.OLAPPayloadsToOffload](payloads)
 
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
@@ -476,7 +476,7 @@ func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId
 func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, tenantId string, payloads [][]byte) error {
 	failures := make([]v1.CELEvaluationFailure, 0)
 
-	msgs := msgqueue.JSONConvert[tasktypes.CELEvaluationFailures](payloads)
+	msgs := msgqueue.JSONConvertBytes[tasktypes.CELEvaluationFailures](payloads)
 
 	for _, msg := range msgs {
 		for _, failure := range msg.Failures {
@@ -496,7 +496,7 @@ func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, te
 func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId string, payloads [][]byte) error {
 	createTaskOpts := make([]*v1.V1TaskWithPayload, 0)
 
-	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
+	msgs := msgqueue.JSONConvertBytes[tasktypes.CreatedTaskPayload](payloads)
 
 	for _, msg := range msgs {
 		if !tc.sample(sqlchelpers.UUIDToStr(msg.WorkflowRunID)) {
@@ -513,7 +513,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId string, payloads [][]byte) error {
 	createDAGOpts := make([]*v1.DAGWithData, 0)
-	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
+	msgs := msgqueue.JSONConvertBytes[tasktypes.CreatedDAGPayload](payloads)
 
 	for _, msg := range msgs {
 		if !tc.sample(sqlchelpers.UUIDToStr(msg.ExternalID)) {
@@ -528,7 +528,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 }
 
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId string, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
+	msgs := msgqueue.JSONConvertBytes[tasktypes.CreatedEventTriggerPayload](payloads)
 
 	seenEventKeysSet := make(map[string]bool)
 
@@ -611,7 +611,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, tenantId string, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[tasktypes.CreateMonitoringEventPayload](payloads)
+	msgs := msgqueue.JSONConvertBytes[tasktypes.CreateMonitoringEventPayload](payloads)
 
 	taskIdsToLookup := make([]int64, len(msgs))
 
@@ -825,7 +825,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context, tenantId string, payloads [][]byte) error {
 	createFailedWebhookValidationOpts := make([]v1.CreateIncomingWebhookFailureLogOpts, 0)
 
-	msgs := msgqueue.JSONConvert[tasktypes.FailedWebhookValidationPayload](payloads)
+	msgs := msgqueue.JSONConvertBytes[tasktypes.FailedWebhookValidationPayload](payloads)
 
 	for _, msg := range msgs {
 		if !tc.sample(msg.ErrorText) {

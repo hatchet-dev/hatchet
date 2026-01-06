@@ -38,7 +38,7 @@ func (p *PostgresMessageQueue) pubNonDurableMessages(ctx context.Context, queueN
 
 	for _, payload := range msg.Payloads {
 		msgCp := msg
-		msgCp.Payloads = [][]byte{payload}
+		msgCp.Payloads = []json.RawMessage{payload}
 
 		msgBytes, err := json.Marshal(msgCp)
 

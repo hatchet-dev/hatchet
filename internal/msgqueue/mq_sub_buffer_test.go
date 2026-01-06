@@ -2,6 +2,7 @@ package msgqueue
 
 import (
 	"context"
+	"encoding/json"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -41,7 +42,11 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			msg := &msgWithResultCh{
-				msg:    &Message{TenantID: "test", ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
+				msg: &Message{
+					TenantID: "test",
+					ID:       "test-msg",
+					Payloads: []json.RawMessage{json.RawMessage([]byte("test"))},
+				},
 				result: make(chan error, 1),
 			}
 			select {
@@ -108,7 +113,11 @@ func TestSemaphoreReleaserReusesTimer(t *testing.T) {
 	// Trigger multiple rapid flushes
 	for i := 0; i < 20; i++ {
 		msg := &msgWithResultCh{
-			msg:    &Message{TenantID: "test", ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
+			msg: &Message{
+				TenantID: "test",
+				ID:       "test-msg",
+				Payloads: []json.RawMessage{json.RawMessage([]byte("test"))},
+			},
 			result: make(chan error, 1),
 		}
 		buf.msgIdBufferCh <- msg
@@ -145,7 +154,11 @@ func TestBufferCleanupOnContextCancel(t *testing.T) {
 	// Send some messages
 	for i := 0; i < 10; i++ {
 		msg := &msgWithResultCh{
-			msg:    &Message{TenantID: "test", ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
+			msg: &Message{
+				TenantID: "test",
+				ID:       "test-msg",
+				Payloads: []json.RawMessage{json.RawMessage([]byte("test"))},
+			},
 			result: make(chan error, 1),
 		}
 		buf.msgIdBufferCh <- msg
@@ -203,7 +216,11 @@ func TestConcurrentFlushesRateLimited(t *testing.T) {
 	// Send many messages rapidly
 	for i := 0; i < 50; i++ {
 		msg := &msgWithResultCh{
-			msg:    &Message{TenantID: "test", ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
+			msg: &Message{
+				TenantID: "test",
+				ID:       "test-msg",
+				Payloads: []json.RawMessage{json.RawMessage([]byte("test"))},
+			},
 			result: make(chan error, 1),
 		}
 		buf.msgIdBufferCh <- msg

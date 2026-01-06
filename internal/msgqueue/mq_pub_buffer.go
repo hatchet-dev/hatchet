@@ -209,7 +209,7 @@ func (m *msgIdPubBuffer) flush() {
 	}()
 
 	msgsWithErrCh := make([]*msgWithErrCh, 0)
-	payloadBytes := make([][]byte, 0)
+	payloadBytes := make([]json.RawMessage, 0)
 	var isPersistent *bool
 	var immediatelyExpire *bool
 	var retries *int

@@ -47,7 +47,23 @@ func init() {
 
 type DstFunc func(tenantId, msgId string, payloads [][]byte) error
 
-func JSONConvert[T any](payloads [][]byte) []*T {
+func JSONConvert[T any](payloads []json.RawMessage) []*T {
+	ret := make([]*T, 0)
+
+	for _, p := range payloads {
+		var t T
+
+		if err := json.Unmarshal(p, &t); err != nil {
+			return nil
+		}
+
+		ret = append(ret, &t)
+	}
+
+	return ret
+}
+
+func JSONConvertBytes[T any](payloads [][]byte) []*T {
 	ret := make([]*T, 0)
 
 	for _, p := range payloads {
@@ -335,7 +351,7 @@ func (m *msgIdBuffer) flush() {
 	}()
 
 	msgsWithResultCh := make([]*msgWithResultCh, 0)
-	payloads := make([][]byte, 0)
+	payloads := make([]json.RawMessage, 0)
 
 	// read all messages currently in the buffer
 	for i := 0; i < SUB_BUFFER_SIZE; i++ {
@@ -357,7 +373,12 @@ func (m *msgIdBuffer) flush() {
 		return
 	}
 
-	err := m.dst(m.tenantId, m.msgId, payloads)
+	payloadBytes := make([][]byte, len(payloads))
+	for i, p := range payloads {
+		payloadBytes[i] = []byte(p)
+	}
+
+	err := m.dst(m.tenantId, m.msgId, payloadBytes)
 
 	if err != nil {
 		// write err to all the message channels

@@ -1177,7 +1177,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 
 	switch msgId {
 	case "created-task":
-		payloads := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
+		payloads := msgqueue.JSONConvertBytes[tasktypes.CreatedTaskPayload](payloads)
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -1190,7 +1190,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			})
 		}
 	case "task-completed":
-		payloads := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
+		payloads := msgqueue.JSONConvertBytes[tasktypes.CompletedTaskPayload](payloads)
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -1204,7 +1204,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			})
 		}
 	case "task-failed":
-		payloads := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
+		payloads := msgqueue.JSONConvertBytes[tasktypes.FailedTaskPayload](payloads)
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -1218,7 +1218,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			})
 		}
 	case "task-cancelled":
-		payloads := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
+		payloads := msgqueue.JSONConvertBytes[tasktypes.CancelledTaskPayload](payloads)
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -1231,7 +1231,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			})
 		}
 	case "task-stream-event":
-		payloads := msgqueue.JSONConvert[tasktypes.StreamEventPayload](payloads)
+		payloads := msgqueue.JSONConvertBytes[tasktypes.StreamEventPayload](payloads)
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -1245,7 +1245,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			})
 		}
 	case "workflow-run-finished":
-		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](payloads)
+		payloads := msgqueue.JSONConvertBytes[tasktypes.NotifyFinalizedPayload](payloads)
 
 		for _, payload := range payloads {
 			eventType := contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
