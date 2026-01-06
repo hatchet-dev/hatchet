@@ -14,4 +14,9 @@ ALTER TABLE "Tenant"
 
 -- +goose Down
 -- +goose StatementBegin
+-- NOTE: Down migration intentionally left empty.
+-- This migration reintroduces the uiVersion column as part of a revert
+-- strategy for databases that may have already run v1_0_67, which removed it.
+-- We do not drop the column on rollback to avoid data loss and ensure
+-- the column remains available going forward.
 -- +goose StatementEnd
