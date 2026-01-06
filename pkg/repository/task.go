@@ -354,23 +354,33 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	for _, partition := range partitions {
 		r.l.Warn().Msgf("detaching partition %s", partition.PartitionName)
 
-		_, err := r.pool.Exec(
+		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.pool, r.l, 30*60*1000) // 30 minutes
+
+		if err != nil {
+			return err
+		}
+
+		_, err = conn.Exec(
 			ctx,
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
 
 		if err != nil {
+			release()
 			return err
 		}
 
-		_, err = r.pool.Exec(
+		_, err = conn.Exec(
 			ctx,
 			fmt.Sprintf("DROP TABLE %s", partition.PartitionName),
 		)
 
 		if err != nil {
+			release()
 			return err
 		}
+
+		release()
 	}
 
 	err = commit(ctx)

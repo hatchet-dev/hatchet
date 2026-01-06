@@ -854,7 +854,17 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 		}
 	}()
 
-	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+	connStatementTimeout := 30 * 60 * 1000 // 5 minutes
+
+	conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
+
+	if err != nil {
+		return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
+	}
+
+	defer release()
+
+	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, conn, tempPartitionName, sourcePartitionName)
 
 	if err != nil {
 		return fmt.Errorf("failed to compare partition row counts: %w", err)
@@ -865,7 +875,7 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 	if rowCounts.SourcePartitionCount-rowCounts.TempPartitionCount > maxCountDiff {
 		return fmt.Errorf("row counts do not match between temp and source partitions for date %s. off by more than %d", partitionDate.String(), maxCountDiff)
 	} else if rowCounts.SourcePartitionCount > rowCounts.TempPartitionCount {
-		missingRows, err := p.queries.DiffPayloadSourceAndTargetPartitions(ctx, p.pool, pgtype.Date(partitionDate))
+		missingRows, err := p.queries.DiffPayloadSourceAndTargetPartitions(ctx, conn, pgtype.Date(partitionDate))
 
 		if err != nil {
 			return fmt.Errorf("failed to diff source and target partitions: %w", err)
@@ -885,13 +895,13 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 			}
 		}
 
-		_, err = sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, p.pool, tempPartitionName, missingPayloadsToInsert)
+		_, err = sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, conn, tempPartitionName, missingPayloadsToInsert)
 
 		if err != nil {
 			return fmt.Errorf("failed to insert missing payloads into temp partition: %w", err)
 		}
 
-		rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+		rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, conn, tempPartitionName, sourcePartitionName)
 
 		if err != nil {
 			return fmt.Errorf("failed to compare partition row counts: %w", err)
