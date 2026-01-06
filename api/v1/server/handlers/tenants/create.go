@@ -50,10 +50,6 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		Name: request.Body.Name,
 	}
 
-	if request.Body.OnboardingData != nil {
-		createOpts.OnboardingData = *request.Body.OnboardingData
-	}
-
 	if request.Body.Environment != nil {
 		environment := string(*request.Body.Environment)
 		createOpts.Environment = &environment

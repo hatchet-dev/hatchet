@@ -1264,8 +1264,6 @@ export interface CreateTenantRequest {
   engineVersion?: TenantVersion;
   /** The environment type of the tenant. */
   environment?: TenantEnvironment;
-  /** Additional onboarding data to store with the tenant. */
-  onboardingData?: Record<string, any>;
 }
 
 export interface UpdateTenantRequest {

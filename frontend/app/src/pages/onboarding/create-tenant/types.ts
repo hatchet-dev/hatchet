@@ -17,8 +17,6 @@ export interface OnboardingStepProps<T = any> {
 export interface OnboardingFormData {
   name: string;
   slug: string;
-  hearAboutUs: string | string[];
-  whatBuilding: string | string[];
   environment: TenantEnvironment;
   tenantData: { name: string; environment: TenantEnvironment };
 }

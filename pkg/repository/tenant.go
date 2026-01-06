@@ -35,9 +35,6 @@ type CreateTenantOpts struct {
 
 	// (optional) the tenant environment type
 	Environment *string `validate:"omitempty,oneof=local development production"`
-
-	// (optional) additional onboarding data
-	OnboardingData map[string]interface{} `validate:"omitempty"`
 }
 
 type UpdateTenantOpts struct {
@@ -225,14 +222,6 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 
 	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
-	var onboardingDataBytes []byte
-	if opts.OnboardingData != nil {
-		onboardingDataBytes, err = json.Marshal(opts.OnboardingData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal onboarding data: %w", err)
-		}
-	}
-
 	var environment sqlcv1.NullTenantEnvironment
 	if opts.Environment != nil {
 		environment = sqlcv1.NullTenantEnvironment{
@@ -256,7 +245,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 			TenantMajorEngineVersion: engineVersion,
 			Valid:                    true,
 		},
-		OnboardingData: onboardingDataBytes,
+		OnboardingData: nil,
 		Environment:    environment,
 	})
 

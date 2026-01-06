@@ -526,9 +526,6 @@ type CreateTenantRequest struct {
 	// Name The name of the tenant.
 	Name string `json:"name" validate:"required"`
 
-	// OnboardingData Additional onboarding data to store with the tenant.
-	OnboardingData *map[string]interface{} `json:"onboardingData,omitempty"`
-
 	// Slug The slug of the tenant.
 	Slug string `json:"slug" validate:"required,hatchetName"`
 }
