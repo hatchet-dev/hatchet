@@ -145,7 +145,9 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 		conn.TypeMap().RegisterType(t)
 
-		return nil
+		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
+
+		return err
 	}
 
 	config, err := pgxpool.ParseConfig(databaseUrl)
