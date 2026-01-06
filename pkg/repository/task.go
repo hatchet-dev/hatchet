@@ -2777,13 +2777,17 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		return nil, err
 	}
 
-	err = r.queries.AdvisoryLock(ctx, tx, hash("replay_"+tenantId))
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("replay_"+tenantId))
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to acquire advisory lock: %w", err)
+		return nil, fmt.Errorf("failed to try advisory lock for replaying tasks: %w", err)
 	}
 
-	defer rollback()
+	if !acquired {
+		return nil, fmt.Errorf("could not acquire advisory lock for replaying tasks")
+	}
 
 	taskIds := make([]int64, len(tasks))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
