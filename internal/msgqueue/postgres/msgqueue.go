@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,9 +24,6 @@ type PostgresMessageQueue struct {
 	repo v1.MessageQueueRepository
 	l    *zerolog.Logger
 	qos  int
-
-	upsertedQueues   map[string]bool
-	upsertedQueuesMu sync.RWMutex
 
 	ttlCache *cache.TTLCache[string, bool]
 
@@ -74,12 +70,11 @@ func NewPostgresMQ(repo v1.MessageQueueRepository, fs ...MessageQueueImplOpt) (f
 	c := cache.NewTTL[string, bool]()
 
 	p := &PostgresMessageQueue{
-		repo:           repo,
-		l:              opts.l,
-		qos:            opts.qos,
-		upsertedQueues: make(map[string]bool),
-		configFs:       fs,
-		ttlCache:       c,
+		repo:     repo,
+		l:        opts.l,
+		qos:      opts.qos,
+		configFs: fs,
+		ttlCache: c,
 	}
 
 	err := p.upsertQueue(context.Background(), msgqueue.TASK_PROCESSING_QUEUE)

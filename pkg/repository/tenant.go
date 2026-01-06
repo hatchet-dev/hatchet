@@ -85,6 +85,8 @@ type GetQueueMetricsResponse struct {
 }
 
 type TenantRepository interface {
+	RegisterCreateCallback(callback UnscopedCallback[*sqlcv1.Tenant])
+
 	// CreateTenant creates a new tenant.
 	CreateTenant(ctx context.Context, opts *CreateTenantOpts) (*sqlcv1.Tenant, error)
 
@@ -174,6 +176,7 @@ type tenantRepository struct {
 
 	cache                cache.Cacheable
 	defaultTenantVersion sqlcv1.TenantMajorEngineVersion
+	createCallbacks      []UnscopedCallback[*sqlcv1.Tenant]
 }
 
 func newTenantRepository(shared *sharedRepository, cacheDuration time.Duration) TenantRepository {
@@ -182,6 +185,14 @@ func newTenantRepository(shared *sharedRepository, cacheDuration time.Duration) 
 		cache:                cache.New(cacheDuration),
 		defaultTenantVersion: sqlcv1.TenantMajorEngineVersionV1,
 	}
+}
+
+func (r *tenantRepository) RegisterCreateCallback(callback UnscopedCallback[*sqlcv1.Tenant]) {
+	if r.createCallbacks == nil {
+		r.createCallbacks = make([]UnscopedCallback[*sqlcv1.Tenant], 0)
+	}
+
+	r.createCallbacks = append(r.createCallbacks, callback)
 }
 
 func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantOpts) (*sqlcv1.Tenant, error) {
@@ -261,6 +272,10 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
+	}
+
+	for _, cb := range r.createCallbacks {
+		cb.Do(r.l, createTenant)
 	}
 
 	return createTenant, nil

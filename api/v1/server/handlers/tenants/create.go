@@ -97,25 +97,6 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		return nil, err
 	}
 
-	t.config.Analytics.Tenant(tenantId, map[string]interface{}{
-		"name": tenant.Name,
-		"slug": tenant.Slug,
-	})
-
-	t.config.Analytics.Enqueue(
-		"tenant:create",
-		sqlchelpers.UUIDToStr(user.ID),
-		&tenantId,
-		map[string]interface{}{
-			"tenant_created": true,
-		},
-		map[string]interface{}{
-			"name":            tenant.Name,
-			"slug":            tenant.Slug,
-			"onboarding_data": createOpts.OnboardingData,
-		},
-	)
-
 	ctx.Set("tenant", tenant)
 
 	return gen.TenantCreate200JSONResponse(
