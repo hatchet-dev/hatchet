@@ -1,4 +1,5 @@
 import { OnboardingStepProps } from '../types';
+import { Button } from '@/components/v1/ui/button';
 import { Card, CardContent } from '@/components/v1/ui/card';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
@@ -20,7 +21,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 const schema = z.object({
-  name: z.string().min(4).max(32),
+  name: z.string().min(1).max(32),
   environment: z.string().min(1),
 });
 
@@ -35,6 +36,7 @@ interface TenantCreateFormProps
 export function TenantCreateForm({
   value,
   onChange,
+  onNext,
   isLoading,
   fieldErrors,
   className,
@@ -60,16 +62,16 @@ export function TenantCreateForm({
   const getEnvironmentName = (environment: string | undefined): string => {
     switch (environment) {
       case TenantEnvironment.Local:
-        return 'local';
+        return 'local-dev';
       case TenantEnvironment.Development:
-        return 'dev';
+        return 'development';
       case TenantEnvironment.Production:
-        return 'prod';
+        return 'production';
       default: {
         // Exhaustiveness check: this should never be reached if all cases are handled
         const exhaustiveCheck: never = environment as never;
         void exhaustiveCheck;
-        return 'dev'; // Default to dev if no environment selected
+        return 'development'; // Default to development if no environment selected
       }
     }
   };
@@ -208,7 +210,7 @@ export function TenantCreateForm({
         <div className="grid gap-2">
           <Label htmlFor="name">Name</Label>
           <div className="text-sm text-gray-700 dark:text-gray-300">
-            A display name for your tenant.
+            A display name for your tenant. You can always change this later.
           </div>
           <Input
             {...register('name')}
@@ -256,6 +258,23 @@ export function TenantCreateForm({
             </div>
           </div>
         )}
+
+        {/* Submit Button */}
+        <Button
+          variant="default"
+          className="w-full"
+          onClick={onNext}
+          disabled={isLoading || !value?.name || value.name.length < 1}
+        >
+          {isLoading ? (
+            <div className="flex items-center gap-2">
+              <div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              Creating...
+            </div>
+          ) : (
+            'Create Tenant'
+          )}
+        </Button>
       </div>
     </div>
   );

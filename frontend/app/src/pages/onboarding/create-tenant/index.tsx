@@ -113,8 +113,8 @@ export default function CreateTenant() {
     const errors: Record<string, string> = {};
 
     // Basic validation for name
-    if (!name || name.length < 4 || name.length > 32) {
-      errors.name = 'Name must be between 4 and 32 characters';
+    if (!name || name.length < 1 || name.length > 32) {
+      errors.name = 'Name must be between 1 and 32 characters';
     }
 
     if (isCloudEnabled && !selectedOrganizationId) {

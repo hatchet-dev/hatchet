@@ -230,6 +230,8 @@ tasks:
       - pre-commit install
   pre-commit-run:
     cmds:
+      - cd frontend/app/ && pnpm run lint:check
+      - cd frontend/docs/ && pnpm run lint:check
       - pre-commit run --all-files || pre-commit run --all-files
   docs:
     cmds:
