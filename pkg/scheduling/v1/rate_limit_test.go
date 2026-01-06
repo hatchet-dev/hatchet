@@ -10,7 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,14 @@ type mockRateLimitRepo struct {
 func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
 	args := m.Called(ctx, tenantId, updates)
 	return args.Get(0).([]*sqlcv1.ListRateLimitsForTenantWithMutateRow), args.Get(1).(*time.Time), args.Error(2)
+}
+
+func (m *mockRateLimitRepo) UpsertRateLimit(ctx context.Context, tenantId string, key string, opts *v1.UpsertRateLimitOpts) (*sqlcv1.RateLimit, error) {
+	panic("not implemented")
+}
+
+func (m *mockRateLimitRepo) ListRateLimits(ctx context.Context, tenantId string, opts *v1.ListRateLimitOpts) (*v1.ListRateLimitsResult, error) {
+	panic("not implemented")
 }
 
 func TestRateLimiter_Use(t *testing.T) {

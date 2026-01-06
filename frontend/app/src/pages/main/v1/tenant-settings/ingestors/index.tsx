@@ -1,7 +1,11 @@
 import { CreateSNSDialog } from './components/create-sns-dialog';
 import { DeleteSNSForm } from './components/delete-sns-form';
-import { columns as snsIntegrationsColumns } from './components/sns-integrations-columns';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import {
+  CopyIngestURL,
+  SNSActions,
+} from './components/sns-integrations-columns';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
@@ -13,7 +17,7 @@ import api, {
 import { useApiError } from '@/lib/hooks';
 import { Dialog } from '@radix-ui/react-dialog';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 export default function Ingestors() {
   return (
@@ -41,11 +45,40 @@ function SNSIntegrationsList() {
     ...queries.snsIntegrations.list(tenantId),
   });
 
-  const cols = snsIntegrationsColumns({
-    onDeleteClick: (row) => {
-      setDeleteSNS(row);
-    },
-  });
+  const snsColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Topic ARN',
+        cellRenderer: (integration: SNSIntegration) => (
+          <div>{integration.topicArn}</div>
+        ),
+      },
+      {
+        columnLabel: 'Ingest URL',
+        cellRenderer: (integration: SNSIntegration) => (
+          <CopyIngestURL ingestUrl={integration.ingestUrl || ''} />
+        ),
+      },
+      {
+        columnLabel: 'Created',
+        cellRenderer: (integration: SNSIntegration) => (
+          <RelativeDate date={integration.metadata.createdAt} />
+        ),
+      },
+      {
+        columnLabel: 'Actions',
+        cellRenderer: (integration: SNSIntegration) => (
+          <SNSActions
+            integration={integration}
+            onDeleteClick={(integration) => {
+              setDeleteSNS(integration);
+            }}
+          />
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
     <div>
@@ -58,12 +91,17 @@ function SNSIntegrationsList() {
         </Button>
       </div>
       <Separator className="my-4" />
-      <DataTable
-        isLoading={listIntegrationsQuery.isLoading}
-        columns={cols}
-        data={listIntegrationsQuery.data?.rows || []}
-        getRowId={(row) => row.metadata.id}
-      />
+      {(listIntegrationsQuery.data?.rows || []).length > 0 ? (
+        <SimpleTable
+          columns={snsColumns}
+          data={listIntegrationsQuery.data?.rows || []}
+        />
+      ) : (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No SNS integrations found. Create an endpoint to receive events from
+          AWS SNS.
+        </div>
+      )}
       {showSNSDialog && (
         <CreateSNSIntegration
           showSNSDialog={showSNSDialog}

@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/rs/zerolog"
 )
@@ -34,7 +34,7 @@ func (p *OperationPool[T]) WithJitter(maxJitter time.Duration) *OperationPool[T]
 	return p
 }
 
-func (p *OperationPool[T]) SetTenants(tenants []*dbsqlc.Tenant) {
+func (p *OperationPool[T]) SetTenants(tenants []*sqlcv1.Tenant) {
 	tenantMap := make(map[string]bool)
 
 	for _, t := range tenants {

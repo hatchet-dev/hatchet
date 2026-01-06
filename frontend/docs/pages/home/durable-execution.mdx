@@ -9,6 +9,11 @@ import { Callout } from "nextra/components";
 
 **Durable execution** refers to the ability of a function to easily recover from failures or interruptions. In Hatchet, we refer to a function with this ability as a **durable task**. Durable tasks are essentially tasks that store intermediate results in a durable event log - in other words, they're a fancy cache.
 
+<Callout type="info" emoji="💡">
+  For an in-depth look at how durable execution works, have a look at [this blog
+  post](https://hatchet.run/blog/durable-execution).
+</Callout>
+
 This is especially useful in cases such as:
 
 1. Tasks which need to always run to completion, even if the underlying machine crashes or the task is interrupted.

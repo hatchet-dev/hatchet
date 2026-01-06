@@ -60,8 +60,8 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   search?: string;
   columnFilters?: ColumnFiltersState;
   setColumnFilters?: OnChangeFn<ColumnFiltersState>;
-  pagination?: PaginationState;
-  setPagination?: OnChangeFn<PaginationState>;
+  pagination: PaginationState;
+  setPagination: OnChangeFn<PaginationState>;
   showSelectedRows?: boolean;
   pageCount?: number;
   onSetPageSize?: (pageSize: number) => void;
@@ -82,7 +82,6 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   manualSorting?: boolean;
   manualFiltering?: boolean;
   getSubRows?: (row: TData) => TData[];
-  headerClassName?: string;
   hiddenFilters?: string[];
   onResetFilters?: () => void;
 }
@@ -94,10 +93,6 @@ type RefetchProps = {
 
 interface ExtraDataTableProps {
   emptyState?: JSX.Element;
-  card?: {
-    containerStyle?: string;
-    component: React.FC<any> | ((data: any) => JSX.Element);
-  };
   columnKeyToName?: Record<string, string>;
   refetchProps?: RefetchProps;
   tableActions?: ShowTableActionsProps;
@@ -127,11 +122,9 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   isLoading,
   getRowId,
   emptyState,
-  card,
   manualSorting = true,
   manualFiltering = true,
   getSubRows,
-  headerClassName,
   hiddenFilters = [],
   onResetFilters,
   columnKeyToName,
@@ -215,116 +208,104 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
     );
   };
 
-  const getTable = () => (
-    <Table>
-      <TableHeader className="sticky top-0 z-10 bg-background">
-        {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow key={headerGroup.id}>
-            {headerGroup.headers.map((header) => {
-              return (
-                <TableHead
-                  key={header.id}
-                  colSpan={header.colSpan}
-                  className={cn('border-b bg-background', headerClassName)}
-                >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
-                </TableHead>
-              );
-            })}
-          </TableRow>
-        ))}
-      </TableHeader>
-      <TableBody>
-        {error ? (
-          <TableRow className="p-4 text-center text-red-500">
-            <TableCell colSpan={columns.length}>
-              {error.message || 'An error occurred.'}
-            </TableCell>
-          </TableRow>
-        ) : table.getRowModel().rows?.length ? (
-          table.getRowModel().rows.map((row) => (
-            <React.Fragment key={row.id}>
-              {getTableRow(row)}
-              {row.getIsExpanded() && row.subRows.map((r) => getTableRow(r))}
-            </React.Fragment>
-          ))
-        ) : (
-          <TableRow>
-            <TableCell colSpan={columns.length} className="h-24 text-center">
-              {emptyState || 'No results.'}
-            </TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
-  );
+  const hasRows = table.getRowModel().rows?.length > 0;
 
-  const getCards = () => (
-    <div
-      className={
-        card?.containerStyle ||
-        'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'
-      }
-    >
-      {error
-        ? error.message || 'An error occurred.'
-        : table.getRowModel().rows?.length
-          ? table
-              .getRowModel()
-              .rows.map((row) =>
-                card?.component
-                  ? card?.component({ data: row.original })
-                  : null,
-              )
-          : emptyState || 'No results.'}
-    </div>
-  );
+  if (error) {
+    return (
+      <div className="p-4 text-center text-red-500">
+        {error.message || 'An error occurred.'}
+      </div>
+    );
+  }
 
   return (
-    <div className="flex max-h-full flex-col space-y-4">
-      {tableActions?.selectedActionType && (
-        <ConfirmActionModal
-          actionType={tableActions.selectedActionType}
-          params={tableActions.actionModalParams}
-          table={table}
-          columnKeyToName={columnKeyToName}
-          filters={filters}
-          hiddenFilters={[flattenDAGsKey]}
-          showColumnVisibility={false}
-        />
-      )}
-      {(leftActions || rightActions || filters.length > 0) && (
-        <DataTableToolbar
-          table={table}
-          filters={filters}
-          isLoading={isLoading}
-          leftActions={leftActions}
-          rightActions={rightActions}
-          showColumnToggle={showColumnToggle}
-          hiddenFilters={hiddenFilters}
-          columnKeyToName={columnKeyToName}
-          refetchProps={refetchProps}
-          tableActions={tableActions}
-          onResetFilters={onResetFilters}
-        />
-      )}
-      <div
-        className={`min-h-0 flex-1 rounded-md ${!card && 'border'} ${!card && 'overflow-auto'}`}
-      >
-        {!card ? getTable() : getCards()}
+    <div className="flex h-full flex-col">
+      <div className="shrink-0 h-10 flex flex-col size-full items-center pt-2 mb-2">
+        <div className="w-full">
+          {tableActions?.selectedActionType && (
+            <ConfirmActionModal
+              actionType={tableActions.selectedActionType}
+              params={tableActions.actionModalParams}
+              table={table}
+              columnKeyToName={columnKeyToName}
+              filters={filters}
+              hiddenFilters={[flattenDAGsKey]}
+              showColumnVisibility={false}
+            />
+          )}
+          {(leftActions || rightActions || filters.length > 0) && (
+            <DataTableToolbar
+              table={table}
+              filters={filters}
+              isLoading={isLoading}
+              leftActions={leftActions}
+              rightActions={rightActions}
+              showColumnToggle={showColumnToggle}
+              hiddenFilters={hiddenFilters}
+              columnKeyToName={columnKeyToName}
+              refetchProps={refetchProps}
+              tableActions={tableActions}
+              onResetFilters={onResetFilters}
+            />
+          )}
+        </div>
       </div>
-      {pagination && (
-        <DataTablePagination
-          table={table}
-          onSetPageSize={onSetPageSize}
-          showSelectedRows={showSelectedRows}
-        />
-      )}
+      <div className="min-h-0 flex-1 overflow-auto relative">
+        <Table className="table-auto w-full relative z-10">
+          <TableHeader className="sticky top-0 z-10 bg-background">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <TableHead
+                      key={header.id}
+                      colSpan={header.colSpan}
+                      className="border-b bg-background"
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody className="w-full">
+            {!hasRows ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columns.length} className="h-full">
+                  <div className="flex h-full w-full flex-col items-center justify-center pt-8">
+                    {emptyState || (
+                      <p className="text-lg font-semibold">No results.</p>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <React.Fragment key={row.id}>
+                  {getTableRow(row)}
+                  {row.getIsExpanded() &&
+                    row.subRows.map((r) => getTableRow(r))}
+                </React.Fragment>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="shrink-0 h-10 flex items-center pt-2">
+        <div className="w-full">
+          <DataTablePagination
+            table={table}
+            onSetPageSize={onSetPageSize}
+            showSelectedRows={showSelectedRows}
+          />
+        </div>
+      </div>
     </div>
   );
 }

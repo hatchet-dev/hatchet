@@ -22,8 +22,6 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing_extensions import Annotated, Self
 
-from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
-
 
 class ScheduledWorkflowsBulkDeleteFilter(BaseModel):
     """
@@ -44,15 +42,11 @@ class ScheduledWorkflowsBulkDeleteFilter(BaseModel):
         description="A list of metadata key value pairs to filter by",
         alias="additionalMetadata",
     )
-    statuses: Optional[List[ScheduledRunStatus]] = Field(
-        default=None, description="A list of scheduled run statuses to filter by"
-    )
     __properties: ClassVar[List[str]] = [
         "workflowId",
         "parentWorkflowRunId",
         "parentStepRunId",
         "additionalMetadata",
-        "statuses",
     ]
 
     model_config = ConfigDict(
@@ -109,7 +103,6 @@ class ScheduledWorkflowsBulkDeleteFilter(BaseModel):
                 "parentWorkflowRunId": obj.get("parentWorkflowRunId"),
                 "parentStepRunId": obj.get("parentStepRunId"),
                 "additionalMetadata": obj.get("additionalMetadata"),
-                "statuses": obj.get("statuses"),
             }
         )
         return _obj

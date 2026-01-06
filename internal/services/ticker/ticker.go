@@ -12,10 +12,9 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type Ticker interface {
@@ -23,12 +22,9 @@ type Ticker interface {
 }
 
 type TickerImpl struct {
-	mqv1 msgqueuev1.MessageQueue
+	mqv1 msgqueue.MessageQueue
 	l    *zerolog.Logger
 
-	entitlements repository.EntitlementsRepository
-
-	repo   repository.EngineRepository
 	repov1 v1.Repository
 	s      gocron.Scheduler
 	ta     *alerting.TenantAlertManager
@@ -50,14 +46,12 @@ type TickerImpl struct {
 type TickerOpt func(*TickerOpts)
 
 type TickerOpts struct {
-	mqv1 msgqueuev1.MessageQueue
+	mqv1 msgqueue.MessageQueue
 	l    *zerolog.Logger
 
-	entitlements repository.EntitlementsRepository
-	repo         repository.EngineRepository
-	repov1       v1.Repository
-	tickerId     string
-	ta           *alerting.TenantAlertManager
+	repov1   v1.Repository
+	tickerId string
+	ta       *alerting.TenantAlertManager
 
 	dv datautils.DataDecoderValidator
 }
@@ -71,27 +65,15 @@ func defaultTickerOpts() *TickerOpts {
 	}
 }
 
-func WithMessageQueueV1(mq msgqueuev1.MessageQueue) TickerOpt {
+func WithMessageQueueV1(mq msgqueue.MessageQueue) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.mqv1 = mq
-	}
-}
-
-func WithRepository(r repository.EngineRepository) TickerOpt {
-	return func(opts *TickerOpts) {
-		opts.repo = r
 	}
 }
 
 func WithRepositoryV1(r v1.Repository) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.repov1 = r
-	}
-}
-
-func WithEntitlementsRepository(r repository.EntitlementsRepository) TickerOpt {
-	return func(opts *TickerOpts) {
-		opts.entitlements = r
 	}
 }
 
@@ -118,16 +100,8 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
-	if opts.repo == nil {
-		return nil, fmt.Errorf("repository is required. use WithRepository")
-	}
-
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("repository v1 is required. use WithRepositoryV1")
-	}
-
-	if opts.entitlements == nil {
-		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
 	}
 
 	if opts.ta == nil {
@@ -146,9 +120,7 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 	return &TickerImpl{
 		mqv1:                   opts.mqv1,
 		l:                      opts.l,
-		repo:                   opts.repo,
 		repov1:                 opts.repov1,
-		entitlements:           opts.entitlements,
 		s:                      s,
 		dv:                     opts.dv,
 		tickerId:               opts.tickerId,
@@ -163,7 +135,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 	t.l.Debug().Msgf("starting ticker %s", t.tickerId)
 
 	// register the ticker
-	_, err := t.repo.Ticker().CreateNewTicker(ctx, &repository.CreateTickerOpts{
+	_, err := t.repov1.Ticker().CreateNewTicker(ctx, &v1.CreateTickerOpts{
 		ID: t.tickerId,
 	})
 
@@ -210,31 +182,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
-	}
-
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Minute*5),
-		gocron.NewTask(
-			t.runStreamEventCleanup(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule stream event cleanup: %w", err)
-	}
-
-	// poll for tenant alerts every minute, since minimum alerting frequency is 5 minutes
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Minute*1),
-		gocron.NewTask(
-			t.runPollTenantAlerts(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule tenant alert polling: %w", err)
 	}
 
 	// poll for expiring tokens every 15 minutes
@@ -292,7 +239,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		defer deleteCancel()
 
 		// delete the ticker
-		err = t.repo.Ticker().DeactivateTicker(deleteCtx, t.tickerId)
+		err = t.repov1.Ticker().DeactivateTicker(deleteCtx, t.tickerId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not delete ticker")
@@ -312,27 +259,12 @@ func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		now := time.Now().UTC()
 
 		// update the heartbeat
-		_, err := t.repo.Ticker().UpdateTicker(ctx, t.tickerId, &repository.UpdateTickerOpts{
+		_, err := t.repov1.Ticker().UpdateTicker(ctx, t.tickerId, &v1.UpdateTickerOpts{
 			LastHeartbeatAt: &now,
 		})
 
 		if err != nil {
 			t.l.Err(err).Msg("could not update heartbeat")
-		}
-	}
-}
-
-func (t *TickerImpl) runStreamEventCleanup(ctx context.Context) func() {
-	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-
-		t.l.Debug().Msgf("ticker: cleaning up stream event")
-
-		err := t.repo.StreamEvent().CleanupStreamEvents(ctx)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not cleanup stream events")
 		}
 	}
 }

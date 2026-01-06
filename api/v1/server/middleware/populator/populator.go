@@ -11,7 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry/servertel"
 )
@@ -111,7 +111,7 @@ func (p *Populator) populate(c echo.Context, r *middleware.RouteInfo) error {
 	ctx := c.Request().Context()
 	span := trace.SpanFromContext(ctx)
 
-	if tenant, ok := c.Get("tenant").(*dbsqlc.Tenant); ok && tenant != nil {
+	if tenant, ok := c.Get("tenant").(*sqlcv1.Tenant); ok && tenant != nil {
 		telemetry.WithAttributes(span, servertel.TenantId(tenant.ID))
 	} else if tenantId := c.Param("tenant"); tenantId != "" {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})

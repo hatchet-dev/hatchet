@@ -46,12 +46,14 @@ export const V1RunDetailHeader = () => {
                 !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
               }
               showModal={false}
+              showLabel
             />
             <TaskRunActionButton
               actionType="cancel"
               paramOverrides={{ externalIds: [workflowRun.metadata.id] }}
               disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
               showModal={false}
+              showLabel
             />
           </div>
         </div>

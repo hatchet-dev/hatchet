@@ -11,14 +11,13 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -33,20 +32,17 @@ type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
 	s                           gocron.Scheduler
-	mqv1                        msgqueuev1.MessageQueue
-	pubBuffer                   *msgqueuev1.MQPubBuffer
-	sharedNonBufferedReaderv1   *msgqueuev1.SharedTenantReader
-	sharedBufferedReaderv1      *msgqueuev1.SharedBufferedTenantReader
+	mqv1                        msgqueue.MessageQueue
+	pubBuffer                   *msgqueue.MQPubBuffer
+	sharedNonBufferedReaderv1   *msgqueue.SharedTenantReader
+	sharedBufferedReaderv1      *msgqueue.SharedBufferedTenantReader
 	l                           *zerolog.Logger
 	dv                          datautils.DataDecoderValidator
 	v                           validator.Validator
-	repo                        repository.EngineRepository
 	repov1                      v1.Repository
 	cache                       cache.Cacheable
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
-
-	entitlements repository.EntitlementsRepository
 
 	dispatcherId string
 	workers      *workers
@@ -117,12 +113,10 @@ func (w *workers) Delete(workerId string) {
 type DispatcherOpt func(*DispatcherOpts)
 
 type DispatcherOpts struct {
-	mqv1                        msgqueuev1.MessageQueue
+	mqv1                        msgqueue.MessageQueue
 	l                           *zerolog.Logger
 	dv                          datautils.DataDecoderValidator
-	repo                        repository.EngineRepository
 	repov1                      v1.Repository
-	entitlements                repository.EntitlementsRepository
 	dispatcherId                string
 	alerter                     hatcheterrors.Alerter
 	cache                       cache.Cacheable
@@ -144,7 +138,7 @@ func defaultDispatcherOpts() *DispatcherOpts {
 	}
 }
 
-func WithMessageQueueV1(mqv1 msgqueuev1.MessageQueue) DispatcherOpt {
+func WithMessageQueueV1(mqv1 msgqueue.MessageQueue) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.mqv1 = mqv1
 	}
@@ -156,21 +150,9 @@ func WithAlerter(a hatcheterrors.Alerter) DispatcherOpt {
 	}
 }
 
-func WithRepository(r repository.EngineRepository) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.repo = r
-	}
-}
-
 func WithRepositoryV1(r v1.Repository) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.repov1 = r
-	}
-}
-
-func WithEntitlementsRepository(r repository.EntitlementsRepository) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.entitlements = r
 	}
 }
 
@@ -221,16 +203,8 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		return nil, fmt.Errorf("v1 task queue is required. use WithMessageQueueV1")
 	}
 
-	if opts.repo == nil {
-		return nil, fmt.Errorf("repository is required. use WithRepository")
-	}
-
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("v1 repository is required. use WithRepositoryV1")
-	}
-
-	if opts.entitlements == nil {
-		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
 	}
 
 	if opts.cache == nil {
@@ -250,7 +224,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "dispatcher"})
 
-	pubBuffer := msgqueuev1.NewMQPubBuffer(opts.mqv1)
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
 	return &DispatcherImpl{
 		mqv1:                        opts.mqv1,
@@ -258,9 +232,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		l:                           opts.l,
 		dv:                          opts.dv,
 		v:                           validator.NewDefaultValidator(),
-		repo:                        opts.repo,
 		repov1:                      opts.repov1,
-		entitlements:                opts.entitlements,
 		dispatcherId:                opts.dispatcherId,
 		workers:                     &workers{},
 		s:                           s,
@@ -273,11 +245,11 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 func (d *DispatcherImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	d.sharedNonBufferedReaderv1 = msgqueuev1.NewSharedTenantReader(d.mqv1)
-	d.sharedBufferedReaderv1 = msgqueuev1.NewSharedBufferedTenantReader(d.mqv1)
+	d.sharedNonBufferedReaderv1 = msgqueue.NewSharedTenantReader(d.mqv1)
+	d.sharedBufferedReaderv1 = msgqueue.NewSharedBufferedTenantReader(d.mqv1)
 
 	// register the dispatcher by creating a new dispatcher in the database
-	dispatcher, err := d.repo.Dispatcher().CreateNewDispatcher(ctx, &repository.CreateDispatcherOpts{
+	dispatcher, err := d.repov1.Dispatcher().CreateNewDispatcher(ctx, &v1.CreateDispatcherOpts{
 		ID: d.dispatcherId,
 	})
 
@@ -305,7 +277,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	// subscribe to a task queue with the dispatcher id
 	dispatcherId := sqlchelpers.UUIDToStr(dispatcher.ID)
 
-	fv1 := func(task *msgqueuev1.Message) error {
+	fv1 := func(task *msgqueue.Message) error {
 		wg.Add(1)
 		defer wg.Done()
 
@@ -319,7 +291,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	// subscribe to a task queue with the dispatcher id
-	cleanupQueueV1, err := d.mqv1.Subscribe(msgqueuev1.QueueTypeFromDispatcherID(dispatcherId), fv1, msgqueuev1.NoOpHook)
+	cleanupQueueV1, err := d.mqv1.Subscribe(msgqueue.QueueTypeFromDispatcherID(dispatcherId), fv1, msgqueue.NoOpHook)
 
 	if err != nil {
 		cancel()
@@ -360,7 +332,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer deleteCancel()
 
-		err = d.repo.Dispatcher().Delete(deleteCtx, dispatcherId)
+		err = d.repov1.Dispatcher().Delete(deleteCtx, dispatcherId)
 		if err != nil {
 			return fmt.Errorf("could not delete dispatcher: %w", err)
 		}
@@ -374,7 +346,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueuev1.Message) (err error) {
+func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Message) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoverErr := recoveryutils.RecoverWithAlert(d.l, d.a, r)
@@ -404,7 +376,7 @@ func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		now := time.Now().UTC()
 
 		// update the heartbeat
-		_, err := d.repo.Dispatcher().UpdateDispatcher(ctx, d.dispatcherId, &repository.UpdateDispatcherOpts{
+		_, err := d.repov1.Dispatcher().UpdateDispatcher(ctx, d.dispatcherId, &v1.UpdateDispatcherOpts{
 			LastHeartbeatAt: &now,
 		})
 

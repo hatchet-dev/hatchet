@@ -12,18 +12,16 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -33,7 +31,6 @@ type SchedulerOpt func(*SchedulerOpts)
 type SchedulerOpts struct {
 	mq          msgqueue.MessageQueue
 	l           *zerolog.Logger
-	repo        repository.EngineRepository
 	repov1      repov1.Repository
 	dv          datautils.DataDecoderValidator
 	alerter     hatcheterrors.Alerter
@@ -81,13 +78,7 @@ func WithAlerter(a hatcheterrors.Alerter) SchedulerOpt {
 	}
 }
 
-func WithRepository(r repository.EngineRepository) SchedulerOpt {
-	return func(opts *SchedulerOpts) {
-		opts.repo = r
-	}
-}
-
-func WithV2Repository(r repov1.Repository) SchedulerOpt {
+func WithRepository(r repov1.Repository) SchedulerOpt {
 	return func(opts *SchedulerOpts) {
 		opts.repov1 = r
 	}
@@ -115,7 +106,6 @@ type Scheduler struct {
 	mq        msgqueue.MessageQueue
 	pubBuffer *msgqueue.MQPubBuffer
 	l         *zerolog.Logger
-	repo      repository.EngineRepository
 	repov1    repov1.Repository
 	dv        datautils.DataDecoderValidator
 	s         gocron.Scheduler
@@ -141,10 +131,6 @@ func New(
 
 	if opts.mq == nil {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
-	}
-
-	if opts.repo == nil {
-		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
 	if opts.repov1 == nil {
@@ -177,7 +163,6 @@ func New(
 		mq:                     opts.mq,
 		pubBuffer:              pubBuffer,
 		l:                      opts.l,
-		repo:                   opts.repo,
 		repov1:                 opts.repov1,
 		dv:                     opts.dv,
 		s:                      s,
@@ -356,7 +341,7 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 		s.l.Debug().Msgf("partition: checking step run requeue")
 
 		// list all tenants
-		tenants, err := s.repo.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId(), dbsqlc.TenantMajorEngineVersionV1)
+		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId(), sqlcv1.TenantMajorEngineVersionV1)
 
 		if err != nil {
 			s.l.Err(err).Msg("could not list tenants")
@@ -385,7 +370,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 		var dispatcherIdWorkerIds map[string][]string
 
-		dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		dispatcherIdWorkerIds, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
@@ -800,7 +785,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	}
 
 	// since the dispatcher IDs may have changed since the previous send, we need to query them again
-	dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, msg.TenantID, workerIds)
+	dispatcherIdWorkerIds, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, msg.TenantID, workerIds)
 
 	if err != nil {
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)

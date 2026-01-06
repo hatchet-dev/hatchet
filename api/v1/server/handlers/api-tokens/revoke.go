@@ -6,13 +6,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.ApiTokenUpdateRevokeRequestObject) (gen.ApiTokenUpdateRevokeResponseObject, error) {
-	apiToken := ctx.Get("api-token").(*dbsqlc.APIToken)
-	user := ctx.Get("user").(*dbsqlc.User)
+	apiToken := ctx.Get("api-token").(*sqlcv1.APIToken)
+	user := ctx.Get("user").(*sqlcv1.User)
 
 	if apiToken.Internal {
 		return gen.ApiTokenUpdateRevoke403JSONResponse(
@@ -20,7 +20,7 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 		), nil
 	}
 
-	err := a.config.APIRepository.APIToken().RevokeAPIToken(ctx.Request().Context(), sqlchelpers.UUIDToStr(apiToken.ID))
+	err := a.config.V1.APIToken().RevokeAPIToken(ctx.Request().Context(), sqlchelpers.UUIDToStr(apiToken.ID))
 
 	if err != nil {
 		return nil, err

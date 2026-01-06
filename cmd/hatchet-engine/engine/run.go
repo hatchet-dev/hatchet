@@ -13,9 +13,9 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	metricscontroller "github.com/hatchet-dev/hatchet/internal/services/controllers/metrics"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/v1/olap"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/v1/task"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	dispatcherv1 "github.com/hatchet-dev/hatchet/internal/services/dispatcher/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
@@ -24,12 +24,11 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
-	"github.com/hatchet-dev/hatchet/internal/services/webhooks"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/rs/zerolog"
 
@@ -160,7 +159,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		teardown = append(teardown, startPrometheus(l, sc.Prometheus))
 	}
 
-	p, err := partition.NewPartition(l, sc.EngineRepository.Tenant())
+	p, err := partition.NewPartition(l, sc.V1.Tenant())
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)
@@ -174,7 +173,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	var h *health.Health
 	healthProbes := sc.HasService("health")
 	if healthProbes {
-		h = health.New(sc.EngineRepository, sc.MessageQueueV1, sc.Version, l)
+		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
 		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
 		if err != nil {
 			return nil, fmt.Errorf("could not start health: %w", err)
@@ -213,8 +212,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		sv1, err := schedulerv1.New(
 			schedulerv1.WithAlerter(sc.Alerter),
 			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
-			schedulerv1.WithRepository(sc.EngineRepository),
-			schedulerv1.WithV2Repository(sc.V1),
+			schedulerv1.WithRepository(sc.V1),
 			schedulerv1.WithLogger(sc.Logger),
 			schedulerv1.WithPartition(p),
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
@@ -240,11 +238,9 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if sc.HasService("ticker") {
 		t, err := ticker.New(
 			ticker.WithMessageQueueV1(sc.MessageQueueV1),
-			ticker.WithRepository(sc.EngineRepository),
 			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
-			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 
 		if err != nil {
@@ -265,7 +261,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		tasks, err := task.New(
 			task.WithAlerter(sc.Alerter),
 			task.WithMessageQueue(sc.MessageQueueV1),
-			task.WithRepository(sc.EngineRepository),
 			task.WithV1Repository(sc.V1),
 			task.WithLogger(sc.Logger),
 			task.WithPartition(p),
@@ -326,7 +321,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if sc.HasService("retention") {
 		rc, err := retention.New(
 			retention.WithAlerter(sc.Alerter),
-			retention.WithRepository(sc.EngineRepository),
+			retention.WithRepository(sc.V1),
 			retention.WithLogger(sc.Logger),
 			retention.WithTenantAlerter(sc.TenantAlerter),
 			retention.WithPartition(p),
@@ -355,10 +350,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueueV1(sc.MessageQueueV1),
-			dispatcher.WithRepository(sc.EngineRepository),
 			dispatcher.WithRepositoryV1(sc.V1),
 			dispatcher.WithLogger(sc.Logger),
-			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
@@ -385,18 +378,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
-			ingestor.WithEventRepository(
-				sc.EngineRepository.Event(),
-			),
-			ingestor.WithStreamEventsRepository(
-				sc.EngineRepository.StreamEvent(),
-			),
-			ingestor.WithLogRepository(
-				sc.EngineRepository.Log(),
-			),
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
-			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
-			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
 			ingestor.WithRepositoryV1(sc.V1),
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 		)
@@ -406,10 +388,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		}
 
 		adminSvc, err := admin.NewAdminService(
-			admin.WithRepository(sc.EngineRepository),
 			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
-			admin.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service: %w", err)
@@ -418,7 +398,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		adminv1Svc, err := adminv1.NewAdminService(
 			adminv1.WithRepository(sc.V1),
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
-			adminv1.WithEntitlementsRepository(sc.EntitlementRepository),
 			adminv1.WithAnalytics(sc.Analytics),
 		)
 
@@ -491,31 +470,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		})
 	}
 
-	if sc.HasService("webhookscontroller") {
-		cleanup1, err := p.StartTenantWorkerPartition(ctx)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "tenant worker partition",
-			Fn:   cleanup1,
-		})
-
-		wh := webhooks.New(sc, p, l)
-
-		cleanup2, err := wh.Start()
-		if err != nil {
-			return nil, fmt.Errorf("could not create webhook worker: %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "webhook worker",
-			Fn:   cleanup2,
-		})
-	}
-
 	teardown = append(teardown, Teardown{
 		Name: "telemetry",
 		Fn: func() error {
@@ -554,7 +508,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		teardown = append(teardown, startPrometheus(l, sc.Prometheus))
 	}
 
-	p, err := partition.NewPartition(l, sc.EngineRepository.Tenant())
+	p, err := partition.NewPartition(l, sc.V1.Tenant())
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)
@@ -569,7 +523,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	var h *health.Health
 
 	if healthProbes {
-		h = health.New(sc.EngineRepository, sc.MessageQueueV1, sc.Version, l)
+		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
 
 		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
 
@@ -597,11 +551,9 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		t, err := ticker.New(
 			ticker.WithMessageQueueV1(sc.MessageQueueV1),
-			ticker.WithRepository(sc.EngineRepository),
 			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
-			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 
 		if err != nil {
@@ -621,7 +573,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		rc, err := retention.New(
 			retention.WithAlerter(sc.Alerter),
-			retention.WithRepository(sc.EngineRepository),
+			retention.WithRepository(sc.V1),
 			retention.WithLogger(sc.Logger),
 			retention.WithTenantAlerter(sc.TenantAlerter),
 			retention.WithPartition(p),
@@ -648,7 +600,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			tasks, err := task.New(
 				task.WithAlerter(sc.Alerter),
 				task.WithMessageQueue(sc.MessageQueueV1),
-				task.WithRepository(sc.EngineRepository),
 				task.WithV1Repository(sc.V1),
 				task.WithLogger(sc.Logger),
 				task.WithPartition(p),
@@ -722,19 +673,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanup1,
 		})
 
-		wh := webhooks.New(sc, p, l)
-
-		cleanup2, err := wh.Start()
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create webhook worker: %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "webhook worker",
-			Fn:   cleanup2,
-		})
-
 		if sc.OpenTelemetry.MetricsEnabled && sc.OpenTelemetry.CollectorURL != "" {
 			mc, err := metricscontroller.New(
 				metricscontroller.WithLogger(sc.Logger),
@@ -768,10 +706,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueueV1(sc.MessageQueueV1),
-			dispatcher.WithRepository(sc.EngineRepository),
 			dispatcher.WithRepositoryV1(sc.V1),
 			dispatcher.WithLogger(sc.Logger),
-			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
@@ -799,18 +735,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
-			ingestor.WithEventRepository(
-				sc.EngineRepository.Event(),
-			),
-			ingestor.WithStreamEventsRepository(
-				sc.EngineRepository.StreamEvent(),
-			),
-			ingestor.WithLogRepository(
-				sc.EngineRepository.Log(),
-			),
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
-			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
-			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
 			ingestor.WithRepositoryV1(sc.V1),
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 		)
@@ -820,10 +745,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		}
 
 		adminSvc, err := admin.NewAdminService(
-			admin.WithRepository(sc.EngineRepository),
 			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
-			admin.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 
 		if err != nil {
@@ -833,7 +756,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		adminv1Svc, err := adminv1.NewAdminService(
 			adminv1.WithRepository(sc.V1),
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
-			adminv1.WithEntitlementsRepository(sc.EntitlementRepository),
 			adminv1.WithAnalytics(sc.Analytics),
 		)
 
@@ -921,8 +843,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		sv1, err := schedulerv1.New(
 			schedulerv1.WithAlerter(sc.Alerter),
 			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
-			schedulerv1.WithRepository(sc.EngineRepository),
-			schedulerv1.WithV2Repository(sc.V1),
+			schedulerv1.WithRepository(sc.V1),
 			schedulerv1.WithLogger(sc.Logger),
 			schedulerv1.WithPartition(p),
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),

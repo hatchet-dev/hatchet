@@ -11,14 +11,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
 	var additionalMeta []byte
 
@@ -26,13 +25,13 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		additionalMeta = []byte(*req.AdditionalMetadata)
 	}
 
-	if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
+	if err := v1.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
 	payloadBytes := []byte(req.Payload)
 
-	if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+	if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
@@ -42,7 +41,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 
 	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority, req.Scope, nil)
 
-	if err == metered.ErrResourceExhausted {
+	if err == v1.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
 	}
 
@@ -77,7 +76,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 }
 
 func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEventRequest) (*contracts.Events, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -90,7 +89,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: too many events - %d is over maximum (1000)", len(req.Events))
 	}
 
-	events := make([]*repository.CreateEventOpts, 0)
+	events := make([]*CreateEventOpts, 0)
 
 	for _, e := range req.Events {
 		var additionalMeta []byte
@@ -98,13 +97,13 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 			additionalMeta = []byte(*e.AdditionalMetadata)
 		}
 
-		if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
+		if err := v1.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 		}
 
 		payloadBytes := []byte(e.Payload)
 
-		if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+		if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 		}
 
@@ -112,7 +111,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *e.Priority)
 		}
 
-		events = append(events, &repository.CreateEventOpts{
+		events = append(events, &CreateEventOpts{
 			TenantId:           tenantId,
 			Key:                e.Key,
 			Data:               payloadBytes,
@@ -122,7 +121,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		})
 	}
 
-	opts := &repository.BulkCreateEventOpts{
+	opts := &BulkCreateEventOpts{
 		TenantId: tenantId,
 		Events:   events,
 	}
@@ -140,7 +139,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 
 	createdEvents, err := i.BulkIngestEvent(ctx, tenant, events)
 
-	if err == metered.ErrResourceExhausted {
+	if err == v1.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
 	}
 	if err != nil {
@@ -181,42 +180,20 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 }
 
 func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.ReplayEventRequest) (*contracts.Event, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	oldEvent, err := i.eventRepository.GetEventForEngine(ctx, tenantId, req.EventId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	newEvent, err := i.IngestReplayedEvent(ctx, tenant, oldEvent)
-
-	if err != nil {
-		return nil, err
-	}
-
-	e, err := toEvent(newEvent)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return e, nil
+	return nil, status.Errorf(codes.Unimplemented, "ReplaySingleEvent is not implemented")
 }
 
 func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	return i.putStreamEventV1(ctx, tenant, req)
 }
 
 func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	return i.putLogV1(ctx, tenant, req)
 }
 
-func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
+func toEvent(e *sqlcv1.Event) (*contracts.Event, error) {
 	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
 	eventId := sqlchelpers.UUIDToStr(e.ID)
 
@@ -235,4 +212,35 @@ func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
 		EventTimestamp:     timestamppb.New(e.CreatedAt.Time),
 		AdditionalMetadata: additionalMeta,
 	}, nil
+}
+
+type BulkCreateEventOpts struct {
+	TenantId string `validate:"required,uuid"`
+	Events   []*CreateEventOpts
+}
+
+type CreateEventOpts struct {
+	// (required) the tenant id
+	TenantId string `validate:"required,uuid"`
+
+	// (required) the event key
+	Key string `validate:"required"`
+
+	// (optional) the event data
+	Data []byte
+
+	// (optional) the event that this event is replaying
+	ReplayedEvent *string `validate:"omitempty,uuid"`
+
+	// (optional) the event metadata
+	AdditionalMetadata []byte
+
+	// (optional) the event priority
+	Priority *int32 `validate:"omitempty,min=1,max=3"`
+
+	// (optional) the event scope
+	Scope *string `validate:"omitempty"`
+
+	// (optional) the triggering webhook name
+	TriggeringWebhookName *string `validate:"omitempty"`
 }

@@ -24,11 +24,7 @@ import {
   BiSolidGraduation,
 } from 'react-icons/bi';
 
-export function HelpDropdownItems({
-  includeChat = true,
-}: {
-  includeChat?: boolean;
-}) {
+function HelpDropdownItems({ includeChat = true }: { includeChat?: boolean }) {
   const navigate = useNavigate();
   const { tenant } = useTenantDetails();
   const pylon = usePylon();

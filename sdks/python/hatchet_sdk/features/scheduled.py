@@ -203,13 +203,18 @@ class ScheduledClient(BaseRestClient):
         :return: The bulk delete response containing deleted IDs and per-item errors.
         :raises ValueError: If neither `scheduled_ids` nor any filter field is provided.
         """
+
+        if statuses:
+            self.client_config.logger.warning(
+                "The 'statuses' filter is not supported for bulk delete and will be ignored."
+            )
+
         has_filter = any(
             v is not None
             for v in (
                 workflow_id,
                 parent_workflow_run_id,
                 parent_step_run_id,
-                statuses,
                 additional_metadata,
             )
         )
@@ -226,7 +231,6 @@ class ScheduledClient(BaseRestClient):
                 parentWorkflowRunId=parent_workflow_run_id,
                 parentStepRunId=parent_step_run_id,
                 additionalMetadata=maybe_additional_metadata_to_kv(additional_metadata),
-                statuses=statuses,
             )
 
         with self.client() as client:

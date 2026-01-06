@@ -6,70 +6,33 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type Ingestor interface {
 	contracts.EventsServiceServer
-	IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventName string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error)
-	IngestWebhookValidationFailure(ctx context.Context, tenant *dbsqlc.Tenant, webhookName, errorText string) error
-	BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
-	IngestReplayedEvent(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
+	IngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventName string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error)
+	IngestWebhookValidationFailure(ctx context.Context, tenant *sqlcv1.Tenant, webhookName, errorText string) error
+	BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error)
+	IngestReplayedEvent(ctx context.Context, tenant *sqlcv1.Tenant, replayedEvent *sqlcv1.Event) (*sqlcv1.Event, error)
 	IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error
 }
 
 type IngestorOptFunc func(*IngestorOpts)
 
 type IngestorOpts struct {
-	eventRepository        repository.EventEngineRepository
-	streamEventRepository  repository.StreamEventsEngineRepository
-	logRepository          repository.LogsEngineRepository
-	entitlementsRepository repository.EntitlementsRepository
-	stepRunRepository      repository.StepRunEngineRepository
-	mqv1                   msgqueuev1.MessageQueue
-	repov1                 v1.Repository
-	isLogIngestionEnabled  bool
+	mqv1                  msgqueue.MessageQueue
+	repov1                v1.Repository
+	isLogIngestionEnabled bool
 }
 
-func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
-	return func(opts *IngestorOpts) {
-		opts.eventRepository = r
-	}
-}
-
-func WithStreamEventsRepository(r repository.StreamEventsEngineRepository) IngestorOptFunc {
-	return func(opts *IngestorOpts) {
-		opts.streamEventRepository = r
-	}
-}
-
-func WithLogRepository(r repository.LogsEngineRepository) IngestorOptFunc {
-	return func(opts *IngestorOpts) {
-		opts.logRepository = r
-	}
-}
-
-func WithEntitlementsRepository(r repository.EntitlementsRepository) IngestorOptFunc {
-	return func(opts *IngestorOpts) {
-		opts.entitlementsRepository = r
-	}
-}
-
-func WithMessageQueueV1(mq msgqueuev1.MessageQueue) IngestorOptFunc {
+func WithMessageQueueV1(mq msgqueue.MessageQueue) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.mqv1 = mq
-	}
-}
-
-func WithStepRunRepository(r repository.StepRunEngineRepository) IngestorOptFunc {
-	return func(opts *IngestorOpts) {
-		opts.stepRunRepository = r
 	}
 }
 
@@ -94,14 +57,9 @@ func defaultIngestorOpts() *IngestorOpts {
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
-	eventRepository          repository.EventEngineRepository
-	logRepository            repository.LogsEngineRepository
-	streamEventRepository    repository.StreamEventsEngineRepository
-	entitlementsRepository   repository.EntitlementsRepository
-	stepRunRepository        repository.StepRunEngineRepository
 	steprunTenantLookupCache *lru.Cache[string, string]
 
-	mqv1   msgqueuev1.MessageQueue
+	mqv1   msgqueue.MessageQueue
 	v      validator.Validator
 	repov1 v1.Repository
 
@@ -115,28 +73,12 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		f(opts)
 	}
 
-	if opts.eventRepository == nil {
-		return nil, fmt.Errorf("event repository is required. use WithEventRepository")
-	}
-
-	if opts.streamEventRepository == nil {
-		return nil, fmt.Errorf("stream event repository is required. use WithStreamEventRepository")
-	}
-
-	if opts.logRepository == nil {
-		return nil, fmt.Errorf("log repository is required. use WithLogRepository")
-	}
-
 	if opts.mqv1 == nil {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("repository v1 is required. use WithRepositoryV1")
-	}
-
-	if opts.stepRunRepository == nil {
-		return nil, fmt.Errorf("step run repository is required. use WithStepRunRepository")
 	}
 
 	// estimate of 1000 * 2 * UUID string size (roughly 104kb max)
@@ -147,12 +89,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}
 
 	return &IngestorImpl{
-		eventRepository:          opts.eventRepository,
-		streamEventRepository:    opts.streamEventRepository,
-		entitlementsRepository:   opts.entitlementsRepository,
-		stepRunRepository:        opts.stepRunRepository,
 		steprunTenantLookupCache: stepRunCache,
-		logRepository:            opts.logRepository,
 		mqv1:                     opts.mqv1,
 		v:                        validator.NewDefaultValidator(),
 		repov1:                   opts.repov1,
@@ -160,19 +97,19 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}, nil
 }
 
-func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error) {
 	return i.ingestEventV1(ctx, tenant, key, data, metadata, priority, scope, triggeringWebhookName)
 }
 
-func (i *IngestorImpl) IngestWebhookValidationFailure(ctx context.Context, tenant *dbsqlc.Tenant, webhookName, errorText string) error {
+func (i *IngestorImpl) IngestWebhookValidationFailure(ctx context.Context, tenant *sqlcv1.Tenant, webhookName, errorText string) error {
 	return i.ingestWebhookValidationFailure(tenant.ID.String(), webhookName, errorText)
 }
 
-func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
+func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error) {
 	return i.bulkIngestEventV1(ctx, tenant, eventOpts)
 }
 
-func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenant *sqlcv1.Tenant, replayedEvent *sqlcv1.Event) (*sqlcv1.Event, error) {
 	return i.ingestReplayedEventV1(ctx, tenant, replayedEvent)
 }
 

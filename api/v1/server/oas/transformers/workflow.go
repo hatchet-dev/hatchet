@@ -6,13 +6,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func ToWorkflow(
-	workflow *dbsqlc.Workflow,
-	version *dbsqlc.WorkflowVersion,
+	workflow *sqlcv1.Workflow,
+	version *sqlcv1.WorkflowVersion,
 ) *gen.Workflow {
 
 	res := &gen.Workflow{
@@ -38,7 +38,7 @@ func ToWorkflow(
 	return res
 }
 
-func ToWorkflowVersionMeta(version *dbsqlc.WorkflowVersion, workflow *dbsqlc.Workflow) *gen.WorkflowVersionMeta {
+func ToWorkflowVersionMeta(version *sqlcv1.WorkflowVersion, workflow *sqlcv1.Workflow) *gen.WorkflowVersionMeta {
 	res := &gen.WorkflowVersionMeta{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(version.ID),
@@ -57,16 +57,16 @@ type WorkflowConcurrency struct {
 	ID                    pgtype.UUID
 	GetConcurrencyGroupId pgtype.UUID
 	MaxRuns               pgtype.Int4
-	LimitStrategy         dbsqlc.NullConcurrencyLimitStrategy
+	LimitStrategy         sqlcv1.NullConcurrencyLimitStrategy
 }
 
 func ToWorkflowVersion(
-	version *dbsqlc.WorkflowVersion,
-	workflow *dbsqlc.Workflow,
+	version *sqlcv1.WorkflowVersion,
+	workflow *sqlcv1.Workflow,
 	concurrency *WorkflowConcurrency,
-	crons []*dbsqlc.WorkflowTriggerCronRef,
-	events []*dbsqlc.WorkflowTriggerEventRef,
-	schedules []*dbsqlc.WorkflowTriggerScheduledRef,
+	crons []*sqlcv1.WorkflowTriggerCronRef,
+	events []*sqlcv1.WorkflowTriggerEventRef,
+	schedules []*sqlcv1.WorkflowTriggerScheduledRef,
 ) *gen.WorkflowVersion {
 	wfConfig := make(map[string]interface{})
 
@@ -96,9 +96,9 @@ func ToWorkflowVersion(
 		var stickyStrategy string
 
 		switch version.Sticky.StickyStrategy {
-		case dbsqlc.StickyStrategyHARD:
+		case sqlcv1.StickyStrategyHARD:
 			stickyStrategy = "hard"
-		case dbsqlc.StickyStrategySOFT:
+		case sqlcv1.StickyStrategySOFT:
 			stickyStrategy = "soft"
 		}
 
@@ -166,7 +166,7 @@ func ToWorkflowVersionConcurrency(concurrency *WorkflowConcurrency) *gen.Workflo
 	return res
 }
 
-func ToJob(job *dbsqlc.Job, steps []*dbsqlc.GetStepsForJobsRow) *gen.Job {
+func ToJob(job *sqlcv1.Job, steps []*sqlcv1.GetStepsForJobsRow) *gen.Job {
 	res := &gen.Job{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(job.ID),
@@ -194,7 +194,7 @@ func ToJob(job *dbsqlc.Job, steps []*dbsqlc.GetStepsForJobsRow) *gen.Job {
 	return res
 }
 
-func ToStep(step *dbsqlc.Step, parents []pgtype.UUID) *gen.Step {
+func ToStep(step *sqlcv1.Step, parents []pgtype.UUID) *gen.Step {
 	res := &gen.Step{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(step.ID),
@@ -223,7 +223,7 @@ func ToStep(step *dbsqlc.Step, parents []pgtype.UUID) *gen.Step {
 	return res
 }
 
-func ToWorkflowFromSQLC(row *dbsqlc.Workflow) *gen.Workflow {
+func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 	res := &gen.Workflow{
 		Metadata:    *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
 		Name:        row.Name,
@@ -234,7 +234,7 @@ func ToWorkflowFromSQLC(row *dbsqlc.Workflow) *gen.Workflow {
 	return res
 }
 
-func ToWorkflowVersionFromSQLC(row *dbsqlc.WorkflowVersion, workflow *gen.Workflow) *gen.WorkflowVersion {
+func ToWorkflowVersionFromSQLC(row *sqlcv1.WorkflowVersion, workflow *gen.Workflow) *gen.WorkflowVersion {
 	res := &gen.WorkflowVersion{
 		Metadata:   *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
 		Version:    row.Version.String,

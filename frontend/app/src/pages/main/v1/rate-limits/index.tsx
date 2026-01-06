@@ -4,8 +4,10 @@ import {
   RateLimitColumn,
 } from './components/rate-limit-columns';
 import { useRateLimits } from './hooks/use-rate-limits';
+import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
 import { useState } from 'react';
 
@@ -60,6 +62,17 @@ function RateLimitsTable() {
         onRefetch: refetch,
       }}
       onResetFilters={resetFilters}
+      emptyState={
+        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
+          <p className="text-lg font-semibold">No rate limits found</p>
+          <div className="w-fit">
+            <DocsButton
+              doc={docsPages.home['rate-limits']}
+              label="Learn about rate limits"
+            />
+          </div>
+        </div>
+      }
     />
   );
 }

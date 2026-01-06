@@ -5,15 +5,15 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (s *SlackAppService) SlackWebhookList(ctx echo.Context, req gen.SlackWebhookListRequestObject) (gen.SlackWebhookListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	webhooks, err := s.config.APIRepository.Slack().ListSlackWebhooks(ctx.Request().Context(), tenantId)
+	webhooks, err := s.config.V1.Slack().ListSlackWebhooks(ctx.Request().Context(), tenantId)
 
 	if err != nil {
 		return nil, err

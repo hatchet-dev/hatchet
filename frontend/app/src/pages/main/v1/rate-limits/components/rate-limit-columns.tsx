@@ -48,6 +48,7 @@ export const columns: ColumnDef<RateLimitWithMetadata>[] = [
     cell: ({ row }) => {
       return <div>{row.original.value}</div>;
     },
+    enableSorting: false,
   },
   {
     accessorKey: limitKey,
@@ -57,6 +58,7 @@ export const columns: ColumnDef<RateLimitWithMetadata>[] = [
     cell: ({ row }) => {
       return <div>{row.original.limitValue}</div>;
     },
+    enableSorting: false,
   },
   {
     accessorKey: lastRefillKey,
@@ -73,6 +75,7 @@ export const columns: ColumnDef<RateLimitWithMetadata>[] = [
         </div>
       );
     },
+    enableSorting: false,
   },
   {
     accessorKey: windowKey,
@@ -82,5 +85,6 @@ export const columns: ColumnDef<RateLimitWithMetadata>[] = [
     cell: ({ row }) => {
       return <div>{capitalize(row.original.window)}</div>;
     },
+    enableSorting: false,
   },
 ];

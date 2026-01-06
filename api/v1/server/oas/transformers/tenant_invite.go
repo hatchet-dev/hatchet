@@ -2,11 +2,11 @@ package transformers
 
 import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func ToTenantInviteLink(invite *dbsqlc.TenantInviteLink) *gen.TenantInvite {
+func ToTenantInviteLink(invite *sqlcv1.TenantInviteLink) *gen.TenantInvite {
 	res := &gen.TenantInvite{
 		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(invite.ID), invite.CreatedAt.Time, invite.UpdatedAt.Time),
 		Email:    invite.InviteeEmail,
@@ -18,7 +18,7 @@ func ToTenantInviteLink(invite *dbsqlc.TenantInviteLink) *gen.TenantInvite {
 	return res
 }
 
-func ToUserTenantInviteLink(invite *dbsqlc.ListTenantInvitesByEmailRow) *gen.TenantInvite {
+func ToUserTenantInviteLink(invite *sqlcv1.ListTenantInvitesByEmailRow) *gen.TenantInvite {
 	res := &gen.TenantInvite{
 		Metadata:   *toAPIMetadata(sqlchelpers.UUIDToStr(invite.ID), invite.CreatedAt.Time, invite.UpdatedAt.Time),
 		Email:      invite.InviteeEmail,

@@ -11,20 +11,20 @@ import (
 
 	"github.com/rs/zerolog"
 
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type Health struct {
 	shuttingDown bool
 	version      string
 
-	repository repository.EngineRepository
-	queue      msgqueuev1.MessageQueue
+	repository v1.HealthRepository
+	queue      msgqueue.MessageQueue
 	l          *zerolog.Logger
 }
 
-func New(repo repository.EngineRepository, queue msgqueuev1.MessageQueue, version string, l *zerolog.Logger) *Health {
+func New(repo v1.HealthRepository, queue msgqueue.MessageQueue, version string, l *zerolog.Logger) *Health {
 	return &Health{
 		version:    version,
 		repository: repo,
@@ -45,7 +45,7 @@ func (h *Health) Start(port int) (func() error, error) {
 		defer cancel()
 
 		queueReady := h.queue.IsReady()
-		repositoryReady := h.repository.Health().IsHealthy(ctx)
+		repositoryReady := h.repository.IsHealthy(ctx)
 
 		if !queueReady || !repositoryReady {
 			h.l.Error().Msgf("liveness check failed - queue ready: %t, repository ready: %t", queueReady, repositoryReady)
@@ -61,7 +61,7 @@ func (h *Health) Start(port int) (func() error, error) {
 		defer cancel()
 
 		queueReady := h.queue.IsReady()
-		repositoryReady := h.repository.Health().IsHealthy(ctx)
+		repositoryReady := h.repository.IsHealthy(ctx)
 
 		if h.shuttingDown || !queueReady || !repositoryReady {
 			if !h.shuttingDown {
