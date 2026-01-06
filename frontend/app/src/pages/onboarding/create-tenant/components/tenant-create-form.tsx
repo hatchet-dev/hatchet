@@ -9,13 +9,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import api, { TenantEnvironment } from '@/lib/api';
+import { TenantEnvironment } from '@/lib/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
-import freeEmailDomains from '@/lib/free-email-domains.json';
 import { cn } from '@/lib/utils';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useQuery } from '@tanstack/react-query';
 import { Monitor, Settings, Rocket } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
@@ -45,15 +43,6 @@ export function TenantCreateForm({
   onOrganizationChange,
   isCloudEnabled,
 }: TenantCreateFormProps) {
-  const user = useQuery({
-    queryKey: ['user:get:current'],
-    retry: false,
-    queryFn: async () => {
-      const res = await api.userGetCurrent();
-      return res.data;
-    },
-  });
-
   const {
     register,
     setValue,
@@ -68,74 +57,28 @@ export function TenantCreateForm({
 
   const hasSetInitialDefault = useRef(false);
 
-  const getEnvironmentPostfix = (environment: string | undefined): string => {
+  const getEnvironmentName = (environment: string | undefined): string => {
     switch (environment) {
       case TenantEnvironment.Local:
-        return '-local';
+        return 'local';
       case TenantEnvironment.Development:
-        return '-dev';
+        return 'dev';
       case TenantEnvironment.Production:
-        return '-prod';
+        return 'prod';
       default: {
         // Exhaustiveness check: this should never be reached if all cases are handled
         const exhaustiveCheck: never = environment as never;
         void exhaustiveCheck;
-        return '-dev'; // Default to dev if no environment selected
+        return 'dev'; // Default to dev if no environment selected
       }
     }
   };
 
-  const hasEnvironmentPostfix = (name: string): boolean => {
-    return (
-      name.endsWith('-local') || name.endsWith('-dev') || name.endsWith('-prod')
-    );
-  };
-
-  const removeEnvironmentPostfix = (name: string): string => {
-    if (name.endsWith('-local')) {
-      return name.slice(0, -6);
-    }
-    if (name.endsWith('-dev')) {
-      return name.slice(0, -4);
-    }
-    if (name.endsWith('-prod')) {
-      return name.slice(0, -5);
-    }
-    return name;
-  };
-
-  const updateNameWithEnvironment = (
-    currentName: string,
-    environment: string,
-  ): string => {
-    const baseName = hasEnvironmentPostfix(currentName)
-      ? removeEnvironmentPostfix(currentName)
-      : currentName;
-
-    return baseName + getEnvironmentPostfix(environment);
-  };
-
   const emptyState = useMemo(() => {
-    if (!user.data?.email) {
-      return '';
-    }
-
-    const email = user.data.email;
-    const [localPart, domain] = email.split('@');
-
-    let baseName = '';
-    if (freeEmailDomains.includes(domain?.toLowerCase())) {
-      baseName = localPart;
-    } else {
-      // For business emails, use the domain without the TLD
-      const domainParts = domain?.split('.');
-      baseName = domainParts?.[0] || localPart;
-    }
-
-    // Add environment-specific postfix using current environment
+    // Use simple environment-based names
     const currentEnvironment = value?.environment || 'development';
-    return `${baseName}${getEnvironmentPostfix(currentEnvironment)}`;
-  }, [user.data?.email, value?.environment]);
+    return getEnvironmentName(currentEnvironment);
+  }, [value?.environment]);
 
   // Update form values when parent value changes
   useEffect(() => {
@@ -179,10 +122,7 @@ export function TenantCreateForm({
   ];
 
   const handleEnvironmentChange = (selectedEnvironment: string) => {
-    const currentName = value?.name || '';
-    const updatedName = currentName
-      ? updateNameWithEnvironment(currentName, selectedEnvironment)
-      : '';
+    const updatedName = getEnvironmentName(selectedEnvironment);
 
     setValue('environment', selectedEnvironment);
     setValue('name', updatedName);
