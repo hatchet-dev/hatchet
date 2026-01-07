@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { TenantEnvironment } from '@/lib/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,7 @@ export function TenantCreateForm({
   onOrganizationChange,
   isCloudEnabled,
 }: TenantCreateFormProps) {
+  const { currentUser } = useCurrentUser();
   const {
     register,
     setValue,
@@ -208,10 +210,20 @@ export function TenantCreateForm({
         </div>
 
         <div className="grid gap-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            autoCapitalize="none"
+            autoCorrect="off"
+            disabled={true}
+            spellCheck={false}
+            value={currentUser?.email || ''}
+          />
+        </div>
+
+        <div className="grid gap-2">
           <Label htmlFor="name">Name</Label>
-          <div className="text-sm text-gray-700 dark:text-gray-300">
-            A display name for your tenant. You can always change this later.
-          </div>
           <Input
             {...register('name')}
             id="name"
@@ -229,6 +241,9 @@ export function TenantCreateForm({
               });
             }}
           />
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            You can always rename your tenant later.
+          </div>
           {nameError && <div className="text-sm text-red-500">{nameError}</div>}
         </div>
 

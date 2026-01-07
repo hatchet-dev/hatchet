@@ -1,20 +1,13 @@
 import TopNav from '@/components/v1/nav/top-nav';
 import { Loading } from '@/components/v1/ui/loading';
-import api from '@/lib/api';
+import { queries } from '@/lib/api';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { redirect, useLoaderData } from '@tanstack/react-router';
 
 export async function loader({ request }: { request: Request }) {
   try {
-    const user = await queryClient.fetchQuery({
-      queryKey: ['user:get:current'],
-      queryFn: async () => {
-        const res = await api.userGetCurrent();
-
-        return res.data;
-      },
-    });
+    const user = await queryClient.fetchQuery(queries.user.current);
 
     if (
       user.emailVerified &&

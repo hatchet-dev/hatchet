@@ -1,6 +1,13 @@
 import useCloud from '../../auth/hooks/use-cloud';
 import { TenantCreateForm } from './components/tenant-create-form';
 import { OnboardingFormData } from './types';
+import { Button } from '@/components/v1/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { useOrganizations } from '@/hooks/use-organizations';
 import api, {
   CreateTenantRequest,
@@ -13,6 +20,11 @@ import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { useSearchParams } from '@/lib/router-helpers';
 import { appRoutes } from '@/router';
+import {
+  QuestionMarkCircleIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+} from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState, useEffect } from 'react';
@@ -21,6 +33,7 @@ export default function CreateTenant() {
   const [searchParams] = useSearchParams();
   const { organizationData, isCloudEnabled } = useOrganizations();
   const { cloud } = useCloud();
+  const [showHelp, setShowHelp] = useState(false);
 
   const organizationId = searchParams.get('organizationId');
 
@@ -174,12 +187,55 @@ export default function CreateTenant() {
     <div className="flex min-h-full w-full flex-col items-center justify-center p-4">
       <div className="w-full max-w-[450px] space-y-6">
         <div className="flex flex-col space-y-2 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Create a new tenant
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            A tenant is an isolated environment for your data and workflows.
-          </p>
+          <div className="flex items-center justify-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Create a new tenant
+            </h1>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="inline-flex">
+                    <QuestionMarkCircleIcon className="h-5 w-5 text-muted-foreground cursor-help" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>
+                    A tenant is an isolated environment for your data and
+                    workflows.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className="space-y-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowHelp(!showHelp)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Trying to join an existing tenant?
+              {showHelp ? (
+                <ChevronUpIcon className="ml-1 h-3 w-3" />
+              ) : (
+                <ChevronDownIcon className="ml-1 h-3 w-3" />
+              )}
+            </Button>
+            {showHelp && (
+              <div className="rounded-lg border bg-muted/50 p-4 text-left text-sm text-muted-foreground">
+                <p className="mb-2">
+                  If you're trying to join an existing tenant, you should not
+                  create a new one. Some reasons that you may accidentally end
+                  up here are:
+                </p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li>You're logging in with the wrong email address</li>
+                  <li>Your Hatchet account is at a different URL</li>
+                  <li>You need an invitation from a colleague</li>
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
 
         <TenantCreateForm

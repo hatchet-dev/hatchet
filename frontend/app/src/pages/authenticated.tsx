@@ -1,6 +1,7 @@
 import { AppLayout } from '@/components/layout/app-layout';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
+import { useCurrentUser } from '@/hooks/use-current-user.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { queries, User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
@@ -26,6 +27,7 @@ const DevtoolsFooter = import.meta.env.DEV
 
 export default function Authenticated() {
   const { tenant } = useTenantDetails();
+  const { currentUser, error: userError } = useCurrentUser();
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
 
   const { data: cloudMetadata } = useQuery({
@@ -84,16 +86,6 @@ export default function Authenticated() {
     },
   });
 
-  const userQuery = useQuery({
-    queryKey: ['user:get:current'],
-    retry: false,
-    queryFn: async () => {
-      const res = await api.userGetCurrent();
-
-      return res.data;
-    },
-  });
-
   const invitesQuery = useQuery({
     queryKey: ['user:list-tenant-invites'],
     retry: false,
@@ -109,12 +101,12 @@ export default function Authenticated() {
   });
 
   const ctx = useContextFromParent({
-    user: userQuery.data,
+    user: currentUser,
     memberships: listMembershipsQuery.data?.rows,
   });
 
   useEffect(() => {
-    const userQueryError = userQuery.error as AxiosError<User> | null;
+    const userQueryError = userError as AxiosError<User> | null;
 
     // Skip all redirects for organization pages
     if (isOrganizationsPage) {
@@ -127,8 +119,8 @@ export default function Authenticated() {
     }
 
     if (
-      userQuery.data &&
-      !userQuery.data.emailVerified &&
+      currentUser &&
+      !currentUser.emailVerified &&
       !isOnboardingVerifyEmailPage
     ) {
       navigate({ to: appRoutes.onboardingVerifyRoute.to, replace: true });
@@ -181,11 +173,11 @@ export default function Authenticated() {
     }
   }, [
     tenant?.metadata.id,
-    userQuery.data,
+    currentUser,
     invitesQuery.data,
     listMembershipsQuery.data,
     tenant?.version,
-    userQuery.error,
+    userError,
     navigate,
     lastTenant,
     pathname,
@@ -197,18 +189,18 @@ export default function Authenticated() {
   ]);
 
   useEffect(() => {
-    if (userQuery.error && !isAuthPage) {
+    if (userError && !isAuthPage) {
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
     }
-  }, [isAuthPage, navigate, userQuery.error]);
+  }, [isAuthPage, navigate, userError]);
 
   return (
-    <PostHogProvider user={userQuery.data}>
-      <SupportChat user={userQuery.data}>
+    <PostHogProvider user={currentUser}>
+      <SupportChat user={currentUser}>
         <AppLayout
           header={
             <TopNav
-              user={userQuery.data}
+              user={currentUser}
               tenantMemberships={listMembershipsQuery.data?.rows || []}
             />
           }
