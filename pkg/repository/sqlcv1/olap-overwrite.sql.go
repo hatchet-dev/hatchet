@@ -460,6 +460,7 @@ type CutoverOLAPPayloadToInsert struct {
 	ExternalID          pgtype.UUID
 	ExternalLocationKey string
 	InlineContent       []byte
+	Location            V1PayloadLocationOlap
 }
 
 type InsertCutOverOLAPPayloadsIntoTempTableRow struct {
@@ -480,7 +481,7 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 		externalIds = append(externalIds, payload.ExternalID)
 		tenantIds = append(tenantIds, payload.TenantID)
 		insertedAts = append(insertedAts, payload.InsertedAt)
-		locations = append(locations, string(V1PayloadLocationOlapEXTERNAL))
+		locations = append(locations, string(payload.Location))
 		externalLocationKeys = append(externalLocationKeys, string(payload.ExternalLocationKey))
 		inlineContents = append(inlineContents, payload.InlineContent)
 	}

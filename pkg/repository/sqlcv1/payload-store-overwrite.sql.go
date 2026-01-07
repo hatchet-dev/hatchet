@@ -15,6 +15,7 @@ type CutoverPayloadToInsert struct {
 	Type                V1PayloadType
 	ExternalLocationKey string
 	InlineContent       []byte
+	Location            V1PayloadLocation
 }
 
 type InsertCutOverPayloadsIntoTempTableRow struct {
