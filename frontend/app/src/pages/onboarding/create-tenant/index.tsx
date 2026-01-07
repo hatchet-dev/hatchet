@@ -1,3 +1,4 @@
+import { HeroPanel } from '../../auth/components/hero-panel';
 import useCloud from '../../auth/hooks/use-cloud';
 import { TenantCreateForm } from './components/tenant-create-form';
 import { OnboardingFormData } from './types';
@@ -184,74 +185,83 @@ export default function CreateTenant() {
   };
 
   return (
-    <div className="flex min-h-full w-full flex-col items-center justify-center p-4">
-      <div className="w-full max-w-[450px] space-y-6">
-        <div className="flex flex-col space-y-2 text-center">
-          <div className="flex items-center justify-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Create a new tenant
-            </h1>
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" className="inline-flex">
-                    <QuestionMarkCircleIcon className="h-5 w-5 text-muted-foreground cursor-help" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    A tenant is an isolated environment for your data and
-                    workflows.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <div className="space-y-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowHelp(!showHelp)}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              Trying to join an existing tenant?
-              {showHelp ? (
-                <ChevronUpIcon className="ml-1 h-3 w-3" />
-              ) : (
-                <ChevronDownIcon className="ml-1 h-3 w-3" />
-              )}
-            </Button>
-            {showHelp && (
-              <div className="rounded-lg border bg-muted/50 p-4 text-left text-sm text-muted-foreground">
-                <p className="mb-2">
-                  If you're trying to join an existing tenant, you should not
-                  create a new one. Some reasons that you may accidentally end
-                  up here are:
-                </p>
-                <ul className="list-disc space-y-1 pl-5">
-                  <li>You're logging in with the wrong email address</li>
-                  <li>Your Hatchet account is at a different URL</li>
-                  <li>You need an invitation from a colleague</li>
-                </ul>
+    <div className="min-h-screen w-full lg:grid lg:grid-cols-2">
+      <div className="relative hidden overflow-hidden bg-muted/30 px-10 py-12 lg:flex">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent" />
+        <HeroPanel />
+      </div>
+
+      <div className="w-full overflow-y-auto">
+        <div className="flex min-h-screen w-full items-start justify-center px-4 py-10 lg:justify-start lg:px-12 lg:py-12">
+          <div className="w-full max-w-lg space-y-6">
+            <div className="flex flex-col space-y-2 text-center">
+              <div className="flex items-center justify-center gap-2">
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  Create a new tenant
+                </h1>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" className="inline-flex">
+                        <QuestionMarkCircleIcon className="h-5 w-5 text-muted-foreground cursor-help" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        A tenant is an isolated environment for your data and
+                        workflows.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
-            )}
+              <div className="space-y-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowHelp(!showHelp)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Trying to join an existing tenant?
+                  {showHelp ? (
+                    <ChevronUpIcon className="ml-1 h-3 w-3" />
+                  ) : (
+                    <ChevronDownIcon className="ml-1 h-3 w-3" />
+                  )}
+                </Button>
+                {showHelp && (
+                  <div className="rounded-lg border bg-muted/50 p-4 text-left text-sm text-muted-foreground">
+                    <p className="mb-2">
+                      If you're trying to join an existing tenant, you should
+                      not create a new one. Some reasons that you may
+                      accidentally end up here are:
+                    </p>
+                    <ul className="list-disc space-y-1 pl-5">
+                      <li>You're logging in with the wrong email address</li>
+                      <li>Your Hatchet account is at a different URL</li>
+                      <li>You need an invitation from a colleague</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <TenantCreateForm
+              value={formData.tenantData}
+              onChange={updateFormData}
+              onNext={() => handleTenantCreate(formData.tenantData)}
+              isLoading={createMutation.isPending}
+              fieldErrors={fieldErrors}
+              formData={formData}
+              setFormData={setFormData}
+              className=""
+              organizationList={organizationData}
+              selectedOrganizationId={selectedOrganizationId}
+              onOrganizationChange={setSelectedOrganizationId}
+              isCloudEnabled={isCloudEnabled}
+            />
           </div>
         </div>
-
-        <TenantCreateForm
-          value={formData.tenantData}
-          onChange={updateFormData}
-          onNext={() => handleTenantCreate(formData.tenantData)}
-          isLoading={createMutation.isPending}
-          fieldErrors={fieldErrors}
-          formData={formData}
-          setFormData={setFormData}
-          className=""
-          organizationList={organizationData}
-          selectedOrganizationId={selectedOrganizationId}
-          onOrganizationChange={setSelectedOrganizationId}
-          isCloudEnabled={isCloudEnabled}
-        />
       </div>
     </div>
   );

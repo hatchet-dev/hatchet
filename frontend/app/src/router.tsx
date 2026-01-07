@@ -100,7 +100,7 @@ const authenticatedRoute = createRoute({
 });
 
 const onboardingCreateTenantRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => rootRoute,
   path: 'onboarding/create-tenant',
   component: lazyRouteComponent(
     () => import('./pages/onboarding/create-tenant'),

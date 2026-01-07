@@ -173,9 +173,6 @@ export function TenantCreateForm({
         )}
         <div className="grid gap-2">
           <Label>Environment Type</Label>
-          <div className="text-sm text-gray-700 dark:text-gray-300">
-            You can add new tenants for different environments later.
-          </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {environmentOptions.map((option) => {
               const Icon = option.icon;
@@ -207,9 +204,12 @@ export function TenantCreateForm({
               );
             })}
           </div>
+          <div className="text-xs text-gray-700 dark:text-gray-300">
+            You can add new tenants for different environments later.
+          </div>
         </div>
 
-        <div className="grid gap-2">
+        <div className="grid gap-3">
           <Label htmlFor="email">Email</Label>
           <Input
             id="email"
@@ -222,8 +222,8 @@ export function TenantCreateForm({
           />
         </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="name">Name</Label>
+        <div className="grid gap-3">
+          <Label htmlFor="name">Tenant name</Label>
           <Input
             {...register('name')}
             id="name"
@@ -241,10 +241,21 @@ export function TenantCreateForm({
               });
             }}
           />
-          <div className="text-sm text-gray-700 dark:text-gray-300">
+          <div className="text-xs text-gray-700 dark:text-gray-300">
             You can always rename your tenant later.
           </div>
           {nameError && <div className="text-sm text-red-500">{nameError}</div>}
+        </div>
+
+        <div className="grid gap-3">
+          <Label htmlFor="name">Where did you hear about us? (optional)</Label>
+          <Input
+            id="referral_source"
+            placeholder="e.g. Twitter, LinkedIn, etc."
+            type="text"
+            autoCapitalize="none"
+            autoCorrect="off"
+          />
         </div>
 
         {/* Summary Section */}
@@ -290,6 +301,29 @@ export function TenantCreateForm({
             'Create Tenant'
           )}
         </Button>
+
+        {/* Help Section */}
+        <div className="text-center text-sm text-muted-foreground">
+          Have questions?{' '}
+          <a
+            href="https://docs.hatchet.run"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            Visit documentation
+          </a>{' '}
+          or{' '}
+          <a
+            href="https://discord.gg/ZMeUafwH89"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            join our Discord
+          </a>
+          .
+        </div>
       </div>
     </div>
   );
