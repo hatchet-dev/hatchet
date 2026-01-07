@@ -2998,6 +2998,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			InsertedAt:          payload.InsertedAt,
 			ExternalID:          sqlchelpers.UUIDFromStr(string(externalId)),
 			ExternalLocationKey: string(key),
+			Location:            sqlcv1.V1PayloadLocationOlapEXTERNAL,
 		})
 	}
 
@@ -3243,16 +3244,17 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 			return fmt.Errorf("failed to diff source and target partitions: %w", err)
 		}
 
-		missingPayloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, len(missingRows))
+		missingPayloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, 0, len(missingRows))
 
-		for i, p := range missingRows {
-			missingPayloadsToInsert[i] = sqlcv1.CutoverOLAPPayloadToInsert{
+		for _, p := range missingRows {
+			missingPayloadsToInsert = append(missingPayloadsToInsert, sqlcv1.CutoverOLAPPayloadToInsert{
 				TenantID:            p.TenantID,
 				InsertedAt:          p.InsertedAt,
 				ExternalID:          p.ExternalID,
 				ExternalLocationKey: p.ExternalLocationKey,
 				InlineContent:       p.InlineContent,
-			}
+				Location:            p.Location,
+			})
 		}
 
 		_, err = sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, p.pool, tempPartitionName, missingPayloadsToInsert)
