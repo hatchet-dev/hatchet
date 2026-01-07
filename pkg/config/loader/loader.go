@@ -40,6 +40,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -483,6 +485,51 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	} else {
 		analyticsEmitter = analytics.NoOpAnalytics{}
 	}
+
+	// Register analytics callbacks for user and tenant creation
+	dc.V1.User().RegisterCreateCallback(func(opts *repov1.UserCreateCallbackOpts) error {
+		// Determine provider from opts
+		provider := "basic"
+		if opts.CreateOpts.OAuth != nil {
+			provider = opts.CreateOpts.OAuth.Provider
+		}
+
+		analyticsEmitter.Enqueue(
+			"user:create",
+			sqlchelpers.UUIDToStr(opts.ID),
+			nil,
+			map[string]interface{}{
+				"email":    opts.Email,
+				"name":     opts.Name.String,
+				"provider": provider,
+			},
+			nil,
+		)
+		return nil
+	})
+
+	dc.V1.Tenant().RegisterCreateCallback(func(tenant *sqlcv1.Tenant) error {
+		tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+		analyticsEmitter.Tenant(tenantId, map[string]interface{}{
+			"name": tenant.Name,
+			"slug": tenant.Slug,
+		})
+
+		analyticsEmitter.Enqueue(
+			"tenant:create",
+			"system",
+			&tenantId,
+			map[string]interface{}{
+				"tenant_created": true,
+			},
+			map[string]interface{}{
+				"name": tenant.Name,
+				"slug": tenant.Slug,
+			},
+		)
+		return nil
+	})
 
 	var pylon server.PylonConfig
 

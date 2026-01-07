@@ -629,6 +629,6 @@ func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, ten
 	return row[0], nil
 }
 
-func (r *workflowScheduleRepository) DeleteInvalidCron(ctx context.Context, id pgtype.UUID) error {
-	return r.queries.DeleteWorkflowTriggerCronRef(ctx, r.pool, id)
+func (w *workflowScheduleRepository) DeleteInvalidCron(ctx context.Context, id pgtype.UUID) error {
+	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, id)
 }

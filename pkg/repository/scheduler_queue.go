@@ -515,7 +515,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 		if limitValue >= 0 {
 			upsertRateLimitBulkParams.Keys = append(upsertRateLimitBulkParams.Keys, key)
 			upsertRateLimitBulkParams.Windows = append(upsertRateLimitBulkParams.Windows, getWindowParamFromDurString(duration))
-			upsertRateLimitBulkParams.Limitvalues = append(upsertRateLimitBulkParams.Limitvalues, int32(limitValue))
+			upsertRateLimitBulkParams.Limitvalues = append(upsertRateLimitBulkParams.Limitvalues, int32(limitValue)) // nolint: gosec
 		}
 	}
 

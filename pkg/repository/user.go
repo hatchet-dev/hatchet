@@ -41,8 +41,14 @@ type UpdateUserOpts struct {
 	OAuth    *OAuthOpts `validate:"omitempty,required_without=Password,excluded_with=Password"`
 }
 
+type UserCreateCallbackOpts struct {
+	*sqlcv1.User
+
+	CreateOpts *CreateUserOpts
+}
+
 type UserRepository interface {
-	RegisterCreateCallback(callback UnscopedCallback[*sqlcv1.User])
+	RegisterCreateCallback(callback UnscopedCallback[*UserCreateCallbackOpts])
 
 	// GetUserByID returns the user with the given id
 	GetUserByID(ctx context.Context, id string) (*sqlcv1.User, error)
@@ -91,7 +97,7 @@ func VerifyPassword(hashedPW, candidate string) (bool, error) {
 type userRepository struct {
 	*sharedRepository
 
-	createCallbacks []UnscopedCallback[*sqlcv1.User]
+	createCallbacks []UnscopedCallback[*UserCreateCallbackOpts]
 }
 
 func newUserRepository(shared *sharedRepository) UserRepository {
@@ -100,9 +106,9 @@ func newUserRepository(shared *sharedRepository) UserRepository {
 	}
 }
 
-func (r *userRepository) RegisterCreateCallback(callback UnscopedCallback[*sqlcv1.User]) {
+func (r *userRepository) RegisterCreateCallback(callback UnscopedCallback[*UserCreateCallbackOpts]) {
 	if r.createCallbacks == nil {
-		r.createCallbacks = make([]UnscopedCallback[*sqlcv1.User], 0)
+		r.createCallbacks = make([]UnscopedCallback[*UserCreateCallbackOpts], 0)
 	}
 
 	r.createCallbacks = append(r.createCallbacks, callback)
@@ -192,7 +198,10 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 	}
 
 	for _, cb := range r.createCallbacks {
-		cb.Do(r.l, user)
+		cb.Do(r.l, &UserCreateCallbackOpts{
+			User:       user,
+			CreateOpts: opts,
+		})
 	}
 
 	return user, nil
