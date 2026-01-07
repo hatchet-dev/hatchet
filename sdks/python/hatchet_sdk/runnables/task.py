@@ -49,7 +49,7 @@ from hatchet_sdk.runnables.types import (
     StepType,
     TaskIOValidator,
     TWorkflowInput,
-    TWorkflowInput_cov,
+    TWorkflowInput_contra,
     is_async_fn,
     is_sync_fn,
     normalize_validator,
@@ -80,9 +80,9 @@ def is_sync_context_manager(obj: Any) -> TypeGuard[AbstractContextManager[Any]]:
     return hasattr(obj, "__enter__") and hasattr(obj, "__exit__")
 
 
-class DependencyFunc(Protocol[T_co, TWorkflowInput_cov]):
+class DependencyFunc(Protocol[T_co, TWorkflowInput_contra]):
     def __call__(
-        self, input: TWorkflowInput_cov, ctx: Context, *args: Any, **kwargs: Any
+        self, input: TWorkflowInput_contra, ctx: Context, *args: Any, **kwargs: Any
     ) -> (
         T_co
         | CoroutineLike[T_co]

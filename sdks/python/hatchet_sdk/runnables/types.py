@@ -71,8 +71,8 @@ class ConcurrencyExpression(BaseModel):
 _TWorkflowInputBound: TypeAlias = BaseModel | DataclassInstance | dict[str, Any]
 TWorkflowInput = TypeVar("TWorkflowInput", bound=_TWorkflowInputBound)
 
-TWorkflowInput_cov = TypeVar(
-    "TWorkflowInput_cov", bound=_TWorkflowInputBound, contravariant=True
+TWorkflowInput_contra = TypeVar(
+    "TWorkflowInput_contra", bound=_TWorkflowInputBound, contravariant=True
 )
 
 
