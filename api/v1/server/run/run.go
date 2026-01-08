@@ -335,7 +335,8 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		return nil, "", fmt.Errorf("deprecated: use 'v1-workflow-run' getter with parent tenant id")
+		config.Logger.Error().Msgf("deprecated call to workflow-run with parent id %s and id %s: use 'v1-workflow-run' getter with parent tenant id", parentId, id)
+		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "This endpoint is deprecated.")
 	})
 
 	populatorMW.RegisterGetter("scheduled-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -367,7 +368,8 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		return nil, "", fmt.Errorf("deprecated: use 'v1-task' getter with parent tenant id")
+		config.Logger.Error().Msgf("deprecated call to step-run with parent id %s and id %s: use 'v1-task' getter with parent tenant id", parentId, id)
+		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "This endpoint is deprecated.")
 	})
 
 	populatorMW.RegisterGetter("event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -432,7 +434,8 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		return nil, "", fmt.Errorf("deprecated: do not use")
+		config.Logger.Error().Msgf("deprecated call to webhook with parent id %s and id %s: do not use", parentId, id)
+		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "This endpoint is deprecated.")
 	})
 
 	populatorMW.RegisterGetter("task", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
