@@ -110,13 +110,12 @@ WITH lookup_rows AS (
         t.parent_task_id,
         t.child_index,
         t.child_key,
-        d.external_id AS workflow_run_external_id
+        t.step_readable_id,
+        l.external_id AS workflow_run_external_id
     FROM
         lookup_rows l
     JOIN
-        v1_dag d ON d.id = l.dag_id AND d.inserted_at = l.inserted_at
-    JOIN
-        v1_dag_to_task dt ON dt.dag_id = d.id AND dt.dag_inserted_at = d.inserted_at
+        v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
     JOIN
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     WHERE
@@ -135,6 +134,7 @@ SELECT
     t.parent_task_id,
     t.child_index,
     t.child_key,
+    t.step_readable_id,
     t.external_id AS workflow_run_external_id
 FROM
     lookup_rows l
@@ -1149,4 +1149,25 @@ WHERE s.schemaname = 'public'
     AND c.relispartition = true
     AND c.relkind = 'r'
 ORDER BY s.last_autovacuum ASC NULLS LAST
+;
+
+-- name: ListTaskRunningStatuses :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@taskRetryCounts::integer[]) AS task_retry_count
+)
+
+SELECT
+    t.external_id,
+    (tr.task_id IS NOT NULL)::BOOLEAN AS is_running
+FROM v1_task t
+LEFT JOIN v1_task_runtime tr ON (t.id, t.inserted_at, t.retry_count) = (tr.task_id, tr.task_inserted_at, tr.retry_count)
+WHERE
+    t.tenant_id = @tenantId::uuid
+    AND (t.id, t.inserted_at, t.retry_count) IN (
+        SELECT task_id, task_inserted_at, task_retry_count
+        FROM inputs
+    )
 ;

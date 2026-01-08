@@ -26,6 +26,7 @@ type AdminServiceClient interface {
 	CancelTasks(ctx context.Context, in *CancelTasksRequest, opts ...grpc.CallOption) (*CancelTasksResponse, error)
 	ReplayTasks(ctx context.Context, in *ReplayTasksRequest, opts ...grpc.CallOption) (*ReplayTasksResponse, error)
 	TriggerWorkflowRun(ctx context.Context, in *TriggerWorkflowRunRequest, opts ...grpc.CallOption) (*TriggerWorkflowRunResponse, error)
+	GetRunDetails(ctx context.Context, in *GetRunDetailsRequest, opts ...grpc.CallOption) (*GetRunDetailsResponse, error)
 }
 
 type adminServiceClient struct {
@@ -72,6 +73,15 @@ func (c *adminServiceClient) TriggerWorkflowRun(ctx context.Context, in *Trigger
 	return out, nil
 }
 
+func (c *adminServiceClient) GetRunDetails(ctx context.Context, in *GetRunDetailsRequest, opts ...grpc.CallOption) (*GetRunDetailsResponse, error) {
+	out := new(GetRunDetailsResponse)
+	err := c.cc.Invoke(ctx, "/v1.AdminService/GetRunDetails", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AdminServiceServer is the server API for AdminService service.
 // All implementations must embed UnimplementedAdminServiceServer
 // for forward compatibility
@@ -80,6 +90,7 @@ type AdminServiceServer interface {
 	CancelTasks(context.Context, *CancelTasksRequest) (*CancelTasksResponse, error)
 	ReplayTasks(context.Context, *ReplayTasksRequest) (*ReplayTasksResponse, error)
 	TriggerWorkflowRun(context.Context, *TriggerWorkflowRunRequest) (*TriggerWorkflowRunResponse, error)
+	GetRunDetails(context.Context, *GetRunDetailsRequest) (*GetRunDetailsResponse, error)
 	mustEmbedUnimplementedAdminServiceServer()
 }
 
@@ -98,6 +109,9 @@ func (UnimplementedAdminServiceServer) ReplayTasks(context.Context, *ReplayTasks
 }
 func (UnimplementedAdminServiceServer) TriggerWorkflowRun(context.Context, *TriggerWorkflowRunRequest) (*TriggerWorkflowRunResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TriggerWorkflowRun not implemented")
+}
+func (UnimplementedAdminServiceServer) GetRunDetails(context.Context, *GetRunDetailsRequest) (*GetRunDetailsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRunDetails not implemented")
 }
 func (UnimplementedAdminServiceServer) mustEmbedUnimplementedAdminServiceServer() {}
 
@@ -184,6 +198,24 @@ func _AdminService_TriggerWorkflowRun_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_GetRunDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRunDetailsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).GetRunDetails(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.AdminService/GetRunDetails",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).GetRunDetails(ctx, req.(*GetRunDetailsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AdminService_ServiceDesc is the grpc.ServiceDesc for AdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -206,6 +238,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TriggerWorkflowRun",
 			Handler:    _AdminService_TriggerWorkflowRun_Handler,
+		},
+		{
+			MethodName: "GetRunDetails",
+			Handler:    _AdminService_GetRunDetails_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
