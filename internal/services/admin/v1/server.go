@@ -425,7 +425,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 	}
 
 	if details == nil {
-		return &contracts.GetRunDetailsResponse{}, nil
+		return nil, status.Error(codes.NotFound, "workflow run not found")
 	}
 
 	taskRunDetails := make(map[string]*contracts.TaskRunDetail)
