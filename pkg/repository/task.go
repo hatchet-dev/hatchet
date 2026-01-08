@@ -357,7 +357,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	for _, partition := range partitions {
-		r.l.Warn().Msgf("detaching partition %s", partition.PartitionName)
+		r.l.Debug().Msgf("detaching partition %s", partition.PartitionName)
 
 		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.pool, r.l, 30*60*1000) // 30 minutes
 

@@ -617,6 +617,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			ExternalID:          sqlchelpers.UUIDFromStr(string(externalId)),
 			Type:                meta.Type,
 			ExternalLocationKey: string(key),
+			Location:            sqlcv1.V1PayloadLocationEXTERNAL,
 		})
 	}
 
@@ -881,10 +882,10 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 			return fmt.Errorf("failed to diff source and target partitions: %w", err)
 		}
 
-		missingPayloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, len(missingRows))
+		missingPayloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, len(missingRows))
 
-		for i, p := range missingRows {
-			missingPayloadsToInsert[i] = sqlcv1.CutoverPayloadToInsert{
+		for _, p := range missingRows {
+			missingPayloadsToInsert = append(missingPayloadsToInsert, sqlcv1.CutoverPayloadToInsert{
 				TenantID:            p.TenantID,
 				ID:                  p.ID,
 				InsertedAt:          p.InsertedAt,
@@ -892,7 +893,8 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 				Type:                p.Type,
 				ExternalLocationKey: p.ExternalLocationKey,
 				InlineContent:       p.InlineContent,
-			}
+				Location:            p.Location,
+			})
 		}
 
 		_, err = sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, conn, tempPartitionName, missingPayloadsToInsert)
