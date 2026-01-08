@@ -67,9 +67,26 @@ export function sideNavItems(opts: {
 
   return [
     {
+      key: 'overview',
+      title: '',
+      itemsClassName: 'flex flex-col gap-y-1',
+      items: [
+        {
+          key: 'overview',
+          name: 'Overview',
+          to: appRoutes.tenantOverviewRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <Squares2X2Icon
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+      ],
+    },
+    {
       key: 'activity',
       title: 'Activity',
-      itemsClassName: 'flex flex-col gap-y-1',
+      itemsClassName: 'space-y-1',
       items: [
         {
           key: 'runs',

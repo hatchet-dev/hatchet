@@ -254,6 +254,15 @@ const tenantWorkflowRoute = createRoute({
   ),
 });
 
+const tenantOverviewRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'overview',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/overview/index.tsx'),
+    'default',
+  ),
+});
+
 const tenantRunsRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'runs',
@@ -538,6 +547,7 @@ const tenantRoutes = [
   tenantCronJobsRoute,
   tenantWorkflowsRoute,
   tenantWorkflowRoute,
+  tenantOverviewRoute,
   tenantRunsRoute,
   tenantRunRoute,
   tenantTaskRunsRoute,
@@ -610,6 +620,7 @@ export const appRoutes = {
   tenantCronJobsRoute,
   tenantWorkflowsRoute,
   tenantWorkflowRoute,
+  tenantOverviewRoute,
   tenantRunsRoute,
   tenantRunRoute,
   tenantTaskRunsRoute,
