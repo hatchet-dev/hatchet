@@ -361,6 +361,10 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	bodySize := len(body)
 
 	if bodySize > t.maxPayloadSize {
+		if len(msg.Payloads) == 1 {
+			return fmt.Errorf("message payload size %d exceeds maximum allowed size of %d bytes", bodySize, t.maxPayloadSize)
+		}
+
 		// split the payload in half each time
 		// can change this value to configure the number of chunks we split the payload
 		// into. more chunks means more messages published, but a smaller likelihood of needing
