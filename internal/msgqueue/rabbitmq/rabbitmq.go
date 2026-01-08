@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
@@ -360,6 +361,30 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	bodySize := len(body)
 
 	if bodySize > t.maxPayloadSize {
+		eg := errgroup.Group{}
+
+		numChunks := 2
+		payloadsPerChunk := len(msg.Payloads) / numChunks
+
+		for i := range numChunks {
+			payloads := msg.Payloads[i*payloadsPerChunk : (i+1)*payloadsPerChunk]
+			eg.Go(func() error {
+				// recursively call pubMessage with the chunked payloads
+				// if the payload chunks are still too large, this will continue to split them
+				// until they are under the max size
+				return t.pubMessage(ctx, q, &msgqueue.Message{
+					ID:                msg.ID,
+					Payloads:          payloads,
+					TenantID:          msg.TenantID,
+					ImmediatelyExpire: msg.ImmediatelyExpire,
+					Persistent:        msg.Persistent,
+					OtelCarrier:       msg.OtelCarrier,
+					Retries:           msg.Retries,
+					Compressed:        msg.Compressed,
+				})
+			})
+		}
+
 		err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", bodySize, t.maxPayloadSize)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "message size exceeds maximum allowed size")
