@@ -4042,7 +4042,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		status, err := statusutils.V1RunStatusFromEventType(event.EventType)
 
 		if err != nil {
-			r.l.Warn().Msgf("failed to parse event type %s: %v", event.EventType, err)
+			r.l.Error().Msgf("failed to parse event type %s: %v", event.EventType, err)
 			statusPtr := statusutils.V1RunStatusQueued
 			status = &statusPtr
 		}
