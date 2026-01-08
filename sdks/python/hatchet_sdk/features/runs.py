@@ -858,3 +858,6 @@ class RunsClient(BaseRestClient):
 
     def get_details(self, external_id: str) -> WorkflowRunDetail:
         return self.admin_client.get_details(external_id=external_id)
+
+    async def aio_get_details(self, external_id: str) -> WorkflowRunDetail:
+        return await asyncio.to_thread(self.admin_client.get_details, external_id)
