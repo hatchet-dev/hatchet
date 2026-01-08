@@ -6,7 +6,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/listutils"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type V1RunStatus string
