@@ -464,10 +464,11 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 	}
 
 	return &contracts.GetRunDetailsResponse{
-		Input:    details.InputPayload,
-		TaskRuns: taskRunDetails,
-		Status:   *derivedStatusPtr,
-		Done:     done,
+		Input:              details.InputPayload,
+		AdditionalMetadata: details.AdditionalMetadata,
+		TaskRuns:           taskRunDetails,
+		Status:             *derivedStatusPtr,
+		Done:               done,
 	}, nil
 }
 
