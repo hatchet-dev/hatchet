@@ -24,6 +24,30 @@ var (
 	SuccessColor   = lipgloss.AdaptiveColor{Light: "#3392FF", Dark: "#3392FF"}
 	HighlightColor = lipgloss.AdaptiveColor{Light: "#BC46DD", Dark: "#BC46DD"}
 	MutedColor     = lipgloss.AdaptiveColor{Light: "#A5C5E9", Dark: "#A5C5E9"}
+
+	// Status colors - matching frontend badge variants
+	// Successful: green-300/green-800 with green-500/20 background
+	StatusSuccessColor = lipgloss.AdaptiveColor{Light: "#166534", Dark: "#86efac"}
+	StatusSuccessBg    = lipgloss.AdaptiveColor{Light: "#22c55e33", Dark: "#22c55e33"} // green-500/20
+
+	// Failed: red-300/red-800 with red-500/20 background
+	StatusFailedColor = lipgloss.AdaptiveColor{Light: "#991b1b", Dark: "#fca5a5"}
+	StatusFailedBg    = lipgloss.AdaptiveColor{Light: "#ef444433", Dark: "#ef444433"} // red-500/20
+
+	// In Progress: yellow-300/yellow-800 with yellow-500/20 background
+	StatusInProgressColor = lipgloss.AdaptiveColor{Light: "#854d0e", Dark: "#fde047"}
+	StatusInProgressBg    = lipgloss.AdaptiveColor{Light: "#eab30833", Dark: "#eab30833"} // yellow-500/20
+
+	// Queued: slate-300/slate-800 with slate-500/20 background
+	StatusQueuedColor = lipgloss.AdaptiveColor{Light: "#1e293b", Dark: "#cbd5e1"}
+	StatusQueuedBg    = lipgloss.AdaptiveColor{Light: "#64748b33", Dark: "#64748b33"} // slate-500/20
+
+	// Cancelled: orange-300/orange-800 with orange-500/20 background
+	StatusCancelledColor = lipgloss.AdaptiveColor{Light: "#9a3412", Dark: "#fdba74"}
+	StatusCancelledBg    = lipgloss.AdaptiveColor{Light: "#f9731633", Dark: "#f9731633"} // orange-500/20
+
+	// Error color for general errors
+	ErrorColor = lipgloss.AdaptiveColor{Light: "#dc2626", Dark: "#ff5555"}
 )
 
 // Common styles
