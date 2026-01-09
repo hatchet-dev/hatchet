@@ -56,11 +56,6 @@ export function sideNavItems(opts: {
       name: 'Ingestors',
       to: appRoutes.tenantSettingsIngestorsRoute.to,
     },
-    {
-      key: 'quickstart',
-      name: 'Quickstart',
-      to: appRoutes.tenantOnboardingGetStartedRoute.to,
-    },
   ];
 
   // TODO-DESIGN update icons

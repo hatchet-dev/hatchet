@@ -8,12 +8,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { useTenantDetails } from '@/hooks/use-tenant';
 import { cn } from '@/lib/utils';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
-import { appRoutes } from '@/router';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
-import { useNavigate } from '@tanstack/react-router';
 import React, { useState } from 'react';
 import {
   BiHelpCircle,
@@ -21,12 +18,9 @@ import {
   BiCalendar,
   BiChat,
   BiLogoDiscordAlt,
-  BiSolidGraduation,
 } from 'react-icons/bi';
 
 function HelpDropdownItems({ includeChat = true }: { includeChat?: boolean }) {
-  const navigate = useNavigate();
-  const { tenant } = useTenantDetails();
   const pylon = usePylon();
 
   return (
@@ -66,22 +60,6 @@ function HelpDropdownItems({ includeChat = true }: { includeChat?: boolean }) {
           <BiCalendar className="mr-2" />
           Schedule Office Hours
         </a>
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        variant="interactive"
-        onClick={() => {
-          if (!tenant) {
-            return;
-          }
-
-          navigate({
-            to: appRoutes.tenantOnboardingGetStartedRoute.to,
-            params: { tenant: tenant.metadata.id },
-          });
-        }}
-      >
-        <BiSolidGraduation className="mr-2" />
-        Restart Tutorial
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem variant="static">

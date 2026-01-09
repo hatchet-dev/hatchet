@@ -9,6 +9,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
+import { useAnalytics } from '@/hooks/use-analytics';
 import { useOrganizations } from '@/hooks/use-organizations';
 import api, {
   CreateTenantRequest,
@@ -35,8 +36,14 @@ export default function CreateTenant() {
   const { organizationData, isCloudEnabled } = useOrganizations();
   const { cloud } = useCloud();
   const [showHelp, setShowHelp] = useState(false);
+  const { capture } = useAnalytics();
 
   const organizationId = searchParams.get('organizationId');
+
+  // Track page view
+  useEffect(() => {
+    capture('onboarding_create_tenant_viewed');
+  }, [capture]);
 
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<
     string | null
@@ -102,11 +109,17 @@ export default function CreateTenant() {
     onSuccess: async (result) => {
       await listMembershipsQuery.refetch();
 
+      // Track tenant creation
+      capture('onboarding_tenant_created', {
+        tenant_type: result.type,
+        is_cloud: result.type === 'cloud',
+      });
+
       setTimeout(() => {
         if (result.type === 'cloud') {
           const tenant = result.data as OrganizationTenant;
           navigate({
-            to: appRoutes.tenantOnboardingGetStartedRoute.to,
+            to: appRoutes.tenantRunsRoute.to,
             params: { tenant: tenant.id },
           });
           return;
@@ -114,7 +127,7 @@ export default function CreateTenant() {
 
         const tenant = result.data as Tenant;
         navigate({
-          to: appRoutes.tenantOnboardingGetStartedRoute.to,
+          to: appRoutes.tenantRunsRoute.to,
           params: { tenant: tenant.metadata.id },
         });
       }, 0);

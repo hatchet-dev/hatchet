@@ -60,14 +60,10 @@ export default function Authenticated() {
   const isOnboardingCreateTenantPage = Boolean(
     matchRoute({ to: appRoutes.onboardingCreateTenantRoute.to }),
   );
-  const isOnboardingGetStartedPage =
-    Boolean(matchRoute({ to: appRoutes.onboardingGetStartedRoute.to })) ||
-    Boolean(matchRoute({ to: appRoutes.tenantOnboardingGetStartedRoute.to }));
   const isOnboardingPage =
     isOnboardingVerifyEmailPage ||
     isOnboardingInvitesPage ||
-    isOnboardingCreateTenantPage ||
-    isOnboardingGetStartedPage;
+    isOnboardingCreateTenantPage;
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],

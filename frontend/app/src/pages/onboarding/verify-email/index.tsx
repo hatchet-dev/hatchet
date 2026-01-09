@@ -1,9 +1,11 @@
 import TopNav from '@/components/v1/nav/top-nav';
 import { Loading } from '@/components/v1/ui/loading';
+import { useAnalytics } from '@/hooks/use-analytics';
 import { queries } from '@/lib/api';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { redirect, useLoaderData } from '@tanstack/react-router';
+import { useEffect } from 'react';
 
 export async function loader({ request }: { request: Request }) {
   try {
@@ -33,6 +35,11 @@ export default function VerifyEmail() {
   const res = useLoaderData({
     from: appRoutes.onboardingVerifyRoute.to,
   }) as Awaited<ReturnType<typeof loader>>;
+  const { capture } = useAnalytics();
+
+  useEffect(() => {
+    capture('onboarding_verify_email_viewed');
+  }, [capture]);
 
   if (!res?.user) {
     return <Loading />;

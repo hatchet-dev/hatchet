@@ -108,15 +108,6 @@ const onboardingCreateTenantRoute = createRoute({
   ),
 });
 
-const onboardingGetStartedRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
-  path: 'onboarding/get-started',
-  component: lazyRouteComponent(
-    () => import('./pages/onboarding/get-started'),
-    'default',
-  ),
-});
-
 const onboardingInvitesRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'onboarding/invites',
@@ -425,15 +416,6 @@ const tenantSettingsIngestorsRoute = createRoute({
   ),
 });
 
-const tenantOnboardingGetStartedRoute = createRoute({
-  getParentRoute: () => tenantRoute,
-  path: 'onboarding/get-started',
-  component: lazyRouteComponent(
-    () => import('./pages/onboarding/get-started'),
-    'default',
-  ),
-});
-
 const tenantWorkflowRunsRedirectRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'workflow-runs',
@@ -566,7 +548,6 @@ const tenantRoutes = [
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
   tenantSettingsIngestorsRoute,
-  tenantOnboardingGetStartedRoute,
   tenantWorkflowRunsRedirectRoute,
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,
@@ -579,7 +560,6 @@ const routeTree = rootRoute.addChildren([
   organizationsRoute,
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
-    onboardingGetStartedRoute,
     onboardingInvitesRoute,
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
   ]),
@@ -609,7 +589,6 @@ export const appRoutes = {
   organizationsRoute,
   authenticatedRoute,
   onboardingCreateTenantRoute,
-  onboardingGetStartedRoute,
   onboardingInvitesRoute,
   tenantRoute,
   tenantEventsRoute,
@@ -639,7 +618,6 @@ export const appRoutes = {
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
   tenantSettingsIngestorsRoute,
-  tenantOnboardingGetStartedRoute,
   tenantWorkflowRunsRedirectRoute,
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,
