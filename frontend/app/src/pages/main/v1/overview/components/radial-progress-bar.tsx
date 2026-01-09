@@ -13,10 +13,10 @@ export const RadialProgressBar = ({
   const scale = size / 120;
   const center = size / 2;
   const radius = 54 * scale;
-  const strokeWidth = 2;
+  const strokeWidth = Math.min(Math.max(8 * scale, 2), 3.5);
 
   // Absolute gap size in pixels (scaled) - this stays constant regardless of step count
-  const gapSize = 16 * scale; // Gap size in pixels
+  const gapSize = Math.min(16 * scale, 6); // Gap size in pixels
   const gapAngle = gapSize / radius; // Convert to angle in radians
 
   // Function to create an arc path for a single segment

@@ -17,7 +17,7 @@ export const OnboardingWidget = ({
   return (
     <div
       className={cn(
-        'inline-flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-1.5 text-sm',
+        'inline-flex items-center gap-2 rounded-full border bg-muted/50 px-3 py-1.5 text-sm',
         className,
       )}
     >
@@ -25,7 +25,6 @@ export const OnboardingWidget = ({
       <span className="text-xs text-muted-foreground/70">
         {currentStep} of {steps}
       </span>
-
       <div className="grid [grid-template-columns:1fr] place-items-center">
         <div className="[grid-area:1/1]">
           <RadialProgressBar steps={steps} currentStep={currentStep} />
