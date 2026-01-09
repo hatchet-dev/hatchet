@@ -75,7 +75,7 @@ export default function Overview() {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="default"
                   className="flex justify-between data-[state=open]:bg-muted"
                 >
                   Expires In{' '}
