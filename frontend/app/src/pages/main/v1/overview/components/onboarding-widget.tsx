@@ -17,7 +17,7 @@ export const OnboardingWidget = ({
   return (
     <div
       className={cn(
-        'inline-flex items-center gap-2 rounded-full ring-1 ring-border/70 bg-background dark:bg-[#050A23] shadow-sm px-3 py-1.5 pl-1.5 text-sm',
+        'inline-flex items-center gap-2 rounded-full ring-1 ring-border/70 bg-background dark:bg-[#050A23] shadow-sm px-3.5 py-1 pl-1 text-sm',
         className,
       )}
     >

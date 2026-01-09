@@ -13,7 +13,7 @@ export const RadialProgressBar = ({
   const scale = size / 120;
   const center = size / 2;
   const radius = 54 * scale;
-  const strokeWidth = Math.min(Math.max(8 * scale, 2), 3.5);
+  const strokeWidth = Math.min(Math.max(6 * scale, 1.5), 2.5);
 
   // Absolute gap size in pixels (scaled) - this stays constant regardless of step count
   const gapSize = Math.min(16 * scale, 6); // Gap size in pixels
