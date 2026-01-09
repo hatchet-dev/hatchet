@@ -25,13 +25,15 @@ export default function Overview() {
 
   return (
     <div className="flex h-full w-full flex-col gap-12 p-6">
-      <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
         <div className="flex items-center gap-6 flex-wrap">
           <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
           <OnboardingWidget steps={4} currentStep={2} label="Steps completed" />
         </div>
-        <p className="text-sm text-muted-foreground">
-          Get a quick overview of your workflows, runs, and workers.
+        <p className="text-muted-foreground text-balance">
+          Get a quick overview of your
+          <br />
+          workflows, runs, and workers.
         </p>
       </div>
       <div>
@@ -95,7 +97,7 @@ export default function Overview() {
             </DropdownMenu>
           </div>
           <Separator orientation="vertical" />
-          <div className="grid gap-2">
+          <div className="grid gap-2 justify-self-start">
             <Button variant="default" size="sm">
               Generate Token
             </Button>

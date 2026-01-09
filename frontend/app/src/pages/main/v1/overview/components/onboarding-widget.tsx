@@ -44,7 +44,7 @@ export const OnboardingWidget = ({
         <span className="text-muted-foreground/30 mx-0.5">/</span>
         {steps}
       </span>
-      <span className="font-mono uppercase text-xs text-muted-foreground">
+      <span className="font-mono uppercase text-xs text-muted-foreground whitespace-nowrap text-ellipsis overflow-hidden max-w-40">
         {label}
       </span>
     </div>
