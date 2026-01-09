@@ -54,8 +54,7 @@ export default function Overview() {
             Onboarding step
           </span>
         </span>
-        <Separator className="my-4" />
-        <Separator className="my-4" flush />
+        <Separator className="my-4 bg-border/50" flush />
         <div className="grid gap-4 items-end grid-flow-col [grid-template-columns:1fr_1fr_auto_1fr]">
           <div className="grid gap-2">
             <Label htmlFor="name">Name</Label>

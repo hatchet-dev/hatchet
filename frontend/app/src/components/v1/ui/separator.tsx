@@ -5,6 +5,18 @@ import * as React from 'react';
 const Separator = React.forwardRef<
   React.ElementRef<typeof SeparatorPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof SeparatorPrimitive.Root> & {
+    /**
+     * When `true`, the separator will extend to the full width of its container,
+     * breaking out of any parent padding or margins. It uses container query units
+     * (cqw) so must be used within an  inline-size container.
+     *
+     * @default false
+     * @example
+     * // Use flush when the separator should span the full container width
+     * <div className="px-4 inline-size">
+     *   <Separator flush />
+     * </div>
+     */
     flush?: boolean;
   }
 >(
