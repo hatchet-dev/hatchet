@@ -41,7 +41,7 @@ function Main() {
       mainContainerType="inline-size"
     >
       {/* TODO-DESIGN: replace the color with a tailwind color */}
-      <div className="border-l border-t border-border/50 md:rounded-tl-xl p-4 h-full dark:bg-[#050A23] bg-background overflow-y-auto">
+      <div className="shadow-[inset_1px_0_0_0_hsl(var(--border)/0.5),inset_0_1px_0_0_hsl(var(--border)/0.5)] md:rounded-tl-xl p-4 h-full dark:bg-[#050A23] bg-background overflow-y-auto">
         <OutletWithContext context={childCtx} />
       </div>
     </ThreeColumnLayout>
