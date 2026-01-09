@@ -26,9 +26,9 @@ export default function Overview() {
   return (
     <div className="flex h-full w-full flex-col gap-12 p-6">
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-6 flex-wrap">
           <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-          <OnboardingWidget steps={4} currentStep={2} label="Getting Started" />
+          <OnboardingWidget steps={4} currentStep={2} label="Steps completed" />
         </div>
         <p className="text-sm text-muted-foreground">
           Get a quick overview of your workflows, runs, and workers.

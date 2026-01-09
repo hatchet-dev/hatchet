@@ -17,14 +17,10 @@ export const OnboardingWidget = ({
   return (
     <div
       className={cn(
-        'inline-flex items-center gap-2 rounded-full border bg-muted/50 px-3 py-1.5 text-sm',
+        'inline-flex items-center gap-2 rounded-full ring-1 ring-border/70 bg-background dark:bg-[#050A23] shadow-sm px-3 py-1.5 pl-1.5 text-sm',
         className,
       )}
     >
-      <span className="font-medium text-muted-foreground">{label}</span>
-      <span className="text-xs text-muted-foreground/70">
-        {currentStep} of {steps}
-      </span>
       <div className="grid [grid-template-columns:1fr] place-items-center">
         <div className="[grid-area:1/1]">
           <RadialProgressBar steps={steps} currentStep={currentStep} />
@@ -42,7 +38,15 @@ export const OnboardingWidget = ({
             fill="hsl(var(--brand))"
           />
         </svg>
-      </div>
+      </div>{' '}
+      <span className="font-mono text-xs text-muted-foreground/50">
+        {currentStep}
+        <span className="text-muted-foreground/30 mx-0.5">/</span>
+        {steps}
+      </span>
+      <span className="font-mono uppercase text-xs text-muted-foreground">
+        {label}
+      </span>
     </div>
   );
 };

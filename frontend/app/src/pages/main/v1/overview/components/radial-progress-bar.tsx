@@ -62,17 +62,24 @@ export const RadialProgressBar = ({
       viewBox={`0 0 ${size} ${size}`}
       className="relative"
     >
-      {/* Background circle - divided into segments */}
-      {arcSegments.map((segment, index) => (
-        <path
-          key={`bg-${index}`}
-          d={segment.path}
-          fill="none"
-          stroke="hsl(var(--border))"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-        />
-      ))}
+      {/* Background circle - divided into segments (only show unfilled segments) */}
+      {arcSegments.map((segment, index) => {
+        // Hide background segment if it's filled in the progress layer
+        if (segment.isCompleted || segment.isCurrent) {
+          return null;
+        }
+
+        return (
+          <path
+            key={`bg-${index}`}
+            d={segment.path}
+            fill="none"
+            stroke="hsl(var(--border))"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+        );
+      })}
 
       {/* Progress segments - only show completed and current steps */}
       {arcSegments.map((segment, index) => {
