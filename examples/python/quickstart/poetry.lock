@@ -433,14 +433,14 @@ setuptools = "*"
 
 [[package]]
 name = "hatchet-sdk"
-version = "1.22.3"
+version = "1.22.4"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "hatchet_sdk-1.22.3-py3-none-any.whl", hash = "sha256:68f5896eeb6e19d2a7bc249103ca675dd593a1f4d166a3b55410a55e02c78384"},
-    {file = "hatchet_sdk-1.22.3.tar.gz", hash = "sha256:c0c378ec8fa01e2d87590f84c5ea48b44481aa51a2b30a8dff56c8971311f5e4"},
+    {file = "hatchet_sdk-1.22.4-py3-none-any.whl", hash = "sha256:c4373396d0ae48a203a0d485f76003a1095650e465ded92bbbdb015a11bcbc27"},
+    {file = "hatchet_sdk-1.22.4.tar.gz", hash = "sha256:2ce96b436e6c35d43383d327050304d4510b6efca10b2e132334b2160bcc3673"},
 ]
 
 [package.dependencies]
@@ -1085,4 +1085,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "557386be20e3afcc4f298f9b19cd048af09d51a85ffd4a421ba80f05628c050d"
+content-hash = "bfa4d6eb6088536aebe94c6dce218911660517f4080679b97ee8d67135292f5a"
