@@ -1,3 +1,4 @@
+import { OnboardingWidget } from '@/components/v1/molecules/onboarding-widget';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -25,7 +26,10 @@ export default function Overview() {
   return (
     <div className="flex h-full w-full flex-col gap-12 p-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+          <OnboardingWidget steps={4} currentStep={2} label="Getting Started" />
+        </div>
         <p className="text-sm text-muted-foreground">
           Get a quick overview of your workflows, runs, and workers.
         </p>
