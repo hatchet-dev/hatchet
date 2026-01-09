@@ -13,13 +13,11 @@ export const RadialProgressBar = ({
   const scale = size / 120;
   const center = size / 2;
   const radius = 54 * scale;
-  const strokeWidth = 12 * scale;
-  const circumference = 2 * Math.PI * radius;
+  const strokeWidth = 2;
 
-  // Calculate gap size between segments (adjust this ratio to control gap size)
-  const gapRatio = 0.3; // 8% of each step's arc length will be a gap
-  const stepArcLength = circumference / steps;
-  const gapLength = stepArcLength * gapRatio;
+  // Absolute gap size in pixels (scaled) - this stays constant regardless of step count
+  const gapSize = 16 * scale; // Gap size in pixels
+  const gapAngle = gapSize / radius; // Convert to angle in radians
 
   // Function to create an arc path for a single segment
   const createArcPath = (startAngle: number, endAngle: number): string => {
@@ -37,12 +35,13 @@ export const RadialProgressBar = ({
   const arcSegments = Array.from({ length: steps }, (_, i) => {
     // Calculate angles for this segment
     const stepAngle = (2 * Math.PI) / steps;
-    const gapAngle = (gapLength / circumference) * 2 * Math.PI;
     const segmentAngle = stepAngle - gapAngle;
 
-    // Start angle (accounting for -90 degree rotation to start from top)
-    const startAngle = i * stepAngle - Math.PI / 2;
-    // End angle (start + segment length, minus gap)
+    // Center the segment within its allocated stepAngle space
+    // This ensures symmetry and prevents rotation offset
+    // Start angle: beginning of step + half the gap (to center the segment)
+    const startAngle = i * stepAngle - Math.PI / 2 + gapAngle / 2;
+    // End angle: start + segment length
     const endAngle = startAngle + segmentAngle;
 
     const isCompleted = i < currentStep;
