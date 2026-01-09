@@ -1,4 +1,4 @@
-import { OnboardingWidget } from '@/components/v1/molecules/onboarding-widget';
+import { OnboardingWidget } from './components/onboarding-widget';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
