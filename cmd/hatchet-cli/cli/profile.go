@@ -75,8 +75,28 @@ var profileAddCmd = &cobra.Command{
 			cli.Logger.Fatalf("could not get profile from token: %v", err)
 		}
 
+		// If name is not provided via flag, prompt for it with tenant name as default
 		if name == "" {
-			name = profile.Name
+			candidateName := profile.Name
+
+			nameForm := huh.NewForm(
+				huh.NewGroup(
+					huh.NewInput().
+						Title(fmt.Sprintf("Enter a name for this profile (default: %s)", candidateName)).
+						Placeholder(candidateName).
+						Value(&name),
+				),
+			).WithTheme(styles.HatchetTheme())
+
+			err = nameForm.Run()
+			if err != nil {
+				cli.Logger.Fatalf("could not run name input form: %v", err)
+			}
+
+			// If user leaves it empty, use the candidate name
+			if name == "" {
+				name = candidateName
+			}
 		}
 
 		err = cli.AddProfile(name, profile)
