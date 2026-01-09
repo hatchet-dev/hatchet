@@ -98,7 +98,7 @@ export default function Overview() {
           </div>
           <Separator orientation="vertical" />
           <div className="grid gap-2 justify-self-start">
-            <Button variant="default" size="sm">
+            <Button variant="default" size="default">
               Generate Token
             </Button>
           </div>
