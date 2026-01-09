@@ -15,23 +15,46 @@ export const RadialProgressBar = ({
   const radius = 54 * scale;
   const strokeWidth = 12 * scale;
   const circumference = 2 * Math.PI * radius;
-  const progress = currentStep / steps;
-  const strokeDashoffset = circumference * (1 - progress);
 
-  // Calculate step positions around the circle
-  const stepMarkers = Array.from({ length: steps }, (_, i) => {
-    const angle = (i / steps) * 2 * Math.PI - Math.PI / 2; // Start from top (-90 degrees)
-    const x = center + radius * Math.cos(angle);
-    const y = center + radius * Math.sin(angle);
+  // Calculate gap size between segments (adjust this ratio to control gap size)
+  const gapRatio = 0.3; // 8% of each step's arc length will be a gap
+  const stepArcLength = circumference / steps;
+  const gapLength = stepArcLength * gapRatio;
+
+  // Function to create an arc path for a single segment
+  const createArcPath = (startAngle: number, endAngle: number): string => {
+    const startX = center + radius * Math.cos(startAngle);
+    const startY = center + radius * Math.sin(startAngle);
+    const endX = center + radius * Math.cos(endAngle);
+    const endY = center + radius * Math.sin(endAngle);
+
+    const largeArcFlag = endAngle - startAngle > Math.PI ? 1 : 0;
+
+    return `M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${endX} ${endY}`;
+  };
+
+  // Generate arc segments for each step
+  const arcSegments = Array.from({ length: steps }, (_, i) => {
+    // Calculate angles for this segment
+    const stepAngle = (2 * Math.PI) / steps;
+    const gapAngle = (gapLength / circumference) * 2 * Math.PI;
+    const segmentAngle = stepAngle - gapAngle;
+
+    // Start angle (accounting for -90 degree rotation to start from top)
+    const startAngle = i * stepAngle - Math.PI / 2;
+    // End angle (start + segment length, minus gap)
+    const endAngle = startAngle + segmentAngle;
+
     const isCompleted = i < currentStep;
     const isCurrent = i === currentStep - 1;
-    return { x, y, isCompleted, isCurrent, stepNumber: i + 1 };
-  });
 
-  // Scale marker dot sizes
-  const markerRadiusCurrent = 6 * scale;
-  const markerRadiusCompleted = 5 * scale;
-  const markerRadiusUpcoming = 4 * scale;
+    return {
+      path: createArcPath(startAngle, endAngle),
+      isCompleted,
+      isCurrent,
+      index: i,
+    };
+  });
 
   return (
     <svg
@@ -40,54 +63,36 @@ export const RadialProgressBar = ({
       viewBox={`0 0 ${size} ${size}`}
       className="relative"
     >
-      {/* Background circle */}
-      <circle
-        cx={center}
-        cy={center}
-        r={radius}
-        fill="none"
-        stroke="hsl(var(--border))"
-        strokeWidth={strokeWidth}
-      />
-      {/* Progress circle */}
-      <circle
-        cx={center}
-        cy={center}
-        r={radius}
-        fill="none"
-        stroke="hsl(var(--brand))"
-        strokeWidth={strokeWidth}
-        strokeDasharray={circumference}
-        strokeDashoffset={strokeDashoffset}
-        strokeLinecap="round"
-        transform={`rotate(-90 ${center} ${center})`}
-        className="transition-all duration-300 ease-out"
-      />
-      {/* Step markers */}
-      {stepMarkers.map((marker, index) => (
-        <g key={index}>
-          {/* Step dot */}
-          <circle
-            cx={marker.x}
-            cy={marker.y}
-            r={
-              marker.isCurrent
-                ? markerRadiusCurrent
-                : marker.isCompleted
-                  ? markerRadiusCompleted
-                  : markerRadiusUpcoming
-            }
-            fill={
-              marker.isCurrent
-                ? 'hsl(var(--brand))'
-                : marker.isCompleted
-                  ? 'hsl(var(--brand))'
-                  : 'hsla(var(--brand), 0.5)'
-            }
-            className="transition-all duration-300"
-          />
-        </g>
+      {/* Background circle - divided into segments */}
+      {arcSegments.map((segment, index) => (
+        <path
+          key={`bg-${index}`}
+          d={segment.path}
+          fill="none"
+          stroke="hsl(var(--border))"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+        />
       ))}
+
+      {/* Progress segments - only show completed and current steps */}
+      {arcSegments.map((segment, index) => {
+        if (!segment.isCompleted && !segment.isCurrent) {
+          return null;
+        }
+
+        return (
+          <path
+            key={`progress-${index}`}
+            d={segment.path}
+            fill="none"
+            stroke="hsl(var(--brand))"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            className="transition-all duration-300 ease-out"
+          />
+        );
+      })}
     </svg>
   );
 };
