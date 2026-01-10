@@ -304,11 +304,16 @@ func (v *RunDetailsView) View() string {
 
 	var b strings.Builder
 
-	// Header with logo
-	header := RenderHeaderWithLogo(
-		fmt.Sprintf("Workflow Run Details - Profile: %s", v.Ctx.ProfileName),
-		v.Width,
-	)
+	// Header with run name/workflow name
+	title := "Run Details"
+	if v.details != nil {
+		if v.details.Run.DisplayName != "" {
+			title = fmt.Sprintf("Run Details: %s", v.details.Run.DisplayName)
+		} else if len(v.details.Tasks) > 0 && v.details.Tasks[0].WorkflowName != nil && *v.details.Tasks[0].WorkflowName != "" {
+			title = fmt.Sprintf("Run Details: %s", *v.details.Tasks[0].WorkflowName)
+		}
+	}
+	header := RenderHeader(title, v.Ctx.ProfileName, v.Width)
 	b.WriteString(header)
 	b.WriteString("\n\n")
 
@@ -322,7 +327,7 @@ func (v *RunDetailsView) View() string {
 	}
 
 	if v.Err != nil {
-		b.WriteString(RenderError(fmt.Sprintf("Error: %v", v.Err)))
+		b.WriteString(RenderError(fmt.Sprintf("Error: %v", v.Err), v.Width))
 		b.WriteString("\n")
 		return b.String()
 	}
@@ -599,9 +604,9 @@ func (v *RunDetailsView) renderTasksContent() string {
 
 	var b strings.Builder
 
-	// Header
+	// Header - using 2-char spacing for selector to match row rendering
 	headerStyle := lipgloss.NewStyle().Foreground(styles.AccentColor).Bold(true)
-	b.WriteString(headerStyle.Render(fmt.Sprintf("%-3s %-30s %-12s %-16s %-16s %-12s",
+	b.WriteString(headerStyle.Render(fmt.Sprintf("%-2s %-30s %-12s %-16s %-16s %-12s",
 		"", "TASK NAME", "STATUS", "CREATED AT", "STARTED AT", "DURATION")))
 	b.WriteString("\n")
 	b.WriteString(strings.Repeat("─", 90))

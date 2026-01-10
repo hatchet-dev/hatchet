@@ -87,6 +87,16 @@ type RunTypeDetectedMsg struct {
 // NavigateBackMsg is sent when navigating back to the tasks view
 type NavigateBackMsg struct{}
 
+// NavigateToWorkflowMsg is sent when navigating to a workflow details view
+type NavigateToWorkflowMsg struct {
+	WorkflowID string
+}
+
+// NavigateToWorkerMsg is sent when navigating to a worker details view
+type NavigateToWorkerMsg struct {
+	WorkerID string
+}
+
 // NewNavigateToRunMsg creates a navigation message to a workflow run (deprecated)
 func NewNavigateToRunMsg(workflowRunID string) tea.Cmd {
 	return func() tea.Msg {
@@ -108,9 +118,42 @@ func NewNavigateBackMsg() tea.Cmd {
 	}
 }
 
+// NewNavigateToWorkflowMsg creates a navigation message to a workflow details view
+func NewNavigateToWorkflowMsg(workflowID string) tea.Cmd {
+	return func() tea.Msg {
+		return NavigateToWorkflowMsg{WorkflowID: workflowID}
+	}
+}
+
+// NewNavigateToWorkerMsg creates a navigation message to a worker details view
+func NewNavigateToWorkerMsg(workerID string) tea.Cmd {
+	return func() tea.Msg {
+		return NavigateToWorkerMsg{WorkerID: workerID}
+	}
+}
+
 // RenderHeader renders a consistent header with logo for all views
 func RenderHeader(title string, profileName string, width int) string {
-	fullTitle := fmt.Sprintf("%s - Profile: %s", title, profileName)
+	// Apply highlight color to title for consistency
+	titleStyle := lipgloss.NewStyle().
+		Foreground(styles.HighlightColor).
+		Bold(true)
+
+	styledTitle := titleStyle.Render(title)
+	fullTitle := fmt.Sprintf("%s - Profile: %s", styledTitle, profileName)
+	return RenderHeaderWithLogo(fullTitle, width)
+}
+
+// RenderHeaderWithViewIndicator renders a header with just the view name in magenta
+// viewName is highlighted in magenta to show which primary view is active
+func RenderHeaderWithViewIndicator(viewName string, profileName string, width int) string {
+	// Create magenta-styled view name
+	viewStyle := lipgloss.NewStyle().
+		Foreground(styles.HighlightColor).
+		Bold(true)
+
+	styledViewName := viewStyle.Render(viewName)
+	fullTitle := fmt.Sprintf("%s - Profile: %s", styledViewName, profileName)
 	return RenderHeaderWithLogo(fullTitle, width)
 }
 

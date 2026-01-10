@@ -382,8 +382,8 @@ func (v *RunsListView) View() string {
 		return v.renderDebugView()
 	}
 
-	// Header with logo (using reusable component)
-	header := RenderHeader("Hatchet Tasks", v.Ctx.ProfileName, v.Width)
+	// Header with logo and view indicator (using reusable component)
+	header := RenderHeaderWithViewIndicator("Runs", v.Ctx.ProfileName, v.Width)
 
 	// Active filters display
 	filterSummary := v.renderActiveFilters()
@@ -473,7 +473,7 @@ func (v *RunsListView) View() string {
 	if v.hasMore {
 		controlItems = append(controlItems, "n: Next Page")
 	}
-	controlItems = append(controlItems, "f: Filters", "r: Refresh", "d: Debug", "q: Quit")
+	controlItems = append(controlItems, "f: Filters", "r: Refresh", "d: Debug", "h: Help", "shift+tab: Switch View", "q: Quit")
 	controls := RenderFooter(controlItems, v.Width)
 
 	// Build the full view
@@ -498,7 +498,7 @@ func (v *RunsListView) View() string {
 	b.WriteString("\n\n")
 
 	if v.Err != nil {
-		b.WriteString(RenderError(fmt.Sprintf("Error: %v", v.Err)))
+		b.WriteString(RenderError(fmt.Sprintf("Error: %v", v.Err), v.Width))
 		b.WriteString("\n")
 	}
 

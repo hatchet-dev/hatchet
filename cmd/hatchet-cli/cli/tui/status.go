@@ -94,11 +94,12 @@ func RenderV1TaskStatus(status rest.V1TaskStatus) string {
 	return badgeStyle.Render(text)
 }
 
-// RenderError renders an error message in error style
-func RenderError(message string) string {
+// RenderError renders an error message in error style with text wrapping
+func RenderError(message string, width int) string {
 	errorStyle := lipgloss.NewStyle().
 		Foreground(styles.ErrorColor).
-		Padding(0, 1)
+		Padding(0, 1).
+		Width(width - 4) // Account for padding and margins
 
 	return errorStyle.Render(message)
 }

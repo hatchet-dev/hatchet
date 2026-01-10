@@ -325,8 +325,12 @@ func (v *SingleTaskView) View() string {
 
 	var b strings.Builder
 
-	// Header with logo
-	header := RenderHeader("Task Details", v.Ctx.ProfileName, v.Width)
+	// Header with task name
+	title := "Task Details"
+	if v.task != nil {
+		title = fmt.Sprintf("Task Details: %s", v.task.DisplayName)
+	}
+	header := RenderHeader(title, v.Ctx.ProfileName, v.Width)
 	b.WriteString(header)
 	b.WriteString("\n\n")
 
@@ -340,7 +344,7 @@ func (v *SingleTaskView) View() string {
 	}
 
 	if v.Err != nil {
-		b.WriteString(RenderError(fmt.Sprintf("Error: %v", v.Err)))
+		b.WriteString(RenderError(fmt.Sprintf("Error: %v", v.Err), v.Width))
 		b.WriteString("\n")
 		return b.String()
 	}
