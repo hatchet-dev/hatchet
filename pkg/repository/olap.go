@@ -704,6 +704,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 
 	if workerId != nil {
 		params.WorkerId = sqlchelpers.UUIDFromStr(workerId.String())
+		countParams.WorkerId = sqlchelpers.UUIDFromStr(workerId.String())
 	}
 
 	for key, value := range opts.AdditionalMetadata {
