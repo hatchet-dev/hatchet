@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 )
@@ -33,6 +34,43 @@ func (t *TableWithStyleFunc) SetStyles(s table.Styles) {
 // SetStyleFunc sets the function that determines styling for each cell
 func (t *TableWithStyleFunc) SetStyleFunc(fn func(row, col int) lipgloss.Style) {
 	t.styleFunc = fn
+}
+
+// Update delegates to the underlying table model and handles all events including mouse
+func (t *TableWithStyleFunc) Update(msg interface{}) (table.Model, tea.Cmd) {
+	updatedModel, cmd := t.Model.Update(msg)
+	*t.Model = updatedModel
+	return updatedModel, cmd
+}
+
+// Cursor returns the current cursor position
+func (t *TableWithStyleFunc) Cursor() int {
+	return t.Model.Cursor()
+}
+
+// SetHeight sets the table height
+func (t *TableWithStyleFunc) SetHeight(height int) {
+	t.Model.SetHeight(height)
+}
+
+// SetRows sets the table rows
+func (t *TableWithStyleFunc) SetRows(rows []table.Row) {
+	t.Model.SetRows(rows)
+}
+
+// Rows returns the table rows
+func (t *TableWithStyleFunc) Rows() []table.Row {
+	return t.Model.Rows()
+}
+
+// Columns returns the table columns
+func (t *TableWithStyleFunc) Columns() []table.Column {
+	return t.Model.Columns()
+}
+
+// Height returns the table height
+func (t *TableWithStyleFunc) Height() int {
+	return t.Model.Height()
 }
 
 // View renders the table with per-cell styling

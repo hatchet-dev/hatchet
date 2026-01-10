@@ -1372,7 +1372,17 @@ echo $?  # Should be 0 for success
    go build -o /tmp/hatchet-test ./cmd/hatchet-cli
    ```
 
-2. **Basic Functionality Test**
+2. **Linting Test**
+
+   After the build succeeds, run the linting checks:
+
+   ```bash
+   task pre-commit-run
+   ```
+
+   Continue running this command until it succeeds. Fix any linting issues that are reported before proceeding.
+
+3. **Basic Functionality Test**
 
    ```bash
    # Test with profile selection
@@ -1382,13 +1392,13 @@ echo $?  # Should be 0 for success
    /tmp/hatchet-test tui --profile your-profile
    ```
 
-3. **Error Handling Test**
+4. **Error Handling Test**
 
    - Try without profiles configured
    - Try with invalid profile
    - Test keyboard controls (q, r, arrows)
 
-4. **Visual/Layout Testing**
+5. **Visual/Layout Testing**
 
    When implementing a new view:
 

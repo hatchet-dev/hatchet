@@ -25,6 +25,12 @@ type ContentViewer struct {
 	statusMessage    string   // Status message to display
 }
 
+// contentViewerFileWrittenMsg signals that a file was written
+type contentViewerFileWrittenMsg struct{}
+
+// contentViewerFileCheckMsg signals that file existence check completed
+type contentViewerFileCheckMsg struct{}
+
 // NewContentViewer creates a new content viewer
 func NewContentViewer(content string, width, height int) *ContentViewer {
 	lines := strings.Split(content, "\n")
@@ -305,7 +311,7 @@ func (v *ContentViewer) checkAndWriteFile() tea.Cmd {
 		if _, err := os.Stat(v.fileInput); err == nil {
 			// File exists, prompt for overwrite
 			v.confirmOverwrite = true
-			return nil
+			return contentViewerFileCheckMsg{} // Trigger re-render to show confirmation prompt
 		}
 
 		// File doesn't exist, write directly
@@ -325,7 +331,7 @@ func (v *ContentViewer) writeToFile() tea.Cmd {
 		v.promptingFile = false
 		v.confirmOverwrite = false
 		v.fileInput = ""
-		return nil
+		return contentViewerFileWrittenMsg{}
 	}
 }
 

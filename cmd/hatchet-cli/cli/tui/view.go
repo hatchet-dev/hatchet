@@ -136,3 +136,146 @@ func RenderFooter(controls []string, width int) string {
 	footerText := strings.Join(controls, "  •  ")
 	return footerStyle.Render(footerText)
 }
+
+// RenderDebugView renders a debug log overlay with file writing support
+func RenderDebugView(logger *DebugLogger, width, height int, extraInfo string) string {
+	logs := logger.GetLogs()
+
+	// Header
+	headerStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(styles.AccentColor).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderBottom(true).
+		BorderForeground(styles.AccentColor).
+		Width(width-4).
+		Padding(0, 1)
+
+	headerParts := []string{
+		fmt.Sprintf("Debug Logs - %d/%d entries", logger.Size(), logger.Capacity()),
+	}
+
+	// Add status message or file prompt to header
+	if statusMsg := logger.GetStatusMessage(); statusMsg != "" {
+		msgStyle := lipgloss.NewStyle().Foreground(styles.AccentColor)
+		headerParts = append(headerParts, msgStyle.Render(statusMsg))
+	} else if logger.IsPromptingFile() {
+		if logger.IsConfirmingOverwrite() {
+			headerParts = append(headerParts, fmt.Sprintf("⚠ File '%s' exists. Overwrite? (y/n)", logger.GetFileInput()))
+		} else {
+			headerParts = append(headerParts, fmt.Sprintf("💾 Write to file: %s_", logger.GetFileInput()))
+		}
+	}
+
+	header := headerStyle.Render(strings.Join(headerParts, " │ "))
+
+	// Extra info section (optional - for view-specific context)
+	var extraInfoText string
+	if extraInfo != "" {
+		infoStyle := lipgloss.NewStyle().
+			Foreground(styles.AccentColor).
+			Padding(0, 1).
+			Width(width - 4)
+		extraInfoText = infoStyle.Render(extraInfo)
+	}
+
+	// Log entries
+	logStyle := lipgloss.NewStyle().
+		Padding(0, 1).
+		Width(width - 4)
+
+	var b strings.Builder
+	b.WriteString(header)
+	b.WriteString("\n")
+	if extraInfoText != "" {
+		b.WriteString(extraInfoText)
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+
+	// Calculate how many logs we can show
+	reservedLines := 8 // header, extra info, footer, spacing
+	if extraInfo != "" {
+		reservedLines += 2 // Extra space for info
+	}
+	maxLines := height - reservedLines
+	if maxLines < 1 {
+		maxLines = 1
+	}
+
+	// Show most recent logs first
+	startIdx := 0
+	if len(logs) > maxLines {
+		startIdx = len(logs) - maxLines
+	}
+
+	for i := startIdx; i < len(logs); i++ {
+		log := logs[i]
+		timestamp := log.Timestamp.Format("15:04:05.000")
+		logLine := fmt.Sprintf("[%s] %s", timestamp, log.Message)
+		b.WriteString(logStyle.Render(logLine))
+		b.WriteString("\n")
+	}
+
+	// Footer with controls
+	footerStyle := lipgloss.NewStyle().
+		Foreground(styles.MutedColor).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderTop(true).
+		BorderForeground(styles.AccentColor).
+		Width(width-4).
+		Padding(0, 1)
+
+	var controlItems []string
+	if logger.IsPromptingFile() {
+		if logger.IsConfirmingOverwrite() {
+			controlItems = []string{"y: Confirm", "n/esc: Cancel"}
+		} else {
+			controlItems = []string{"Type filename", "enter: Confirm", "esc: Cancel"}
+		}
+	} else {
+		controlItems = []string{"w: Write to file", "c: Clear Logs", "d: Close Debug", "q: Quit"}
+	}
+
+	controls := footerStyle.Render(strings.Join(controlItems, "  •  "))
+	b.WriteString("\n")
+	b.WriteString(controls)
+
+	return b.String()
+}
+
+// HandleDebugKeyboard handles keyboard input for debug views with file writing
+// Returns true if the key was handled, along with any command to execute
+func HandleDebugKeyboard(logger *DebugLogger, key string) (bool, tea.Cmd) {
+	// If prompting for file, handle file input
+	if logger.IsPromptingFile() {
+		if logger.IsConfirmingOverwrite() {
+			// Handling overwrite confirmation
+			switch key {
+			case "y", "Y":
+				return true, logger.ConfirmOverwrite()
+			case "n", "N", "esc":
+				logger.CancelFilePrompt()
+				return true, nil
+			}
+		} else {
+			// Handling filename input
+			switch key {
+			case "enter":
+				if logger.GetFileInput() != "" {
+					return true, logger.CheckAndWriteFile()
+				}
+				return true, nil
+			case "esc":
+				logger.CancelFilePrompt()
+				return true, nil
+			default:
+				logger.HandleFileInput(key)
+				return true, nil
+			}
+		}
+	}
+
+	// Not in file prompt mode, return false to let view handle other keys
+	return false, nil
+}

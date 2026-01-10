@@ -33,13 +33,21 @@ type RunsListView struct {
 	filterForm     *huh.Form            // The filter form when modal is open
 	newFilters     *RunsListFilters     // Temp storage for filter edits
 	filterStatuses *[]rest.V1TaskStatus // Status slice being edited by multiselect
+
+	// Pagination state
+	currentOffset int64 // Current offset in the dataset
+	pageSize      int64 // Number of items per page
+	hasMore       bool  // Whether there are more pages available
+	totalCount    int   // Total number of items (from pagination info)
 }
 
 // tasksMsg contains the fetched tasks
 type tasksMsg struct {
-	tasks     []rest.V1TaskSummary
-	err       error
-	debugInfo string
+	tasks      []rest.V1TaskSummary
+	err        error
+	debugInfo  string
+	hasMore    bool // Whether there are more pages
+	totalCount int  // Total count from pagination
 }
 
 // metricsMsg contains the fetched metrics
@@ -58,10 +66,14 @@ func NewRunsListView(ctx ViewContext) *RunsListView {
 		BaseModel: BaseModel{
 			Ctx: ctx,
 		},
-		filters:     NewDefaultRunsListFilters(),
-		loading:     false,
-		debugLogger: NewDebugLogger(5000), // 5000 log entries max
-		showDebug:   false,
+		filters:       NewDefaultRunsListFilters(),
+		loading:       false,
+		debugLogger:   NewDebugLogger(5000), // 5000 log entries max
+		showDebug:     false,
+		currentOffset: 0,
+		pageSize:      50,
+		hasMore:       false,
+		totalCount:    0,
 	}
 
 	v.debugLogger.Log("TasksView initialized, filters=%+v", v.filters)
@@ -147,6 +159,8 @@ func (v *RunsListView) Update(msg tea.Msg) (View, tea.Cmd) {
 					v.filters.Until = nil
 				}
 
+				// Reset to first page when filters change
+				v.currentOffset = 0
 				v.loading = true
 				return v, tea.Batch(cmd, v.fetchTasks(), v.fetchMetrics())
 			}
@@ -170,11 +184,18 @@ func (v *RunsListView) Update(msg tea.Msg) (View, tea.Cmd) {
 		return v, nil
 
 	case tea.KeyMsg:
+		// If debug view is showing, try handling debug-specific keys first
+		if v.showDebug {
+			if handled, cmd := HandleDebugKeyboard(v.debugLogger, msg.String()); handled {
+				return v, cmd
+			}
+		}
 
 		switch msg.String() {
 		case "r":
-			// Refresh the data
+			// Refresh the data and reset to first page
 			v.debugLogger.Log("Manual refresh triggered")
+			v.currentOffset = 0
 			v.loading = true
 			return v, tea.Batch(v.fetchTasks(), v.fetchMetrics())
 		case "d":
@@ -183,16 +204,43 @@ func (v *RunsListView) Update(msg tea.Msg) (View, tea.Cmd) {
 			v.debugLogger.Log("Debug view toggled: %v", v.showDebug)
 			return v, nil
 		case "c":
-			// Clear debug logs (only when in debug view)
-			if v.showDebug {
+			// Clear debug logs (only when in debug view and not prompting)
+			if v.showDebug && !v.debugLogger.IsPromptingFile() {
 				v.debugLogger.Clear()
 				v.debugLogger.Log("Debug logs cleared")
+			}
+			return v, nil
+		case "w":
+			// Write logs to file (only when in debug view and not already prompting)
+			if v.showDebug && !v.debugLogger.IsPromptingFile() {
+				v.debugLogger.StartFilePrompt()
 			}
 			return v, nil
 		case "f":
 			// Open filters modal inline
 			v.debugLogger.Log("Opening filters")
 			return v, v.initFiltersForm()
+		case "n":
+			// Next page
+			if v.hasMore && !v.loading {
+				v.currentOffset += v.pageSize
+				v.debugLogger.Log("Loading next page, offset=%d", v.currentOffset)
+				v.loading = true
+				return v, v.fetchTasks()
+			}
+			return v, nil
+		case "p":
+			// Previous page
+			if v.currentOffset > 0 && !v.loading {
+				v.currentOffset -= v.pageSize
+				if v.currentOffset < 0 {
+					v.currentOffset = 0
+				}
+				v.debugLogger.Log("Loading previous page, offset=%d", v.currentOffset)
+				v.loading = true
+				return v, v.fetchTasks()
+			}
+			return v, nil
 		case "enter":
 			// Navigate to selected task's workflow run details with detection
 			if len(v.tasks) > 0 {
@@ -222,10 +270,13 @@ func (v *RunsListView) Update(msg tea.Msg) (View, tea.Cmd) {
 			v.debugLogger.Log("Error fetching tasks: %v", msg.err)
 		} else {
 			v.tasks = msg.tasks
+			v.hasMore = msg.hasMore
+			v.totalCount = msg.totalCount
 			v.updateTableRows()
 			v.lastFetch = time.Now()
 			v.ClearError()
-			v.debugLogger.Log("Successfully fetched %d tasks", len(msg.tasks))
+			v.debugLogger.Log("Successfully fetched %d tasks (offset=%d, hasMore=%v, total=%d)",
+				len(msg.tasks), v.currentOffset, v.hasMore, v.totalCount)
 		}
 		// Log debug info if available
 		if msg.debugInfo != "" {
@@ -282,9 +333,36 @@ func (v *RunsListView) Update(msg tea.Msg) (View, tea.Cmd) {
 		return v, nil
 	}
 
-	// Update the embedded table model
-	updatedModel, cmd := v.table.Update(msg)
-	v.table.Model = &updatedModel
+	// Handle mouse events for table scrolling
+	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
+		// Don't log mouse events to avoid infinite scroll in debug view
+		// v.debugLogger.Log("Mouse event: action=%v, button=%v", mouseMsg.Action, mouseMsg.Button)
+
+		// Handle mouse wheel scrolling using new API
+		if mouseMsg.Action == tea.MouseActionPress {
+			switch mouseMsg.Button {
+			case tea.MouseButtonWheelUp:
+				// Move cursor up
+				if v.table.Cursor() > 0 {
+					// Create a KeyMsg for up arrow
+					upMsg := tea.KeyMsg{Type: tea.KeyUp}
+					_, cmd = v.table.Update(upMsg)
+					return v, cmd
+				}
+			case tea.MouseButtonWheelDown:
+				// Move cursor down
+				if v.table.Cursor() < len(v.tasks)-1 {
+					// Create a KeyMsg for down arrow
+					downMsg := tea.KeyMsg{Type: tea.KeyDown}
+					_, cmd = v.table.Update(downMsg)
+					return v, cmd
+				}
+			}
+		}
+	}
+
+	// Update the table model (handles keyboard and other events)
+	_, cmd = v.table.Update(msg)
 	return v, cmd
 }
 
@@ -353,15 +431,50 @@ func (v *RunsListView) View() string {
 		loadingText = loadingStyle.Render("Loading...")
 	}
 
+	// Pagination info
+	currentPage := (v.currentOffset / v.pageSize) + 1
+	paginationText := ""
+
+	// Only show pagination if there are actually tasks
+	if len(v.tasks) > 0 {
+		switch {
+		case v.totalCount > 0:
+			totalPages := (int64(v.totalCount) + v.pageSize - 1) / v.pageSize
+			paginationText = fmt.Sprintf("Page %d/%d", currentPage, totalPages)
+			// Only show "more available" if we're not on the last page
+			if v.hasMore && currentPage < totalPages {
+				paginationText += " (more available)"
+			}
+		case v.hasMore:
+			paginationText = fmt.Sprintf("Page %d (more available)", currentPage)
+		case currentPage > 1 || v.currentOffset > 0:
+			// Show page number if we're not on first page
+			paginationText = fmt.Sprintf("Page %d", currentPage)
+		}
+	}
+
+	paginationStyle := lipgloss.NewStyle().
+		Foreground(styles.MutedColor).
+		Padding(0, 1)
+
+	pagination := ""
+	if paginationText != "" {
+		pagination = paginationStyle.Render(paginationText)
+	}
+
 	// Footer with controls (using reusable component)
-	controls := RenderFooter([]string{
+	controlItems := []string{
 		"↑/↓: Navigate",
 		"enter: View Details",
-		"f: Filters",
-		"r: Refresh",
-		"d: Debug",
-		"q: Quit",
-	}, v.Width)
+	}
+	if v.currentOffset > 0 {
+		controlItems = append(controlItems, "p: Prev Page")
+	}
+	if v.hasMore {
+		controlItems = append(controlItems, "n: Next Page")
+	}
+	controlItems = append(controlItems, "f: Filters", "r: Refresh", "d: Debug", "q: Quit")
+	controls := RenderFooter(controlItems, v.Width)
 
 	// Build the full view
 	var b strings.Builder
@@ -375,6 +488,10 @@ func (v *RunsListView) View() string {
 	if loadingText != "" {
 		b.WriteString("  ")
 		b.WriteString(loadingText)
+	}
+	if pagination != "" {
+		b.WriteString("  ")
+		b.WriteString(pagination)
 	}
 	b.WriteString("\n\n")
 	b.WriteString(v.table.View())
@@ -520,8 +637,8 @@ func (v *RunsListView) fetchTasks() tea.Cmd {
 		statuses := v.filters.GetActiveStatuses()
 
 		params := &rest.V1WorkflowRunListParams{
-			Offset:    int64Ptr(0),
-			Limit:     int64Ptr(50),
+			Offset:    int64Ptr(v.currentOffset),
+			Limit:     int64Ptr(v.pageSize),
 			Since:     v.filters.Since,
 			OnlyTasks: false,
 			Statuses:  &statuses,
@@ -546,8 +663,8 @@ func (v *RunsListView) fetchTasks() tea.Cmd {
 		}
 
 		// Debug: log request parameters
-		debugReq := fmt.Sprintf("Request: tenant=%s, since=%s, until=%v, workflows=%d, limit=50, statuses=%d",
-			tenantUUID.String(), v.filters.Since.Format("2006-01-02 15:04:05"),
+		debugReq := fmt.Sprintf("Request: tenant=%s, offset=%d, limit=%d, since=%s, until=%v, workflows=%d, statuses=%d",
+			tenantUUID.String(), v.currentOffset, v.pageSize, v.filters.Since.Format("2006-01-02 15:04:05"),
 			v.filters.Until, len(v.filters.WorkflowIDs), len(statuses))
 
 		// Call the API to list workflow runs
@@ -581,19 +698,34 @@ func (v *RunsListView) fetchTasks() tea.Cmd {
 
 		tasks := response.JSON200.Rows
 
-		// Debug: combine request and response info
-		debugInfo := debugReq + " | Response: total_rows=" + fmt.Sprintf("%d", len(tasks))
-		if response.JSON200.Pagination.NumPages != nil {
-			debugInfo += fmt.Sprintf(", num_pages=%v", *response.JSON200.Pagination.NumPages)
+		// Calculate pagination info
+		hasMore := false
+		totalCount := 0
+		currentPage := int64(0)
+		numPages := int64(0)
+
+		if response.JSON200.Pagination.NextPage != nil {
+			hasMore = true
 		}
 		if response.JSON200.Pagination.CurrentPage != nil {
-			debugInfo += fmt.Sprintf(", current_page=%v", *response.JSON200.Pagination.CurrentPage)
+			currentPage = *response.JSON200.Pagination.CurrentPage
+		}
+		if response.JSON200.Pagination.NumPages != nil {
+			numPages = *response.JSON200.Pagination.NumPages
+			// Estimate total count based on pages
+			totalCount = int(numPages * v.pageSize)
 		}
 
+		// Debug: combine request and response info
+		debugInfo := debugReq + fmt.Sprintf(" | Response: rows=%d, hasMore=%v, totalCount=%d, page=%d/%d",
+			len(tasks), hasMore, totalCount, currentPage, numPages)
+
 		return tasksMsg{
-			tasks:     tasks,
-			err:       nil,
-			debugInfo: debugInfo,
+			tasks:      tasks,
+			err:        nil,
+			debugInfo:  debugInfo,
+			hasMore:    hasMore,
+			totalCount: totalCount,
 		}
 	}
 }
@@ -782,32 +914,9 @@ func tick() tea.Cmd {
 	})
 }
 
-// renderDebugView renders the debug log overlay
+// renderDebugView renders the debug log overlay using the shared component
 func (v *RunsListView) renderDebugView() string {
-	logs := v.debugLogger.GetLogs()
-
-	// Header
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(styles.AccentColor).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderBottom(true).
-		BorderForeground(styles.AccentColor).
-		Width(v.Width-4).
-		Padding(0, 1)
-
-	header := headerStyle.Render(fmt.Sprintf(
-		"Debug Logs - %d/%d entries",
-		v.debugLogger.Size(),
-		v.debugLogger.Capacity(),
-	))
-
-	// Current filters info
-	filtersStyle := lipgloss.NewStyle().
-		Foreground(styles.AccentColor).
-		Padding(0, 1).
-		Width(v.Width - 4)
-
+	// Build view-specific context info
 	activeStatuses := []string{}
 	for status, enabled := range v.filters.Statuses {
 		if enabled {
@@ -815,62 +924,7 @@ func (v *RunsListView) renderDebugView() string {
 		}
 	}
 
-	filtersInfo := fmt.Sprintf(
-		"Active Filters: Workflows=%d (%v), Statuses=%d (%v), Since=%s, Until=%v",
-		len(v.filters.WorkflowIDs),
-		v.filters.WorkflowIDs,
-		len(activeStatuses),
-		activeStatuses,
-		v.filters.Since.Format("2006-01-02 15:04:05"),
-		v.filters.Until,
-	)
-	filtersText := filtersStyle.Render(filtersInfo)
-
-	// Log entries
-	logStyle := lipgloss.NewStyle().
-		Padding(0, 1).
-		Width(v.Width - 4)
-
-	var b strings.Builder
-	b.WriteString(header)
-	b.WriteString("\n")
-	b.WriteString(filtersText)
-	b.WriteString("\n\n")
-
-	// Calculate how many logs we can show
-	maxLines := v.Height - 8 // Reserve space for header, footer, controls
-	if maxLines < 1 {
-		maxLines = 1
-	}
-
-	// Show most recent logs first
-	startIdx := 0
-	if len(logs) > maxLines {
-		startIdx = len(logs) - maxLines
-	}
-
-	for i := startIdx; i < len(logs); i++ {
-		log := logs[i]
-		timestamp := log.Timestamp.Format("15:04:05.000")
-		logLine := fmt.Sprintf("[%s] %s", timestamp, log.Message)
-		b.WriteString(logStyle.Render(logLine))
-		b.WriteString("\n")
-	}
-
-	// Footer with controls
-	footerStyle := lipgloss.NewStyle().
-		Foreground(styles.MutedColor).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderTop(true).
-		BorderForeground(styles.AccentColor).
-		Width(v.Width-4).
-		Padding(0, 1)
-
-	controls := footerStyle.Render("d: Close Debug  |  c: Clear Logs  |  q: Quit")
-	b.WriteString("\n")
-	b.WriteString(controls)
-
-	return b.String()
+	return RenderDebugView(v.debugLogger, v.Width, v.Height, "")
 }
 
 // filtersClosedMsg is sent when the filter modal is closed
