@@ -25,6 +25,7 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.exceptions import LifespanSetupError, LoopAlreadyRunningError
+from hatchet_sdk.integrations.swiftapi import SwiftAPIConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
@@ -89,9 +90,11 @@ class Worker:
         handle_kill: bool = True,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
+        swiftapi: SwiftAPIConfig | None = None,
     ) -> None:
         self.config = config
         self.name = self.config.apply_namespace(name)
+        self.swiftapi = swiftapi
         self.slots = slots
         self.durable_slots = durable_slots
         self.debug = debug
@@ -324,6 +327,7 @@ class Worker:
                 self.client.debug,
                 self.labels,
                 lifespan_context,
+                self.swiftapi,
             )
 
         raise RuntimeError("event loop not set, cannot start action runner")

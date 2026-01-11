@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from multiprocessing import Queue
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.config import ClientConfig
@@ -12,6 +12,9 @@ from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, capture_logs
+
+if TYPE_CHECKING:
+    from hatchet_sdk.integrations.swiftapi import SwiftAPIConfig
 
 T = TypeVar("T")
 
@@ -30,6 +33,7 @@ class WorkerActionRunLoopManager:
         debug: bool,
         labels: dict[str, str | int] | None,
         lifespan_context: Any | None,
+        swiftapi: "SwiftAPIConfig | None" = None,
     ) -> None:
         self.name = name
         self.action_registry = action_registry
@@ -42,6 +46,7 @@ class WorkerActionRunLoopManager:
         self.debug = debug
         self.labels = labels
         self.lifespan_context = lifespan_context
+        self.swiftapi = swiftapi
 
         if self.debug:
             logger.setLevel(logging.DEBUG)
@@ -96,6 +101,7 @@ class WorkerActionRunLoopManager:
             self.labels,
             self.lifespan_context,
             self.log_sender,
+            self.swiftapi,
         )
 
         logger.debug(f"'{self.name}' waiting for {list(self.action_registry.keys())}")

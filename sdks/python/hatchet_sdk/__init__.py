@@ -156,6 +156,7 @@ from hatchet_sdk.exceptions import (
 from hatchet_sdk.features.cel import CELEvaluationResult, CELFailure, CELSuccess
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
+from hatchet_sdk.integrations.swiftapi import SwiftAPIConfig
 from hatchet_sdk.runnables.task import Depends, Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
@@ -251,6 +252,7 @@ __all__ = [
     "StepRunEventType",
     "StepRunStatus",
     "StickyStrategy",
+    "SwiftAPIConfig",
     "Task",
     "TaskDefaults",
     "TaskRunError",

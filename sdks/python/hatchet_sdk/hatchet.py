@@ -23,6 +23,7 @@ from hatchet_sdk.features.scheduled import ScheduledClient
 from hatchet_sdk.features.stubs import StubsClient
 from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.features.workflows import WorkflowsClient
+from hatchet_sdk.integrations.swiftapi import SwiftAPIConfig
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
@@ -183,6 +184,7 @@ class Hatchet:
         labels: dict[str, str | int] | None = None,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
+        swiftapi: SwiftAPIConfig | None = None,
     ) -> Worker:
         """
         Create a Hatchet worker on which to run workflows.
@@ -198,6 +200,8 @@ class Hatchet:
         :param workflows: A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them.
 
         :param lifespan: A lifespan function to run on the worker. This function will be called when the worker is started, and can be used to perform any setup or teardown tasks.
+
+        :param swiftapi: Optional SwiftAPI configuration for execution governance. When provided, all task executions will be verified through SwiftAPI before running.
 
         :returns: The created `Worker` object, which exposes an instance method `start` which can be called to start the worker.
         """
@@ -217,6 +221,7 @@ class Hatchet:
             owned_loop=loop is None,
             workflows=workflows,
             lifespan=lifespan,
+            swiftapi=swiftapi,
         )
 
     @overload

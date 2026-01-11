@@ -9,7 +9,7 @@ from enum import Enum
 from multiprocessing import Queue
 from textwrap import dedent
 from threading import Thread, current_thread
-from typing import Any, Literal, cast, overload
+from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 from pydantic import BaseModel
 
@@ -59,6 +59,9 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     copy_context_vars,
 )
 
+if TYPE_CHECKING:
+    from hatchet_sdk.integrations.swiftapi import SwiftAPIConfig
+
 
 class WorkerStatus(Enum):
     INITIALIZED = 1
@@ -78,9 +81,11 @@ class Runner:
         labels: dict[str, str | int] | None,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
+        swiftapi: "SwiftAPIConfig | None" = None,
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
+        self.swiftapi = swiftapi
 
         self.slots = slots
         self.tasks: dict[ActionKey, asyncio.Task[Any]] = {}  # Store run ids and futures
@@ -244,6 +249,20 @@ class Runner:
         ctx_worker_id.set(action.worker_id)
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
+
+        if self.swiftapi is not None:
+            workflow_name = (
+                action.action_id.split(":")[0] if ":" in action.action_id else "unknown"
+            )
+            self.swiftapi.verify_task_execution(
+                action_name=action.action_id,
+                workflow_name=workflow_name,
+                workflow_run_id=action.workflow_run_id,
+                step_run_id=action.step_run_id,
+                worker_id=action.worker_id,
+                tenant_id=action.tenant_id,
+                retry_count=action.retry_count,
+            )
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             try:
