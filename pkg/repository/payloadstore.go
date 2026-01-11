@@ -855,7 +855,7 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 		}
 	}()
 
-	connStatementTimeout := 30 * 60 * 1000 // 5 minutes
+	connStatementTimeout := 30 * 60 * 1000 // 30 minutes
 
 	conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
 
