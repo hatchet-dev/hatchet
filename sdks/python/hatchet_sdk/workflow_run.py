@@ -7,9 +7,16 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
 )
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
+from hatchet_sdk.logger import logger
 
 if TYPE_CHECKING:
     from hatchet_sdk.clients.admin import AdminClient
+
+# Constants for result polling with exponential backoff
+_INITIAL_BACKOFF_SECONDS = 0.1
+_MAX_BACKOFF_SECONDS = 2.0
+_BACKOFF_MULTIPLIER = 2.0
+_MAX_RETRIES = 30
 
 
 class WorkflowRunRef:
@@ -44,9 +51,21 @@ class WorkflowRunRef:
             return None
 
     def result(self) -> dict[str, Any]:
+        """Wait for the workflow run to complete and return the result.
+
+        Uses exponential backoff when polling for workflow run status to handle
+        race conditions where the workflow run may not be immediately visible
+        after creation (e.g., when spawning child workflows synchronously).
+
+        :returns: A dictionary mapping task readable IDs to their outputs.
+
+        :raises FailedTaskRunExceptionGroup: If the workflow run failed.
+        :raises ValueError: If the workflow run was cancelled or could not be found.
+        """
         from hatchet_sdk.clients.admin import RunStatus
 
         retries = 0
+        backoff = _INITIAL_BACKOFF_SECONDS
 
         while True:
             try:
@@ -54,12 +73,21 @@ class WorkflowRunRef:
             except Exception as e:
                 retries += 1
 
-                if retries > 10:
+                if retries > _MAX_RETRIES:
+                    logger.warning(
+                        "failed to get workflow run details after %d retries: %s",
+                        retries,
+                        self.workflow_run_id,
+                    )
                     raise ValueError(
-                        f"Workflow run {self.workflow_run_id} not found"
+                        f"Workflow run {self.workflow_run_id} not found after "
+                        f"{retries} retries. This may indicate the workflow run "
+                        f"has not propagated yet or does not exist. "
+                        f"Last error: {e}"
                     ) from e
 
-                time.sleep(1)
+                time.sleep(backoff)
+                backoff = min(backoff * _BACKOFF_MULTIPLIER, _MAX_BACKOFF_SECONDS)
                 continue
 
             if (
