@@ -159,6 +159,9 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle profile selector modal input
 		if m.showProfileSelector {
 			switch msg.String() {
+			case "q", "ctrl+c":
+				// Allow quitting from profile selector
+				return m, tea.Quit
 			case "down", "j":
 				// Cycle forward through profile options
 				m.selectedProfileIndex = (m.selectedProfileIndex + 1) % len(m.availableProfiles)
@@ -186,6 +189,9 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle view selector modal input
 		if m.showViewSelector {
 			switch msg.String() {
+			case "q", "ctrl+c":
+				// Allow quitting from view selector
+				return m, tea.Quit
 			case "shift+tab", "tab", "down", "j":
 				// Cycle forward through view options
 				m.selectedViewIndex = (m.selectedViewIndex + 1) % len(availableViews)
@@ -223,8 +229,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
-		case "p":
-			// Open profile selector modal
+		case "shift+p", "P":
+			// Open profile selector modal (shift+p or capital P)
 			if len(m.availableProfiles) == 0 {
 				// No profiles available
 				return m, nil
@@ -254,8 +260,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				return m, helpView.Init()
 			}
-		case "shift+tab":
-			// Open view selector modal
+		case "shift+tab", "v":
+			// Open view selector modal (shift+tab or v)
 			// Find current view type in the list to set initial selection
 			for i, opt := range availableViews {
 				if opt.Type == m.currentViewType {
@@ -560,6 +566,7 @@ func (m tuiModel) renderViewSelector() string {
 		"Tab: Cycle",
 		"Enter: Confirm",
 		"Esc: Cancel",
+		"q: Quit",
 	}, m.width)
 	b.WriteString("\n")
 	b.WriteString(footer)
@@ -630,6 +637,7 @@ func (m tuiModel) renderProfileSelector() string {
 		"↑/↓ j/k: Navigate",
 		"Enter: Switch",
 		"Esc: Cancel",
+		"q: Quit",
 	}, m.width)
 	b.WriteString("\n")
 	b.WriteString(footer)

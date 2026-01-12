@@ -221,7 +221,7 @@ func (v *WorkflowsView) Update(msg tea.Msg) (View, tea.Cmd) {
 				return v, v.fetchWorkflows()
 			}
 			return v, nil
-		case "n":
+		case "right":
 			// Next page
 			if v.hasMore && !v.loading {
 				v.currentOffset += v.pageSize
@@ -230,7 +230,7 @@ func (v *WorkflowsView) Update(msg tea.Msg) (View, tea.Cmd) {
 				return v, v.fetchWorkflows()
 			}
 			return v, nil
-		case "p":
+		case "left":
 			// Previous page
 			if v.currentOffset > 0 && !v.loading {
 				v.currentOffset -= v.pageSize
@@ -402,12 +402,12 @@ func (v *WorkflowsView) View() string {
 		"enter: View Details",
 	}
 	if v.currentOffset > 0 {
-		controlItems = append(controlItems, "p: Prev Page")
+		controlItems = append(controlItems, "←: Prev Page")
 	}
 	if v.hasMore {
-		controlItems = append(controlItems, "n: Next Page")
+		controlItems = append(controlItems, "→: Next Page")
 	}
-	controlItems = append(controlItems, "/: Search", "r: Refresh", "d: Debug", "h: Help", "shift+tab: Switch View", "q: Quit")
+	controlItems = append(controlItems, "/: Search", "r: Refresh", "d: Debug", "h: Help", "v: Switch View", "shift+p: Profile", "q: Quit")
 	if v.searchQuery != "" {
 		controlItems = append(controlItems, "x: Clear Search")
 	}

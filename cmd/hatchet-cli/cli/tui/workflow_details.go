@@ -171,7 +171,7 @@ func (v *WorkflowDetailsView) Update(msg tea.Msg) (View, tea.Cmd) {
 				v.debugLogger.StartFilePrompt()
 			}
 			return v, nil
-		case "n":
+		case "right":
 			// Next page
 			if v.hasMore && !v.loading {
 				v.currentOffset += v.pageSize
@@ -180,7 +180,7 @@ func (v *WorkflowDetailsView) Update(msg tea.Msg) (View, tea.Cmd) {
 				return v, v.fetchWorkflowRuns()
 			}
 			return v, nil
-		case "p":
+		case "left":
 			// Previous page
 			if v.currentOffset > 0 && !v.loading {
 				v.currentOffset -= v.pageSize
@@ -364,12 +364,12 @@ func (v *WorkflowDetailsView) View() string {
 		"enter: View Details",
 	}
 	if v.currentOffset > 0 {
-		controlItems = append(controlItems, "p: Prev Page")
+		controlItems = append(controlItems, "←: Prev Page")
 	}
 	if v.hasMore {
-		controlItems = append(controlItems, "n: Next Page")
+		controlItems = append(controlItems, "→: Next Page")
 	}
-	controlItems = append(controlItems, "r: Refresh", "d: Debug", "esc: Back", "q: Quit")
+	controlItems = append(controlItems, "r: Refresh", "d: Debug", "h: Help", "shift+p: Profile", "esc: Back", "q: Quit")
 	controls := RenderFooter(controlItems, v.Width)
 	b.WriteString(controls)
 
