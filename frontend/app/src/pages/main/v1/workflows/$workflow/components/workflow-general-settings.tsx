@@ -2,19 +2,59 @@ import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Badge } from '@/components/v1/ui/badge';
 import { Label } from '@/components/v1/ui/label';
-import { WorkflowVersion } from '@/lib/api';
+import {
+  ConcurrencyLimitStrategy,
+  ConcurrencyScope,
+  WorkflowVersion,
+} from '@/lib/api';
 import { formatCron } from '@/lib/cron';
+
+function formatLimitStrategy(strategy: ConcurrencyLimitStrategy): string {
+  switch (strategy) {
+    case ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS:
+      return 'Cancel In Progress';
+    case ConcurrencyLimitStrategy.DROP_NEWEST:
+      return 'Drop Newest';
+    case ConcurrencyLimitStrategy.QUEUE_NEWEST:
+      return 'Queue Newest';
+    case ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN:
+      return 'Group Round Robin';
+    default: {
+      const _exhaustive: never = strategy;
+      return _exhaustive;
+    }
+  }
+}
+
+function formatScope(scope: ConcurrencyScope): string {
+  switch (scope) {
+    case ConcurrencyScope.WORKFLOW:
+      return 'Workflow';
+    case ConcurrencyScope.TASK:
+      return 'Task';
+    default: {
+      const _exhaustive: never = scope;
+      return _exhaustive;
+    }
+  }
+}
 
 export default function WorkflowGeneralSettings({
   workflow,
 }: {
   workflow: WorkflowVersion;
 }) {
+  const hasTriggers =
+    (workflow.triggers?.events && workflow.triggers.events.length > 0) ||
+    (workflow.triggers?.crons && workflow.triggers.crons.length > 0);
+
   return (
     <div className="space-y-5">
-      <SettingsSection title="Triggers">
-        <TriggerSettings workflow={workflow} />
-      </SettingsSection>
+      {hasTriggers && (
+        <SettingsSection title="Triggers">
+          <TriggerSettings workflow={workflow} />
+        </SettingsSection>
+      )}
 
       <SettingsSection title="Concurrency">
         <ConcurrencySettings workflow={workflow} />
@@ -171,13 +211,15 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
             a.stepReadableId.localeCompare(b.stepReadableId),
         )}
       columns={[
-        { columnLabel: 'Scope', cellRenderer: (row) => row.scope },
+        { columnLabel: 'Scope', cellRenderer: (row) => formatScope(row.scope) },
         { columnLabel: 'Task', cellRenderer: (row) => row.stepReadableId },
         { columnLabel: 'Max', cellRenderer: (row) => row.maxRuns },
         {
           columnLabel: 'Strategy',
           cellRenderer: (row) => (
-            <Badge variant="secondary">{row.limitStrategy}</Badge>
+            <Badge variant="secondary">
+              {formatLimitStrategy(row.limitStrategy)}
+            </Badge>
           ),
         },
         {
