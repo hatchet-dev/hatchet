@@ -54,6 +54,8 @@ jobs:
           workdir: cmd/hatchet-cli
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Homebrew tap token
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           # macOS signing and notarization secrets
           # These should be set as repository secrets in GitHub
           MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}

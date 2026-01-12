@@ -121,22 +121,21 @@ release:
   name_template: "{{.ProjectName}}-cli-{{.Version}}"
   disable: false
 
-# Homebrew tap (optional - requires separate tap repository)
-# Uncomment if you want to publish to Homebrew
-# brews:
-#   - name: hatchet
-#     repository:
-#       owner: hatchet-dev
-#       name: homebrew-hatchet
-#       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-#     folder: Formula
-#     homepage: https://hatchet.run
-#     description: "Command-line interface for Hatchet workflow orchestration"
-#     license: MIT
-#     test: |
-#       system "#{bin}/hatchet version"
-#     install: |
-#       bin.install "hatchet"
+# Homebrew tap
+brews:
+  - name: hatchet
+    repository:
+      owner: hatchet-dev
+      name: homebrew-hatchet
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    folder: Formula
+    homepage: https://hatchet.run
+    description: "Command-line interface for Hatchet workflow orchestration"
+    license: MIT
+    test: |
+      system "#{bin}/hatchet version"
+    install: |
+      bin.install "hatchet"
 
 # Generate Software Bill of Materials
 sboms:
