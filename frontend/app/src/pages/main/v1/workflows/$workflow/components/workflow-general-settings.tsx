@@ -1,6 +1,6 @@
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Badge } from '@/components/v1/ui/badge';
-import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { WorkflowVersion } from '@/lib/api';
 import { formatCron } from '@/lib/cron';
@@ -148,36 +148,39 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
 }
 
 function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
-  if (!workflow.concurrency) {
+  if (!workflow.v1Concurrency || workflow.v1Concurrency.length === 0) {
     return (
       <EmptyState message="There are no concurrency settings for this workflow." />
     );
   }
 
   return (
-    <div className="space-y-2">
-      <FieldGroup
-        label="Max Runs"
-        description="Maximum number of concurrent workflow runs"
-      >
-        <Input
-          disabled
-          value={workflow.concurrency.maxRuns}
-          className="h-8 font-mono"
-        />
-      </FieldGroup>
-
-      <FieldGroup
-        label="Strategy"
-        description="What happens when max runs is reached"
-      >
-        <Input
-          disabled
-          value={workflow.concurrency.limitStrategy}
-          className="h-8 font-mono"
-        />
-      </FieldGroup>
-    </div>
+    <SimpleTable
+      data={workflow.v1Concurrency.map((c) => ({
+        ...c,
+        // hack for typing
+        metadata: {
+          id: '',
+        },
+      }))}
+      columns={[
+        { columnLabel: 'Scope', cellRenderer: (row) => row.scope },
+        { columnLabel: 'Task', cellRenderer: (row) => row.stepReadableId },
+        { columnLabel: 'Max', cellRenderer: (row) => row.maxRuns },
+        {
+          columnLabel: 'Strategy',
+          cellRenderer: (row) => (
+            <Badge variant="secondary">{row.limitStrategy}</Badge>
+          ),
+        },
+        {
+          columnLabel: 'Expression',
+          cellRenderer: (row) => (
+            <code className="text-xs">{row.expression || '-'}</code>
+          ),
+        },
+      ]}
+    />
   );
 }
 

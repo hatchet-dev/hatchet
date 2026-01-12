@@ -9,6 +9,24 @@ WHERE
     sc.tenant_id = @tenantId::uuid AND
     sc.is_active = TRUE;
 
+-- name: ListConcurrencyStrategiesByWorkflowVersionId :many
+SELECT c.*, s."readableId" AS step_readable_id
+FROM v1_step_concurrency c
+JOIN "Step" s ON s.id = c.step_id
+WHERE
+    tenant_id = @tenantId::UUID
+    AND workflow_version_id = @workflowVersionId::UUID
+    AND workflow_id = @workflowId::UUID
+    AND c.id NOT IN (
+        SELECT UNNEST(child_strategy_ids)
+        FROM v1_workflow_concurrency
+        WHERE
+            tenant_id = @tenantId::UUID
+            AND workflow_version_id = @workflowVersionId::UUID
+            AND workflow_id = @workflowId::UUID
+    )
+;
+
 -- name: GetWorkflowConcurrencyQueueCounts :many
 SELECT
     w."name" AS "workflowName",

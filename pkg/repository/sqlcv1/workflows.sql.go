@@ -1172,14 +1172,14 @@ const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
 SELECT
     wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts",
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused",
-    wc."id" as "concurrencyId",
-    wc."maxRuns" as "concurrencyMaxRuns",
-    wc."getConcurrencyGroupId" as "concurrencyGroupId",
-    wc."limitStrategy" as "concurrencyLimitStrategy"
+    wc.id as "concurrencyId",
+    wc.max_concurrency as "concurrencyMaxRuns",
+    wc.strategy as "concurrencyLimitStrategy",
+    wc.expression as "concurrencyExpression"
 FROM
     "WorkflowVersion" as wv
 JOIN "Workflow" as w on w."id" = wv."workflowId"
-LEFT JOIN "WorkflowConcurrency" as wc ON wc."workflowVersionId" = wv."id"
+LEFT JOIN v1_workflow_concurrency as wc ON (wc.workflow_version_id, wc.workflow_id) = (wv."id", w."id")
 WHERE
     wv."id" = $1::uuid AND
     wv."deletedAt" IS NULL
@@ -1187,12 +1187,12 @@ LIMIT 1
 `
 
 type GetWorkflowVersionByIdRow struct {
-	WorkflowVersion          WorkflowVersion              `json:"workflow_version"`
-	Workflow                 Workflow                     `json:"workflow"`
-	ConcurrencyId            pgtype.UUID                  `json:"concurrencyId"`
-	ConcurrencyMaxRuns       pgtype.Int4                  `json:"concurrencyMaxRuns"`
-	ConcurrencyGroupId       pgtype.UUID                  `json:"concurrencyGroupId"`
-	ConcurrencyLimitStrategy NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
+	WorkflowVersion          WorkflowVersion           `json:"workflow_version"`
+	Workflow                 Workflow                  `json:"workflow"`
+	ConcurrencyId            pgtype.Int8               `json:"concurrencyId"`
+	ConcurrencyMaxRuns       pgtype.Int4               `json:"concurrencyMaxRuns"`
+	ConcurrencyLimitStrategy NullV1ConcurrencyStrategy `json:"concurrencyLimitStrategy"`
+	ConcurrencyExpression    pgtype.Text               `json:"concurrencyExpression"`
 }
 
 func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id pgtype.UUID) (*GetWorkflowVersionByIdRow, error) {
@@ -1223,8 +1223,8 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id pgtype
 		&i.Workflow.IsPaused,
 		&i.ConcurrencyId,
 		&i.ConcurrencyMaxRuns,
-		&i.ConcurrencyGroupId,
 		&i.ConcurrencyLimitStrategy,
+		&i.ConcurrencyExpression,
 	)
 	return &i, err
 }

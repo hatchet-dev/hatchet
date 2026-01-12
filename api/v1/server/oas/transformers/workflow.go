@@ -54,10 +54,9 @@ func ToWorkflowVersionMeta(version *sqlcv1.WorkflowVersion, workflow *sqlcv1.Wor
 }
 
 type WorkflowConcurrency struct {
-	ID                    pgtype.UUID
-	GetConcurrencyGroupId pgtype.UUID
-	MaxRuns               pgtype.Int4
-	LimitStrategy         sqlcv1.NullConcurrencyLimitStrategy
+	MaxRuns       pgtype.Int4
+	LimitStrategy sqlcv1.NullV1ConcurrencyStrategy
+	Expression    string
 }
 
 func ToWorkflowVersion(
@@ -67,6 +66,7 @@ func ToWorkflowVersion(
 	crons []*sqlcv1.WorkflowTriggerCronRef,
 	events []*sqlcv1.WorkflowTriggerEventRef,
 	schedules []*sqlcv1.WorkflowTriggerScheduledRef,
+	stepConcurrency []*sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdRow,
 ) *gen.WorkflowVersion {
 	wfConfig := make(map[string]interface{})
 
@@ -148,8 +148,34 @@ func ToWorkflowVersion(
 	}
 
 	res.Triggers = &triggersResp
+	res.V1Concurrency = ToV1Concurrency(concurrency, stepConcurrency)
 
 	return res
+}
+
+func ToV1Concurrency(workflowConcurrency *WorkflowConcurrency, taskConcurrencies []*sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdRow) *[]gen.ConcurrencySetting {
+	res := make([]gen.ConcurrencySetting, 0, len(taskConcurrencies)+1)
+
+	for _, c := range taskConcurrencies {
+		res = append(res, gen.ConcurrencySetting{
+			StepReadableId: &c.StepReadableID.String,
+			Expression:     c.Expression,
+			LimitStrategy:  gen.ConcurrencyLimitStrategy(c.Strategy),
+			MaxRuns:        c.MaxConcurrency,
+			Scope:          gen.ConcurrencyScopeTASK,
+		})
+	}
+
+	if workflowConcurrency != nil && workflowConcurrency.LimitStrategy.Valid {
+		res = append(res, gen.ConcurrencySetting{
+			Expression:    workflowConcurrency.Expression,
+			LimitStrategy: gen.ConcurrencyLimitStrategy(workflowConcurrency.LimitStrategy.V1ConcurrencyStrategy),
+			MaxRuns:       workflowConcurrency.MaxRuns.Int32,
+			Scope:         gen.ConcurrencyScopeWORKFLOW,
+		})
+	}
+
+	return &res
 }
 
 func ToWorkflowVersionConcurrency(concurrency *WorkflowConcurrency) *gen.WorkflowConcurrency {
@@ -158,9 +184,9 @@ func ToWorkflowVersionConcurrency(concurrency *WorkflowConcurrency) *gen.Workflo
 	}
 
 	res := &gen.WorkflowConcurrency{
-		MaxRuns:             concurrency.MaxRuns.Int32,
-		LimitStrategy:       gen.ConcurrencyLimitStrategy(concurrency.LimitStrategy.ConcurrencyLimitStrategy),
-		GetConcurrencyGroup: sqlchelpers.UUIDToStr(concurrency.GetConcurrencyGroupId),
+		MaxRuns:       concurrency.MaxRuns.Int32,
+		LimitStrategy: gen.ConcurrencyLimitStrategy(concurrency.LimitStrategy.V1ConcurrencyStrategy),
+		Expression:    &concurrency.Expression,
 	}
 
 	return res
