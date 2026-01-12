@@ -122,20 +122,19 @@ release:
   disable: false
 
 # Homebrew tap
-brews:
+homebrew_casks:
   - name: hatchet
+    ids:
+      - hatchet
+    binaries:
+      - hatchet
     repository:
       owner: hatchet-dev
       name: homebrew-hatchet
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Formula
     homepage: https://hatchet.run
     description: "Command-line interface for Hatchet workflow orchestration"
     license: MIT
-    test: |
-      system "#{bin}/hatchet version"
-    install: |
-      bin.install "hatchet"
 
 # Generate Software Bill of Materials
 sboms:
