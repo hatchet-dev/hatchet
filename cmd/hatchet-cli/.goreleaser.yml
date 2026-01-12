@@ -128,7 +128,7 @@ brews:
       owner: hatchet-dev
       name: homebrew-hatchet
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    folder: Formula
+    directory: Formula
     homepage: https://hatchet.run
     description: "Command-line interface for Hatchet workflow orchestration"
     license: MIT
