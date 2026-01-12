@@ -4,13 +4,18 @@ from uuid import uuid4
 import pytest
 
 from examples.run_details.worker import MockInput, run_detail_test_workflow
-from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus, TriggerWorkflowOptions, V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_run(hatchet: Hatchet) -> None:
     mock_input = MockInput(foo=str(uuid4()))
-    ref = run_detail_test_workflow.run_no_wait(input=mock_input)
+    test_run_id = str(uuid4())
+    meta = {"test_run_id": test_run_id}
+    ref = run_detail_test_workflow.run_no_wait(
+        input=mock_input,
+        options=TriggerWorkflowOptions(additional_metadata=meta),
+    )
 
     await asyncio.sleep(2)
 
@@ -18,6 +23,7 @@ async def test_run(hatchet: Hatchet) -> None:
 
     assert details.status == RunStatus.RUNNING
     assert details.input == mock_input.model_dump()
+    assert details.additional_metadata == meta
     assert len(details.task_runs) == 4
     assert all(
         r.status in [V1TaskStatus.RUNNING, V1TaskStatus.QUEUED]
@@ -36,6 +42,7 @@ async def test_run(hatchet: Hatchet) -> None:
 
     assert details.status == RunStatus.FAILED
     assert details.input == mock_input.model_dump()
+    assert details.additional_metadata == meta
     assert len(details.task_runs) == 6
 
     assert details.task_runs["step1"].status == V1TaskStatus.COMPLETED

@@ -3919,6 +3919,7 @@ type StepReadableId string
 
 type WorkflowRunDetails struct {
 	InputPayload        []byte
+	AdditionalMetadata  []byte
 	ReadableIdToDetails map[StepReadableId]TaskRunDetails
 }
 
@@ -3942,6 +3943,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	var inputRetrieveOpt RetrievePayloadOpts
 	firstTask := flat[0]
 	isDag := firstTask.DagID.Valid
+	additionalMeta := firstTask.AdditionalMetadata
 
 	if isDag {
 		inputRetrieveOpt = RetrievePayloadOpts{
@@ -4028,6 +4030,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		return &WorkflowRunDetails{
 			InputPayload:        input,
 			ReadableIdToDetails: taskRunDetails,
+			AdditionalMetadata:  additionalMeta,
 		}, nil
 	}
 
@@ -4058,5 +4061,6 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	return &WorkflowRunDetails{
 		InputPayload:        input,
 		ReadableIdToDetails: taskRunDetails,
+		AdditionalMetadata:  additionalMeta,
 	}, nil
 }

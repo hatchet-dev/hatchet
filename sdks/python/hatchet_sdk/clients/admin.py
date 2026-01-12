@@ -128,6 +128,7 @@ class WorkflowRunDetail(BaseModel):
     external_id: str
     status: RunStatus
     input: JSONSerializableMapping | None = None
+    additional_metadata: JSONSerializableMapping | None = None
     task_runs: dict[str, TaskRunDetail]
     done: bool = False
 
@@ -569,6 +570,11 @@ class AdminClient:
             external_id=external_id,
             input=(
                 json.loads(response.input.decode("utf-8")) if response.input else None
+            ),
+            additional_metadata=(
+                json.loads(response.additional_metadata.decode("utf-8"))
+                if response.additional_metadata
+                else None
             ),
             status=RunStatus.from_proto(response.status),
             task_runs={
