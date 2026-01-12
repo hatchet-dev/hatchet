@@ -1797,6 +1797,10 @@ export interface WorkflowVersion {
   scheduleTimeout?: string;
   jobs?: Job[];
   workflowConfig?: object;
+  taskConcurrency?: {
+    taskReadableId?: string;
+    concurrency?: WorkflowConcurrency;
+  }[];
 }
 
 export interface TriggerWorkflowRunRequest {

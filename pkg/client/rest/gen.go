@@ -2324,7 +2324,11 @@ type WorkflowVersion struct {
 	ScheduleTimeout *string         `json:"scheduleTimeout,omitempty"`
 
 	// Sticky The sticky strategy of the workflow.
-	Sticky   *string           `json:"sticky,omitempty"`
+	Sticky          *string `json:"sticky,omitempty"`
+	TaskConcurrency *[]struct {
+		Concurrency    *WorkflowConcurrency `json:"concurrency,omitempty"`
+		TaskReadableId *string              `json:"taskReadableId,omitempty"`
+	} `json:"taskConcurrency,omitempty"`
 	Triggers *WorkflowTriggers `json:"triggers,omitempty"`
 
 	// Version The version of the workflow.

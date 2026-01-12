@@ -121,6 +121,15 @@ WorkflowVersion:
         $ref: "#/Job"
     workflowConfig:
       type: object
+    taskConcurrency:
+      type: array
+      items:
+        type: object
+        properties:
+          taskReadableId:
+            type: string
+          concurrency:
+            $ref: "#/WorkflowConcurrency"
   required:
     - metadata
     - version
