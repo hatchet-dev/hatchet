@@ -176,15 +176,11 @@ WorkflowConcurrency:
       description: The strategy to use when the concurrency limit is reached.
     getConcurrencyGroup:
       type: string
-      description: An action which gets the concurrency group for the WorkflowRun. Deprecated.
-    expression:
-      type: string
-      description: The concurrency expression, used to generate a key from task inputs, metadata, etc.
+      description: An action which gets the concurrency group for the WorkflowRun.
   required:
     - maxRuns
     - limitStrategy
     - getConcurrencyGroup
-
 
 ConcurrencyLimitStrategy:
   type: string

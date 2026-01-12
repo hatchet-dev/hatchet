@@ -109,10 +109,6 @@ func ToWorkflowVersion(
 		res.Workflow = ToWorkflowFromSQLC(workflow)
 	}
 
-	if concurrency != nil {
-		res.Concurrency = ToWorkflowVersionConcurrency(concurrency)
-	}
-
 	triggersResp := gen.WorkflowTriggers{}
 
 	if len(crons) > 0 {
@@ -176,20 +172,6 @@ func ToV1Concurrency(workflowConcurrency *WorkflowConcurrency, taskConcurrencies
 	}
 
 	return &res
-}
-
-func ToWorkflowVersionConcurrency(concurrency *WorkflowConcurrency) *gen.WorkflowConcurrency {
-	if !concurrency.LimitStrategy.Valid {
-		return nil
-	}
-
-	res := &gen.WorkflowConcurrency{
-		MaxRuns:       concurrency.MaxRuns.Int32,
-		LimitStrategy: gen.ConcurrencyLimitStrategy(concurrency.LimitStrategy.V1ConcurrencyStrategy),
-		Expression:    &concurrency.Expression,
-	}
-
-	return res
 }
 
 func ToJob(job *sqlcv1.Job, steps []*sqlcv1.GetStepsForJobsRow) *gen.Job {

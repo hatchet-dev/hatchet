@@ -1760,10 +1760,8 @@ export interface WorkflowConcurrency {
   maxRuns: number;
   /** The strategy to use when the concurrency limit is reached. */
   limitStrategy: ConcurrencyLimitStrategy;
-  /** An action which gets the concurrency group for the WorkflowRun. Deprecated. */
+  /** An action which gets the concurrency group for the WorkflowRun. */
   getConcurrencyGroup: string;
-  /** The concurrency expression, used to generate a key from task inputs, metadata, etc. */
-  expression?: string;
 }
 
 export interface WorkflowTriggerEventRef {

@@ -2167,10 +2167,7 @@ type Workflow struct {
 
 // WorkflowConcurrency defines model for WorkflowConcurrency.
 type WorkflowConcurrency struct {
-	// Expression The concurrency expression, used to generate a key from task inputs, metadata, etc.
-	Expression *string `json:"expression,omitempty"`
-
-	// GetConcurrencyGroup An action which gets the concurrency group for the WorkflowRun. Deprecated.
+	// GetConcurrencyGroup An action which gets the concurrency group for the WorkflowRun.
 	GetConcurrencyGroup string                   `json:"getConcurrencyGroup"`
 	LimitStrategy       ConcurrencyLimitStrategy `json:"limitStrategy"`
 

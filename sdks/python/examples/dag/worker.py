@@ -4,7 +4,13 @@ from datetime import timedelta
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import (
+    Context,
+    EmptyModel,
+    Hatchet,
+    ConcurrencyExpression,
+    ConcurrencyLimitStrategy,
+)
 
 
 class StepOutput(BaseModel):
@@ -18,12 +24,26 @@ class RandomSum(BaseModel):
 hatchet = Hatchet(debug=True)
 
 # > Define a DAG
-dag_workflow = hatchet.workflow(name="DAGWorkflow")
+dag_workflow = hatchet.workflow(
+    name="DAGWorkflow",
+    concurrency=[
+        ConcurrencyExpression(
+            expression="additional_metadata.abc",
+            max_runs=2,
+            limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+        ),
+        ConcurrencyExpression(
+            expression="input.foobar",
+            max_runs=1,
+            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        ),
+    ],
+)
 # !!
 
 
 # > First task
-@dag_workflow.task(execution_timeout=timedelta(seconds=5))
+@dag_workflow.task(execution_timeout=timedelta(seconds=5), concurrency=2)
 def step1(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
@@ -33,7 +53,16 @@ def step1(input: EmptyModel, ctx: Context) -> StepOutput:
 # > Task with parents
 
 
-@dag_workflow.task(execution_timeout=timedelta(seconds=5))
+@dag_workflow.task(
+    execution_timeout=timedelta(seconds=5),
+    concurrency=[
+        ConcurrencyExpression(
+            expression="additional_metadata.xyz",
+            max_runs=3,
+            limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+        )
+    ],
+)
 async def step2(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
