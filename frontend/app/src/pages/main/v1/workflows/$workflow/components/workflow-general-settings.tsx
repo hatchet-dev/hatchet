@@ -1,6 +1,7 @@
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Badge } from '@/components/v1/ui/badge';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Label } from '@/components/v1/ui/label';
 import {
   ConcurrencyLimitStrategy,
@@ -225,7 +226,14 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
         {
           columnLabel: 'Expression',
           cellRenderer: (row) => (
-            <code className="text-xs">{row.expression || '-'}</code>
+            <CodeHighlighter
+              language="text"
+              className="whitespace-pre-wrap break-words text-sm leading-relaxed"
+              code={row.expression}
+              copy={false}
+              maxHeight="10rem"
+              minWidth="20rem"
+            />
           ),
         },
       ]}
