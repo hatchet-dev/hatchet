@@ -3,12 +3,7 @@ name: Release Hatchet CLI
 on:
   push:
     tags:
-      - "cli-v*" # Trigger on CLI-specific tags like cli-v1.0.0
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Tag to use for the CLI release (e.g., cli-v1.0.0)"
-        required: true
+      - "v*" # Trigger on version tags like v0.73.10
 
 permissions:
   contents: write
@@ -22,15 +17,9 @@ jobs:
       - name: Get tag name
         id: tag_name
         run: |
-          if [ -z "${{ github.event.inputs.tag }}" ]; then
-            tag=${GITHUB_TAG/refs\/tags\//}
-          else
-            tag=${{ github.event.inputs.tag }}
-          fi
+          tag=${GITHUB_TAG/refs\/tags\//}
           echo "tag=$tag" >> $GITHUB_OUTPUT
-          # Extract version without cli- prefix for GoReleaser
-          version=${tag#cli-}
-          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "Building release for tag: $tag"
         env:
           GITHUB_TAG: ${{ github.ref }}
 
