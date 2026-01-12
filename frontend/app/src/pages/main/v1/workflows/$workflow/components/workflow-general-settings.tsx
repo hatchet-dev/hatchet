@@ -21,8 +21,8 @@ function formatLimitStrategy(strategy: ConcurrencyLimitStrategy): string {
     case ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN:
       return 'Group Round Robin';
     default: {
-      const _exhaustive: never = strategy;
-      return _exhaustive;
+      const exhaustiveCheck: never = strategy;
+      return exhaustiveCheck;
     }
   }
 }
@@ -34,8 +34,8 @@ function formatScope(scope: ConcurrencyScope): string {
     case ConcurrencyScope.TASK:
       return 'Task';
     default: {
-      const _exhaustive: never = scope;
-      return _exhaustive;
+      const exhaustiveCheck: never = scope;
+      return exhaustiveCheck;
     }
   }
 }
