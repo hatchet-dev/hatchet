@@ -156,13 +156,20 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
 
   return (
     <SimpleTable
-      data={workflow.v1Concurrency.map((c) => ({
-        ...c,
-        // hack for typing
-        metadata: {
-          id: '',
-        },
-      }))}
+      data={workflow.v1Concurrency
+        .map((c) => ({
+          stepReadableId: c.stepReadableId || 'N/A',
+          ...c,
+          // hack for typing
+          metadata: {
+            id: '',
+          },
+        }))
+        .sort(
+          (a, b) =>
+            b.scope.localeCompare(a.scope) ||
+            a.stepReadableId.localeCompare(b.stepReadableId),
+        )}
       columns={[
         { columnLabel: 'Scope', cellRenderer: (row) => row.scope },
         { columnLabel: 'Task', cellRenderer: (row) => row.stepReadableId },
