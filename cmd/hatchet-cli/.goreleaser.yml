@@ -2,12 +2,6 @@ version: 2
 
 project_name: hatchet
 
-before:
-  hooks:
-    # Ensure dependencies are up to date
-    - go mod tidy
-    - go mod download
-
 builds:
   - id: hatchet
     main: ./main.go
@@ -21,6 +15,8 @@ builds:
     goarch:
       - amd64
       - arm64
+    goamd64:
+      - v1
     # Skip unsupported combinations
     ignore:
       - goos: windows
@@ -32,7 +28,8 @@ builds:
 
 archives:
   - id: hatchet
-    format: tar.gz
+    formats:
+      - tar.gz
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
@@ -43,7 +40,8 @@ archives:
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
     files:
       - LICENSE*
       - README*
@@ -53,7 +51,7 @@ checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
