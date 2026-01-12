@@ -210,7 +210,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflo
 		allSteps = append(allSteps, job.Steps...)
 	}
 
-	tasks, err := getCreateTaskOpts(allSteps, "DEFAULT")
+	tasks, err := getCreateTaskOpts(allSteps, req.Opts.ScheduleTimeout)
 	if err != nil {
 		if errors.Is(err, v1.ErrDagParentNotFound) {
 			return nil, status.Error(
@@ -224,7 +224,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflo
 	var onFailureTask *v1.CreateStepOpts
 
 	if req.Opts.OnFailureJob != nil {
-		onFailureTasks, err := getCreateTaskOpts(req.Opts.OnFailureJob.Steps, "ON_FAILURE")
+		onFailureTasks, err := getCreateTaskOpts(req.Opts.OnFailureJob.Steps, req.Opts.ScheduleTimeout)
 		if err != nil {
 			return nil, err
 		}
@@ -286,7 +286,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflo
 	}, nil
 }
 
-func getCreateTaskOpts(steps []*contracts.CreateWorkflowStepOpts, kind string) ([]v1.CreateStepOpts, error) {
+func getCreateTaskOpts(steps []*contracts.CreateWorkflowStepOpts, scheduleTimeout *string) ([]v1.CreateStepOpts, error) {
 	if steps == nil {
 		return nil, fmt.Errorf("steps list cannot be nil")
 	}
@@ -349,6 +349,7 @@ func getCreateTaskOpts(steps []*contracts.CreateWorkflowStepOpts, kind string) (
 			DesiredWorkerLabels: affinity,
 			TriggerConditions:   make([]v1.CreateStepMatchConditionOpt, 0),
 			RateLimits:          make([]v1.CreateWorkflowStepRateLimitOpts, 0),
+			ScheduleTimeout:     scheduleTimeout,
 		}
 
 		if step.Parents == nil {
