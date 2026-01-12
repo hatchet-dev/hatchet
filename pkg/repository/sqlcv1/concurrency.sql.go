@@ -242,6 +242,76 @@ func (q *Queries) ListConcurrencyStrategiesByStepId(ctx context.Context, db DBTX
 	return items, nil
 }
 
+const listConcurrencyStrategiesByWorkflowVersionId = `-- name: ListConcurrencyStrategiesByWorkflowVersionId :many
+SELECT c.id, c.parent_strategy_id, c.workflow_id, c.workflow_version_id, c.step_id, c.is_active, c.strategy, c.expression, c.tenant_id, c.max_concurrency, s."readableId" AS step_readable_id
+FROM v1_step_concurrency c
+JOIN "Step" s ON s.id = c.step_id
+WHERE
+    tenant_id = $1::UUID
+    AND workflow_version_id = $2::UUID
+    AND workflow_id = $3::UUID
+    AND c.id NOT IN (
+        SELECT UNNEST(child_strategy_ids)
+        FROM v1_workflow_concurrency
+        WHERE
+            tenant_id = $1::UUID
+            AND workflow_version_id = $2::UUID
+            AND workflow_id = $3::UUID
+    )
+`
+
+type ListConcurrencyStrategiesByWorkflowVersionIdParams struct {
+	Tenantid          pgtype.UUID `json:"tenantid"`
+	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+	Workflowid        pgtype.UUID `json:"workflowid"`
+}
+
+type ListConcurrencyStrategiesByWorkflowVersionIdRow struct {
+	ID                int64                 `json:"id"`
+	ParentStrategyID  pgtype.Int8           `json:"parent_strategy_id"`
+	WorkflowID        pgtype.UUID           `json:"workflow_id"`
+	WorkflowVersionID pgtype.UUID           `json:"workflow_version_id"`
+	StepID            pgtype.UUID           `json:"step_id"`
+	IsActive          bool                  `json:"is_active"`
+	Strategy          V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                `json:"expression"`
+	TenantID          pgtype.UUID           `json:"tenant_id"`
+	MaxConcurrency    int32                 `json:"max_concurrency"`
+	StepReadableID    pgtype.Text           `json:"step_readable_id"`
+}
+
+func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Context, db DBTX, arg ListConcurrencyStrategiesByWorkflowVersionIdParams) ([]*ListConcurrencyStrategiesByWorkflowVersionIdRow, error) {
+	rows, err := db.Query(ctx, listConcurrencyStrategiesByWorkflowVersionId, arg.Tenantid, arg.Workflowversionid, arg.Workflowid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListConcurrencyStrategiesByWorkflowVersionIdRow
+	for rows.Next() {
+		var i ListConcurrencyStrategiesByWorkflowVersionIdRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentStrategyID,
+			&i.WorkflowID,
+			&i.WorkflowVersionID,
+			&i.StepID,
+			&i.IsActive,
+			&i.Strategy,
+			&i.Expression,
+			&i.TenantID,
+			&i.MaxConcurrency,
+			&i.StepReadableID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const runCancelInProgress = `-- name: RunCancelInProgress :many
 WITH slots AS (
     SELECT
