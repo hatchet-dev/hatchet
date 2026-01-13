@@ -83,9 +83,7 @@ export default function Overview() {
           <OnboardingWidget steps={4} currentStep={1} label="Steps completed" />
         </div>
         <p className="text-muted-foreground text-balance">
-          Get a quick overview of your
-          <br />
-          workflows, runs, and workers.
+          Complete your onboarding on this page
         </p>
       </div>
       {/* Create API token section */}
@@ -164,13 +162,13 @@ export default function Overview() {
           }
           className="w-full rounded-md px-6 pb-6 bg-muted/20 ring-1 ring-border/50 ring-inset"
         >
-          <TabsList className="grid w-full grid-flow-col rounded-none bg-transparent p-0 pb-6 justify-start gap-6 h-auto">
+          <TabsList className="grid w-full grid-flow-col rounded-none bg-transparent p-0 pb-6 justify-start gap-6 h-auto ">
             {Object.entries(workflowSteps).map(([key, value], index) => (
               <TabsTrigger
                 key={key}
                 value={key}
                 className={
-                  'text-xs rounded-none pt-2.5 px-1 font-medium border-t border-transparent hover:border-border bg-transparent data-[state=active]:border-primary/50 data-[state=active]:bg-transparent'
+                  'text-xs text-muted-foreground rounded-none pt-2.5 px-1 font-medium border-t border-transparent hover:border-border bg-transparent data-[state=active]:border-primary/50 data-[state=active]:bg-transparent data-[state=active]:shadow-none'
                 }
               >
                 <div className="flex items-center gap-2">
@@ -187,12 +185,12 @@ export default function Overview() {
               onValueChange={setLanguage}
               className="w-full"
             >
-              <TabsList className="mt-2 bg-muted/20 ring-1 ring-border/50 ring-inset rounded-lg p-0 gap-0.5">
+              <TabsList className="mt-2 bg-muted ring-1 ring-border/50 rounded-lg p-0 gap-0.5 dark:bg-muted/20 dark:ring-inset">
                 {Object.entries(workflowLanguages).map(([key, value]) => (
                   <TabsTrigger
                     key={key}
                     value={key}
-                    className="rounded-lg h-full ring-inset data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-muted/70"
+                    className="rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset"
                   >
                     {value}
                   </TabsTrigger>
@@ -280,7 +278,10 @@ export default function Overview() {
         <h2 className="text-md">Support</h2>
         <Separator className="my-4 bg-border/50" flush />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Card className="bg-transparent border-border/50">
+          <Card
+            variant="light"
+            className="bg-transparent ring-1 ring-border/50 border-none"
+          >
             <CardHeader className="p-4 border-b border-border/50 ">
               <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
                 Community
@@ -311,7 +312,10 @@ export default function Overview() {
               </ul>
             </CardContent>
           </Card>
-          <Card className="bg-transparent border-border/50">
+          <Card
+            variant="light"
+            className="bg-transparent ring-1 ring-border/50 border-none"
+          >
             <CardHeader className="p-4 border-b border-border/50 ">
               <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
                 Links
@@ -355,17 +359,19 @@ export default function Overview() {
               </ul>
             </CardContent>
           </Card>
-          <Card className="bg-transparent border-border/50">
+          <Card
+            variant="light"
+            className="bg-transparent ring-1 ring-border/50 border-none"
+          >
             <CardHeader className="p-4 border-b border-border/50 ">
               <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
                 Office Hours
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-4">
+            <CardContent className="p-4 space-y-2">
               <span className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
                 GMT-5 Eastern Standard Time
               </span>
-              <Separator className="my-2 bg-border/50" />
               <p className="text-muted-foreground whitespace-nowrap">
                 Weekdays <span className="text-primary">09:00 - 17:00</span>
               </p>
