@@ -1,5 +1,11 @@
 import { OnboardingWidget } from './components/onboarding-widget';
 import { Button } from '@/components/v1/ui/button';
+import {
+  Card,
+  CardTitle,
+  CardHeader,
+  CardContent,
+} from '@/components/v1/ui/card';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   DropdownMenu,
@@ -22,6 +28,7 @@ import {
   CheckIcon,
 } from '@radix-ui/react-icons';
 import { useState } from 'react';
+import { RiDiscordFill, RiGithubFill, RiLink } from 'react-icons/ri';
 
 const expiresInOptions = [
   { label: '1 hour', value: '1h' },
@@ -69,6 +76,7 @@ export default function Overview() {
 
   return (
     <div className="flex h-full w-full flex-col space-y-20 p-6">
+      {/* Header section */}
       <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
         <div className="flex items-center gap-6 flex-wrap">
           <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
@@ -80,6 +88,7 @@ export default function Overview() {
           workflows, runs, and workers.
         </p>
       </div>
+      {/* Create API token section */}
       <div>
         <span className="inline-flex items-baseline gap-5">
           <h2 className="text-md">Create API token</h2>
@@ -136,6 +145,7 @@ export default function Overview() {
           </div>
         </div>
       </div>
+      {/* Learn the workflow section */}
       <div>
         <span className="inline-flex items-baseline gap-5">
           <h2 className="text-md">Learn the workflow</h2>
@@ -264,6 +274,104 @@ export default function Overview() {
             </Button>
           </TabsContent>
         </Tabs>
+      </div>
+      {/* Support section */}
+      <div>
+        <h2 className="text-md">Support</h2>
+        <Separator className="my-4 bg-border/50" flush />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Card className="bg-transparent border-border/50">
+            <CardHeader className="p-4 border-b border-border/50 ">
+              <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
+                Community
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <ul className="space-y-2">
+                <li>
+                  <a
+                    href="https://discord.gg/ZMeUafwH89"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-primary/70 hover:underline hover:text-primary"
+                  >
+                    <RiDiscordFill className="mr-2" /> Join Discord
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://discord.gg/ZMeUafwH89"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-primary/70 hover:underline hover:text-primary"
+                  >
+                    <RiGithubFill className="mr-2" /> Github Discussions
+                  </a>
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
+          <Card className="bg-transparent border-border/50">
+            <CardHeader className="p-4 border-b border-border/50 ">
+              <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
+                Links
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <ul className="space-y-2">
+                <li>
+                  <a
+                    href="https://discord.gg/ZMeUafwH89"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-primary/70 hover:underline hover:text-primary"
+                  >
+                    <RiLink className="mr-2" />
+                    Documentation
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://discord.gg/ZMeUafwH89"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-primary/70 hover:underline hover:text-primary"
+                  >
+                    <RiLink className="mr-2" />
+                    Request Slack Channel
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://discord.gg/ZMeUafwH89"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-primary/70 hover:underline hover:text-primary"
+                  >
+                    <RiLink className="mr-2" />
+                    Email Support
+                  </a>
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
+          <Card className="bg-transparent border-border/50">
+            <CardHeader className="p-4 border-b border-border/50 ">
+              <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
+                Office Hours
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <span className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
+                GMT-5 Eastern Standard Time
+              </span>
+              <Separator className="my-2 bg-border/50" />
+              <p className="text-muted-foreground whitespace-nowrap">
+                Weekdays <span className="text-primary">09:00 - 17:00</span>
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
