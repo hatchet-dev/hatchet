@@ -300,7 +300,7 @@ export default function Overview() {
                 </li>
                 <li>
                   <a
-                    href="https://discord.gg/ZMeUafwH89"
+                    href="https://github.com/hatchet-dev/hatchet/discussions"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 text-sm text-primary/70 hover:underline hover:text-primary"
@@ -332,7 +332,7 @@ export default function Overview() {
                 </li>
                 <li>
                   <a
-                    href="https://discord.gg/ZMeUafwH89"
+                    href="mailto:support@hatchet.run"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 text-sm text-primary/70 hover:underline hover:text-primary"
@@ -343,7 +343,7 @@ export default function Overview() {
                 </li>
                 <li>
                   <a
-                    href="https://discord.gg/ZMeUafwH89"
+                    href="mailto:support@hatchet.run"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 text-sm text-primary/70 hover:underline hover:text-primary"
