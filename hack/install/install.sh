@@ -14,28 +14,29 @@ INSTALL_DIR="/usr/local/bin"
 GITHUB_API="https://api.github.com/repos/${REPO}"
 GITHUB_RELEASES="https://github.com/${REPO}/releases/download"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Colors for output - Hatchet color scheme
+# Matching cmd/hatchet-cli/cli/internal/drivers/docker/hatchet_lite.go styles
+BOLD_BLUE='\033[1;34m'   # Bold blue for success (matches #3392FF)
+CYAN='\033[0;36m'        # Cyan for info (matches #A5C5E9)
+YELLOW='\033[1;33m'      # Yellow for warnings
+RED='\033[1;31m'         # Red for errors
+NC='\033[0m'             # No Color
 
-# Logging functions
+# Logging functions - colored labels with regular text
 log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    printf "${CYAN}[INFO]${NC} %s\n" "$1"
 }
 
 log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    printf "${BOLD_BLUE}[SUCCESS]${NC} %s\n" "$1"
 }
 
 log_warn() {
-    echo -e "${YELLOW}[WARNING]${NC} $1" >&2
+    printf "${YELLOW}[WARNING]${NC} %s\n" "$1" >&2
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1" >&2
+    printf "${RED}[ERROR]${NC} %s\n" "$1" >&2
 }
 
 # Cleanup function
@@ -191,7 +192,7 @@ verify_checksum() {
 
     # Extract expected checksum for this file
     local filename=$(basename "$file")
-    local expected_checksum=$(grep "$filename" "$checksums_file" | awk '{print $1}')
+    local expected_checksum=$(grep -F " ${filename}" "$checksums_file" | head -1 | awk '{print $1}')
 
     if [ -z "$expected_checksum" ]; then
         log_error "Could not find checksum for $filename in checksums file"
@@ -292,30 +293,22 @@ install_hatchet() {
         log_warn "Make sure ${INSTALL_DIR} is in your PATH"
         log_info "You may need to restart your terminal or run: export PATH=\"${INSTALL_DIR}:\$PATH\""
     else
-        log_success "Hatchet CLI installed successfully!"
-
         # Show version
-        log_info "Installed version:"
-        "$BINARY_NAME" --version
+        VERSION_OUTPUT=$("$BINARY_NAME" --version 2>&1)
+        log_info "Installed version: ${VERSION_OUTPUT}"
     fi
 }
 
 # Main installation flow
 main() {
-    echo ""
     log_info "Installing Hatchet CLI..."
-    echo ""
 
     check_prereqs
     detect_platform
     get_version "$1"
     install_hatchet
 
-    echo ""
     log_success "Installation complete! 🎉"
-    echo ""
-    log_info "Get started by running: ${BINARY_NAME} --help"
-    echo ""
 }
 
 # Run main with first argument (optional version)
