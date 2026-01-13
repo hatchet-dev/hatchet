@@ -147,7 +147,7 @@ export default function Overview() {
                 key={key}
                 value={key}
                 className={
-                  'text-xs rounded-none pt-2.5 px-1 font-medium border-t border-border bg-transparent data-[state=active]:border-primary/50 data-[state=active]:bg-transparent'
+                  'text-xs rounded-none pt-2.5 px-1 font-medium border-t border-transparent hover:border-border bg-transparent data-[state=active]:border-primary/50 data-[state=active]:bg-transparent'
                 }
               >
                 <div className="flex items-center gap-2">{value}</div>
@@ -155,8 +155,8 @@ export default function Overview() {
             ))}
           </TabsList>
 
-          <TabsContent value="settingUp" className="mt-0 space-y-0">
-            <div> Setting Up </div>
+          <TabsContent value="settingUp" className="mt-0 space-y-2">
+            <p> Clone the repository and install dependencies. </p>
           </TabsContent>
 
           <TabsContent value="chooseToken" className="mt-0">
