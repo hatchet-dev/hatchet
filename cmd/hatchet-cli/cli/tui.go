@@ -111,6 +111,7 @@ type tuiModel struct {
 	selectedViewIndex    int  // Index of the currently selected view in the modal
 	showProfileSelector  bool // Whether the profile selector modal is open
 	selectedProfileIndex int  // Index of the currently selected profile in the modal
+	showQuitConfirmation bool // Whether the quit confirmation modal is open
 	availableProfiles    []string
 }
 
@@ -140,6 +141,7 @@ func newTUIModel(profileName string, hatchetClient client.Client) tuiModel {
 		selectedViewIndex:    0,
 		showProfileSelector:  false,
 		selectedProfileIndex: 0,
+		showQuitConfirmation: false,
 		availableProfiles:    profileNames,
 	}
 }
@@ -156,12 +158,34 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentView.SetSize(msg.Width, msg.Height)
 
 	case tea.KeyMsg:
+		// Handle quit confirmation modal input
+		if m.showQuitConfirmation {
+			switch msg.String() {
+			case "y", "Y", "enter":
+				// Confirm quit
+				return m, tea.Quit
+			case "n", "N", "esc", "q":
+				// Cancel quit
+				m.showQuitConfirmation = false
+				return m, nil
+			case "ctrl+c":
+				// Hard quit bypasses confirmation
+				return m, tea.Quit
+			}
+			// Ignore other keys when modal is open
+			return m, nil
+		}
+
 		// Handle profile selector modal input
 		if m.showProfileSelector {
 			switch msg.String() {
-			case "q", "ctrl+c":
-				// Allow quitting from profile selector
+			case "ctrl+c":
+				// Hard quit from profile selector
 				return m, tea.Quit
+			case "q":
+				// Show quit confirmation
+				m.showQuitConfirmation = true
+				return m, nil
 			case "down", "j":
 				// Cycle forward through profile options
 				m.selectedProfileIndex = (m.selectedProfileIndex + 1) % len(m.availableProfiles)
@@ -189,9 +213,13 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle view selector modal input
 		if m.showViewSelector {
 			switch msg.String() {
-			case "q", "ctrl+c":
-				// Allow quitting from view selector
+			case "ctrl+c":
+				// Hard quit from view selector
 				return m, tea.Quit
+			case "q":
+				// Show quit confirmation
+				m.showQuitConfirmation = true
+				return m, nil
 			case "shift+tab", "tab", "down", "j":
 				// Cycle forward through view options
 				m.selectedViewIndex = (m.selectedViewIndex + 1) % len(availableViews)
@@ -225,10 +253,15 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Handle global keyboard shortcuts when not in view selector
+		// Handle global keyboard shortcuts when not in modals
 		switch msg.String() {
-		case "q", "ctrl+c":
+		case "ctrl+c":
+			// Hard quit - no confirmation
 			return m, tea.Quit
+		case "q":
+			// Show quit confirmation modal
+			m.showQuitConfirmation = true
+			return m, nil
 		case "shift+p", "P":
 			// Open profile selector modal (shift+p or capital P)
 			if len(m.availableProfiles) == 0 {
@@ -377,6 +410,11 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m tuiModel) View() string {
 	if m.width == 0 {
 		return "Initializing..."
+	}
+
+	// Show quit confirmation modal if open (highest priority)
+	if m.showQuitConfirmation {
+		return m.renderQuitConfirmation()
 	}
 
 	// Show profile selector modal if open
@@ -670,6 +708,55 @@ func (m tuiModel) switchProfile(profileName string) tea.Cmd {
 			hatchetClient: hatchetClient,
 		}
 	}
+}
+
+// renderQuitConfirmation renders the quit confirmation modal
+func (m tuiModel) renderQuitConfirmation() string {
+	var b strings.Builder
+
+	// Header (using reusable component)
+	header := tui.RenderHeader("Quit Hatchet TUI?", m.ctx.ProfileName, m.width)
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	// Confirmation message
+	messageStyle := lipgloss.NewStyle().
+		Foreground(styles.MutedColor).
+		Padding(1, 2).
+		Width(m.width - 4).
+		Align(lipgloss.Center)
+
+	message := "Are you sure you want to quit?"
+	b.WriteString(messageStyle.Render(message))
+	b.WriteString("\n\n")
+
+	// Options
+	optionsStyle := lipgloss.NewStyle().
+		Padding(0, 2).
+		Width(m.width - 4).
+		Align(lipgloss.Center)
+
+	yesStyle := lipgloss.NewStyle().
+		Foreground(styles.AccentColor).
+		Bold(true)
+
+	options := fmt.Sprintf("%s to confirm  •  %s to cancel",
+		yesStyle.Render("Y/Enter"),
+		yesStyle.Render("N/Esc"))
+
+	b.WriteString(optionsStyle.Render(options))
+	b.WriteString("\n")
+
+	// Footer hint
+	footer := tui.RenderFooter([]string{
+		"Y/Enter: Quit",
+		"N/Esc: Cancel",
+		"Ctrl+C: Force Quit",
+	}, m.width)
+	b.WriteString("\n")
+	b.WriteString(footer)
+
+	return b.String()
 }
 
 // profileSwitchedMsg is sent when a profile switch is successful

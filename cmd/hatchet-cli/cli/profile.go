@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -510,8 +511,9 @@ func profileListView(profiles []string) string {
 	}
 
 	var lines []string
-	lines = append(lines, styles.Section("Configured Profiles"))
-
+	// Use Primary.Bold instead of Section to avoid the MarginBottom spacing
+	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(styles.PrimaryColor)
+	lines = append(lines, headerStyle.Render("Configured Profiles"))
 	for _, profile := range profiles {
 		lines = append(lines, styles.ListItem.Render(styles.Accent.Render("• ")+profile))
 	}

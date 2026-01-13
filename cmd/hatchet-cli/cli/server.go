@@ -156,7 +156,8 @@ func serverStartedView(profileName string, dashboardPort, grpcPort int, addition
 
 	lines = append(lines, styles.SuccessMessage("Hatchet server started successfully!"))
 	lines = append(lines, "")
-	lines = append(lines, styles.KeyValue("Profile", profileName))
+	lines = append(lines, styles.Success.Render(fmt.Sprintf("✓ Created local profile '%s'", profileName)))
+	lines = append(lines, "")
 	lines = append(lines, styles.KeyValue("Dashboard", fmt.Sprintf("http://localhost:%d", dashboardPort)))
 	lines = append(lines, styles.KeyValue("gRPC Port", fmt.Sprintf("%d", grpcPort)))
 	lines = append(lines, "")
