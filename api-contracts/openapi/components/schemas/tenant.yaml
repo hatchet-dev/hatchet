@@ -93,6 +93,10 @@ CreateTenantRequest:
     environment:
       $ref: "#/TenantEnvironment"
       description: The environment type of the tenant.
+    onboardingData:
+      type: object
+      description: Additional onboarding data to store with the tenant.
+      additionalProperties: true
   required:
     - name
     - slug

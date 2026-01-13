@@ -18,7 +18,12 @@ export interface OnboardingFormData {
   name: string;
   slug: string;
   environment: TenantEnvironment;
-  tenantData: { name: string; environment: TenantEnvironment };
+  tenantData: {
+    name: string;
+    environment: TenantEnvironment;
+    referralSource?: string;
+  };
+  referralSource?: string;
 }
 
 // Step configuration interface

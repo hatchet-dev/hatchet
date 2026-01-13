@@ -73,7 +73,12 @@ export default function CreateTenant() {
     name: '',
     slug: '',
     environment: TenantEnvironment.Development,
-    tenantData: { name: '', environment: TenantEnvironment.Development },
+    tenantData: {
+      name: '',
+      environment: TenantEnvironment.Development,
+      referralSource: '',
+    },
+    referralSource: '',
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
@@ -170,6 +175,7 @@ export default function CreateTenant() {
   const handleTenantCreate = (tenantData: {
     name: string;
     environment: TenantEnvironment;
+    referralSource?: string;
   }) => {
     if (!validateForm()) {
       return;
@@ -178,22 +184,36 @@ export default function CreateTenant() {
     // Generate slug from name
     const slug = generateSlug(tenantData.name);
 
+    // Build onboarding data object
+    const onboardingData: Record<string, any> = {};
+    if (tenantData.referralSource && tenantData.referralSource.trim() !== '') {
+      onboardingData.referral_source = tenantData.referralSource;
+    }
+
     createMutation.mutate({
       name: tenantData.name,
       slug,
       environment: tenantData.environment,
+      onboardingData:
+        Object.keys(onboardingData).length > 0 ? onboardingData : undefined,
     });
   };
 
-  const updateFormData = (value: { name: string; environment: string }) => {
+  const updateFormData = (value: {
+    name: string;
+    environment: string;
+    referralSource?: string;
+  }) => {
     setFormData({
       ...formData,
       tenantData: {
         name: value.name,
         environment: value.environment as TenantEnvironment,
+        referralSource: value.referralSource,
       },
       name: value.name,
       environment: value.environment as TenantEnvironment,
+      referralSource: value.referralSource,
     });
   };
 

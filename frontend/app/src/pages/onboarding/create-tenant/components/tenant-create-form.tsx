@@ -24,10 +24,15 @@ import { z } from 'zod';
 const schema = z.object({
   name: z.string().min(1).max(32),
   environment: z.string().min(1),
+  referralSource: z.string().optional(),
 });
 
 interface TenantCreateFormProps
-  extends OnboardingStepProps<{ name: string; environment: string }> {
+  extends OnboardingStepProps<{
+    name: string;
+    environment: string;
+    referralSource?: string;
+  }> {
   organizationList?: OrganizationForUserList;
   selectedOrganizationId?: string | null;
   onOrganizationChange?: (organizationId: string) => void;
@@ -56,6 +61,7 @@ export function TenantCreateForm({
     defaultValues: {
       name: '',
       environment: 'development',
+      referralSource: '',
     },
   });
 
@@ -88,9 +94,11 @@ export function TenantCreateForm({
   useEffect(() => {
     const nameValue = value?.name ?? '';
     const environmentValue = value?.environment || 'development';
+    const referralSourceValue = value?.referralSource ?? '';
 
     setValue('name', nameValue);
     setValue('environment', environmentValue);
+    setValue('referralSource', referralSourceValue);
 
     // Set the generated name only once on initial load when no name is provided
     if (!hasSetInitialDefault.current && !value?.name && emptyState) {
@@ -98,6 +106,7 @@ export function TenantCreateForm({
       onChange({
         name: emptyState,
         environment: environmentValue,
+        referralSource: referralSourceValue,
       });
     }
   }, [value, setValue, emptyState, onChange]);
@@ -134,6 +143,7 @@ export function TenantCreateForm({
     onChange({
       name: updatedName,
       environment: selectedEnvironment,
+      referralSource: value?.referralSource,
     });
   };
 
@@ -238,6 +248,7 @@ export function TenantCreateForm({
               onChange({
                 name: e.target.value,
                 environment: value?.environment || 'development',
+                referralSource: value?.referralSource,
               });
             }}
           />
@@ -248,13 +259,25 @@ export function TenantCreateForm({
         </div>
 
         <div className="grid gap-3">
-          <Label htmlFor="name">Where did you hear about us? (optional)</Label>
+          <Label htmlFor="referral_source">
+            Where did you hear about us? (optional)
+          </Label>
           <Input
+            {...register('referralSource')}
             id="referral_source"
             placeholder="e.g. Twitter, LinkedIn, etc."
             type="text"
             autoCapitalize="none"
             autoCorrect="off"
+            disabled={isLoading}
+            onChange={(e) => {
+              setValue('referralSource', e.target.value);
+              onChange({
+                name: value?.name || '',
+                environment: value?.environment || 'development',
+                referralSource: e.target.value,
+              });
+            }}
           />
         </div>
 

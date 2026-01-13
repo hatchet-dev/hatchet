@@ -35,6 +35,9 @@ type CreateTenantOpts struct {
 
 	// (optional) the tenant environment type
 	Environment *string `validate:"omitempty,oneof=local development production"`
+
+	// (optional) additional onboarding data
+	OnboardingData map[string]interface{}
 }
 
 type UpdateTenantOpts struct {
@@ -236,6 +239,14 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		}
 	}
 
+	var onboardingData []byte
+	if opts.OnboardingData != nil {
+		onboardingData, err = json.Marshal(opts.OnboardingData)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	createTenant, err := r.queries.CreateTenant(context.Background(), tx, sqlcv1.CreateTenantParams{
 		ID:                  sqlchelpers.UUIDFromStr(tenantId),
 		Slug:                opts.Slug,
@@ -245,7 +256,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 			TenantMajorEngineVersion: engineVersion,
 			Valid:                    true,
 		},
-		OnboardingData: nil,
+		OnboardingData: onboardingData,
 		Environment:    environment,
 	})
 
