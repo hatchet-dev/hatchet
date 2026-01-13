@@ -7,48 +7,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func ToSlotState(slots []*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, remainingSlots int) *[]gen.SemaphoreSlots {
-	resp := make([]gen.SemaphoreSlots, len(slots))
-
-	for i := range slots {
-		slot := slots[i]
-
-		var stepRunId uuid.UUID
-
-		if slot.StepRunId.Valid {
-			stepRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.StepRunId))
-		}
-
-		var workflowRunId uuid.UUID
-
-		if slot.WorkflowRunId.Valid {
-			workflowRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.WorkflowRunId))
-		}
-
-		status := gen.StepRunStatus(slot.Status)
-
-		resp[i] = gen.SemaphoreSlots{
-			StepRunId:     stepRunId,
-			Status:        &status,
-			ActionId:      slot.ActionId,
-			WorkflowRunId: workflowRunId,
-			TimeoutAt:     &slot.TimeoutAt.Time,
-			StartedAt:     &slot.StartedAt.Time,
-		}
-	}
-
-	for i := len(slots); i < remainingSlots; i++ {
-		resp = append(resp, gen.SemaphoreSlots{})
-	}
-
-	return &resp
-}
-
-func ToWorkerLabels(labels []*dbsqlc.ListWorkerLabelsRow) *[]gen.WorkerLabel {
+func ToWorkerLabels(labels []*sqlcv1.ListWorkerLabelsRow) *[]gen.WorkerLabel {
 	resp := make([]gen.WorkerLabel, len(labels))
 
 	for i := range labels {
@@ -78,7 +40,7 @@ func ToWorkerLabels(labels []*dbsqlc.ListWorkerLabelsRow) *[]gen.WorkerLabel {
 	return &resp
 }
 
-func ToWorkerRuntimeInfo(worker *dbsqlc.Worker) *gen.WorkerRuntimeInfo {
+func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 
 	runtime := &gen.WorkerRuntimeInfo{
 		SdkVersion:      &worker.SdkVersion.String,
@@ -95,7 +57,7 @@ func ToWorkerRuntimeInfo(worker *dbsqlc.Worker) *gen.WorkerRuntimeInfo {
 	return runtime
 }
 
-func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string, actions []string) *gen.Worker {
+func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 

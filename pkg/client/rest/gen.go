@@ -32,6 +32,12 @@ const (
 	QUEUENEWEST      ConcurrencyLimitStrategy = "QUEUE_NEWEST"
 )
 
+// Defines values for ConcurrencyScope.
+const (
+	ConcurrencyScopeTASK     ConcurrencyScope = "TASK"
+	ConcurrencyScopeWORKFLOW ConcurrencyScope = "WORKFLOW"
+)
+
 // Defines values for CronWorkflowsMethod.
 const (
 	CronWorkflowsMethodAPI     CronWorkflowsMethod = "API"
@@ -187,16 +193,10 @@ const (
 	WORKFLOWRUN     TenantResource = "WORKFLOW_RUN"
 )
 
-// Defines values for TenantUIVersion.
-const (
-	TenantUIVersionV0 TenantUIVersion = "V0"
-	TenantUIVersionV1 TenantUIVersion = "V1"
-)
-
 // Defines values for TenantVersion.
 const (
-	TenantVersionV0 TenantVersion = "V0"
-	TenantVersionV1 TenantVersion = "V1"
+	V0 TenantVersion = "V0"
+	V1 TenantVersion = "V1"
 )
 
 // Defines values for V1CELDebugResponseStatus.
@@ -322,9 +322,9 @@ const (
 
 // Defines values for WorkflowKind.
 const (
-	WorkflowKindDAG      WorkflowKind = "DAG"
-	WorkflowKindDURABLE  WorkflowKind = "DURABLE"
-	WorkflowKindFUNCTION WorkflowKind = "FUNCTION"
+	DAG      WorkflowKind = "DAG"
+	DURABLE  WorkflowKind = "DURABLE"
+	FUNCTION WorkflowKind = "FUNCTION"
 )
 
 // Defines values for WorkflowRunOrderByDirection.
@@ -456,6 +456,23 @@ type CancelEventRequest struct {
 // ConcurrencyLimitStrategy defines model for ConcurrencyLimitStrategy.
 type ConcurrencyLimitStrategy string
 
+// ConcurrencyScope defines model for ConcurrencyScope.
+type ConcurrencyScope string
+
+// ConcurrencySetting defines model for ConcurrencySetting.
+type ConcurrencySetting struct {
+	// Expression The concurrency expression, used to generate a key from task inputs, metadata, etc.
+	Expression    string                   `json:"expression"`
+	LimitStrategy ConcurrencyLimitStrategy `json:"limitStrategy"`
+
+	// MaxRuns The maximum number of concurrent workflow runs.
+	MaxRuns int32            `json:"maxRuns"`
+	Scope   ConcurrencyScope `json:"scope"`
+
+	// StepReadableId The readable id of the step to which this concurrency setting applies.
+	StepReadableId *string `json:"stepReadableId,omitempty"`
+}
+
 // ConcurrencyStat defines model for ConcurrencyStat.
 type ConcurrencyStat struct {
 	Expression *string           `json:"expression,omitempty"`
@@ -536,8 +553,7 @@ type CreateTenantRequest struct {
 	OnboardingData *map[string]interface{} `json:"onboardingData,omitempty"`
 
 	// Slug The slug of the tenant.
-	Slug      string           `json:"slug" validate:"required,hatchetName"`
-	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
+	Slug string `json:"slug" validate:"required,hatchetName"`
 }
 
 // CronWorkflows defines model for CronWorkflows.
@@ -1104,9 +1120,8 @@ type Tenant struct {
 	Name string `json:"name"`
 
 	// Slug The slug of the tenant.
-	Slug      string           `json:"slug"`
-	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
-	Version   TenantVersion    `json:"version"`
+	Slug    string        `json:"slug"`
+	Version TenantVersion `json:"version"`
 }
 
 // TenantAlertEmailGroup defines model for TenantAlertEmailGroup.
@@ -1228,9 +1243,6 @@ type TenantStepRunQueueMetrics struct {
 	Queues *map[string]interface{} `json:"queues,omitempty"`
 }
 
-// TenantUIVersion defines model for TenantUIVersion.
-type TenantUIVersion string
-
 // TenantVersion defines model for TenantVersion.
 type TenantVersion string
 
@@ -1287,9 +1299,8 @@ type UpdateTenantRequest struct {
 	MaxAlertingFrequency *string `json:"maxAlertingFrequency,omitempty" validate:"omitnil,duration"`
 
 	// Name The name of the tenant.
-	Name      *string          `json:"name,omitempty"`
-	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
-	Version   *TenantVersion   `json:"version,omitempty"`
+	Name    *string        `json:"name,omitempty"`
+	Version *TenantVersion `json:"version,omitempty"`
 }
 
 // UpdateWorkerRequest defines model for UpdateWorkerRequest.
@@ -2336,8 +2347,9 @@ type WorkflowVersion struct {
 	ScheduleTimeout *string         `json:"scheduleTimeout,omitempty"`
 
 	// Sticky The sticky strategy of the workflow.
-	Sticky   *string           `json:"sticky,omitempty"`
-	Triggers *WorkflowTriggers `json:"triggers,omitempty"`
+	Sticky        *string               `json:"sticky,omitempty"`
+	Triggers      *WorkflowTriggers     `json:"triggers,omitempty"`
+	V1Concurrency *[]ConcurrencySetting `json:"v1Concurrency,omitempty"`
 
 	// Version The version of the workflow.
 	Version        string                  `json:"version"`

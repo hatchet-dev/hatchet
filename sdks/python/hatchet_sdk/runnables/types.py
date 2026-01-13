@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import Callable, Mapping
 from enum import Enum
-from typing import Any, ParamSpec, TypeGuard, TypeVar, overload
+from typing import Any, ParamSpec, TypeAlias, TypeGuard, TypeVar, overload
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
@@ -68,8 +68,11 @@ class ConcurrencyExpression(BaseModel):
         )
 
 
-TWorkflowInput = TypeVar(
-    "TWorkflowInput", bound=BaseModel | DataclassInstance | dict[str, Any]
+_TWorkflowInputBound: TypeAlias = BaseModel | DataclassInstance | dict[str, Any]
+TWorkflowInput = TypeVar("TWorkflowInput", bound=_TWorkflowInputBound)
+
+TWorkflowInput_contra = TypeVar(
+    "TWorkflowInput_contra", bound=_TWorkflowInputBound, contravariant=True
 )
 
 

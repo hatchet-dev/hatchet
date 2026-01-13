@@ -10,8 +10,7 @@ import (
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/ext"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	expr "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 )
@@ -252,9 +251,9 @@ func (p *CELParser) ParseAndEvalStepRun(stepRunExpr string, in Input) (*StepRunO
 	return res, nil
 }
 
-func (p *CELParser) CheckStepRunOutAgainstKnown(out *StepRunOut, knownType dbsqlc.StepExpressionKind) error {
+func (p *CELParser) CheckStepRunOutAgainstKnown(out *StepRunOut, knownType sqlcv1.StepExpressionKind) error {
 	switch knownType {
-	case dbsqlc.StepExpressionKindDYNAMICRATELIMITKEY:
+	case sqlcv1.StepExpressionKindDYNAMICRATELIMITKEY:
 		if out.String == nil {
 			prefix := "expected string output for dynamic rate limit key"
 
@@ -264,7 +263,7 @@ func (p *CELParser) CheckStepRunOutAgainstKnown(out *StepRunOut, knownType dbsql
 
 			return fmt.Errorf("%s, got unknown type", prefix)
 		}
-	case dbsqlc.StepExpressionKindDYNAMICRATELIMITVALUE:
+	case sqlcv1.StepExpressionKindDYNAMICRATELIMITVALUE:
 		if out.Int == nil {
 			prefix := "expected int output for dynamic rate limit value"
 
@@ -274,7 +273,7 @@ func (p *CELParser) CheckStepRunOutAgainstKnown(out *StepRunOut, knownType dbsql
 
 			return fmt.Errorf("%s, got unknown type", prefix)
 		}
-	case dbsqlc.StepExpressionKindDYNAMICRATELIMITWINDOW:
+	case sqlcv1.StepExpressionKindDYNAMICRATELIMITWINDOW:
 		if out.String == nil {
 			prefix := "expected string output for dynamic rate limit window"
 
@@ -284,7 +283,7 @@ func (p *CELParser) CheckStepRunOutAgainstKnown(out *StepRunOut, knownType dbsql
 
 			return fmt.Errorf("%s, got unknown type", prefix)
 		}
-	case dbsqlc.StepExpressionKindDYNAMICRATELIMITUNITS:
+	case sqlcv1.StepExpressionKindDYNAMICRATELIMITUNITS:
 		if out.Int == nil {
 			prefix := "expected int output for dynamic rate limit units"
 

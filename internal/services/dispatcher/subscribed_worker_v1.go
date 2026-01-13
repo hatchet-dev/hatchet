@@ -9,12 +9,12 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc"
 
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -211,7 +211,7 @@ func (worker *subscribedWorker) CancelTask(
 			return fmt.Errorf("could not create monitoring event for task %d: %w", task.ID, err)
 		}
 
-		err = worker.pubBuffer.Pub(ctx, msgqueuev1.OLAP_QUEUE, msg, false)
+		err = worker.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 		if err != nil {
 			return fmt.Errorf("could not publish monitoring event for task %d: %w", task.ID, err)
 		}

@@ -786,7 +786,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         func: Callable[..., Any],
     ) -> str:
         non_null_name = name or func.__name__
-
         return non_null_name.lower()
 
     def task(

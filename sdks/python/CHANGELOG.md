@@ -5,6 +5,41 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.5] - 2026-01-09
+
+### Added
+
+- Adds an `additional_metadata` field to the `get_details` response.
+
+## [1.22.4] - 2026-01-08
+
+### Added
+
+- Adds a `get_details` method to the runs client
+
+## [1.22.3] - 2026-01-07
+
+### Changed
+
+- Fixes an issue with the type signature for chained dependencies
+- Truncates log messages to 10,000 characters to avoid issues with overly large logs.
+
+## [1.22.2] - 2025-12-31
+
+### Added
+
+- Crons can now be provided by alias, e.g. `@daily`
+
+### Changed
+
+- Failed workflow logs are only reported at the `exception` level either on the last retry attempt or if the task is marked as `non_retryable`, to avoid spamming e.g. Sentry with exceptions.
+
+## [1.22.1] - 2025-12-30
+
+### Changed
+
+- Regenerates some API signatures after deprecating many v0 routes.
+
 ## [1.22.0] - 2025-12-26
 
 ### Added

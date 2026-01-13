@@ -28,6 +28,7 @@ from hatchet_sdk.contracts.events_pb2 import (
     PutStreamEventRequest,
 )
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
+from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 
@@ -185,6 +186,10 @@ class EventClient(BaseRestClient):
     def log(
         self, message: str, step_run_id: str, level: LogLevel | None = None
     ) -> None:
+        if len(message) > 10_000:
+            logger.warning("truncating log message to 10,000 characters")
+            message = message[:10_000]
+
         put_log = tenacity_retry(
             self.events_service_client.PutLog, self.client_config.tenacity
         )

@@ -1,7 +1,3 @@
-import {
-  FilterColumn,
-  filterColumns,
-} from '../filters/components/filter-columns';
 import { useFilters } from '../filters/hooks/use-filters';
 import { RunsTable } from '../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
@@ -20,12 +16,15 @@ import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Separator } from '@/components/v1/ui/separator';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1Event, V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
+import { CheckIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 export default function Events() {
@@ -241,19 +240,64 @@ function FiltersSection({
   filters: V1Filter[];
   workflowIdToName: Record<string, string>;
 }) {
-  const columns = useMemo(
-    () => filterColumns(workflowIdToName),
+  const filterColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'ID',
+        cellRenderer: (filter: V1Filter) => (
+          <div className="w-full">
+            <Button className="w-fit pl-0" variant="link">
+              {filter.metadata.id}
+            </Button>
+          </div>
+        ),
+      },
+      {
+        columnLabel: 'Workflow',
+        cellRenderer: (filter: V1Filter) => (
+          <div className="w-full">{workflowIdToName[filter.workflowId]}</div>
+        ),
+      },
+      {
+        columnLabel: 'Scope',
+        cellRenderer: (filter: V1Filter) => (
+          <div className="w-full">{filter.scope}</div>
+        ),
+      },
+      {
+        columnLabel: 'Expression',
+        cellRenderer: (filter: V1Filter) => (
+          <CodeHighlighter
+            language="text"
+            className="whitespace-pre-wrap break-words text-sm leading-relaxed"
+            code={filter.expression}
+            copy={false}
+            maxHeight="10rem"
+            minWidth="20rem"
+          />
+        ),
+      },
+      {
+        columnLabel: 'Is Declarative',
+        cellRenderer: (filter: V1Filter) =>
+          filter.isDeclarative ? (
+            <CheckIcon className="size-4 text-green-600" />
+          ) : null,
+      },
+    ],
     [workflowIdToName],
   );
 
   return (
     <div className="w-full overflow-x-auto">
       <div className="min-w-[500px] [&_td:last-child]:w-[60px] [&_td:last-child]:min-w-[60px] [&_td:last-child]:max-w-[60px] [&_th:last-child]:w-[60px] [&_th:last-child]:min-w-[60px] [&_th:last-child]:max-w-[60px]">
-        <DataTable
-          columns={columns}
-          data={filters}
-          columnKeyToName={FilterColumn}
-        />
+        {filters.length > 0 ? (
+          <SimpleTable columns={filterColumns} data={filters} />
+        ) : (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            No filters found for this event.
+          </div>
+        )}
       </div>
     </div>
   );

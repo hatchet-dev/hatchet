@@ -3,9 +3,9 @@ package v1
 import (
 	"github.com/jackc/pgx/v5/pgtype"
 
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func TriggerTaskMessage(tenantId string, payloads ...*v1.WorkflowNameTriggerOpts) (*msgqueue.Message, error) {

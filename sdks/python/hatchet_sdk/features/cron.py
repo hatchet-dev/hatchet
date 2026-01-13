@@ -48,6 +48,17 @@ class CreateCronTriggerConfig(BaseModel):
         if not v:
             raise ValueError("Cron expression is required")
 
+        ## allow cron aliases
+        if (alias := v.strip()) in {
+            "@yearly",
+            "@annually",
+            "@monthly",
+            "@weekly",
+            "@daily",
+            "@hourly",
+        }:
+            return alias
+
         parts = v.split()
         if len(parts) != 5:
             raise ValueError(
