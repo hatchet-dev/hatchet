@@ -96,8 +96,8 @@ export function SidebarButtonPrimary(
       <Button
         variant="ghost"
         className={cn(
-          'w-full justify-start pl-2 min-w-0 overflow-hidden',
-          selected && 'bg-slate-200 dark:bg-slate-800',
+          'w-full justify-start pl-2 min-w-0 overflow-hidden [&_svg]:text-muted-foreground/50',
+          selected && 'bg-slate-200 dark:bg-slate-800 [&_svg]:text-primary',
         )}
       >
         {icon}

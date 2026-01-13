@@ -92,7 +92,7 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantOverviewRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiHome2Line
-              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
@@ -109,7 +109,7 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantRunsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiPlayLargeLine
-              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
@@ -119,7 +119,7 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantEventsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiPulseAiLine
-              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
@@ -136,7 +136,7 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantScheduledRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiCalendarEventLine
-              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
@@ -146,7 +146,7 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantCronJobsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiTimeLine
-              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
@@ -156,7 +156,7 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantWebhooksRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiWebhookLine
-              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
@@ -173,7 +173,7 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantWorkersRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiStackLine
-              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
@@ -183,7 +183,7 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantWorkflowsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiFunctionLine
-              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
@@ -195,7 +195,7 @@ export function sideNavItems(opts: {
                 to: appRoutes.tenantManagedWorkersRoute.to,
                 icon: ({ collapsed }: { collapsed: boolean }) => (
                   <RiCpuLine
-                    className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
                   />
                 ),
               },
@@ -207,7 +207,7 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantRateLimitsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiEqualizer3Line
-              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
@@ -217,7 +217,7 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantFiltersRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiFilterLine
-              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
@@ -237,7 +237,7 @@ export function sideNavItems(opts: {
           prefix: appRoutes.tenantSettingsIndexRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiToolsLine
-              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
           children: settingsChildren,

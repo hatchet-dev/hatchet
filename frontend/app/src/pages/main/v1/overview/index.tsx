@@ -369,7 +369,7 @@ export default function Overview() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-2">
-              <span className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
+              <span className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
                 GMT-5 Eastern Standard Time
               </span>
               <p className="text-muted-foreground whitespace-nowrap">
