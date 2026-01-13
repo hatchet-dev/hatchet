@@ -76,10 +76,6 @@ func GetProfile(name string) (*cli.Profile, error) {
 
 // AddProfile adds a new profile to the config
 func AddProfile(name string, profile *cli.Profile) error {
-	if ProfilesViperConfig == nil {
-		return fmt.Errorf("config not initialized")
-	}
-
 	// Validate required fields
 	if profile.TenantId == "" {
 		return fmt.Errorf("tenantId is required")
@@ -119,6 +115,10 @@ func AddProfile(name string, profile *cli.Profile) error {
 	viperMutex.Lock()
 	defer viperMutex.Unlock()
 
+	if ProfilesViperConfig == nil {
+		return fmt.Errorf("config not initialized")
+	}
+
 	// Reload config to get latest state
 	if err := reloadConfig(); err != nil {
 		return fmt.Errorf("failed to reload config: %w", err)
@@ -137,10 +137,6 @@ func AddProfile(name string, profile *cli.Profile) error {
 
 // RemoveProfile removes a profile from the config
 func RemoveProfile(name string) error {
-	if ProfilesViperConfig == nil {
-		return fmt.Errorf("config not initialized")
-	}
-
 	unlock, err := acquireLock()
 	if err != nil {
 		return fmt.Errorf("failed to acquire lock: %w", err)
@@ -149,6 +145,10 @@ func RemoveProfile(name string) error {
 
 	viperMutex.Lock()
 	defer viperMutex.Unlock()
+
+	if ProfilesViperConfig == nil {
+		return fmt.Errorf("config not initialized")
+	}
 
 	// Reload config to get latest state
 	if err := reloadConfig(); err != nil {
@@ -195,10 +195,6 @@ func RemoveProfile(name string) error {
 // UpdateProfile updates an existing profile with new values
 // Only non-empty fields will be updated
 func UpdateProfile(name string, profile *cli.Profile) error {
-	if ProfilesViperConfig == nil {
-		return fmt.Errorf("config not initialized")
-	}
-
 	unlock, err := acquireLock()
 	if err != nil {
 		return fmt.Errorf("failed to acquire lock: %w", err)
@@ -207,6 +203,10 @@ func UpdateProfile(name string, profile *cli.Profile) error {
 
 	viperMutex.Lock()
 	defer viperMutex.Unlock()
+
+	if ProfilesViperConfig == nil {
+		return fmt.Errorf("config not initialized")
+	}
 
 	// Reload config to get latest state
 	if err := reloadConfig(); err != nil {
