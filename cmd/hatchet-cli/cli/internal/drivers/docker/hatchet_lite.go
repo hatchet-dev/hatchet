@@ -3,13 +3,13 @@ package docker
 import (
 	"context"
 	"fmt"
-	"io"
 	"maps"
 	"net"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
@@ -18,6 +18,20 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/go-connections/nat"
 )
+
+// Progress message styling
+var (
+	successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#3392FF")).Bold(true)
+	infoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#A5C5E9"))
+)
+
+func printSuccess(message string) {
+	fmt.Println(successStyle.Render(fmt.Sprintf("✓ %s", message)))
+}
+
+func printInfo(message string) {
+	fmt.Println(infoStyle.Render(fmt.Sprintf("  %s", message)))
+}
 
 // hatchet lite opts
 const (
@@ -128,6 +142,8 @@ func (d *DockerDriver) RunHatchetLite(ctx context.Context, opts ...HatchetLiteOp
 		}
 	}
 
+	printInfo("Starting Hatchet Lite with Docker driver")
+
 	sharedLabels := getSharedLabels(hatchetLiteOpts)
 
 	// find or create network (use Docker Compose naming convention)
@@ -136,6 +152,8 @@ func (d *DockerDriver) RunHatchetLite(ctx context.Context, opts ...HatchetLiteOp
 	if err != nil {
 		return fmt.Errorf("could not initialize network: %w", err)
 	}
+
+	printSuccess("Network ready")
 
 	// Check if hatchet container already exists and get its ports
 	hatchetContainerName := canonicalContainerName(hatchetLiteOpts.projectName, hatchetLiteOpts.hatchetName)
@@ -237,8 +255,8 @@ func (d *DockerDriver) startPostgresContainer(ctx context.Context, opts *Hatchet
 	}
 	defer out.Close()
 
-	// TODO: write these logs to logger
-	io.Copy(io.Discard, out) // nolint: errcheck
+	// Display progress while pulling the image
+	displayImagePullProgress(out, imageName)
 
 	// Get image details for proper labeling
 	imageInspect, err := d.apiClient.ImageInspect(ctx, imageName)
@@ -326,6 +344,8 @@ func (d *DockerDriver) startPostgresContainer(ctx context.Context, opts *Hatchet
 		return fmt.Errorf("postgres container did not become healthy: %w", err)
 	}
 
+	printSuccess("PostgreSQL ready")
+
 	return nil
 }
 
@@ -345,8 +365,8 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 	}
 	defer out.Close()
 
-	// TODO: write these logs to logger
-	io.Copy(io.Discard, out) // nolint: errcheck
+	// Display progress while pulling the image
+	displayImagePullProgress(out, imageName)
 
 	// Get image details for proper labeling
 	imageInspect, err := d.apiClient.ImageInspect(ctx, imageName)
@@ -454,6 +474,8 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 	if err != nil {
 		return fmt.Errorf("hatchet-lite container did not become healthy: %w", err)
 	}
+
+	printSuccess("Hatchet Lite ready")
 
 	return nil
 }

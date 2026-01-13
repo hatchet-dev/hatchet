@@ -58,15 +58,23 @@ var quickstartCmd = &cobra.Command{
 			dir = selectDirectoryForm(projectName)
 		}
 
-		err := templater.Process(content, fmt.Sprintf("templates/%s", language), dir, templater.Data{
+		templateData := templater.Data{
 			Name: projectName,
-		})
+		}
+
+		err := templater.Process(content, fmt.Sprintf("templates/%s", language), dir, templateData)
 
 		if err != nil {
 			cli.Logger.Fatalf("could not process templates: %v", err)
 		}
 
-		fmt.Println(quickstartSuccessView(language, projectName, dir))
+		// Process POST_QUICKSTART.md if it exists
+		postQuickstart, err := templater.ProcessPostQuickstart(content, fmt.Sprintf("templates/%s", language), templateData)
+		if err != nil {
+			cli.Logger.Fatalf("could not process post-quickstart content: %v", err)
+		}
+
+		fmt.Println(quickstartSuccessView(language, projectName, dir, postQuickstart))
 	},
 }
 
@@ -107,10 +115,16 @@ func selectLanguageForm() string {
 func selectNameForm() string {
 	name := ""
 
-	err := huh.NewInput().
-		Title("Enter a name for your project (default hatchet-worker)").
-		Placeholder("hatchet-worker").
-		Value(&name).WithTheme(styles.HatchetTheme()).Run()
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Enter a name for your project (default hatchet-worker)").
+				Placeholder("hatchet-worker").
+				Value(&name),
+		),
+	).WithTheme(styles.HatchetTheme())
+
+	err := form.Run()
 
 	if err != nil {
 		cli.Logger.Fatalf("could not run quickstart form: %v", err)
@@ -126,10 +140,16 @@ func selectNameForm() string {
 func selectDirectoryForm(name string) string {
 	directory := ""
 
-	err := huh.NewInput().
-		Title(fmt.Sprintf("Enter a directory to create your project in (default ./%s)", name)).
-		Placeholder(fmt.Sprintf("./%s", name)).
-		Value(&directory).WithTheme(styles.HatchetTheme()).Run()
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title(fmt.Sprintf("Enter a directory to create your project in (default ./%s)", name)).
+				Placeholder(fmt.Sprintf("./%s", name)).
+				Value(&directory),
+		),
+	).WithTheme(styles.HatchetTheme())
+
+	err := form.Run()
 
 	if err != nil {
 		cli.Logger.Fatalf("could not run quickstart form: %v", err)
@@ -142,8 +162,40 @@ func selectDirectoryForm(name string) string {
 	return directory
 }
 
+// renderCodeBlocks processes a string and renders code blocks wrapped in ```sh
+func renderCodeBlocks(content string) string {
+	// Simple code block rendering for ```sh blocks
+	lines := strings.Split(content, "\n")
+	var result []string
+	inCodeBlock := false
+	var codeLines []string
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "```sh") || strings.HasPrefix(line, "```bash") {
+			inCodeBlock = true
+			codeLines = []string{}
+			continue
+		}
+		if inCodeBlock && strings.HasPrefix(line, "```") {
+			// End of code block - render it
+			inCodeBlock = false
+			for _, codeLine := range codeLines {
+				result = append(result, styles.Code.Render("   "+codeLine))
+			}
+			continue
+		}
+		if inCodeBlock {
+			codeLines = append(codeLines, line)
+		} else {
+			result = append(result, line)
+		}
+	}
+
+	return strings.Join(result, "\n")
+}
+
 // quickstartSuccessView renders the success message with next steps
-func quickstartSuccessView(language, projectName, dir string) string {
+func quickstartSuccessView(language, projectName, dir, postQuickstart string) string {
 	var lines []string
 
 	lines = append(lines, styles.SuccessMessage(fmt.Sprintf("Successfully created %s project: %s", language, projectName)))
@@ -157,8 +209,15 @@ func quickstartSuccessView(language, projectName, dir string) string {
 	lines = append(lines, "")
 	lines = append(lines, styles.Accent.Render("2.")+" Start the worker in development mode:")
 	lines = append(lines, styles.Code.Render("   hatchet worker dev"))
-	lines = append(lines, "")
-	lines = append(lines, styles.Muted.Render("The worker will automatically connect to your Hatchet instance."))
+
+	// Add POST_QUICKSTART.md content as step 3 if it exists
+	if postQuickstart != "" {
+		lines = append(lines, "")
+		lines = append(lines, styles.Accent.Render("3.")+" "+strings.TrimSpace(renderCodeBlocks(postQuickstart)))
+	} else {
+		lines = append(lines, "")
+		lines = append(lines, styles.Muted.Render("The worker will automatically connect to your Hatchet instance."))
+	}
 
 	return styles.SuccessBox.Render(strings.Join(lines, "\n"))
 }

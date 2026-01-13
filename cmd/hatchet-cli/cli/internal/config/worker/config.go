@@ -9,7 +9,19 @@ import (
 )
 
 type WorkerConfig struct {
-	Dev WorkerDevConfig `mapstructure:"dev" json:"dev,omitempty"`
+	Dev     WorkerDevConfig `mapstructure:"dev" json:"dev,omitempty"`
+	Scripts []Script        `mapstructure:"scripts" json:"scripts,omitempty"`
+}
+
+type Script struct {
+	// command to execute
+	Command string `mapstructure:"command" json:"command"`
+
+	// optional name (defaults to command)
+	Name string `mapstructure:"name" json:"name,omitempty"`
+
+	// optional description
+	Description string `mapstructure:"description" json:"description,omitempty"`
 }
 
 type WorkerDevConfig struct {

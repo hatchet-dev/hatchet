@@ -1,6 +1,7 @@
 package templater
 
 import (
+	"bytes"
 	"embed"
 	"io/fs"
 	"os"
@@ -17,6 +18,7 @@ type Data struct {
 // Process reads all files from the specified directory within the embedded filesystem,
 // executes them as text/templates with the provided data, and writes the results
 // to the destination directory, preserving the directory structure.
+// Files named POST_QUICKSTART.md are skipped and not copied to the destination.
 func Process(fsys embed.FS, srcDir, dstDir string, data Data) error {
 	// Get a sub-filesystem rooted at srcDir
 	subFS, err := fs.Sub(fsys, srcDir)
@@ -28,6 +30,11 @@ func Process(fsys embed.FS, srcDir, dstDir string, data Data) error {
 	return fs.WalkDir(subFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		// Skip POST_QUICKSTART.md files - they're for display only, not copying
+		if !d.IsDir() && filepath.Base(path) == "POST_QUICKSTART.md" {
+			return nil
 		}
 
 		// Remove .embed suffix if present for the destination path
@@ -60,4 +67,37 @@ func Process(fsys embed.FS, srcDir, dstDir string, data Data) error {
 
 		return tmpl.Execute(outFile, data)
 	})
+}
+
+// ProcessPostQuickstart reads and processes the POST_QUICKSTART.md file from the template directory.
+// Returns the processed content as a string, or empty string if the file doesn't exist.
+func ProcessPostQuickstart(fsys embed.FS, srcDir string, data Data) (string, error) {
+	// Get a sub-filesystem rooted at srcDir
+	subFS, err := fs.Sub(fsys, srcDir)
+	if err != nil {
+		return "", err
+	}
+
+	// Try to read POST_QUICKSTART.md
+	content, err := fs.ReadFile(subFS, "POST_QUICKSTART.md")
+	if err != nil {
+		// File doesn't exist, return empty string (not an error)
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+
+	// Process as template
+	tmpl, err := template.New("POST_QUICKSTART.md").Parse(string(content))
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }
