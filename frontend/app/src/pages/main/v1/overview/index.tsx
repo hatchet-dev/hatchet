@@ -75,9 +75,9 @@ export default function Overview() {
   const [language, setLanguage] = useState<string>('python');
 
   return (
-    <div className="flex h-full w-full flex-col space-y-20 p-6">
+    <div className="flex h-full w-full flex-col space-y-24 lg:p-6">
       {/* Header section */}
-      <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
+      <div className="grid gap-x-2 gap-y-6 grid-cols-1 items-start lg:grid-cols-[1fr_auto]">
         <div className="flex items-center gap-6 flex-wrap">
           <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
           <OnboardingWidget steps={4} currentStep={1} label="Steps completed" />
@@ -96,7 +96,7 @@ export default function Overview() {
           </span>
         </span>
         <Separator className="my-4 bg-border/50" flush />
-        <div className="grid gap-4 items-end grid-flow-col [grid-template-columns:1fr_1fr_auto_1fr]">
+        <div className="grid gap-4 items-end grid-flow-row lg:[grid-template-columns:1fr_1fr_auto_1fr] lg:grid-flow-col">
           <div className="grid gap-2">
             <Label htmlFor="name">Name</Label>
             <Input
@@ -135,7 +135,7 @@ export default function Overview() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <Separator orientation="vertical" />
+          <Separator orientation="vertical" className="hidden lg:block" />
           <div className="grid gap-2 justify-self-start">
             <Button variant="default" size="default">
               Generate Token
@@ -274,7 +274,7 @@ export default function Overview() {
         </Tabs>
       </div>
       {/* Support section */}
-      <div>
+      <div className="pb-6">
         <h2 className="text-md">Support</h2>
         <Separator className="my-4 bg-border/50" flush />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
