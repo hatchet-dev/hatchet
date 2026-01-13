@@ -1,5 +1,6 @@
 import { OnboardingWidget } from './components/onboarding-widget';
 import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -15,7 +16,11 @@ import {
   TabsTrigger,
   TabsContent,
 } from '@/components/v1/ui/tabs';
-import { ChevronDownIcon } from '@radix-ui/react-icons';
+import {
+  ChevronRightIcon,
+  ChevronDownIcon,
+  CheckIcon,
+} from '@radix-ui/react-icons';
 import { useState } from 'react';
 
 const expiresInOptions = [
@@ -42,11 +47,17 @@ const onboardingSVG = (
   </svg>
 );
 
-const tabsTriggerContent = {
+const workflowSteps = {
   settingUp: 'Setting Up',
   chooseToken: 'Choose token',
   runWorker: 'Run worker',
   viewTask: 'View task',
+};
+
+const workflowLanguages = {
+  python: 'Python',
+  typescript: 'TypeScript',
+  go: 'Go',
 };
 
 export default function Overview() {
@@ -54,6 +65,8 @@ export default function Overview() {
   const [selectedTab, setSelectedTab] = useState<
     'settingUp' | 'chooseToken' | 'runWorker' | 'viewTask'
   >('settingUp');
+  const [language, setLanguage] = useState<string>('python');
+
   return (
     <div className="flex h-full w-full flex-col space-y-20 p-6">
       <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
@@ -139,10 +152,10 @@ export default function Overview() {
               value as 'settingUp' | 'chooseToken' | 'runWorker' | 'viewTask',
             )
           }
-          className="w-full rounded-none px-6 pb-6 bg-muted/30"
+          className="w-full rounded-md px-6 pb-6 bg-muted/20 ring-1 ring-border/50 ring-inset"
         >
           <TabsList className="grid w-full grid-flow-col rounded-none bg-transparent p-0 pb-6 justify-start gap-6 h-auto">
-            {Object.entries(tabsTriggerContent).map(([key, value]) => (
+            {Object.entries(workflowSteps).map(([key, value], index) => (
               <TabsTrigger
                 key={key}
                 value={key}
@@ -150,23 +163,105 @@ export default function Overview() {
                   'text-xs rounded-none pt-2.5 px-1 font-medium border-t border-transparent hover:border-border bg-transparent data-[state=active]:border-primary/50 data-[state=active]:bg-transparent'
                 }
               >
-                <div className="flex items-center gap-2">{value}</div>
+                <div className="flex items-center gap-2">
+                  {index + 1} {value}
+                </div>
               </TabsTrigger>
             ))}
           </TabsList>
 
-          <TabsContent value="settingUp" className="mt-0 space-y-2">
+          <TabsContent value="settingUp" className="mt-0 space-y-5">
             <p> Clone the repository and install dependencies. </p>
+            <Tabs
+              value={language}
+              onValueChange={setLanguage}
+              className="w-full"
+            >
+              <TabsList className="mt-2 bg-muted/20 ring-1 ring-border/50 ring-inset rounded-lg p-0 gap-0.5">
+                {Object.entries(workflowLanguages).map(([key, value]) => (
+                  <TabsTrigger
+                    key={key}
+                    value={key}
+                    className="rounded-lg h-full ring-inset data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-muted/70"
+                  >
+                    {value}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <TabsContent value="python" className="mt-4 space-y-3">
+                <CodeHighlighter
+                  className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
+                  code={`git clone https://github.com/hatchet-dev/hatchet-python-quickstart.git\ncd hatchet-python-quickstart\npoetry install`}
+                  copyCode={`git clone https://github.com/hatchet-dev/hatchet-python-quickstart.git\ncd hatchet-python-quickstart\npoetry install`}
+                  language="shell"
+                  copy
+                />
+              </TabsContent>
+              <TabsContent value="typescript" className="mt-4 space-y-3">
+                <CodeHighlighter
+                  className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
+                  code={`git clone https://github.com/hatchet-dev/hatchet-typescript-quickstart.git\ncd hatchet-typescript-quickstart`}
+                  copyCode={`git clone https://github.com/hatchet-dev/hatchet-typescript-quickstart.git\ncd hatchet-typescript-quickstart`}
+                  language="shell"
+                  copy
+                />
+              </TabsContent>
+              <TabsContent value="go" className="mt-4 space-y-3">
+                <CodeHighlighter
+                  className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
+                  code={`git clone https://github.com/hatchet-dev/hatchet-go-quickstart.git\ncd hatchet-go-quickstart\ngo mod tidy`}
+                  copyCode={`git clone https://github.com/hatchet-dev/hatchet-go-quickstart.git\ncd hatchet-go-quickstart\ngo mod tidy`}
+                  language="shell"
+                  copy
+                />
+              </TabsContent>
+            </Tabs>
+            <Button
+              variant="outline"
+              size="default"
+              className="w-fit gap-2 bg-muted/70"
+              onClick={() => setSelectedTab('chooseToken')}
+            >
+              Continue
+              <ChevronRightIcon className="size-3 text-foreground/50" />
+            </Button>
           </TabsContent>
 
-          <TabsContent value="chooseToken" className="mt-0">
+          <TabsContent value="chooseToken" className="mt-0 space-y-5">
             <div> Choose token </div>
+            <Button
+              variant="outline"
+              size="default"
+              className="w-fit gap-2 bg-muted/70"
+              onClick={() => setSelectedTab('runWorker')}
+            >
+              Continue
+              <ChevronRightIcon className="size-3 text-foreground/50" />
+            </Button>
           </TabsContent>
-          <TabsContent value="runWorker" className="mt-0">
+          <TabsContent value="runWorker" className="mt-0 space-y-5">
             <div> Run worker </div>
+            <Button
+              variant="outline"
+              size="default"
+              className="w-fit gap-2 bg-muted/70"
+              onClick={() => setSelectedTab('viewTask')}
+            >
+              Continue
+              <ChevronRightIcon className="size-3 text-foreground/50" />
+            </Button>
           </TabsContent>
-          <TabsContent value="viewTask" className="mt-0">
+          <TabsContent value="viewTask" className="mt-0 space-y-5">
             <div> View task </div>
+            <Button
+              variant="outline"
+              size="default"
+              className="w-fit gap-2 bg-muted/70"
+              onClick={() => ({})}
+            >
+              Finish
+              <CheckIcon className="size-3 text-brand" />
+            </Button>
           </TabsContent>
         </Tabs>
       </div>
