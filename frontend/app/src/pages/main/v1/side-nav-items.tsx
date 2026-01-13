@@ -89,7 +89,13 @@ export function sideNavItems(opts: {
           key: 'overview',
           name: 'Overview',
           to: appRoutes.tenantOverviewRoute.to,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
+          icon: ({
+            collapsed,
+            active,
+          }: {
+            collapsed: boolean;
+            active?: boolean;
+          }) => (
             <svg
               width="17"
               height="17"
@@ -98,8 +104,35 @@ export function sideNavItems(opts: {
               xmlns="http://www.w3.org/2000/svg"
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             >
+              <style>
+                {`
+                  @keyframes hatchet-fall {
+                    0% {
+                      transform: translateX(12px) translateY(-10px) rotate(179deg) scale(0.2);
+                      opacity: 0;
+                    }
+                    50% {
+                      opacity: 1;
+                      transform: translateX(0) translateY(-1px) rotate(20deg) scale(1);
+                    }
+                    55% {
+                      transform: translateY(0) rotate(-12deg);
+                    }
+                    60% {
+                      transform: translateY(0) rotate(0deg);
+                      opacity: 1;
+                    }
+                  }
+                  .hatchet-animated {
+                    transform-origin: 8px 7px;
+                    animation: hatchet-fall 1s cubic-bezier(0.8, 0.1, 0.8, 0.2) forwards;
+                  }
+                `}
+              </style>
               <path
+                key={active ? 'hatchet-active' : 'hatchet-inactive'}
                 d="M10.7088 5.33333L8.90785 9.33333L5.39489 5.79376C5.00305 5.39895 4.80713 5.20155 4.73366 4.97425C4.66902 4.77429 4.66902 4.55905 4.73366 4.35909C4.80713 4.13178 5.00305 3.93438 5.39489 3.53957L8.90785 7.38316e-07L11.6096 1.21071e-06L7.07243 4.88519C6.94095 5.02675 6.87522 5.09753 6.87203 5.15789C6.86927 5.2103 6.89135 5.26095 6.93164 5.29459C6.97803 5.33333 7.07463 5.33333 7.26782 5.33333L10.7088 5.33333Z"
+                className={active ? 'hatchet-animated' : ''}
                 fill="currentColor"
               />
               <path

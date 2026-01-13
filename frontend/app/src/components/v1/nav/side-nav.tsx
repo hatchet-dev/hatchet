@@ -45,7 +45,7 @@ export type SideNavItem = {
   key: string;
   name: string;
   to: string;
-  icon: (opts: { collapsed: boolean }) => React.ReactNode;
+  icon: (opts: { collapsed: boolean; active?: boolean }) => React.ReactNode;
   prefix?: string;
   activeTo?: string;
   activeFuzzy?: boolean;
@@ -362,7 +362,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                   active && 'bg-slate-200 dark:bg-slate-800',
                                 )}
                               >
-                                {item.icon({ collapsed: true })}
+                                {item.icon({ collapsed: true, active })}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent
@@ -410,7 +410,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                             onNavLinkClick();
                           }}
                         >
-                          {item.icon({ collapsed: true })}
+                          {item.icon({ collapsed: true, active })}
                         </Button>
                       );
                     })}
@@ -455,7 +455,10 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                           params={commonParams}
                           prefix={item.prefix}
                           name={item.name}
-                          icon={item.icon({ collapsed: false })}
+                          icon={item.icon({
+                            collapsed: false,
+                            active: isActive(item.to, item.activeFuzzy),
+                          })}
                           collapsibleChildren={
                             item.children?.map((child) => (
                               <SidebarButtonSecondary
