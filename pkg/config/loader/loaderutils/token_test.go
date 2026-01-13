@@ -1,6 +1,6 @@
 //go:build !e2e && !load && !rampup && !integration
 
-package loader
+package loaderutils
 
 import (
 	"testing"
