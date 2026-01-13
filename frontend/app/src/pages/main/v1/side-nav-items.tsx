@@ -3,16 +3,31 @@ import {
   SideNavChild,
 } from '../../../components/v1/nav/side-nav';
 import { appRoutes } from '@/router';
+// import {
+//   CalendarDaysIcon,
+//   CpuChipIcon,
+//   PlayIcon,
+//   ScaleIcon,
+//   ServerStackIcon,
+//   Squares2X2Icon,
+// } from '@heroicons/react/24/outline';
+// import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
+// import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
+
 import {
-  CalendarDaysIcon,
-  CpuChipIcon,
-  PlayIcon,
-  ScaleIcon,
-  ServerStackIcon,
-  Squares2X2Icon,
-} from '@heroicons/react/24/outline';
-import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
-import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
+  RiHome2Line,
+  RiPulseAiLine,
+  RiFilterLine,
+  RiCalendarEventLine,
+  RiTimeLine,
+  RiStackLine,
+  RiWebhookLine,
+  RiCpuLine,
+  RiEqualizer3Line,
+  RiFunctionLine,
+  RiToolsLine,
+  RiPlayLargeLine,
+} from 'react-icons/ri';
 
 export function sideNavItems(opts: {
   canBill?: boolean;
@@ -76,8 +91,8 @@ export function sideNavItems(opts: {
           name: 'Overview',
           to: appRoutes.tenantOverviewRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <Squares2X2Icon
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            <RiHome2Line
+              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
             />
           ),
         },
@@ -93,8 +108,8 @@ export function sideNavItems(opts: {
           name: 'Runs',
           to: appRoutes.tenantRunsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <PlayIcon
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            <RiPlayLargeLine
+              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
             />
           ),
         },
@@ -103,8 +118,8 @@ export function sideNavItems(opts: {
           name: 'Events',
           to: appRoutes.tenantEventsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <SquareActivityIcon
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            <RiPulseAiLine
+              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
             />
           ),
         },
@@ -120,8 +135,8 @@ export function sideNavItems(opts: {
           name: 'Scheduled Runs',
           to: appRoutes.tenantScheduledRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <CalendarDaysIcon
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            <RiCalendarEventLine
+              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
             />
           ),
         },
@@ -130,8 +145,8 @@ export function sideNavItems(opts: {
           name: 'Cron Jobs',
           to: appRoutes.tenantCronJobsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <ClockIcon
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            <RiTimeLine
+              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
             />
           ),
         },
@@ -140,8 +155,8 @@ export function sideNavItems(opts: {
           name: 'Webhooks',
           to: appRoutes.tenantWebhooksRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <WebhookIcon
-              className={collapsed ? 'size-5' : 'mr-2 h-4 w-4 shrink-0'}
+            <RiWebhookLine
+              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
             />
           ),
         },
@@ -157,8 +172,8 @@ export function sideNavItems(opts: {
           name: 'Workers',
           to: appRoutes.tenantWorkersRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <ServerStackIcon
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            <RiStackLine
+              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
             />
           ),
         },
@@ -167,8 +182,8 @@ export function sideNavItems(opts: {
           name: 'Workflows',
           to: appRoutes.tenantWorkflowsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <Squares2X2Icon
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            <RiFunctionLine
+              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
             />
           ),
         },
@@ -179,8 +194,8 @@ export function sideNavItems(opts: {
                 name: 'Managed Compute',
                 to: appRoutes.tenantManagedWorkersRoute.to,
                 icon: ({ collapsed }: { collapsed: boolean }) => (
-                  <CpuChipIcon
-                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+                  <RiCpuLine
+                    className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
                   />
                 ),
               },
@@ -191,8 +206,8 @@ export function sideNavItems(opts: {
           name: 'Rate Limits',
           to: appRoutes.tenantRateLimitsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <ScaleIcon
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            <RiEqualizer3Line
+              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
             />
           ),
         },
@@ -201,7 +216,9 @@ export function sideNavItems(opts: {
           name: 'Filters',
           to: appRoutes.tenantFiltersRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <Filter className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'} />
+            <RiFilterLine
+              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
+            />
           ),
         },
       ],
@@ -219,8 +236,8 @@ export function sideNavItems(opts: {
           activeFuzzy: true,
           prefix: appRoutes.tenantSettingsIndexRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <GearIcon
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            <RiToolsLine
+              className={`text-foreground/50 ${collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}`}
             />
           ),
           children: settingsChildren,
