@@ -13,9 +13,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/internal/statusutils"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -403,6 +405,70 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 
 	return &contracts.TriggerWorkflowRunResponse{
 		ExternalId: opt.ExternalId,
+	}, nil
+}
+
+func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.GetRunDetailsRequest) (*contracts.GetRunDetailsResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	externalId, err := uuid.Parse(req.ExternalId)
+
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid external id")
+	}
+
+	details, err := a.repo.Tasks().GetWorkflowRunResultDetails(ctx, tenantId, externalId.String())
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get workflow run result details: %w", err)
+	}
+
+	if details == nil {
+		return nil, status.Error(codes.NotFound, "workflow run not found")
+	}
+
+	taskRunDetails := make(map[string]*contracts.TaskRunDetail)
+
+	statuses := make([]statusutils.V1RunStatus, 0)
+
+	for readableId, details := range details.ReadableIdToDetails {
+		status, err := details.Status.ToProto()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not convert status to proto: %w", err)
+		}
+
+		statuses = append(statuses, details.Status)
+
+		taskRunDetails[string(readableId)] = &contracts.TaskRunDetail{
+			Status:     *status,
+			Error:      details.Error,
+			Output:     details.OutputPayload,
+			ReadableId: string(readableId),
+			ExternalId: details.ExternalId,
+		}
+	}
+
+	done := !listutils.Any(statuses, "QUEUED") && !listutils.Any(statuses, "RUNNING")
+	derivedWorkflowRunStatus, err := statusutils.DeriveWorkflowRunStatus(ctx, statuses)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not derive workflow run status: %w", err)
+	}
+
+	derivedStatusPtr, err := derivedWorkflowRunStatus.ToProto()
+
+	if err != nil {
+		return nil, fmt.Errorf("could not convert derived status to proto: %w", err)
+	}
+
+	return &contracts.GetRunDetailsResponse{
+		Input:              details.InputPayload,
+		AdditionalMetadata: details.AdditionalMetadata,
+		TaskRuns:           taskRunDetails,
+		Status:             *derivedStatusPtr,
+		Done:               done,
 	}, nil
 }
 

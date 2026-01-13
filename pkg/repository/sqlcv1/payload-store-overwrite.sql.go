@@ -15,6 +15,7 @@ type CutoverPayloadToInsert struct {
 	Type                V1PayloadType
 	ExternalLocationKey string
 	InlineContent       []byte
+	Location            V1PayloadLocation
 }
 
 type InsertCutOverPayloadsIntoTempTableRow struct {
@@ -40,7 +41,7 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 		ids = append(ids, payload.ID)
 		insertedAts = append(insertedAts, payload.InsertedAt)
 		types = append(types, string(payload.Type))
-		locations = append(locations, string(V1PayloadLocationEXTERNAL))
+		locations = append(locations, string(payload.Location))
 		externalLocationKeys = append(externalLocationKeys, string(payload.ExternalLocationKey))
 		inlineContents = append(inlineContents, payload.InlineContent)
 	}

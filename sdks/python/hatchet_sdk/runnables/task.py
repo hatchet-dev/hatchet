@@ -14,6 +14,7 @@ from typing import (
     Concatenate,
     Generic,
     ParamSpec,
+    Protocol,
     TypeGuard,
     TypeVar,
     cast,
@@ -48,6 +49,7 @@ from hatchet_sdk.runnables.types import (
     StepType,
     TaskIOValidator,
     TWorkflowInput,
+    TWorkflowInput_contra,
     is_async_fn,
     is_sync_fn,
     normalize_validator,
@@ -64,6 +66,7 @@ if TYPE_CHECKING:
     from hatchet_sdk.runnables.workflow import Workflow
 
 T = TypeVar("T")
+T_co = TypeVar("T_co", covariant=True)
 P = ParamSpec("P")
 
 
@@ -77,16 +80,23 @@ def is_sync_context_manager(obj: Any) -> TypeGuard[AbstractContextManager[Any]]:
     return hasattr(obj, "__enter__") and hasattr(obj, "__exit__")
 
 
+class DependencyFunc(Protocol[T_co, TWorkflowInput_contra]):
+    def __call__(
+        self, input: TWorkflowInput_contra, ctx: Context, *args: Any, **kwargs: Any
+    ) -> (
+        T_co
+        | CoroutineLike[T_co]
+        | AbstractContextManager[T_co]
+        | AbstractAsyncContextManager[T_co]
+    ): ...
+
+    def __name__(self) -> str: ...
+
+
 class Depends(Generic[T, TWorkflowInput]):
     def __init__(
         self,
-        fn: Callable[
-            [TWorkflowInput, Context],
-            T
-            | CoroutineLike[T]
-            | AbstractContextManager[T]
-            | AbstractAsyncContextManager[T],
-        ],
+        fn: DependencyFunc[T, TWorkflowInput],
     ) -> None:
         sig = signature(fn)
         params = list(sig.parameters.values())

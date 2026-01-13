@@ -398,7 +398,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	for _, partition := range partitions {
-		r.l.Warn().Msgf("detaching partition %s", partition.PartitionName)
+		r.l.Debug().Msgf("detaching partition %s", partition.PartitionName)
 
 		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.pool, r.l, 30*60*1000) // 30 minutes
 
@@ -704,6 +704,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 
 	if workerId != nil {
 		params.WorkerId = sqlchelpers.UUIDFromStr(workerId.String())
+		countParams.WorkerId = sqlchelpers.UUIDFromStr(workerId.String())
 	}
 
 	for key, value := range opts.AdditionalMetadata {
@@ -1038,6 +1039,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 	if opts.ParentTaskExternalId != nil {
 		params.ParentTaskExternalId = *opts.ParentTaskExternalId
+		countParams.ParentTaskExternalId = *opts.ParentTaskExternalId
 	}
 
 	if opts.TriggeringEventExternalId != nil {
@@ -2997,6 +2999,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			InsertedAt:          payload.InsertedAt,
 			ExternalID:          sqlchelpers.UUIDFromStr(string(externalId)),
 			ExternalLocationKey: string(key),
+			Location:            sqlcv1.V1PayloadLocationOlapEXTERNAL,
 		})
 	}
 
@@ -3225,7 +3228,17 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 		}
 	}()
 
-	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+	connStatementTimeout := 30 * 60 * 1000 // 30 minutes
+
+	conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
+
+	if err != nil {
+		return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
+	}
+
+	defer release()
+
+	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, conn, tempPartitionName, sourcePartitionName)
 
 	if err != nil {
 		return fmt.Errorf("failed to compare partition row counts: %w", err)
@@ -3236,31 +3249,32 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	if rowCounts.SourcePartitionCount-rowCounts.TempPartitionCount > maxCountDiff {
 		return fmt.Errorf("row counts do not match between temp and source partitions for date %s. off by more than %d", partitionDate.String(), maxCountDiff)
 	} else if rowCounts.SourcePartitionCount > rowCounts.TempPartitionCount {
-		missingRows, err := p.queries.DiffOLAPPayloadSourceAndTargetPartitions(ctx, p.pool, pgtype.Date(partitionDate))
+		missingRows, err := p.queries.DiffOLAPPayloadSourceAndTargetPartitions(ctx, conn, pgtype.Date(partitionDate))
 
 		if err != nil {
 			return fmt.Errorf("failed to diff source and target partitions: %w", err)
 		}
 
-		missingPayloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, len(missingRows))
+		missingPayloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, 0, len(missingRows))
 
-		for i, p := range missingRows {
-			missingPayloadsToInsert[i] = sqlcv1.CutoverOLAPPayloadToInsert{
+		for _, p := range missingRows {
+			missingPayloadsToInsert = append(missingPayloadsToInsert, sqlcv1.CutoverOLAPPayloadToInsert{
 				TenantID:            p.TenantID,
 				InsertedAt:          p.InsertedAt,
 				ExternalID:          p.ExternalID,
 				ExternalLocationKey: p.ExternalLocationKey,
 				InlineContent:       p.InlineContent,
-			}
+				Location:            p.Location,
+			})
 		}
 
-		_, err = sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, p.pool, tempPartitionName, missingPayloadsToInsert)
+		_, err = sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, conn, tempPartitionName, missingPayloadsToInsert)
 
 		if err != nil {
 			return fmt.Errorf("failed to insert missing payloads into temp partition: %w", err)
 		}
 
-		rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, p.pool, tempPartitionName, sourcePartitionName)
+		rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, conn, tempPartitionName, sourcePartitionName)
 
 		if err != nil {
 			return fmt.Errorf("failed to compare partition row counts: %w", err)

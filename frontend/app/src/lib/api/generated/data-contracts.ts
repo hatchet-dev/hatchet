@@ -117,6 +117,11 @@ export enum StepRunStatus {
   BACKOFF = "BACKOFF",
 }
 
+export enum ConcurrencyScope {
+  WORKFLOW = "WORKFLOW",
+  TASK = "TASK",
+}
+
 export enum ConcurrencyLimitStrategy {
   CANCEL_IN_PROGRESS = "CANCEL_IN_PROGRESS",
   DROP_NEWEST = "DROP_NEWEST",
@@ -1775,6 +1780,22 @@ export interface WorkflowTriggers {
   crons?: WorkflowTriggerCronRef[];
 }
 
+export interface ConcurrencySetting {
+  /**
+   * The maximum number of concurrent workflow runs.
+   * @format int32
+   */
+  maxRuns: number;
+  /** The strategy to use when the concurrency limit is reached. */
+  limitStrategy: ConcurrencyLimitStrategy;
+  /** The concurrency expression, used to generate a key from task inputs, metadata, etc. */
+  expression: string;
+  /** The readable id of the step to which this concurrency setting applies. */
+  stepReadableId?: string;
+  /** The scope of the concurrency setting. */
+  scope: ConcurrencyScope;
+}
+
 export interface WorkflowVersion {
   metadata: APIResourceMeta;
   /** The version of the workflow. */
@@ -1795,6 +1816,7 @@ export interface WorkflowVersion {
   scheduleTimeout?: string;
   jobs?: Job[];
   workflowConfig?: object;
+  v1Concurrency?: ConcurrencySetting[];
 }
 
 export interface TriggerWorkflowRunRequest {

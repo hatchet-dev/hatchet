@@ -54,13 +54,15 @@ func (m *multiplexedListener) startListening() {
 		return
 	}
 
-	// acquire an exclusive connection
-	pgxpoolConn, _ := m.pool.Acquire(m.listenerCtx)
-
 	// listen for multiplexed messages
 	listener := &pgxlisten.Listener{
 		Connect: func(ctx context.Context) (*pgx.Conn, error) {
-			return pgxpoolConn.Conn(), nil
+			// Acquire a new connection each time
+			poolConn, err := m.pool.Acquire(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return poolConn.Conn(), nil
 		},
 		LogError: func(innerCtx context.Context, err error) {
 			m.l.Warn().Err(err).Msg("error in listener")

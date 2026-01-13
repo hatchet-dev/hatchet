@@ -674,14 +674,14 @@ LIMIT 1;
 SELECT
     sqlc.embed(wv),
     sqlc.embed(w),
-    wc."id" as "concurrencyId",
-    wc."maxRuns" as "concurrencyMaxRuns",
-    wc."getConcurrencyGroupId" as "concurrencyGroupId",
-    wc."limitStrategy" as "concurrencyLimitStrategy"
+    wc.id as "concurrencyId",
+    wc.max_concurrency as "concurrencyMaxRuns",
+    wc.strategy as "concurrencyLimitStrategy",
+    wc.expression as "concurrencyExpression"
 FROM
     "WorkflowVersion" as wv
 JOIN "Workflow" as w on w."id" = wv."workflowId"
-LEFT JOIN "WorkflowConcurrency" as wc ON wc."workflowVersionId" = wv."id"
+LEFT JOIN v1_workflow_concurrency as wc ON (wc.workflow_version_id, wc.workflow_id) = (wv."id", w."id")
 WHERE
     wv."id" = @id::uuid AND
     wv."deletedAt" IS NULL

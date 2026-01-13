@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/internal/statusutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -264,7 +265,11 @@ type TaskRepository interface {
 	GetTaskStats(ctx context.Context, tenantId string) (map[string]TaskStat, error)
 
 	FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error)
+
 	FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error)
+
+	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
+	GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunDetails, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -352,7 +357,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	for _, partition := range partitions {
-		r.l.Warn().Msgf("detaching partition %s", partition.PartitionName)
+		r.l.Debug().Msgf("detaching partition %s", partition.PartitionName)
 
 		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.pool, r.l, 30*60*1000) // 30 minutes
 
@@ -3901,4 +3906,161 @@ func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*tim
 	}
 
 	return &t.InsertedAt.Time, nil
+}
+
+type TaskRunDetails struct {
+	OutputPayload []byte
+	Status        statusutils.V1RunStatus
+	Error         *string
+	ExternalId    string
+}
+
+type StepReadableId string
+
+type WorkflowRunDetails struct {
+	InputPayload        []byte
+	AdditionalMetadata  []byte
+	ReadableIdToDetails map[StepReadableId]TaskRunDetails
+}
+
+func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunDetails, error) {
+	flat, err := r.FlattenExternalIds(ctx, tenantId, []string{externalId})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to flatten external ids: %w", err)
+	}
+
+	finalizedWorkflowRuns, err := r.ListFinalizedWorkflowRuns(ctx, tenantId, []string{externalId})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list finalized workflow runs: %w", err)
+	}
+
+	if len(flat) == 0 {
+		return nil, nil
+	}
+
+	var inputRetrieveOpt RetrievePayloadOpts
+	firstTask := flat[0]
+	isDag := firstTask.DagID.Valid
+	additionalMeta := firstTask.AdditionalMetadata
+
+	if isDag {
+		inputRetrieveOpt = RetrievePayloadOpts{
+			Id:         firstTask.DagID.Int64,
+			InsertedAt: firstTask.DagInsertedAt,
+			Type:       sqlcv1.V1PayloadTypeDAGINPUT,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+	} else {
+		inputRetrieveOpt = RetrievePayloadOpts{
+			Id:         firstTask.ID,
+			InsertedAt: firstTask.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+	}
+
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, inputRetrieveOpt)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads: %w", err)
+	}
+
+	input := payloads[inputRetrieveOpt]
+
+	if !isDag && len(input) > 0 {
+		// if it's a standalone task, we need to extract the "input" field from the payload
+		stepRunData, err := r.V1StepRunDataFromBytes(input)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse step run data: %w", err)
+		}
+
+		input = stepRunData.InputBytes()
+	}
+
+	taskRunDetails := make(map[StepReadableId]TaskRunDetails)
+	taskIds := make([]int64, 0)
+	taskInsertedAts := make([]pgtype.Timestamptz, 0)
+	taskRetryCounts := make([]int32, 0)
+
+	for _, task := range flat {
+		taskIds = append(taskIds, task.ID)
+		taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+		taskRetryCounts = append(taskRetryCounts, task.RetryCount)
+	}
+
+	taskStats, err := r.queries.ListTaskRunningStatuses(ctx, r.pool, sqlcv1.ListTaskRunningStatusesParams{
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Taskretrycounts: taskRetryCounts,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list task running statuses: %w", err)
+	}
+
+	externalIdToIsRunning := make(map[string]bool)
+
+	for _, stat := range taskStats {
+		externalIdToIsRunning[sqlchelpers.UUIDToStr(stat.ExternalID)] = stat.IsRunning
+	}
+
+	for _, task := range flat {
+		isRunning := externalIdToIsRunning[task.ExternalID.String()]
+		status := statusutils.V1RunStatusQueued
+
+		if isRunning {
+			status = statusutils.V1RunStatusRunning
+		}
+
+		// default everything to QUEUED
+		// we'll overwrite later with more information if available
+		taskRunDetails[StepReadableId(task.StepReadableID)] = TaskRunDetails{
+			OutputPayload: nil,
+			Status:        status,
+			Error:         nil,
+			ExternalId:    task.ExternalID.String(),
+		}
+	}
+
+	if len(flat) > 0 && len(finalizedWorkflowRuns) == 0 {
+		return &WorkflowRunDetails{
+			InputPayload:        input,
+			ReadableIdToDetails: taskRunDetails,
+			AdditionalMetadata:  additionalMeta,
+		}, nil
+	}
+
+	outputs := make(map[string][]byte)
+	errors := make(map[string]string)
+	finalizedRun := finalizedWorkflowRuns[0]
+
+	for _, event := range finalizedRun.OutputEvents {
+		outputs[event.StepReadableID] = event.Output
+		errors[event.StepReadableID] = event.ErrorMessage
+
+		status, err := statusutils.V1RunStatusFromEventType(event.EventType)
+
+		if err != nil {
+			r.l.Error().Msgf("failed to parse event type %s: %v", event.EventType, err)
+			statusPtr := statusutils.V1RunStatusQueued
+			status = &statusPtr
+		}
+
+		taskRunDetails[StepReadableId(event.StepReadableID)] = TaskRunDetails{
+			OutputPayload: event.Output,
+			Status:        *status,
+			Error:         &event.ErrorMessage,
+			ExternalId:    event.TaskExternalId,
+		}
+	}
+
+	return &WorkflowRunDetails{
+		InputPayload:        input,
+		ReadableIdToDetails: taskRunDetails,
+		AdditionalMetadata:  additionalMeta,
+	}, nil
 }

@@ -43,7 +43,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		workflowVersionId = sqlchelpers.UUIDToStr(row.WorkflowVersionId)
 	}
 
-	row, crons, events, scheduleT, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), tenantId, workflowVersionId)
+	row, crons, events, scheduleT, stepConcurrency, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), tenantId, workflowVersionId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -59,14 +59,14 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		&row.WorkflowVersion,
 		&workflow.Workflow,
 		&transformers.WorkflowConcurrency{
-			ID:                    row.ConcurrencyId,
-			GetConcurrencyGroupId: row.ConcurrencyGroupId,
-			MaxRuns:               row.ConcurrencyMaxRuns,
-			LimitStrategy:         row.ConcurrencyLimitStrategy,
+			MaxRuns:       row.ConcurrencyMaxRuns,
+			LimitStrategy: row.ConcurrencyLimitStrategy,
+			Expression:    row.ConcurrencyExpression.String,
 		},
 		crons,
 		events,
 		scheduleT,
+		stepConcurrency,
 	)
 
 	return gen.WorkflowVersionGet200JSONResponse(*resp), nil

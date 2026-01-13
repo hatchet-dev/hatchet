@@ -117,6 +117,11 @@ WITH filtered AS (
         )
 		AND (
 			$8::UUID IS NULL
+			OR parent_task_external_id = $8::UUID
+		)
+
+		AND (
+			$9::UUID IS NULL
 			OR (id, inserted_at) IN (
                 SELECT etr.run_id, etr.run_inserted_at
                 FROM v1_event_lookup_table_olap lt
@@ -124,7 +129,7 @@ WITH filtered AS (
                 JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
     			WHERE
 					lt.tenant_id = $1::uuid
-					AND lt.external_id = $8::UUID
+					AND lt.external_id = $9::UUID
             )
 		)
     LIMIT 20000
@@ -142,6 +147,7 @@ type CountWorkflowRunsParams struct {
 	Until                     pgtype.Timestamptz `json:"until"`
 	Keys                      []string           `json:"keys"`
 	Values                    []string           `json:"values"`
+	ParentTaskExternalId      pgtype.UUID        `json:"parentTaskExternalId"`
 	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
 }
 
@@ -154,6 +160,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.Until,
 		arg.Keys,
 		arg.Values,
+		arg.ParentTaskExternalId,
 		arg.TriggeringEventExternalId,
 	)
 	var count int64
@@ -453,6 +460,7 @@ type CutoverOLAPPayloadToInsert struct {
 	ExternalID          pgtype.UUID
 	ExternalLocationKey string
 	InlineContent       []byte
+	Location            V1PayloadLocationOlap
 }
 
 type InsertCutOverOLAPPayloadsIntoTempTableRow struct {
@@ -473,7 +481,7 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 		externalIds = append(externalIds, payload.ExternalID)
 		tenantIds = append(tenantIds, payload.TenantID)
 		insertedAts = append(insertedAts, payload.InsertedAt)
-		locations = append(locations, string(V1PayloadLocationOlapEXTERNAL))
+		locations = append(locations, string(payload.Location))
 		externalLocationKeys = append(externalLocationKeys, string(payload.ExternalLocationKey))
 		inlineContents = append(inlineContents, payload.InlineContent)
 	}
