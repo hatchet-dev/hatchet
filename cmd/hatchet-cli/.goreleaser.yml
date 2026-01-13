@@ -95,8 +95,7 @@ release:
   github:
     owner: hatchet-dev
     name: hatchet
-  # TODO: change this to false once we are ready for public releases
-  draft: true
+  draft: false
   prerelease: auto
   mode: append
   header: |
