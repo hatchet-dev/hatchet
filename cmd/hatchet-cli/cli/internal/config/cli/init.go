@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/log"
-	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/cli"
@@ -23,7 +22,7 @@ var (
 
 func init() {
 	var err error
-	HomeDir, err = homedir.Dir()
+	HomeDir, err = os.UserHomeDir()
 
 	if err != nil {
 		log.Fatalf("could not get home directory: %v\n", err)

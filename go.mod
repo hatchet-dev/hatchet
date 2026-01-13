@@ -31,7 +31,6 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/labstack/echo/v4 v4.15.0
 	github.com/mattn/go-runewidth v0.0.19
-	github.com/mitchellh/go-homedir v1.1.0
 	github.com/oapi-codegen/runtime v1.1.2
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/pingcap/errors v0.11.4
