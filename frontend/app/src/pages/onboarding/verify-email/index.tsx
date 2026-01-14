@@ -2,6 +2,7 @@ import TopNav from '@/components/v1/nav/top-nav';
 import { Loading } from '@/components/v1/ui/loading';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { queries } from '@/lib/api';
+import { AppContextProvider } from '@/providers/app-context';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { redirect, useLoaderData } from '@tanstack/react-router';
@@ -31,7 +32,7 @@ export async function loader({ request }: { request: Request }) {
   }
 }
 
-export default function VerifyEmail() {
+function VerifyEmailInner() {
   const res = useLoaderData({
     from: appRoutes.onboardingVerifyRoute.to,
   }) as Awaited<ReturnType<typeof loader>>;
@@ -64,5 +65,13 @@ export default function VerifyEmail() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function VerifyEmail() {
+  return (
+    <AppContextProvider>
+      <VerifyEmailInner />
+    </AppContextProvider>
   );
 }
