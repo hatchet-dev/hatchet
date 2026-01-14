@@ -233,15 +233,33 @@ If you discover an inaccuracy while working:
 
 ### Header Component
 
-**Always use `RenderHeader()` for view headers:**
+**CRITICAL**: ALL headers throughout the TUI use the magenta highlight color (`styles.HighlightColor`) for the title to provide consistent visual emphasis across all views (primary views, detail views, modals, etc.).
+
+#### For Detail Views and Modals
+
+**Always use `RenderHeader()` for detail views, modals, and secondary screens:**
 
 ```go
-header := RenderHeader("Your View Title", v.Ctx.ProfileName, v.Width)
+header := RenderHeader("Workflow Details", v.Ctx.ProfileName, v.Width)
+header := RenderHeader("Task Details", v.Ctx.ProfileName, v.Width)
+header := RenderHeader("Filter Tasks", v.Ctx.ProfileName, v.Width)
 ```
 
-**Features:**
+#### For Primary Views
 
-- Consistent styling with Hatchet accent colors
+**Use `RenderHeaderWithViewIndicator()` for primary/list views:**
+
+```go
+// For primary list views - shows just the view name, no repetitive "Hatchet Workflows [Workflows]"
+header := RenderHeaderWithViewIndicator("Runs", v.Ctx.ProfileName, v.Width)
+header := RenderHeaderWithViewIndicator("Workflows", v.Ctx.ProfileName, v.Width)
+```
+
+This function renders just the view name (e.g., "Runs" or "Workflows") in the highlight color, keeping it simple and non-repetitive.
+
+**Features of both header functions:**
+
+- Title rendered in magenta highlight color (`styles.HighlightColor`) - **consistent across ALL views**
 - Includes the logo (text-based: "HATCHET TUI") on the right
 - Shows profile name
 - Bordered bottom edge
@@ -257,13 +275,19 @@ headerStyle := lipgloss.NewStyle().
     BorderStyle(lipgloss.NormalBorder()).
     // ... more styling
 header := headerStyle.Render(fmt.Sprintf("My View - Profile: %s", profile))
+
+// Bad: Calling RenderHeaderWithLogo directly (bypasses highlight color)
+header := RenderHeaderWithLogo(fmt.Sprintf("My View - Profile: %s", profile), v.Width)
 ```
 
 **✅ ALWAYS do this:**
 
 ```go
-// Good: Use the reusable component
-header := RenderHeader("My View", v.Ctx.ProfileName, v.Width)
+// Good: Use the reusable component for detail views
+header := RenderHeader("Task Details", v.Ctx.ProfileName, v.Width)
+
+// Good: Use the view indicator variant for primary views
+header := RenderHeaderWithViewIndicator("Runs", v.Ctx.ProfileName, v.Width)
 ```
 
 ### Instructions Component
@@ -786,8 +810,11 @@ Common types:
 
 - `rest.V1TaskSummary`
 - `rest.V1TaskSummaryList`
-- `rest.WorkflowRun`
-- `rest.StepRun`
+- `rest.V1WorkflowRun`
+- `rest.V1WorkflowRunDetails`
+- `rest.Worker`
+- `rest.WorkerRuntimeInfo`
+- `rest.Workflow`
 - `rest.APIResourceMeta`
 
 #### Async Data Fetching Pattern
@@ -928,6 +955,328 @@ for i, item := range items {
 }
 t.SetRows(rows)
 ```
+
+### 14. Table Height Calculations and Layout Optimization
+
+**CRITICAL**: Proper table height calculation is essential for optimal use of terminal space. Different view types require different calculations based on the UI elements displayed above and below the table.
+
+#### Standard Height Calculations by View Type
+
+**Primary List Views** (e.g., runs_list, workflows):
+- Calculation: `height - 12`
+- Accounts for: header (3 lines), stats bar (2 lines), spacing (2 lines), footer (2 lines), buffer (3 lines)
+
+```go
+func (v *RunsListView) Update(msg tea.Msg) (View, tea.Cmd) {
+    switch msg := msg.(type) {
+    case tea.WindowSizeMsg:
+        v.SetSize(msg.Width, msg.Height)
+        v.table.SetHeight(msg.Height - 12)  // Primary view calculation
+        return v, nil
+    }
+    // ...
+}
+
+func (v *RunsListView) SetSize(width, height int) {
+    v.BaseModel.SetSize(width, height)
+    if height > 12 {
+        v.table.SetHeight(height - 12)
+    }
+}
+```
+
+**Detail Views with Additional Info Sections** (e.g., workflow_details with workflow info + runs table):
+- Calculation: `height - 16` (or adjust based on info section size)
+- Accounts for: header (3 lines), info section (4 lines), section header (2 lines), spacing (2 lines), footer (2 lines), buffer (3 lines)
+
+```go
+func (v *WorkflowDetailsView) Update(msg tea.Msg) (View, tea.Cmd) {
+    switch msg := msg.(type) {
+    case tea.WindowSizeMsg:
+        v.SetSize(msg.Width, msg.Height)
+        v.table.SetHeight(msg.Height - 16)  // Detail view with extra info
+        return v, nil
+    }
+    // ...
+}
+
+func (v *WorkflowDetailsView) SetSize(width, height int) {
+    v.BaseModel.SetSize(width, height)
+    if height > 16 {
+        v.table.SetHeight(height - 16)
+    }
+}
+```
+
+#### Guidelines for Height Calculation
+
+1. **Count Your UI Elements**: List all elements that appear above and below the table
+2. **Estimate Line Counts**:
+   - Header: ~3 lines (with spacing)
+   - Stats bar: ~2 lines (with spacing)
+   - Section headers: ~2 lines each
+   - Info sections: ~3-5 lines depending on content
+   - Footer: ~2 lines (with spacing)
+   - Buffer: ~2-3 lines for safety
+3. **Test at Different Sizes**: Verify the table has adequate space at minimum terminal size (80x24)
+4. **Iterate if Needed**: If the table feels cramped, reduce the height offset by 2-4 lines
+
+**Common Mistake**: Using the same height calculation for all views without accounting for additional UI elements.
+
+**❌ Wrong:**
+```go
+// Detail view with extra info section but using primary view calculation
+v.table.SetHeight(msg.Height - 12)  // Table will be too large, overlapping footer
+```
+
+**✅ Correct:**
+```go
+// Adjust calculation based on actual UI elements in the view
+v.table.SetHeight(msg.Height - 16)  // Accounts for extra info section
+```
+
+### 15. Column Consistency Between Related Views
+
+**CRITICAL**: When a detail view displays a list that's conceptually similar to a primary list view (e.g., workflow details showing recent runs, same as the main runs list), the columns MUST match exactly to maintain consistency and user expectations.
+
+#### Why Column Consistency Matters
+
+1. **User Experience**: Users expect the same information in the same format across views
+2. **Cognitive Load**: Consistent columns reduce mental overhead when switching contexts
+3. **Visual Familiarity**: Same column structure reinforces the relationship between views
+
+#### Example: Runs List Columns
+
+**Primary View** (`runs_list.go`):
+```go
+columns := []table.Column{
+    {Title: "Task Name", Width: 30},
+    {Title: "Status", Width: 12},
+    {Title: "Workflow", Width: 25},
+    {Title: "Created At", Width: 16},
+    {Title: "Started At", Width: 16},
+    {Title: "Duration", Width: 12},
+}
+```
+
+**Detail View** (`workflow_details.go` showing recent runs for a workflow):
+```go
+// MUST use the same columns as runs_list.go
+columns := []table.Column{
+    {Title: "Task Name", Width: 30},
+    {Title: "Status", Width: 12},
+    {Title: "Workflow", Width: 25},      // Keep this even if redundant
+    {Title: "Created At", Width: 16},
+    {Title: "Started At", Width: 16},
+    {Title: "Duration", Width: 12},
+}
+```
+
+#### Implementing Column Consistency
+
+When implementing a detail view with a related list:
+
+1. **Reference the primary view**: Check which columns the primary list view uses
+2. **Copy the column structure exactly**: Same titles, same order, same widths
+3. **Keep all columns**: Don't remove columns even if they seem redundant in the detail context
+4. **Update row population**: Ensure `updateTableRows()` populates all columns correctly
+
+**❌ Wrong:**
+```go
+// Workflow details view using different columns than runs list
+columns := []table.Column{
+    {Title: "Name", Width: 40},          // Different title
+    {Title: "Created At", Width: 16},
+    {Title: "Status", Width: 12},        // Different order
+    // Missing: Workflow, Started At, Duration
+}
+```
+
+**✅ Correct:**
+```go
+// Workflow details view matching runs list exactly
+columns := []table.Column{
+    {Title: "Task Name", Width: 30},     // Same titles
+    {Title: "Status", Width: 12},
+    {Title: "Workflow", Width: 25},      // Same order
+    {Title: "Created At", Width: 16},
+    {Title: "Started At", Width: 16},
+    {Title: "Duration", Width: 12},      // All columns included
+}
+```
+
+### 16. View Navigation and Modal Selector
+
+The TUI uses a navigation stack system for drilling down into details and a modal selector for switching between primary views.
+
+#### Navigation Stack Pattern
+
+The root TUI model maintains a `viewStack` for back navigation:
+
+```go
+type tuiModel struct {
+    currentView       tui.View
+    viewStack         []tui.View     // Stack for back navigation
+    // ...
+}
+```
+
+**Navigating to a Detail View**:
+```go
+case tui.NavigateToWorkflowMsg:
+    // Push current view onto stack
+    m.viewStack = append(m.viewStack, m.currentView)
+
+    // Create and initialize detail view
+    detailView := tui.NewWorkflowDetailsView(m.ctx, msg.WorkflowID)
+    detailView.SetSize(m.width, m.height)
+    m.currentView = detailView
+
+    return m, detailView.Init()
+```
+
+**Navigating Back**:
+```go
+case tui.NavigateBackMsg:
+    // Pop view from stack
+    if len(m.viewStack) > 0 {
+        m.currentView = m.viewStack[len(m.viewStack)-1]
+        m.viewStack = m.viewStack[:len(m.viewStack)-1]
+        m.currentView.SetSize(m.width, m.height)
+    }
+    return m, nil
+```
+
+**In Detail Views** (handle Esc key for back navigation):
+```go
+case tea.KeyMsg:
+    switch msg.String() {
+    case "esc":
+        // Navigate back to previous view
+        return v, NewNavigateBackMsg()
+    }
+```
+
+#### Modal View Selector Pattern
+
+The modal selector allows switching between primary views using `Shift+Tab`:
+
+**Opening the Modal**:
+```go
+case tea.KeyMsg:
+    switch msg.String() {
+    case "shift+tab":
+        // Find current view type in the list
+        for i, opt := range availableViews {
+            if opt.Type == m.currentViewType {
+                m.selectedViewIndex = i
+                break
+            }
+        }
+        m.showViewSelector = true
+        return m, nil
+    }
+```
+
+**Modal Navigation** (supports Tab, arrow keys, vim keys):
+```go
+if m.showViewSelector {
+    switch msg.String() {
+    case "shift+tab", "tab", "down", "j":
+        // Cycle forward
+        m.selectedViewIndex = (m.selectedViewIndex + 1) % len(availableViews)
+        return m, nil
+    case "up", "k":
+        // Cycle backward
+        m.selectedViewIndex = (m.selectedViewIndex - 1 + len(availableViews)) % len(availableViews)
+        return m, nil
+    case "enter":
+        // Confirm selection and switch view
+        selectedType := availableViews[m.selectedViewIndex].Type
+        if selectedType != m.currentViewType {
+            // Only switch if in a primary view
+            if m.isInPrimaryView() {
+                m.currentViewType = selectedType
+                m.currentView = m.createViewForType(selectedType)
+                m.currentView.SetSize(m.width, m.height)
+                m.showViewSelector = false
+                return m, m.currentView.Init()
+            }
+        }
+        m.showViewSelector = false
+        return m, nil
+    case "esc":
+        // Cancel without switching
+        m.showViewSelector = false
+        return m, nil
+    }
+    return m, nil
+}
+```
+
+**Rendering the Modal**:
+```go
+func (m tuiModel) renderViewSelector() string {
+    var b strings.Builder
+
+    // Use reusable header component
+    header := tui.RenderHeader("Select View", m.ctx.ProfileName, m.width)
+    b.WriteString(header)
+    b.WriteString("\n\n")
+
+    // Instructions
+    instructions := tui.RenderInstructions(
+        "↑/↓ or Tab: Navigate  •  Enter: Confirm  •  Esc: Cancel",
+        m.width,
+    )
+    b.WriteString(instructions)
+    b.WriteString("\n\n")
+
+    // View options with highlighting
+    for i, opt := range availableViews {
+        if i == m.selectedViewIndex {
+            // Highlighted option
+            selectedStyle := lipgloss.NewStyle().
+                Foreground(lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#0A1029"}).
+                Background(styles.Blue).
+                Bold(true).
+                Padding(0, 2)
+
+            b.WriteString(selectedStyle.Render(fmt.Sprintf("▶ %s - %s", opt.Name, opt.Description)))
+        } else {
+            // Non-highlighted option
+            normalStyle := lipgloss.NewStyle().
+                Foreground(styles.MutedColor).
+                Padding(0, 2)
+
+            b.WriteString(normalStyle.Render(fmt.Sprintf("  %s - %s", opt.Name, opt.Description)))
+        }
+        b.WriteString("\n")
+    }
+
+    // Footer
+    footer := tui.RenderFooter([]string{
+        "Tab: Cycle",
+        "Enter: Confirm",
+        "Esc: Cancel",
+    }, m.width)
+    b.WriteString("\n")
+    b.WriteString(footer)
+
+    return b.String()
+}
+```
+
+**Key Principles**:
+
+1. **Navigation Stack**: Use for hierarchical navigation (list → detail → back)
+2. **Modal Selector**: Use for switching between top-level views
+3. **Primary View Check**: Only allow view switching when not in a detail view
+4. **Consistent Key Bindings**:
+   - `Shift+Tab`: Open view selector
+   - `Esc`: Go back (in detail views) or cancel (in modals)
+   - `Enter`: Select item or confirm action
+   - Arrow keys/vim keys: Navigate within lists and modals
 
 ## Common Patterns
 
@@ -1481,12 +1830,138 @@ This section documents recent learnings and updates to maintain accuracy.
 
 ### Recent Updates
 
+- **2026-01-10**: Major updates based on workers view implementation and bug fixes:
+  - Added workers list view and worker details view as reference implementations
+  - Updated common REST API types list to include Worker, WorkerRuntimeInfo, Workflow
+  - Documented detail view header patterns (showing specific resource names in titles)
+  - Added section on filtering with multi-select forms and custom key maps
+  - Documented per-cell table styling using TableWithStyleFunc wrapper
+  - Added examples of status badge rendering in detail views
+  - Documented navigation messages (NavigateToWorkerMsg pattern)
+  - Added column alignment best practices (matching header format strings to row rendering)
+  - Workflow TUI implementation updates:
+    - Updated header component documentation: ALL headers (primary, detail, modal) now use highlight color for consistency
+    - Added `RenderHeaderWithViewIndicator()` for primary views (shows just view name, non-repetitive)
+    - Added section 14: Table Height Calculations and Layout Optimization (height - 12 vs height - 16)
+    - Added section 15: Column Consistency Between Related Views (critical for UX)
+    - Added section 16: View Navigation and Modal Selector patterns
+    - Documented modal selector with Shift+Tab and arrow key support
+    - Documented navigation stack pattern for detail view drilling
 - **2026-01-09**: Added self-updating instructions and verification checklist
 - Document initialized with comprehensive TUI view building guidelines
 
 ### Known Issues & Solutions
 
-(This section will be populated as issues are discovered and resolved during implementation)
+#### Issue: Table Column Alignment Mismatches
+
+**Problem**: Header columns don't align with table rows due to format string width mismatch.
+
+**Example**: In run details tasks tab, header used `%-3s` for selector column but rows only rendered 2 characters ("▸ " or "  "), causing status column and all subsequent columns to be misaligned.
+
+**Solution**: Ensure header format string widths exactly match row rendering:
+```go
+// Header format - 2 chars for selector to match "▸ " or "  "
+headerStyle.Render(fmt.Sprintf("%-2s %-30s %-12s", "", "NAME", "STATUS"))
+
+// Row rendering - also 2 chars
+if selected {
+    b.WriteString("▸ ")  // 2 characters
+} else {
+    b.WriteString("  ")  // 2 characters
+}
+```
+
+**Prevention**: Always count the exact characters rendered in rows and match header format widths precisely.
+
+#### Issue: Detail View Headers Too Generic
+
+**Problem**: Detail views showed generic titles like "Task Details" or "Workflow Run Details" without identifying the specific resource being viewed.
+
+**Solution**: Include the resource name in the header title:
+```go
+// For task details
+title := "Task Details"
+if v.task != nil {
+    title = fmt.Sprintf("Task Details: %s", v.task.DisplayName)
+}
+
+// For workflow details
+title := "Workflow Details"
+if v.workflow != nil {
+    title = fmt.Sprintf("Workflow Details: %s", v.workflow.Name)
+}
+
+// For run details
+title := "Run Details"
+if v.details != nil && v.details.Run.DisplayName != "" {
+    title = fmt.Sprintf("Run Details: %s", v.details.Run.DisplayName)
+}
+```
+
+**Pattern**: Use format `"{View Type} Details: {Resource Name}"` for all detail views.
+
+#### Issue: Filter Form Navigation Conflicts
+
+**Problem**: Global Shift+Tab handler for view switching conflicts with form navigation, preventing Tab/Shift+Tab from working in filter modals.
+
+**Solution**: Process filter form messages BEFORE checking global key handlers:
+```go
+// In Update(), handle form FIRST
+if v.showingFilter && v.filterForm != nil {
+    form, cmd := v.filterForm.Update(msg)
+    if f, ok := form.(*huh.Form); ok {
+        v.filterForm = f
+
+        if v.filterForm.State == huh.StateCompleted {
+            // Apply filters
+            v.selectedStatuses = v.tempStatusFilters
+            v.showingFilter = false
+            v.updateTableRows()
+            return v, nil
+        }
+
+        // Check for ESC to cancel
+        if keyMsg, ok := msg.(tea.KeyMsg); ok {
+            if keyMsg.String() == "esc" {
+                v.showingFilter = false
+                return v, nil
+            }
+        }
+    }
+    return v, cmd
+}
+
+// THEN handle global keys
+switch msg := msg.(type) {
+case tea.KeyMsg:
+    switch msg.String() {
+    case "shift+tab":
+        // Global view switcher
+    }
+}
+```
+
+**Pattern**: Always delegate to active modal/form components before processing global keyboard shortcuts.
+
+#### Issue: Filtered Workers Not Reflected in Navigation
+
+**Problem**: When navigating to worker details via Enter key, code used unfiltered `v.workers` list instead of filtered list, causing cursor index mismatch with displayed rows.
+
+**Solution**: Use the filtered/displayed list for navigation:
+```go
+case "enter":
+    // Use filteredWorkers, not workers
+    if len(v.filteredWorkers) > 0 {
+        selectedIdx := v.table.Cursor()
+        if selectedIdx >= 0 && selectedIdx < len(v.filteredWorkers) {
+            worker := v.filteredWorkers[selectedIdx]
+            workerID := worker.Metadata.Id
+            return v, NewNavigateToWorkerMsg(workerID)
+        }
+    }
+```
+
+**Pattern**: Always use the same data source for rendering and navigation. If you cache filtered data for StyleFunc, use that cached data for navigation too.
 
 ### Future Improvements
 

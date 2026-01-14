@@ -3,15 +3,16 @@ package cli
 import (
 	"embed"
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/templater"
-
-	"github.com/charmbracelet/huh"
 )
 
 //go:embed all:templates/*
@@ -33,6 +34,13 @@ var quickstartCmd = &cobra.Command{
   # Generate a Go project with short flags
   hatchet quickstart -l go -p my-worker -d ./my-worker`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Check if at least one profile exists
+		profileNames := cli.ListProfiles()
+		if len(profileNames) == 0 {
+			fmt.Println(noProfilesMessage())
+			os.Exit(1)
+		}
+
 		// Get flag values
 		language, _ := cmd.Flags().GetString("language")
 		projectName, _ := cmd.Flags().GetString("project-name")
@@ -192,6 +200,29 @@ func renderCodeBlocks(content string) string {
 	}
 
 	return strings.Join(result, "\n")
+}
+
+// noProfilesMessage returns a formatted message when no profiles are configured
+func noProfilesMessage() string {
+	var lines []string
+
+	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(styles.ErrorColor)
+
+	lines = append(lines, headerStyle.Render("No Hatchet profiles configured"))
+	lines = append(lines, "")
+	lines = append(lines, "To use the quickstart command, you need to connect to a Hatchet instance first.")
+	lines = append(lines, "")
+	lines = append(lines, headerStyle.Render("Option 1: Sign up for Hatchet Cloud"))
+	lines = append(lines, "")
+	lines = append(lines, "Visit "+styles.Accent.Render("https://cloud.onhatchet.run")+" to create an account, then add your profile:")
+	lines = append(lines, styles.Code.Render("   hatchet profile add"))
+	lines = append(lines, "")
+	lines = append(lines, headerStyle.Render("Option 2: Start a local Hatchet server"))
+	lines = append(lines, "")
+	lines = append(lines, "Run a local instance with Docker:")
+	lines = append(lines, styles.Code.Render("   hatchet server start"))
+
+	return styles.InfoBox.Render(strings.Join(lines, "\n"))
 }
 
 // quickstartSuccessView renders the success message with next steps

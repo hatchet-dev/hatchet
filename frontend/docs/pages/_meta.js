@@ -24,6 +24,13 @@ export default {
       toc: false,
     },
   },
+  cli: {
+    title: "CLI Reference",
+    type: "page",
+    theme: {
+      toc: false,
+    },
+  },
   sdks: {
     title: "SDK Reference",
     type: "menu",
