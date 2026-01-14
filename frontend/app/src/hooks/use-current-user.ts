@@ -1,16 +1,18 @@
-import { queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { useAppContext } from '@/providers/app-context';
 
+/**
+ * Hook to access the current user
+ *
+ * Now backed by AppContext for better performance and consistency.
+ * Maintains backward compatibility with the old API.
+ */
 export function useCurrentUser() {
-  const currentUserQuery = useQuery({
-    ...queries.user.current,
-    retry: false,
-  });
+  const { user, isUserLoading } = useAppContext();
 
   return {
-    currentUser: currentUserQuery.data,
-    isLoading: currentUserQuery.isLoading,
-    isError: currentUserQuery.isError,
-    error: currentUserQuery.error,
+    currentUser: user,
+    isLoading: isUserLoading,
+    isError: !user && !isUserLoading,
+    error: undefined,
   };
 }

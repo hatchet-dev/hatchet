@@ -9,6 +9,7 @@ import { lastTenantAtom } from '@/lib/atoms';
 import { useContextFromParent } from '@/lib/outlet';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
+import { AppContextProvider } from '@/providers/app-context';
 import { PostHogProvider } from '@/providers/posthog';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -102,7 +103,7 @@ export default function Authenticated() {
   });
 
   useEffect(() => {
-    const userQueryError = userError as AxiosError<User> | null;
+    const userQueryError = userError as AxiosError<User> | null | undefined;
 
     // Skip all redirects for organization pages
     if (isOrganizationsPage) {
@@ -191,28 +192,30 @@ export default function Authenticated() {
   }, [isAuthPage, navigate, userError]);
 
   return (
-    <PostHogProvider user={currentUser}>
-      <SupportChat user={currentUser}>
-        <AppLayout
-          header={
-            <TopNav
-              user={currentUser}
-              tenantMemberships={listMembershipsQuery.data?.rows || []}
-            />
-          }
-          footer={
-            isTenantPage && DevtoolsFooter ? (
-              <Suspense fallback={null}>
-                <DevtoolsFooter />
-              </Suspense>
-            ) : undefined
-          }
-          // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
-          contentScroll={!isTenantPage}
-        >
-          <OutletWithContext context={ctx} />
-        </AppLayout>
-      </SupportChat>
-    </PostHogProvider>
+    <AppContextProvider>
+      <PostHogProvider user={currentUser}>
+        <SupportChat user={currentUser}>
+          <AppLayout
+            header={
+              <TopNav
+                user={currentUser}
+                tenantMemberships={listMembershipsQuery.data?.rows || []}
+              />
+            }
+            footer={
+              isTenantPage && DevtoolsFooter ? (
+                <Suspense fallback={null}>
+                  <DevtoolsFooter />
+                </Suspense>
+              ) : undefined
+            }
+            // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
+            contentScroll={!isTenantPage}
+          >
+            <OutletWithContext context={ctx} />
+          </AppLayout>
+        </SupportChat>
+      </PostHogProvider>
+    </AppContextProvider>
   );
 }

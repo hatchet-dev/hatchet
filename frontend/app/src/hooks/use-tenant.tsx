@@ -7,6 +7,7 @@ import api, {
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
 import { Evaluate } from '@/lib/can/shared/permission.base';
 import useCloud from '@/pages/auth/hooks/use-cloud';
+import { useAppContext } from '@/providers/app-context';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
@@ -15,6 +16,12 @@ import { useCallback, useMemo, useState } from 'react';
 
 type Plan = 'free' | 'starter' | 'growth';
 
+/**
+ * Hook to get current tenant ID from route params
+ *
+ * @deprecated Prefer using route params directly via `useParams({ from: appRoutes.tenantRoute.to })`
+ * This hook is maintained for backward compatibility during migration.
+ */
 export function useCurrentTenantId() {
   const params = useParams({ from: appRoutes.tenantRoute.to });
   const tenantId = params.tenant;
@@ -22,25 +29,24 @@ export function useCurrentTenantId() {
   return { tenantId };
 }
 
+/**
+ * Hook for tenant details and operations
+ *
+ * Now backed by AppContext for better performance.
+ * Gets tenant/membership data from context, but keeps all mutation logic here.
+ */
 export function useTenantDetails() {
-  // Allow calling this hook even when not currently on a tenant route
-  // (e.g., onboarding pages). When not matched, params will be empty.
-  const params = useParams({ strict: false });
-  const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
-  const tenantId = params.tenant || lastTenant?.metadata.id;
-
-  const membershipsQuery = useQuery({
-    ...queries.user.listTenantMemberships,
-  });
-
-  const memberships = useMemo(
-    () => membershipsQuery.data?.rows || [],
-    [membershipsQuery.data],
-  );
+  // Get tenant data from AppContext
+  const appContext = useAppContext();
+  const tenantId = appContext.tenantId;
+  const tenant = appContext.tenant;
+  const membership = appContext.membership;
 
   const queryClient = useQueryClient();
   const matchRoute = useMatchRoute();
   const navigate = useNavigate();
+  const params = useParams({ strict: false });
+  const [, setLastTenant] = useAtom(lastTenantAtom);
   const tenantParamInPath = params.tenant;
 
   const setTenant = useCallback(
@@ -76,17 +82,8 @@ export function useTenantDetails() {
     [matchRoute, navigate, setLastTenant, queryClient, tenantParamInPath],
   );
 
-  const membership = useMemo(() => {
-    if (!tenantId) {
-      return undefined;
-    }
-
-    return memberships?.find(
-      (membership) => membership.tenant?.metadata.id === tenantId,
-    );
-  }, [tenantId, memberships]);
-
-  const tenant = membership?.tenant;
+  // Tenant and membership now come from AppContext
+  // No need to compute them here anymore
 
   const createTenantMutation = useMutation({
     mutationKey: ['tenant:create'],
@@ -181,8 +178,8 @@ export function useTenantDetails() {
   return {
     tenantId,
     tenant,
-    isLoading: membershipsQuery.isLoading,
-    membership: membership?.role,
+    isLoading: appContext.isTenantLoading,
+    membership,
     setTenant,
     create: createTenantMutation,
     update: {
