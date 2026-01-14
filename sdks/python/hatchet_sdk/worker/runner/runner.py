@@ -351,16 +351,19 @@ class Runner:
 
     @overload
     def create_context(
-        self, action: Action, is_durable: Literal[True] = True
+        self, action: Action, max_attempts: int, is_durable: Literal[True] = True
     ) -> DurableContext: ...
 
     @overload
     def create_context(
-        self, action: Action, is_durable: Literal[False] = False
+        self, action: Action, max_attempts: int, is_durable: Literal[False] = False
     ) -> Context: ...
 
     def create_context(
-        self, action: Action, is_durable: bool = True
+        self,
+        action: Action,
+        max_attempts: int,
+        is_durable: bool = True,
     ) -> Context | DurableContext:
         constructor = DurableContext if is_durable else Context
 
@@ -374,6 +377,7 @@ class Runner:
             runs_client=self.runs_client,
             lifespan_context=self.lifespan_context,
             log_sender=self.log_sender,
+            max_attempts=max_attempts,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -385,8 +389,9 @@ class Runner:
 
         if action_func:
             context = self.create_context(
-                action,
-                True if action_func.is_durable else False,  # noqa: SIM210
+                action=action,
+                max_attempts=action_func.retries + 1,
+                is_durable=True if action_func.is_durable else False,  # noqa: SIM210
             )
 
             self.contexts[action.key] = context

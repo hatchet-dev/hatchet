@@ -45,6 +45,7 @@ class Context:
         runs_client: RunsClient,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
+        max_attempts: int,
     ):
         self.worker = worker
 
@@ -67,6 +68,7 @@ class Context:
         self._lifespan_context = lifespan_context
 
         self.stream_index = 0
+        self._max_attempts = max_attempts
 
     def _increment_stream_index(self) -> int:
         index = self.stream_index
@@ -285,6 +287,16 @@ class Context:
         return self.retry_count + 1
 
     @property
+    def max_attempts(self) -> int:
+        """
+        The maximum number of attempts allowed for the current task run, computed as the number of retries plus one.
+
+        :return: The maximum number of attempts allowed for the current task run.
+        """
+
+        return self._max_attempts
+
+    @property
     def additional_metadata(self) -> JSONSerializableMapping:
         """
         The additional metadata sent with the current task run.
@@ -408,6 +420,7 @@ class DurableContext(Context):
         runs_client: RunsClient,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
+        max_attempts: int,
     ):
         super().__init__(
             action,
@@ -419,6 +432,7 @@ class DurableContext(Context):
             runs_client,
             lifespan_context,
             log_sender,
+            max_attempts,
         )
 
         self._wait_index = 0
