@@ -1,14 +1,17 @@
 import { AuthMethod } from './components/auth-method';
 import { AuthSetup } from './components/auth-setup';
 import { SourceName } from './components/source-name';
-import { columns, WebhookColumn } from './components/webhook-columns';
+import {
+  WebhookActionsCell,
+  EditableExpressionCell,
+} from './components/webhook-columns';
 import {
   useWebhooks,
   WebhookFormData,
   webhookFormSchema,
 } from './hooks/use-webhooks';
 import { DocsButton } from '@/components/v1/docs/docs-button';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
@@ -30,6 +33,7 @@ import {
 } from '@/components/v1/ui/select';
 import {
   V1CreateWebhookRequest,
+  V1Webhook,
   V1WebhookAuthType,
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
@@ -38,35 +42,74 @@ import {
 import { docsPages } from '@/lib/generated/docs';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertTriangle, Check, Copy, Lightbulb, Webhook } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 export default function Webhooks() {
-  const { data, isLoading, error } = useWebhooks();
+  const { data, isLoading } = useWebhooks();
+
+  const webhookColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Name',
+        cellRenderer: (webhook: V1Webhook) => (
+          <div className="w-full">{webhook.name}</div>
+        ),
+      },
+      {
+        columnLabel: 'Source',
+        cellRenderer: (webhook: V1Webhook) => (
+          <div className="w-full">
+            <SourceName sourceName={webhook.sourceName} />
+          </div>
+        ),
+      },
+      {
+        columnLabel: 'Expression',
+        cellRenderer: (webhook: V1Webhook) => (
+          <EditableExpressionCell webhook={webhook} />
+        ),
+      },
+      {
+        columnLabel: 'Auth Method',
+        cellRenderer: (webhook: V1Webhook) => (
+          <div className="w-full">
+            <AuthMethod authMethod={webhook.authType} />
+          </div>
+        ),
+      },
+      {
+        columnLabel: 'Actions',
+        cellRenderer: (webhook: V1Webhook) => (
+          <WebhookActionsCell webhook={webhook} />
+        ),
+      },
+    ],
+    [],
+  );
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div>
-      <div className="flex w-full flex-row justify-end">
+      <div className="mb-4 flex w-full flex-row justify-end">
         <CreateWebhookModal />
       </div>
-      <DataTable
-        error={error}
-        isLoading={isLoading}
-        columns={columns()}
-        data={data}
-        columnKeyToName={WebhookColumn}
-        emptyState={
-          <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-            <p className="text-lg font-semibold">No webhooks found</p>
-            <div className="w-fit">
-              <DocsButton
-                doc={docsPages.home.webhooks}
-                label="Learn about triggering runs from webhooks"
-              />
-            </div>
+      {data && data.length > 0 ? (
+        <SimpleTable columns={webhookColumns} data={data} />
+      ) : (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
+          <p className="text-lg font-semibold">No webhooks found</p>
+          <div className="w-fit">
+            <DocsButton
+              doc={docsPages.home.webhooks}
+              label="Learn about triggering runs from webhooks"
+            />
           </div>
-        }
-      />
+        </div>
+      )}
     </div>
   );
 }

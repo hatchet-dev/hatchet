@@ -1,5 +1,6 @@
 import { Spinner } from '@/components/v1/ui/loading';
 import { queries } from '@/lib/api';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useQuery } from '@tanstack/react-query';
 import React from 'react';
 
@@ -7,6 +8,8 @@ export const VersionInfo: React.FC = () => {
   const { data, isLoading, isError, error } = useQuery({
     ...queries.info.getVersion,
   });
+
+  const { isCloudEnabled } = useCloud();
 
   if (isLoading) {
     return (
@@ -22,5 +25,9 @@ export const VersionInfo: React.FC = () => {
     return <div className="text-xs text-red-500">{errorMessage}</div>;
   }
 
-  return <div className="text-xs">{data.version}</div>;
+  return (
+    <div className="text-xs">
+      {isCloudEnabled ? 'Cloud' : 'Self-Hosted'} {data.version}
+    </div>
+  );
 };

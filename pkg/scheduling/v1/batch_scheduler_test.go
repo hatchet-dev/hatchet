@@ -11,16 +11,16 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1repo "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type fakeBatchRepo struct {
 	mu            sync.Mutex
 	listResponses [][]*sqlcv1.V1BatchedQueueItem
 	moveCalls     [][]int64
-	commitCalls   [][]*v1repo.BatchAssignment
+	commitCalls   [][]*repository.BatchAssignment
 }
 
 func (f *fakeBatchRepo) ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
@@ -74,11 +74,11 @@ func (f *fakeBatchRepo) ListExistingBatchedQueueItemIds(ctx context.Context, ids
 	return existing, nil
 }
 
-func (f *fakeBatchRepo) CommitAssignments(ctx context.Context, assignments []*v1repo.BatchAssignment) ([]*v1repo.BatchAssignment, error) {
+func (f *fakeBatchRepo) CommitAssignments(ctx context.Context, assignments []*repository.BatchAssignment) ([]*repository.BatchAssignment, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	copied := make([]*v1repo.BatchAssignment, len(assignments))
+	copied := make([]*repository.BatchAssignment, len(assignments))
 	for i, a := range assignments {
 		if a == nil {
 			continue
@@ -92,10 +92,10 @@ func (f *fakeBatchRepo) CommitAssignments(ctx context.Context, assignments []*v1
 }
 
 type fakeQueueFactory struct {
-	repo v1repo.QueueRepository
+	repo repository.QueueRepository
 }
 
-func (f *fakeQueueFactory) NewQueue(pgtype.UUID, string) v1repo.QueueRepository {
+func (f *fakeQueueFactory) NewQueue(pgtype.UUID, string) repository.QueueRepository {
 	return f.repo
 }
 
@@ -105,7 +105,7 @@ func (f *fakeQueueRepository) ListQueueItems(context.Context, int) ([]*sqlcv1.V1
 	return nil, nil
 }
 
-func (f *fakeQueueRepository) MarkQueueItemsProcessed(context.Context, *v1repo.AssignResults) ([]*v1repo.AssignedItem, []*v1repo.AssignedItem, error) {
+func (f *fakeQueueRepository) MarkQueueItemsProcessed(context.Context, *repository.AssignResults) ([]*repository.AssignedItem, []*repository.AssignedItem, error) {
 	return nil, nil, nil
 }
 
@@ -128,42 +128,42 @@ func (f *fakeQueueRepository) GetDesiredLabels(context.Context, []pgtype.UUID) (
 func (f *fakeQueueRepository) Cleanup() {}
 
 type fakeBatchFactory struct {
-	repo v1repo.BatchQueueRepository
+	repo repository.BatchQueueRepository
 }
 
-func (f *fakeBatchFactory) NewBatchQueue(pgtype.UUID) v1repo.BatchQueueRepository {
+func (f *fakeBatchFactory) NewBatchQueue(pgtype.UUID) repository.BatchQueueRepository {
 	return f.repo
 }
 
 type fakeSchedulerRepository struct {
-	batchFactory v1repo.BatchQueueFactoryRepository
+	batchFactory repository.BatchQueueFactoryRepository
 }
 
-func (f *fakeSchedulerRepository) Concurrency() v1repo.ConcurrencyRepository {
+func (f *fakeSchedulerRepository) Concurrency() repository.ConcurrencyRepository {
 	return nil
 }
 
-func (f *fakeSchedulerRepository) Lease() v1repo.LeaseRepository {
+func (f *fakeSchedulerRepository) Lease() repository.LeaseRepository {
 	return nil
 }
 
-func (f *fakeSchedulerRepository) QueueFactory() v1repo.QueueFactoryRepository {
+func (f *fakeSchedulerRepository) QueueFactory() repository.QueueFactoryRepository {
 	return nil
 }
 
-func (f *fakeSchedulerRepository) BatchQueue() v1repo.BatchQueueFactoryRepository {
+func (f *fakeSchedulerRepository) BatchQueue() repository.BatchQueueFactoryRepository {
 	return f.batchFactory
 }
 
-func (f *fakeSchedulerRepository) RateLimit() v1repo.RateLimitRepository {
+func (f *fakeSchedulerRepository) RateLimit() repository.RateLimitRepository {
 	return nil
 }
 
-func (f *fakeSchedulerRepository) Assignment() v1repo.AssignmentRepository {
+func (f *fakeSchedulerRepository) Assignment() repository.AssignmentRepository {
 	return nil
 }
 
-func newTestSharedConfig(repo v1repo.BatchQueueRepository) *sharedConfig {
+func newTestSharedConfig(repo repository.BatchQueueRepository) *sharedConfig {
 	logger := zerolog.New(io.Discard)
 
 	return &sharedConfig{
@@ -202,10 +202,10 @@ func TestBatchSchedulerFlushOnBatchSize(t *testing.T) {
 	}
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
-		StepID:               stepId,
-		BatchKey:             "batch",
-		BatchMaxSize:         2,
-		BatchMaxInterval:     0,
+		StepID:           stepId,
+		BatchKey:         "batch",
+		BatchMaxSize:     2,
+		BatchMaxInterval: 0,
 	}
 
 	notifyCh := make(chan []string, 1) // deprecated path, preserved for compatibility
@@ -245,10 +245,10 @@ func TestBatchSchedulerFlushOnInterval(t *testing.T) {
 	}
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
-		StepID:               stepId,
-		BatchKey:             "interval",
-		BatchMaxSize:         10,
-		BatchMaxInterval:     50,
+		StepID:           stepId,
+		BatchKey:         "interval",
+		BatchMaxSize:     10,
+		BatchMaxInterval: 50,
 	}
 
 	notifyCh := make(chan []string, 1)
@@ -280,11 +280,11 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 		newTestSharedConfig(repo),
 		tenantId,
 		&sqlcv1.ListDistinctBatchResourcesRow{
-			StepID:               stepId,
-			BatchKey:             "group",
-			BatchMaxSize:         2,
-			BatchMaxInterval:     0,
-			BatchGroupMaxRuns:    1,
+			StepID:            stepId,
+			BatchKey:          "group",
+			BatchMaxSize:      2,
+			BatchMaxInterval:  0,
+			BatchGroupMaxRuns: 1,
 		},
 		queueFactory,
 		&Scheduler{},
@@ -407,10 +407,10 @@ func TestBatchSchedulerUsesSingleSlotForBatch(t *testing.T) {
 		newTestSharedConfig(repo),
 		tenantId,
 		&sqlcv1.ListDistinctBatchResourcesRow{
-			StepID:               stepId,
-			BatchKey:             "single-slot",
-			BatchMaxSize:         3,
-			BatchMaxInterval:     0,
+			StepID:           stepId,
+			BatchKey:         "single-slot",
+			BatchMaxSize:     3,
+			BatchMaxInterval: 0,
 		},
 		queueFactory,
 		&Scheduler{},
@@ -519,10 +519,10 @@ func TestBatchSchedulerScheduleTimeout(t *testing.T) {
 	}
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
-		StepID:               stepId,
-		BatchKey:             "timeout-batch",
-		BatchMaxSize:         5,
-		BatchMaxInterval:     0,
+		StepID:           stepId,
+		BatchKey:         "timeout-batch",
+		BatchMaxSize:     5,
+		BatchMaxInterval: 0,
 	}
 
 	var emitted []*QueueResults

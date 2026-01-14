@@ -13,17 +13,17 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *msgqueuev1.Message) error {
+func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpanWithCarrier(ctx, "task-assigned-bulk", msg.OtelCarrier)
 	defer span.End()
 
@@ -31,7 +31,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	// on the worker
 	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 
-	msgs := msgqueuev1.JSONConvert[tasktypesv1.TaskAssignedBulkTaskPayload](msg.Payloads)
+	msgs := msgqueue.JSONConvert[tasktypesv1.TaskAssignedBulkTaskPayload](msg.Payloads)
 	outerEg := errgroup.Group{}
 
 	toRetry := []*sqlcv1.V1Task{}
@@ -285,10 +285,18 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 										fmt.Errorf("could not create monitoring event for task %d: %w", task.ID, err),
 									)
 								} else {
-									defer d.pubBuffer.Pub(ctx, msgqueuev1.OLAP_QUEUE, msg, false)
+									defer d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 								}
+							}
 
-								return nil
+							if err != nil {
+								d.l.Error().Err(err).Int64("task_id", task.ID).Msg("could not create monitoring event")
+							} else {
+								defer func() {
+									if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+										d.l.Error().Err(err).Msg("could not publish monitoring event")
+									}
+								}()
 							}
 
 							requeue(task.V1Task)
@@ -339,7 +347,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 					queueutils.SleepWithExponentialBackoff(100*time.Millisecond, 5*time.Second, int(task.InternalRetryCount))
 
-					err = d.mqv1.SendMessage(retryCtx, msgqueuev1.TASK_PROCESSING_QUEUE, msg)
+					err = d.mqv1.SendMessage(retryCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 					if err != nil {
 						return fmt.Errorf("could not send failed task message: %w", err)
@@ -442,7 +450,7 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, msgTenan
 	return nil
 }
 
-func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev1.Message) error {
+func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpanWithCarrier(ctx, "tasks-cancelled", msg.OtelCarrier)
 	defer span.End()
 
@@ -451,7 +459,7 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev
 	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 
-	msgs := msgqueuev1.JSONConvert[tasktypesv1.SignalTaskCancelledPayload](msg.Payloads)
+	msgs := msgqueue.JSONConvert[tasktypesv1.SignalTaskCancelledPayload](msg.Payloads)
 
 	taskIdsToRetryCounts := make(map[int64][]int32)
 
@@ -539,11 +547,11 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev
 	return multiErr
 }
 
-func (d *DispatcherImpl) handleBatchStartTask(ctx context.Context, msg *msgqueuev1.Message) error {
+func (d *DispatcherImpl) handleBatchStartTask(ctx context.Context, msg *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpanWithCarrier(ctx, "batch-start", msg.OtelCarrier)
 	defer span.End()
 
-	payloads := msgqueuev1.JSONConvert[tasktypesv1.StartBatchTaskPayload](msg.Payloads)
+	payloads := msgqueue.JSONConvert[tasktypesv1.StartBatchTaskPayload](msg.Payloads)
 
 	var result error
 

@@ -14,15 +14,15 @@ import (
 func (u *MetadataService) collectHealthErrors(ctx context.Context) []error {
 	errs := []error{}
 
-	if !u.config.APIRepository.Health().IsHealthy(ctx) {
+	if !u.config.V1.Health().IsHealthy(ctx) {
 		errs = append(errs, errors.New("api repository is not healthy"))
 	}
 
-	if !u.config.EngineRepository.Health().IsHealthy(ctx) {
+	if !u.config.V1.Health().IsHealthy(ctx) {
 		errs = append(errs, errors.New("engine repository is not healthy"))
 	}
 
-	if !u.config.MessageQueue.IsReady() {
+	if !u.config.MessageQueueV1.IsReady() {
 		errs = append(errs, errors.New("task queue is not healthy"))
 	}
 
@@ -46,9 +46,9 @@ func (u *MetadataService) LivenessGet(ctx echo.Context, request gen.LivenessGetR
 
 		allErrors = append(allErrors, fmt.Errorf(
 			"pg connections - acquired: %d, idle: %d, total: %d",
-			u.config.APIRepository.Health().PgStat().AcquiredConns(),
-			u.config.APIRepository.Health().PgStat().IdleConns(),
-			u.config.APIRepository.Health().PgStat().TotalConns(),
+			u.config.V1.Health().PgStat().AcquiredConns(),
+			u.config.V1.Health().PgStat().IdleConns(),
+			u.config.V1.Health().PgStat().TotalConns(),
 		))
 
 		return gen.LivenessGet500JSONResponse(gen.APIErrors{Errors: errorsToAPIErrors(allErrors)}), nil
@@ -68,9 +68,9 @@ func (u *MetadataService) ReadinessGet(ctx echo.Context, request gen.ReadinessGe
 
 		allErrors = append(allErrors, fmt.Errorf(
 			"pg connections - acquired: %d, idle: %d, total: %d",
-			u.config.APIRepository.Health().PgStat().AcquiredConns(),
-			u.config.APIRepository.Health().PgStat().IdleConns(),
-			u.config.APIRepository.Health().PgStat().TotalConns(),
+			u.config.V1.Health().PgStat().AcquiredConns(),
+			u.config.V1.Health().PgStat().IdleConns(),
+			u.config.V1.Health().PgStat().TotalConns(),
 		))
 
 		return gen.ReadinessGet500JSONResponse(gen.APIErrors{Errors: errorsToAPIErrors(allErrors)}), nil

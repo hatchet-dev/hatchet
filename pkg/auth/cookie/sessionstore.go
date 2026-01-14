@@ -14,7 +14,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 const UserSessionKey string = "user_id"
@@ -26,7 +26,7 @@ type sessionDataJSON struct {
 type UserSessionStore struct {
 	codecs     []securecookie.Codec
 	options    *sessions.Options
-	repo       repository.UserSessionRepository
+	repo       v1.UserSessionRepository
 	cookieName string
 }
 
@@ -34,7 +34,7 @@ type UserSessionStoreOpts struct {
 	// The max age of the cookie, in seconds.
 	maxAge int
 
-	repo          repository.UserSessionRepository
+	repo          v1.UserSessionRepository
 	cookieSecrets []string
 	isInsecure    bool
 	cookieDomain  string
@@ -80,7 +80,7 @@ func WithCookieAllowInsecure(allow bool) UserSessionStoreOpt {
 	}
 }
 
-func WithSessionRepository(repo repository.UserSessionRepository) UserSessionStoreOpt {
+func WithSessionRepository(repo v1.UserSessionRepository) UserSessionStoreOpt {
 	return func(opts *UserSessionStoreOpts) {
 		opts.repo = repo
 	}
@@ -259,7 +259,7 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 	_, err = repo.GetById(ctx, session.ID)
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
-		_, err := repo.Create(ctx, &repository.CreateSessionOpts{
+		_, err := repo.Create(ctx, &v1.CreateSessionOpts{
 			ID:        session.ID,
 			Data:      jsonBytes,
 			ExpiresAt: expiresOn,
@@ -269,7 +269,7 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 		return err
 	}
 
-	_, err = repo.Update(ctx, session.ID, &repository.UpdateSessionOpts{
+	_, err = repo.Update(ctx, session.ID, &v1.UpdateSessionOpts{
 		Data:   jsonBytes,
 		UserId: userId,
 	})

@@ -7,9 +7,9 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type sharedConfig struct {
@@ -95,7 +95,7 @@ func (p *SchedulingPool) cleanup() {
 	}
 }
 
-func (p *SchedulingPool) SetTenants(tenants []*dbsqlc.Tenant) {
+func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 	if ok := p.setMu.TryLock(); !ok {
 		return
 	}

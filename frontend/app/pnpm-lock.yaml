@@ -6,6 +6,7 @@ settings:
 
 overrides:
   prismjs: ^1.30.0
+  js-yaml: ^4.1.1
 
 importers:
 
@@ -92,12 +93,12 @@ importers:
       '@tanstack/react-router':
         specifier: ^1.141.0
         version: 1.141.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@tanstack/react-router-devtools':
+        specifier: ^1.141.0
+        version: 1.141.0(@tanstack/react-router@1.141.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/router-core@1.141.0)(csstype@3.1.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(solid-js@1.9.10)
       '@tanstack/react-table':
         specifier: ^8.21.2
         version: 8.21.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@tanstack/router-devtools':
-        specifier: ^1.141.0
-        version: 1.141.0(@tanstack/react-router@1.141.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/router-core@1.141.0)(csstype@3.1.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(solid-js@1.9.10)
       '@types/lodash':
         specifier: ^4.17.20
         version: 4.17.20
@@ -1552,18 +1553,6 @@ packages:
       '@tanstack/router-core': ^1.141.0
       csstype: ^3.0.10
       solid-js: '>=1.9.5'
-    peerDependenciesMeta:
-      csstype:
-        optional: true
-
-  '@tanstack/router-devtools@1.141.0':
-    resolution: {integrity: sha512-pplB/TtOj22CuLKyalpDg43BlXZ+SLW2mZH5t7woUonBaPeccI9jYUgtPlGfZySnrSI28YQoVf27BUAOsvOxSg==}
-    engines: {node: '>=12'}
-    peerDependencies:
-      '@tanstack/react-router': ^1.141.0
-      csstype: ^3.0.10
-      react: '>=18.0.0 || >=19.0.0'
-      react-dom: '>=18.0.0 || >=19.0.0'
     peerDependenciesMeta:
       csstype:
         optional: true
@@ -3070,8 +3059,8 @@ packages:
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
-  js-yaml@4.1.0:
-    resolution: {integrity: sha512-wpxZs9NoxZaJESJGIZTyDEaYpl0FKSA+FB9aJiyemKhMwkxQg63h4T1KJgUGHpTqPDNRcmmYLugrRjJlBtWvRA==}
+  js-yaml@4.1.1:
+    resolution: {integrity: sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA==}
     hasBin: true
 
   jsbn@0.1.1:
@@ -4545,7 +4534,7 @@ snapshots:
       globals: 13.24.0
       ignore: 5.3.2
       import-fresh: 3.3.1
-      js-yaml: 4.1.0
+      js-yaml: 4.1.1
       minimatch: 3.1.2
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -5640,20 +5629,6 @@ snapshots:
       tiny-invariant: 1.3.3
     optionalDependencies:
       csstype: 3.1.3
-
-  '@tanstack/router-devtools@1.141.0(@tanstack/react-router@1.141.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/router-core@1.141.0)(csstype@3.1.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(solid-js@1.9.10)':
-    dependencies:
-      '@tanstack/react-router': 1.141.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@tanstack/react-router-devtools': 1.141.0(@tanstack/react-router@1.141.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/router-core@1.141.0)(csstype@3.1.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(solid-js@1.9.10)
-      clsx: 2.1.1
-      goober: 2.1.18(csstype@3.1.3)
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-    optionalDependencies:
-      csstype: 3.1.3
-    transitivePeerDependencies:
-      - '@tanstack/router-core'
-      - solid-js
 
   '@tanstack/store@0.8.0': {}
 
@@ -6839,7 +6814,7 @@ snapshots:
       imurmurhash: 0.1.4
       is-glob: 4.0.3
       is-path-inside: 3.0.3
-      js-yaml: 4.1.0
+      js-yaml: 4.1.1
       json-stable-stringify-without-jsonify: 1.0.1
       levn: 0.4.1
       lodash.merge: 4.6.2
@@ -7394,7 +7369,7 @@ snapshots:
 
   js-tokens@4.0.0: {}
 
-  js-yaml@4.1.0:
+  js-yaml@4.1.1:
     dependencies:
       argparse: 2.0.1
 

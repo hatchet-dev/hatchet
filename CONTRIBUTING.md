@@ -4,7 +4,7 @@
 
 1. Make sure all prerequisite dependencies are installed:
 
-   - [Go 1.24+](https://go.dev/doc/install)
+   - [Go 1.25+](https://go.dev/doc/install)
    - [Node.js v18+](https://nodejs.org/en/download) - we recommend using [nvm](https://github.com/nvm-sh/nvm) for managing node versions.
    - [pnpm](https://pnpm.io/installation) installed globally (`npm i -g pnpm`)
    - [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/)
@@ -126,13 +126,3 @@ Generate a service account in GCP which can encrypt/decrypt on CloudKMS, then do
 ```
 SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON='{...}'
 ```
-
-## Working with Database Models
-
-1. Create or modify the required SQL queries in `./pkg/repository/prisma/dbsqlc`
-2. Add new queries files to `./pkg/repository/prisma/dbsqlc/sqlc.yaml`
-3. Make schema changes in `./sql/schema/schema.sql`
-4. Create a new migration file with `task migrate`
-5. Rename the migration file in `./sql/migrations/` to match the latest tag.
-6. Generate Go with `task generate-all`
-7. Run `atlas migrate hash --dir "file://sql/migrations"` to generate the atlas hash.

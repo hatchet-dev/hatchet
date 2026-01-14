@@ -38,10 +38,10 @@ from hatchet_sdk.clients.rest.models.update_scheduled_workflow_run_request impor
 from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
     WorkflowRunOrderByDirection,
 )
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
-    retry,
 )
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -200,6 +200,7 @@ class ScheduledClient(BaseRestClient):
         :return: The bulk delete response containing deleted IDs and per-item errors.
         :raises ValueError: If neither `scheduled_ids` nor any filter field is provided.
         """
+
         has_filter = any(
             v is not None
             for v in (
@@ -358,7 +359,6 @@ class ScheduledClient(BaseRestClient):
             parent_workflow_run_id=parent_workflow_run_id,
         )
 
-    @retry
     def list(
         self,
         offset: int | None = None,
@@ -383,7 +383,10 @@ class ScheduledClient(BaseRestClient):
         :return: A list of scheduled workflows matching the provided filters.
         """
         with self.client() as client:
-            return self._wa(client).workflow_scheduled_list(
+            workflow_scheduled_list = tenacity_retry(
+                self._wa(client).workflow_scheduled_list, self.client_config.tenacity
+            )
+            return workflow_scheduled_list(
                 tenant=self.client_config.tenant_id,
                 offset=offset,
                 limit=limit,
@@ -396,7 +399,6 @@ class ScheduledClient(BaseRestClient):
                 parent_workflow_run_id=parent_workflow_run_id,
             )
 
-    @retry
     def get(self, scheduled_id: str) -> ScheduledWorkflows:
         """
         Retrieves a specific scheduled workflow by scheduled run trigger ID.
@@ -406,7 +408,10 @@ class ScheduledClient(BaseRestClient):
         """
 
         with self.client() as client:
-            return self._wa(client).workflow_scheduled_get(
+            workflow_scheduled_get = tenacity_retry(
+                self._wa(client).workflow_scheduled_get, self.client_config.tenacity
+            )
+            return workflow_scheduled_get(
                 tenant=self.client_config.tenant_id,
                 scheduled_workflow_run=scheduled_id,
             )

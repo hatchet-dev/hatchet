@@ -10,10 +10,12 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -195,10 +197,27 @@ func (worker *subscribedWorker) CancelTask(
 	incSuccess := worker.incBacklogSize(1)
 
 	if !incSuccess {
-		err := fmt.Errorf("worker backlog size exceeded max of %d", worker.maxBacklogSize)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "worker backlog size exceeded max")
-		return err
+		msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
+			task.TenantID.String(),
+			tasktypesv1.CreateMonitoringEventPayload{
+				TaskId:         task.ID,
+				RetryCount:     task.RetryCount,
+				WorkerId:       &worker.workerId,
+				EventType:      sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
+				EventTimestamp: time.Now().UTC(),
+				EventMessage:   "Worker backlog size exceeded",
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("could not create monitoring event for task %d: %w", task.ID, err)
+		}
+
+		err = worker.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+		if err != nil {
+			return fmt.Errorf("could not publish monitoring event for task %d: %w", task.ID, err)
+		}
+
+		return nil
 	}
 
 	go func() {

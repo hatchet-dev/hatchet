@@ -1,7 +1,6 @@
 import { AppLayout } from '@/components/layout/app-layout';
-import MainNav from '@/components/molecules/nav-bar/nav-bar';
-import SupportChat from '@/components/molecules/support-chat';
-import { Loading } from '@/components/v1/ui/loading.tsx';
+import SupportChat from '@/components/support-chat';
+import TopNav from '@/components/v1/nav/top-nav.tsx';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { queries, User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
@@ -203,33 +202,12 @@ export default function Authenticated() {
     }
   }, [isAuthPage, navigate, userQuery.error]);
 
-  if (
-    userQuery.isLoading ||
-    invitesQuery.isLoading ||
-    listMembershipsQuery.isLoading
-  ) {
-    return <Loading />;
-  }
-
-  if (userQuery.error && !isAuthPage) {
-    return null;
-  }
-
-  if (!userQuery.data) {
-    return <Loading />;
-  }
-
-  // Allow organization pages even without tenant memberships
-  if (!isOrganizationsPage && !listMembershipsQuery.data?.rows) {
-    return <Loading />;
-  }
-
   return (
     <PostHogProvider user={userQuery.data}>
       <SupportChat user={userQuery.data}>
         <AppLayout
           header={
-            <MainNav
+            <TopNav
               user={userQuery.data}
               tenantMemberships={listMembershipsQuery.data?.rows || []}
             />

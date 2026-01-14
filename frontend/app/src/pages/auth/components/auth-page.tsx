@@ -17,13 +17,13 @@ export function AuthPage({
   altAction: React.ReactNode;
 }) {
   useErrorParam();
-  const meta = useApiMeta();
+  const { meta, isLoading } = useApiMeta();
 
-  if (meta.isLoading) {
+  if (isLoading) {
     return <Loading />;
   }
 
-  const schemes = meta.data?.auth?.schemes || [];
+  const schemes = meta?.auth?.schemes || [];
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
@@ -45,7 +45,12 @@ export function AuthPage({
           <HatchetLogo className="h-8 w-auto" />
         </div>
         <div className="flex w-full flex-col items-center gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
+          <h2
+            className="text-2xl font-semibold tracking-tight"
+            data-cy="auth-title"
+          >
+            {title}
+          </h2>
           <div className="text-sm text-muted-foreground text-center lg:text-right">
             {altAction}
           </div>

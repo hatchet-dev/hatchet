@@ -11,8 +11,9 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1repo "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 type fakeLeaseRepo struct {
@@ -24,7 +25,7 @@ func (f *fakeLeaseRepo) ListQueues(context.Context, pgtype.UUID) ([]*sqlcv1.V1Qu
 	return nil, nil
 }
 
-func (f *fakeLeaseRepo) ListActiveWorkers(context.Context, pgtype.UUID) ([]*v1repo.ListActiveWorkersResult, error) {
+func (f *fakeLeaseRepo) ListActiveWorkers(context.Context, pgtype.UUID) ([]*repository.ListActiveWorkersResult, error) {
 	return nil, nil
 }
 
@@ -92,7 +93,7 @@ type fakeSchedulerRepo struct {
 	batchRepo *fakeBatchQueueFactory
 }
 
-func (f *fakeSchedulerRepo) Concurrency() v1repo.ConcurrencyRepository {
+func (f *fakeSchedulerRepo) Concurrency() repository.ConcurrencyRepository {
 	return nil
 }
 

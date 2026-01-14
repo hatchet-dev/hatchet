@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing_extensions import Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
+from hatchet_sdk.clients.rest.models.concurrency_setting import ConcurrencySetting
 from hatchet_sdk.clients.rest.models.job import Job
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurrency
@@ -54,6 +55,9 @@ class WorkflowVersion(BaseModel):
     workflow_config: Optional[Dict[str, Any]] = Field(
         default=None, alias="workflowConfig"
     )
+    v1_concurrency: Optional[List[ConcurrencySetting]] = Field(
+        default=None, alias="v1Concurrency"
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "version",
@@ -67,6 +71,7 @@ class WorkflowVersion(BaseModel):
         "scheduleTimeout",
         "jobs",
         "workflowConfig",
+        "v1Concurrency",
     ]
 
     model_config = ConfigDict(
@@ -125,6 +130,13 @@ class WorkflowVersion(BaseModel):
                 if _item_jobs:
                     _items.append(_item_jobs.to_dict())
             _dict["jobs"] = _items
+        # override the default output from pydantic by calling `to_dict()` of each item in v1_concurrency (list)
+        _items = []
+        if self.v1_concurrency:
+            for _item_v1_concurrency in self.v1_concurrency:
+                if _item_v1_concurrency:
+                    _items.append(_item_v1_concurrency.to_dict())
+            _dict["v1Concurrency"] = _items
         return _dict
 
     @classmethod
@@ -170,6 +182,14 @@ class WorkflowVersion(BaseModel):
                     else None
                 ),
                 "workflowConfig": obj.get("workflowConfig"),
+                "v1Concurrency": (
+                    [
+                        ConcurrencySetting.from_dict(_item)
+                        for _item in obj["v1Concurrency"]
+                    ]
+                    if obj.get("v1Concurrency") is not None
+                    else None
+                ),
             }
         )
         return _obj

@@ -10,10 +10,9 @@ import (
 	"github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func jsonToMap(jsonBytes []byte) map[string]interface{} {
@@ -258,7 +257,7 @@ func ToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 	return toReturn
 }
 
-func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID, workflowVersion *dbsqlc.GetWorkflowVersionByIdRow) gen.V1TaskSummary {
+func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID, workflowVersion *sqlcv1.GetWorkflowVersionByIdRow) gen.V1TaskSummary {
 	workflowVersionID := uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.WorkflowVersionID))
 	additionalMetadata := jsonToMap(taskWithData.AdditionalMetadata)
 
@@ -346,10 +345,10 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID
 func ToWorkflowRunDetails(
 	taskRunEvents []*v1.TaskEventWithPayloads,
 	workflowRun *v1.WorkflowRunData,
-	shape []*dbsqlc.GetWorkflowRunShapeRow,
+	shape []*sqlcv1.GetWorkflowShapeRow,
 	tasks []*v1.TaskWithPayloads,
 	stepIdToTaskExternalId map[pgtype.UUID]pgtype.UUID,
-	workflowVersion *dbsqlc.GetWorkflowVersionByIdRow,
+	workflowVersion *sqlcv1.GetWorkflowVersionByIdRow,
 ) (gen.V1WorkflowRunDetails, error) {
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
 	duration := int(workflowRun.FinishedAt.Time.Sub(workflowRun.StartedAt.Time).Milliseconds())

@@ -12,6 +12,12 @@ import {
   DialogContent,
   DialogHeader,
 } from '@/components/v1/ui/dialog';
+import {
+  PortalTooltip,
+  PortalTooltipContent,
+  PortalTooltipProvider,
+  PortalTooltipTrigger,
+} from '@/components/v1/ui/portal-tooltip';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   queries,
@@ -311,45 +317,49 @@ const BaseActionButton = ({
   icon,
   label,
   showModal,
+  showLabel,
   className,
 }: {
   disabled: boolean;
   params: TaskRunActionsParams;
   icon: JSX.Element;
   label: string;
+  showLabel: boolean;
   showModal: boolean;
   className?: string;
 }) => {
   const { handleTaskRunAction } = useTaskRunActions();
   const {
-    actions: {
-      setIsActionModalOpen,
-      setSelectedActionType,
-      setIsActionDropdownOpen,
-    },
+    actions: { setIsActionModalOpen, setSelectedActionType },
   } = useRunsContext();
 
   return (
-    <Button
-      size={'sm'}
-      className={cn('text-sm', className)}
-      variant={'outline'}
-      disabled={disabled}
-      onClick={() => {
-        setSelectedActionType(params.actionType);
-        setIsActionDropdownOpen(false);
+    <PortalTooltipProvider>
+      <PortalTooltip>
+        <PortalTooltipTrigger>
+          <Button
+            size={'sm'}
+            className={cn('text-sm gap-2', className)}
+            variant={'outline'}
+            disabled={disabled}
+            onClick={() => {
+              setSelectedActionType(params.actionType);
 
-        if (!showModal) {
-          handleTaskRunAction(params);
-          return;
-        }
+              if (!showModal) {
+                handleTaskRunAction(params);
+                return;
+              }
 
-        setIsActionModalOpen(true);
-      }}
-      leftIcon={icon}
-    >
-      {label}
-    </Button>
+              setIsActionModalOpen(true);
+            }}
+          >
+            {icon}
+            {showLabel && label}
+          </Button>
+        </PortalTooltipTrigger>
+        <PortalTooltipContent>{label}</PortalTooltipContent>
+      </PortalTooltip>
+    </PortalTooltipProvider>
   );
 };
 
@@ -358,12 +368,14 @@ export const TaskRunActionButton = ({
   disabled,
   paramOverrides,
   showModal,
+  showLabel,
   className,
 }: {
   actionType: ActionType;
   disabled: boolean;
   paramOverrides?: BaseTaskRunActionParams;
   showModal: boolean;
+  showLabel: boolean;
   className?: string;
 }) => {
   const { actionModalParams } = useRunsContext();
@@ -379,6 +391,7 @@ export const TaskRunActionButton = ({
           label={'Cancel'}
           showModal={showModal}
           className={className}
+          showLabel={showLabel}
         />
       );
     case 'replay':
@@ -390,6 +403,7 @@ export const TaskRunActionButton = ({
           label={'Replay'}
           showModal={showModal}
           className={className}
+          showLabel={showLabel}
         />
       );
     default:

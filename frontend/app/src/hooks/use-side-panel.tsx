@@ -1,4 +1,4 @@
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '@/components/hooks/use-theme';
 import { DocPage } from '@/components/v1/docs/docs-button';
 import { V1Event, V1Filter, ScheduledWorkflows } from '@/lib/api';
 import { ExpandedEventContent } from '@/pages/main/v1/events';

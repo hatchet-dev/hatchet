@@ -23,7 +23,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/cel"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1WebhookReceiveRequestObject) (gen.V1WebhookReceiveResponseObject, error) {
@@ -32,7 +32,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 
 	w.config.Logger.Debug().Str("webhook", webhookName).Str("tenant", tenantId).Str("method", ctx.Request().Method).Str("content_type", ctx.Request().Header.Get("Content-Type")).Msg("received webhook request")
 
-	tenant, err := w.config.APIRepository.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
+	tenant, err := w.config.V1.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
 
 	if err != nil || tenant == nil {
 		return gen.V1WebhookReceive400JSONResponse{

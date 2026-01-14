@@ -7,12 +7,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1repo "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 const defaultBatchPollInterval = 200 * time.Millisecond
@@ -36,8 +35,8 @@ type BatchScheduler struct {
 	tenantId       pgtype.UUID
 	stepId         pgtype.UUID
 	batchKey       string
-	repo           v1repo.BatchQueueRepository
-	queueFactory   v1repo.QueueFactoryRepository
+	repo           repository.BatchQueueRepository
+	queueFactory   repository.QueueFactoryRepository
 	scheduler      *Scheduler
 	emitResults    func(*QueueResults)
 	assignOverride assignmentFn
@@ -122,7 +121,7 @@ func newBatchScheduler(
 	cf *sharedConfig,
 	tenantId pgtype.UUID,
 	resource *sqlcv1.ListDistinctBatchResourcesRow,
-	queueFactory v1repo.QueueFactoryRepository,
+	queueFactory repository.QueueFactoryRepository,
 	scheduler *Scheduler,
 	emitResults func(*QueueResults),
 	reserveBatch batchReservationFunc,
@@ -446,7 +445,7 @@ func (b *BatchScheduler) emitWaitingEvents(newItems []*sqlcv1.V1BatchedQueueItem
 
 	pending := int32(len(b.buffer))
 
-	buffered := make([]*v1repo.AssignedItem, 0, len(newItems))
+	buffered := make([]*repository.AssignedItem, 0, len(newItems))
 
 	for _, item := range newItems {
 		if item == nil {
@@ -486,9 +485,9 @@ func (b *BatchScheduler) emitWaitingEvents(newItems []*sqlcv1.V1BatchedQueueItem
 			metaBatchKey = strings.TrimSpace(queueItem.BatchKey.String)
 		}
 
-		buffered = append(buffered, &v1repo.AssignedItem{
+		buffered = append(buffered, &repository.AssignedItem{
 			QueueItem: queueItem,
-			Batch: &v1repo.BatchAssignmentMetadata{
+			Batch: &repository.BatchAssignmentMetadata{
 				State:                        "waiting",
 				TriggeredAt:                  triggeredAt,
 				ConfiguredBatchMaxSize:       int32(b.batchSize),
@@ -624,7 +623,7 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 	}
 
 	remaining := make([]*sqlcv1.V1BatchedQueueItem, 0)
-	allAssigned := make([]*v1repo.AssignedItem, 0)
+	allAssigned := make([]*repository.AssignedItem, 0)
 	allAckIds := make([]int, 0)
 
 	for queueName, group := range queueToItems {
@@ -802,8 +801,8 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 			continue
 		}
 
-		batchAssignments := make([]*v1repo.BatchAssignment, 0, len(group))
-		queueResultsByTaskID := make(map[int64]*v1repo.AssignedItem, len(group))
+		batchAssignments := make([]*repository.BatchAssignment, 0, len(group))
+		queueResultsByTaskID := make(map[int64]*repository.AssignedItem, len(group))
 		triggeredAt := time.Now().UTC()
 
 		batchMaxIntervalMs := int32(0)
@@ -821,7 +820,7 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 				continue
 			}
 
-			batchAssignments = append(batchAssignments, &v1repo.BatchAssignment{
+			batchAssignments = append(batchAssignments, &repository.BatchAssignment{
 				BatchQueueItemID: batched.ID,
 				TaskID:           batched.TaskID,
 				TaskInsertedAt:   batched.TaskInsertedAt,
@@ -833,10 +832,10 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 				BatchKey:         batchKeyNormalized,
 			})
 
-			queueResultsByTaskID[queueItem.TaskID] = &v1repo.AssignedItem{
+			queueResultsByTaskID[queueItem.TaskID] = &repository.AssignedItem{
 				WorkerId:  workerID,
 				QueueItem: queueItem,
-				Batch: &v1repo.BatchAssignmentMetadata{
+				Batch: &repository.BatchAssignmentMetadata{
 					State:                        "flushed",
 					Reason:                       string(reason),
 					TriggeredAt:                  triggeredAt,
@@ -869,7 +868,7 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 		}
 
 		// Only emit/ack tasks that were actually assigned (e.g. drop cancellations).
-		queueResults := make([]*v1repo.AssignedItem, 0, len(succeededAssignments))
+		queueResults := make([]*repository.AssignedItem, 0, len(succeededAssignments))
 		for _, a := range succeededAssignments {
 			if a == nil {
 				continue

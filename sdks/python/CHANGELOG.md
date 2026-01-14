@@ -5,6 +5,64 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.5] - 2026-01-09
+
+### Added
+
+- Adds an `additional_metadata` field to the `get_details` response.
+
+## [1.22.4] - 2026-01-08
+
+### Added
+
+- Adds a `get_details` method to the runs client
+
+## [1.22.3] - 2026-01-07
+
+### Changed
+
+- Fixes an issue with the type signature for chained dependencies
+- Truncates log messages to 10,000 characters to avoid issues with overly large logs.
+
+## [1.22.2] - 2025-12-31
+
+### Added
+
+- Crons can now be provided by alias, e.g. `@daily`
+
+### Changed
+
+- Failed workflow logs are only reported at the `exception` level either on the last retry attempt or if the task is marked as `non_retryable`, to avoid spamming e.g. Sentry with exceptions.
+
+## [1.22.1] - 2025-12-30
+
+### Changed
+
+- Regenerates some API signatures after deprecating many v0 routes.
+
+## [1.22.0] - 2025-12-26
+
+### Added
+
+- Dependencies are now chainable, so one dependency can rely on an upstream one, similar to in FastAPI.
+- Dependencies can now be both functions (sync and async) and context managers (sync and async) to allow for cleaning up things like database connections, etc.
+- The `ClientConfig` has a new `Tenacity` object, which allows for specifying retry config.
+- Concurrency limits can now be specified as integers, which will provide behavior equivalent to setting a constant key with a `GROUP_ROUND_ROBIN` strategy.
+
+### Changed
+
+- Improves the errors raised out of the sync `result` method on the `WorkflowRunRef` to be more in line with the async version, raising a `FailedTaskRunExceptionGroup` that contains all of the task run errors instead of just the first one.
+
+### Internal
+
+- Replaces manual validation logic with Pydantic's `TypeAdapter` for improved correctness and flexibility.
+
+## [1.21.8] - 2025-12-26
+
+### Changed
+
+- Fixes a bug where static rate limits reset their own values to zero on task registration.
+
 ## [1.21.7] - 2025-12-15
 
 ### Added

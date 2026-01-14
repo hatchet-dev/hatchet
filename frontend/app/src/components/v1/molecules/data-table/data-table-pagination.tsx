@@ -29,7 +29,7 @@ export function DataTablePagination<TData>({
   const pagination = table.getState().pagination;
 
   return (
-    <div className="flex items-center justify-between px-2">
+    <div className="flex items-center justify-between">
       <div className="flex-1 text-sm text-gray-600 dark:text-gray-400">
         {showSelectedRows && (
           <div>
@@ -58,7 +58,7 @@ export function DataTablePagination<TData>({
             }}
           >
             <SelectTrigger
-              className="z-[70] h-8 w-[70px]"
+              className="h-8 w-[70px]"
               id="rows-per-page"
               aria-labelledby="rows-per-page-label"
             >

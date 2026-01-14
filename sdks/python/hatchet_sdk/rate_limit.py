@@ -68,6 +68,9 @@ class RateLimit(BaseModel):
         if self.dynamic_key and not self.limit:
             raise ValueError("CEL based keys requires limit to be set")
 
+        if self.limit is None:
+            self.limit = -1
+
         return self
 
     def to_proto(self) -> CreateTaskRateLimit:

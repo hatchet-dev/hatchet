@@ -50,6 +50,7 @@ class V1TaskEventType(str, Enum):
     SKIPPED = "SKIPPED"
     WAITING_FOR_BATCH = "WAITING_FOR_BATCH"
     BATCH_FLUSHED = "BATCH_FLUSHED"
+    COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

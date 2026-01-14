@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -32,6 +32,12 @@ const (
 	QUEUENEWEST      ConcurrencyLimitStrategy = "QUEUE_NEWEST"
 )
 
+// Defines values for ConcurrencyScope.
+const (
+	ConcurrencyScopeTASK     ConcurrencyScope = "TASK"
+	ConcurrencyScopeWORKFLOW ConcurrencyScope = "WORKFLOW"
+)
+
 // Defines values for CronWorkflowsMethod.
 const (
 	CronWorkflowsMethodAPI     CronWorkflowsMethod = "API"
@@ -187,16 +193,10 @@ const (
 	WORKFLOWRUN     TenantResource = "WORKFLOW_RUN"
 )
 
-// Defines values for TenantUIVersion.
-const (
-	TenantUIVersionV0 TenantUIVersion = "V0"
-	TenantUIVersionV1 TenantUIVersion = "V1"
-)
-
 // Defines values for TenantVersion.
 const (
-	TenantVersionV0 TenantVersion = "V0"
-	TenantVersionV1 TenantVersion = "V1"
+	V0 TenantVersion = "V0"
+	V1 TenantVersion = "V1"
 )
 
 // Defines values for V1CELDebugResponseStatus.
@@ -230,28 +230,29 @@ const (
 
 // Defines values for V1TaskEventType.
 const (
-	V1TaskEventTypeACKNOWLEDGED       V1TaskEventType = "ACKNOWLEDGED"
-	V1TaskEventTypeASSIGNED           V1TaskEventType = "ASSIGNED"
-	V1TaskEventTypeBATCHFLUSHED       V1TaskEventType = "BATCH_FLUSHED"
-	V1TaskEventTypeCANCELLED          V1TaskEventType = "CANCELLED"
-	V1TaskEventTypeCREATED            V1TaskEventType = "CREATED"
-	V1TaskEventTypeFAILED             V1TaskEventType = "FAILED"
-	V1TaskEventTypeFINISHED           V1TaskEventType = "FINISHED"
-	V1TaskEventTypeQUEUED             V1TaskEventType = "QUEUED"
-	V1TaskEventTypeRATELIMITERROR     V1TaskEventType = "RATE_LIMIT_ERROR"
-	V1TaskEventTypeREASSIGNED         V1TaskEventType = "REASSIGNED"
-	V1TaskEventTypeREQUEUEDNOWORKER   V1TaskEventType = "REQUEUED_NO_WORKER"
-	V1TaskEventTypeREQUEUEDRATELIMIT  V1TaskEventType = "REQUEUED_RATE_LIMIT"
-	V1TaskEventTypeRETRIEDBYUSER      V1TaskEventType = "RETRIED_BY_USER"
-	V1TaskEventTypeRETRYING           V1TaskEventType = "RETRYING"
-	V1TaskEventTypeSCHEDULINGTIMEDOUT V1TaskEventType = "SCHEDULING_TIMED_OUT"
-	V1TaskEventTypeSENTTOWORKER       V1TaskEventType = "SENT_TO_WORKER"
-	V1TaskEventTypeSKIPPED            V1TaskEventType = "SKIPPED"
-	V1TaskEventTypeSLOTRELEASED       V1TaskEventType = "SLOT_RELEASED"
-	V1TaskEventTypeSTARTED            V1TaskEventType = "STARTED"
-	V1TaskEventTypeTIMEDOUT           V1TaskEventType = "TIMED_OUT"
-	V1TaskEventTypeTIMEOUTREFRESHED   V1TaskEventType = "TIMEOUT_REFRESHED"
-	V1TaskEventTypeWAITINGFORBATCH    V1TaskEventType = "WAITING_FOR_BATCH"
+	V1TaskEventTypeACKNOWLEDGED         V1TaskEventType = "ACKNOWLEDGED"
+	V1TaskEventTypeASSIGNED             V1TaskEventType = "ASSIGNED"
+	V1TaskEventTypeBATCHFLUSHED         V1TaskEventType = "BATCH_FLUSHED"
+	V1TaskEventTypeCANCELLED            V1TaskEventType = "CANCELLED"
+	V1TaskEventTypeCOULDNOTSENDTOWORKER V1TaskEventType = "COULD_NOT_SEND_TO_WORKER"
+	V1TaskEventTypeCREATED              V1TaskEventType = "CREATED"
+	V1TaskEventTypeFAILED               V1TaskEventType = "FAILED"
+	V1TaskEventTypeFINISHED             V1TaskEventType = "FINISHED"
+	V1TaskEventTypeQUEUED               V1TaskEventType = "QUEUED"
+	V1TaskEventTypeRATELIMITERROR       V1TaskEventType = "RATE_LIMIT_ERROR"
+	V1TaskEventTypeREASSIGNED           V1TaskEventType = "REASSIGNED"
+	V1TaskEventTypeREQUEUEDNOWORKER     V1TaskEventType = "REQUEUED_NO_WORKER"
+	V1TaskEventTypeREQUEUEDRATELIMIT    V1TaskEventType = "REQUEUED_RATE_LIMIT"
+	V1TaskEventTypeRETRIEDBYUSER        V1TaskEventType = "RETRIED_BY_USER"
+	V1TaskEventTypeRETRYING             V1TaskEventType = "RETRYING"
+	V1TaskEventTypeSCHEDULINGTIMEDOUT   V1TaskEventType = "SCHEDULING_TIMED_OUT"
+	V1TaskEventTypeSENTTOWORKER         V1TaskEventType = "SENT_TO_WORKER"
+	V1TaskEventTypeSKIPPED              V1TaskEventType = "SKIPPED"
+	V1TaskEventTypeSLOTRELEASED         V1TaskEventType = "SLOT_RELEASED"
+	V1TaskEventTypeSTARTED              V1TaskEventType = "STARTED"
+	V1TaskEventTypeTIMEDOUT             V1TaskEventType = "TIMED_OUT"
+	V1TaskEventTypeTIMEOUTREFRESHED     V1TaskEventType = "TIMEOUT_REFRESHED"
+	V1TaskEventTypeWAITINGFORBATCH      V1TaskEventType = "WAITING_FOR_BATCH"
 )
 
 // Defines values for V1TaskStatus.
@@ -323,9 +324,9 @@ const (
 
 // Defines values for WorkflowKind.
 const (
-	WorkflowKindDAG      WorkflowKind = "DAG"
-	WorkflowKindDURABLE  WorkflowKind = "DURABLE"
-	WorkflowKindFUNCTION WorkflowKind = "FUNCTION"
+	DAG      WorkflowKind = "DAG"
+	DURABLE  WorkflowKind = "DURABLE"
+	FUNCTION WorkflowKind = "FUNCTION"
 )
 
 // Defines values for WorkflowRunOrderByDirection.
@@ -457,6 +458,23 @@ type CancelEventRequest struct {
 // ConcurrencyLimitStrategy defines model for ConcurrencyLimitStrategy.
 type ConcurrencyLimitStrategy string
 
+// ConcurrencyScope defines model for ConcurrencyScope.
+type ConcurrencyScope string
+
+// ConcurrencySetting defines model for ConcurrencySetting.
+type ConcurrencySetting struct {
+	// Expression The concurrency expression, used to generate a key from task inputs, metadata, etc.
+	Expression    string                   `json:"expression"`
+	LimitStrategy ConcurrencyLimitStrategy `json:"limitStrategy"`
+
+	// MaxRuns The maximum number of concurrent workflow runs.
+	MaxRuns int32            `json:"maxRuns"`
+	Scope   ConcurrencyScope `json:"scope"`
+
+	// StepReadableId The readable id of the step to which this concurrency setting applies.
+	StepReadableId *string `json:"stepReadableId,omitempty"`
+}
+
 // ConcurrencyStat defines model for ConcurrencyStat.
 type ConcurrencyStat struct {
 	Expression *string           `json:"expression,omitempty"`
@@ -537,8 +555,7 @@ type CreateTenantRequest struct {
 	OnboardingData *map[string]interface{} `json:"onboardingData,omitempty"`
 
 	// Slug The slug of the tenant.
-	Slug      string           `json:"slug" validate:"required,hatchetName"`
-	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
+	Slug string `json:"slug" validate:"required,hatchetName"`
 }
 
 // CronWorkflows defines model for CronWorkflows.
@@ -1105,9 +1122,8 @@ type Tenant struct {
 	Name string `json:"name"`
 
 	// Slug The slug of the tenant.
-	Slug      string           `json:"slug"`
-	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
-	Version   TenantVersion    `json:"version"`
+	Slug    string        `json:"slug"`
+	Version TenantVersion `json:"version"`
 }
 
 // TenantAlertEmailGroup defines model for TenantAlertEmailGroup.
@@ -1229,9 +1245,6 @@ type TenantStepRunQueueMetrics struct {
 	Queues *map[string]interface{} `json:"queues,omitempty"`
 }
 
-// TenantUIVersion defines model for TenantUIVersion.
-type TenantUIVersion string
-
 // TenantVersion defines model for TenantVersion.
 type TenantVersion string
 
@@ -1288,9 +1301,8 @@ type UpdateTenantRequest struct {
 	MaxAlertingFrequency *string `json:"maxAlertingFrequency,omitempty" validate:"omitnil,duration"`
 
 	// Name The name of the tenant.
-	Name      *string          `json:"name,omitempty"`
-	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
-	Version   *TenantVersion   `json:"version,omitempty"`
+	Name    *string        `json:"name,omitempty"`
+	Version *TenantVersion `json:"version,omitempty"`
 }
 
 // UpdateWorkerRequest defines model for UpdateWorkerRequest.
@@ -2340,8 +2352,9 @@ type WorkflowVersion struct {
 	ScheduleTimeout *string         `json:"scheduleTimeout,omitempty"`
 
 	// Sticky The sticky strategy of the workflow.
-	Sticky   *string           `json:"sticky,omitempty"`
-	Triggers *WorkflowTriggers `json:"triggers,omitempty"`
+	Sticky        *string               `json:"sticky,omitempty"`
+	Triggers      *WorkflowTriggers     `json:"triggers,omitempty"`
+	V1Concurrency *[]ConcurrencySetting `json:"v1Concurrency,omitempty"`
 
 	// Version The version of the workflow.
 	Version        string                  `json:"version"`

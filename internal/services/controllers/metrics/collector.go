@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -271,11 +271,13 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 
 		// Check query cache hit ratios
 		tables, err := mc.repo.PGHealth().CheckQueryCaches(ctx)
-		if err != nil {
+
+		switch {
+		case err != nil:
 			mc.l.Error().Err(err).Msg("failed to check query cache")
-		} else if len(tables) == 0 {
+		case len(tables) == 0:
 			mc.l.Info().Msg("no query cache data available (pg_stat_statements may not be enabled or track_counts may be disabled)")
-		} else {
+		default:
 			mc.l.Info().Int("table_count", len(tables)).Msg("recording query cache hit ratios")
 			for _, table := range tables {
 				tableName := table.Tablename.String
@@ -290,6 +292,7 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 
 		// Check long-running vacuum
 		vacuumStatus, vacuumCount, err := mc.repo.PGHealth().CheckLongRunningVacuum(ctx)
+
 		if err != nil {
 			mc.l.Error().Err(err).Msg("failed to check long-running vacuum")
 		} else {
@@ -298,11 +301,13 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 		}
 
 		autovacuumRows, err := mc.repo.PGHealth().CheckLastAutovacuumForPartitionedTables(ctx)
-		if err != nil {
+
+		switch {
+		case err != nil:
 			mc.l.Error().Err(err).Msg("failed to check last autovacuum for partitioned tables (OLAP DB)")
-		} else if len(autovacuumRows) == 0 {
+		case len(autovacuumRows) == 0:
 			mc.l.Warn().Msg("no partitioned tables found for autovacuum tracking (OLAP DB)")
-		} else {
+		default:
 			mc.l.Info().Int("table_count", len(autovacuumRows)).Msg("recording last autovacuum metrics (OLAP DB)")
 			validCount := 0
 			for _, row := range autovacuumRows {
@@ -325,11 +330,13 @@ func (mc *MetricsCollectorImpl) collectDatabaseHealthMetrics(ctx context.Context
 		}
 
 		autovacuumRowsCoreDB, err := mc.repo.PGHealth().CheckLastAutovacuumForPartitionedTablesCoreDB(ctx)
-		if err != nil {
+
+		switch {
+		case err != nil:
 			mc.l.Error().Err(err).Msg("failed to check last autovacuum for partitioned tables (CORE DB)")
-		} else if len(autovacuumRowsCoreDB) == 0 {
+		case len(autovacuumRowsCoreDB) == 0:
 			mc.l.Warn().Msg("no partitioned tables found for autovacuum tracking (CORE DB)")
-		} else {
+		default:
 			mc.l.Info().Int("table_count", len(autovacuumRowsCoreDB)).Msg("recording last autovacuum metrics (CORE DB)")
 			validCount := 0
 			for _, row := range autovacuumRowsCoreDB {
@@ -452,11 +459,12 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 
 		// Count active slots per tenant
 		activeSlots, err := mc.repo.Workers().CountActiveSlotsPerTenant()
-		if err != nil {
+		switch {
+		case err != nil:
 			mc.l.Error().Err(err).Msg("failed to count active slots per tenant")
-		} else if len(activeSlots) == 0 {
+		case len(activeSlots) == 0:
 			mc.l.Debug().Msg("no active worker slots found")
-		} else {
+		default:
 			mc.l.Info().Int("tenant_count", len(activeSlots)).Msg("recording active slots metrics")
 			for tenantId, count := range activeSlots {
 				mc.recorder.RecordActiveSlots(ctx, tenantId, count)
@@ -466,11 +474,12 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 
 		// Count active workers per tenant
 		activeWorkers, err := mc.repo.Workers().CountActiveWorkersPerTenant()
-		if err != nil {
+		switch {
+		case err != nil:
 			mc.l.Error().Err(err).Msg("failed to count active workers per tenant")
-		} else if len(activeWorkers) == 0 {
+		case len(activeWorkers) == 0:
 			mc.l.Debug().Msg("no active workers found")
-		} else {
+		default:
 			mc.l.Info().Int("tenant_count", len(activeWorkers)).Msg("recording active workers metrics")
 			for tenantId, count := range activeWorkers {
 				mc.recorder.RecordActiveWorkers(ctx, tenantId, count)
@@ -480,11 +489,13 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 
 		// Count active SDKs per tenant
 		activeSDKs, err := mc.repo.Workers().ListActiveSDKsPerTenant()
-		if err != nil {
+
+		switch {
+		case err != nil:
 			mc.l.Error().Err(err).Msg("failed to list active SDKs per tenant")
-		} else if len(activeSDKs) == 0 {
+		case len(activeSDKs) == 0:
 			mc.l.Debug().Msg("no active SDKs found")
-		} else {
+		default:
 			mc.l.Info().Int("sdk_count", len(activeSDKs)).Msg("recording active SDKs metrics")
 			for tuple, count := range activeSDKs {
 				sdkInfo := telemetry.SDKInfo{

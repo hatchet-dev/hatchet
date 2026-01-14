@@ -295,6 +295,7 @@ V1TaskEventType:
     - SKIPPED
     - WAITING_FOR_BATCH
     - BATCH_FLUSHED
+    - COULD_NOT_SEND_TO_WORKER
 
 V1TaskRunMetrics:
   type: array

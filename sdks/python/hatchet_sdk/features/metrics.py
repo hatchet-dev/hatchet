@@ -8,7 +8,8 @@ from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.task_stat import TaskStat
-from hatchet_sdk.clients.v1.api_client import BaseRestClient, retry
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.clients.v1.api_client import BaseRestClient
 
 
 class TaskMetrics(BaseModel):
@@ -30,7 +31,6 @@ class MetricsClient(BaseRestClient):
     def _ta(self, client: ApiClient) -> TenantApi:
         return TenantApi(client)
 
-    @retry
     def get_queue_metrics(
         self,
     ) -> dict[str, Any]:
@@ -40,12 +40,14 @@ class MetricsClient(BaseRestClient):
         :return: The current queue metrics
         """
         with self.client() as client:
+            tenant_get_step_run_queue_metrics = tenacity_retry(
+                self._ta(client).tenant_get_step_run_queue_metrics,
+                self.client_config.tenacity,
+            )
             return (
-                self._ta(client)
-                .tenant_get_step_run_queue_metrics(
+                tenant_get_step_run_queue_metrics(
                     tenant=self.client_config.tenant_id,
-                )
-                .queues
+                ).queues
             ) or {}
 
     async def aio_get_queue_metrics(
@@ -59,7 +61,6 @@ class MetricsClient(BaseRestClient):
 
         return await asyncio.to_thread(self.get_queue_metrics)
 
-    @retry
     def scrape_tenant_prometheus_metrics(
         self,
     ) -> str:
@@ -69,7 +70,11 @@ class MetricsClient(BaseRestClient):
         :return: The metrics, returned in Prometheus text format
         """
         with self.client() as client:
-            return self._ta(client).tenant_get_prometheus_metrics(
+            tenant_get_prometheus_metrics = tenacity_retry(
+                self._ta(client).tenant_get_prometheus_metrics,
+                self.client_config.tenacity,
+            )
+            return tenant_get_prometheus_metrics(
                 tenant=self.client_config.tenant_id,
             )
 
@@ -84,17 +89,18 @@ class MetricsClient(BaseRestClient):
 
         return await asyncio.to_thread(self.scrape_tenant_prometheus_metrics)
 
-    @retry
     def get_task_stats(self) -> dict[str, TaskStat]:
         with self.client() as client:
-            return self._ta(client).tenant_get_task_stats(
+            get_task_stats = tenacity_retry(
+                self._ta(client).tenant_get_task_stats, self.client_config.tenacity
+            )
+            return get_task_stats(
                 tenant=self.client_config.tenant_id,
             )
 
     async def aio_get_task_stats(self) -> dict[str, TaskStat]:
         return await asyncio.to_thread(self.get_task_stats)
 
-    @retry
     def get_task_metrics(
         self,
         since: datetime | None = None,
@@ -117,9 +123,13 @@ class MetricsClient(BaseRestClient):
         since = since or datetime.now(timezone.utc) - timedelta(days=1)
         until = until or datetime.now(timezone.utc)
         with self.client() as client:
+            v1_task_list_status_metrics = tenacity_retry(
+                self._taskapi(client).v1_task_list_status_metrics,
+                self.client_config.tenacity,
+            )
             metrics = {
                 m.status.name.lower(): m.count
-                for m in self._taskapi(client).v1_task_list_status_metrics(
+                for m in v1_task_list_status_metrics(
                     tenant=self.client_config.tenant_id,
                     since=since,
                     until=until,

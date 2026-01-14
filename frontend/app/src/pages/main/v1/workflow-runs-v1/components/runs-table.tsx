@@ -29,10 +29,6 @@ import { docsPages } from '@/lib/generated/docs';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-interface RunsTableProps {
-  headerClassName?: string;
-}
-
 const GetWorkflowChart = () => {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
@@ -86,7 +82,7 @@ const GetWorkflowChart = () => {
   );
 };
 
-export function RunsTable({ headerClassName }: RunsTableProps) {
+export function RunsTable({ leftLabel }: { leftLabel?: string }) {
   const { tenantId } = useCurrentTenantId();
   const sidePanel = useSidePanel();
   const { setIsFrozen } = useRefetchInterval();
@@ -111,13 +107,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     rowSelection,
     showTriggerWorkflow,
     showQueueMetrics,
-    display: {
-      hideMetrics,
-      hideCounts,
-      hideColumnToggle,
-      hidePagination,
-      hiddenFilters,
-    },
+    display: { hideMetrics, hideCounts, hideColumnToggle, hiddenFilters },
     actions: {
       refetchRuns,
       refetchMetrics,
@@ -206,6 +196,30 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   const hasLoaded = !isRunsLoading && !isStatusCountsLoading;
   const isFetching = !hasLoaded && (isRunsFetching || isStatusCountsFetching);
 
+  const leftActions = [
+    ...(!hideCounts
+      ? [
+          <div key="metrics" className="mr-auto flex justify-start">
+            {runStatusCounts.length > 0 ? (
+              <V1WorkflowRunsMetricsView />
+            ) : (
+              <Skeleton className="h-8 w-[40vw] max-w-[800px]" />
+            )}
+          </div>,
+        ]
+      : []),
+    ...(leftLabel
+      ? [
+          <span
+            key="left-label"
+            className="mr-auto flex justify-start font-medium"
+          >
+            {leftLabel}
+          </span>,
+        ]
+      : []),
+  ];
+
   return (
     <div className="flex h-full flex-col gap-y-2 overflow-hidden">
       <Toaster />
@@ -257,19 +271,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           setColumnVisibility={setColumnVisibility}
           data={tableRows}
           filters={toolbarFilters}
-          leftActions={[
-            ...(!hideCounts
-              ? [
-                  <div key="metrics" className="mr-auto flex justify-start">
-                    {runStatusCounts.length > 0 ? (
-                      <V1WorkflowRunsMetricsView />
-                    ) : (
-                      <Skeleton className="h-8 w-[40vw] max-w-[800px]" />
-                    )}
-                  </div>,
-                ]
-              : []),
-          ]}
+          leftActions={leftActions}
           columnFilters={filters.columnFilters}
           setColumnFilters={(updaterOrValue) => {
             if (typeof updaterOrValue === 'function') {
@@ -278,16 +280,15 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
               filters.setColumnFilters(updaterOrValue);
             }
           }}
-          pagination={hidePagination ? undefined : pagination}
+          pagination={pagination}
           setPagination={setPagination}
           onSetPageSize={setPageSize}
           rowSelection={rowSelection}
           setRowSelection={setRowSelection}
-          pageCount={hidePagination ? undefined : numPages}
+          pageCount={numPages}
           showColumnToggle={!hideColumnToggle}
           getSubRows={(row) => row.children || []}
           getRowId={getRowId}
-          headerClassName={headerClassName}
           hiddenFilters={hiddenFilters}
           columnKeyToName={TaskRunColumn}
           refetchProps={{

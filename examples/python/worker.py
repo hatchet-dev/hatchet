@@ -30,6 +30,7 @@ from examples.dependency_injection.worker import (
     durable_sync_task_with_dependencies,
     sync_task_with_dependencies,
 )
+from examples.dict_input.worker import say_hello_unsafely
 from examples.durable.worker import durable_workflow, wait_for_sleep_twice
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
@@ -39,6 +40,7 @@ from examples.logger.workflow import logging_workflow
 from examples.non_retryable.worker import non_retryable_workflow
 from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
 from examples.return_exceptions.worker import return_exceptions_task
+from examples.run_details.worker import run_detail_test_workflow
 from examples.simple.worker import simple, simple_durable
 from examples.timeout.worker import refresh_timeout_wf, timeout_wf
 from examples.webhooks.worker import webhook
@@ -80,6 +82,7 @@ def main() -> None:
             concurrency_cancel_in_progress_workflow,
             di_workflow,
             payload_initial_cancel_bug_workflow,
+            run_detail_test_workflow,
             lifespan_task,
             simple,
             simple_durable,
@@ -94,6 +97,7 @@ def main() -> None:
             durable_async_task_with_dependencies,
             durable_sync_task_with_dependencies,
             say_hello,
+            say_hello_unsafely,
         ],
         lifespan=lifespan,
     )

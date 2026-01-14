@@ -274,7 +274,8 @@ CREATE TYPE v1_event_type_olap AS ENUM (
     'SKIPPED',
     'BATCH_BUFFERED',
     'WAITING_FOR_BATCH',
-    'BATCH_FLUSHED'
+    'BATCH_FLUSHED',
+    'COULD_NOT_SEND_TO_WORKER'
 );
 
 -- this is a hash-partitioned table on the task_id, so that we can process batches of events in parallel
