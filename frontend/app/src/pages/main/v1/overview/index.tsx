@@ -1,4 +1,3 @@
-import { OnboardingWidget } from './components/onboarding-widget';
 import { Button } from '@/components/v1/ui/button';
 import {
   Card,
@@ -8,6 +7,12 @@ import {
 } from '@/components/v1/ui/card';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/v1/ui/dialog';
+import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -15,6 +20,8 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
+import { Spinner } from '@/components/v1/ui/loading';
+import { SecretCopier } from '@/components/v1/ui/secret-copier';
 import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
@@ -22,21 +29,26 @@ import {
   TabsTrigger,
   TabsContent,
 } from '@/components/v1/ui/tabs';
+import { useAnalytics } from '@/hooks/use-analytics';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api, { CreateAPITokenRequest, queries } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
 import {
   ChevronRightIcon,
   ChevronDownIcon,
   CheckIcon,
 } from '@radix-ui/react-icons';
-import { useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useState, useEffect, useRef } from 'react';
 import { RiDiscordFill, RiGithubFill, RiLink } from 'react-icons/ri';
 
-const expiresInOptions = [
-  { label: '1 hour', value: '1h' },
-  { label: '1 day', value: '1d' },
-  { label: '1 week', value: '1w' },
-  { label: '1 month', value: '1m' },
-  { label: '1 year', value: '1y' },
-];
+const EXPIRES_IN_OPTIONS = {
+  '3 months': `${3 * 30 * 24 * 60 * 60}s`,
+  '1 year': `${365 * 24 * 60 * 60}s`,
+  '100 years': `${100 * 365 * 24 * 60 * 60}s`,
+};
 
 const onboardingSVG = (
   <svg
@@ -56,9 +68,9 @@ const onboardingSVG = (
 
 const workflowSteps = {
   settingUp: 'Setting Up',
-  chooseToken: 'Choose token',
+  chooseToken: 'Set env vars',
   runWorker: 'Run worker',
-  viewTask: 'View task',
+  viewTask: 'Launch task',
 };
 
 const workflowLanguages = {
@@ -68,11 +80,86 @@ const workflowLanguages = {
 };
 
 export default function Overview() {
-  const [expiresIn, setExpiresIn] = useState(expiresInOptions[0].value);
+  const { tenantId } = useCurrentTenantId();
+  const { currentUser } = useCurrentUser();
+  const navigate = useNavigate();
+  const { capture } = useAnalytics();
+  const [tokenName, setTokenName] = useState('');
+  const [expiresIn, setExpiresIn] = useState(EXPIRES_IN_OPTIONS['100 years']);
+  const [generatedToken, setGeneratedToken] = useState<string | undefined>();
+  const [showTokenDialog, setShowTokenDialog] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [selectedTab, setSelectedTab] = useState<
     'settingUp' | 'chooseToken' | 'runWorker' | 'viewTask'
   >('settingUp');
   const [language, setLanguage] = useState<string>('python');
+  const hasTrackedWorkerConnection = useRef(false);
+
+  const { handleApiError } = useApiError({
+    setFieldErrors: setFieldErrors,
+  });
+
+  // Track page view on mount
+  useEffect(() => {
+    capture('onboarding_overview_viewed', {
+      tenant_id: tenantId,
+      user_email: currentUser?.email,
+    });
+  }, [capture, tenantId, currentUser?.email]);
+
+  const createTokenMutation = useMutation({
+    mutationKey: ['api-token:create', tenantId],
+    mutationFn: async (data: CreateAPITokenRequest) => {
+      const res = await api.apiTokenCreate(tenantId, data);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      setGeneratedToken(data.token);
+      setShowTokenDialog(true);
+      // Track token generation
+      capture('onboarding_token_generated', {
+        tenant_id: tenantId,
+        user_email: currentUser?.email,
+        token_name: tokenName,
+        expires_in: expiresIn,
+      });
+      // Reset form
+      setTokenName('');
+    },
+    onError: handleApiError,
+  });
+
+  const handleGenerateToken = () => {
+    if (!tokenName.trim()) {
+      setFieldErrors({ name: 'Name is required' });
+      return;
+    }
+    createTokenMutation.mutate({
+      name: tokenName,
+      expiresIn: expiresIn,
+    });
+  };
+
+  // Poll for workers when on the "Run worker" tab
+  const workersQuery = useQuery({
+    ...queries.workers.list(tenantId),
+    enabled: selectedTab === 'runWorker',
+    refetchInterval: selectedTab === 'runWorker' ? 2000 : false, // Poll every 2 seconds
+  });
+
+  const hasActiveWorker =
+    workersQuery.data?.rows && workersQuery.data.rows.length > 0;
+
+  // Track worker connection (only once)
+  useEffect(() => {
+    if (hasActiveWorker && !hasTrackedWorkerConnection.current) {
+      capture('onboarding_worker_connected', {
+        tenant_id: tenantId,
+        user_email: currentUser?.email,
+      });
+      hasTrackedWorkerConnection.current = true;
+    }
+  }, [hasActiveWorker, capture, tenantId, currentUser?.email]);
 
   return (
     <div className="flex h-full w-full flex-col space-y-24 lg:p-6">
@@ -80,7 +167,7 @@ export default function Overview() {
       <div className="grid gap-x-2 gap-y-6 grid-cols-1 items-start lg:grid-cols-[1fr_auto]">
         <div className="flex items-center gap-6 flex-wrap">
           <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-          <OnboardingWidget steps={4} currentStep={1} label="Steps completed" />
+          {/* <OnboardingWidget steps={4} currentStep={1} label="Steps completed" /> */}
         </div>
         <p className="text-muted-foreground text-balance">
           Complete your onboarding on this page
@@ -105,8 +192,17 @@ export default function Overview() {
               required={true}
               autoCapitalize="none"
               autoCorrect="off"
-              placeholder="Tenant Name"
+              placeholder="My Token"
+              value={tokenName}
+              onChange={(e) => {
+                setTokenName(e.target.value);
+                setFieldErrors({});
+              }}
+              disabled={createTokenMutation.isPending}
             />
+            {fieldErrors.name && (
+              <div className="text-sm text-red-500">{fieldErrors.name}</div>
+            )}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="expiresIn">Expires In</Label>
@@ -116,20 +212,28 @@ export default function Overview() {
                   variant="outline"
                   size="default"
                   className="flex justify-between data-[state=open]:bg-muted"
+                  disabled={createTokenMutation.isPending}
                 >
-                  Expires In{' '}
-                  {expiresInOptions.find((option) => option.value === expiresIn)
-                    ?.label || 'Select an option'}
+                  {Object.entries(EXPIRES_IN_OPTIONS).find(
+                    ([, value]) => value === expiresIn,
+                  )?.[0] || 'Select an option'}
                   <ChevronDownIcon className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-[160px]">
-                {expiresInOptions.map((option) => (
+                {Object.entries(EXPIRES_IN_OPTIONS).map(([label, value]) => (
                   <DropdownMenuItem
-                    key={option.value}
-                    onClick={() => setExpiresIn(option.value)}
+                    key={value}
+                    onClick={() => {
+                      setExpiresIn(value);
+                      capture('onboarding_token_expiration_selected', {
+                        tenant_id: tenantId,
+                        user_email: currentUser?.email,
+                        expiration: label,
+                      });
+                    }}
                   >
-                    {option.label}
+                    {label}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -137,7 +241,13 @@ export default function Overview() {
           </div>
           <Separator orientation="vertical" className="hidden lg:block" />
           <div className="grid gap-2 justify-self-start">
-            <Button variant="default" size="default">
+            <Button
+              variant="default"
+              size="default"
+              onClick={handleGenerateToken}
+              disabled={createTokenMutation.isPending}
+            >
+              {createTokenMutation.isPending && <Spinner />}
               Generate Token
             </Button>
           </div>
@@ -155,11 +265,19 @@ export default function Overview() {
         <Separator className="my-4 bg-border/50" flush />
         <Tabs
           value={selectedTab}
-          onValueChange={(value) =>
-            setSelectedTab(
-              value as 'settingUp' | 'chooseToken' | 'runWorker' | 'viewTask',
-            )
-          }
+          onValueChange={(value) => {
+            const newTab = value as
+              | 'settingUp'
+              | 'chooseToken'
+              | 'runWorker'
+              | 'viewTask';
+            setSelectedTab(newTab);
+            capture('onboarding_tab_changed', {
+              tenant_id: tenantId,
+              user_email: currentUser?.email,
+              tab: workflowSteps[newTab],
+            });
+          }}
           className="w-full rounded-md px-6 pb-6 bg-muted/20 ring-1 ring-border/50 ring-inset"
         >
           <TabsList className="grid w-full grid-flow-col rounded-none bg-transparent p-0 pb-6 justify-start gap-6 h-auto ">
@@ -182,7 +300,15 @@ export default function Overview() {
             <p> Clone the repository and install dependencies. </p>
             <Tabs
               value={language}
-              onValueChange={setLanguage}
+              onValueChange={(value) => {
+                setLanguage(value);
+                capture('onboarding_language_selected', {
+                  tenant_id: tenantId,
+                  user_email: currentUser?.email,
+                  language:
+                    workflowLanguages[value as keyof typeof workflowLanguages],
+                });
+              }}
               className="w-full"
             >
               <TabsList className="mt-2 bg-muted ring-1 ring-border/50 rounded-lg p-0 gap-0.5 dark:bg-muted/20 dark:ring-inset">
@@ -236,7 +362,25 @@ export default function Overview() {
           </TabsContent>
 
           <TabsContent value="chooseToken" className="mt-0 space-y-5">
-            <div> Choose token </div>
+            <p>
+              Set your API token as an environment variable. Copy the token from
+              the "Create API token" section above.
+            </p>
+            <CodeHighlighter
+              className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
+              code={`export HATCHET_CLIENT_TOKEN="your-api-token"`}
+              copyCode={`export HATCHET_CLIENT_TOKEN="your-api-token"`}
+              language="shell"
+              copy
+            />
+            <p>If running locally, also set:</p>
+            <CodeHighlighter
+              className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
+              code={`export HATCHET_CLIENT_TLS_STRATEGY=none`}
+              copyCode={`export HATCHET_CLIENT_TLS_STRATEGY=none`}
+              language="shell"
+              copy
+            />
             <Button
               variant="outline"
               size="default"
@@ -248,7 +392,27 @@ export default function Overview() {
             </Button>
           </TabsContent>
           <TabsContent value="runWorker" className="mt-0 space-y-5">
-            <div> Run worker </div>
+            <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-4">
+              {hasActiveWorker ? (
+                <>
+                  <CheckIcon className="size-5 text-green-500" />
+                  <span className="text-sm font-medium">
+                    Worker is connected
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Spinner className="size-5" />
+                  <span className="text-sm text-muted-foreground">
+                    Waiting for worker...
+                  </span>
+                </>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Start your worker by running the quickstart code in your terminal.
+              Once connected, you'll see a confirmation above.
+            </p>
             <Button
               variant="outline"
               size="default"
@@ -260,12 +424,42 @@ export default function Overview() {
             </Button>
           </TabsContent>
           <TabsContent value="viewTask" className="mt-0 space-y-5">
-            <div> View task </div>
+            <p className="text-sm">
+              Your worker is connected and ready to process tasks. Here's what
+              you can do next:
+            </p>
+            <div className="space-y-3">
+              <Link
+                to="/tenants/$tenant/runs"
+                params={{ tenant: tenantId }}
+                className="flex items-center gap-2 text-sm text-primary hover:underline"
+              >
+                <ChevronRightIcon className="size-4" />
+                Trigger a task
+              </Link>
+              <Link
+                to="/tenants/$tenant/workflows"
+                params={{ tenant: tenantId }}
+                className="flex items-center gap-2 text-sm text-primary hover:underline"
+              >
+                <ChevronRightIcon className="size-4" />
+                View list of workflows
+              </Link>
+            </div>
             <Button
               variant="outline"
               size="default"
               className="w-fit gap-2 bg-muted/70"
-              onClick={() => ({})}
+              onClick={() => {
+                capture('onboarding_completed', {
+                  tenant_id: tenantId,
+                  user_email: currentUser?.email,
+                });
+                navigate({
+                  to: '/tenants/$tenant/runs',
+                  params: { tenant: tenantId },
+                });
+              }}
             >
               Finish
               <CheckIcon className="size-3 text-brand" />
@@ -379,6 +573,27 @@ export default function Overview() {
           </Card>
         </div>
       </div>
+
+      {/* Token Success Modal */}
+      {showTokenDialog && generatedToken && (
+        <Dialog open={showTokenDialog} onOpenChange={setShowTokenDialog}>
+          <DialogContent className="w-fit max-w-[700px]">
+            <DialogHeader>
+              <DialogTitle>Keep it secret, keep it safe</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm">
+              This is the only time we will show you this token. Make sure to
+              copy it somewhere safe.
+            </p>
+            <SecretCopier
+              secrets={{ HATCHET_CLIENT_TOKEN: generatedToken }}
+              className="text-sm"
+              maxWidth={'calc(700px - 4rem)'}
+              copy
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
