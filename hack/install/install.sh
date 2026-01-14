@@ -2,15 +2,24 @@
 
 # Hatchet CLI Installation Script
 # Supports macOS (Darwin) and Linux on x86_64 and ARM64 architectures
-# Usage: curl -fsSL https://install.hatchet.run | bash
-# Or with specific version: curl -fsSL https://install.hatchet.run | bash -s -- v0.73.10
+#
+# Usage:
+#   Basic installation: curl -fsSL https://install.hatchet.run | bash
+#   Specific version: curl -fsSL https://install.hatchet.run | bash -s -- v0.73.10
+#   Custom directory: curl -fsSL https://install.hatchet.run | INSTALL_DIR="$HOME/bin" bash
+#
+# Installation directories (in order of preference):
+#   1. $INSTALL_DIR (if set via environment variable)
+#   2. $HOME/.local/bin (if in PATH, no sudo required)
+#   3. /usr/local/bin (may require sudo)
 
 set -e
 
 # Configuration
 REPO="hatchet-dev/hatchet"
 BINARY_NAME="hatchet"
-INSTALL_DIR="/usr/local/bin"
+DEFAULT_INSTALL_DIR="/usr/local/bin"
+USER_INSTALL_DIR="$HOME/.local/bin"
 GITHUB_API="https://api.github.com/repos/${REPO}"
 GITHUB_RELEASES="https://github.com/${REPO}/releases/download"
 
@@ -131,6 +140,55 @@ detect_platform() {
     esac
 
     log_info "Detected platform: ${OS} ${ARCH}"
+}
+
+# Detect best installation directory
+detect_install_dir() {
+    log_info "Determining installation directory..."
+
+    # Check if INSTALL_DIR is already set via environment variable
+    if [ -n "$INSTALL_DIR" ]; then
+        log_info "Using custom installation directory from INSTALL_DIR env var: ${INSTALL_DIR}"
+        # Ensure directory exists
+        if [ ! -d "$INSTALL_DIR" ]; then
+            if ! mkdir -p "$INSTALL_DIR" 2>/dev/null; then
+                log_error "Cannot create custom installation directory: $INSTALL_DIR"
+                exit 1
+            fi
+        fi
+        return
+    fi
+
+    # Check if ~/.local/bin is in PATH and is/can be writable
+    if echo "$PATH" | grep -q "$USER_INSTALL_DIR"; then
+        # ~/.local/bin is in PATH, check if it exists and is writable
+        if [ -d "$USER_INSTALL_DIR" ] && [ -w "$USER_INSTALL_DIR" ]; then
+            INSTALL_DIR="$USER_INSTALL_DIR"
+            log_info "Using user installation directory: ${INSTALL_DIR} (no sudo required)"
+            return
+        elif [ ! -d "$USER_INSTALL_DIR" ]; then
+            # Directory doesn't exist but is in PATH, try to create it
+            if mkdir -p "$USER_INSTALL_DIR" 2>/dev/null; then
+                INSTALL_DIR="$USER_INSTALL_DIR"
+                log_info "Created and using user installation directory: ${INSTALL_DIR} (no sudo required)"
+                return
+            fi
+        fi
+    fi
+
+    # Fall back to system-wide installation
+    INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+    log_info "Will install to system directory: ${INSTALL_DIR}"
+
+    # Check if we'll need sudo
+    if [ ! -w "$INSTALL_DIR" ]; then
+        log_info "System directory requires administrator privileges (sudo)"
+        if ! echo "$PATH" | grep -q "$USER_INSTALL_DIR"; then
+            log_info "Tip: To avoid sudo in the future, add ~/.local/bin to your PATH:"
+            log_info "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
+            log_info "  (or ~/.zshrc if using zsh)"
+        fi
+    fi
 }
 
 # Get latest version or use provided version
@@ -273,18 +331,23 @@ install_hatchet() {
     fi
 
     # Install binary
-    log_info "Installing to ${INSTALL_DIR}..."
+    log_info "Installing Hatchet CLI to: ${INSTALL_DIR}/${BINARY_NAME}"
 
     # Check if we need sudo
     if [ -w "$INSTALL_DIR" ]; then
-        mv "$TMP_DIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
+        if ! mv "$TMP_DIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"; then
+            log_error "Failed to install binary to $INSTALL_DIR"
+            exit 1
+        fi
+        log_success "Installed to ${INSTALL_DIR}/${BINARY_NAME}"
     else
-        log_info "Installation requires administrator privileges"
+        log_info "Requesting administrator privileges to install to system directory..."
         if ! sudo mv "$TMP_DIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"; then
             log_error "Failed to install binary to $INSTALL_DIR"
             log_error "You can manually copy the binary from: $TMP_DIR/$BINARY_NAME"
             exit 1
         fi
+        log_success "Installed to ${INSTALL_DIR}/${BINARY_NAME} (with sudo)"
     fi
 
     # Verify installation
@@ -305,6 +368,7 @@ main() {
 
     check_prereqs
     detect_platform
+    detect_install_dir
     get_version "$1"
     install_hatchet
 

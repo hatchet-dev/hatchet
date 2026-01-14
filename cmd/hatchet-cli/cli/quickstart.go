@@ -66,6 +66,58 @@ var quickstartCmd = &cobra.Command{
 			dir = selectDirectoryForm(projectName)
 		}
 
+		// Check if directory exists and get user confirmation
+		if _, err := os.Stat(dir); err == nil {
+			// Directory exists - ask for confirmation
+			var confirm bool
+
+			confirmForm := huh.NewForm(
+				huh.NewGroup(
+					huh.NewConfirm().
+						Title(fmt.Sprintf("Directory %s already exists. Are you sure this is the right directory?", dir)).
+						Value(&confirm),
+				),
+			).WithTheme(styles.HatchetTheme())
+
+			err := confirmForm.Run()
+			if err != nil {
+				cli.Logger.Fatalf("could not run confirmation form: %v", err)
+			}
+
+			if !confirm {
+				fmt.Println("Quickstart cancelled")
+				os.Exit(0)
+			}
+
+			// Check if directory is not empty
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				cli.Logger.Fatalf("could not read directory: %v", err)
+			}
+
+			if len(entries) > 0 {
+				var confirmNonEmpty bool
+
+				nonEmptyForm := huh.NewForm(
+					huh.NewGroup(
+						huh.NewConfirm().
+							Title("Directory is not empty. Files will be written but existing files will not be deleted. Continue?").
+							Value(&confirmNonEmpty),
+					),
+				).WithTheme(styles.HatchetTheme())
+
+				err := nonEmptyForm.Run()
+				if err != nil {
+					cli.Logger.Fatalf("could not run confirmation form: %v", err)
+				}
+
+				if !confirmNonEmpty {
+					fmt.Println("Quickstart cancelled")
+					os.Exit(0)
+				}
+			}
+		}
+
 		templateData := templater.Data{
 			Name: projectName,
 		}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/spf13/viper"
 
@@ -169,6 +170,11 @@ func RemoveProfile(name string) error {
 		allSettings["profiles"] = profiles
 	}
 
+	// Clear default profile if this was the default
+	if defaultProfile, ok := allSettings["defaultProfile"].(string); ok && defaultProfile == name {
+		allSettings["defaultProfile"] = ""
+	}
+
 	// Create a fresh Viper instance to avoid cached key issues
 	newViper := viper.New()
 	newViper.SetConfigType("yaml")
@@ -254,7 +260,74 @@ func ListProfiles() []string {
 	for name := range profiles {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
+}
+
+// GetDefaultProfile returns the name of the default profile, or empty string if none is set
+func GetDefaultProfile() string {
+	viperMutex.RLock()
+	defer viperMutex.RUnlock()
+
+	if ProfilesViperConfig == nil {
+		return ""
+	}
+
+	return ProfilesViperConfig.GetString("defaultProfile")
+}
+
+// SetDefaultProfile sets the default profile
+func SetDefaultProfile(name string) error {
+	unlock, err := acquireLock()
+	if err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer unlock()
+
+	viperMutex.Lock()
+	defer viperMutex.Unlock()
+
+	if ProfilesViperConfig == nil {
+		return fmt.Errorf("config not initialized")
+	}
+
+	// Reload config to get latest state
+	if err := reloadConfig(); err != nil {
+		return fmt.Errorf("failed to reload config: %w", err)
+	}
+
+	// Verify the profile exists
+	key := fmt.Sprintf("profiles.%s", name)
+	if !ProfilesViperConfig.IsSet(key) {
+		return fmt.Errorf("profile '%s' not found", name)
+	}
+
+	ProfilesViperConfig.Set("defaultProfile", name)
+	return saveConfig()
+}
+
+// ClearDefaultProfile clears the default profile setting
+func ClearDefaultProfile() error {
+	unlock, err := acquireLock()
+	if err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer unlock()
+
+	viperMutex.Lock()
+	defer viperMutex.Unlock()
+
+	if ProfilesViperConfig == nil {
+		return fmt.Errorf("config not initialized")
+	}
+
+	// Reload config to get latest state
+	if err := reloadConfig(); err != nil {
+		return fmt.Errorf("failed to reload config: %w", err)
+	}
+
+	ProfilesViperConfig.Set("defaultProfile", "")
+	return saveConfig()
 }
 
 // getProfilesFilePath returns the path to the profiles config file
