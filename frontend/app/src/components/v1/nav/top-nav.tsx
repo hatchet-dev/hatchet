@@ -24,13 +24,19 @@ import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
 import api, { TenantMember, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
-import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
+import {
+  Link,
+  useMatchRoute,
+  useNavigate,
+  useParams,
+} from '@tanstack/react-router';
 import { ChevronDown, Menu } from 'lucide-react';
 import React from 'react';
 import {
@@ -154,6 +160,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
   const matchRoute = useMatchRoute();
   const params = useParams({ strict: false }) as { tenant?: string };
   const tenantParamInPath = params.tenant;
+  const { homeRoute } = useTenantHomeRoute(tenantParamInPath);
 
   const isOnTenantRoute = Boolean(
     matchRoute({
@@ -166,7 +173,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
   const onLogoClick = () => {
     if (isOnTenantRoute && tenantParamInPath) {
       navigate({
-        to: appRoutes.tenantRunsRoute.to,
+        to: homeRoute,
         params: { tenant: tenantParamInPath },
       });
       return;
@@ -277,8 +284,8 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
                       {crumb.isCurrentPage ? (
                         <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
                       ) : (
-                        <BreadcrumbLink href={crumb.href}>
-                          {crumb.label}
+                        <BreadcrumbLink asChild>
+                          <Link to={crumb.href}>{crumb.label}</Link>
                         </BreadcrumbLink>
                       )}
                     </BreadcrumbItem>

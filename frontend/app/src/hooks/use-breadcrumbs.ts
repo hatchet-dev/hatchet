@@ -1,3 +1,4 @@
+import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
 import { generateBreadcrumbs, BreadcrumbItem } from '@/lib/breadcrumbs';
 import { useLocation, useParams, useRouterState } from '@tanstack/react-router';
 
@@ -19,6 +20,10 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
     {} as Record<string, string>,
   );
 
+  // Get tenant ID and home route at the top level (before any conditional returns)
+  const tenantId = cleanParams.tenant;
+  const { homeRoute } = useTenantHomeRoute(tenantId);
+
   // Check if we're on a tenant route but no child route matched
   // When on a 404 page under /tenants/:tenant/*, the matches will only include
   // the tenant route itself, not any child routes
@@ -39,5 +44,12 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
     return [];
   }
 
-  return generateBreadcrumbs(location.pathname, cleanParams);
+  const breadcrumbs = generateBreadcrumbs(location.pathname, cleanParams);
+
+  // Update the Home breadcrumb href with the conditional route
+  if (breadcrumbs.length > 0 && breadcrumbs[0].label === 'Home' && tenantId) {
+    breadcrumbs[0].href = homeRoute.replace(':tenant', tenantId);
+  }
+
+  return breadcrumbs;
 }

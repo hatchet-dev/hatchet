@@ -26,7 +26,7 @@ const DevtoolsFooter = import.meta.env.DEV
   ? lazy(() => import('../devtools.tsx'))
   : null;
 
-export default function Authenticated() {
+function AuthenticatedInner() {
   const { tenant } = useTenantDetails();
   const { currentUser, error: userError } = useCurrentUser();
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
@@ -161,11 +161,29 @@ export default function Authenticated() {
       const targetTenant = lastTenantInMemberships ?? memberships[0].tenant;
 
       if (targetTenant) {
-        navigate({
-          to: appRoutes.tenantRunsRoute.to,
-          params: { tenant: targetTenant.metadata.id },
-          replace: true,
-        });
+        // Check if tenant has workflows to decide where to redirect
+        api
+          .workflowList(targetTenant.metadata.id, { limit: 1 })
+          .then((response) => {
+            const hasWorkflows =
+              response.data.rows && response.data.rows.length > 0;
+
+            navigate({
+              to: hasWorkflows
+                ? appRoutes.tenantRunsRoute.to
+                : appRoutes.tenantOverviewRoute.to,
+              params: { tenant: targetTenant.metadata.id },
+              replace: true,
+            });
+          })
+          .catch(() => {
+            // On error, default to runs page
+            navigate({
+              to: appRoutes.tenantRunsRoute.to,
+              params: { tenant: targetTenant.metadata.id },
+              replace: true,
+            });
+          });
       }
     }
   }, [
@@ -192,30 +210,36 @@ export default function Authenticated() {
   }, [isAuthPage, navigate, userError]);
 
   return (
+    <PostHogProvider user={currentUser}>
+      <SupportChat user={currentUser}>
+        <AppLayout
+          header={
+            <TopNav
+              user={currentUser}
+              tenantMemberships={listMembershipsQuery.data?.rows || []}
+            />
+          }
+          footer={
+            isTenantPage && DevtoolsFooter ? (
+              <Suspense fallback={null}>
+                <DevtoolsFooter />
+              </Suspense>
+            ) : undefined
+          }
+          // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
+          contentScroll={!isTenantPage}
+        >
+          <OutletWithContext context={ctx} />
+        </AppLayout>
+      </SupportChat>
+    </PostHogProvider>
+  );
+}
+
+export default function Authenticated() {
+  return (
     <AppContextProvider>
-      <PostHogProvider user={currentUser}>
-        <SupportChat user={currentUser}>
-          <AppLayout
-            header={
-              <TopNav
-                user={currentUser}
-                tenantMemberships={listMembershipsQuery.data?.rows || []}
-              />
-            }
-            footer={
-              isTenantPage && DevtoolsFooter ? (
-                <Suspense fallback={null}>
-                  <DevtoolsFooter />
-                </Suspense>
-              ) : undefined
-            }
-            // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
-            contentScroll={!isTenantPage}
-          >
-            <OutletWithContext context={ctx} />
-          </AppLayout>
-        </SupportChat>
-      </PostHogProvider>
+      <AuthenticatedInner />
     </AppContextProvider>
   );
 }
