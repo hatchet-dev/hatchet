@@ -12,7 +12,7 @@ require (
 	github.com/cockroachdb/errors v1.12.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/creasty/defaults v1.8.0
-	github.com/docker/docker v28.5.1+incompatible
+	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/fatih/color v1.18.0
 	github.com/getkin/kin-openapi v0.133.0
