@@ -125,7 +125,7 @@ function CreateTenantInner() {
         if (result.type === 'cloud') {
           const tenant = result.data as OrganizationTenant;
           navigate({
-            to: appRoutes.tenantRunsRoute.to,
+            to: appRoutes.tenantOverviewRoute.to,
             params: { tenant: tenant.id },
           });
           return;
@@ -133,7 +133,7 @@ function CreateTenantInner() {
 
         const tenant = result.data as Tenant;
         navigate({
-          to: appRoutes.tenantRunsRoute.to,
+          to: appRoutes.tenantOverviewRoute.to,
           params: { tenant: tenant.metadata.id },
         });
       }, 0);
