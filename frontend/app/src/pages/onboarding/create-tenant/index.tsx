@@ -21,6 +21,7 @@ import { cloudApi } from '@/lib/api/api';
 import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { useSearchParams } from '@/lib/router-helpers';
+import { AppContextProvider } from '@/providers/app-context';
 import { appRoutes } from '@/router';
 import {
   QuestionMarkCircleIcon,
@@ -31,7 +32,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState, useEffect } from 'react';
 
-export default function CreateTenant() {
+function CreateTenantInner() {
   const [searchParams] = useSearchParams();
   const { organizationData, isCloudEnabled } = useOrganizations();
   const { cloud } = useCloud();
@@ -297,5 +298,13 @@ export default function CreateTenant() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CreateTenant() {
+  return (
+    <AppContextProvider>
+      <CreateTenantInner />
+    </AppContextProvider>
   );
 }
