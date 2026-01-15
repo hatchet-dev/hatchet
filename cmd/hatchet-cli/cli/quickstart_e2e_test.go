@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -96,6 +97,12 @@ func testTemplate(t *testing.T, language, packageManager string) {
 		t.Fatalf("Worker dev test failed: %v", err)
 	}
 
+	// 7. Verify Dockerfile builds
+	t.Log("Verifying Dockerfile builds...")
+	if err := testDockerfileBuild(t, projectDir, language, packageManager); err != nil {
+		t.Fatalf("Dockerfile build test failed: %v", err)
+	}
+
 	t.Logf("Successfully tested %s with %s", language, packageManager)
 }
 
@@ -162,6 +169,7 @@ func verifyProjectStructure(t *testing.T, projectDir, language, packageManager s
 	commonFiles := []string{
 		"README.md",
 		"hatchet.yaml",
+		"Dockerfile",
 	}
 
 	for _, file := range commonFiles {
@@ -233,6 +241,38 @@ func verifyProjectStructure(t *testing.T, projectDir, language, packageManager s
 				return fmt.Errorf("expected Go file %s does not exist", file)
 			}
 		}
+	}
+
+	return nil
+}
+
+func testDockerfileBuild(t *testing.T, projectDir, language, packageManager string) error {
+	// Verify Dockerfile exists
+	dockerfilePath := filepath.Join(projectDir, "Dockerfile")
+	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
+		return fmt.Errorf("Dockerfile does not exist at %s", dockerfilePath)
+	}
+
+	t.Logf("Building Dockerfile for %s/%s...", language, packageManager)
+
+	// Build the Docker image
+	// Use a unique tag for each test to avoid conflicts
+	imageName := fmt.Sprintf("hatchet-test-%s-%s:latest", language, packageManager)
+
+	cmd := exec.Command("docker", "build", "-t", imageName, ".")
+	cmd.Dir = projectDir
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker build failed: %v\nOutput: %s", err, output)
+	}
+
+	t.Logf("Successfully built Docker image: %s", imageName)
+
+	// Clean up the image after test
+	cleanupCmd := exec.Command("docker", "rmi", imageName)
+	if err := cleanupCmd.Run(); err != nil {
+		t.Logf("Warning: failed to clean up Docker image %s: %v", imageName, err)
 	}
 
 	return nil
