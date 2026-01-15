@@ -24,8 +24,8 @@ RUN pnpm run build
 
 CMD ["pnpm", "start"]
 {{- else if eq .PackageManager "yarn"}}
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+COPY package.json ./
+RUN yarn install
 
 COPY src ./src
 COPY tsconfig.json ./
@@ -34,7 +34,7 @@ RUN yarn build
 CMD ["yarn", "start"]
 {{- else if eq .PackageManager "bun"}}
 COPY --from=oven/bun:latest /usr/local/bin/bun /usr/local/bin/bun
-COPY package.json bun.lockb ./
+COPY package.json ./
 RUN bun install
 
 COPY src ./src
