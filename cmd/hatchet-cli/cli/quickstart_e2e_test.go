@@ -101,7 +101,8 @@ func testTemplate(t *testing.T, language, packageManager string) {
 
 func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *profileconfig.Profile) error {
 	// Create a context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	// Timeout needs to cover: dependency installation (1-3 min) + worker run time (15 sec)
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
 
 	// Start the worker process using the CLI implementation in a goroutine
