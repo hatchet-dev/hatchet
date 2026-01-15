@@ -40,7 +40,7 @@ hatchet --version
 hatchet server start
 ```
 
-You can also sign up on [Hatchet Cloud](https://cloud.onhatchet.run) to try out the experience. We recommend this even if you plan on self-hosting, so you can have a look at what a fully-deployed Hatchet platform looks like.
+You can also sign up on [Hatchet Cloud](https://cloud.onhatchet.run) to try it out! We recommend this even if you plan on self-hosting, so you can have a look at what a fully-deployed Hatchet platform looks like.
 
 ### When should I use Hatchet?
 
