@@ -51,7 +51,10 @@ export function loginSession(
         }
       });
 
-      cy.location('pathname', { timeout: 30000 }).should('include', '/tenants/');
+      cy.location('pathname', { timeout: 30000 }).should(
+        'include',
+        '/tenants/',
+      );
     },
     {
       cacheAcrossSpecs: true,
