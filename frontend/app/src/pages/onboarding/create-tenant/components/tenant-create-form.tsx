@@ -1,6 +1,12 @@
 import { OnboardingStepProps } from '../types';
 import { Button } from '@/components/v1/ui/button';
-import { Card, CardContent } from '@/components/v1/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import {
@@ -11,19 +17,22 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { TenantEnvironment } from '@/lib/api';
+import { useOrganizations } from '@/hooks/use-organizations';
+import api from '@/lib/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { cn } from '@/lib/utils';
+import { appRoutes } from '@/router';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Monitor, Settings, Rocket } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { LogOut, Plus } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 const schema = z.object({
   name: z.string().min(1).max(32),
-  environment: z.string().min(1),
   referralSource: z.string().optional(),
 });
 
@@ -37,6 +46,7 @@ interface TenantCreateFormProps
   selectedOrganizationId?: string | null;
   onOrganizationChange?: (organizationId: string) => void;
   isCloudEnabled?: boolean;
+  existingTenantNames?: string[];
 }
 
 export function TenantCreateForm({
@@ -50,8 +60,26 @@ export function TenantCreateForm({
   selectedOrganizationId,
   onOrganizationChange,
   isCloudEnabled,
+  existingTenantNames,
 }: TenantCreateFormProps) {
   const { currentUser } = useCurrentUser();
+  const navigate = useNavigate();
+  const { handleCreateOrganization, createOrganizationLoading } =
+    useOrganizations();
+
+  const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
+  const [orgName, setOrgName] = useState('');
+
+  const logoutMutation = useMutation({
+    mutationKey: ['user:update:logout'],
+    mutationFn: async () => {
+      await api.userUpdateLogout();
+    },
+    onSuccess: () => {
+      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
+    },
+  });
+
   const {
     register,
     setValue,
@@ -60,92 +88,60 @@ export function TenantCreateForm({
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',
-      environment: 'development',
       referralSource: '',
     },
   });
 
   const hasSetInitialDefault = useRef(false);
 
-  const getEnvironmentName = (environment: string | undefined): string => {
-    switch (environment) {
-      case TenantEnvironment.Local:
-        return 'local-dev';
-      case TenantEnvironment.Development:
-        return 'development';
-      case TenantEnvironment.Production:
-        return 'production';
-      default: {
-        // Exhaustiveness check: this should never be reached if all cases are handled
-        const exhaustiveCheck: never = environment as never;
-        void exhaustiveCheck;
-        return 'development'; // Default to development if no environment selected
-      }
+  const defaultTenantName = useMemo(() => {
+    if (!currentUser) {
+      return '';
     }
-  };
+    const rawName = currentUser.name?.trim();
+    const emailPrefix = currentUser.email?.split('@')[0]?.trim();
+    const base = rawName || emailPrefix || '';
 
-  const emptyState = useMemo(() => {
-    // Use simple environment-based names
-    const currentEnvironment = value?.environment || 'development';
-    return getEnvironmentName(currentEnvironment);
-  }, [value?.environment]);
+    const slugBase = base
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    if (!slugBase) {
+      return '';
+    }
+
+    const candidate = `${slugBase}-development`;
+    const existing = (existingTenantNames ?? []).map((n) => n.toLowerCase());
+    if (existing.includes(candidate.toLowerCase())) {
+      return '';
+    }
+
+    return candidate;
+  }, [currentUser, existingTenantNames]);
 
   // Update form values when parent value changes
   useEffect(() => {
     const nameValue = value?.name ?? '';
-    const environmentValue = value?.environment || 'development';
     const referralSourceValue = value?.referralSource ?? '';
 
     setValue('name', nameValue);
-    setValue('environment', environmentValue);
     setValue('referralSource', referralSourceValue);
 
     // Set the generated name only once on initial load when no name is provided
-    if (!hasSetInitialDefault.current && !value?.name && emptyState) {
+    if (!hasSetInitialDefault.current && !value?.name && defaultTenantName) {
       hasSetInitialDefault.current = true;
+      setValue('name', defaultTenantName);
       onChange({
-        name: emptyState,
-        environment: environmentValue,
+        name: defaultTenantName,
+        environment: value?.environment || 'development',
         referralSource: referralSourceValue,
       });
     }
-  }, [value, setValue, emptyState, onChange]);
+  }, [value, setValue, defaultTenantName, onChange]);
 
   const nameError = errors.name?.message?.toString() || fieldErrors?.name;
-
-  const environmentOptions = [
-    {
-      value: 'local',
-      label: 'Local Dev',
-      icon: Monitor,
-      description: 'Testing and development on your local machine',
-    },
-    {
-      value: 'development',
-      label: 'Development',
-      icon: Settings,
-      description: 'Shared development environment or staging',
-    },
-    {
-      value: 'production',
-      label: 'Production',
-      icon: Rocket,
-      description: 'Live production environment serving real users',
-    },
-  ];
-
-  const handleEnvironmentChange = (selectedEnvironment: string) => {
-    const updatedName = getEnvironmentName(selectedEnvironment);
-
-    setValue('environment', selectedEnvironment);
-    setValue('name', updatedName);
-
-    onChange({
-      name: updatedName,
-      environment: selectedEnvironment,
-      referralSource: value?.referralSource,
-    });
-  };
+  const hasExistingTenants = (existingTenantNames?.length ?? 0) > 0;
 
   return (
     <div className={cn('grid gap-6', className)}>
@@ -158,7 +154,14 @@ export function TenantCreateForm({
             </div>
             <Select
               value={selectedOrganizationId || undefined}
-              onValueChange={onOrganizationChange}
+              onValueChange={(nextValue) => {
+                if (nextValue === '__create_organization__') {
+                  setShowCreateOrgModal(true);
+                  return;
+                }
+
+                onOrganizationChange?.(nextValue);
+              }}
               disabled={isLoading}
             >
               <SelectTrigger>
@@ -172,6 +175,12 @@ export function TenantCreateForm({
                       {org.name}
                     </SelectItem>
                   ))}
+                <SelectItem value="__create_organization__">
+                  <div className="flex items-center gap-2">
+                    <Plus className="size-4" />
+                    Create organization…
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
             {fieldErrors?.organizationId && (
@@ -181,56 +190,6 @@ export function TenantCreateForm({
             )}
           </div>
         )}
-        <div className="grid gap-2">
-          <Label>Environment Type</Label>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            {environmentOptions.map((option) => {
-              const Icon = option.icon;
-              const isSelected =
-                (value?.environment || 'development') === option.value;
-
-              return (
-                <Card
-                  key={option.value}
-                  onClick={() => handleEnvironmentChange(option.value)}
-                  className={`cursor-pointer transition-all hover:shadow-md ${
-                    isSelected
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
-                      : 'hover:border-gray-300 dark:hover:border-gray-600'
-                  }`}
-                >
-                  <CardContent className="flex flex-col items-center space-y-2 p-4 text-center">
-                    <Icon
-                      className={`h-6 w-6 ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}
-                    />
-                    <div className="space-y-1">
-                      <div className="text-sm font-medium">{option.label}</div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                        {option.description}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-          <div className="text-xs text-gray-700 dark:text-gray-300">
-            You can add new tenants for different environments later.
-          </div>
-        </div>
-
-        <div className="grid gap-3">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            autoCapitalize="none"
-            autoCorrect="off"
-            disabled={true}
-            spellCheck={false}
-            value={currentUser?.email || ''}
-          />
-        </div>
 
         <div className="grid gap-3">
           <Label htmlFor="name">Tenant name</Label>
@@ -258,28 +217,30 @@ export function TenantCreateForm({
           {nameError && <div className="text-sm text-red-500">{nameError}</div>}
         </div>
 
-        <div className="grid gap-3">
-          <Label htmlFor="referral_source">
-            Where did you hear about us? (optional)
-          </Label>
-          <Input
-            {...register('referralSource')}
-            id="referral_source"
-            placeholder="e.g. Twitter, LinkedIn, etc."
-            type="text"
-            autoCapitalize="none"
-            autoCorrect="off"
-            disabled={isLoading}
-            onChange={(e) => {
-              setValue('referralSource', e.target.value);
-              onChange({
-                name: value?.name || '',
-                environment: value?.environment || 'development',
-                referralSource: e.target.value,
-              });
-            }}
-          />
-        </div>
+        {!hasExistingTenants && (
+          <div className="grid gap-3">
+            <Label htmlFor="referral_source">
+              Where did you hear about us? (optional)
+            </Label>
+            <Input
+              {...register('referralSource')}
+              id="referral_source"
+              placeholder="e.g. Twitter, LinkedIn, etc."
+              type="text"
+              autoCapitalize="none"
+              autoCorrect="off"
+              disabled={isLoading}
+              onChange={(e) => {
+                setValue('referralSource', e.target.value);
+                onChange({
+                  name: value?.name || '',
+                  environment: value?.environment || 'development',
+                  referralSource: e.target.value,
+                });
+              }}
+            />
+          </div>
+        )}
 
         {/* Summary Section */}
         {isCloudEnabled && selectedOrganizationId && organizationList?.rows && (
@@ -347,7 +308,73 @@ export function TenantCreateForm({
           </a>
           .
         </div>
+
+        <div className="flex justify-center">
+          <Button
+            leftIcon={<LogOut className="size-4" />}
+            onClick={() => logoutMutation.mutate()}
+            size="sm"
+            variant="ghost"
+            disabled={isLoading || logoutMutation.isPending}
+          >
+            Log out
+          </Button>
+        </div>
       </div>
+
+      <Dialog open={showCreateOrgModal} onOpenChange={setShowCreateOrgModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create organization</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-4">
+            <Label htmlFor="org-name">Organization name</Label>
+            <Input
+              id="org-name"
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              placeholder="Enter organization name"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && orgName.trim()) {
+                  handleCreateOrganization(orgName.trim(), (organizationId) => {
+                    setShowCreateOrgModal(false);
+                    setOrgName('');
+                    onOrganizationChange?.(organizationId);
+                  });
+                }
+              }}
+              disabled={createOrganizationLoading}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateOrgModal(false);
+                setOrgName('');
+              }}
+              disabled={createOrganizationLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!orgName.trim()) {
+                  return;
+                }
+                handleCreateOrganization(orgName.trim(), (organizationId) => {
+                  setShowCreateOrgModal(false);
+                  setOrgName('');
+                  onOrganizationChange?.(organizationId);
+                });
+              }}
+              disabled={!orgName.trim() || createOrganizationLoading}
+            >
+              {createOrganizationLoading ? 'Creating…' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

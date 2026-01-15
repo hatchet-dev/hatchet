@@ -30,7 +30,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 function CreateTenantInner() {
   const [searchParams] = useSearchParams();
@@ -90,6 +90,12 @@ function CreateTenantInner() {
   const listMembershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
   });
+
+  const existingTenantNames = useMemo(() => {
+    return (listMembershipsQuery.data?.rows ?? [])
+      .map((m) => m.tenant?.name)
+      .filter((n): n is string => Boolean(n && n.trim().length > 0));
+  }, [listMembershipsQuery.data?.rows]);
 
   const createMutation = useMutation({
     mutationKey: ['user:update:login'],
@@ -293,6 +299,7 @@ function CreateTenantInner() {
               selectedOrganizationId={selectedOrganizationId}
               onOrganizationChange={setSelectedOrganizationId}
               isCloudEnabled={isCloudEnabled}
+              existingTenantNames={existingTenantNames}
             />
           </div>
         </div>
