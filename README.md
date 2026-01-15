@@ -42,6 +42,8 @@ hatchet server start
 
 You can also sign up on [Hatchet Cloud](https://cloud.onhatchet.run) to try it out! We recommend this even if you plan on self-hosting, so you can have a look at what a fully-deployed Hatchet platform looks like.
 
+To view full documentation for self-hosting and using cloud, have a look at the [docs](https://docs.hatchet.run).
+
 ### When should I use Hatchet?
 
 Background tasks are critical for offloading work from your main web application. Usually background tasks are sent through a FIFO (first-in-first-out) queue, which helps guard against traffic spikes (queues can absorb a lot of load) and ensures that tasks are retried when your task handlers error out. Most stacks begin with a library-based queue backed by Redis or RabbitMQ (like Celery or BullMQ). But as your tasks become more complex, these queues become difficult to debug, monitor and start to fail in unexpected ways.
