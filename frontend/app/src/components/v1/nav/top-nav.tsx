@@ -182,7 +182,7 @@ function GlobalNotificationDropdown({
           role="combobox"
           aria-expanded={open}
           aria-label="Global Notification"
-          className="relative max-w-[220px] justify-between gap-2 bg-muted/20 pl-1 pr-2 shadow-none hover:bg-muted/30"
+          className="relative justify-between gap-2 bg-muted/20 px-1 lg:pr-3 shadow-none hover:bg-muted/30"
         >
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <div
@@ -193,9 +193,11 @@ function GlobalNotificationDropdown({
             >
               {icon}
             </div>
-            <span className="min-w-0 flex-1 truncate">{label}</span>
+            <span className="min-w-0 flex-1 truncate max-w-[24ch] hidden lg:block">
+              {label}
+            </span>
           </div>
-          <ChevronDown className="size-4 shrink-0 opacity-60" />
+          {/* <ChevronDown className="size-4 shrink-0 opacity-60" /> */}
         </Button>
       </PopoverTrigger>
 
