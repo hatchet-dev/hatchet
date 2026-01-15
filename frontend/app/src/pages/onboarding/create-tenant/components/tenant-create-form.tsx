@@ -338,7 +338,7 @@ export function TenantCreateForm({
           </a>{' '}
           or{' '}
           <a
-            href="https://discord.gg/ZMeUafwH89"
+            href="https://hatchet.run/discord"
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"
