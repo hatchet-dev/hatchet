@@ -175,7 +175,12 @@ func displayImagePullProgress(reader io.Reader, imageName string) {
 
 	// Run the program (this blocks until done)
 	if _, err := p.Run(); err != nil {
-		// Fallback to simple message if TUI fails
+		// Fallback for non-TTY environments: still consume the reader
+		// to ensure the image pull completes before returning
+		scanner := bufio.NewScanner(reader)
+		for scanner.Scan() {
+			// Just consume the stream, no need to parse
+		}
 		fmt.Fprintf(os.Stderr, "Pulled image %s\n", imageName)
 	}
 }
