@@ -100,13 +100,15 @@ func testTemplate(t *testing.T, language, packageManager string) {
 }
 
 func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *profileconfig.Profile) error {
-	// Create a context with timeout
-	// Timeout needs to cover: dependency installation (1-3 min) + worker run time (15 sec)
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	// Create a context with timeout (safety net)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	// Start the worker process using the CLI implementation in a goroutine
+	// Channel to signal when pre-commands complete
+	preCmdsComplete := make(chan struct{}, 1)
 	errChan := make(chan error, 1)
+
+	// Start the worker process using the CLI implementation in a goroutine
 	go func() {
 		t.Log("Starting worker process using RunWorkerDev...")
 		// Call the actual CLI implementation
@@ -114,14 +116,27 @@ func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *pro
 		testDevConfig := workerConfig.Dev
 		testDevConfig.Reload = false
 
-		if err := RunWorkerDev(ctx, profile, &testDevConfig); err != nil {
+		if err := RunWorkerDev(ctx, profile, &testDevConfig, preCmdsComplete); err != nil {
 			errChan <- fmt.Errorf("worker process failed: %w", err)
 			return
 		}
 		errChan <- nil
 	}()
 
-	// Wait for 15 seconds, then cancel the context
+	// Wait for pre-commands to complete (dependency installation)
+	select {
+	case <-preCmdsComplete:
+		t.Log("Pre-commands completed, worker starting...")
+	case err := <-errChan:
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("worker exited before pre-commands completed")
+	case <-time.After(4 * time.Minute):
+		return fmt.Errorf("timeout waiting for pre-commands to complete")
+	}
+
+	// Now wait 15 seconds for the worker to run
 	time.Sleep(15 * time.Second)
 	cancel()
 

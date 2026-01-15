@@ -140,14 +140,15 @@ func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileF
 
 	fmt.Println(workerStartingView(selectedProfile, devConfig.Reload))
 
-	if err := RunWorkerDev(ctx, profile, devConfig); err != nil {
+	if err := RunWorkerDev(ctx, profile, devConfig, nil); err != nil {
 		cli.Logger.Fatalf("error running worker: %v", err)
 	}
 }
 
 // RunWorkerDev runs the worker in dev mode with the given profile and config.
 // This function can be called directly from tests without interactive forms.
-func RunWorkerDev(ctx context.Context, profile *profileconfig.Profile, devConfig *worker.WorkerDevConfig) error {
+// If preCmdsCompleteChan is provided, it will be signaled when pre-commands complete.
+func RunWorkerDev(ctx context.Context, profile *profileconfig.Profile, devConfig *worker.WorkerDevConfig, preCmdsCompleteChan chan<- struct{}) error {
 	// Run pre-commands if any
 	if devConfig.PreCmds != nil {
 		for _, preCmdStr := range devConfig.PreCmds {
@@ -159,6 +160,11 @@ func RunWorkerDev(ctx context.Context, profile *profileconfig.Profile, devConfig
 				return fmt.Errorf("error running pre-command '%s': %w", preCmdStr, err)
 			}
 		}
+	}
+
+	// Signal that pre-commands are complete
+	if preCmdsCompleteChan != nil {
+		preCmdsCompleteChan <- struct{}{}
 	}
 
 	proc := pm.NewProcessManager(devConfig.RunCmd, profile)
