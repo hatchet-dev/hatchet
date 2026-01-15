@@ -38,7 +38,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrat
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.task import HATCHET_PYDANTIC_SENTINEL, Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     EmptyModel,
@@ -223,7 +223,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
         return cast(
             TWorkflowInput,
-            self.config.input_validator.validate_python(ctx.workflow_input),
+            self.config.input_validator.validate_python(
+                ctx.workflow_input, context=HATCHET_PYDANTIC_SENTINEL
+            ),
         )
 
     @property
@@ -277,7 +279,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         return cast(
             JSONSerializableMapping,
-            self.config.input_validator.dump_python(input, mode="json"),  # type: ignore[arg-type]
+            self.config.input_validator.dump_python(
+                input,  # type: ignore[arg-type]
+                mode="json",
+                context=HATCHET_PYDANTIC_SENTINEL,
+            ),
         )
 
     @cached_property
@@ -1228,7 +1234,12 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         ## return, then the empty dict would not error and would work correctly
         output = result.get(self._task.name) or {}
 
-        return cast(R, self._output_validator.validate_python(output))
+        return cast(
+            R,
+            self._output_validator.validate_python(
+                output, context=HATCHET_PYDANTIC_SENTINEL
+            ),
+        )
 
     def run(
         self,

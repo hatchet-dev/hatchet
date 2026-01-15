@@ -69,6 +69,8 @@ T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
 P = ParamSpec("P")
 
+HATCHET_PYDANTIC_SENTINEL = object()
+
 
 def is_async_context_manager(obj: Any) -> TypeGuard[AbstractAsyncContextManager[Any]]:
     """Type guard to check if an object is an async context manager."""
@@ -453,7 +455,7 @@ class Task(Generic[TWorkflowInput, R]):
         if is_dataclass(input):
             serialized_input = asdict(input)
         elif isinstance(input, BaseModel):
-            serialized_input = input.model_dump()
+            serialized_input = input.model_dump(context=HATCHET_PYDANTIC_SENTINEL)
 
         action_payload = ActionPayload(input=serialized_input, parents=parent_outputs)
 
