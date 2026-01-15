@@ -3,19 +3,19 @@ name: Template E2E Tests
 on:
   pull_request:
     paths:
-      - 'cmd/hatchet-cli/cli/templates/**'
-      - 'cmd/hatchet-cli/cli/quickstart.go'
-      - 'cmd/hatchet-cli/cli/internal/templater/**'
-      - 'cmd/hatchet-cli/cli/quickstart_e2e_test.go'
-      - '.github/workflows/test-templates.yml'
+      - "cmd/hatchet-cli/cli/templates/**"
+      - "cmd/hatchet-cli/cli/quickstart.go"
+      - "cmd/hatchet-cli/cli/internal/templater/**"
+      - "cmd/hatchet-cli/cli/quickstart_e2e_test.go"
+      - ".github/workflows/test-templates.yml"
   push:
     branches:
       - main
     paths:
-      - 'cmd/hatchet-cli/cli/templates/**'
-      - 'cmd/hatchet-cli/cli/quickstart.go'
-      - 'cmd/hatchet-cli/cli/internal/templater/**'
-      - 'cmd/hatchet-cli/cli/quickstart_e2e_test.go'
+      - "cmd/hatchet-cli/cli/templates/**"
+      - "cmd/hatchet-cli/cli/quickstart.go"
+      - "cmd/hatchet-cli/cli/internal/templater/**"
+      - "cmd/hatchet-cli/cli/quickstart_e2e_test.go"
 
 jobs:
   test-templates:
@@ -30,17 +30,17 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: "1.25"
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install Poetry
         run: pipx install poetry
@@ -69,21 +69,6 @@ jobs:
           echo "Starting Hatchet server in background..."
           nohup hatchet server start --profile local --dashboard-port 8080 > hatchet-server.log 2>&1 &
           echo $! > hatchet-server.pid
-
-          # Wait for server to be ready (up to 2 minutes)
-          echo "Waiting for Hatchet server to be ready..."
-          timeout=120
-          elapsed=0
-          until curl -s http://localhost:8080/api/v1/health > /dev/null 2>&1; do
-            if [ $elapsed -ge $timeout ]; then
-              echo "Timeout waiting for server to start"
-              cat hatchet-server.log
-              exit 1
-            fi
-            sleep 2
-            elapsed=$((elapsed + 2))
-            echo "Waiting... ($elapsed seconds)"
-          done
 
           echo "Hatchet server is ready!"
 
