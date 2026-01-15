@@ -1,7 +1,0 @@
-dev:
-  preCmds: ["pnpm install"]
-  runCmd: "pnpm start"
-  files:
-    - "**/*.ts"
-    - "!**/node_modules/**"
-  reload: true

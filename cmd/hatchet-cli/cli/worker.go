@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/pm"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+	profileconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
 )
 
 var c *worker.WorkerConfig
@@ -136,6 +138,17 @@ func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileF
 	ctx, cancel := cmdutils.NewInterruptContext()
 	defer cancel()
 
+	fmt.Println(workerStartingView(selectedProfile, devConfig.Reload))
+
+	if err := RunWorkerDev(ctx, profile, devConfig); err != nil {
+		cli.Logger.Fatalf("error running worker: %v", err)
+	}
+}
+
+// RunWorkerDev runs the worker in dev mode with the given profile and config.
+// This function can be called directly from tests without interactive forms.
+func RunWorkerDev(ctx context.Context, profile *profileconfig.Profile, devConfig *worker.WorkerDevConfig) error {
+	// Run pre-commands if any
 	if devConfig.PreCmds != nil {
 		for _, preCmdStr := range devConfig.PreCmds {
 			fmt.Println(styles.InfoMessage(fmt.Sprintf("Running pre-command: %s", preCmdStr)))
@@ -143,12 +156,10 @@ func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileF
 			err := pm.Exec(ctx, preCmdStr, profile)
 
 			if err != nil {
-				cli.Logger.Fatalf("error running pre-command '%s': %v", preCmdStr, err)
+				return fmt.Errorf("error running pre-command '%s': %w", preCmdStr, err)
 			}
 		}
 	}
-
-	fmt.Println(workerStartingView(selectedProfile, devConfig.Reload))
 
 	proc := pm.NewProcessManager(devConfig.RunCmd, profile)
 
@@ -158,15 +169,17 @@ func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileF
 		<-ctx.Done()
 		<-cleanup
 	} else {
-		err = proc.StartProcess(ctx)
+		err := proc.StartProcess(ctx)
 
 		if err != nil {
-			cli.Logger.Fatalf("error starting worker: %v", err)
+			return fmt.Errorf("error starting worker: %w", err)
 		}
 
 		<-ctx.Done()
 		proc.KillProcess()
 	}
+
+	return nil
 }
 
 // handleNoProfiles prompts the user to either start a local server or add a profile with an API token

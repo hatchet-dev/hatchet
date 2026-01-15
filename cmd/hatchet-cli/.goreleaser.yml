@@ -54,22 +54,7 @@ snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^chore:"
-      - "^ci:"
-  groups:
-    - title: Features
-      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
-      order: 0
-    - title: "Bug fixes"
-      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
-      order: 1
-    - title: Others
-      order: 999
+  disable: true
 
 # Cross-platform signing and notarization with quill (works on any OS, including Linux)
 # This will sign and notarize all macOS binaries
@@ -99,15 +84,22 @@ release:
   prerelease: auto
   mode: append
   header: |
-    ## Hatchet CLI {{ .Tag }} ({{ .Date }})
+    ## Hatchet CLI {{ .Tag }}
 
     Welcome to this new release of the Hatchet CLI!
+
+    For full documentation, visit [https://docs.hatchet.run/cli](https://docs.hatchet.run/cli)
   footer: |
     ## Installation
 
-    ### Homebrew (macOS/Linux)
+    ### MacOS, Linux, WSL
     ```bash
-    brew install hatchet-dev/hatchet/hatchet
+    curl -fsSL https://install.hatchet.run/install.sh | bash
+    ```
+
+    ### MacOS (Homebrew)
+    ```bash
+    brew install hatchet-dev/hatchet/hatchet --cask
     ```
 
     ### Manual Installation
@@ -115,7 +107,7 @@ release:
 
     ### Verify Installation
     ```bash
-    hatchet version
+    hatchet --version
     ```
   name_template: "{{.ProjectName}}-cli-{{.Version}}"
   disable: false
