@@ -13,7 +13,7 @@ import api, { CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const EXPIRES_IN_OPTIONS = {
   '3 months': `${3 * 30 * 24 * 60 * 60}s`,
@@ -27,6 +27,7 @@ export default function Overview() {
   const navigate = useNavigate();
   const { capture } = useAnalytics();
   const [tokenName, setTokenName] = useState('');
+  const [hasEditedTokenName, setHasEditedTokenName] = useState(false);
   const [expiresIn, setExpiresIn] = useState(EXPIRES_IN_OPTIONS['100 years']);
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
   const [showTokenDialog, setShowTokenDialog] = useState(false);
@@ -35,9 +36,35 @@ export default function Overview() {
   const [language, setLanguage] = useState<WorkflowLanguageKey>('python');
   const hasTrackedWorkerConnection = useRef(false);
 
+  const defaultTokenName = useMemo(() => {
+    const name = currentUser?.name?.trim();
+    if (!name) {
+      return '';
+    }
+
+    return `${name}'s token`;
+  }, [currentUser?.name]);
+
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
+
+  useEffect(() => {
+    if (hasEditedTokenName) {
+      return;
+    }
+
+    if (tokenName.trim()) {
+      return;
+    }
+
+    if (!defaultTokenName) {
+      return;
+    }
+
+    setTokenName(defaultTokenName);
+    setFieldErrors((prev) => (prev.name ? {} : prev));
+  }, [defaultTokenName, hasEditedTokenName, tokenName]);
 
   // Track page view on mount
   useEffect(() => {
@@ -64,6 +91,7 @@ export default function Overview() {
         expires_in: expiresIn,
       });
       // Reset form
+      setHasEditedTokenName(false);
       setTokenName('');
     },
     onError: handleApiError,
@@ -116,6 +144,7 @@ export default function Overview() {
       <CreateApiTokenSection
         tokenName={tokenName}
         onTokenNameChange={(value) => {
+          setHasEditedTokenName(true);
           setTokenName(value);
           setFieldErrors({});
         }}
