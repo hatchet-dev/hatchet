@@ -22,7 +22,6 @@ import api from '@/lib/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
-import { CheckIcon } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -239,33 +238,6 @@ export function TenantCreateForm({
                 });
               }}
             />
-          </div>
-        )}
-
-        {/* Summary Section */}
-        {isCloudEnabled && selectedOrganizationId && organizationList?.rows && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/20">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-500">
-                <CheckIcon className="size-3 text-white" />
-              </div>
-              <div className="flex-1">
-                <h4 className="mb-1 text-sm font-medium text-blue-900 dark:text-blue-100">
-                  Tenant Creation Summary
-                </h4>
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  This tenant will be created in the{' '}
-                  <span className="font-medium">
-                    {
-                      organizationList.rows.find(
-                        (org) => org.metadata.id === selectedOrganizationId,
-                      )?.name
-                    }
-                  </span>{' '}
-                  organization.
-                </p>
-              </div>
-            </div>
           </div>
         )}
 
