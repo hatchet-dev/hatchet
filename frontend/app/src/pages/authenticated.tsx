@@ -9,7 +9,6 @@ import { lastTenantAtom } from '@/lib/atoms';
 import { useContextFromParent } from '@/lib/outlet';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
-import { AppContextProvider } from '@/providers/app-context';
 import { PostHogProvider } from '@/providers/posthog';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -249,9 +248,5 @@ function AuthenticatedInner() {
 }
 
 export default function Authenticated() {
-  return (
-    <AppContextProvider>
-      <AuthenticatedInner />
-    </AppContextProvider>
-  );
+  return <AuthenticatedInner />;
 }

@@ -197,12 +197,11 @@ describe('v1 sidebar: resize + collapse', () => {
 
     // Open settings flyout.
     cy.get('button[aria-label="General"]').click({ force: true });
-    cy.contains('Overview').should('be.visible');
+    cy.get('[role="menu"]').filter(':visible').first().as('settingsMenu');
+    cy.get('@settingsMenu').contains('Overview').should('be.visible');
 
     // Content should have the bg-secondary class (explicit panel surface).
-    cy.contains('Overview')
-      .parents('[role="menu"]')
-      .first()
+    cy.get('@settingsMenu')
       .invoke('attr', 'class')
       // UI uses popover surfaces; accept either explicit secondary surface or popover surface.
       .should('match', /\bbg-(secondary|popover)\b/);
