@@ -93,7 +93,7 @@ export function LearnWorkflowSection({
       ...workflowStepOptions.install,
       content: (
         <>
-          <p> Install the Hatchet CLI. </p>
+          <p className="text-sm"> Install the Hatchet CLI. </p>
           <Tabs
             value={installMethod}
             onValueChange={(value) => {
@@ -139,7 +139,7 @@ export function LearnWorkflowSection({
               />
             </TabsContent>
           </Tabs>
-          <p>Verify the installation by running:</p>
+          <p className="text-sm">Verify the installation by running:</p>
           <CodeHighlighter
             className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
             code={`hatchet --version`}
@@ -164,7 +164,9 @@ export function LearnWorkflowSection({
       ...workflowStepOptions.profile,
       content: (
         <>
-          <p>Add a Hatchet CLI profile using an API token.</p>
+          <p className="text-sm">
+            Add a Hatchet CLI profile using an API token.
+          </p>
           <div className="flex flex-wrap items-center gap-3">
             <Button
               variant="outline"
@@ -235,7 +237,7 @@ export function LearnWorkflowSection({
       ...workflowStepOptions.quickstart,
       content: (
         <>
-          <p>
+          <p className="text-sm">
             Run the quickstart command to clone an example project repository
             and follow the instructions to cd into the project directory..
           </p>
@@ -246,7 +248,7 @@ export function LearnWorkflowSection({
             copy
           />
 
-          <p>
+          <p className="text-sm">
             Then, start your worker in development mode. This will start a
             worker that will listen for tasks and run them locally.
           </p>
@@ -298,11 +300,11 @@ export function LearnWorkflowSection({
           <div className="space-y-3">
             <CodeHighlighter
               className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
-              code={`hatchet trigger`}
+              code={`hatchet trigger simple`}
               language="shell"
               copy
             />
-            <p>
+            <p className="text-sm">
               You can view the script to understand how to trigger a task run
               from your own codebase.
             </p>

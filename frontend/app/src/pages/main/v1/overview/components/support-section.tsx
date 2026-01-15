@@ -38,12 +38,12 @@ export function SupportSection() {
               </li>
               <li>
                 <a
-                  href="https://github.com/hatchet-dev/hatchet/discussions"
+                  href="https://github.com/hatchet-dev/hatchet/issues"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 text-sm text-primary/70 hover:underline hover:text-primary"
                 >
-                  <RiGithubFill className="mr-2" /> Github Discussions
+                  <RiGithubFill className="mr-2" /> Github Issues
                 </a>
               </li>
             </ul>
@@ -109,16 +109,16 @@ export function SupportSection() {
                 rel="noreferrer"
                 className="group inline-flex items-center gap-1 hover:text-primary"
               >
-                Office Hours
+                Book Office Hours
                 <ArrowRightIcon className="size-3 transition-transform group-hover:translate-x-0.5" />
               </a>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-2">
-            <span className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
               GMT-5 Eastern Standard Time
             </span>
-            <p className="text-muted-foreground whitespace-nowrap">
+            <p className="text-sm text-muted-foreground whitespace-nowrap">
               Weekdays <span className="text-primary">09:00 - 17:00</span>
             </p>
           </CardContent>
