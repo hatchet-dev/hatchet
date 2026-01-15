@@ -237,7 +237,8 @@ export function LearnWorkflowSection({
       content: (
         <>
           <p>
-            Run the quickstart command to clone an example project repository.
+            Run the quickstart command to clone an example project repository
+            and follow the instructions to cd into the project directory..
           </p>
           <CodeHighlighter
             className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
@@ -245,8 +246,6 @@ export function LearnWorkflowSection({
             language="shell"
             copy
           />
-
-          <p>Then, follow the instructions to cd into the project directory.</p>
 
           <p>
             Then, start your worker in development mode. This will start a
