@@ -3,12 +3,16 @@ import {
   LearnWorkflowSection,
   type WorkflowLanguageKey,
   type WorkflowStepKey,
+  type InstallMethod,
+  workflowLanguageOptions,
+  installMethodOptions,
+  workflowStepOptions,
 } from './components/learn-workflow-section';
 import { SupportSection } from './components/support-section';
 import { TokenSuccessDialog } from './components/token-success-dialog';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -22,7 +26,7 @@ const EXPIRES_IN_OPTIONS = {
 };
 
 export default function Overview() {
-  const { tenantId } = useCurrentTenantId();
+  const { tenant, tenantId } = useTenantDetails();
   const { currentUser } = useCurrentUser();
   const navigate = useNavigate();
   const { capture } = useAnalytics();
@@ -31,9 +35,20 @@ export default function Overview() {
   const [expiresIn, setExpiresIn] = useState(EXPIRES_IN_OPTIONS['100 years']);
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
   const [showTokenDialog, setShowTokenDialog] = useState(false);
+  const [profileToken, setProfileToken] = useState<string | undefined>();
+  const [profileTokenError, setProfileTokenError] = useState<
+    string | undefined
+  >();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [selectedTab, setSelectedTab] = useState<WorkflowStepKey>('settingUp');
-  const [language, setLanguage] = useState<WorkflowLanguageKey>('python');
+  const [selectedTab, setSelectedTab] = useState<WorkflowStepKey>(
+    workflowStepOptions.install.value,
+  );
+  const [language, setLanguage] = useState<WorkflowLanguageKey>(
+    workflowLanguageOptions.python.value,
+  );
+  const [installMethod, setInstallMethod] = useState<InstallMethod>(
+    installMethodOptions.native.value,
+  );
   const hasTrackedWorkerConnection = useRef(false);
 
   const defaultTokenName = useMemo(() => {
@@ -77,7 +92,7 @@ export default function Overview() {
   const createTokenMutation = useMutation({
     mutationKey: ['api-token:create', tenantId],
     mutationFn: async (data: CreateAPITokenRequest) => {
-      const res = await api.apiTokenCreate(tenantId, data);
+      const res = await api.apiTokenCreate(tenantId!, data);
       return res.data;
     },
     onSuccess: (data) => {
@@ -97,6 +112,28 @@ export default function Overview() {
     onError: handleApiError,
   });
 
+  const createProfileTokenMutation = useMutation({
+    mutationKey: ['api-token:create:profile', tenantId],
+    mutationFn: async (data: CreateAPITokenRequest) => {
+      const res = await api.apiTokenCreate(tenantId!, data);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      setProfileToken(data.token);
+      setProfileTokenError(undefined);
+      capture('onboarding_token_generated', {
+        tenant_id: tenantId,
+        user_email: currentUser?.email,
+        token_name: `${defaultTokenName || 'Local'} (CLI profile)`,
+        expires_in: EXPIRES_IN_OPTIONS['100 years'],
+        source: 'learn_workflow_profile_step',
+      });
+    },
+    onError: () => {
+      setProfileTokenError('Failed to generate token. Please try again.');
+    },
+  });
+
   const handleGenerateToken = () => {
     if (!tokenName.trim()) {
       setFieldErrors({ name: 'Name is required' });
@@ -108,11 +145,19 @@ export default function Overview() {
     });
   };
 
+  const handleGenerateProfileToken = () => {
+    setProfileTokenError(undefined);
+    createProfileTokenMutation.mutate({
+      name: defaultTokenName ? `${defaultTokenName} (CLI)` : 'CLI token',
+      expiresIn: EXPIRES_IN_OPTIONS['100 years'],
+    });
+  };
+
   // Poll for workers when on the "Run worker" tab
   const workersQuery = useQuery({
-    ...queries.workers.list(tenantId),
-    enabled: selectedTab === 'runWorker',
-    refetchInterval: selectedTab === 'runWorker' ? 2000 : false, // Poll every 2 seconds
+    ...queries.workers.list(tenantId!),
+    enabled: selectedTab === workflowStepOptions.quickstart.value,
+    refetchInterval: 2000, // Poll every 2 seconds
   });
 
   const hasActiveWorker = (workersQuery.data?.rows?.length ?? 0) > 0;
@@ -164,11 +209,17 @@ export default function Overview() {
       />
 
       <LearnWorkflowSection
-        tenantId={tenantId}
+        tenantName={tenant?.name}
         selectedTab={selectedTab}
         onSelectedTabChange={setSelectedTab}
         language={language}
         onLanguageChange={setLanguage}
+        installMethod={installMethod}
+        onInstallMethodChange={setInstallMethod}
+        profileToken={profileToken}
+        isGeneratingProfileToken={createProfileTokenMutation.isPending}
+        profileTokenError={profileTokenError}
+        onGenerateProfileToken={handleGenerateProfileToken}
         hasActiveWorker={hasActiveWorker}
         onTabChangeEvent={(_tab, tabLabel) => {
           capture('onboarding_tab_changed', {
@@ -191,7 +242,7 @@ export default function Overview() {
           });
           navigate({
             to: '/tenants/$tenant/runs',
-            params: { tenant: tenantId },
+            params: { tenant: tenantId! },
           });
         }}
       />
