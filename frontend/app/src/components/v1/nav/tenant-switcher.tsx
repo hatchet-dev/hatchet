@@ -115,8 +115,10 @@ export function TenantSwitcher({
       return [];
     }
 
+    const orgTenants = activeOrg.tenants ?? [];
+
     return memberships.filter((membership) =>
-      activeOrg.tenants.some((t) => t.id === membership.tenant?.metadata.id),
+      orgTenants.some((t) => t.id === membership.tenant?.metadata.id),
     );
   }, [activeOrg, memberships]);
 
@@ -404,9 +406,13 @@ export function TenantSwitcher({
                                 e.stopPropagation();
                                 setOpen(false);
                                 reset();
+                                const tenantId = membership.tenant?.metadata.id;
+                                if (!tenantId) {
+                                  return;
+                                }
                                 void navigate({
                                   to: appRoutes.tenantSettingsOverviewRoute.to,
-                                  params: { tenant: membership.tenant.metadata.id },
+                                  params: { tenant: tenantId },
                                 });
                               }}
                               aria-label="Tenant settings"
@@ -516,9 +522,13 @@ export function TenantSwitcher({
                               e.stopPropagation();
                               setOpen(false);
                               reset();
+                              const tenantId = membership.tenant?.metadata.id;
+                              if (!tenantId) {
+                                return;
+                              }
                               void navigate({
                                 to: appRoutes.tenantSettingsOverviewRoute.to,
-                                params: { tenant: membership.tenant.metadata.id },
+                                params: { tenant: tenantId },
                               });
                             }}
                             aria-label="Tenant settings"
