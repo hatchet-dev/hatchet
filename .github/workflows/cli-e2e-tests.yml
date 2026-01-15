@@ -1,4 +1,4 @@
-name: Template E2E Tests
+name: cli-e2e-tests
 
 on:
   pull_request:
