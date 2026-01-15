@@ -14,7 +14,7 @@ dev:
     - "!**/__pycache__/**"
     - "!**/.venv/**"
   reload: true
-scripts:
+triggers:
   - name: "simple"
 {{- if eq .PackageManager "poetry"}}
     command: "poetry run python src/run.py"

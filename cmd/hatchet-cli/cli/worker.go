@@ -75,40 +75,15 @@ var devCmd = &cobra.Command{
 	},
 }
 
-var runCmd = &cobra.Command{
-	Use:   "run",
-	Short: "Run a script defined in hatchet.yaml",
-	Long:  `Execute a script defined in the scripts section of hatchet.yaml. If no script name is provided, displays an interactive list of available scripts to choose from.`,
-	Example: `  # Show interactive list of scripts
-  hatchet worker run
-
-  # Run a specific script by name
-  hatchet worker run --script simple
-
-  # Run with a specific profile
-  hatchet worker run --script bulk --profile local`,
-	Run: func(cmd *cobra.Command, args []string) {
-		scriptFlag, _ := cmd.Flags().GetString("script")
-		profileFlag, _ := cmd.Flags().GetString("profile")
-
-		runScript(cmd, scriptFlag, profileFlag)
-	},
-}
-
 func init() {
 	rootCmd.AddCommand(workerCmd)
 
 	workerCmd.AddCommand(devCmd)
-	workerCmd.AddCommand(runCmd)
 
 	// Add flags for dev command
 	devCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
 	devCmd.Flags().Bool("no-reload", false, "Disable automatic reloading on file changes")
 	devCmd.Flags().StringP("run-cmd", "r", "", "Override the run command from hatchet.yaml")
-
-	// Add flags for run command
-	runCmd.Flags().StringP("script", "s", "", "Name of the script to run (default: prompts for selection)")
-	runCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
 }
 
 func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileFlag string) {
@@ -305,132 +280,4 @@ func workerStartingView(profile string, reloadEnabled bool) string {
 	lines = append(lines, styles.Muted.Render("Press Ctrl+C to stop the worker"))
 
 	return styles.SuccessBox.Render(strings.Join(lines, "\n"))
-}
-
-// runScript executes a script from the worker configuration
-func runScript(cmd *cobra.Command, scriptFlag string, profileFlag string) {
-	// Check if scripts are configured
-	if len(c.Scripts) == 0 {
-		fmt.Println(styles.H2.Render("No scripts configured"))
-		fmt.Println()
-		fmt.Println(styles.Muted.Render("Add scripts to your hatchet.yaml file:"))
-		fmt.Println()
-		fmt.Println(`scripts:
-  - name: "simple"
-    command: "poetry run simple"
-    description: "Trigger a simple workflow"
-  - name: "bulk"
-    command: "poetry run python -m src.bulk_trigger"
-    description: "Trigger multiple workflow runs"`)
-		os.Exit(1)
-	}
-
-	// Get profile first
-	var selectedProfile string
-	if profileFlag != "" {
-		selectedProfile = profileFlag
-	} else {
-		selectedProfile = selectProfileForm(true)
-
-		if selectedProfile == "" {
-			selectedProfile = handleNoProfiles(cmd)
-			if selectedProfile == "" {
-				cli.Logger.Fatal("no profile selected or created")
-			}
-		}
-	}
-
-	profile, err := cli.GetProfile(selectedProfile)
-	if err != nil {
-		cli.Logger.Fatalf("could not get profile '%s': %v", selectedProfile, err)
-	}
-
-	// Then get script
-	var selectedScript *worker.Script
-
-	// If script flag is provided, find it by name
-	if scriptFlag != "" {
-		for i := range c.Scripts {
-			script := &c.Scripts[i]
-			scriptName := script.Name
-			if scriptName == "" {
-				scriptName = script.Command
-			}
-			if scriptName == scriptFlag {
-				selectedScript = script
-				break
-			}
-		}
-
-		if selectedScript == nil {
-			cli.Logger.Fatalf("script '%s' not found in hatchet.yaml", scriptFlag)
-		}
-	} else {
-		// Show interactive selection form
-		selectedScript = selectScriptForm()
-		if selectedScript == nil {
-			cli.Logger.Fatal("no script selected")
-		}
-	}
-
-	// Display script info
-	scriptName := selectedScript.Name
-	if scriptName == "" {
-		scriptName = selectedScript.Command
-	}
-
-	fmt.Println(styles.InfoMessage(fmt.Sprintf("Running script: %s", scriptName)))
-	if selectedScript.Description != "" {
-		fmt.Println(styles.Muted.Render(selectedScript.Description))
-	}
-	fmt.Println(styles.Muted.Render(fmt.Sprintf("Command: %s", selectedScript.Command)))
-	fmt.Println()
-
-	// Execute the script
-	ctx, cancel := cmdutils.NewInterruptContext()
-	defer cancel()
-
-	err = pm.Exec(ctx, selectedScript.Command, profile)
-	if err != nil {
-		cli.Logger.Fatalf("error running script '%s': %v", scriptName, err)
-	}
-
-	fmt.Println()
-	fmt.Println(styles.SuccessMessage("Script completed successfully"))
-}
-
-// selectScriptForm displays an interactive form to select a script
-func selectScriptForm() *worker.Script {
-	// Build options from scripts
-	options := make([]huh.Option[int], 0, len(c.Scripts))
-	for i, script := range c.Scripts {
-		scriptName := script.Name
-		if scriptName == "" {
-			scriptName = script.Command
-		}
-
-		label := scriptName
-		if script.Description != "" {
-			label = fmt.Sprintf("%s - %s", scriptName, script.Description)
-		}
-
-		options = append(options, huh.NewOption(label, i))
-	}
-
-	var selectedIndex int
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[int]().
-				Title("Select a script to run:").
-				Options(options...).
-				Value(&selectedIndex),
-		),
-	).WithTheme(styles.HatchetTheme())
-
-	err := form.Run()
-	if err != nil {
-		cli.Logger.Fatalf("could not run script selection form: %v", err)
-	}
-
-	return &c.Scripts[selectedIndex]
 }
