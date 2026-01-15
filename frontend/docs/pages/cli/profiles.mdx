@@ -24,9 +24,36 @@ You can list all the profiles you have configured using the `hatchet profile lis
 hatchet profile list
 ```
 
+This will display all configured profiles, with the default profile marked with `(default)` if one is set.
+
+## Setting a Default Profile
+
+You can set a profile as the default using the `hatchet profile set-default` command. The default profile will be automatically used when no profile is specified with the `--profile` flag.
+
+```sh
+# Set default profile interactively (prompts for selection)
+hatchet profile set-default
+
+# Set a specific profile as default
+hatchet profile set-default --name [name]
+```
+
+Once a default profile is set, you can run commands without specifying the `--profile` flag:
+
+```sh
+# Uses the default profile
+hatchet worker dev
+```
+
+To unset the default profile:
+
+```sh
+hatchet profile unset-default
+```
+
 ## Using a Profile
 
-To use a specific profile for your Hatchet CLI commands, you can specify the profile name using the `--profile` flag. For example:
+To use a specific profile for your Hatchet CLI commands, you can specify the profile name using the `--profile` flag. This overrides the default profile if one is set.
 
 ```sh
 hatchet worker dev --profile [name]
@@ -42,8 +69,10 @@ hatchet profile update
 
 ## Deleting a Profile
 
-You can delete a profile using the `hatchet profile delete` command:
+You can delete a profile using the `hatchet profile remove` command:
 
 ```sh
-hatchet profile delete
+hatchet profile remove
 ```
+
+If you remove a profile that is set as the default, the default profile setting will be automatically cleared.

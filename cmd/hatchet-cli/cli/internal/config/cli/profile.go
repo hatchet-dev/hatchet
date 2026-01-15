@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/spf13/viper"
 
@@ -164,18 +165,34 @@ func RemoveProfile(name string) error {
 	allSettings := ProfilesViperConfig.AllSettings()
 
 	// Remove the profile from the profiles map
+	var updatedProfiles map[string]any
 	if profiles, ok := allSettings["profiles"].(map[string]any); ok {
 		delete(profiles, name)
-		allSettings["profiles"] = profiles
+		updatedProfiles = profiles
 	}
 
-	// Create a fresh Viper instance to avoid cached key issues
+	// Check the default profile (Viper normalizes keys to lowercase)
+	var currentDefault string
+	var hasDefault bool
+	if val, ok := allSettings["defaultprofile"]; ok {
+		if strVal, isString := val.(string); isString && strVal != "" {
+			currentDefault = strVal
+			hasDefault = true
+		}
+	}
+
+	clearDefault := hasDefault && currentDefault == name
+
+	// Create a fresh Viper instance
 	newViper := viper.New()
 	newViper.SetConfigType("yaml")
 
-	// Set the cleaned settings
-	for k, v := range allSettings {
-		newViper.Set(k, v)
+	// Set only the profiles (not the default if it was the removed profile)
+	newViper.Set("profiles", updatedProfiles)
+
+	// Only set defaultProfile if it exists and wasn't the removed profile
+	if hasDefault && !clearDefault {
+		newViper.Set("defaultProfile", currentDefault)
 	}
 
 	// Save the config
@@ -185,8 +202,13 @@ func RemoveProfile(name string) error {
 		return err
 	}
 
-	// Replace the global with the new instance
+	// Reload the config into the new viper instance to ensure consistency
 	newViper.SetConfigFile(profilesFilePath)
+	if err := newViper.ReadInConfig(); err != nil {
+		return fmt.Errorf("failed to reload config after removing profile: %w", err)
+	}
+
+	// Replace the global with the new instance
 	ProfilesViperConfig = newViper
 
 	return nil
@@ -254,7 +276,107 @@ func ListProfiles() []string {
 	for name := range profiles {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
+}
+
+// GetDefaultProfile returns the name of the default profile, or empty string if none is set
+func GetDefaultProfile() string {
+	viperMutex.RLock()
+	defer viperMutex.RUnlock()
+
+	if ProfilesViperConfig == nil {
+		return ""
+	}
+
+	return ProfilesViperConfig.GetString("defaultProfile")
+}
+
+// SetDefaultProfile sets the default profile
+func SetDefaultProfile(name string) error {
+	unlock, err := acquireLock()
+	if err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer unlock()
+
+	viperMutex.Lock()
+	defer viperMutex.Unlock()
+
+	if ProfilesViperConfig == nil {
+		return fmt.Errorf("config not initialized")
+	}
+
+	// Reload config to get latest state
+	if err := reloadConfig(); err != nil {
+		return fmt.Errorf("failed to reload config: %w", err)
+	}
+
+	// Verify the profile exists
+	key := fmt.Sprintf("profiles.%s", name)
+	if !ProfilesViperConfig.IsSet(key) {
+		return fmt.Errorf("profile '%s' not found", name)
+	}
+
+	ProfilesViperConfig.Set("defaultProfile", name)
+	return saveConfig()
+}
+
+// ClearDefaultProfile clears the default profile setting
+func ClearDefaultProfile() error {
+	unlock, err := acquireLock()
+	if err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer unlock()
+
+	viperMutex.Lock()
+	defer viperMutex.Unlock()
+
+	if ProfilesViperConfig == nil {
+		return fmt.Errorf("config not initialized")
+	}
+
+	// Reload config to get latest state
+	if err := reloadConfig(); err != nil {
+		return fmt.Errorf("failed to reload config: %w", err)
+	}
+
+	// Only proceed if defaultProfile is actually set
+	if !ProfilesViperConfig.IsSet("defaultProfile") {
+		return nil
+	}
+
+	// Get all profiles (Viper normalizes keys to lowercase)
+	allSettings := ProfilesViperConfig.AllSettings()
+
+	// Create a fresh Viper instance with only profiles (no defaultProfile)
+	newViper := viper.New()
+	newViper.SetConfigType("yaml")
+
+	// Copy only the profiles map, explicitly excluding defaultProfile
+	// Note: Viper stores keys as lowercase in AllSettings()
+	if profiles, ok := allSettings["profiles"]; ok {
+		newViper.Set("profiles", profiles)
+	}
+
+	// Save the config
+	profilesFilePath := getProfilesFilePath()
+	if err := newViper.WriteConfigAs(profilesFilePath); err != nil {
+		return err
+	}
+
+	// Reload the config into the new viper instance to ensure consistency
+	newViper.SetConfigFile(profilesFilePath)
+	if err := newViper.ReadInConfig(); err != nil {
+		return fmt.Errorf("failed to reload config after clearing default: %w", err)
+	}
+
+	// Replace the global with the new instance
+	ProfilesViperConfig = newViper
+
+	return nil
+
 }
 
 // getProfilesFilePath returns the path to the profiles config file

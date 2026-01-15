@@ -112,11 +112,11 @@ func init() {
 func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileFlag string) {
 	var selectedProfile string
 
-	// Use profile from flag if provided, otherwise show selection form
+	// Use profile from flag if provided, otherwise use default or show selection form
 	if profileFlag != "" {
 		selectedProfile = profileFlag
 	} else {
-		selectedProfile = selectProfileForm()
+		selectedProfile = selectProfileForm(true)
 
 		if selectedProfile == "" {
 			// No profiles found - prompt user to either start local server or add a profile
@@ -311,7 +311,7 @@ func runScript(cmd *cobra.Command, scriptFlag string, profileFlag string) {
 	if profileFlag != "" {
 		selectedProfile = profileFlag
 	} else {
-		selectedProfile = selectProfileForm()
+		selectedProfile = selectProfileForm(true)
 
 		if selectedProfile == "" {
 			selectedProfile = handleNoProfiles(cmd)
@@ -382,10 +382,6 @@ func runScript(cmd *cobra.Command, scriptFlag string, profileFlag string) {
 
 // selectScriptForm displays an interactive form to select a script
 func selectScriptForm() *worker.Script {
-	if len(c.Scripts) == 1 {
-		return &c.Scripts[0]
-	}
-
 	// Build options from scripts
 	options := make([]huh.Option[int], 0, len(c.Scripts))
 	for i, script := range c.Scripts {

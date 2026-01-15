@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -33,11 +34,11 @@ var tuiCmd = &cobra.Command{
 
 		var selectedProfile string
 
-		// Use profile from flag if provided, otherwise show selection form
+		// Use profile from flag if provided, otherwise use default or show selection form
 		if profileFlag != "" {
 			selectedProfile = profileFlag
 		} else {
-			selectedProfile = selectProfileForm()
+			selectedProfile = selectProfileForm(true)
 
 			if selectedProfile == "" {
 				cli.Logger.Fatal("no profile selected")
@@ -131,6 +132,7 @@ func newTUIModel(profileName string, hatchetClient client.Client) tuiModel {
 	for name := range profiles {
 		profileNames = append(profileNames, name)
 	}
+	sort.Strings(profileNames)
 
 	return tuiModel{
 		currentView:          currentView,

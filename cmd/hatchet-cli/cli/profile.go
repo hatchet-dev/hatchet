@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"slices"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -48,6 +50,15 @@ hatchet profile update
 
 # Update an existing profile (non-interactive)
 hatchet profile update --name [name] --token [token]
+
+# Set a profile as default (interactive)
+hatchet profile set-default
+
+# Set a profile as default (non-interactive)
+hatchet profile set-default --name [name]
+
+# Unset the default profile
+hatchet profile unset-default
 `,
 }
 
@@ -125,7 +136,7 @@ var profileRemoveCmd = &cobra.Command{
 
 		// if there's no name, list profiles and ask user to select one
 		if name == "" {
-			name = selectProfileForm()
+			name = selectProfileForm(false)
 
 			// if still no name, exit
 			if name == "" {
@@ -175,7 +186,7 @@ var profileShowCmd = &cobra.Command{
 		showToken, _ := cmd.Flags().GetBool("show-token")
 
 		if name == "" {
-			name = selectProfileForm()
+			name = selectProfileForm(false)
 		}
 
 		profile, err := cli.GetProfile(name)
@@ -203,7 +214,7 @@ var profileUpdateCmd = &cobra.Command{
 		tlsStrategy, _ := cmd.Flags().GetString("tls-strategy")
 
 		if name == "" {
-			name = selectProfileForm()
+			name = selectProfileForm(false)
 		}
 
 		if token == "" {
@@ -226,6 +237,61 @@ var profileUpdateCmd = &cobra.Command{
 	},
 }
 
+// profileSetDefaultCmd represents the profile set-default command
+var profileSetDefaultCmd = &cobra.Command{
+	Use:   "set-default",
+	Short: "Set a profile as the default",
+	Long:  `Set a profile as the default. The default profile will be automatically used when no profile is specified.`,
+	Example: `  # Set a profile as default interactively (shows selection menu)
+  hatchet profile set-default
+
+  # Set a specific profile as default
+  hatchet profile set-default --name production`,
+	Run: func(cmd *cobra.Command, args []string) {
+		name, _ := cmd.Flags().GetString("name")
+
+		if name == "" {
+			name = selectProfileForm(false)
+
+			if name == "" {
+				cli.Logger.Info("No profile selected, exiting")
+				return
+			}
+		}
+
+		err := cli.SetDefaultProfile(name)
+		if err != nil {
+			cli.Logger.Fatalf("could not set default profile: %v", err)
+		}
+
+		fmt.Println(profileActionView("set-as-default", name))
+	},
+}
+
+// profileUnsetDefaultCmd represents the profile unset-default command
+var profileUnsetDefaultCmd = &cobra.Command{
+	Use:   "unset-default",
+	Short: "Unset the default profile",
+	Long:  `Unset the default profile. After unsetting, you will be prompted to select a profile when running commands.`,
+	Example: `  # Unset the default profile
+  hatchet profile unset-default`,
+	Run: func(cmd *cobra.Command, args []string) {
+		currentDefault := cli.GetDefaultProfile()
+
+		if currentDefault == "" {
+			fmt.Println(styles.InfoMessage("No default profile is currently set"))
+			return
+		}
+
+		err := cli.ClearDefaultProfile()
+		if err != nil {
+			cli.Logger.Fatalf("could not unset default profile: %v", err)
+		}
+
+		fmt.Println(profileActionView("unset-default", currentDefault))
+	},
+}
+
 func init() {
 	// Add profile command to root
 	rootCmd.AddCommand(profileCmd)
@@ -236,6 +302,8 @@ func init() {
 	profileCmd.AddCommand(profileListCmd)
 	profileCmd.AddCommand(profileShowCmd)
 	profileCmd.AddCommand(profileUpdateCmd)
+	profileCmd.AddCommand(profileSetDefaultCmd)
+	profileCmd.AddCommand(profileUnsetDefaultCmd)
 
 	// Add flags to profile add command
 	profileAddCmd.Flags().StringP("token", "t", "", "Authentication token (prompted if not provided)")
@@ -250,6 +318,9 @@ func init() {
 	// Add flags to profile update command
 	profileUpdateCmd.Flags().StringP("token", "t", "", "Authentication token (prompted if not provided)")
 	profileUpdateCmd.Flags().StringP("name", "n", "", "Name of the profile to update (prompted if not provided)")
+
+	// Add flags to profile set-default command
+	profileSetDefaultCmd.Flags().StringP("name", "n", "", "Name of the profile to set as default (prompted if not provided)")
 }
 
 func getApiTokenForm() string {
@@ -447,7 +518,7 @@ func determineTLSStrategy(grpcHostPort string) string {
 	return "none"
 }
 
-func selectProfileForm() string {
+func selectProfileForm(useDefault bool) string {
 	profiles := cli.GetProfiles()
 
 	if len(profiles) == 0 {
@@ -455,11 +526,28 @@ func selectProfileForm() string {
 		return ""
 	}
 
-	profileNames := make([]huh.Option[string], 0, len(profiles))
+	// Get and sort profile names for stable ordering
+	names := make([]string, 0, len(profiles))
 	for profileName := range profiles {
+		names = append(names, profileName)
+	}
+	sort.Strings(names)
+
+	// If useDefault is true, try to return the default profile without showing the form
+	if useDefault {
+		defaultProfile := cli.GetDefaultProfile()
+		// Verify the default profile is still in the list
+		if defaultProfile != "" && slices.Contains(names, defaultProfile) {
+			return defaultProfile
+		}
+	}
+
+	// Create options in sorted order
+	profileNames := make([]huh.Option[string], 0, len(names))
+	for _, name := range names {
 		profileNames = append(profileNames, huh.Option[string]{
-			Key:   profileName,
-			Value: profileName,
+			Key:   name,
+			Value: name,
 		})
 	}
 
@@ -510,18 +598,24 @@ func profileListView(profiles []string) string {
 		return styles.InfoMessage("No profiles configured")
 	}
 
+	defaultProfile := cli.GetDefaultProfile()
+
 	var lines []string
 	// Use Primary.Bold instead of Section to avoid the MarginBottom spacing
 	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(styles.PrimaryColor)
 	lines = append(lines, headerStyle.Render("Configured Profiles"))
 	for _, profile := range profiles {
-		lines = append(lines, styles.ListItem.Render(styles.Accent.Render("• ")+profile))
+		profileDisplay := profile
+		if profile == defaultProfile {
+			profileDisplay = profile + " " + styles.Muted.Render("(default)")
+		}
+		lines = append(lines, styles.ListItem.Render(styles.Accent.Render("• ")+profileDisplay))
 	}
 
 	return strings.Join(lines, "\n")
 }
 
-// profileActionView renders a profile action result (add, update, remove)
+// profileActionView renders a profile action result (add, update, remove, set-as-default, unset-default)
 func profileActionView(action, profileName string) string {
 	var message string
 	switch action {
@@ -531,6 +625,10 @@ func profileActionView(action, profileName string) string {
 		message = fmt.Sprintf("Profile '%s' updated successfully", profileName)
 	case "removed":
 		message = fmt.Sprintf("Profile '%s' removed successfully", profileName)
+	case "set-as-default":
+		message = fmt.Sprintf("Profile '%s' set as default", profileName)
+	case "unset-default":
+		message = fmt.Sprintf("Default profile '%s' unset successfully", profileName)
 	default:
 		message = fmt.Sprintf("Profile '%s' %s", profileName, action)
 	}
