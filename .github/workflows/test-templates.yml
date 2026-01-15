@@ -66,9 +66,8 @@ jobs:
 
       - name: Start Hatchet server
         run: |
-          echo "Starting Hatchet server in background..."
-          nohup hatchet server start --profile local --dashboard-port 8080 > hatchet-server.log 2>&1 &
-          echo $! > hatchet-server.pid
+          echo "Starting Hatchet server (this will wait until healthy)..."
+          hatchet server start --profile local --dashboard-port 8080
 
           echo "Hatchet server is ready!"
 
@@ -87,14 +86,21 @@ jobs:
       - name: Show server logs on failure
         if: failure()
         run: |
-          echo "=== Hatchet Server Logs ==="
-          cat hatchet-server.log || echo "No server logs found"
+          echo "=== Hatchet Container Logs ==="
+          docker logs hatchet-cli-hatchet-1 2>&1 || echo "Could not get hatchet container logs"
+          echo ""
+          echo "=== Postgres Container Logs ==="
+          docker logs hatchet-cli-postgres-1 2>&1 || echo "Could not get postgres container logs"
+          echo ""
+          echo "=== All Containers ==="
+          docker ps -a
 
       - name: Cleanup
         if: always()
         run: |
-          if [ -f hatchet-server.pid ]; then
-            kill $(cat hatchet-server.pid) || true
-          fi
-          # Cleanup any docker containers started by hatchet server
-          docker ps -q --filter "label=hatchet" | xargs -r docker stop || true
+          # Stop Hatchet server (this will stop the containers)
+          hatchet server stop --profile local || true
+
+          # Cleanup any remaining docker containers
+          docker ps -q --filter "label=com.docker.compose.project=hatchet-cli" | xargs -r docker stop || true
+          docker ps -aq --filter "label=com.docker.compose.project=hatchet-cli" | xargs -r docker rm || true
