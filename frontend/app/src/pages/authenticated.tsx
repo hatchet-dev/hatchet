@@ -28,7 +28,11 @@ const DevtoolsFooter = import.meta.env.DEV
 
 function AuthenticatedInner() {
   const { tenant } = useTenantDetails();
-  const { currentUser, error: userError } = useCurrentUser();
+  const {
+    currentUser,
+    error: userError,
+    isLoading: isUserLoading,
+  } = useCurrentUser();
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
 
   const { data: cloudMetadata } = useQuery({
@@ -107,6 +111,12 @@ function AuthenticatedInner() {
 
     // Skip all redirects for organization pages
     if (isOrganizationsPage) {
+      return;
+    }
+
+    // If we definitively have no user, always go to login.
+    if (!isUserLoading && !currentUser && !isAuthPage) {
+      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
 
@@ -193,6 +203,7 @@ function AuthenticatedInner() {
     listMembershipsQuery.data,
     tenant?.version,
     userError,
+    isUserLoading,
     navigate,
     lastTenant,
     pathname,
@@ -200,6 +211,7 @@ function AuthenticatedInner() {
     isOnboardingVerifyEmailPage,
     isOnboardingInvitesPage,
     isOnboardingPage,
+    isAuthPage,
     setLastTenant,
   ]);
 

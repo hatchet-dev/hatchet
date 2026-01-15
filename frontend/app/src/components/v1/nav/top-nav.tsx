@@ -173,6 +173,7 @@ function GlobalNotificationDropdown({
       : severity === 'warning'
         ? 'bg-yellow-500/20 text-yellow-800 ring-yellow-500/10 dark:text-yellow-300 '
         : 'bg-red-500/20 text-red-800 ring-red-500/10 dark:text-red-300';
+  return null; // TODO: enable this when we have a real notification
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>

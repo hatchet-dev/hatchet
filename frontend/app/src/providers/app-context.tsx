@@ -30,6 +30,8 @@ interface AppContextValue {
   // User data
   user: User | undefined;
   isUserLoading: boolean;
+  userError: unknown;
+  isUserError: boolean;
 
   // Tenant data
   tenant: Tenant | undefined;
@@ -123,6 +125,8 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
       // User
       user: currentUserQuery.data,
       isUserLoading: currentUserQuery.isLoading,
+      userError: currentUserQuery.error,
+      isUserError: currentUserQuery.isError,
 
       // Tenant
       tenant,
@@ -141,6 +145,8 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     [
       currentUserQuery.data,
       currentUserQuery.isLoading,
+      currentUserQuery.error,
+      currentUserQuery.isError,
       tenant,
       tenantId,
       membershipsQuery.isLoading,
