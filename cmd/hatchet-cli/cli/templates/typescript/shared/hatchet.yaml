@@ -16,3 +16,16 @@ dev:
     - "**/*.ts"
     - "!**/node_modules/**"
   reload: true
+
+triggers:
+  - name: simple
+    description: "Trigger the first workflow with sample input"
+{{- if eq .PackageManager "npm"}}
+    command: "npm run run:simple"
+{{- else if eq .PackageManager "pnpm"}}
+    command: "pnpm run run:simple"
+{{- else if eq .PackageManager "yarn"}}
+    command: "yarn run:simple"
+{{- else if eq .PackageManager "bun"}}
+    command: "bun run run:simple"
+{{- end}}

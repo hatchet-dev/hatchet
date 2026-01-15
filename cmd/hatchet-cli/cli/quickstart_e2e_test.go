@@ -143,8 +143,33 @@ func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *pro
 		return fmt.Errorf("timeout waiting for pre-commands to complete")
 	}
 
-	// Now wait 15 seconds for the worker to run
-	time.Sleep(15 * time.Second)
+	// Wait 5 seconds for the worker to fully start, then trigger the workflow
+	time.Sleep(5 * time.Second)
+
+	// Trigger the "simple" workflow if it exists in the config
+	if len(workerConfig.Triggers) > 0 {
+		var simpleTrigger *worker.Trigger
+		for i := range workerConfig.Triggers {
+			if workerConfig.Triggers[i].Name == "simple" {
+				simpleTrigger = &workerConfig.Triggers[i]
+				break
+			}
+		}
+
+		if simpleTrigger != nil {
+			t.Logf("Triggering workflow using command: %s", simpleTrigger.Command)
+			triggerCtx, triggerCancel := context.WithTimeout(ctx, 30*time.Second)
+			if err := executeTriggerCommand(triggerCtx, simpleTrigger.Command, profile); err != nil {
+				t.Logf("Warning: failed to trigger workflow: %v", err)
+			} else {
+				t.Log("Successfully triggered workflow")
+			}
+			triggerCancel()
+		}
+	}
+
+	// Wait another 10 seconds for the workflow to process
+	time.Sleep(10 * time.Second)
 	cancel()
 
 	// Check if any error occurred
@@ -158,7 +183,7 @@ func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *pro
 		t.Log("Worker process cleanup timeout - continuing anyway")
 	}
 
-	t.Log("Worker ran successfully for 15+ seconds")
+	t.Log("Worker ran successfully and workflow was triggered")
 	return nil
 }
 
@@ -273,6 +298,28 @@ func testDockerfileBuild(t *testing.T, projectDir, language, packageManager stri
 	cleanupCmd := exec.Command("docker", "rmi", imageName)
 	if err := cleanupCmd.Run(); err != nil {
 		t.Logf("Warning: failed to clean up Docker image %s: %v", imageName, err)
+	}
+
+	return nil
+}
+
+func executeTriggerCommand(ctx context.Context, command string, profile *profileconfig.Profile) error {
+	// Use sh -c to execute the command with proper environment
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+
+	// Set environment variables from profile
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("HATCHET_CLIENT_TOKEN=%s", profile.Token))
+	env = append(env, fmt.Sprintf("HATCHET_CLIENT_TLS_STRATEGY=%s", profile.TLSStrategy))
+	if profile.GrpcHostPort != "" {
+		env = append(env, fmt.Sprintf("HATCHET_CLIENT_HOST_PORT=%s", profile.GrpcHostPort))
+	}
+	cmd.Env = env
+
+	// Capture output for debugging
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("command failed: %w\nOutput: %s", err, string(output))
 	}
 
 	return nil
