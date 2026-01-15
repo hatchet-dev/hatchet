@@ -550,11 +550,7 @@ func probeTLSEndpoint(hostPort string) (string, error) {
 		return "tls", nil
 	}
 
-	// Check if the error is a RecordHeaderError - this means the server sent non-TLS data
-	var recordHeaderErr tls.RecordHeaderError
-	if errors.As(err, &recordHeaderErr) {
-		// Server sent non-TLS data, so it doesn't use TLS
-		// Verify the endpoint is actually reachable with a plain TCP connection
+	dialNoTLS := func() (string, error) {
 		plainConn, plainErr := dialer.DialContext(ctx, "tcp", hostPort)
 		if plainErr == nil {
 			plainConn.Close()
@@ -563,15 +559,15 @@ func probeTLSEndpoint(hostPort string) (string, error) {
 		return "", fmt.Errorf("endpoint not reachable: %w", plainErr)
 	}
 
+	// Check if the error is a RecordHeaderError - this means the server sent non-TLS data
+	var recordHeaderErr tls.RecordHeaderError
+	if errors.As(err, &recordHeaderErr) {
+		return dialNoTLS()
+	}
+
 	// Check for EOF, which commonly occurs when connecting to a non-TLS server with TLS
 	if errors.Is(err, io.EOF) {
-		// Verify with a plain TCP connection
-		plainConn, plainErr := dialer.DialContext(ctx, "tcp", hostPort)
-		if plainErr == nil {
-			plainConn.Close()
-			return "none", nil
-		}
-		return "", fmt.Errorf("endpoint not reachable: %w", plainErr)
+		return dialNoTLS()
 	}
 
 	// If it's neither a RecordHeaderError nor EOF, it's likely a connection error

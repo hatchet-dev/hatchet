@@ -19,9 +19,8 @@ on:
 
 jobs:
   test-templates:
-    name: Test Template Generation
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -78,7 +77,7 @@ jobs:
       - name: Run template E2E tests
         run: |
           cd cmd/hatchet-cli/cli
-          go test -tags e2e_cli -run TestQuickstartTemplates -v -timeout 40m
+          go test -tags e2e_cli -run TestQuickstartTemplates -v -timeout 15m
         env:
           # Ensure tests don't try to interact with stdin
           CI: true
