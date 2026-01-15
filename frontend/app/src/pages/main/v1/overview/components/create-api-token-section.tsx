@@ -9,7 +9,6 @@ import {
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
-import { Separator } from '@/components/v1/ui/separator';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 
 export function CreateApiTokenSection({
@@ -89,8 +88,6 @@ export function CreateApiTokenSection({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-
-        <Separator orientation="vertical" className="hidden lg:block" />
 
         <div className="grid gap-2 justify-self-start">
           <Button
