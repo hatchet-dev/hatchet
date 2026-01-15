@@ -186,28 +186,6 @@ export default function Overview() {
         </p>
       </div>
 
-      <CreateApiTokenSection
-        tokenName={tokenName}
-        onTokenNameChange={(value) => {
-          setHasEditedTokenName(true);
-          setTokenName(value);
-          setFieldErrors({});
-        }}
-        expiresIn={expiresIn}
-        expiresInOptions={EXPIRES_IN_OPTIONS}
-        onExpiresInChange={setExpiresIn}
-        onExpiresInSelected={(label) => {
-          capture('onboarding_token_expiration_selected', {
-            tenant_id: tenantId,
-            user_email: currentUser?.email,
-            expiration: label,
-          });
-        }}
-        fieldErrors={fieldErrors}
-        isGenerating={createTokenMutation.isPending}
-        onGenerateToken={handleGenerateToken}
-      />
-
       <LearnWorkflowSection
         tenantName={tenant?.name}
         selectedTab={selectedTab}
@@ -245,6 +223,28 @@ export default function Overview() {
             params: { tenant: tenantId! },
           });
         }}
+      />
+
+      <CreateApiTokenSection
+        tokenName={tokenName}
+        onTokenNameChange={(value) => {
+          setHasEditedTokenName(true);
+          setTokenName(value);
+          setFieldErrors({});
+        }}
+        expiresIn={expiresIn}
+        expiresInOptions={EXPIRES_IN_OPTIONS}
+        onExpiresInChange={setExpiresIn}
+        onExpiresInSelected={(label) => {
+          capture('onboarding_token_expiration_selected', {
+            tenant_id: tenantId,
+            user_email: currentUser?.email,
+            expiration: label,
+          });
+        }}
+        fieldErrors={fieldErrors}
+        isGenerating={createTokenMutation.isPending}
+        onGenerateToken={handleGenerateToken}
       />
 
       <SupportSection />
