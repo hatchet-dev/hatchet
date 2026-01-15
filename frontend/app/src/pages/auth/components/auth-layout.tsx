@@ -15,16 +15,16 @@ export function AuthLayout({ children }: PropsWithChildren) {
           [--color2:color-mix(in_srgb,_hsl(212_100%_60%)_calc(100%_*_.56),_transparent)]
           [--direction:bottom] [--scale:5] [--gridSize:24px] [--n:6] [--t:1px] [--g:2px] [--c:#fff7_25%,#0000_0]
 
-          pointer-events-none absolute left-0 bottom-0 w-full overflow-clip 
-          [height:clamp(50rlh,30vh,50rlh)] 
-          [background-color:#b8d9ff14] 
-          [mask-image:linear-gradient(to_var(--direction),transparent_50%,white_100%),var(--noise-url),conic-gradient(at_var(--g)_var(--t),var(--c)),conic-gradient(from_180deg_at_var(--t)_var(--g),var(--c))] 
-          [mask-position:0_0,0%_0%,calc((var(--gridSize)_/_var(--n)_-_var(--g)_+_var(--t))_/_2)_0,round(up,100%,calc(var(--g)*2))_calc((var(--gridSize)_/_var(--n)_-_var(--g)_+_var(--t))_/_2)] 
-          [mask-size:100%,calc(300%*var(--scale))_calc(300%*var(--scale)),calc(var(--gridSize)_/_var(--n))_var(--gridSize),var(--gridSize)_calc(var(--gridSize)_/_var(--n))] 
-          [mask-composite:intersect,add,add,subtract] 
+          pointer-events-none absolute left-0 bottom-0 w-full overflow-clip
+          [height:clamp(50rlh,30vh,50rlh)]
+          [background-color:#b8d9ff14]
+          [mask-image:linear-gradient(to_var(--direction),transparent_50%,white_100%),var(--noise-url),conic-gradient(at_var(--g)_var(--t),var(--c)),conic-gradient(from_180deg_at_var(--t)_var(--g),var(--c))]
+          [mask-position:0_0,0%_0%,calc((var(--gridSize)_/_var(--n)_-_var(--g)_+_var(--t))_/_2)_0,round(up,100%,calc(var(--g)*2))_calc((var(--gridSize)_/_var(--n)_-_var(--g)_+_var(--t))_/_2)]
+          [mask-size:100%,calc(300%*var(--scale))_calc(300%*var(--scale)),calc(var(--gridSize)_/_var(--n))_var(--gridSize),var(--gridSize)_calc(var(--gridSize)_/_var(--n))]
+          [mask-composite:intersect,add,add,subtract]
 
-          before:absolute before:left-0 before:top-0 before:h-full before:w-full before:opacity-0 before:content-[''] before:bg-[repeating-radial-gradient(circle_at_50%_50%,transparent_0%,var(--color1)_20%,var(--color2)_25%,transparent_32%)] before:animate-[heroPulse_7s_linear_infinite] before:[animation-delay:3.5s] 
-          
+          before:absolute before:left-0 before:top-0 before:h-full before:w-full before:opacity-0 before:content-[''] before:bg-[repeating-radial-gradient(circle_at_50%_50%,transparent_0%,var(--color1)_20%,var(--color2)_25%,transparent_32%)] before:animate-[heroPulse_7s_linear_infinite] before:[animation-delay:3.5s]
+
           after:absolute after:left-0 after:top-0 after:h-full after:w-full after:opacity-0 after:content-[''] after:bg-[repeating-radial-gradient(circle_at_50%_50%,transparent_0%,var(--color2)_9%,var(--color1)_14%,transparent_21%)] after:animate-[heroPulse_6s_linear_infinite]"
           style={bgContentStyle}
         />
