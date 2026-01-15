@@ -2,6 +2,7 @@ import { useSidebar } from '@/components/hooks/use-sidebar';
 import { useTheme } from '@/components/hooks/use-theme';
 import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -21,6 +22,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
+import {
+  PopoverTrigger,
+  Popover,
+  PopoverContent,
+} from '@/components/v1/ui/popover';
+import { Separator } from '@/components/v1/ui/separator';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -46,6 +53,7 @@ import {
   BiSun,
   BiUserCircle,
 } from 'react-icons/bi';
+import { RiInformationFill, RiBatteryLowLine } from 'react-icons/ri';
 
 function AccountDropdown({ user }: { user?: User }) {
   const navigate = useNavigate();
@@ -139,6 +147,77 @@ function AccountDropdown({ user }: { user?: User }) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+interface GlobalNotificationDropdownProps {
+  label?: string;
+  severity?: 'info' | 'warning' | 'error';
+  icon?: React.ReactNode;
+  content?: React.ReactNode;
+}
+function GlobalNotificationDropdown({
+  label = 'Notifications',
+  severity = 'info',
+  icon = <RiInformationFill className="size-4 shrink-0" />,
+  content = (
+    <>
+      <p className="text-sm">Content</p>
+    </>
+  ),
+}: GlobalNotificationDropdownProps) {
+  const [open, setOpen] = React.useState(false);
+  const severityColor =
+    severity === 'info'
+      ? 'bg-brand/30 text-brand ring-brand/10'
+      : severity === 'warning'
+        ? 'bg-yellow-500/20 text-yellow-800 ring-yellow-500/10 dark:text-yellow-300 '
+        : 'bg-red-500/20 text-red-800 ring-red-500/10 dark:text-red-300';
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          role="combobox"
+          aria-expanded={open}
+          aria-label="Global Notification"
+          className="relative max-w-[220px] justify-between gap-2 bg-muted/20 pl-1 pr-2 shadow-none hover:bg-muted/30"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+            <div
+              className={cn(
+                'ratio-square shrink-0 rounded-full p-1 flex items-center justify-center ring-1 ring-inset',
+                severityColor,
+              )}
+            >
+              {icon}
+            </div>
+            <span className="min-w-0 flex-1 truncate">{label}</span>
+          </div>
+          <ChevronDown className="size-4 shrink-0 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        className="w-56 [container-type:inline-size] p-0"
+        align="end"
+        forceMount
+      >
+        <div className="p-4 space-y-4">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium leading-none flex flex-col gap-1 ">
+              {label}
+              <span className="text-xs text-muted-foreground">
+                <RelativeDate date={'2025-12-13T15:06:48.888358-05:00'} />
+              </span>
+            </p>
+          </div>
+          <Separator flush />
+          {content}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -297,6 +376,24 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         </div>
 
         <div className="flex items-center justify-end gap-2 pr-4">
+          <GlobalNotificationDropdown
+            label="Approaching daily limit"
+            severity="warning"
+            icon={<RiBatteryLowLine className="size-4 shrink-0" />}
+            content={
+              <div className="space-y-3">
+                <p className="text-xs text-foreground/80">
+                  You can continue running tasks, but once the limit is reached,
+                  execution will pause until your daily credits reset. <br />
+                  <br />
+                  Consider upgrading your plan or wait for the next reset.
+                </p>
+                <Button variant="outline" size="sm">
+                  See plans
+                </Button>
+              </div>
+            }
+          />
           {showTenantSwitcher &&
             (isCloudEnabled ? (
               <OrganizationSelector memberships={tenantMemberships} />
