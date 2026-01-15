@@ -3,17 +3,6 @@ import {
   SideNavChild,
 } from '../../../components/v1/nav/side-nav';
 import { appRoutes } from '@/router';
-// import {
-//   CalendarDaysIcon,
-//   CpuChipIcon,
-//   PlayIcon,
-//   ScaleIcon,
-//   ServerStackIcon,
-//   Squares2X2Icon,
-// } from '@heroicons/react/24/outline';
-// import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
-// import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
-
 import {
   RiPulseAiLine,
   RiFilterLine,
@@ -72,8 +61,6 @@ export function sideNavItems(opts: {
     },
   ];
 
-  // TODO-DESIGN update icons
-
   return [
     {
       key: 'overview',
@@ -118,9 +105,24 @@ export function sideNavItems(opts: {
                       opacity: 1;
                     }
                   }
+                  @keyframes stump-gap-animation {
+                    0% {
+                      fill-opacity: 0.64;
+                    }
+                    70% {
+                      fill-opacity: 0.64;
+                    }
+                    100% {
+                      fill-opacity: 0;
+                    }
+                  }
                   .hatchet-animated {
                     transform-origin: 8px 7px;
                     animation: hatchet-fall 1s cubic-bezier(0.8, 0.1, 0.8, 0.2) forwards;
+                  }
+                  .stump-gap-animated {
+                    animation: stump-gap-animation 0.5s cubic-bezier(0.8, 0.1, 0.8, 0.2);
+                    animation-fill-mode: both;
                   }
                 `}
               </style>
@@ -134,6 +136,13 @@ export function sideNavItems(opts: {
                 d="M11.9336 13.3389L5.93359 16.6729L5.28516 15.5068L11.2852 12.1738L11.9336 13.3389ZM12.9424 8C13.6788 8 14.2764 8.59761 14.2764 9.33398V12.5049C14.2765 12.8584 14.417 13.1983 14.667 13.4482L16.5518 15.334H13.1152L11.0166 16.5L10.6924 15.917L10.3691 15.334L12.4678 14.168C12.6657 14.058 12.8888 14.0001 13.1152 14H13.4023C13.1056 13.5618 12.9424 13.0417 12.9424 12.5049V9.33398H10.6846L11.2852 8H12.9424ZM6.86035 9.33398H3.60938V12.5049C3.60931 13.0252 3.4554 13.5294 3.17578 13.959L5.95215 12.418L6.27637 13L6.59961 13.583L3.75098 15.166C3.55304 15.2759 3.32991 15.3339 3.10352 15.334H0L1.1377 14.1953L1.88574 13.4482C2.1357 13.1983 2.27628 12.8584 2.27637 12.5049V9.33398C2.27637 8.59769 2.87311 8.00013 3.60938 8H5.53711L6.86035 9.33398Z"
                 fill="currentColor"
                 fillOpacity="0.64"
+              />
+              <path
+                d="M10.6846 9.33398L11.2852 8H5.53711L6.86035 9.33398H10.6846Z"
+                fill="currentColor"
+                fillOpacity="0"
+                id="stump-gap"
+                className={active ? 'stump-gap-animated' : ''}
               />
             </svg>
           ),
