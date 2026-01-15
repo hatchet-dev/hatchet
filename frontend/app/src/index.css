@@ -160,6 +160,22 @@ body,
   }
 }
 
+@property --sNav {
+  syntax: '<integer>';
+  inherits: false;
+  initial-value: 1;
+}
+
+@keyframes heroPulse {
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(calc(var(--sNav) * 2));
+    opacity: 0;
+  }
+}
+
 .text {
   z-index: 1;
   color: rgb(203 213 225);

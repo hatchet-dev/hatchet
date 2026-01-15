@@ -1,0 +1,22 @@
+# Triggering Workflows
+
+You can use the `hatchet worker run` command to trigger workflows locally for testing and development purposes. This command allows you to set up scripts in your `hatchet.yaml` file that define how to run specific workflows.
+
+## Example
+
+In your `hatchet.yaml` file, you can define a script for a simple workflow like this:
+
+```yaml
+scripts:
+  - name: "simple"
+    command: "poetry run python src/run.py"
+    description: "Trigger a simple workflow"
+```
+
+Then, you can select this script when running the `hatchet worker run` command:
+
+```sh
+hatchet worker run --script simple
+```
+
+Or just `hatchet worker run`, which will prompt you to select a script interactively.

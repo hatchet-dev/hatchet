@@ -1,0 +1,6 @@
+dev:
+  preCmds: ["go mod download"]
+  runCmd: "go run ./cmd/worker"
+  files:
+    - "**/*.go"
+  reload: true

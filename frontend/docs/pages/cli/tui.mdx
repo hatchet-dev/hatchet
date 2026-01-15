@@ -1,0 +1,43 @@
+import { Callout, Tabs, Code } from "nextra/components";
+
+# Using the Hatchet TUI
+
+The Hatchet CLI includes a built-in terminal user interface (TUI) that you can use to interact with your Hatchet deployment directly from the terminal. The TUI provides real-time observability into tasks, workflows, workers, and more:
+
+```sh
+hatchet tui
+```
+
+# Features
+
+<Callout type="info">
+  You can access help documentation by pressing the `h` key within the TUI. This
+  will display a list of available commands and their descriptions.
+</Callout>
+
+## Runs View
+
+The Runs view provides a similar experience to the Runs page in the Hatchet dashboard. You can filter and list runs based on filters.
+
+<video controls preload="auto">
+  <source src="/cli/runs_view.mp4" type="video/mp4" />
+  Your browser does not support the video tag
+</video>
+
+## Workflows View
+
+The Workflows view allows you to see the list of workflows defined in your Hatchet deployment. You can view some details about each workflow, along with recent runs:
+
+<video controls preload="auto">
+  <source src="/cli/workflows_view.mp4" type="video/mp4" />
+  Your browser does not support the video tag
+</video>
+
+## Workers View
+
+The Workers view shows the status of workers connected to your Hatchet deployment. You can see which workers are online, their registered workflows, and some other information.
+
+<video controls preload="auto">
+  <source src="/cli/workers_view.mp4" type="video/mp4" />
+  Your browser does not support the video tag
+</video>

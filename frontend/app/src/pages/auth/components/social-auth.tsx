@@ -67,7 +67,7 @@ export function SocialAuthButtons({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="grid sm:grid-flow-col gap-3">
       {providers.map((p) => (
         <SocialAuthButton key={p} provider={p} />
       ))}
