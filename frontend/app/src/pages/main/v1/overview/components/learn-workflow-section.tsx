@@ -10,7 +10,6 @@ import {
 } from '@/components/v1/ui/tabs';
 import { TriggerWorkflowForm } from '@/pages/main/v1/workflows/$workflow/components/trigger-workflow-form';
 import { CheckIcon, ChevronRightIcon } from '@radix-ui/react-icons';
-import { Play } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 export const workflowStepOptions = {
@@ -292,42 +291,21 @@ export function LearnWorkflowSection({
       content: (
         <>
           <p className="text-sm">
-            Your worker is connected and ready to process tasks. There are
-            multiple ways to invoke a task:
+            With the worker running, you can now open a new terminal and run the
+            following command to trigger a task run:
           </p>
 
           <div className="space-y-3">
-            <p>1. via the cli:</p>
-            <p>
-              In a new terminal, run the following command to invoke a task:
-            </p>
             <CodeHighlighter
               className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
-              code={`hatchet task run --input '{"message": "Hello, World!"}'`}
+              code={`hatchet trigger`}
               language="shell"
               copy
             />
-            <p>2. via the sdk:</p>
             <p>
-              In a new terminal, run the following command to invoke a task:
+              You can view the script to understand how to trigger a task run
+              from your own codebase.
             </p>
-            <CodeHighlighter
-              className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
-              code={`curl -X POST -H "Content-Type: application/json" -d '{"message": "Hello, World!"}' http://localhost:8080/tasks/run`}
-              language="shell"
-              copy
-            />
-            <p>3. via the dashboard:</p>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                onClick={() => setShowTriggerWorkflow(true)}
-                className="w-fit"
-              >
-                <span className="cq-xl:inline hidden text-sm">Trigger Run</span>
-                <Play className="cq-xl:hidden size-4" />
-              </Button>
-            </div>
           </div>
 
           <Button
