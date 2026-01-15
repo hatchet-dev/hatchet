@@ -861,3 +861,246 @@ func TestConcurrentReadsAndWrites(t *testing.T) {
 		assert.NotEmpty(t, profile.Token)
 	}
 }
+
+func TestGetDefaultProfile(t *testing.T) {
+	_, cleanup := setupTestConfig(t)
+	defer cleanup()
+
+	// Initially, no default should be set
+	defaultProfile := GetDefaultProfile()
+	assert.Empty(t, defaultProfile)
+}
+
+func TestSetDefaultProfile(t *testing.T) {
+	_, cleanup := setupTestConfig(t)
+	defer cleanup()
+
+	// Add a profile
+	err := AddProfile("test-profile", makeTestProfile("test-profile", "token-123"))
+	require.NoError(t, err)
+
+	// Set it as default
+	err = SetDefaultProfile("test-profile")
+	require.NoError(t, err)
+
+	// Verify it's set as default
+	defaultProfile := GetDefaultProfile()
+	assert.Equal(t, "test-profile", defaultProfile)
+}
+
+func TestSetDefaultProfile_NotFound(t *testing.T) {
+	_, cleanup := setupTestConfig(t)
+	defer cleanup()
+
+	// Try to set a non-existent profile as default
+	err := SetDefaultProfile("non-existent")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+
+	// Default should still be empty
+	defaultProfile := GetDefaultProfile()
+	assert.Empty(t, defaultProfile)
+}
+
+func TestSetDefaultProfile_NilConfig(t *testing.T) {
+	originalViperConfig := ProfilesViperConfig
+	ProfilesViperConfig = nil
+	defer func() { ProfilesViperConfig = originalViperConfig }()
+
+	err := SetDefaultProfile("test")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "config not initialized")
+}
+
+func TestClearDefaultProfile(t *testing.T) {
+	_, cleanup := setupTestConfig(t)
+	defer cleanup()
+
+	// Add a profile and set it as default
+	err := AddProfile("test-profile", makeTestProfile("test-profile", "token-123"))
+	require.NoError(t, err)
+	err = SetDefaultProfile("test-profile")
+	require.NoError(t, err)
+
+	// Verify it's set
+	defaultProfile := GetDefaultProfile()
+	assert.Equal(t, "test-profile", defaultProfile)
+
+	// Clear the default
+	err = ClearDefaultProfile()
+	require.NoError(t, err)
+
+	// Verify it's cleared
+	defaultProfile = GetDefaultProfile()
+	assert.Empty(t, defaultProfile)
+}
+
+func TestClearDefaultProfile_NilConfig(t *testing.T) {
+	originalViperConfig := ProfilesViperConfig
+	ProfilesViperConfig = nil
+	defer func() { ProfilesViperConfig = originalViperConfig }()
+
+	err := ClearDefaultProfile()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "config not initialized")
+}
+
+func TestRemoveProfile_ClearsDefaultIfRemoved(t *testing.T) {
+	_, cleanup := setupTestConfig(t)
+	defer cleanup()
+
+	// Add profiles
+	err := AddProfile("profile1", makeTestProfile("profile1", "token1"))
+	require.NoError(t, err)
+	err = AddProfile("profile2", makeTestProfile("profile2", "token2"))
+	require.NoError(t, err)
+
+	// Set profile1 as default
+	err = SetDefaultProfile("profile1")
+	require.NoError(t, err)
+
+	// Verify it's set
+	defaultProfile := GetDefaultProfile()
+	assert.Equal(t, "profile1", defaultProfile)
+
+	// Remove profile1
+	err = RemoveProfile("profile1")
+	require.NoError(t, err)
+
+	// Verify default is cleared
+	defaultProfile = GetDefaultProfile()
+	assert.Empty(t, defaultProfile)
+
+	// Verify profile2 still exists
+	profile, err := GetProfile("profile2")
+	require.NoError(t, err)
+	assert.Equal(t, "token2", profile.Token)
+}
+
+func TestRemoveProfile_DoesNotClearDifferentDefault(t *testing.T) {
+	_, cleanup := setupTestConfig(t)
+	defer cleanup()
+
+	// Add profiles
+	err := AddProfile("profile1", makeTestProfile("profile1", "token1"))
+	require.NoError(t, err)
+	err = AddProfile("profile2", makeTestProfile("profile2", "token2"))
+	require.NoError(t, err)
+
+	// Set profile1 as default
+	err = SetDefaultProfile("profile1")
+	require.NoError(t, err)
+
+	// Remove profile2 (not the default)
+	err = RemoveProfile("profile2")
+	require.NoError(t, err)
+
+	// Verify default is still profile1
+	defaultProfile := GetDefaultProfile()
+	assert.Equal(t, "profile1", defaultProfile)
+}
+
+func TestDefaultProfilePersistence(t *testing.T) {
+	tempDir, cleanup := setupTestConfig(t)
+	defer cleanup()
+
+	// Add a profile and set it as default
+	err := AddProfile("persist-default", makeTestProfile("persist-default", "token-123"))
+	require.NoError(t, err)
+	err = SetDefaultProfile("persist-default")
+	require.NoError(t, err)
+
+	// Simulate reload by creating new viper instance
+	profilesFilePath := filepath.Join(tempDir, ".hatchet", "profiles.yaml")
+	newViper := viper.New()
+	newViper.SetConfigFile(profilesFilePath)
+	newViper.SetConfigType("yaml")
+
+	err = newViper.ReadInConfig()
+	require.NoError(t, err)
+
+	// Temporarily replace global config
+	oldConfig := ProfilesViperConfig
+	ProfilesViperConfig = newViper
+
+	// Verify default profile persisted
+	defaultProfile := GetDefaultProfile()
+	assert.Equal(t, "persist-default", defaultProfile)
+
+	// Verify profile still exists
+	profile, err := GetProfile("persist-default")
+	require.NoError(t, err)
+	assert.Equal(t, "token-123", profile.Token)
+
+	ProfilesViperConfig = oldConfig
+}
+
+func TestSetDefaultProfile_SwitchBetweenProfiles(t *testing.T) {
+	_, cleanup := setupTestConfig(t)
+	defer cleanup()
+
+	// Add multiple profiles
+	err := AddProfile("dev", makeTestProfile("dev", "dev-token"))
+	require.NoError(t, err)
+	err = AddProfile("staging", makeTestProfile("staging", "staging-token"))
+	require.NoError(t, err)
+	err = AddProfile("prod", makeTestProfile("prod", "prod-token"))
+	require.NoError(t, err)
+
+	// Set dev as default
+	err = SetDefaultProfile("dev")
+	require.NoError(t, err)
+	assert.Equal(t, "dev", GetDefaultProfile())
+
+	// Switch to staging
+	err = SetDefaultProfile("staging")
+	require.NoError(t, err)
+	assert.Equal(t, "staging", GetDefaultProfile())
+
+	// Switch to prod
+	err = SetDefaultProfile("prod")
+	require.NoError(t, err)
+	assert.Equal(t, "prod", GetDefaultProfile())
+
+	// Switch back to dev
+	err = SetDefaultProfile("dev")
+	require.NoError(t, err)
+	assert.Equal(t, "dev", GetDefaultProfile())
+}
+
+func TestConcurrentDefaultProfileOperations(t *testing.T) {
+	_, cleanup := setupTestConfig(t)
+	defer cleanup()
+
+	// Add profiles
+	for i := 0; i < 5; i++ {
+		profileName := fmt.Sprintf("profile-%d", i)
+		err := AddProfile(profileName, makeTestProfile(profileName, fmt.Sprintf("token-%d", i)))
+		require.NoError(t, err)
+	}
+
+	numGoroutines := 20
+	var wg sync.WaitGroup
+
+	// Multiple goroutines setting different defaults
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			profileName := fmt.Sprintf("profile-%d", id%5)
+			_ = SetDefaultProfile(profileName)
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify a default is set and is one of the valid profiles
+	defaultProfile := GetDefaultProfile()
+	assert.NotEmpty(t, defaultProfile)
+	assert.Contains(t, defaultProfile, "profile-")
+
+	// Verify the default profile exists
+	profile, err := GetProfile(defaultProfile)
+	require.NoError(t, err)
+	assert.NotNil(t, profile)
+}

@@ -64,6 +64,11 @@ var quickstartCmd = &cobra.Command{
 
 		if dir == "" {
 			dir = selectDirectoryForm(projectName)
+		} else {
+			// If directory was provided via flag, check if it exists
+			if _, err := os.Stat(dir); err == nil {
+				cli.Logger.Fatalf("directory %s already exists - please choose a different directory or delete the existing one", dir)
+			}
 		}
 
 		templateData := templater.Data{
@@ -153,7 +158,21 @@ func selectDirectoryForm(name string) string {
 			huh.NewInput().
 				Title(fmt.Sprintf("Enter a directory to create your project in (default ./%s)", name)).
 				Placeholder(fmt.Sprintf("./%s", name)).
-				Value(&directory),
+				Value(&directory).
+				Validate(func(s string) error {
+					// Use default if empty
+					targetDir := s
+					if targetDir == "" {
+						targetDir = fmt.Sprintf("./%s", name)
+					}
+
+					// Check if directory exists
+					if _, err := os.Stat(targetDir); err == nil {
+						return fmt.Errorf("directory already exists - please choose a different name or delete the existing directory")
+					}
+
+					return nil
+				}),
 		),
 	).WithTheme(styles.HatchetTheme())
 
