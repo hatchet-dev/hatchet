@@ -33,21 +33,27 @@ class HatchetOutput(BaseModel):
         return data
 
 
-wf = hatchet.workflow(name="serde-example-workflow", input_validator=EmptyModel)
+class TestOutput(BaseModel):
+    final_result: str
 
 
-@wf.task()
+serde_workflow = hatchet.workflow(
+    name="serde-example-workflow", input_validator=EmptyModel
+)
+
+
+@serde_workflow.task()
 def generate_result(input: EmptyModel, ctx: Context) -> HatchetOutput:
     return HatchetOutput(result="my_result")
 
 
-@wf.task(parents=[generate_result])
-def test_result(input: EmptyModel, ctx: Context) -> None:
-    assert ctx.task_output(generate_result).result == "my_result"
+@serde_workflow.task(parents=[generate_result])
+def read_result(input: EmptyModel, ctx: Context) -> TestOutput:
+    return TestOutput(final_result=ctx.task_output(generate_result).result)
 
 
 def main() -> None:
-    worker = hatchet.worker("test-worker", workflows=[wf])
+    worker = hatchet.worker("test-worker", workflows=[serde_workflow])
     worker.start()
 
 
