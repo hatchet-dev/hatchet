@@ -13,7 +13,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	v1repo "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 type fakeLeaseRepo struct {
@@ -56,7 +55,7 @@ type fakeBatchQueueFactory struct {
 	resources []*sqlcv1.ListDistinctBatchResourcesRow
 }
 
-func (f *fakeBatchQueueFactory) NewBatchQueue(pgtype.UUID) v1repo.BatchQueueRepository {
+func (f *fakeBatchQueueFactory) NewBatchQueue(pgtype.UUID) repository.BatchQueueRepository {
 	return &fakeBatchQueueRepo{resources: f.resources}
 }
 
@@ -84,7 +83,7 @@ func (f *fakeBatchQueueRepo) ListExistingBatchedQueueItemIds(context.Context, []
 	return map[int64]struct{}{}, nil
 }
 
-func (f *fakeBatchQueueRepo) CommitAssignments(context.Context, []*v1repo.BatchAssignment) ([]*v1repo.BatchAssignment, error) {
+func (f *fakeBatchQueueRepo) CommitAssignments(context.Context, []*repository.BatchAssignment) ([]*repository.BatchAssignment, error) {
 	return nil, nil
 }
 
@@ -97,23 +96,23 @@ func (f *fakeSchedulerRepo) Concurrency() repository.ConcurrencyRepository {
 	return nil
 }
 
-func (f *fakeSchedulerRepo) Lease() v1repo.LeaseRepository {
+func (f *fakeSchedulerRepo) Lease() repository.LeaseRepository {
 	return f.leaseRepo
 }
 
-func (f *fakeSchedulerRepo) QueueFactory() v1repo.QueueFactoryRepository {
+func (f *fakeSchedulerRepo) QueueFactory() repository.QueueFactoryRepository {
 	return nil
 }
 
-func (f *fakeSchedulerRepo) BatchQueue() v1repo.BatchQueueFactoryRepository {
+func (f *fakeSchedulerRepo) BatchQueue() repository.BatchQueueFactoryRepository {
 	return f.batchRepo
 }
 
-func (f *fakeSchedulerRepo) RateLimit() v1repo.RateLimitRepository {
+func (f *fakeSchedulerRepo) RateLimit() repository.RateLimitRepository {
 	return nil
 }
 
-func (f *fakeSchedulerRepo) Assignment() v1repo.AssignmentRepository {
+func (f *fakeSchedulerRepo) Assignment() repository.AssignmentRepository {
 	return nil
 }
 
