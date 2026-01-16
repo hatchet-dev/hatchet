@@ -100,19 +100,10 @@ const authenticatedRoute = createRoute({
 });
 
 const onboardingCreateTenantRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => rootRoute,
   path: 'onboarding/create-tenant',
   component: lazyRouteComponent(
     () => import('./pages/onboarding/create-tenant'),
-    'default',
-  ),
-});
-
-const onboardingGetStartedRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
-  path: 'onboarding/get-started',
-  component: lazyRouteComponent(
-    () => import('./pages/onboarding/get-started'),
     'default',
   ),
 });
@@ -250,6 +241,15 @@ const tenantWorkflowRoute = createRoute({
   path: 'workflows/$workflow',
   component: lazyRouteComponent(
     () => import('./pages/main/v1/workflows/$workflow'),
+    'default',
+  ),
+});
+
+const tenantOverviewRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'overview',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/overview/index.tsx'),
     'default',
   ),
 });
@@ -416,15 +416,6 @@ const tenantSettingsIngestorsRoute = createRoute({
   ),
 });
 
-const tenantOnboardingGetStartedRoute = createRoute({
-  getParentRoute: () => tenantRoute,
-  path: 'onboarding/get-started',
-  component: lazyRouteComponent(
-    () => import('./pages/onboarding/get-started'),
-    'default',
-  ),
-});
-
 const tenantWorkflowRunsRedirectRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'workflow-runs',
@@ -538,6 +529,7 @@ const tenantRoutes = [
   tenantCronJobsRoute,
   tenantWorkflowsRoute,
   tenantWorkflowRoute,
+  tenantOverviewRoute,
   tenantRunsRoute,
   tenantRunRoute,
   tenantTaskRunsRoute,
@@ -556,7 +548,6 @@ const tenantRoutes = [
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
   tenantSettingsIngestorsRoute,
-  tenantOnboardingGetStartedRoute,
   tenantWorkflowRunsRedirectRoute,
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,
@@ -569,7 +560,6 @@ const routeTree = rootRoute.addChildren([
   organizationsRoute,
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
-    onboardingGetStartedRoute,
     onboardingInvitesRoute,
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
   ]),
@@ -599,7 +589,6 @@ export const appRoutes = {
   organizationsRoute,
   authenticatedRoute,
   onboardingCreateTenantRoute,
-  onboardingGetStartedRoute,
   onboardingInvitesRoute,
   tenantRoute,
   tenantEventsRoute,
@@ -610,6 +599,7 @@ export const appRoutes = {
   tenantCronJobsRoute,
   tenantWorkflowsRoute,
   tenantWorkflowRoute,
+  tenantOverviewRoute,
   tenantRunsRoute,
   tenantRunRoute,
   tenantTaskRunsRoute,
@@ -628,7 +618,6 @@ export const appRoutes = {
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
   tenantSettingsIngestorsRoute,
-  tenantOnboardingGetStartedRoute,
   tenantWorkflowRunsRedirectRoute,
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,

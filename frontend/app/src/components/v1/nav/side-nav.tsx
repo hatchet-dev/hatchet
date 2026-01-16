@@ -45,7 +45,7 @@ export type SideNavItem = {
   key: string;
   name: string;
   to: string;
-  icon: (opts: { collapsed: boolean }) => React.ReactNode;
+  icon: (opts: { collapsed: boolean; active?: boolean }) => React.ReactNode;
   prefix?: string;
   activeTo?: string;
   activeFuzzy?: boolean;
@@ -260,7 +260,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
       className={cn(
         // On mobile, overlay the content area (which is already positioned below the fixed header).
         // On desktop, participate in the grid as a fixed-width sidebar.
-        'relative absolute inset-x-0 top-0 bottom-0 z-[100] w-full overflow-hidden bg-slate-100 dark:bg-slate-900 md:relative md:inset-auto md:top-0 md:bottom-auto md:h-full md:bg-[unset] md:dark:bg-[unset]',
+        'absolute inset-x-0 top-0 bottom-0 z-[100] w-full overflow-hidden bg-slate-100 dark:bg-slate-900 md:relative md:inset-auto md:top-0 md:bottom-auto md:h-full md:bg-[unset] md:dark:bg-[unset]',
         !isResizing && 'md:transition-[width] md:duration-200 md:ease-in-out',
         className,
       )}
@@ -362,7 +362,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                   active && 'bg-slate-200 dark:bg-slate-800',
                                 )}
                               >
-                                {item.icon({ collapsed: true })}
+                                {item.icon({ collapsed: true, active })}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent
@@ -410,7 +410,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                             onNavLinkClick();
                           }}
                         >
-                          {item.icon({ collapsed: true })}
+                          {item.icon({ collapsed: true, active })}
                         </Button>
                       );
                     })}
@@ -455,7 +455,10 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                           params={commonParams}
                           prefix={item.prefix}
                           name={item.name}
-                          icon={item.icon({ collapsed: false })}
+                          icon={item.icon({
+                            collapsed: false,
+                            active: isActive(item.to, item.activeFuzzy),
+                          })}
                           collapsibleChildren={
                             item.children?.map((child) => (
                               <SidebarButtonSecondary

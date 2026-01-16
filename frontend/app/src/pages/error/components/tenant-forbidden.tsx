@@ -1,10 +1,11 @@
 import { ErrorPageLayout } from './layout';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
-import api, { queries } from '@/lib/api';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import api from '@/lib/api';
 import { getOptionalStringParam } from '@/lib/router-helpers';
 import { appRoutes } from '@/router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { LogOut, ShieldX, Undo2 } from 'lucide-react';
 
@@ -13,10 +14,7 @@ export function TenantForbidden() {
   const params = useParams({ strict: false });
   const tenant = getOptionalStringParam(params, 'tenant');
 
-  const userQuery = useQuery({
-    ...queries.user.current,
-    retry: false,
-  });
+  const { currentUser } = useCurrentUser();
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -68,10 +66,9 @@ export function TenantForbidden() {
       </div>
 
       <div className="flex flex-row flex-wrap items-center justify-center gap-2">
-        {!!userQuery.data?.email && (
+        {!!currentUser?.email && (
           <div className="text-xs text-muted-foreground">
-            Signed in as{' '}
-            <span className="font-mono">{userQuery.data.email}</span>
+            Signed in as <span className="font-mono">{currentUser.email}</span>
           </div>
         )}
         <Button
