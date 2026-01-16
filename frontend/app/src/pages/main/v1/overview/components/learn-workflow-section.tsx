@@ -132,7 +132,9 @@ export function LearnWorkflowSection({
               value={installMethodOptions.homebrew.value}
               className="mt-4 space-y-3"
             >
-              <b>MacOS</b>
+              <p className="text-sm">
+                <b>MacOS</b>
+              </p>
               <CodeHighlighter
                 className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
                 code={`brew install hatchet-dev/hatchet/hatchet --cask`}
