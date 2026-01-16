@@ -1,10 +1,16 @@
 package cli
 
 import (
+	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
@@ -482,40 +488,90 @@ func getProfileFromToken(cmd *cobra.Command, token, nameOverride, tlsOverride st
 }
 
 func determineTLSStrategy(grpcHostPort string) string {
-	// Extract port from host:port
-	parts := strings.Split(grpcHostPort, ":")
-	if len(parts) != 2 {
-		// If we can't parse the port, default to TLS
-		return "tls"
-	}
-
-	port := parts[1]
-
-	// If port is 443, default to TLS
-	if port == "443" {
-		return "tls"
-	}
-
-	// Otherwise, ask the user
-	var useTLS bool
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title(fmt.Sprintf("Does the gRPC endpoint %s use TLS?", grpcHostPort)).
-				Description("Port 443 typically uses TLS. Other ports may vary.").
-				Value(&useTLS),
-		),
-	).WithTheme(styles.HatchetTheme())
-
-	err := form.Run()
+	// Try to auto-detect TLS by probing the endpoint
+	strategy, err := probeTLSEndpoint(grpcHostPort)
 	if err != nil {
-		cli.Logger.Fatalf("could not run TLS confirmation form: %v", err)
+		cli.Logger.Warnf("could not auto-detect TLS for %s: %v", grpcHostPort, err)
+		cli.Logger.Info("falling back to user prompt")
+
+		// Fall back to asking the user
+		var useTLS bool
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title(fmt.Sprintf("Does the gRPC endpoint %s use TLS?", grpcHostPort)).
+					Description("Auto-detection failed.").
+					Value(&useTLS),
+			),
+		).WithTheme(styles.HatchetTheme())
+
+		err := form.Run()
+		if err != nil {
+			cli.Logger.Fatalf("could not run TLS confirmation form: %v", err)
+		}
+
+		if useTLS {
+			return "tls"
+		}
+		return "none"
 	}
 
-	if useTLS {
-		return "tls"
+	return strategy
+}
+
+// probeTLSEndpoint attempts to detect if an endpoint uses TLS by probing it
+func probeTLSEndpoint(hostPort string) (string, error) {
+	// Parse the host:port to ensure it's valid
+	host, _, err := net.SplitHostPort(hostPort)
+	if err != nil {
+		return "", fmt.Errorf("invalid host:port format: %w", err)
 	}
-	return "none"
+
+	// Create a context with timeout for the probe
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Try TLS connection first (most common case)
+	tlsConfig := &tls.Config{
+		// we just want to see if TLS is spoken, not validate the cert
+		InsecureSkipVerify: true, // nolint: gosec
+		ServerName:         host,
+	}
+
+	// Attempt TLS dial
+	dialer := &net.Dialer{
+		Timeout: 5 * time.Second,
+	}
+
+	conn, err := tls.DialWithDialer(dialer, "tcp", hostPort, tlsConfig)
+	if err == nil {
+		// TLS connection succeeded
+		conn.Close()
+		return "tls", nil
+	}
+
+	dialNoTLS := func() (string, error) {
+		plainConn, plainErr := dialer.DialContext(ctx, "tcp", hostPort)
+		if plainErr == nil {
+			plainConn.Close()
+			return "none", nil
+		}
+		return "", fmt.Errorf("endpoint not reachable: %w", plainErr)
+	}
+
+	// Check if the error is a RecordHeaderError - this means the server sent non-TLS data
+	var recordHeaderErr tls.RecordHeaderError
+	if errors.As(err, &recordHeaderErr) {
+		return dialNoTLS()
+	}
+
+	// Check for EOF, which commonly occurs when connecting to a non-TLS server with TLS
+	if errors.Is(err, io.EOF) {
+		return dialNoTLS()
+	}
+
+	// If it's neither a RecordHeaderError nor EOF, it's likely a connection error
+	return "", fmt.Errorf("could not connect to endpoint: %w", err)
 }
 
 func selectProfileForm(useDefault bool) string {

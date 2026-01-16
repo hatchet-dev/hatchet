@@ -28,9 +28,13 @@ var tuiCmd = &cobra.Command{
   hatchet tui
 
   # Start TUI with a specific profile
-  hatchet tui --profile production`,
+  hatchet tui --profile production
+
+  # Start TUI and navigate to a specific workflow run
+  hatchet tui --run 8ff4f149-099e-4c16-a8d1-0535f8c79b83 --profile local`,
 	Run: func(cmd *cobra.Command, args []string) {
 		profileFlag, _ := cmd.Flags().GetString("profile")
+		runFlag, _ := cmd.Flags().GetString("run")
 
 		var selectedProfile string
 
@@ -52,17 +56,24 @@ var tuiCmd = &cobra.Command{
 
 		// Initialize Hatchet client
 		nopLogger := zerolog.Nop()
-		hatchetClient, err := client.New(
-			client.WithToken(profile.Token),
-			client.WithLogger(&nopLogger),
-		)
+		hatchetClient, err := NewClientFromProfile(profile, &nopLogger)
 		if err != nil {
 			cli.Logger.Fatalf("could not create Hatchet client: %v", err)
 		}
 
-		// Start the TUI
+		// Start the TUI with optional run navigation
+		var model tea.Model
+		if runFlag != "" {
+			model = tuiModelWithInitialRun{
+				tuiModel:     newTUIModel(selectedProfile, hatchetClient),
+				initialRunID: runFlag,
+			}
+		} else {
+			model = newTUIModel(selectedProfile, hatchetClient)
+		}
+
 		p := tea.NewProgram(
-			newTUIModel(selectedProfile, hatchetClient),
+			model,
 			tea.WithAltScreen(),
 		)
 
@@ -75,6 +86,7 @@ var tuiCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(tuiCmd)
 	tuiCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
+	tuiCmd.Flags().StringP("run", "r", "", "Navigate to a specific workflow run by ID")
 }
 
 // ViewType represents the type of primary view
@@ -697,10 +709,7 @@ func (m tuiModel) switchProfile(profileName string) tea.Cmd {
 
 		// Initialize new Hatchet client with the new profile's token
 		nopLogger := zerolog.Nop()
-		hatchetClient, err := client.New(
-			client.WithToken(profile.Token),
-			client.WithLogger(&nopLogger),
-		)
+		hatchetClient, err := NewClientFromProfile(profile, &nopLogger)
 		if err != nil {
 			return profileSwitchErrorMsg{err: err}
 		}

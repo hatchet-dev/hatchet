@@ -1,0 +1,31 @@
+dev:
+{{- if eq .PackageManager "npm"}}
+  preCmds: ["npm install"]
+  runCmd: "npm start"
+{{- else if eq .PackageManager "pnpm"}}
+  preCmds: ["pnpm install"]
+  runCmd: "pnpm start"
+{{- else if eq .PackageManager "yarn"}}
+  preCmds: ["yarn install"]
+  runCmd: "yarn start"
+{{- else if eq .PackageManager "bun"}}
+  preCmds: ["bun install"]
+  runCmd: "bun start"
+{{- end}}
+  files:
+    - "**/*.ts"
+    - "!**/node_modules/**"
+  reload: true
+
+triggers:
+  - name: simple
+    description: "Trigger the first workflow with sample input"
+{{- if eq .PackageManager "npm"}}
+    command: "npm run run:simple"
+{{- else if eq .PackageManager "pnpm"}}
+    command: "pnpm run run:simple"
+{{- else if eq .PackageManager "yarn"}}
+    command: "yarn run:simple"
+{{- else if eq .PackageManager "bun"}}
+    command: "bun run run:simple"
+{{- end}}
