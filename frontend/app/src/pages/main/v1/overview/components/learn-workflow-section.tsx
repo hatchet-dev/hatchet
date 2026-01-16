@@ -117,7 +117,9 @@ export function LearnWorkflowSection({
               value={installMethodOptions.native.value}
               className="mt-4 space-y-3"
             >
-              <b>MacOS, Linux, WSL</b>
+              <p className="text-sm">
+                <b>MacOS, Linux, WSL</b>
+              </p>
               <CodeHighlighter
                 className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
                 code={`curl -fsSL https://install.hatchet.run/install.sh | bash`}
