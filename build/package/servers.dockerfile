@@ -24,7 +24,7 @@ RUN go generate ./...
 
 # OpenAPI bundle environment
 # -------------------------
-FROM node:18-alpine as build-openapi
+FROM node:22-alpine as build-openapi
 WORKDIR /openapi
 
 COPY /api-contracts/openapi ./openapi
