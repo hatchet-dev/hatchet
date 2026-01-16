@@ -69,15 +69,6 @@ CREATE INDEX IF NOT EXISTS v1_batched_queue_item_lookup_idx
 CREATE INDEX IF NOT EXISTS v1_batched_queue_item_step_batch_id_idx
     ON v1_batched_queue_item (tenant_id ASC, step_id ASC, batch_key ASC, id ASC);
 
--- v1_batch_runtime table (renamed from v1_task_batch_run in earlier iterations)
-DO $$
-BEGIN
-    IF to_regclass('v1_task_batch_run') IS NOT NULL AND to_regclass('v1_batch_runtime') IS NULL THEN
-        EXECUTE 'ALTER TABLE v1_task_batch_run RENAME TO v1_batch_runtime';
-    END IF;
-END
-$$;
-
 CREATE TABLE IF NOT EXISTS v1_batch_runtime (
     tenant_id UUID NOT NULL,
     step_id UUID NOT NULL,
@@ -87,24 +78,6 @@ CREATE TABLE IF NOT EXISTS v1_batch_runtime (
     started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT v1_batch_runtime_pkey PRIMARY KEY (tenant_id, batch_id)
 );
-
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM pg_constraint c
-        JOIN pg_class t ON t.oid = c.conrelid
-        WHERE t.relname = 'v1_batch_runtime'
-          AND c.conname = 'v1_task_batch_run_pkey'
-    ) THEN
-        EXECUTE 'ALTER TABLE v1_batch_runtime RENAME CONSTRAINT v1_task_batch_run_pkey TO v1_batch_runtime_pkey';
-    END IF;
-END
-$$;
-
-ALTER TABLE IF EXISTS v1_batch_runtime DROP COLUMN IF EXISTS completed_at;
-
-DROP INDEX IF EXISTS v1_task_batch_run_active_key_idx;
 
 CREATE INDEX IF NOT EXISTS v1_batch_runtime_key_idx
     ON v1_batch_runtime (tenant_id, step_id, batch_key);

@@ -471,8 +471,6 @@ END;
 $$
 LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runtime;
-
 CREATE TRIGGER after_v1_task_runtime_delete_cleanup_batch_runtime
 AFTER DELETE ON v1_task_runtime
 REFERENCING OLD TABLE AS deleted_rows
