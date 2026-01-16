@@ -4,6 +4,10 @@ describe('Tenant Invite: accept', () => {
   let tenant2Id: string;
 
   it('should redirect to tenant page after accepting invite', () => {
+    const ts = Date.now();
+    const tenant2Name = `Tenant 2 ${ts}`;
+    const tenant2Slug = `cypress-tenant2-${ts}`;
+
     cy.visit('/auth/login');
     cy.get('input#email').type(seededUsers.owner.email);
     cy.get('input#password').type(seededUsers.owner.password);
@@ -19,6 +23,25 @@ describe('Tenant Invite: accept', () => {
       'match',
       /\/tenants\/.+/,
     );
+
+    // Ensure Tenant 2 exists even if the DB isn't pre-seeded.
+    cy.request({
+      method: 'POST',
+      url: '/api/v1/tenants',
+      body: {
+        name: tenant2Name,
+        slug: tenant2Slug,
+        environment: 'development',
+      },
+    })
+      .its('status')
+      .should('eq', 200);
+    // Refresh so the tenant switcher sees the updated memberships list.
+    cy.visit('/');
+    cy.location('pathname', { timeout: 30000 }).should(
+      'match',
+      /\/tenants\/.+/,
+    );
     cy.get('button[aria-label="Select a tenant"]')
       .filter(':visible')
       .should('exist');
@@ -29,7 +52,8 @@ describe('Tenant Invite: accept', () => {
       .first()
       .click({ force: true });
     cy.get('[data-cy="tenant-switcher-list"]').should('be.visible');
-    cy.get('[data-cy="tenant-switcher-item-tenant2"]')
+    cy.get(`[data-cy="tenant-switcher-item-${tenant2Slug}"]`)
+      .should('exist')
       .scrollIntoView()
       .click({ force: true });
 
@@ -78,7 +102,9 @@ describe('Tenant Invite: accept', () => {
     );
 
     // Verify exactly one invite is displayed
-    cy.contains('You got an invitation to join Tenant 2').should('be.visible');
+    cy.contains(`You got an invitation to join ${tenant2Name}`).should(
+      'be.visible',
+    );
     cy.get('button').contains('Accept').should('have.length', 1);
 
     // Step 4: Accept the invite
@@ -103,6 +129,6 @@ describe('Tenant Invite: accept', () => {
     cy.get('button[aria-label="Select a tenant"]')
       .filter(':visible')
       .first()
-      .should('contain.text', 'Tenant 2');
+      .should('contain.text', tenant2Name);
   });
 });

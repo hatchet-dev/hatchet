@@ -15,11 +15,6 @@ describe('Tenants: create', () => {
       '/onboarding/create-tenant',
     );
 
-    cy.contains('span', 'AI Agents').click();
-    cy.contains('button', 'Continue').click();
-    cy.contains('span', 'Hacker News').click();
-    cy.contains('button', 'Continue').click();
-
     const tenantName = `CypressTenant${String(ts).slice(-6)}`;
     cy.get('input#name').filter(':visible').first().clear().type(tenantName);
     cy.intercept('POST', '/api/v1/tenants').as('createTenant');
@@ -28,9 +23,9 @@ describe('Tenants: create', () => {
 
     cy.location('pathname', { timeout: 30000 }).should(
       'match',
-      /\/tenants\/.+\/onboarding\/get-started/,
+      /\/tenants\/.+\/overview/,
     );
-    cy.contains('h1', 'Setup your', { timeout: 30000 }).should('be.visible');
+    cy.contains('h1', 'Overview', { timeout: 30000 }).should('be.visible');
 
     cy.get('button[aria-label="Select a tenant"]')
       .filter(':visible')

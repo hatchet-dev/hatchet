@@ -6,13 +6,13 @@ dev:
   preCmds: ["uv venv --allow-existing", "uv pip install -e ."]
   runCmd: "uv run python src/worker.py"
 {{- else if eq .PackageManager "pip"}}
-  preCmds: ["python -m venv .venv 2>/dev/null || true", ".venv/bin/pip install -r requirements.txt"]
+  preCmds: ["python -m venv .venv", ".venv/bin/pip install -r requirements.txt"]
   runCmd: ".venv/bin/python src/worker.py"
 {{- end}}
   files:
     - "**/*.py"
     - "!**/__pycache__/**"
-    - "!**/.venv/**"
+    - "!.venv/**"
   reload: true
 triggers:
   - name: "simple"

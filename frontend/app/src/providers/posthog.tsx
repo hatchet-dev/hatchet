@@ -1,6 +1,6 @@
-import { useTenantDetails } from '@/hooks/use-tenant';
 import type { User } from '@/lib/api';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { useAppContext } from '@/providers/app-context';
 import { useLocation } from '@tanstack/react-router';
 import posthog from 'posthog-js';
 import { PostHogProvider as PhProvider, usePostHog } from 'posthog-js/react';
@@ -32,7 +32,7 @@ interface PostHogProviderProps {
  */
 export function PostHogProvider({ children, user }: PostHogProviderProps) {
   const { meta } = useApiMeta();
-  const { tenant } = useTenantDetails();
+  const { tenant } = useAppContext();
   const initializedRef = useRef(false);
 
   const config = useMemo(() => {
