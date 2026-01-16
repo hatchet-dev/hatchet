@@ -54,6 +54,7 @@ from hatchet_sdk.runnables.types import (
     is_sync_fn,
     normalize_validator,
 )
+from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
@@ -68,8 +69,6 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
 P = ParamSpec("P")
-
-HATCHET_PYDANTIC_SENTINEL = object()
 
 
 def is_async_context_manager(obj: Any) -> TypeGuard[AbstractAsyncContextManager[Any]]:

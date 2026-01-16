@@ -38,7 +38,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrat
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.runnables.task import HATCHET_PYDANTIC_SENTINEL, Task
+from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     EmptyModel,
@@ -50,6 +50,7 @@ from hatchet_sdk.runnables.types import (
     WorkflowConfig,
     normalize_validator,
 )
+from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping

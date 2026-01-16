@@ -97,8 +97,8 @@ class Context:
         :return: The output of the parent task, validated against the task's validators.
         :raises ValueError: If the task was skipped or if the step output for the task is not found.
         """
-        from hatchet_sdk.runnables.task import HATCHET_PYDANTIC_SENTINEL
         from hatchet_sdk.runnables.types import R
+        from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 
         if self.was_skipped(task):
             raise ValueError(f"{task.name} was skipped")
