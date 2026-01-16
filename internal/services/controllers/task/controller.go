@@ -442,7 +442,7 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 		return tc.handleProcessTaskTrigger(context.Background(), tenantId, payloads)
 	}
 
-	return fmt.Errorf("unknown message id: %s", msgId)
+	return fmt.Errorf("unknown buffered message id: %s", msgId)
 }
 
 func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId string, payloads [][]byte) error {
