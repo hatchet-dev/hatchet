@@ -16,7 +16,9 @@ SELECT
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
     workers."maxRuns" - (
-        SELECT COUNT(*)
+        SELECT
+            COALESCE(SUM(CASE WHEN runtime.batch_id IS NULL THEN 1 ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT runtime.batch_id)::integer
         FROM v1_task_runtime runtime
         WHERE
             runtime.tenant_id = workers."tenantId" AND
@@ -44,6 +46,7 @@ WHERE
     AND (
         sqlc.narg('assignable')::boolean IS NULL OR
         workers."maxRuns" IS NULL OR
+        -- TODO why is this still here
         (sqlc.narg('assignable')::boolean AND workers."maxRuns" > (
             SELECT COUNT(*)
             FROM "StepRun" srs
@@ -58,7 +61,9 @@ SELECT
     sqlc.embed(w),
     ww."url" AS "webhookUrl",
     w."maxRuns" - (
-        SELECT COUNT(*)
+        SELECT
+            COALESCE(SUM(CASE WHEN runtime.batch_id IS NULL THEN 1 ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT runtime.batch_id)::integer
         FROM v1_task_runtime runtime
         WHERE
             runtime.tenant_id = w."tenantId" AND

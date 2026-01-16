@@ -2,9 +2,10 @@ import asyncio
 import ctypes
 import functools
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, field, is_dataclass
+from datetime import datetime
 from enum import Enum
 from multiprocessing import Queue
 from textwrap import dedent
@@ -67,6 +68,185 @@ class WorkerStatus(Enum):
     UNHEALTHY = 4
 
 
+@dataclass
+class _BatchQueueItem:
+    ctx: Context
+    future: "asyncio.Future[Any]"
+
+
+@dataclass
+class _BatchState:
+    expected_size: int
+    items: dict[int, _BatchQueueItem]
+    started: bool
+    trigger_reason: str | None = None
+    trigger_time: datetime | None = None
+    batch_key: str | None = None
+
+
+@dataclass
+class _FailedBatchState:
+    exc: Exception
+    # Expected number of step-runs/items for this batch. This should come from the engine
+    # as action.batch_size on the START_STEP_RUN actions.
+    expected_size: int = 0
+    # Track which indices we've already failed to allow cleanup once we've failed them all.
+    failed_indices: set[int] = field(default_factory=set)
+
+
+class _BatchController:
+    def __init__(self, action_id: str, task: Task[TWorkflowInput, R]) -> None:
+        self.action_id = action_id
+        self.task = task
+        self.batches: dict[str, _BatchState] = {}
+        # If START_BATCH handling fails (or we otherwise decide a batch cannot proceed),
+        # we mark the batch_id as failed so any waiting or future step-runs for that
+        # batch fail fast and can be reported back to the engine via the normal
+        # step_run_callback -> STEP_EVENT_TYPE_FAILED path.
+        #
+        # This map is self-cleaning: we remove an entry once we've observed and failed
+        # all indices [0..expected_size-1] for that batch id.
+        self.failed_batches: dict[str, _FailedBatchState] = {}
+
+    def _maybe_cleanup_failed_batch(self, *, batch_id: str) -> None:
+        failed = self.failed_batches.get(batch_id)
+        if not failed:
+            return
+
+        if (
+            failed.expected_size > 0
+            and len(failed.failed_indices) >= failed.expected_size
+        ):
+            self.failed_batches.pop(batch_id, None)
+
+    def fail_batch(
+        self, *, batch_id: str, exc: Exception, expected_size: int = 0
+    ) -> None:
+        failed = self.failed_batches.get(batch_id)
+        if failed is None:
+            failed = _FailedBatchState(exc=exc, expected_size=expected_size)
+            self.failed_batches[batch_id] = failed
+        else:
+            # Preserve the first exception we saw (it usually has the best context),
+            # but backfill expected_size if we learn it later.
+            if failed.expected_size <= 0 and expected_size > 0:
+                failed.expected_size = expected_size
+
+        state = self.batches.pop(batch_id, None)
+        if state:
+            if failed.expected_size <= 0 and state.expected_size > 0:
+                failed.expected_size = state.expected_size
+
+            for index, queue_item in state.items.items():
+                failed.failed_indices.add(index)
+                if not queue_item.future.done():
+                    queue_item.future.set_exception(failed.exc)
+
+        self._maybe_cleanup_failed_batch(batch_id=batch_id)
+
+    def enqueue_item(
+        self,
+        *,
+        batch_id: str,
+        expected_size: int,
+        index: int,
+        ctx: Context,
+        future: "asyncio.Future[Any]",
+        batch_key: str | None = None,
+        on_ready: Callable[[str], None],
+    ) -> None:
+        failed = self.failed_batches.get(batch_id)
+        if failed is not None:
+            if failed.expected_size <= 0 and expected_size > 0:
+                failed.expected_size = expected_size
+            failed.failed_indices.add(index)
+            if not future.done():
+                future.set_exception(failed.exc)
+            self._maybe_cleanup_failed_batch(batch_id=batch_id)
+            return
+
+        state = self.batches.get(batch_id)
+
+        if state is None:
+            state = _BatchState(
+                expected_size=expected_size,
+                items={},
+                started=False,
+                batch_key=batch_key,
+            )
+            self.batches[batch_id] = state
+        elif state.expected_size != expected_size and expected_size > 0:
+            raise ValueError(
+                f"Batch metadata mismatch for '{self.action_id}' batch {batch_id}: expected size {state.expected_size}, got {expected_size}"
+            )
+
+        if index in state.items:
+            raise ValueError(
+                f"Duplicate batch index {index} for '{self.action_id}' batch {batch_id}"
+            )
+
+        state.items[index] = _BatchQueueItem(ctx=ctx, future=future)
+
+        if batch_key and not state.batch_key:
+            state.batch_key = batch_key
+
+        if state.started:
+            on_ready(batch_id)
+
+    def start_batch(
+        self,
+        *,
+        batch_id: str,
+        expected_size: int,
+        default_batch_size: int,
+        trigger_reason: str | None = None,
+        trigger_time: datetime | None = None,
+        batch_key: str | None = None,
+        on_ready: Callable[[str], None],
+    ) -> None:
+        failed = self.failed_batches.get(batch_id)
+        if failed is not None:
+            if failed.expected_size <= 0 and expected_size > 0:
+                failed.expected_size = expected_size
+            self._maybe_cleanup_failed_batch(batch_id=batch_id)
+            return
+
+        state = self.batches.get(batch_id)
+
+        if state is None:
+            state = _BatchState(
+                expected_size=(
+                    expected_size if expected_size > 0 else default_batch_size
+                ),
+                items={},
+                started=True,
+                batch_key=batch_key,
+            )
+            self.batches[batch_id] = state
+        else:
+            if expected_size > 0 and state.expected_size != expected_size:
+                # Prefer the server-sent expected size when present.
+                state.expected_size = expected_size
+            state.started = True
+
+        state.trigger_reason = trigger_reason
+        state.trigger_time = trigger_time
+        if batch_key:
+            state.batch_key = batch_key
+
+        on_ready(batch_id)
+
+    def remove_item(self, *, batch_id: str, index: int) -> None:
+        state = self.batches.get(batch_id)
+        if not state:
+            return
+
+        state.items.pop(index, None)
+
+        if state.items == {} and not state.started:
+            self.batches.pop(batch_id, None)
+
+
 class Runner:
     def __init__(
         self,
@@ -122,6 +302,11 @@ class Runner:
         self.lifespan_context = lifespan_context
         self.log_sender = log_sender
 
+        self._batch_controllers: dict[str, _BatchController] = {}
+        for action_id, task in self.action_registry.items():
+            if task.is_batch:
+                self._batch_controllers[action_id] = _BatchController(action_id, task)
+
         if self.config.enable_thread_pool_monitoring:
             self.start_background_monitoring()
 
@@ -142,6 +327,10 @@ class Runner:
                 log = f"cancel: step run:  {action.action_id}/{action.step_run_id}/{action.retry_count}"
                 logger.info(log)
                 t = asyncio.create_task(self.handle_cancel_action(action))
+            case ActionType.START_BATCH:
+                log = f"run: start batch: {action.action_id}/{action.batch_id}"
+                logger.info(log)
+                t = asyncio.create_task(self.handle_start_batch(action))
             case _:
                 log = f"unknown action type: {action.action_type}"
                 logger.error(log)
@@ -245,6 +434,9 @@ class Runner:
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
 
+        if task.is_batch:
+            return await self._await_batch_item(ctx, task, action)
+
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             try:
                 if task.is_async_function:
@@ -297,6 +489,196 @@ class Runner:
                 return await loop.run_in_executor(self.thread_pool, pfunc)
             finally:
                 self.cleanup_run_id(action.key)
+
+    async def handle_start_batch(self, action: Action) -> None:
+        action_id = action.action_id
+        controller = self._batch_controllers.get(action_id)
+
+        if controller is None:
+            logger.error(f"No batch controller registered for action '{action_id}'")
+            return
+
+        if not action.batch_id:
+            logger.error("Received START_BATCH without batch_id")
+            return
+
+        expected_size = 0
+        trigger_reason = None
+        trigger_time = None
+        batch_key = action.batch_key
+
+        if action.batch_start is not None:
+            expected_size = action.batch_start.expected_size
+            trigger_reason = action.batch_start.trigger_reason
+            trigger_time = action.batch_start.trigger_time
+
+        batch_cfg = controller.task.batch
+        default_batch_size = (
+            batch_cfg.batch_max_size if batch_cfg is not None else expected_size
+        )
+
+        try:
+            controller.start_batch(
+                batch_id=action.batch_id,
+                expected_size=expected_size,
+                default_batch_size=default_batch_size,
+                trigger_reason=trigger_reason,
+                trigger_time=trigger_time,
+                batch_key=batch_key,
+                on_ready=lambda batch_id: (
+                    asyncio.create_task(self._maybe_flush_batch(controller, batch_id)),
+                    None,
+                )[1],
+            )
+        except Exception as e:
+            # Fail all waiting (and future) step-runs for this batch_id so the engine
+            # gets STEP_EVENT_TYPE_FAILED via the step callback path.
+            controller.fail_batch(
+                batch_id=action.batch_id,
+                exc=e,
+                expected_size=(
+                    expected_size if expected_size > 0 else default_batch_size
+                ),
+            )
+            logger.exception(
+                f"failed to handle START_BATCH for '{action_id}' batch {action.batch_id}: {e}"
+            )
+
+    async def _await_batch_item(
+        self,
+        ctx: Context,
+        task: Task[TWorkflowInput, R],
+        action: Action,
+    ) -> R:
+        controller = self._batch_controllers.get(action.action_id)
+        if controller is None:
+            raise RuntimeError(
+                f"Batch task '{action.action_id}' received batch metadata but no controller is registered"
+            )
+
+        if (
+            not action.batch_id
+            or action.batch_size is None
+            or action.batch_index is None
+        ):
+            raise RuntimeError(
+                f"Batch metadata missing for task '{action.action_id}', cannot process batch"
+            )
+
+        batch_id = action.batch_id
+        expected_size = action.batch_size
+        index = action.batch_index
+
+        if expected_size <= 0:
+            raise RuntimeError(
+                f"Batch task '{action.action_id}' received invalid batch size: {expected_size}"
+            )
+
+        if index < 0:
+            raise RuntimeError(
+                f"Batch task '{action.action_id}' received invalid batch index: {index}"
+            )
+
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[Any] = loop.create_future()
+
+        controller.enqueue_item(
+            batch_id=batch_id,
+            expected_size=expected_size,
+            index=index,
+            ctx=ctx,
+            future=future,
+            batch_key=action.batch_key,
+            on_ready=lambda batch_id: (
+                asyncio.create_task(self._maybe_flush_batch(controller, batch_id)),
+                None,
+            )[1],
+        )
+
+        try:
+            result = await future
+        except asyncio.CancelledError:
+            controller.remove_item(batch_id=batch_id, index=index)
+            raise
+
+        return cast(R, result)
+
+    async def _maybe_flush_batch(
+        self, controller: _BatchController, batch_id: str
+    ) -> None:
+        state = controller.batches.get(batch_id)
+        if not state or not state.started:
+            return
+
+        if len(state.items) != state.expected_size:
+            return
+
+        # Remove state before executing to avoid double flush
+        controller.batches.pop(batch_id, None)
+
+        await self._flush_batch(controller, batch_id, state)
+
+    async def _flush_batch(
+        self,
+        controller: _BatchController,
+        batch_id: str,
+        state: _BatchState,
+    ) -> None:
+        ordered = sorted(state.items.items(), key=lambda pair: pair[0])
+        items = [item for _, item in ordered]
+        contexts = [item.ctx for item in items]
+
+        try:
+            inputs = [
+                controller.task.workflow._get_workflow_input(ctx) for ctx in contexts
+            ]
+            tasks = list(zip(inputs, contexts, strict=False))
+
+            if not controller.task.is_batch:
+                raise RuntimeError(
+                    f"Internal error: _flush_batch called for non-batch task '{controller.action_id}'"
+                )
+
+            if controller.task.is_async_function:
+                batch_fn_async = cast(
+                    Callable[
+                        [list[tuple[Any, Context]]],
+                        Coroutine[Any, Any, list[Any]],
+                    ],
+                    controller.task.fn,
+                )
+                outputs = await batch_fn_async(tasks)
+            else:
+                batch_fn_sync = cast(
+                    Callable[[list[tuple[Any, Context]]], list[Any]],
+                    controller.task.fn,
+                )
+                loop = asyncio.get_running_loop()
+                outputs = await loop.run_in_executor(
+                    self.thread_pool,
+                    lambda: batch_fn_sync(tasks),
+                )
+
+            if not isinstance(outputs, list):
+                raise ValueError(
+                    f"Batch task '{controller.action_id}' must return a list of outputs"
+                )
+
+            if len(outputs) != len(items):
+                raise ValueError(
+                    f"Batch task '{controller.action_id}' returned {len(outputs)} outputs for {len(items)} inputs"
+                )
+
+            for output, queue_item in zip(outputs, items, strict=False):
+                if not queue_item.future.done():
+                    queue_item.future.set_result(output)
+        except Exception as e:
+            for queue_item in items:
+                if not queue_item.future.done():
+                    queue_item.future.set_exception(e)
+            logger.exception(
+                f"Batch task '{controller.action_id}' failed to process batch {batch_id}"
+            )
 
     async def log_thread_pool_status(self) -> None:
         thread_pool_details = {

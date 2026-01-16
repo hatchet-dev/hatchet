@@ -272,6 +272,9 @@ CREATE TYPE v1_event_type_olap AS ENUM (
     'TIMED_OUT',
     'RATE_LIMIT_ERROR',
     'SKIPPED',
+    'BATCH_BUFFERED',
+    'WAITING_FOR_BATCH',
+    'BATCH_FLUSHED',
     'COULD_NOT_SEND_TO_WORKER'
 );
 

@@ -152,6 +152,13 @@ message DesiredWorkerLabels {
     optional int32 weight = 5;
 }
 
+message TaskBatchConfig {
+    int32 batch_max_size = 1; // (required) maximum items per batch
+    optional int32 batch_max_interval = 2; // (optional) time before batch flushes (milliseconds)
+    optional string batch_group_key = 3; // (optional) partition key for fairness (prevents mixing tenants)
+    optional int32 batch_group_max_runs = 4; // (optional) concurrent batches per group
+}
+
 // CreateTaskOpts represents options to create a task.
 message CreateTaskOpts {
     string readable_id = 1; // (required) the task name
@@ -167,6 +174,7 @@ message CreateTaskOpts {
     repeated Concurrency concurrency = 11; // (optional) the task concurrency options
     optional TaskConditions conditions = 12; // (optional) the task conditions for creating the task
     optional string schedule_timeout = 13; // (optional) the timeout for the schedule
+    optional TaskBatchConfig batch = 14; // (optional) batch execution configuration
 }
 
 message CreateTaskRateLimit {

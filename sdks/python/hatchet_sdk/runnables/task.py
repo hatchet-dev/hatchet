@@ -5,7 +5,8 @@ from contextlib import (
     AbstractContextManager,
     asynccontextmanager,
 )
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
+from datetime import timedelta
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
     TYPE_CHECKING,
@@ -42,6 +43,9 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskRateLimit,
     DesiredWorkerLabels,
 )
+from hatchet_sdk.contracts.v1.workflows_pb2 import (
+    TaskBatchConfig as TaskBatchConfigProto,
+)
 from hatchet_sdk.exceptions import InvalidDependencyError
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
@@ -68,6 +72,16 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
 P = ParamSpec("P")
+
+
+@dataclass(frozen=True)
+class BatchTaskConfig:
+    """Configuration for a batch task."""
+
+    batch_max_size: int
+    batch_max_interval: timedelta | None = None
+    batch_group_key: str | None = None
+    batch_group_max_runs: int | None = None
 
 
 def is_async_context_manager(obj: Any) -> TypeGuard[AbstractAsyncContextManager[Any]]:
@@ -123,6 +137,14 @@ class Task(Generic[TWorkflowInput, R]):
         _fn: (
             Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]
             | Callable[Concatenate[TWorkflowInput, Context, P], AwaitableLike[R]]
+            | Callable[
+                Concatenate[list[TWorkflowInput], list[Context], P],
+                list[R] | CoroutineLike[list[R]] | AwaitableLike[list[R]],
+            ]
+            | Callable[
+                Concatenate[list[tuple[TWorkflowInput, Context]], P],
+                list[R] | CoroutineLike[list[R]] | AwaitableLike[list[R]],
+            ]
             | (
                 Callable[
                     Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
@@ -148,8 +170,11 @@ class Task(Generic[TWorkflowInput, R]):
         wait_for: list[Condition | OrGroup] | None,
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
+        batch: BatchTaskConfig | None = None,
     ) -> None:
         self.is_durable = is_durable
+        self.batch = batch
+        self.is_batch = batch is not None
 
         self.fn = _fn
         self.is_async_function = is_async_fn(self.fn)  # type: ignore
@@ -173,6 +198,13 @@ class Task(Generic[TWorkflowInput, R]):
         self.cancel_if = flatten_conditions(cancel_if or [])
 
         return_type = get_type_hints(_fn).get("return")
+
+        # For batch tasks, the handler returns a list of per-item outputs. We validate the item type.
+        if self.is_batch:
+            origin = get_origin(return_type)
+            args = get_args(return_type)
+            if origin is list and len(args) == 1:
+                return_type = args[0]
 
         self.validators: TaskIOValidator = TaskIOValidator(
             workflow_input=workflow.config.input_validator,
@@ -376,7 +408,7 @@ class Task(Generic[TWorkflowInput, R]):
         else:
             concurrency = self.concurrency
 
-        return CreateTaskOpts(
+        proto = CreateTaskOpts(
             readable_id=self.name,
             action=service_name + ":" + self.name,
             timeout=timedelta_to_expr(self.execution_timeout),
@@ -391,6 +423,27 @@ class Task(Generic[TWorkflowInput, R]):
             conditions=self._conditions_to_proto(),
             schedule_timeout=timedelta_to_expr(self.schedule_timeout),
         )
+
+        if self.batch is not None:
+            batch_proto = TaskBatchConfigProto(batch_max_size=self.batch.batch_max_size)
+
+            if self.batch.batch_max_interval is not None:
+                interval_ms = int(self.batch.batch_max_interval.total_seconds() * 1000)
+                if interval_ms <= 0:
+                    raise ValueError(
+                        "batch_max_interval must be positive when provided"
+                    )
+                batch_proto.batch_max_interval = interval_ms
+
+            if self.batch.batch_group_key is not None:
+                batch_proto.batch_group_key = self.batch.batch_group_key
+
+            if self.batch.batch_group_max_runs is not None:
+                batch_proto.batch_group_max_runs = self.batch.batch_group_max_runs
+
+            proto.batch.CopyFrom(batch_proto)
+
+        return proto
 
     def _assign_action(self, condition: Condition, action: Action) -> Condition:
         condition.base.action = action

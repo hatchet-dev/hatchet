@@ -92,9 +92,11 @@ func TestRevokeTenantToken(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		// validate the token
+		// validate the token twice to ensure cache hit does not error
 		_, _, err = jwtManager.ValidateTenantToken(context.Background(), token.Token)
+		assert.NoError(t, err)
 
+		_, _, err = jwtManager.ValidateTenantToken(context.Background(), token.Token)
 		assert.NoError(t, err)
 
 		// revoke the token
@@ -152,9 +154,11 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		// validate the token
+		// validate the token twice to ensure cache hit does not error
 		_, _, err = jwtManager.ValidateTenantToken(context.Background(), token.Token)
+		assert.NoError(t, err)
 
+		_, _, err = jwtManager.ValidateTenantToken(context.Background(), token.Token)
 		assert.NoError(t, err)
 
 		// revoke the token
@@ -171,11 +175,11 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		// validate the token again
+		// validate the token again; cache should have been invalidated
 		_, _, err = jwtManager.ValidateTenantToken(context.Background(), token.Token)
 
-		// no error as it is cached
-		assert.NoError(t, err)
+		// error as the token was revoked and cache invalidated
+		assert.Error(t, err)
 
 		return nil
 	})

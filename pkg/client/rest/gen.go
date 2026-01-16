@@ -232,6 +232,7 @@ const (
 const (
 	V1TaskEventTypeACKNOWLEDGED         V1TaskEventType = "ACKNOWLEDGED"
 	V1TaskEventTypeASSIGNED             V1TaskEventType = "ASSIGNED"
+	V1TaskEventTypeBATCHFLUSHED         V1TaskEventType = "BATCH_FLUSHED"
 	V1TaskEventTypeCANCELLED            V1TaskEventType = "CANCELLED"
 	V1TaskEventTypeCOULDNOTSENDTOWORKER V1TaskEventType = "COULD_NOT_SEND_TO_WORKER"
 	V1TaskEventTypeCREATED              V1TaskEventType = "CREATED"
@@ -251,6 +252,7 @@ const (
 	V1TaskEventTypeSTARTED              V1TaskEventType = "STARTED"
 	V1TaskEventTypeTIMEDOUT             V1TaskEventType = "TIMED_OUT"
 	V1TaskEventTypeTIMEOUTREFRESHED     V1TaskEventType = "TIMEOUT_REFRESHED"
+	V1TaskEventTypeWAITINGFORBATCH      V1TaskEventType = "WAITING_FOR_BATCH"
 )
 
 // Defines values for V1TaskStatus.
@@ -1641,8 +1643,11 @@ type V1ReplayedTasks struct {
 // V1TaskEvent defines model for V1TaskEvent.
 type V1TaskEvent struct {
 	// Attempt The attempt number of the task.
-	Attempt      *int            `json:"attempt,omitempty"`
-	ErrorMessage *string         `json:"errorMessage,omitempty"`
+	Attempt      *int    `json:"attempt,omitempty"`
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+
+	// EventPayload Optional structured metadata for the event encoded as JSON.
+	EventPayload *string         `json:"eventPayload,omitempty"`
 	EventType    V1TaskEventType `json:"eventType"`
 	Id           int             `json:"id"`
 	Message      string          `json:"message"`

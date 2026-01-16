@@ -19,12 +19,15 @@ describe('e2e', () => {
   it('should pass a simple workflow', async () => {
     let invoked = 0;
     const start = new Date();
+    const runId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const workflowId = `simple-e2e-workflow-${runId}`.toLowerCase();
+    const eventName = `user:create-simple-${runId}`;
 
     const workflow: Workflow = {
-      id: 'simple-e2e-workflow',
+      id: workflowId,
       description: 'test',
       on: {
-        event: 'user:create-simple',
+        event: eventName,
       },
       steps: [
         {
@@ -60,16 +63,19 @@ describe('e2e', () => {
 
     console.log('pushing event...');
 
-    await hatchet.events.push('user:create-simple', {
+    await hatchet.events.push(eventName, {
       test: 'test',
     });
 
-    await sleep(10000);
+    // Wait until both steps have executed. We avoid fixed sleeps because
+    // CI timing can vary and old queued jobs can otherwise make this flaky.
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline && invoked < 2) {
+      await sleep(250);
+    }
 
     console.log('invoked', invoked);
 
     expect(invoked).toEqual(2);
-
-    await worker.stop();
   }, 60000);
 });

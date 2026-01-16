@@ -328,6 +328,17 @@ export interface DesiredWorkerLabels {
   weight?: number | undefined;
 }
 
+export interface TaskBatchConfig {
+  /** (required) maximum items per batch */
+  batchMaxSize: number;
+  /** (optional) time before batch flushes (milliseconds) */
+  batchMaxInterval?: number | undefined;
+  /** (optional) partition key for fairness (prevents mixing tenants) */
+  batchGroupKey?: string | undefined;
+  /** (optional) concurrent batches per group */
+  batchGroupMaxRuns?: number | undefined;
+}
+
 /** CreateTaskOpts represents options to create a task. */
 export interface CreateTaskOpts {
   /** (required) the task name */
@@ -356,6 +367,8 @@ export interface CreateTaskOpts {
   conditions?: TaskConditions | undefined;
   /** (optional) the timeout for the schedule */
   scheduleTimeout?: string | undefined;
+  /** (optional) batch execution configuration */
+  batch?: TaskBatchConfig | undefined;
 }
 
 export interface CreateTaskOpts_WorkerLabelsEntry {
@@ -1592,6 +1605,125 @@ export const DesiredWorkerLabels: MessageFns<DesiredWorkerLabels> = {
   },
 };
 
+function createBaseTaskBatchConfig(): TaskBatchConfig {
+  return {
+    batchMaxSize: 0,
+    batchMaxInterval: undefined,
+    batchGroupKey: undefined,
+    batchGroupMaxRuns: undefined,
+  };
+}
+
+export const TaskBatchConfig: MessageFns<TaskBatchConfig> = {
+  encode(message: TaskBatchConfig, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.batchMaxSize !== 0) {
+      writer.uint32(8).int32(message.batchMaxSize);
+    }
+    if (message.batchMaxInterval !== undefined) {
+      writer.uint32(16).int32(message.batchMaxInterval);
+    }
+    if (message.batchGroupKey !== undefined) {
+      writer.uint32(26).string(message.batchGroupKey);
+    }
+    if (message.batchGroupMaxRuns !== undefined) {
+      writer.uint32(32).int32(message.batchGroupMaxRuns);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TaskBatchConfig {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTaskBatchConfig();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.batchMaxSize = reader.int32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.batchMaxInterval = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.batchGroupKey = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.batchGroupMaxRuns = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TaskBatchConfig {
+    return {
+      batchMaxSize: isSet(object.batchMaxSize) ? globalThis.Number(object.batchMaxSize) : 0,
+      batchMaxInterval: isSet(object.batchMaxInterval)
+        ? globalThis.Number(object.batchMaxInterval)
+        : undefined,
+      batchGroupKey: isSet(object.batchGroupKey)
+        ? globalThis.String(object.batchGroupKey)
+        : undefined,
+      batchGroupMaxRuns: isSet(object.batchGroupMaxRuns)
+        ? globalThis.Number(object.batchGroupMaxRuns)
+        : undefined,
+    };
+  },
+
+  toJSON(message: TaskBatchConfig): unknown {
+    const obj: any = {};
+    if (message.batchMaxSize !== 0) {
+      obj.batchMaxSize = Math.round(message.batchMaxSize);
+    }
+    if (message.batchMaxInterval !== undefined) {
+      obj.batchMaxInterval = Math.round(message.batchMaxInterval);
+    }
+    if (message.batchGroupKey !== undefined) {
+      obj.batchGroupKey = message.batchGroupKey;
+    }
+    if (message.batchGroupMaxRuns !== undefined) {
+      obj.batchGroupMaxRuns = Math.round(message.batchGroupMaxRuns);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<TaskBatchConfig>): TaskBatchConfig {
+    return TaskBatchConfig.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<TaskBatchConfig>): TaskBatchConfig {
+    const message = createBaseTaskBatchConfig();
+    message.batchMaxSize = object.batchMaxSize ?? 0;
+    message.batchMaxInterval = object.batchMaxInterval ?? undefined;
+    message.batchGroupKey = object.batchGroupKey ?? undefined;
+    message.batchGroupMaxRuns = object.batchGroupMaxRuns ?? undefined;
+    return message;
+  },
+};
+
 function createBaseCreateTaskOpts(): CreateTaskOpts {
   return {
     readableId: '',
@@ -1607,6 +1739,7 @@ function createBaseCreateTaskOpts(): CreateTaskOpts {
     concurrency: [],
     conditions: undefined,
     scheduleTimeout: undefined,
+    batch: undefined,
   };
 }
 
@@ -1653,6 +1786,9 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
     }
     if (message.scheduleTimeout !== undefined) {
       writer.uint32(106).string(message.scheduleTimeout);
+    }
+    if (message.batch !== undefined) {
+      TaskBatchConfig.encode(message.batch, writer.uint32(114).fork()).join();
     }
     return writer;
   },
@@ -1771,6 +1907,14 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
           message.scheduleTimeout = reader.string();
           continue;
         }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.batch = TaskBatchConfig.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1815,6 +1959,7 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
       scheduleTimeout: isSet(object.scheduleTimeout)
         ? globalThis.String(object.scheduleTimeout)
         : undefined,
+      batch: isSet(object.batch) ? TaskBatchConfig.fromJSON(object.batch) : undefined,
     };
   },
 
@@ -1865,6 +2010,9 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
     if (message.scheduleTimeout !== undefined) {
       obj.scheduleTimeout = message.scheduleTimeout;
     }
+    if (message.batch !== undefined) {
+      obj.batch = TaskBatchConfig.toJSON(message.batch);
+    }
     return obj;
   },
 
@@ -1896,6 +2044,10 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
         ? TaskConditions.fromPartial(object.conditions)
         : undefined;
     message.scheduleTimeout = object.scheduleTimeout ?? undefined;
+    message.batch =
+      object.batch !== undefined && object.batch !== null
+        ? TaskBatchConfig.fromPartial(object.batch)
+        : undefined;
     return message;
   },
 };

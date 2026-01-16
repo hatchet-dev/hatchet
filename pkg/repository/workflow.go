@@ -103,6 +103,16 @@ type CreateStepOpts struct {
 
 	// (optional) the step concurrency options
 	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validator:"omitnil"`
+
+	// (optional) batch execution configuration
+	BatchConfig *StepBatchConfig `json:"batchConfig,omitempty"`
+}
+
+type StepBatchConfig struct {
+	BatchMaxSize      int32   `json:"batchMaxSize" validate:"required,min=1,max=100000"`
+	BatchMaxInterval  *int32  `json:"batchMaxInterval,omitempty" validate:"omitempty,min=1,max=86400000"`
+	BatchGroupKey     *string `json:"batchGroupKey,omitempty"`
+	BatchGroupMaxRuns *int32  `json:"batchGroupMaxRuns,omitempty" validate:"omitempty,min=1,max=10000"`
 }
 
 type CreateStepMatchConditionOpt struct {
@@ -239,6 +249,8 @@ type WorkflowRepository interface {
 	GetWorkflowByName(ctx context.Context, tenantId, workflowName string) (*sqlcv1.Workflow, error)
 
 	GetLatestWorkflowVersion(ctx context.Context, tenantId, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+
+	ListStepBatchConfigs(ctx context.Context, tenantId string, stepIds []string) (map[string]*StepBatchConfig, error)
 }
 
 type workflowRepository struct {
@@ -268,6 +280,65 @@ func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantI
 	}
 
 	return workflowIdToNameMap, nil
+}
+
+func (w *workflowRepository) ListStepBatchConfigs(ctx context.Context, tenantId string, stepIds []string) (map[string]*StepBatchConfig, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-step-batch-configs")
+	defer span.End()
+
+	result := make(map[string]*StepBatchConfig, len(stepIds))
+
+	if len(stepIds) == 0 {
+		return result, nil
+	}
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgStepIds := make([]pgtype.UUID, 0, len(stepIds))
+
+	for _, id := range stepIds {
+		pgStepIds = append(pgStepIds, sqlchelpers.UUIDFromStr(id))
+	}
+
+	rows, err := w.queries.ListStepsByIds(ctx, w.pool, sqlcv1.ListStepsByIdsParams{
+		Ids:      pgStepIds,
+		Tenantid: pgTenantId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		stepId := sqlchelpers.UUIDToStr(row.ID)
+
+		if !row.BatchMaxSize.Valid {
+			result[stepId] = nil
+			continue
+		}
+
+		cfg := &StepBatchConfig{
+			BatchMaxSize: row.BatchMaxSize.Int32,
+		}
+
+		if row.BatchMaxInterval.Valid {
+			val := row.BatchMaxInterval.Int32
+			cfg.BatchMaxInterval = &val
+		}
+
+		if row.BatchGroupKey.Valid {
+			val := row.BatchGroupKey.String
+			cfg.BatchGroupKey = &val
+		}
+
+		if row.BatchGroupMaxRuns.Valid {
+			val := row.BatchGroupMaxRuns.Int32
+			cfg.BatchGroupMaxRuns = &val
+		}
+
+		result[stepId] = cfg
+	}
+
+	return result, nil
 }
 
 type JobRunHasCycleError struct {
@@ -706,9 +777,13 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 		stepId := uuid.New().String()
 
 		var (
-			timeout        pgtype.Text
-			customUserData []byte
-			retries        pgtype.Int4
+			timeout            pgtype.Text
+			customUserData     []byte
+			retries            pgtype.Int4
+			batchSize          pgtype.Int4
+			batchFlushInterval pgtype.Int4
+			batchKeyExpression pgtype.Text
+			batchMaxRuns       pgtype.Int4
 		)
 
 		if stepOpts.Timeout != nil {
@@ -736,15 +811,44 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			return "", err
 		}
 
+		if stepOpts.BatchConfig != nil {
+			batchSize = pgtype.Int4{
+				Int32: stepOpts.BatchConfig.BatchMaxSize,
+				Valid: true,
+			}
+
+			if stepOpts.BatchConfig.BatchMaxInterval != nil {
+				batchFlushInterval = pgtype.Int4{
+					Int32: *stepOpts.BatchConfig.BatchMaxInterval,
+					Valid: true,
+				}
+			}
+
+			if stepOpts.BatchConfig.BatchGroupKey != nil && *stepOpts.BatchConfig.BatchGroupKey != "" {
+				batchKeyExpression = sqlchelpers.TextFromStr(*stepOpts.BatchConfig.BatchGroupKey)
+			}
+
+			if stepOpts.BatchConfig.BatchGroupMaxRuns != nil {
+				batchMaxRuns = pgtype.Int4{
+					Int32: *stepOpts.BatchConfig.BatchGroupMaxRuns,
+					Valid: true,
+				}
+			}
+		}
+
 		createStepParams := sqlcv1.CreateStepParams{
-			ID:             sqlchelpers.UUIDFromStr(stepId),
-			Tenantid:       tenantId,
-			Jobid:          sqlchelpers.UUIDFromStr(jobId),
-			Actionid:       stepOpts.Action,
-			Timeout:        timeout,
-			Readableid:     stepOpts.ReadableId,
-			CustomUserData: customUserData,
-			Retries:        retries,
+			ID:                sqlchelpers.UUIDFromStr(stepId),
+			Tenantid:          tenantId,
+			Jobid:             sqlchelpers.UUIDFromStr(jobId),
+			Actionid:          stepOpts.Action,
+			Timeout:           timeout,
+			Readableid:        stepOpts.ReadableId,
+			CustomUserData:    customUserData,
+			Retries:           retries,
+			BatchMaxSize:      batchSize,
+			BatchMaxInterval:  batchFlushInterval,
+			BatchGroupKey:     batchKeyExpression,
+			BatchGroupMaxRuns: batchMaxRuns,
 		}
 
 		if stepOpts.ScheduleTimeout != nil {

@@ -713,8 +713,18 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
 		case sqlcv1.V1EventTypeOlapSKIPPED:
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapCOMPLETED)
+		case sqlcv1.V1EventTypeOlapBATCHBUFFERED:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
+		case sqlcv1.V1EventTypeOlapWAITINGFORBATCH:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
+		case sqlcv1.V1EventTypeOlapBATCHFLUSHED:
+			// Running until the individual tasks are completed
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
 		case sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER:
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
+		default:
+			// Treat unknown or informational events as queued to keep array lengths aligned.
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
 		}
 	}
 

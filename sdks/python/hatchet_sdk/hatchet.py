@@ -33,6 +33,7 @@ from hatchet_sdk.runnables.types import (
     R,
     StickyStrategy,
     TaskDefaults,
+    TaskPayloadForInternalUse,
     TWorkflowInput,
     WorkflowConfig,
     normalize_validator,
@@ -489,6 +490,170 @@ class Hatchet:
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
+            )
+
+            created_task = task_wrapper(func)
+
+            return Standalone[TWorkflowInput, R](
+                workflow=workflow,
+                task=created_task,
+            )
+
+        return inner
+
+    @overload
+    def batch_task(
+        self,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        input_validator: None = None,
+        on_events: list[str] | None = None,
+        on_crons: list[str] | None = None,
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        retries: int = 0,
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] | None = None,
+        batch_max_size: int = ...,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+    ) -> Callable[
+        [
+            Callable[
+                [list[tuple[EmptyModel, Context]]], list[R] | CoroutineLike[list[R]]
+            ]
+        ],
+        Standalone[EmptyModel, R],
+    ]: ...
+
+    @overload
+    def batch_task(
+        self,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        input_validator: type[TWorkflowInput],
+        on_events: list[str] | None = None,
+        on_crons: list[str] | None = None,
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        retries: int = 0,
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] | None = None,
+        batch_max_size: int = ...,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+    ) -> Callable[
+        [
+            Callable[
+                [list[tuple[TWorkflowInput, Context]]],
+                list[R] | CoroutineLike[list[R]],
+            ]
+        ],
+        Standalone[TWorkflowInput, R],
+    ]: ...
+
+    def batch_task(
+        self,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        input_validator: type[TWorkflowInput] | None = None,
+        on_events: list[str] | None = None,
+        on_crons: list[str] | None = None,
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        retries: int = 0,
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] | None = None,
+        batch_max_size: int = 1,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+    ) -> Callable[
+        [
+            Callable[
+                [list[tuple[TWorkflowInput, Context]]],
+                list[R] | CoroutineLike[list[R]],
+            ]
+        ],
+        Standalone[TWorkflowInput, R],
+    ]:
+        """
+        A decorator to transform a function into a standalone Hatchet *batch* task.\n
+        The handler is invoked with a list of (input, context) tuples once Hatchet flushes the batch.\n
+        The handler must return a list of outputs with the same length as the input list.\n
+        """
+
+        def inner(
+            func: Callable[
+                [list[tuple[TWorkflowInput, Context]]],
+                list[R] | CoroutineLike[list[R]],
+            ],
+        ) -> Standalone[TWorkflowInput, R]:
+            inferred_name = name or func.__name__
+
+            workflow = Workflow[TWorkflowInput](
+                WorkflowConfig(
+                    name=inferred_name,
+                    version=version,
+                    description=description,
+                    on_events=on_events or [],
+                    on_crons=on_crons or [],
+                    sticky=sticky,
+                    default_priority=default_priority,
+                    input_validator=TypeAdapter(TaskPayloadForInternalUse),
+                    default_filters=default_filters or [],
+                ),
+                self,
+            )
+
+            if isinstance(concurrency, list):
+                _concurrency = concurrency
+            elif isinstance(concurrency, ConcurrencyExpression):
+                _concurrency = [concurrency]
+            else:
+                _concurrency = []
+
+            task_wrapper = workflow.batch_task(
+                name=inferred_name,
+                schedule_timeout=schedule_timeout,
+                execution_timeout=execution_timeout,
+                parents=[],
+                retries=retries,
+                rate_limits=rate_limits or [],
+                desired_worker_labels=desired_worker_labels or {},
+                backoff_factor=backoff_factor,
+                backoff_max_seconds=backoff_max_seconds,
+                concurrency=_concurrency,
+                batch_max_size=batch_max_size,
+                batch_max_interval=batch_max_interval,
+                batch_group_key=batch_group_key,
+                batch_group_max_runs=batch_group_max_runs,
             )
 
             created_task = task_wrapper(func)

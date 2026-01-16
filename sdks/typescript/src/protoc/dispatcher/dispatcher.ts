@@ -60,6 +60,7 @@ export enum ActionType {
   START_STEP_RUN = 0,
   CANCEL_STEP_RUN = 1,
   START_GET_GROUP_KEY = 2,
+  START_BATCH = 3,
   UNRECOGNIZED = -1,
 }
 
@@ -74,6 +75,9 @@ export function actionTypeFromJSON(object: any): ActionType {
     case 2:
     case 'START_GET_GROUP_KEY':
       return ActionType.START_GET_GROUP_KEY;
+    case 3:
+    case 'START_BATCH':
+      return ActionType.START_BATCH;
     case -1:
     case 'UNRECOGNIZED':
     default:
@@ -89,6 +93,8 @@ export function actionTypeToJSON(object: ActionType): string {
       return 'CANCEL_STEP_RUN';
     case ActionType.START_GET_GROUP_KEY:
       return 'START_GET_GROUP_KEY';
+    case ActionType.START_BATCH:
+      return 'START_BATCH';
     case ActionType.UNRECOGNIZED:
     default:
       return 'UNRECOGNIZED';
@@ -425,6 +431,22 @@ export interface AssignedAction {
   workflowId?: string | undefined;
   /** (optional) the workflow version id */
   workflowVersionId?: string | undefined;
+  /** (optional) the batch identifier if this task is part of a batch */
+  batchId?: string | undefined;
+  /** (optional) the total number of tasks in the batch */
+  batchSize?: number | undefined;
+  /** (optional) the index of the task within the batch */
+  batchIndex?: number | undefined;
+  /** (optional) payload for starting a batch execution */
+  batchStart?: BatchStartPayload | undefined;
+  /** (optional) the partition key used for batching */
+  batchKey?: string | undefined;
+}
+
+export interface BatchStartPayload {
+  triggerReason: string;
+  triggerTime: Date | undefined;
+  expectedSize: number;
 }
 
 export interface WorkerListenRequest {
@@ -1461,6 +1483,11 @@ function createBaseAssignedAction(): AssignedAction {
     priority: 0,
     workflowId: undefined,
     workflowVersionId: undefined,
+    batchId: undefined,
+    batchSize: undefined,
+    batchIndex: undefined,
+    batchStart: undefined,
+    batchKey: undefined,
   };
 }
 
@@ -1525,6 +1552,21 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     }
     if (message.workflowVersionId !== undefined) {
       writer.uint32(162).string(message.workflowVersionId);
+    }
+    if (message.batchId !== undefined) {
+      writer.uint32(170).string(message.batchId);
+    }
+    if (message.batchSize !== undefined) {
+      writer.uint32(176).int32(message.batchSize);
+    }
+    if (message.batchIndex !== undefined) {
+      writer.uint32(184).int32(message.batchIndex);
+    }
+    if (message.batchStart !== undefined) {
+      BatchStartPayload.encode(message.batchStart, writer.uint32(194).fork()).join();
+    }
+    if (message.batchKey !== undefined) {
+      writer.uint32(202).string(message.batchKey);
     }
     return writer;
   },
@@ -1696,6 +1738,46 @@ export const AssignedAction: MessageFns<AssignedAction> = {
           message.workflowVersionId = reader.string();
           continue;
         }
+        case 21: {
+          if (tag !== 170) {
+            break;
+          }
+
+          message.batchId = reader.string();
+          continue;
+        }
+        case 22: {
+          if (tag !== 176) {
+            break;
+          }
+
+          message.batchSize = reader.int32();
+          continue;
+        }
+        case 23: {
+          if (tag !== 184) {
+            break;
+          }
+
+          message.batchIndex = reader.int32();
+          continue;
+        }
+        case 24: {
+          if (tag !== 194) {
+            break;
+          }
+
+          message.batchStart = BatchStartPayload.decode(reader, reader.uint32());
+          continue;
+        }
+        case 25: {
+          if (tag !== 202) {
+            break;
+          }
+
+          message.batchKey = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1739,6 +1821,13 @@ export const AssignedAction: MessageFns<AssignedAction> = {
       workflowVersionId: isSet(object.workflowVersionId)
         ? globalThis.String(object.workflowVersionId)
         : undefined,
+      batchId: isSet(object.batchId) ? globalThis.String(object.batchId) : undefined,
+      batchSize: isSet(object.batchSize) ? globalThis.Number(object.batchSize) : undefined,
+      batchIndex: isSet(object.batchIndex) ? globalThis.Number(object.batchIndex) : undefined,
+      batchStart: isSet(object.batchStart)
+        ? BatchStartPayload.fromJSON(object.batchStart)
+        : undefined,
+      batchKey: isSet(object.batchKey) ? globalThis.String(object.batchKey) : undefined,
     };
   },
 
@@ -1804,6 +1893,21 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.workflowVersionId !== undefined) {
       obj.workflowVersionId = message.workflowVersionId;
     }
+    if (message.batchId !== undefined) {
+      obj.batchId = message.batchId;
+    }
+    if (message.batchSize !== undefined) {
+      obj.batchSize = Math.round(message.batchSize);
+    }
+    if (message.batchIndex !== undefined) {
+      obj.batchIndex = Math.round(message.batchIndex);
+    }
+    if (message.batchStart !== undefined) {
+      obj.batchStart = BatchStartPayload.toJSON(message.batchStart);
+    }
+    if (message.batchKey !== undefined) {
+      obj.batchKey = message.batchKey;
+    }
     return obj;
   },
 
@@ -1832,6 +1936,106 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     message.priority = object.priority ?? 0;
     message.workflowId = object.workflowId ?? undefined;
     message.workflowVersionId = object.workflowVersionId ?? undefined;
+    message.batchId = object.batchId ?? undefined;
+    message.batchSize = object.batchSize ?? undefined;
+    message.batchIndex = object.batchIndex ?? undefined;
+    message.batchStart =
+      object.batchStart !== undefined && object.batchStart !== null
+        ? BatchStartPayload.fromPartial(object.batchStart)
+        : undefined;
+    message.batchKey = object.batchKey ?? undefined;
+    return message;
+  },
+};
+
+function createBaseBatchStartPayload(): BatchStartPayload {
+  return { triggerReason: '', triggerTime: undefined, expectedSize: 0 };
+}
+
+export const BatchStartPayload: MessageFns<BatchStartPayload> = {
+  encode(message: BatchStartPayload, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.triggerReason !== '') {
+      writer.uint32(10).string(message.triggerReason);
+    }
+    if (message.triggerTime !== undefined) {
+      Timestamp.encode(toTimestamp(message.triggerTime), writer.uint32(18).fork()).join();
+    }
+    if (message.expectedSize !== 0) {
+      writer.uint32(24).int32(message.expectedSize);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): BatchStartPayload {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBatchStartPayload();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.triggerReason = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.triggerTime = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.expectedSize = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): BatchStartPayload {
+    return {
+      triggerReason: isSet(object.triggerReason) ? globalThis.String(object.triggerReason) : '',
+      triggerTime: isSet(object.triggerTime) ? fromJsonTimestamp(object.triggerTime) : undefined,
+      expectedSize: isSet(object.expectedSize) ? globalThis.Number(object.expectedSize) : 0,
+    };
+  },
+
+  toJSON(message: BatchStartPayload): unknown {
+    const obj: any = {};
+    if (message.triggerReason !== '') {
+      obj.triggerReason = message.triggerReason;
+    }
+    if (message.triggerTime !== undefined) {
+      obj.triggerTime = message.triggerTime.toISOString();
+    }
+    if (message.expectedSize !== 0) {
+      obj.expectedSize = Math.round(message.expectedSize);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<BatchStartPayload>): BatchStartPayload {
+    return BatchStartPayload.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<BatchStartPayload>): BatchStartPayload {
+    const message = createBaseBatchStartPayload();
+    message.triggerReason = object.triggerReason ?? '';
+    message.triggerTime = object.triggerTime ?? undefined;
+    message.expectedSize = object.expectedSize ?? 0;
     return message;
   },
 };

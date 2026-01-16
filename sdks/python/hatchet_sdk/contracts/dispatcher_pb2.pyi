@@ -22,6 +22,7 @@ class ActionType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     START_STEP_RUN: _ClassVar[ActionType]
     CANCEL_STEP_RUN: _ClassVar[ActionType]
     START_GET_GROUP_KEY: _ClassVar[ActionType]
+    START_BATCH: _ClassVar[ActionType]
 
 class GroupKeyActionEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -64,6 +65,7 @@ TYPESCRIPT: SDKS
 START_STEP_RUN: ActionType
 CANCEL_STEP_RUN: ActionType
 START_GET_GROUP_KEY: ActionType
+START_BATCH: ActionType
 GROUP_KEY_EVENT_TYPE_UNKNOWN: GroupKeyActionEventType
 GROUP_KEY_EVENT_TYPE_STARTED: GroupKeyActionEventType
 GROUP_KEY_EVENT_TYPE_COMPLETED: GroupKeyActionEventType
@@ -166,7 +168,7 @@ class UpsertWorkerLabelsResponse(_message.Message):
     def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ...) -> None: ...
 
 class AssignedAction(_message.Message):
-    __slots__ = ("tenantId", "workflowRunId", "getGroupKeyRunId", "jobId", "jobName", "jobRunId", "stepId", "stepRunId", "actionId", "actionType", "actionPayload", "stepName", "retryCount", "additional_metadata", "child_workflow_index", "child_workflow_key", "parent_workflow_run_id", "priority", "workflowId", "workflowVersionId")
+    __slots__ = ("tenantId", "workflowRunId", "getGroupKeyRunId", "jobId", "jobName", "jobRunId", "stepId", "stepRunId", "actionId", "actionType", "actionPayload", "stepName", "retryCount", "additional_metadata", "child_workflow_index", "child_workflow_key", "parent_workflow_run_id", "priority", "workflowId", "workflowVersionId", "batchId", "batchSize", "batchIndex", "batchStart", "batchKey")
     TENANTID_FIELD_NUMBER: _ClassVar[int]
     WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
     GETGROUPKEYRUNID_FIELD_NUMBER: _ClassVar[int]
@@ -187,6 +189,11 @@ class AssignedAction(_message.Message):
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
     WORKFLOWID_FIELD_NUMBER: _ClassVar[int]
     WORKFLOWVERSIONID_FIELD_NUMBER: _ClassVar[int]
+    BATCHID_FIELD_NUMBER: _ClassVar[int]
+    BATCHSIZE_FIELD_NUMBER: _ClassVar[int]
+    BATCHINDEX_FIELD_NUMBER: _ClassVar[int]
+    BATCHSTART_FIELD_NUMBER: _ClassVar[int]
+    BATCHKEY_FIELD_NUMBER: _ClassVar[int]
     tenantId: str
     workflowRunId: str
     getGroupKeyRunId: str
@@ -207,7 +214,22 @@ class AssignedAction(_message.Message):
     priority: int
     workflowId: str
     workflowVersionId: str
-    def __init__(self, tenantId: _Optional[str] = ..., workflowRunId: _Optional[str] = ..., getGroupKeyRunId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobName: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., actionType: _Optional[_Union[ActionType, str]] = ..., actionPayload: _Optional[str] = ..., stepName: _Optional[str] = ..., retryCount: _Optional[int] = ..., additional_metadata: _Optional[str] = ..., child_workflow_index: _Optional[int] = ..., child_workflow_key: _Optional[str] = ..., parent_workflow_run_id: _Optional[str] = ..., priority: _Optional[int] = ..., workflowId: _Optional[str] = ..., workflowVersionId: _Optional[str] = ...) -> None: ...
+    batchId: str
+    batchSize: int
+    batchIndex: int
+    batchStart: BatchStartPayload
+    batchKey: str
+    def __init__(self, tenantId: _Optional[str] = ..., workflowRunId: _Optional[str] = ..., getGroupKeyRunId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobName: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., actionType: _Optional[_Union[ActionType, str]] = ..., actionPayload: _Optional[str] = ..., stepName: _Optional[str] = ..., retryCount: _Optional[int] = ..., additional_metadata: _Optional[str] = ..., child_workflow_index: _Optional[int] = ..., child_workflow_key: _Optional[str] = ..., parent_workflow_run_id: _Optional[str] = ..., priority: _Optional[int] = ..., workflowId: _Optional[str] = ..., workflowVersionId: _Optional[str] = ..., batchId: _Optional[str] = ..., batchSize: _Optional[int] = ..., batchIndex: _Optional[int] = ..., batchStart: _Optional[_Union[BatchStartPayload, _Mapping]] = ..., batchKey: _Optional[str] = ...) -> None: ...
+
+class BatchStartPayload(_message.Message):
+    __slots__ = ("triggerReason", "triggerTime", "expectedSize")
+    TRIGGERREASON_FIELD_NUMBER: _ClassVar[int]
+    TRIGGERTIME_FIELD_NUMBER: _ClassVar[int]
+    EXPECTEDSIZE_FIELD_NUMBER: _ClassVar[int]
+    triggerReason: str
+    triggerTime: _timestamp_pb2.Timestamp
+    expectedSize: int
+    def __init__(self, triggerReason: _Optional[str] = ..., triggerTime: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., expectedSize: _Optional[int] = ...) -> None: ...
 
 class WorkerListenRequest(_message.Message):
     __slots__ = ("workerId",)

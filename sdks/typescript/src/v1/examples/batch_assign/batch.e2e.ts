@@ -1,0 +1,205 @@
+import { randomUUID } from 'crypto';
+import sleep from '@hatchet/util/sleep';
+import { hatchet } from '../hatchet-client';
+import { Worker } from '../../client/worker/worker';
+import type { Duration } from '../../client/duration';
+import type { Context } from '../../client/worker/context';
+import type { JsonObject } from '../../types';
+
+xdescribe('batch-task e2e', () => {
+  jest.setTimeout(60000);
+
+  let worker: Worker;
+  const workflowName = `batch-e2e-${randomUUID()}`;
+
+  const batchWorkflow = hatchet.batchTask({
+    name: workflowName,
+    retries: 0,
+    batchMaxSize: 3,
+    batchMaxInterval: '200ms',
+    fn: (tasks: Array<readonly [{ Message: string }, Context<{ Message: string }>]>) =>
+      tasks.map(([input]) => ({
+        TransformedMessage: input.Message.toUpperCase(),
+      })),
+  });
+
+  const createAndRegisterBatchWorkflow = async <
+    I extends JsonObject,
+    O extends JsonObject,
+  >(config: {
+    fn: (tasks: Array<readonly [I, Context<I>]>) => O[] | Promise<O[]>;
+    batchMaxSize: number;
+    batchMaxInterval?: Duration;
+    batchGroupKey?: string;
+    batchGroupMaxRuns?: number;
+    name?: string;
+    retries?: number;
+  }) => {
+    if (!worker) {
+      throw new Error('Worker not initialized');
+    }
+
+    const { fn, batchMaxSize, batchMaxInterval, batchGroupKey, batchGroupMaxRuns, name, retries } =
+      config;
+
+    const workflow = hatchet.batchTask<I, O>({
+      name: name ?? `batch-e2e-${randomUUID()}`,
+      retries: retries ?? 0,
+      batchMaxSize,
+      batchMaxInterval,
+      batchGroupKey,
+      batchGroupMaxRuns,
+      fn,
+    });
+
+    await worker.registerWorkflow(workflow);
+    await sleep(200);
+
+    return workflow;
+  };
+
+  beforeAll(async () => {
+    worker = await hatchet.worker(`batch-e2e-worker-${randomUUID()}`, {
+      workflows: [batchWorkflow],
+      slots: 25,
+    });
+
+    await worker.registerWorkflow(batchWorkflow);
+    void worker.start();
+    await sleep(2000);
+  });
+
+  afterAll(async () => {
+    await worker.stop();
+    await sleep(2000);
+  });
+
+  it('flushes when batch size is reached', async () => {
+    const inputs = ['alpha', 'bravo', 'charlie'];
+
+    const results = await Promise.all(
+      inputs.map((message) =>
+        batchWorkflow.run({
+          Message: message,
+        })
+      )
+    );
+
+    expect(results).toHaveLength(3);
+    expect(results.map((result) => result.TransformedMessage)).toEqual(
+      inputs.map((value) => value.toUpperCase())
+    );
+  });
+
+  it('flushes when fewer items are buffered than the batch size', async () => {
+    const inputs = ['delta', 'echo'];
+
+    const promises = inputs.map((Message) =>
+      batchWorkflow.run({
+        Message,
+      })
+    );
+
+    await sleep(500);
+
+    const results = await Promise.all(promises);
+    expect(results.map((result) => result.TransformedMessage)).toEqual(
+      inputs.map((value) => value.toUpperCase())
+    );
+  });
+
+  it('partitions batches by key when batch size is reached', async () => {
+    const keyedWorkflow = await createAndRegisterBatchWorkflow({
+      batchMaxSize: 2,
+      batchMaxInterval: '200ms',
+      batchGroupKey: 'input.group',
+      fn: (
+        tasks: Array<
+          readonly [{ Message: string; group: string }, Context<{ Message: string; group: string }>]
+        >
+      ) =>
+        tasks.map(([input]) => ({
+          batchKey: input.group,
+          batchSize: tasks.length,
+          uniqueKeys: new Set(tasks.map(([item]) => item.group)).size,
+          uppercase: input.Message.toUpperCase(),
+        })),
+    });
+
+    const inputs: Array<{ Message: string; group: string }> = [
+      { Message: 'alpha', group: 'tenant-1' },
+      { Message: 'bravo', group: 'tenant-1' },
+      { Message: 'charlie', group: 'tenant-2' },
+      { Message: 'delta', group: 'tenant-2' },
+    ];
+
+    const results = await Promise.all(inputs.map((input) => keyedWorkflow.run(input)));
+
+    expect(results).toHaveLength(inputs.length);
+    results.forEach((result, index) => {
+      expect(result.batchKey).toBe(inputs[index].group);
+      expect(result.batchSize).toBe(2);
+      expect(result.uniqueKeys).toBe(1);
+      expect(result.uppercase).toBe(inputs[index].Message.toUpperCase());
+    });
+  });
+
+  it('flushes keyed batches independently when flush interval elapses', async () => {
+    const keyedWorkflow = await createAndRegisterBatchWorkflow({
+      batchMaxSize: 3,
+      batchMaxInterval: '150ms',
+      batchGroupKey: 'input.group',
+      fn: (
+        tasks: Array<
+          readonly [{ Message: string; group: string }, Context<{ Message: string; group: string }>]
+        >
+      ) =>
+        tasks.map(([input]) => ({
+          batchKey: input.group,
+          batchSize: tasks.length,
+          uniqueKeys: new Set(tasks.map(([item]) => item.group)).size,
+          payload: input.Message,
+        })),
+    });
+
+    const inputs: Array<{ Message: string; group: string }> = [
+      { Message: 'echo', group: 'tenant-1' },
+      { Message: 'foxtrot', group: 'tenant-1' },
+      { Message: 'golf', group: 'tenant-1' },
+      { Message: 'hotel', group: 'tenant-2' },
+    ];
+
+    const results = await Promise.all(inputs.map((input) => keyedWorkflow.run(input)));
+
+    expect(results.map((result) => result.batchKey)).toEqual(inputs.map((input) => input.group));
+    expect(results.slice(0, 3).every((result) => result.batchSize === 3)).toBe(true);
+    expect(results[3].batchSize).toBe(1);
+    expect(results.every((result) => result.uniqueKeys === 1)).toBe(true);
+    expect(results[3].payload).toBe('hotel');
+  });
+
+  it('handles batch size of one without keys', async () => {
+    const singleItemWorkflow = await createAndRegisterBatchWorkflow({
+      batchMaxSize: 1,
+      batchMaxInterval: '100ms',
+      fn: (tasks: Array<readonly [{ Message: string }, Context<{ Message: string }>]>) =>
+        tasks.map(([input]) => ({
+          original: input.Message,
+          batchSize: tasks.length,
+        })),
+    });
+
+    const inputs = ['india', 'juliet'];
+
+    const results = await Promise.all(
+      inputs.map((Message) =>
+        singleItemWorkflow.run({
+          Message,
+        })
+      )
+    );
+
+    expect(results.map((result) => result.batchSize)).toEqual([1, 1]);
+    expect(results.map((result) => result.original)).toEqual(inputs);
+  });
+});

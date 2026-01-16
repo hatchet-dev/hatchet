@@ -1,10 +1,12 @@
 package dispatcher
 
 import (
+	"context"
 	"sync"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type subscribedWorker struct {
@@ -44,4 +46,18 @@ func newSubscribedWorker(
 		maxBacklogSize: maxBacklogSize,
 		pubBuffer:      pubBuffer,
 	}
+}
+
+// TODO looks like alexander removed these local methods...
+func (worker *subscribedWorker) StartBatch(
+	ctx context.Context,
+	action *contracts.AssignedAction,
+) error {
+	_, span := telemetry.NewSpan(ctx, "start-batch")
+	defer span.End()
+
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
+
+	return worker.stream.Send(action)
 }

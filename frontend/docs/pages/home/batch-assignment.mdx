@@ -1,0 +1,121 @@
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import UniversalTabs from "@/components/UniversalTabs";
+import { Callout, Tabs } from "nextra/components";
+
+# Batch Assignment (Beta)
+
+<Callout type="info">
+  Batch assignment is currently in beta. Expect rapid iteration on the data
+  model, APIs, and UI while we gather feedback.
+</Callout>
+
+Batch assignment lets Hatchet buffer individual task invocations and flush them
+as configurable batches for a worker to process together. This is ideal when
+workloads benefit from shared setup (e.g. vectorized work with shared memory,
+batched external API calls, or upstream rate limits that prefer grouped
+delivery). Hatchet batches per **step** and **batch key**, then assigns a flushed
+batch to a single worker.
+
+## Configuring a batched task
+
+To enable batching for a step, set its **batch configuration** (via workflow
+definitions/manifests or SDK helpers). The current fields are:
+
+- `batch_max_size` (required): the maximum number of items to flush at once. Must be
+  at least `1`.
+- `batch_max_interval` (optional): the maximum time (in milliseconds) an item can
+  wait before a flush is triggered. This timer starts when the **first** item for a
+  given batch arrives; if fewer than `batch_max_size` items arrive before the interval
+  elapses, Hatchet may flush a smaller batch. **Defaults to `1000`.**
+- `batch_group_key` (optional): a CEL expression that groups tasks into logical
+  batches. Tasks with different keys are always processed separately. **Defaults
+  to `'default'`.**
+- `batch_group_max_runs` (optional): the maximum number of concurrently running batches per
+  key. Additional batches wait for an earlier batch with the same key to finish.
+  **Defaults to `100`.**
+
+`batch_max_size` controls throughput; `batch_max_interval` bounds latency for
+sporadic traffic; `batch_group_key` controls partitioning; `batch_group_max_runs` bounds batch
+concurrency per key.
+
+## Supplying a batch key
+
+The batch key expression runs with the same CEL context used by other Hatchet
+features. It can reference `input`, `additionalMetadata`, `workflowRunId`, and
+parent trigger data. The expression must evaluate to a **string**; Hatchet
+trims whitespace. An empty/whitespace result falls back to the default key
+(`'default'`).
+
+```cel
+// group by tenant and logical bucket
+input.customerId + ":" + string(additionalMetadata.bucket)
+```
+
+If the expression fails to evaluate or produces an unsupported type, Hatchet
+rejects task creation to keep buffering logic predictable. Use CEL tooling
+locally to validate expressions before deploying.
+
+### Group key behavior (example)
+
+Given items arriving with group keys: `A, A, B, A, A, B, B, B, C, C, C`, and:
+
+- `batch_max_size = 3`
+- `batch_group_key = tenant_id` (values `A`, `B`, `C`)
+- `batch_group_max_runs = 2`
+
+Hatchet will never mix keys inside a batch. Batches might flush like:
+
+- Group `A`: `A, A, A`, then `A, A`
+- Group `B`: `B, B, B`, then `B, B`
+- Group `C`: `C, C, C`
+
+## Worker execution model
+
+Workers that opt into batchable tasks receive **multiple task invocations at once**.
+SDK helpers (for example, `hatchet.batchTask` in the TypeScript SDK) invoke your handler
+with a single `tasks` array, where each element is a tuple of the task's `(input, context)`.
+
+This “zipped” shape avoids parallel arrays (`inputs[]` + `contexts[]`) and keeps the mental model simple:
+**a batch is just a list of normal tasks that happen to be executed together**, each with its usual context.
+
+Items continue to respect per-task retry policies; batching changes how tasks are _delivered_, not how they’re retried.
+
+### SDK example
+
+<UniversalTabs items={["Typescript", "Python"]}>
+  <Tabs.Tab title="Typescript">
+    <Snippet src={snippets.typescript.batch_assign.task.declaring_a_task} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.batch_task.worker.declaring_a_batched_task} />
+  </Tabs.Tab>
+</UniversalTabs>
+
+When a batch flushes, Hatchet records `batchId`, `batchMaxSize`, `batchIndex`, and
+`batchGroupKey` on each task’s runtime metadata. This is available via the API (and
+SDK contexts) so you can trace which invocations ran together.
+
+## Observability and lifecycle
+
+Hatchet emits dedicated events while tasks wait for a batch (`WAITING_FOR_BATCH`
+and `BATCH_BUFFERED`) and once a flush is triggered (`BATCH_FLUSHED`). These
+events surface in the run timeline on the dashboard. `BATCH_FLUSHED` includes a
+reason (for example `batch_size_reached` or `interval_elapsed`).
+
+Batch runs are reference counted inside the repository. When all tasks in a
+batch complete (successfully or by cancellation), Hatchet automatically releases
+the batch reservation, allowing queued tasks with the same key to start building
+the next batch.
+
+## Behavior and beta notes
+
+Batch assignment is **beta** and will iterate. We intend to keep the first positional parameter stable
+(`tasks` as `(input, context)` tuples), but helper methods and ergonomics may evolve.
+
+## Notes on evaluation order
+
+Concurrency, rate limiting, sticky assignment, manual slot releases, and other
+advanced features continue to work alongside batching. Hatchet evaluates task
+configuration first; when tasks are eligible to be scheduled, they are buffered
+and flushed per **batch key**.

@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator
 from datetime import datetime, timedelta, timezone
 from random import choice
 from subprocess import Popen
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from uuid import uuid4
 
 import pytest
@@ -80,23 +80,22 @@ async def test_priority(
     choices: list[Priority] = ["low", "medium", "high", "default"]
     N = 30
 
-    run_refs = await priority_workflow.aio_run_many_no_wait(
-        [
-            priority_workflow.create_bulk_run_item(
-                options=TriggerWorkflowOptions(
-                    priority=(priority_to_int(pr)),
-                    additional_metadata={
-                        "priority": pr,
-                        "key": ix,
-                        "test_run_id": test_run_id,
-                    },
-                )
+    items = [
+        priority_workflow.create_bulk_run_item(
+            options=TriggerWorkflowOptions(
+                priority=priority_to_int(pr),
+                additional_metadata={
+                    "priority": pr,
+                    "key": ix,
+                    "test_run_id": test_run_id,
+                },
             )
-            for ix in range(N)
-            for pr in [choice(choices)]
-        ]
-    )
+        )
+        for ix in range(N)
+        for pr in [choice(choices)]
+    ]
 
+    run_refs = await priority_workflow.aio_run_many_no_wait(items)
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
     workflows = (
@@ -169,23 +168,23 @@ async def test_priority_via_scheduling(
     choices: list[Priority] = ["low", "medium", "high", "default"]
     run_at = datetime.now(tz=timezone.utc) + timedelta(seconds=sleep_time)
 
-    versions = await asyncio.gather(
-        *[
-            priority_workflow.aio_schedule(
-                run_at=run_at,
-                options=ScheduleTriggerWorkflowOptions(
-                    priority=(priority_to_int(pr)),
-                    additional_metadata={
-                        "priority": pr,
-                        "key": ix,
-                        "test_run_id": test_run_id,
-                    },
-                ),
-            )
-            for ix in range(n)
-            for pr in [choice(choices)]
-        ]
-    )
+    schedule_tasks = [
+        priority_workflow.aio_schedule(
+            run_at=run_at,
+            options=ScheduleTriggerWorkflowOptions(
+                priority=priority_to_int(pr),
+                additional_metadata={
+                    "priority": pr,
+                    "key": ix,
+                    "test_run_id": test_run_id,
+                },
+            ),
+        )
+        for ix in range(n)
+        for pr in [choice(choices)]
+    ]
+
+    versions = await asyncio.gather(*schedule_tasks)
 
     await asyncio.sleep(sleep_time * 2)
 

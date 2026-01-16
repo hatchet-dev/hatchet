@@ -18,6 +18,9 @@ import {
   CreateOnSuccessTaskOpts,
   Concurrency,
   DurableTaskFn,
+  BatchTaskConfig,
+  BatchTaskFn,
+  BatchTaskItem,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -141,6 +144,18 @@ export type CreateTaskWorkflowOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
 > = CreateBaseWorkflowOpts & CreateBaseTaskOpts<I, O, TaskFn<I, O>>;
+
+export type CreateBatchTaskWorkflowOpts<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+> = CreateBaseWorkflowOpts &
+  Omit<CreateWorkflowTaskOpts<I, O>, 'fn'> & {
+    fn: BatchTaskFn<I, O>;
+    batchMaxSize: number;
+    batchMaxInterval?: Duration;
+    batchGroupKey?: string;
+    batchGroupMaxRuns?: number;
+  };
 
 export type CreateDurableTaskWorkflowOpts<
   I extends InputType = UnknownInputType,
@@ -569,6 +584,66 @@ export class WorkflowDeclaration<
   O extends OutputType = void,
 > extends BaseWorkflowDeclaration<I, O> {
   /**
+   * Adds a batched task to the workflow.
+   *
+   * Batched tasks buffer individual executions until the configured batch size is reached
+   * (or the optional flush interval elapses), then invoke the handler with a single `tasks` array where
+   * each item is a tuple of `(input, ctx)`.
+   *
+   * This mirrors `hatchet.batchTask(...)`, but binds the task to this workflow DAG.
+   */
+  batchTask<
+    Name extends string,
+    Fn extends Name extends keyof O
+      ? (
+          tasks: BatchTaskItem<I>[]
+        ) => O[Name] extends OutputType ? O[Name][] | Promise<O[Name][]> : void
+      : (tasks: BatchTaskItem<I>[]) => void,
+    FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
+    TO extends OutputType = Name extends keyof O
+      ? O[Name] extends OutputType
+        ? O[Name]
+        : never
+      : FnReturn extends OutputType[]
+        ? FnReturn[number]
+        : never,
+  >(
+    options:
+      | (Omit<CreateBatchTaskWorkflowOpts<I, TO>, 'fn'> & {
+          name: Name;
+          fn: BatchTaskFn<I, TO>;
+        })
+      | TaskWorkflowDeclaration<I, TO>
+  ): CreateWorkflowTaskOpts<I, TO> {
+    let typedOptions: CreateWorkflowTaskOpts<I, TO>;
+
+    if (options instanceof TaskWorkflowDeclaration) {
+      typedOptions = options.taskDef;
+    } else {
+      const { fn, batchMaxSize, batchMaxInterval, batchGroupKey, batchGroupMaxRuns, ...rest } =
+        options;
+
+      if (!Number.isFinite(batchMaxSize) || batchMaxSize <= 0 || !Number.isInteger(batchMaxSize)) {
+        throw new Error(`batchMaxSize must be a positive integer, received '${batchMaxSize}'`);
+      }
+
+      typedOptions = {
+        ...(rest as any),
+        batch: {
+          fn,
+          batchMaxSize,
+          batchMaxInterval,
+          batchGroupKey,
+          batchGroupMaxRuns,
+        },
+      } as CreateWorkflowTaskOpts<I, TO> & { batch: BatchTaskConfig<I, TO> };
+    }
+
+    this.definition._tasks.push(typedOptions);
+    return typedOptions;
+  }
+
+  /**
    * Adds a task to the workflow.
    * The return type will be either the property on O that corresponds to the task name,
    * or if there is no matching property, the inferred return type of the function.
@@ -792,6 +867,46 @@ export function CreateTaskWorkflow<
   client?: IHatchetClient
 ): TaskWorkflowDeclaration<I, O> {
   return new TaskWorkflowDeclaration<I, O>(options as any, client);
+}
+
+/**
+ * Creates a new batched task workflow declaration. Batched tasks buffer individual task executions
+ * until the configured batch size is met or the optional flush interval elapses, then invoke the
+ * provided batch handler with all pending items as `(input, ctx)` tuples.
+ * @template I The input type for each task invocation.
+ * @template O The output type for each task invocation.
+ * @param options The batch task configuration options.
+ * @param client Optional Hatchet client instance.
+ * @returns A TaskWorkflowDeclaration configured for batched execution.
+ */
+export function CreateBatchTaskWorkflow<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+>(
+  options: CreateBatchTaskWorkflowOpts<I, O>,
+  client?: IHatchetClient
+): TaskWorkflowDeclaration<I, O> {
+  const { fn, batchMaxSize, batchMaxInterval, batchGroupKey, batchGroupMaxRuns, ...rest } = options;
+
+  if (!Number.isFinite(batchMaxSize) || batchMaxSize <= 0 || !Number.isInteger(batchMaxSize)) {
+    throw new Error(`batchMaxSize must be a positive integer, received '${batchMaxSize}'`);
+  }
+
+  const taskOptions = {
+    ...rest,
+    batch: {
+      fn,
+      batchMaxSize,
+      batchMaxInterval,
+      batchGroupKey,
+      batchGroupMaxRuns,
+    },
+  } as CreateWorkflowTaskOpts<I, O> & { batch: BatchTaskConfig<I, O> };
+
+  return new TaskWorkflowDeclaration<I, O>(
+    taskOptions as unknown as CreateTaskWorkflowOpts<I, O>,
+    client
+  );
 }
 
 /**

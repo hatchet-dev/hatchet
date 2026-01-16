@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"time"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -82,5 +84,34 @@ func NotifyTaskCreated(tenantId string, tasks []*v1.V1TaskWithPayload) (*msgqueu
 }
 
 type TaskAssignedBulkTaskPayload struct {
-	WorkerIdToTaskIds map[string][]int64 `json:"worker_id_to_task_id" validate:"required"`
+	WorkerBatches map[string][]TaskAssignedBatch `json:"worker_batches" validate:"required"`
+}
+
+type TaskAssignedBatch struct {
+	BatchID    string                 `json:"batch_id"`
+	BatchSize  int                    `json:"batch_size"`
+	TaskIds    []int64                `json:"task_ids"`
+	StartBatch *StartBatchTaskPayload `json:"start_batch,omitempty"`
+}
+
+type StartBatchTaskPayload struct {
+	TenantId      string    `json:"tenant_id" validate:"required"`
+	WorkerId      string    `json:"worker_id" validate:"required"`
+	ActionId      string    `json:"action_id" validate:"required"`
+	BatchId       string    `json:"batch_id" validate:"required"`
+	ExpectedSize  int       `json:"expected_size" validate:"required"`
+	BatchKey      string    `json:"batch_key,omitempty"`
+	MaxRuns       *int      `json:"max_runs,omitempty"`
+	TriggerReason string    `json:"trigger_reason,omitempty"`
+	TriggerTime   time.Time `json:"trigger_time" validate:"required"`
+}
+
+func StartBatchMessage(tenantId string, payload StartBatchTaskPayload) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		"batch-start",
+		false,
+		true,
+		payload,
+	)
 }

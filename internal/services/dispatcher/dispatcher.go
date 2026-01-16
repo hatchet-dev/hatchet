@@ -362,6 +362,8 @@ func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Messag
 		err = d.a.WrapErr(d.handleTaskBulkAssignedTask(ctx, task), map[string]interface{}{})
 	case "task-cancelled":
 		err = d.a.WrapErr(d.handleTaskCancelled(ctx, task), map[string]interface{}{})
+	case "batch-start":
+		err = d.a.WrapErr(d.handleBatchStartTask(ctx, task), map[string]interface{}{})
 	default:
 		err = fmt.Errorf("unknown task: %s", task.ID)
 	}
