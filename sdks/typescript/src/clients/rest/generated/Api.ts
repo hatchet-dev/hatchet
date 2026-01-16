@@ -11,12 +11,11 @@
  */
 
 import {
-  AcceptInviteRequest,
   APIError,
   APIErrors,
   APIMeta,
+  AcceptInviteRequest,
   BulkCreateEventRequest,
-  BulkCreateEventResponse,
   CancelEventRequest,
   CreateAPITokenRequest,
   CreateAPITokenResponse,
@@ -37,10 +36,11 @@ import {
   EventOrderByDirection,
   EventOrderByField,
   EventSearch,
+  Events,
   ListAPIMetaIntegration,
   ListAPITokensResponse,
-  ListSlackWebhooks,
   ListSNSIntegrations,
+  ListSlackWebhooks,
   LogLineLevelField,
   LogLineList,
   LogLineOrderByDirection,
@@ -54,12 +54,16 @@ import {
   ReplayWorkflowRunsRequest,
   ReplayWorkflowRunsResponse,
   RerunStepRunRequest,
+  SNSIntegration,
+  ScheduleWorkflowRunRequest,
   ScheduledRunStatus,
   ScheduledWorkflows,
+  ScheduledWorkflowsBulkDeleteRequest,
+  ScheduledWorkflowsBulkDeleteResponse,
+  ScheduledWorkflowsBulkUpdateRequest,
+  ScheduledWorkflowsBulkUpdateResponse,
   ScheduledWorkflowsList,
   ScheduledWorkflowsOrderByField,
-  ScheduleWorkflowRunRequest,
-  SNSIntegration,
   StepRun,
   StepRunArchiveList,
   StepRunEventList,
@@ -77,6 +81,7 @@ import {
   TenantStepRunQueueMetrics,
   TriggerWorkflowRunRequest,
   UpdateCronWorkflowTriggerRequest,
+  UpdateScheduledWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
   UpdateTenantMemberRequest,
@@ -87,19 +92,20 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
-  V1CancelledTasks,
-  V1CancelTaskRequest,
   V1CELDebugRequest,
   V1CELDebugResponse,
+  V1CancelTaskRequest,
+  V1CancelledTasks,
   V1CreateFilterRequest,
   V1CreateWebhookRequest,
   V1DagChildren,
+  V1Event,
   V1EventList,
   V1Filter,
   V1FilterList,
   V1LogLineList,
-  V1ReplayedTasks,
   V1ReplayTaskRequest,
+  V1ReplayedTasks,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -116,8 +122,8 @@ import {
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
   V1WorkflowRunExternalIdList,
-  WebhookWorkerCreated,
   WebhookWorkerCreateRequest,
+  WebhookWorkerCreated,
   WebhookWorkerListResponse,
   WebhookWorkerRequestListResponse,
   Worker,
@@ -131,11 +137,11 @@ import {
   WorkflowRunList,
   WorkflowRunOrderByDirection,
   WorkflowRunOrderByField,
-  WorkflowRunsCancelRequest,
   WorkflowRunShape,
-  WorkflowRunsMetrics,
   WorkflowRunStatus,
   WorkflowRunStatusList,
+  WorkflowRunsCancelRequest,
+  WorkflowRunsMetrics,
   WorkflowUpdateRequest,
   WorkflowVersion,
   WorkflowWorkersCount,
@@ -701,6 +707,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/stable/tenants/${tenant}/events`,
       method: 'GET',
       query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get an event by its id
+   *
+   * @tags Event
+   * @name V1EventGet
+   * @summary Get events
+   * @request GET:/api/v1/stable/tenants/{tenant}/events/{v1-event}
+   * @secure
+   */
+  v1EventGet = (tenant: string, v1Event: string, params: RequestParams = {}) =>
+    this.request<V1Event, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/events/${v1Event}`,
+      method: 'GET',
       secure: true,
       format: 'json',
       ...params,
@@ -1828,7 +1851,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   eventCreateBulk = (tenant: string, data: BulkCreateEventRequest, params: RequestParams = {}) =>
-    this.request<BulkCreateEventResponse, APIErrors>({
+    this.request<Events, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events/bulk`,
       method: 'POST',
       body: data,
@@ -2006,6 +2029,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   eventDataGet = (event: string, params: RequestParams = {}) =>
     this.request<EventData, APIErrors>({
       path: `/api/v1/events/${event}/data`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get the data for an event.
+   *
+   * @tags Event
+   * @name EventDataGetWithTenant
+   * @summary Get event data
+   * @request GET:/api/v1/tenants/{tenant}/events/{event-with-tenant}/data
+   * @secure
+   */
+  eventDataGetWithTenant = (eventWithTenant: string, tenant: string, params: RequestParams = {}) =>
+    this.request<EventData, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/events/${eventWithTenant}/data`,
       method: 'GET',
       secure: true,
       format: 'json',
@@ -2193,6 +2233,76 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
       method: 'DELETE',
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Update (reschedule) a scheduled workflow run for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledUpdate
+   * @summary Update scheduled workflow run
+   * @request PATCH:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}
+   * @secure
+   */
+  workflowScheduledUpdate = (
+    tenant: string,
+    scheduledWorkflowRun: string,
+    data: UpdateScheduledWorkflowRunRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<ScheduledWorkflows, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
+      method: 'PATCH',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Bulk delete scheduled workflow runs for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledBulkDelete
+   * @summary Bulk delete scheduled workflow runs
+   * @request POST:/api/v1/tenants/{tenant}/workflows/scheduled/bulk-delete
+   * @secure
+   */
+  workflowScheduledBulkDelete = (
+    tenant: string,
+    data: ScheduledWorkflowsBulkDeleteRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<ScheduledWorkflowsBulkDeleteResponse, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/bulk-delete`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Bulk update (reschedule) scheduled workflow runs for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledBulkUpdate
+   * @summary Bulk update scheduled workflow runs
+   * @request POST:/api/v1/tenants/{tenant}/workflows/scheduled/bulk-update
+   * @secure
+   */
+  workflowScheduledBulkUpdate = (
+    tenant: string,
+    data: ScheduledWorkflowsBulkUpdateRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<ScheduledWorkflowsBulkUpdateResponse, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/bulk-update`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
       ...params,
     });
   /**
@@ -3129,7 +3239,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   tenantGetPrometheusMetrics = (tenant: string, params: RequestParams = {}) =>
-    this.request<EventSearch, APIErrors>({
+    this.request<EventKey, APIErrors>({
       path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
       method: 'GET',
       secure: true,

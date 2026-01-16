@@ -2,7 +2,6 @@ import {
   Outlet as TanStackOutlet,
   useLocation,
   useNavigate as useTanStackNavigate,
-  useRouter,
 } from '@tanstack/react-router';
 import type { NavigateOptions } from '@tanstack/react-router';
 import { createContext, useContext, useMemo } from 'react';
@@ -32,18 +31,14 @@ export function useSearchParams(): [
     init:
       | URLSearchParams
       | string
-      | Record<string, string | number | boolean | null | undefined>
+      | Record<string, unknown>
       | ((
           prev: URLSearchParams,
-        ) =>
-          | URLSearchParams
-          | string
-          | Record<string, string | number | boolean | null | undefined>),
+        ) => URLSearchParams | string | Record<string, unknown>),
     options?: SearchNavigateOptions,
   ) => void,
 ] {
   const location = useLocation();
-  const router = useRouter();
   const navigate = useTanStackNavigate();
 
   const searchParams = useMemo(
@@ -55,41 +50,71 @@ export function useSearchParams(): [
     init:
       | URLSearchParams
       | string
-      | Record<string, string | number | boolean | null | undefined>
+      | Record<string, unknown>
       | ((
           prev: URLSearchParams,
-        ) =>
-          | URLSearchParams
-          | string
-          | Record<string, string | number | boolean | null | undefined>),
+        ) => URLSearchParams | string | Record<string, unknown>),
     options?: SearchNavigateOptions,
   ) => {
     const prev = new URLSearchParams(location.searchStr ?? '');
     const resolved = typeof init === 'function' ? init(prev) : init;
 
-    let next: URLSearchParams;
+    let searchObject: Record<string, unknown>;
     if (resolved instanceof URLSearchParams) {
-      next = resolved;
-    } else if (typeof resolved === 'string') {
-      next = new URLSearchParams(resolved);
-    } else {
-      next = new URLSearchParams();
-      Object.entries(resolved || {}).forEach(([key, value]) => {
-        if (value === undefined || value === null) {
-          return;
+      searchObject = {};
+      resolved.forEach((value, key) => {
+        try {
+          searchObject[key] = JSON.parse(value);
+        } catch {
+          searchObject[key] = value;
         }
-        next.set(key, String(value));
+      });
+    } else if (typeof resolved === 'string') {
+      const params = new URLSearchParams(resolved);
+      searchObject = {};
+      params.forEach((value, key) => {
+        try {
+          searchObject[key] = JSON.parse(value);
+        } catch {
+          searchObject[key] = value;
+        }
+      });
+    } else {
+      searchObject = {};
+      Object.entries(resolved || {}).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          if (typeof value === 'string') {
+            try {
+              searchObject[key] = JSON.parse(value);
+            } catch {
+              searchObject[key] = value;
+            }
+          } else {
+            searchObject[key] = value;
+          }
+        }
       });
     }
 
-    const searchStr = next.toString();
     navigate({
-      to: router.state.location.pathname,
-      search: searchStr ? () => Object.fromEntries(next.entries()) : {},
+      to: location.pathname,
+      search: searchObject,
       replace: options?.replace,
       state: options?.state,
     });
   };
 
   return [searchParams, setSearchParams];
+}
+
+export function getOptionalStringParam(
+  params: unknown,
+  key: string,
+): string | undefined {
+  if (!params || typeof params !== 'object') {
+    return undefined;
+  }
+
+  const value = Reflect.get(params, key);
+  return typeof value === 'string' ? value : undefined;
 }

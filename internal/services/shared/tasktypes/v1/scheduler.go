@@ -1,9 +1,9 @@
 package v1
 
 import (
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type CheckTenantQueuesPayload struct {
@@ -40,7 +40,7 @@ func NotifyTaskReleased(tenantId string, tasks []*sqlcv1.ReleaseTasksRow) (*msgq
 
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"check-tenant-queue",
+		msgqueue.MsgIDCheckTenantQueue,
 		true,
 		false,
 		payload,
@@ -74,7 +74,7 @@ func NotifyTaskCreated(tenantId string, tasks []*v1.V1TaskWithPayload) (*msgqueu
 
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"check-tenant-queue",
+		msgqueue.MsgIDCheckTenantQueue,
 		true,
 		false,
 		payload,

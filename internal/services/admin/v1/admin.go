@@ -3,11 +3,10 @@ package v1
 import (
 	"fmt"
 
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -18,21 +17,19 @@ type AdminService interface {
 type AdminServiceImpl struct {
 	contracts.UnimplementedAdminServiceServer
 
-	entitlements repository.EntitlementsRepository
-	repo         v1.Repository
-	mq           msgqueue.MessageQueue
-	v            validator.Validator
-	analytics    analytics.Analytics
+	repo      v1.Repository
+	mq        msgqueue.MessageQueue
+	v         validator.Validator
+	analytics analytics.Analytics
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
 
 type AdminServiceOpts struct {
-	entitlements repository.EntitlementsRepository
-	repo         v1.Repository
-	mq           msgqueue.MessageQueue
-	v            validator.Validator
-	analytics    analytics.Analytics
+	repo      v1.Repository
+	mq        msgqueue.MessageQueue
+	v         validator.Validator
+	analytics analytics.Analytics
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
@@ -40,12 +37,6 @@ func defaultAdminServiceOpts() *AdminServiceOpts {
 
 	return &AdminServiceOpts{
 		v: v,
-	}
-}
-
-func WithEntitlementsRepository(r repository.EntitlementsRepository) AdminServiceOpt {
-	return func(opts *AdminServiceOpts) {
-		opts.entitlements = r
 	}
 }
 
@@ -88,15 +79,10 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
-	if opts.entitlements == nil {
-		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
-	}
-
 	return &AdminServiceImpl{
-		entitlements: opts.entitlements,
-		repo:         opts.repo,
-		mq:           opts.mq,
-		v:            opts.v,
-		analytics:    opts.analytics,
+		repo:      opts.repo,
+		mq:        opts.mq,
+		v:         opts.v,
+		analytics: opts.analytics,
 	}, nil
 }

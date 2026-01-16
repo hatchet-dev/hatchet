@@ -23,7 +23,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/cel"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1WebhookReceiveRequestObject) (gen.V1WebhookReceiveResponseObject, error) {
@@ -32,7 +32,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 
 	w.config.Logger.Debug().Str("webhook", webhookName).Str("tenant", tenantId).Str("method", ctx.Request().Method).Str("content_type", ctx.Request().Header.Get("Content-Type")).Msg("received webhook request")
 
-	tenant, err := w.config.APIRepository.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
+	tenant, err := w.config.V1.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
 
 	if err != nil || tenant == nil {
 		return gen.V1WebhookReceive400JSONResponse{
@@ -124,7 +124,8 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			 * See: https://api.slack.com/interactivity/slash-commands
 			 * For GENERIC webhooks, we convert all form fields directly to the payload map
 			 */
-			if webhook.SourceName == sqlcv1.V1IncomingWebhookSourceNameSLACK {
+			switch webhook.SourceName {
+			case sqlcv1.V1IncomingWebhookSourceNameSLACK:
 				payloadValue := formData.Get("payload")
 				if payloadValue != "" {
 					/* Interactive components: parse the payload parameter as JSON */
@@ -153,14 +154,14 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 						}
 					}
 				}
-			} else if webhook.SourceName == sqlcv1.V1IncomingWebhookSourceNameGENERIC {
+			case sqlcv1.V1IncomingWebhookSourceNameGENERIC:
 				/* For GENERIC webhooks, convert all form fields to the payload map */
 				for key, values := range formData {
 					if len(values) > 0 {
 						payloadMap[key] = values[0]
 					}
 				}
-			} else {
+			default:
 				/* For other webhook sources, form-encoded data is unexpected - return error */
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
@@ -210,11 +211,13 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 
 	if err != nil {
 		var errorMsg string
-		if strings.Contains(err.Error(), "did not evaluate to a string") {
+		errStr := err.Error()
+		switch {
+		case strings.Contains(errStr, "did not evaluate to a string"):
 			errorMsg = "Event key expression must evaluate to a string"
-		} else if eventKey == "" {
+		case eventKey == "":
 			errorMsg = "Event key evaluated to an empty string"
-		} else {
+		default:
 			errorMsg = "Failed to evaluate event key expression"
 		}
 

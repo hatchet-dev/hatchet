@@ -4,14 +4,12 @@ import (
 	"strings"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
-	uiVersion := gen.TenantUIVersion(tenant.UiVersion)
-
+func ToTenant(tenant *sqlcv1.Tenant) *gen.Tenant {
 	var environment *gen.TenantEnvironment
 	if tenant.Environment.Valid {
 		env := gen.TenantEnvironment(tenant.Environment.TenantEnvironment)
@@ -25,12 +23,11 @@ func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
 		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
 		AlertMemberEmails: &tenant.AlertMemberEmails,
 		Version:           gen.TenantVersion(tenant.Version),
-		UiVersion:         &uiVersion,
 		Environment:       environment,
 	}
 }
 
-func ToTenantAlertingSettings(alerting *dbsqlc.TenantAlertingSettings) *gen.TenantAlertingSettings {
+func ToTenantAlertingSettings(alerting *sqlcv1.TenantAlertingSettings) *gen.TenantAlertingSettings {
 	res := &gen.TenantAlertingSettings{
 		Metadata:                        *toAPIMetadata(sqlchelpers.UUIDToStr(alerting.ID), alerting.CreatedAt.Time, alerting.UpdatedAt.Time),
 		MaxAlertingFrequency:            alerting.MaxFrequency,
@@ -46,7 +43,7 @@ func ToTenantAlertingSettings(alerting *dbsqlc.TenantAlertingSettings) *gen.Tena
 	return res
 }
 
-func ToTenantAlertEmailGroup(group *dbsqlc.TenantAlertEmailGroup) *gen.TenantAlertEmailGroup {
+func ToTenantAlertEmailGroup(group *sqlcv1.TenantAlertEmailGroup) *gen.TenantAlertEmailGroup {
 	emails := strings.Split(group.Emails, ",")
 
 	return &gen.TenantAlertEmailGroup{
@@ -55,7 +52,7 @@ func ToTenantAlertEmailGroup(group *dbsqlc.TenantAlertEmailGroup) *gen.TenantAle
 	}
 }
 
-func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit) *gen.TenantResourcePolicy {
+func ToTenantResourcePolicy(_limits []*sqlcv1.TenantResourceLimit) *gen.TenantResourcePolicy {
 
 	limits := make([]gen.TenantResourceLimit, len(_limits))
 

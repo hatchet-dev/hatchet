@@ -23,12 +23,15 @@ import {
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
+import { shouldRetryQueryError } from '@/lib/error-utils';
 import { useApiError } from '@/lib/hooks';
 import { relativeDate } from '@/lib/utils';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
 import { useState } from 'react';
 import invariant from 'tiny-invariant';
 
@@ -47,6 +50,7 @@ export default function ExpandedWorkflow() {
   const workflowQuery = useQuery({
     ...queries.workflows.get(params.workflow),
     refetchInterval,
+    retry: (_failureCount, error) => shouldRetryQueryError(error),
   });
 
   const workflowVersionQuery = useQuery({
@@ -93,7 +97,33 @@ export default function ExpandedWorkflow() {
 
   const workflow = workflowQuery.data;
 
-  if (workflowQuery.isLoading || !workflow) {
+  if (workflowQuery.isLoading) {
+    return <Loading />;
+  }
+
+  if (workflowQuery.isError) {
+    if (
+      isAxiosError(workflowQuery.error) &&
+      workflowQuery.error.response?.status === 404
+    ) {
+      return (
+        <ResourceNotFound
+          resource="Workflow"
+          primaryAction={{
+            label: 'Back to Workflows',
+            navigate: {
+              to: appRoutes.tenantWorkflowsRoute.to,
+              params: { tenant: tenantId },
+            },
+          }}
+        />
+      );
+    }
+
+    throw workflowQuery.error;
+  }
+
+  if (!workflow) {
     return <Loading />;
   }
 
@@ -101,7 +131,7 @@ export default function ExpandedWorkflow() {
 
   return (
     <div className="flex h-full w-full flex-grow flex-col gap-y-4 overflow-hidden">
-      <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8">
+      <div className="flex-shrink-0 p-4">
         <div className="flex flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
             <Square3Stack3DIcon className="mt-1 h-6 w-6 text-foreground" />
@@ -206,10 +236,7 @@ export default function ExpandedWorkflow() {
           <TabsContent value="runs" className="min-h-0 flex-1">
             <RecentRunsList />
           </TabsContent>
-          <TabsContent
-            value="settings"
-            className="min-h-0 flex-1 overflow-y-auto pt-4"
-          >
+          <TabsContent value="settings" className="min-h-0 flex-1 pt-4 pb-8">
             {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
               <Loading />
             ) : (

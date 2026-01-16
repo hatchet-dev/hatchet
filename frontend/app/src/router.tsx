@@ -1,5 +1,8 @@
+import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
+import api, { queries } from '@/lib/api';
+import queryClient from '@/query-client';
 import {
   RouterProvider,
   createRootRoute,
@@ -10,12 +13,18 @@ import {
 } from '@tanstack/react-router';
 import { Outlet } from '@tanstack/react-router';
 import { FC } from 'react';
+import { validate } from 'uuid';
 
 const rootRoute = createRootRoute({
   component: Root,
   errorComponent: (props) => (
     <Root>
       <ErrorBoundary {...props} />
+    </Root>
+  ),
+  notFoundComponent: () => (
+    <Root>
+      <NotFound />
     </Root>
   ),
 });
@@ -30,7 +39,11 @@ const authRoute = createRoute({
     }
     return null;
   },
-  component: Outlet,
+  component: () => (
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden">
+      <Outlet />
+    </div>
+  ),
 });
 
 const authLoginRoute = createRoute({
@@ -83,6 +96,7 @@ const authenticatedRoute = createRoute({
     () => import('./pages/authenticated'),
     'default',
   ),
+  notFoundComponent: () => <NotFound />,
 });
 
 const onboardingCreateTenantRoute = createRoute({
@@ -130,7 +144,34 @@ const v1RedirectRoute = createRoute({
 const tenantRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'tenants/$tenant',
+  loader: async ({ params }) => {
+    // Ensure the tenant in the URL is one the user actually has access to.
+    // If not, throw a 403 so the global error boundary can show a friendly message.
+    const memberships = await queryClient.fetchQuery({
+      ...queries.user.listTenantMemberships,
+      retry: false,
+    });
+
+    const hasAccess = Boolean(
+      memberships?.rows?.some((m) => m.tenant?.metadata.id === params.tenant),
+    );
+
+    if (!hasAccess) {
+      throw new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
+    }
+
+    // Optionally warm the tenant details cache, since most tenant pages expect it.
+    // If this fails for any reason, let the error boundary handle it.
+    await queryClient.fetchQuery({
+      queryKey: ['tenant:get', params.tenant],
+      queryFn: async () => (await api.tenantGet(params.tenant)).data,
+      retry: false,
+    });
+
+    return null;
+  },
   component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
+  notFoundComponent: () => <NotFound />,
 });
 
 const tenantIndexRedirectRoute = createRoute({
@@ -419,6 +460,75 @@ const tenantTasksWorkflowRedirectRoute = createRoute({
   },
 });
 
+// redirects for alerting - redirect old non-tenanted routes to tenanted routes
+// super janky using `any` since this breaks the types otherwise, since the routes
+// that might be landed on don't actually exist anymore in the route tree
+const workflowRunRedirectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'workflow-runs/$run',
+  loader: ({ location, params }) => {
+    const tenantId: string | null | undefined =
+      (location.search as any)?.tenantId || (location.search as any)?.tenant;
+
+    const run: string | null | undefined = (params as any)?.run;
+
+    if (!tenantId || !run || !validate(run)) {
+      throw redirect({ to: appRoutes.authenticatedRoute.to });
+    }
+
+    throw redirect({
+      to: appRoutes.tenantRunRoute.to,
+      params: { tenant: tenantId, run },
+    });
+  },
+});
+
+const tenantSettingsRedirect = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'tenant-settings',
+  loader: ({ location }) => {
+    const tenantId: string | null | undefined =
+      (location.search as any)?.tenantId || (location.search as any)?.tenant;
+
+    if (!tenantId) {
+      throw redirect({ to: appRoutes.authenticatedRoute.to });
+    }
+
+    throw redirect({
+      to: appRoutes.tenantSettingsOverviewRoute.to,
+      params: { tenant: tenantId },
+    });
+  },
+});
+
+const tenantSettingsSubpathRedirect = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'tenant-settings/$',
+  loader: ({ params, location }) => {
+    const tenantId: string | null | undefined =
+      (location.search as any)?.tenantId || (location.search as any)?.tenant;
+
+    const subpath: string | null | undefined = (params as any)?._splat || '';
+    const allowedSubpaths = [
+      tenantSettingsAlertingRoute.path,
+      tenantSettingsApiTokensRoute.path,
+      tenantSettingsBillingRoute.path,
+      tenantSettingsGithubRoute.path,
+      tenantSettingsIngestorsRoute.path,
+      tenantSettingsMembersRoute.path,
+      tenantSettingsOverviewRoute.path,
+    ].map((p) => p.split('/').pop());
+
+    if (!tenantId || !subpath || !allowedSubpaths.includes(subpath)) {
+      throw redirect({ to: appRoutes.authenticatedRoute.to });
+    }
+
+    throw redirect({
+      to: `/tenants/${tenantId}/tenant-settings/${subpath}`,
+    } as any);
+  },
+});
+
 const tenantRoutes = [
   tenantEventsRoute,
   tenantFiltersRoute,
@@ -464,6 +574,9 @@ const routeTree = rootRoute.addChildren([
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
   ]),
   v1RedirectRoute,
+  workflowRunRedirectRoute,
+  tenantSettingsRedirect,
+  tenantSettingsSubpathRedirect,
 ]);
 
 export const router = createRouter({
@@ -520,6 +633,7 @@ export const appRoutes = {
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,
   tenantTasksWorkflowRedirectRoute,
+  workflowRunRedirectRoute,
 };
 
 const Router: FC = () => {

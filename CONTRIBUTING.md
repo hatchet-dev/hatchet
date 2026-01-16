@@ -126,13 +126,3 @@ Generate a service account in GCP which can encrypt/decrypt on CloudKMS, then do
 ```
 SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON='{...}'
 ```
-
-## Working with Database Models
-
-1. Create or modify the required SQL queries in `./pkg/repository/prisma/dbsqlc`
-2. Add new queries files to `./pkg/repository/prisma/dbsqlc/sqlc.yaml`
-3. Make schema changes in `./sql/schema/schema.sql`
-4. Create a new migration file with `task migrate`
-5. Rename the migration file in `./sql/migrations/` to match the latest tag.
-6. Generate Go with `task generate-all`
-7. Run `atlas migrate hash --dir "file://sql/migrations"` to generate the atlas hash.

@@ -1,17 +1,23 @@
-import { columns } from './components/resource-limit-columns';
+import {
+  limitDurationMap,
+  limitedResources,
+  LimitIndicator,
+} from './components/resource-limit-columns';
 import { Subscription } from '@/components/v1/cloud/billing';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { queries } from '@/lib/api';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { queries, TenantResourceLimit } from '@/lib/api';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
 
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { cloud, isCloudEnabled } = useCloud();
 
   const resourcePolicyQuery = useQuery({
     ...queries.tenantResourcePolicy.get(tenantId),
@@ -19,13 +25,57 @@ export default function ResourceLimits() {
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenantId),
-    enabled: !!tenantId && !!cloudMeta?.data.canBill,
-    retry: false,
+    enabled: isCloudEnabled && !!cloud?.canBill,
   });
 
-  const cols = columns();
+  const billingEnabled = isCloudEnabled && cloud?.canBill;
 
-  const billingEnabled = cloudMeta?.data.canBill;
+  const resourceLimits = resourcePolicyQuery.data?.limits || [];
+
+  const resourceLimitColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Resource',
+        cellRenderer: (limit: TenantResourceLimit) => (
+          <div className="flex flex-row items-center gap-4">
+            <LimitIndicator
+              value={limit.value}
+              alarmValue={limit.alarmValue}
+              limitValue={limit.limitValue}
+            />
+            {limitedResources[limit.resource]}
+          </div>
+        ),
+      },
+      {
+        columnLabel: 'Current Value',
+        cellRenderer: (limit: TenantResourceLimit) => limit.value,
+      },
+      {
+        columnLabel: 'Limit Value',
+        cellRenderer: (limit: TenantResourceLimit) => limit.limitValue,
+      },
+      {
+        columnLabel: 'Alarm Value',
+        cellRenderer: (limit: TenantResourceLimit) => limit.alarmValue || 'N/A',
+      },
+      {
+        columnLabel: 'Meter Window',
+        cellRenderer: (limit: TenantResourceLimit) =>
+          (limit.window || '-') in limitDurationMap
+            ? limitDurationMap[limit.window || '-']
+            : limit.window,
+      },
+      {
+        columnLabel: 'Last Refill',
+        cellRenderer: (limit: TenantResourceLimit) =>
+          !limit.window
+            ? 'N/A'
+            : limit.lastRefill && <RelativeDate date={limit.lastRefill} />,
+      },
+    ],
+    [],
+  );
 
   if (resourcePolicyQuery.isLoading || billingState.isLoading) {
     return (
@@ -65,12 +115,7 @@ export default function ResourceLimits() {
           if you need to adjust your limits.
         </p>
 
-        <DataTable
-          isLoading={resourcePolicyQuery.isLoading}
-          columns={cols}
-          data={resourcePolicyQuery.data?.limits || []}
-          getRowId={(row) => row.metadata.id}
-        />
+        <SimpleTable columns={resourceLimitColumns} data={resourceLimits} />
       </div>
     </div>
   );

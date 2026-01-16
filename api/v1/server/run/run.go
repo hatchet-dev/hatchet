@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -46,8 +45,8 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type apiService struct {
@@ -231,7 +230,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		tenant, err := config.APIRepository.Tenant().GetTenantByID(ctxTimeout, id)
+		tenant, err := config.V1.Tenant().GetTenantByID(ctxTimeout, id)
 
 		if err != nil {
 			return nil, "", err
@@ -244,7 +243,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		member, err := config.APIRepository.Tenant().GetTenantMemberByID(ctxTimeout, id)
+		member, err := config.V1.Tenant().GetTenantMemberByID(ctxTimeout, id)
 
 		if err != nil {
 			return nil, "", err
@@ -257,7 +256,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		apiToken, err := config.APIRepository.APIToken().GetAPITokenById(ctxTimeout, id)
+		apiToken, err := config.V1.APIToken().GetAPITokenById(ctxTimeout, id)
 
 		if err != nil {
 			return nil, "", err
@@ -277,7 +276,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		tenantInvite, err := config.APIRepository.TenantInvite().GetTenantInvite(timeoutCtx, id)
+		tenantInvite, err := config.V1.TenantInvite().GetTenantInvite(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
@@ -290,7 +289,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		slackWebhook, err := config.APIRepository.Slack().GetSlackWebhookById(timeoutCtx, id)
+		slackWebhook, err := config.V1.Slack().GetSlackWebhookById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
@@ -303,7 +302,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		emailGroup, err := config.APIRepository.TenantAlertingSettings().GetTenantAlertGroupById(timeoutCtx, id)
+		emailGroup, err := config.V1.TenantAlertingSettings().GetTenantAlertGroupById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
@@ -316,7 +315,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		snsIntegration, err := config.APIRepository.SNS().GetSNSIntegrationById(timeoutCtx, id)
+		snsIntegration, err := config.V1.SNS().GetSNSIntegrationById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
@@ -326,7 +325,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflow, err := config.APIRepository.Workflow().GetWorkflowById(context.Background(), id)
+		workflow, err := config.V1.Workflows().GetWorkflowById(context.Background(), id)
 
 		if err != nil {
 			return nil, "", err
@@ -336,17 +335,12 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflowRun, err := config.APIRepository.WorkflowRun().GetWorkflowRunById(context.Background(), parentId, id)
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.TenantId), nil
+		config.Logger.Error().Msgf("deprecated call to workflow-run with parent id %s and id %s: use 'v1-workflow-run' getter with parent tenant id", parentId, id)
+		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "This endpoint is deprecated.")
 	})
 
 	populatorMW.RegisterGetter("scheduled-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		scheduled, err := config.APIRepository.WorkflowRun().GetScheduledWorkflow(context.Background(), parentId, id)
+		scheduled, err := config.V1.WorkflowSchedules().GetScheduledWorkflow(context.Background(), parentId, id)
 
 		if err != nil {
 			return nil, "", err
@@ -360,7 +354,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("cron-workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		scheduled, err := config.APIRepository.Workflow().GetCronWorkflow(context.Background(), parentId, id)
+		scheduled, err := config.V1.WorkflowSchedules().GetCronWorkflow(context.Background(), parentId, id)
 
 		if err != nil {
 			return nil, "", err
@@ -374,48 +368,33 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		stepRun, err := config.APIRepository.StepRun().GetStepRunById(id)
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		if parentId != "" && sqlchelpers.UUIDToStr(stepRun.TenantId) != parentId {
-			return nil, "", fmt.Errorf("tenant id mismatch when populating step run")
-		}
-
-		return stepRun, sqlchelpers.UUIDToStr(stepRun.TenantId), nil
+		config.Logger.Error().Msgf("deprecated call to step-run with parent id %s and id %s: use 'v1-task' getter with parent tenant id", parentId, id)
+		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "This endpoint is deprecated.")
 	})
 
 	populatorMW.RegisterGetter("event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		event, err := config.APIRepository.Event().GetEventById(timeoutCtx, id)
+		v1Event, err := t.config.V1.OLAP().GetEvent(timeoutCtx, id)
 
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		if err != nil {
 			return nil, "", err
-		} else if errors.Is(err, pgx.ErrNoRows) {
-			v1Event, err := t.config.V1.OLAP().GetEvent(timeoutCtx, id)
+		}
 
-			if err != nil {
-				return nil, "", err
-			}
+		payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID.String(), v1Event.ExternalID)
 
-			payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID.String(), v1Event.ExternalID)
+		if err != nil {
+			return nil, "", err
+		}
 
-			if err != nil {
-				return nil, "", err
-			}
-
-			event = &dbsqlc.Event{
-				ID:                 v1Event.ExternalID,
-				TenantId:           v1Event.TenantID,
-				Data:               payload,
-				CreatedAt:          pgtype.Timestamp(v1Event.SeenAt),
-				AdditionalMetadata: v1Event.AdditionalMetadata,
-				Key:                v1Event.Key,
-			}
+		event := &sqlcv1.Event{
+			ID:                 v1Event.ExternalID,
+			TenantId:           v1Event.TenantID,
+			Data:               payload,
+			CreatedAt:          pgtype.Timestamp(v1Event.SeenAt),
+			AdditionalMetadata: v1Event.AdditionalMetadata,
+			Key:                v1Event.Key,
 		}
 
 		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
@@ -426,36 +405,26 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		event, err := config.APIRepository.Event().GetEventById(timeoutCtx, id)
+		v1Event, err := t.config.V1.OLAP().GetEventWithPayload(timeoutCtx, id, parentId)
 
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		if err != nil {
 			return nil, "", err
-		} else if errors.Is(err, pgx.ErrNoRows) {
-			v1Event, err := t.config.V1.OLAP().GetEventWithPayload(timeoutCtx, id, parentId)
-
-			if err != nil {
-				return nil, "", err
-			}
-
-			event = &dbsqlc.Event{
-				ID:                 v1Event.EventExternalID,
-				TenantId:           v1Event.TenantID,
-				Data:               v1Event.Payload,
-				CreatedAt:          pgtype.Timestamp(v1Event.EventSeenAt),
-				AdditionalMetadata: v1Event.EventAdditionalMetadata,
-				Key:                v1Event.EventKey,
-			}
 		}
 
-		if event == nil {
-			return nil, "", fmt.Errorf("event not found")
+		event := &sqlcv1.Event{
+			ID:                 v1Event.EventExternalID,
+			TenantId:           v1Event.TenantID,
+			Data:               v1Event.Payload,
+			CreatedAt:          pgtype.Timestamp(v1Event.EventSeenAt),
+			AdditionalMetadata: v1Event.EventAdditionalMetadata,
+			Key:                v1Event.EventKey,
 		}
 
 		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("worker", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		worker, err := config.APIRepository.Worker().GetWorkerById(id)
+		worker, err := config.V1.Workers().GetWorkerById(id)
 
 		if err != nil {
 			return nil, "", err
@@ -465,22 +434,21 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		webhookWorker, err := config.APIRepository.WebhookWorker().GetWebhookWorkerByID(timeoutCtx, id)
-		if err != nil {
-			return nil, "", err
-		}
-
-		return webhookWorker, sqlchelpers.UUIDToStr(webhookWorker.TenantId), nil
+		config.Logger.Error().Msgf("deprecated call to webhook with parent id %s and id %s: do not use", parentId, id)
+		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "This endpoint is deprecated.")
 	})
 
 	populatorMW.RegisterGetter("task", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		task, err := config.V1.OLAP().ReadTaskRun(ctx, id)
+		// Validate UUID early to avoid panics deeper in the stack.
+		var taskID pgtype.UUID
+		if err := taskID.Scan(id); err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid task id")
+		}
+
+		task, err := config.V1.OLAP().ReadTaskRun(ctx, sqlchelpers.UUIDToStr(taskID))
 
 		if err != nil {
 			return nil, "", err
@@ -494,7 +462,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("v1-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflowRun, err := t.config.V1.OLAP().ReadWorkflowRun(context.Background(), sqlchelpers.UUIDFromStr(id))
+		// Validate UUID early to avoid panics deeper in the stack.
+		var workflowRunID pgtype.UUID
+		if err := workflowRunID.Scan(id); err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid workflow run id")
+		}
+
+		workflowRun, err := t.config.V1.OLAP().ReadWorkflowRun(context.Background(), workflowRunID)
 
 		if err != nil {
 			return nil, "", err

@@ -3,8 +3,8 @@ package v1
 import (
 	"time"
 
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type UserEventTaskPayload struct {
@@ -20,7 +20,7 @@ type UserEventTaskPayload struct {
 func NewInternalEventMessage(tenantId string, timestamp time.Time, events ...v1.InternalTaskEvent) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"internal-event",
+		msgqueue.MsgIDInternalEvent,
 		false,
 		true,
 		events...,

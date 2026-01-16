@@ -2,17 +2,17 @@ name: go
 on:
   pull_request:
     paths:
-      - '.github/**'
-      - 'api/**'
-      - 'api-contracts/**'
-      - 'internal/**'
-      - 'pkg/**'
-      - 'sdks/go/**'
+      - ".github/**"
+      - "api/**"
+      - "api-contracts/**"
+      - "internal/**"
+      - "pkg/**"
+      - "sdks/go/**"
   push:
     branches:
       - main
     paths:
-      - 'sdks/go/**'
+      - "sdks/go/**"
 
 defaults:
   run:
@@ -27,7 +27,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: "1.25"
       - name: Compile Go SDK examples
         run: |
           # Find all directories with go.mod files

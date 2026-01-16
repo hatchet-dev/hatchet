@@ -26,6 +26,14 @@ class RateLimitDuration(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     MONTH: _ClassVar[RateLimitDuration]
     YEAR: _ClassVar[RateLimitDuration]
 
+class RunStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    QUEUED: _ClassVar[RunStatus]
+    RUNNING: _ClassVar[RunStatus]
+    COMPLETED: _ClassVar[RunStatus]
+    FAILED: _ClassVar[RunStatus]
+    CANCELLED: _ClassVar[RunStatus]
+
 class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     CANCEL_IN_PROGRESS: _ClassVar[ConcurrencyLimitStrategy]
@@ -51,6 +59,11 @@ DAY: RateLimitDuration
 WEEK: RateLimitDuration
 MONTH: RateLimitDuration
 YEAR: RateLimitDuration
+QUEUED: RunStatus
+RUNNING: RunStatus
+COMPLETED: RunStatus
+FAILED: RunStatus
+CANCELLED: RunStatus
 CANCEL_IN_PROGRESS: ConcurrencyLimitStrategy
 DROP_NEWEST: ConcurrencyLimitStrategy
 QUEUE_NEWEST: ConcurrencyLimitStrategy
@@ -247,3 +260,44 @@ class CreateWorkflowVersionResponse(_message.Message):
     id: str
     workflow_id: str
     def __init__(self, id: _Optional[str] = ..., workflow_id: _Optional[str] = ...) -> None: ...
+
+class GetRunDetailsRequest(_message.Message):
+    __slots__ = ("external_id",)
+    EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    external_id: str
+    def __init__(self, external_id: _Optional[str] = ...) -> None: ...
+
+class TaskRunDetail(_message.Message):
+    __slots__ = ("external_id", "status", "error", "output", "readable_id")
+    EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
+    OUTPUT_FIELD_NUMBER: _ClassVar[int]
+    READABLE_ID_FIELD_NUMBER: _ClassVar[int]
+    external_id: str
+    status: RunStatus
+    error: str
+    output: bytes
+    readable_id: str
+    def __init__(self, external_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., error: _Optional[str] = ..., output: _Optional[bytes] = ..., readable_id: _Optional[str] = ...) -> None: ...
+
+class GetRunDetailsResponse(_message.Message):
+    __slots__ = ("input", "status", "task_runs", "done", "additional_metadata")
+    class TaskRunsEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: TaskRunDetail
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[TaskRunDetail, _Mapping]] = ...) -> None: ...
+    INPUT_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    TASK_RUNS_FIELD_NUMBER: _ClassVar[int]
+    DONE_FIELD_NUMBER: _ClassVar[int]
+    ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
+    input: bytes
+    status: RunStatus
+    task_runs: _containers.MessageMap[str, TaskRunDetail]
+    done: bool
+    additional_metadata: bytes
+    def __init__(self, input: _Optional[bytes] = ..., status: _Optional[_Union[RunStatus, str]] = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ..., done: bool = ..., additional_metadata: _Optional[bytes] = ...) -> None: ...

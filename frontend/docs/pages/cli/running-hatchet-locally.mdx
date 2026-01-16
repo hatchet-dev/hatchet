@@ -1,0 +1,80 @@
+# Running Hatchet Locally
+
+The Hatchet CLI provides the `hatchet server` commands to run a local instance of Hatchet for development and testing purposes. This local instance relies on Docker to run the necessary services.
+
+## Prerequisites
+
+Before running Hatchet locally, you must have Docker installed on your machine. You can download Docker from [here](https://www.docker.com/get-started).
+
+## Starting Hatchet Locally
+
+To start a local instance of Hatchet, run the following command in your terminal:
+
+```sh
+hatchet server start
+```
+
+## Stopping Hatchet Locally
+
+To stop the local Hatchet instance, run the following command:
+
+```sh
+hatchet server stop
+```
+
+## Reference
+
+#### `hatchet server start`
+
+```txt
+Start a local Hatchet server environment using Docker containers. This command will start both a PostgreSQL database and a Hatchet server instance, automatically creating a local profile for easy access.
+
+Usage:
+  hatchet server start [flags]
+
+Examples:
+  # Start server with default settings (port 8888)
+  hatchet server start
+
+  # Start server with custom dashboard port
+  hatchet server start --dashboard-port 9000
+
+  # Start server with custom ports and project name
+  hatchet server start --dashboard-port 9000 --grpc-port 8077 --project-name my-hatchet
+
+  # Start server with custom profile name
+  hatchet server start --profile my-local
+
+Flags:
+  -d, --dashboard-port int    Port for the Hatchet dashboard (default: auto-detect starting at 8888)
+  -g, --grpc-port int         Port for the Hatchet gRPC server (default: auto-detect starting at 7077)
+  -h, --help                  help for start
+  -n, --profile string        Name for the local profile (default: local) (default "local")
+  -p, --project-name string   Docker project name for containers (default: hatchet-cli)
+
+Global Flags:
+  -v, --version   The version of the hatchet cli.
+```
+
+#### `hatchet server stop`
+
+```txt
+Stop a local Hatchet server environment that was started using Docker containers with the 'hatchet server start' command.
+
+Usage:
+  hatchet server stop [flags]
+
+Examples:
+  # Stop the local Hatchet server
+  hatchet server stop
+
+  # Stop the local Hatchet server with a custom project name
+  hatchet server stop --project-name my-hatchet
+
+Flags:
+  -h, --help                  help for stop
+  -p, --project-name string   Docker project name for containers (default: hatchet-cli)
+
+Global Flags:
+  -v, --version   The version of the hatchet cli.
+```

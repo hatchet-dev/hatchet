@@ -1,3 +1,4 @@
+import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
@@ -19,6 +20,7 @@ interface UserRegisterFormProps {
   className?: string;
   onSubmit: (opts: SubmitType) => void;
   isLoading: boolean;
+  errors?: string[];
   fieldErrors?: Record<string, string>;
 }
 
@@ -29,18 +31,27 @@ export function UserRegisterForm({
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isValid, touchedFields, submitCount },
   } = useForm<SubmitType>({
     resolver: zodResolver(schema),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
   });
 
-  const nameError = errors.name?.message?.toString() || props.fieldErrors?.name;
+  const nameError =
+    (touchedFields.name || submitCount > 0
+      ? errors.name?.message?.toString()
+      : undefined) || props.fieldErrors?.name;
 
   const emailError =
-    errors.email?.message?.toString() || props.fieldErrors?.email;
+    (touchedFields.email || submitCount > 0
+      ? errors.email?.message?.toString()
+      : undefined) || props.fieldErrors?.email;
 
   const passwordError =
-    errors.password?.message?.toString() || props.fieldErrors?.password;
+    (touchedFields.password || submitCount > 0
+      ? errors.password?.message?.toString()
+      : undefined) || props.fieldErrors?.password;
 
   return (
     <div className={cn('grid gap-6', className)}>
@@ -94,7 +105,12 @@ export function UserRegisterForm({
               <div className="text-sm text-red-500">{passwordError}</div>
             )}
           </div>
-          <Button disabled={props.isLoading}>
+          {props.errors && props.errors.length > 0 && (
+            <Alert variant="destructive">
+              <AlertDescription>{props.errors.join(' ')}</AlertDescription>
+            </Alert>
+          )}
+          <Button disabled={props.isLoading || !isValid}>
             {props.isLoading && <Spinner />}
             Create Account
           </Button>

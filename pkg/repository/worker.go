@@ -2,12 +2,16 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type RuntimeInfo struct {
@@ -34,9 +38,6 @@ type CreateWorkerOpts struct {
 	// A list of actions this worker can run
 	Actions []string `validate:"dive,actionId"`
 
-	// (optional) Webhook Id associated with the worker (if any)
-	WebhookId *string `validate:"omitempty,uuid"`
-
 	// (optional) Runtime info for the worker
 	RuntimeInfo *RuntimeInfo `validate:"omitempty"`
 }
@@ -53,6 +54,9 @@ type UpdateWorkerOpts struct {
 
 	// A list of actions this worker can run
 	Actions []string `validate:"dive,actionId"`
+
+	// If the worker is paused
+	IsPaused *bool
 }
 
 type ListWorkersOpts struct {
@@ -69,59 +73,606 @@ type UpsertWorkerLabelOpts struct {
 	StrValue *string
 }
 
-type ApiUpdateWorkerOpts struct {
-	IsPaused *bool
-}
-
-type WorkerAPIRepository interface {
-	// ListWorkers lists workers for the tenant
-	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithSlotCountRow, error)
-
-	// ListRecentWorkerStepRuns lists recent step runs for a given worker
-	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error)
+type WorkerRepository interface {
+	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
+	GetWorkerById(workerId string) (*sqlcv1.GetWorkerByIdRow, error)
+	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error)
+	CountActiveSlotsPerTenant() (map[string]int64, error)
+	CountActiveWorkersPerTenant() (map[string]int64, error)
+	ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error)
 
 	// GetWorkerActionsByWorkerId returns a list of actions for a worker
 	GetWorkerActionsByWorkerId(tenantid string, workerId []string) (map[string][]string, error)
 
 	// GetWorkerWorkflowsByWorkerId returns a list of workflows for a worker
-	GetWorkerWorkflowsByWorkerId(tenantid string, workerId string) ([]*dbsqlc.Workflow, error)
-
-	// GetWorkerById returns a worker by its id.
-	GetWorkerById(workerId string) (*dbsqlc.GetWorkerByIdRow, error)
+	GetWorkerWorkflowsByWorkerId(tenantid string, workerId string) ([]*sqlcv1.Workflow, error)
 
 	// ListWorkerLabels returns a list of labels config for a worker
-	ListWorkerLabels(tenantId, workerId string) ([]*dbsqlc.ListWorkerLabelsRow, error)
+	ListWorkerLabels(tenantId, workerId string) ([]*sqlcv1.ListWorkerLabelsRow, error)
 
-	// UpdateWorker updates a worker for a given tenant.
-	UpdateWorker(tenantId string, workerId string, opts ApiUpdateWorkerOpts) (*dbsqlc.Worker, error)
-}
-
-type WorkerEngineRepository interface {
 	// CreateNewWorker creates a new worker for a given tenant.
-	CreateNewWorker(ctx context.Context, tenantId string, opts *CreateWorkerOpts) (*dbsqlc.Worker, error)
+	CreateNewWorker(ctx context.Context, tenantId string, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
 
 	// UpdateWorker updates a worker for a given tenant.
-	UpdateWorker(ctx context.Context, tenantId, workerId string, opts *UpdateWorkerOpts) (*dbsqlc.Worker, error)
+	UpdateWorker(ctx context.Context, tenantId, workerId string, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error)
 
-	// UpdateWorker updates a worker in the repository.
+	// UpdateWorker updates a worker in the
 	// It will only update the worker if there is no lock on the worker, else it will skip.
 	UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeatAt time.Time) error
 
 	// DeleteWorker removes the worker from the database
 	DeleteWorker(ctx context.Context, tenantId, workerId string) error
 
-	// UpdateWorkersByWebhookId removes the worker from the database
-	UpdateWorkersByWebhookId(ctx context.Context, opts dbsqlc.UpdateWorkersByWebhookIdParams) error
+	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*sqlcv1.GetWorkerForEngineRow, error)
 
-	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
+	UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error)
 
-	UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error)
-
-	UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerLabelOpts) ([]*dbsqlc.WorkerLabel, error)
+	UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 
 	DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error)
 
-	DeleteOldWorkerEvents(ctx context.Context, tenantId string, lastHeartbeatAfter time.Time) error
-
 	GetDispatcherIdsForWorkers(ctx context.Context, tenantId string, workerIds []string) (map[string][]string, error)
+}
+
+type workerRepository struct {
+	*sharedRepository
+}
+
+func newWorkerRepository(shared *sharedRepository) WorkerRepository {
+	return &workerRepository{
+		sharedRepository: shared,
+	}
+}
+
+func (w *workerRepository) ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	queryParams := sqlcv1.ListWorkersWithSlotCountParams{
+		Tenantid: pgTenantId,
+	}
+
+	if opts.Action != nil {
+		queryParams.ActionId = sqlchelpers.TextFromStr(*opts.Action)
+	}
+
+	if opts.LastHeartbeatAfter != nil {
+		queryParams.LastHeartbeatAfter = sqlchelpers.TimestampFromTime(opts.LastHeartbeatAfter.UTC())
+	}
+
+	if opts.Assignable != nil {
+		queryParams.Assignable = pgtype.Bool{
+			Bool:  *opts.Assignable,
+			Valid: true,
+		}
+	}
+
+	workers, err := w.queries.ListWorkersWithSlotCount(context.Background(), w.pool, queryParams)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			workers = make([]*sqlcv1.ListWorkersWithSlotCountRow, 0)
+		} else {
+			return nil, fmt.Errorf("could not list workers: %w", err)
+		}
+	}
+
+	return workers, nil
+}
+
+func (w *workerRepository) GetWorkerById(workerId string) (*sqlcv1.GetWorkerByIdRow, error) {
+	return w.queries.GetWorkerById(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
+}
+
+func (w *workerRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error) {
+	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, sqlcv1.ListSemaphoreSlotsWithStateForWorkerParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Limit: pgtype.Int4{
+			Int32: int32(maxRuns), // nolint: gosec
+			Valid: true,
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list worker slot state: %w", err)
+	}
+
+	return slots, nil
+}
+
+func (w *workerRepository) CountActiveSlotsPerTenant() (map[string]int64, error) {
+	slots, err := w.queries.ListTotalActiveSlotsPerTenant(context.Background(), w.pool)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list active slots per tenant: %w", err)
+	}
+
+	tenantToSlots := make(map[string]int64)
+
+	for _, slot := range slots {
+		tenantToSlots[slot.TenantId.String()] = slot.TotalActiveSlots
+	}
+
+	return tenantToSlots, nil
+}
+
+type SDK struct {
+	OperatingSystem string
+	Language        string
+	LanguageVersion string
+	SdkVersion      string
+}
+
+type TenantIdSDKTuple struct {
+	TenantId string
+	SDK      SDK
+}
+
+func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error) {
+	sdks, err := w.queries.ListActiveSDKsPerTenant(context.Background(), w.pool)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list active sdks per tenant: %w", err)
+	}
+
+	tenantIdSDKTupleToCount := make(map[TenantIdSDKTuple]int64)
+
+	for _, sdk := range sdks {
+		tenantId := sdk.TenantId.String()
+		tenantIdSdkTuple := TenantIdSDKTuple{
+			TenantId: tenantId,
+			SDK: SDK{
+				OperatingSystem: sdk.Os,
+				Language:        sdk.Language,
+				LanguageVersion: sdk.LanguageVersion,
+				SdkVersion:      sdk.SdkVersion,
+			},
+		}
+
+		tenantIdSDKTupleToCount[tenantIdSdkTuple] = sdk.Count
+	}
+
+	return tenantIdSDKTupleToCount, nil
+}
+
+func (w *workerRepository) CountActiveWorkersPerTenant() (map[string]int64, error) {
+	workers, err := w.queries.ListActiveWorkersPerTenant(context.Background(), w.pool)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list active workers per tenant: %w", err)
+	}
+
+	tenantToWorkers := make(map[string]int64)
+
+	for _, worker := range workers {
+		tenantToWorkers[worker.TenantId.String()] = worker.Count
+	}
+
+	return tenantToWorkers, nil
+}
+
+func (w *workerRepository) GetWorkerActionsByWorkerId(tenantid string, workerIds []string) (map[string][]string, error) {
+	uuidWorkerIds := make([]pgtype.UUID, len(workerIds))
+	for i, workerId := range workerIds {
+		uuidWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)
+	}
+
+	records, err := w.queries.GetWorkerActionsByWorkerId(context.Background(), w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
+		Workerids: uuidWorkerIds,
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantid),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	workerIdToActionIds := make(map[string][]string)
+
+	for _, record := range records {
+		workerId := record.WorkerId.String()
+		actionId := record.Actionid.String
+
+		if _, ok := workerIdToActionIds[workerId]; !ok {
+			workerIdToActionIds[workerId] = make([]string, 0)
+		}
+
+		workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], actionId)
+	}
+
+	return workerIdToActionIds, nil
+}
+
+func (w *workerRepository) GetWorkerWorkflowsByWorkerId(tenantid string, workerId string) ([]*sqlcv1.Workflow, error) {
+	return w.queries.GetWorkerWorkflowsByWorkerId(context.Background(), w.pool, sqlcv1.GetWorkerWorkflowsByWorkerIdParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantid),
+	})
+}
+
+func (w *workerRepository) ListWorkerLabels(tenantId, workerId string) ([]*sqlcv1.ListWorkerLabelsRow, error) {
+	return w.queries.ListWorkerLabels(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
+}
+
+func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*sqlcv1.GetWorkerForEngineRow, error) {
+	return w.queries.GetWorkerForEngine(ctx, w.pool, sqlcv1.GetWorkerForEngineParams{
+		ID:       sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+}
+
+func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId string, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
+	preWorker, postWorker := w.m.Meter(ctx, sqlcv1.LimitResourceWORKER, tenantId, 1)
+
+	if err := preWorker(); err != nil {
+		return nil, err
+	}
+
+	maxRuns := int32(100)
+
+	if opts.MaxRuns != nil {
+		maxRuns = int32(*opts.MaxRuns) // nolint: gosec
+	}
+
+	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, sqlcv1.LimitResourceWORKERSLOT, tenantId, maxRuns)
+
+	if err := preWorkerSlot(); err != nil {
+		return nil, err
+	}
+
+	if err := w.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	tx, err := w.pool.Begin(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	createParams := sqlcv1.CreateWorkerParams{
+		Tenantid:     pgTenantId,
+		Dispatcherid: sqlchelpers.UUIDFromStr(opts.DispatcherId),
+		Name:         opts.Name,
+	}
+
+	// Default to self hosted
+	createParams.Type = sqlcv1.NullWorkerType{
+		WorkerType: sqlcv1.WorkerTypeSELFHOSTED,
+		Valid:      true,
+	}
+
+	if opts.MaxRuns != nil {
+		createParams.MaxRuns = pgtype.Int4{
+			Int32: int32(*opts.MaxRuns), // nolint: gosec
+			Valid: true,
+		}
+	} else {
+		createParams.MaxRuns = pgtype.Int4{
+			Int32: 100,
+			Valid: true,
+		}
+	}
+
+	var worker *sqlcv1.Worker
+
+	if opts.RuntimeInfo != nil {
+		if opts.RuntimeInfo.SdkVersion != nil {
+			createParams.SdkVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.SdkVersion)
+		}
+		if opts.RuntimeInfo.Language != nil {
+			switch *opts.RuntimeInfo.Language {
+			case contracts.SDKS_GO:
+				createParams.Language = sqlcv1.NullWorkerSDKS{
+					WorkerSDKS: sqlcv1.WorkerSDKSGO,
+					Valid:      true,
+				}
+			case contracts.SDKS_PYTHON:
+				createParams.Language = sqlcv1.NullWorkerSDKS{
+					WorkerSDKS: sqlcv1.WorkerSDKSPYTHON,
+					Valid:      true,
+				}
+			case contracts.SDKS_TYPESCRIPT:
+				createParams.Language = sqlcv1.NullWorkerSDKS{
+					WorkerSDKS: sqlcv1.WorkerSDKSTYPESCRIPT,
+					Valid:      true,
+				}
+			default:
+				return nil, fmt.Errorf("invalid sdk: %s", *opts.RuntimeInfo.Language)
+			}
+		}
+		if opts.RuntimeInfo.LanguageVersion != nil {
+			createParams.LanguageVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.LanguageVersion)
+		}
+		if opts.RuntimeInfo.Os != nil {
+			createParams.Os = sqlchelpers.TextFromStr(*opts.RuntimeInfo.Os)
+		}
+		if opts.RuntimeInfo.Extra != nil {
+			createParams.RuntimeExtra = sqlchelpers.TextFromStr(*opts.RuntimeInfo.Extra)
+		}
+	}
+
+	if worker == nil {
+		worker, err = w.queries.CreateWorker(ctx, tx, createParams)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create worker: %w", err)
+		}
+	}
+
+	svcUUIDs := make([]pgtype.UUID, len(opts.Services))
+
+	for i, svc := range opts.Services {
+		dbSvc, err := w.queries.UpsertService(ctx, tx, sqlcv1.UpsertServiceParams{
+			Name:     svc,
+			Tenantid: pgTenantId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not upsert service: %w", err)
+		}
+
+		svcUUIDs[i] = dbSvc.ID
+	}
+
+	err = w.queries.LinkServicesToWorker(ctx, tx, sqlcv1.LinkServicesToWorkerParams{
+		Services: svcUUIDs,
+		Workerid: worker.ID,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not link services to worker: %w", err)
+	}
+
+	actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
+
+	for i, action := range opts.Actions {
+		dbAction, err := w.queries.UpsertAction(ctx, tx, sqlcv1.UpsertActionParams{
+			Action:   action,
+			Tenantid: pgTenantId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not upsert action: %w", err)
+		}
+
+		actionUUIDs[i] = dbAction.ID
+	}
+
+	err = w.queries.LinkActionsToWorker(ctx, tx, sqlcv1.LinkActionsToWorkerParams{
+		Actionids: actionUUIDs,
+		Workerid:  worker.ID,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not link actions to worker: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	postWorker()
+	postWorkerSlot()
+
+	return worker, nil
+}
+
+// UpdateWorker updates a worker.
+// It will only update the worker if there is no lock on the worker, else it will skip.
+func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId, workerId string, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	tx, err := w.pool.Begin(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	updateParams := sqlcv1.UpdateWorkerParams{
+		ID: sqlchelpers.UUIDFromStr(workerId),
+	}
+
+	if opts.LastHeartbeatAt != nil {
+		updateParams.LastHeartbeatAt = sqlchelpers.TimestampFromTime(*opts.LastHeartbeatAt)
+	}
+
+	if opts.DispatcherId != nil {
+		updateParams.DispatcherId = sqlchelpers.UUIDFromStr(*opts.DispatcherId)
+	}
+
+	if opts.IsActive != nil {
+		updateParams.IsActive = pgtype.Bool{
+			Bool:  *opts.IsActive,
+			Valid: true,
+		}
+	}
+
+	if opts.IsPaused != nil {
+		updateParams.IsPaused = pgtype.Bool{
+			Bool:  *opts.IsPaused,
+			Valid: true,
+		}
+	}
+
+	worker, err := w.queries.UpdateWorker(ctx, tx, updateParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not update worker: %w", err)
+	}
+
+	if len(opts.Actions) > 0 {
+		actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
+
+		for i, action := range opts.Actions {
+			dbAction, err := w.queries.UpsertAction(ctx, tx, sqlcv1.UpsertActionParams{
+				Action:   action,
+				Tenantid: pgTenantId,
+			})
+
+			if err != nil {
+				return nil, fmt.Errorf("could not upsert action: %w", err)
+			}
+
+			actionUUIDs[i] = dbAction.ID
+		}
+
+		err = w.queries.LinkActionsToWorker(ctx, tx, sqlcv1.LinkActionsToWorkerParams{
+			Actionids: actionUUIDs,
+			Workerid:  sqlchelpers.UUIDFromStr(workerId),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not link actions to worker: %w", err)
+		}
+	}
+
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	return worker, nil
+}
+
+func (w *workerRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeat time.Time) error {
+	_, err := w.queries.UpdateWorkerHeartbeat(ctx, w.pool, sqlcv1.UpdateWorkerHeartbeatParams{
+		ID:              sqlchelpers.UUIDFromStr(workerId),
+		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not update worker heartbeat: %w", err)
+	}
+
+	return nil
+}
+
+func (w *workerRepository) DeleteWorker(ctx context.Context, tenantId, workerId string) error {
+	_, err := w.queries.DeleteWorker(ctx, w.pool, sqlchelpers.UUIDFromStr(workerId))
+
+	return err
+}
+
+func (w *workerRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error) {
+	worker, err := w.queries.UpdateWorkerActiveStatus(ctx, w.pool, sqlcv1.UpdateWorkerActiveStatusParams{
+		ID:                      sqlchelpers.UUIDFromStr(workerId),
+		Isactive:                isActive,
+		LastListenerEstablished: sqlchelpers.TimestampFromTime(timestamp),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not update worker active status: %w", err)
+	}
+
+	return worker, nil
+}
+
+func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
+	if len(opts) == 0 {
+		return nil, nil
+	}
+
+	affinities := make([]*sqlcv1.WorkerLabel, 0, len(opts))
+
+	for _, opt := range opts {
+
+		intValue := pgtype.Int4{Valid: false}
+		if opt.IntValue != nil {
+			intValue = pgtype.Int4{
+				Int32: *opt.IntValue,
+				Valid: true,
+			}
+		}
+
+		strValue := pgtype.Text{Valid: false}
+		if opt.StrValue != nil {
+			strValue = pgtype.Text{
+				String: *opt.StrValue,
+				Valid:  true,
+			}
+		}
+
+		dbsqlcOpts := sqlcv1.UpsertWorkerLabelParams{
+			Workerid: workerId,
+			Key:      opt.Key,
+			IntValue: intValue,
+			StrValue: strValue,
+		}
+
+		affinity, err := w.queries.UpsertWorkerLabel(ctx, w.pool, dbsqlcOpts)
+		if err != nil {
+			return nil, fmt.Errorf("could not update worker affinity state: %w", err)
+		}
+
+		affinities = append(affinities, affinity)
+	}
+
+	return affinities, nil
+}
+
+func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error) {
+	hasMore, err := w.queries.DeleteOldWorkers(ctx, w.pool, sqlcv1.DeleteOldWorkersParams{
+		Tenantid:            sqlchelpers.UUIDFromStr(tenantId),
+		Lastheartbeatbefore: sqlchelpers.TimestampFromTime(lastHeartbeatBefore),
+		Limit:               20,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return hasMore, nil
+}
+
+func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId string, workerIds []string) (map[string][]string, error) {
+	pgWorkerIds := make([]pgtype.UUID, len(workerIds))
+
+	for i, workerId := range workerIds {
+		pgWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)
+	}
+
+	rows, err := w.queries.ListDispatcherIdsForWorkers(ctx, w.pool, sqlcv1.ListDispatcherIdsForWorkersParams{
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Workerids: sqlchelpers.UniqueSet(pgWorkerIds),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get dispatcher ids for workers: %w", err)
+	}
+
+	dispatcherIdsToWorkers := make(map[string][]string)
+
+	for _, row := range rows {
+		dispatcherId := sqlchelpers.UUIDToStr(row.DispatcherId)
+		workerId := sqlchelpers.UUIDToStr(row.WorkerId)
+
+		if _, ok := dispatcherIdsToWorkers[dispatcherId]; !ok {
+			dispatcherIdsToWorkers[dispatcherId] = make([]string, 0)
+		}
+
+		dispatcherIdsToWorkers[dispatcherId] = append(dispatcherIdsToWorkers[dispatcherId], workerId)
+	}
+
+	return dispatcherIdsToWorkers, nil
 }

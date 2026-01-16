@@ -8,13 +8,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenCreateRequestObject) (gen.ApiTokenCreateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	user := ctx.Get("user").(*dbsqlc.User)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	user := ctx.Get("user").(*sqlcv1.User)
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 

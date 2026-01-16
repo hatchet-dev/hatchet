@@ -175,12 +175,14 @@ export const TaskRunDetail = ({
                 paramOverrides={{ externalIds: [taskRunId] }}
                 disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
                 showModal={false}
+                showLabel
               />
               <TaskRunActionButton
                 actionType="cancel"
                 paramOverrides={{ externalIds: [taskRunId] }}
                 disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
                 showModal={false}
+                showLabel
               />
             </RunsProvider>
           </div>
@@ -257,7 +259,7 @@ export const TaskRunDetail = ({
               <V1StepRunOutput taskRunId={taskRunId} />
             </TabsContent>
             <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
-              <div className="flex h-[600px] flex-col">
+              <div className="flex flex-col h-96">
                 <RunsProvider
                   tableKey={`child-runs-${taskRunId}`}
                   display={{
@@ -270,7 +272,7 @@ export const TaskRunDetail = ({
                     parentTaskExternalId: taskRunId,
                   }}
                 >
-                  <RunsTable headerClassName="flex-shrink-0" />
+                  <RunsTable />
                 </RunsProvider>
               </div>
             </TabsContent>
@@ -310,14 +312,12 @@ export const TaskRunDetail = ({
         )}
       </Tabs>
       <Separator className="my-4" />
-      <div className="mb-8">
+      <div className="mb-2 flex flex-col gap-y-2">
         <h3 className="flex flex-row items-center gap-4 text-lg font-semibold leading-tight text-foreground">
           Events
         </h3>
-        {/* TODO: Real onclick callback here */}
         <StepRunEvents
           taskRunId={taskRunId}
-          onClick={() => {}}
           fallbackTaskDisplayName={taskRun.displayName}
         />
       </div>

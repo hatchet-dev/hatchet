@@ -32,11 +32,23 @@ import api, {
   WorkflowRunShapeForWorkflowRunDetails,
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
+import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
 import { useAtom } from 'jotai';
 import { useCallback, useRef } from 'react';
+
+class StatusError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
 
 function statusToBadgeVariant(status: V1TaskStatus) {
   switch (status) {
@@ -89,7 +101,11 @@ async function fetchTaskRun(id: string) {
   try {
     return await api.v1TaskGet(id);
   } catch (error) {
-    return undefined;
+    if (isAxiosError(error) && error.response?.status === 404) {
+      return undefined;
+    }
+
+    throw error;
   }
 }
 
@@ -97,12 +113,17 @@ async function fetchDAGRun(id: string) {
   try {
     return await api.v1WorkflowRunGet(id);
   } catch (error) {
-    return undefined;
+    if (isAxiosError(error) && error.response?.status === 404) {
+      return undefined;
+    }
+
+    throw error;
   }
 }
 
 export default function Run() {
-  const { run } = useParams({ from: appRoutes.tenantRunRoute.to });
+  const params = useParams({ from: appRoutes.tenantRunRoute.to });
+  const { run } = params;
 
   const taskRunQuery = useQuery({
     queryKey: ['workflow-run', run],
@@ -113,7 +134,10 @@ export default function Run() {
       ]);
 
       if (!task && !dag) {
-        throw new Error(`Task or Workflow Run with ID ${run} not found`);
+        throw new StatusError(
+          `Task or Workflow Run with ID ${run} not found`,
+          404,
+        );
       }
 
       if (task?.data) {
@@ -147,10 +171,33 @@ export default function Run() {
 
       return 1000;
     },
+    retry: (_failureCount, error) => shouldRetryQueryError(error),
   });
 
   if (taskRunQuery.isLoading) {
     return <Spinner />;
+  }
+
+  if (taskRunQuery.isError) {
+    const status = getErrorStatus(taskRunQuery.error);
+
+    // Treat malformed IDs (often 400) and missing resources (404) as not found.
+    if (status === 400 || status === 404) {
+      return (
+        <ResourceNotFound
+          resource="Run"
+          primaryAction={{
+            label: 'Back to Runs',
+            navigate: {
+              to: appRoutes.tenantRunsRoute.to,
+              params: { tenant: params.tenant },
+            },
+          }}
+        />
+      );
+    }
+
+    throw taskRunQuery.error;
   }
 
   const runData = taskRunQuery.data;
@@ -262,8 +309,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                 </TabsTrigger>
                 {/* <TabsTrigger value="logs">App Logs</TabsTrigger> */}
               </TabsList>
-              <TabsContent value="activity">
-                <div className="h-4" />
+              <TabsContent value="activity" className="py-4">
                 <StepRunEvents
                   workflowRunId={id}
                   fallbackTaskDisplayName={workflowRun.displayName}

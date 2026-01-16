@@ -17,9 +17,6 @@ Tenant:
     version:
       $ref: "#/TenantVersion"
       description: The version of the tenant.
-    uiVersion:
-      $ref: "#/TenantUIVersion"
-      description: The UI of the tenant.
     environment:
       $ref: "#/TenantEnvironment"
       description: The environment type of the tenant.
@@ -90,9 +87,6 @@ CreateTenantRequest:
       description: The slug of the tenant.
       x-oapi-codegen-extra-tags:
         validate: "required,hatchetName"
-    uiVersion:
-      $ref: "#/TenantUIVersion"
-      description: The UI version of the tenant. Defaults to V0.
     engineVersion:
       $ref: "#/TenantVersion"
       description: The engine version of the tenant. Defaults to V0.
@@ -136,9 +130,6 @@ UpdateTenantRequest:
     version:
       $ref: "#/TenantVersion"
       description: The version of the tenant.
-    uiVersion:
-      $ref: "#/TenantUIVersion"
-      description: The UI of the tenant.
   type: object
 
 TenantResource:
@@ -149,7 +140,7 @@ TenantResource:
     - "TASK_RUN"
     - "CRON"
     - "SCHEDULE"
-    - 'INCOMING_WEBHOOK'
+    - "INCOMING_WEBHOOK"
   type: string
 
 TenantResourceLimit:

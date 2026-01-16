@@ -6,7 +6,7 @@ import api, {
 } from '@/lib/api';
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
 import { Evaluate } from '@/lib/can/shared/permission.base';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
@@ -134,18 +134,18 @@ export function useTenantDetails() {
 
   const [pollBilling, setPollBilling] = useState(false);
 
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { cloud, isCloudEnabled } = useCloud();
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenant?.metadata?.id || ''),
-    enabled: !!tenant && !!cloudMeta?.data.canBill,
+    enabled: !!tenant?.metadata?.id && isCloudEnabled && !!cloud?.canBill,
     refetchInterval: pollBilling ? 1000 : false,
     retry: false,
   });
 
   const paymentMethodsQuery = useQuery({
     ...queries.cloud.paymentMethods(tenant?.metadata?.id || ''),
-    enabled: !!tenant && !!cloudMeta?.data.canBill,
+    enabled: !!tenant && !!cloud?.canBill,
     retry: false,
   });
 
@@ -158,7 +158,7 @@ export function useTenantDetails() {
   }, [billingState.data?.currentSubscription?.plan]);
 
   const billingContext: BillingContext | undefined = useMemo(() => {
-    if (!cloudMeta?.data.canBill) {
+    if (!cloud?.canBill) {
       return;
     }
 
@@ -173,12 +173,12 @@ export function useTenantDetails() {
       isLoading,
     };
   }, [
-    cloudMeta?.data.canBill,
+    cloud?.canBill,
     billingState.data,
-    billingState.isLoading,
-    subscriptionPlan,
     paymentMethodsQuery.data,
     paymentMethodsQuery.isLoading,
+    billingState.isLoading,
+    subscriptionPlan,
   ]);
 
   const can = useCallback(
@@ -186,10 +186,10 @@ export function useTenantDetails() {
       return evalFn({
         tenant,
         billing: billingContext,
-        meta: cloudMeta?.data,
+        meta: cloud,
       });
     },
-    [billingContext, cloudMeta?.data, tenant],
+    [billingContext, cloud, tenant],
   );
 
   return {
