@@ -51,7 +51,12 @@ func newAPITokenRepository(shared *sharedRepository, cacheDuration time.Duration
 }
 
 func (a *apiTokenRepository) RevokeAPIToken(ctx context.Context, id string) error {
-	return a.queries.RevokeAPIToken(ctx, a.pool, sqlchelpers.UUIDFromStr(id))
+	err := a.queries.RevokeAPIToken(ctx, a.pool, sqlchelpers.UUIDFromStr(id))
+	if err == nil {
+		// invalidate any cached token lookups so validation reflects revocation immediately
+		a.c.Delete(id)
+	}
+	return err
 }
 
 func (a *apiTokenRepository) ListAPITokensByTenant(ctx context.Context, tenantId string) ([]*sqlcv1.APIToken, error) {
@@ -104,5 +109,12 @@ func (a *apiTokenRepository) DeleteAPIToken(ctx context.Context, tenantId, id st
 		return err
 	}
 
-	return commit(ctx)
+	if err := commit(ctx); err != nil {
+		return err
+	}
+
+	// invalidate cached token entry after successful delete
+	a.c.Delete(id)
+
+	return nil
 }
