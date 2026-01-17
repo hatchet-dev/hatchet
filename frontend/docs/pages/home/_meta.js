@@ -6,15 +6,19 @@ export default {
   index: "🪓 Welcome",
   architecture: "Architecture",
   "guarantees-and-tradeoffs": "Guarantees & Tradeoffs",
-  "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
   "--quickstart": {
     title: "Quickstart",
+    type: "separator",
+  },
+  "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
+  "--guide": {
+    title: "Walkthrough",
     type: "separator",
   },
   setup: "Setup",
   "your-first-task": "Tasks",
   workers: "Workers",
-  "running-your-task": "Running Tasks",
+  "running-your-task": "Your First Task",
   environments: "Environments",
   "--running-tasks": {
     title: "Ways of Running Tasks",
