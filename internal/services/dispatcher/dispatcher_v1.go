@@ -51,23 +51,21 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		bulkDatas, err := d.repov1.Tasks().ListTasks(ctx, msg.TenantID, taskIds)
 
 		if err != nil {
-			for _, task := range bulkDatas {
-				requeue(task)
-			}
-
-			d.l.Error().Err(err).Msgf("could not bulk list step run data:")
-			continue
+			// BH-CO-004 fix: When ListTasks fails, bulkDatas is empty so nothing would be requeued.
+			// Return the error to NACK the message and allow retry, rather than silently dropping
+			// the assigned tasks.
+			cancel()
+			return fmt.Errorf("could not bulk list step run data for %d tasks: %w", len(taskIds), err)
 		}
 
 		parentDataMap, err := d.repov1.Tasks().ListTaskParentOutputs(ctx, msg.TenantID, bulkDatas)
 
 		if err != nil {
-			for _, task := range bulkDatas {
-				requeue(task)
-			}
-
-			d.l.Error().Err(err).Msgf("could not list parent data for %d tasks", len(bulkDatas))
-			continue
+			// BH-CO-004 fix: Return error to NACK the message rather than silently dropping tasks.
+			// Even though we have bulkDatas here, the requeue mechanism may not work properly
+			// if we can't get parent data. Better to retry the whole message.
+			cancel()
+			return fmt.Errorf("could not list parent data for %d tasks: %w", len(bulkDatas), err)
 		}
 
 		retrievePayloadOpts := make([]v1.RetrievePayloadOpts, len(bulkDatas))
