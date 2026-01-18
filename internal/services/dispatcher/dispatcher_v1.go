@@ -28,7 +28,11 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	// on the worker
 	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 
-	msgs := msgqueue.JSONConvert[tasktypesv1.TaskAssignedBulkTaskPayload](msg.Payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypesv1.TaskAssignedBulkTaskPayload](msg.Payloads)
+	if err != nil {
+		cancel()
+		return fmt.Errorf("failed to convert task assigned bulk payloads: %w", err)
+	}
 	outerEg := errgroup.Group{}
 
 	toRetry := []*sqlcv1.V1Task{}
@@ -320,7 +324,10 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 
-	msgs := msgqueue.JSONConvert[tasktypesv1.SignalTaskCancelledPayload](msg.Payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypesv1.SignalTaskCancelledPayload](msg.Payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert signal task cancelled payloads: %w", err)
+	}
 
 	taskIdsToRetryCounts := make(map[int64][]int32)
 

@@ -47,20 +47,20 @@ func init() {
 
 type DstFunc func(tenantId, msgId string, payloads [][]byte) error
 
-func JSONConvert[T any](payloads [][]byte) []*T {
-	ret := make([]*T, 0)
+func JSONConvert[T any](payloads [][]byte) ([]*T, error) {
+	ret := make([]*T, 0, len(payloads))
 
-	for _, p := range payloads {
+	for i, p := range payloads {
 		var t T
 
 		if err := json.Unmarshal(p, &t); err != nil {
-			return nil
+			return nil, fmt.Errorf("failed to unmarshal payload %d of %d: %w", i+1, len(payloads), err)
 		}
 
 		ret = append(ret, &t)
 	}
 
-	return ret
+	return ret, nil
 }
 
 type SubBufferKind string
