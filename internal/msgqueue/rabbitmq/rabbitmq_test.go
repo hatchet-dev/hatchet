@@ -150,7 +150,11 @@ func TestBufferedSubMessageQueueIntegration(t *testing.T) {
 	}()
 
 	mqBuffer := msgqueue.NewMQSubBuffer(staticQueue, tq, func(tenantId, msgId string, payloads [][]byte) error {
-		msgs := msgqueue.JSONConvert[testMessagePayload](payloads)
+		msgs, err := msgqueue.JSONConvert[testMessagePayload](payloads)
+		if err != nil {
+			t.Errorf("error converting payloads: %v", err)
+			return err
+		}
 
 		for _, msg := range msgs {
 			assert.Equal(t, "value", msg.Key, "received task payload should match sent task payload")

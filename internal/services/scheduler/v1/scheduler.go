@@ -317,7 +317,10 @@ func (s *Scheduler) handleCheckQueue(ctx context.Context, msg *msgqueue.Message)
 	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", msg.OtelCarrier)
 	defer span.End()
 
-	payloads := msgqueue.JSONConvert[tasktypes.CheckTenantQueuesPayload](msg.Payloads)
+	payloads, err := msgqueue.JSONConvert[tasktypes.CheckTenantQueuesPayload](msg.Payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert check queue payloads: %w", err)
+	}
 
 	for _, payload := range payloads {
 		if len(payload.StrategyIds) > 0 {
@@ -723,7 +726,10 @@ func (s *Scheduler) handleDeadLetteredMessages(msg *msgqueue.Message) (err error
 }
 
 func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg *msgqueue.Message) error {
-	msgs := msgqueue.JSONConvert[tasktypes.TaskAssignedBulkTaskPayload](msg.Payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.TaskAssignedBulkTaskPayload](msg.Payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert dead lettered task assigned payloads: %w", err)
+	}
 
 	taskIds := make([]int64, 0)
 
@@ -774,7 +780,10 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 }
 
 func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *msgqueue.Message) error {
-	payloads := msgqueue.JSONConvert[tasktypes.SignalTaskCancelledPayload](msg.Payloads)
+	payloads, err := msgqueue.JSONConvert[tasktypes.SignalTaskCancelledPayload](msg.Payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert dead lettered task cancelled payloads: %w", err)
+	}
 
 	// try to resend the cancellation signal to the impacted worker.
 	workerIds := make([]string, 0)

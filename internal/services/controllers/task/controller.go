@@ -443,7 +443,10 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	opts := make([]v1.CompleteTaskOpts, 0)
 	idsToData := make(map[int64][]byte)
 
-	msgs := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert task completed payloads: %w", err)
+	}
 
 	for _, msg := range msgs {
 		opts = append(opts, v1.CompleteTaskOpts{
@@ -486,7 +489,10 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 
 	opts := make([]v1.FailTaskOpts, 0)
 
-	msgs := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert task failed payloads: %w", err)
+	}
 	idsToErrorMsg := make(map[int64]string)
 
 	for _, msg := range msgs {
@@ -623,7 +629,10 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	opts := make([]v1.TaskIdInsertedAtRetryCount, 0)
 
-	msgs := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert task cancelled payloads: %w", err)
+	}
 	shouldTasksNotify := make(map[int64]bool)
 
 	for _, msg := range msgs {
@@ -732,7 +741,10 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
 	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
 	// problem that we don't have a clean way to solve (yet)
-	msgs := msgqueue.JSONConvert[tasktypes.CancelTasksPayload](payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.CancelTasksPayload](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert cancel tasks payloads: %w", err)
+	}
 	pubPayloads := make([]tasktypes.CancelledTaskPayload, 0)
 
 	for _, msg := range msgs {
@@ -778,7 +790,10 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 
 	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
 	// problem that we don't have a clean way to solve (yet)
-	msgs := msgqueue.JSONConvert[tasktypes.ReplayTasksPayload](payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.ReplayTasksPayload](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert replay tasks payloads: %w", err)
+	}
 
 	taskIdRetryCounts := make([]tasktypes.TaskIdInsertedAtRetryCountWithExternalId, 0)
 
@@ -984,7 +999,10 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	msgs := msgqueue.JSONConvert[tasktypes.UserEventTaskPayload](payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.UserEventTaskPayload](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert user event payloads: %w", err)
+	}
 
 	eg := &errgroup.Group{}
 
@@ -1120,14 +1138,20 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	msgs := msgqueue.JSONConvert[v1.InternalTaskEvent](payloads)
+	msgs, err := msgqueue.JSONConvert[v1.InternalTaskEvent](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert internal event payloads: %w", err)
+	}
 
 	return tc.processInternalEvents(ctx, tenantId, msgs)
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads)
+	msgs, err := msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert task trigger payloads: %w", err)
+	}
 	tasks, dags, err := tc.repov1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, msgs)
 
 	if err != nil {

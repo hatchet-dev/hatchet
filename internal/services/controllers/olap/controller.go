@@ -457,7 +457,10 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId string, payloads [][]byte) error {
 	offloads := make([]v1.OffloadPayloadOpts, 0)
 
-	msgs := msgqueue.JSONConvert[v1.OLAPPayloadsToOffload](payloads)
+	msgs, err := msgqueue.JSONConvert[v1.OLAPPayloadsToOffload](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert payload offload payloads: %w", err)
+	}
 
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
@@ -476,7 +479,10 @@ func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId
 func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, tenantId string, payloads [][]byte) error {
 	failures := make([]v1.CELEvaluationFailure, 0)
 
-	msgs := msgqueue.JSONConvert[tasktypes.CELEvaluationFailures](payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.CELEvaluationFailures](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert CEL evaluation failure payloads: %w", err)
+	}
 
 	for _, msg := range msgs {
 		for _, failure := range msg.Failures {
@@ -496,7 +502,10 @@ func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, te
 func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId string, payloads [][]byte) error {
 	createTaskOpts := make([]*v1.V1TaskWithPayload, 0)
 
-	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert created task payloads: %w", err)
+	}
 
 	for _, msg := range msgs {
 		if !tc.sample(sqlchelpers.UUIDToStr(msg.WorkflowRunID)) {
@@ -513,7 +522,10 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId string, payloads [][]byte) error {
 	createDAGOpts := make([]*v1.DAGWithData, 0)
-	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert created DAG payloads: %w", err)
+	}
 
 	for _, msg := range msgs {
 		if !tc.sample(sqlchelpers.UUIDToStr(msg.ExternalID)) {
@@ -528,7 +540,10 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 }
 
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId string, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert created event trigger payloads: %w", err)
+	}
 
 	seenEventKeysSet := make(map[string]bool)
 
@@ -611,7 +626,10 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, tenantId string, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[tasktypes.CreateMonitoringEventPayload](payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.CreateMonitoringEventPayload](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert monitoring event payloads: %w", err)
+	}
 
 	taskIdsToLookup := make([]int64, len(msgs))
 
@@ -825,7 +843,10 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context, tenantId string, payloads [][]byte) error {
 	createFailedWebhookValidationOpts := make([]v1.CreateIncomingWebhookFailureLogOpts, 0)
 
-	msgs := msgqueue.JSONConvert[tasktypes.FailedWebhookValidationPayload](payloads)
+	msgs, err := msgqueue.JSONConvert[tasktypes.FailedWebhookValidationPayload](payloads)
+	if err != nil {
+		return fmt.Errorf("failed to convert failed webhook validation payloads: %w", err)
+	}
 
 	for _, msg := range msgs {
 		if !tc.sample(msg.ErrorText) {

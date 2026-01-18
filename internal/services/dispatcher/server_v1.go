@@ -1177,7 +1177,10 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 
 	switch msgId {
 	case "created-task":
-		payloads := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
+		payloads, err := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert created task payloads: %w", err)
+		}
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -1190,7 +1193,10 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			})
 		}
 	case "task-completed":
-		payloads := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
+		payloads, err := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert task completed payloads: %w", err)
+		}
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -1204,7 +1210,10 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			})
 		}
 	case "task-failed":
-		payloads := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
+		payloads, err := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert task failed payloads: %w", err)
+		}
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -1218,7 +1227,10 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			})
 		}
 	case "task-cancelled":
-		payloads := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
+		payloads, err := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert task cancelled payloads: %w", err)
+		}
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -1231,7 +1243,10 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			})
 		}
 	case "task-stream-event":
-		payloads := msgqueue.JSONConvert[tasktypes.StreamEventPayload](payloads)
+		payloads, err := msgqueue.JSONConvert[tasktypes.StreamEventPayload](payloads)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert task stream event payloads: %w", err)
+		}
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -1245,7 +1260,10 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			})
 		}
 	case "workflow-run-finished":
-		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](payloads)
+		payloads, err := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](payloads)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert workflow run finished payloads: %w", err)
+		}
 
 		for _, payload := range payloads {
 			eventType := contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
@@ -1299,7 +1317,11 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *workflowRunAcks) ([]string, bool) {
 	switch msg.ID {
 	case "workflow-run-finished":
-		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](msg.Payloads)
+		payloads, err := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](msg.Payloads)
+		if err != nil {
+			s.l.Error().Err(err).Msg("failed to convert workflow-run-finished payloads in isMatchingWorkflowRunV1")
+			return nil, false
+		}
 		res := make([]string, 0)
 
 		for _, payload := range payloads {
@@ -1314,7 +1336,11 @@ func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *wo
 
 		return res, true
 	case "workflow-run-finished-candidate":
-		payloads := msgqueue.JSONConvert[tasktypes.CandidateFinalizedPayload](msg.Payloads)
+		payloads, err := msgqueue.JSONConvert[tasktypes.CandidateFinalizedPayload](msg.Payloads)
+		if err != nil {
+			s.l.Error().Err(err).Msg("failed to convert workflow-run-finished-candidate payloads in isMatchingWorkflowRunV1")
+			return nil, false
+		}
 		res := make([]string, 0)
 
 		for _, payload := range payloads {
