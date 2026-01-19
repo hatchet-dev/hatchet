@@ -23,8 +23,8 @@ type User struct {
 	email       string
 	password    string
 	role        string
-	tenantSlugs []string
 	id          string
+	tenantSlugs []string
 }
 
 type Tenant struct {

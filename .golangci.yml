@@ -12,6 +12,10 @@ linters:
     - unconvert
     - unused
   settings:
+    govet:
+      enable-all: true
+      disable:
+        - printf
     staticcheck:
       checks:
         - -SA1029

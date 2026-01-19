@@ -343,24 +343,6 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	canCreateWR, wrLimit, err := a.repo.TenantLimit().CanCreate(
-		ctx,
-		sqlcv1.LimitResourceWORKFLOWRUN,
-		tenantId,
-		1,
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not check tenant limit: %w", err)
-	}
-
-	if !canCreateWR {
-		return nil, status.Error(
-			codes.ResourceExhausted,
-			fmt.Sprintf("tenant has reached reached %d%% of its workflow runs limit", wrLimit),
-		)
-	}
-
 	canCreateTR, trLimit, err := a.repo.TenantLimit().CanCreate(
 		ctx,
 		sqlcv1.LimitResourceTASKRUN,

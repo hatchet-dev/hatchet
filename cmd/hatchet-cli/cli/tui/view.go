@@ -14,15 +14,10 @@ import (
 
 // ViewContext contains the shared context passed to all views
 type ViewContext struct {
-	// Profile name for display
+	Client      client.Client
 	ProfileName string
-
-	// Hatchet client for API calls
-	Client client.Client
-
-	// Terminal dimensions
-	Width  int
-	Height int
+	Width       int
+	Height      int
 }
 
 // View represents a TUI view component
@@ -42,10 +37,10 @@ type View interface {
 
 // BaseModel contains common fields for all views
 type BaseModel struct {
+	Err    error
 	Ctx    ViewContext
 	Width  int
 	Height int
-	Err    error
 }
 
 // SetSize updates the base model dimensions
@@ -78,10 +73,10 @@ type NavigateToRunWithDetectionMsg struct {
 
 // RunTypeDetectedMsg contains the detected run type and data
 type RunTypeDetectedMsg struct {
-	Type     string // "task" or "dag"
+	Error    error
 	TaskData *rest.V1TaskSummary
 	DAGData  *rest.V1WorkflowRunDetails
-	Error    error
+	Type     string
 }
 
 // NavigateBackMsg is sent when navigating back to the tasks view

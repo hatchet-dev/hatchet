@@ -139,12 +139,11 @@ func (d *DockerDriver) ensureContainerIsHealthy(ctx context.Context, containerId
 }
 
 type Config struct {
-	ContainerName string
-	ImageName     string
-
 	ContainerConfig *container.Config
 	HostConfig      *container.HostConfig
 	NetworkConfig   *network.NetworkingConfig
+	ContainerName   string
+	ImageName       string
 }
 
 func (c *Config) Hash() (string, error) {

@@ -100,9 +100,9 @@ const (
 
 // viewOption represents a selectable view in the view selector
 type viewOption struct {
-	Type        ViewType
 	Name        string
 	Description string
+	Type        ViewType
 }
 
 // availableViews is the list of all primary views that can be selected
@@ -115,17 +115,17 @@ var availableViews = []viewOption{
 // tuiModel is the root model that manages different views
 type tuiModel struct {
 	currentView          tui.View
-	currentViewType      ViewType
-	viewStack            []tui.View // Stack for back navigation
+	viewStack            []tui.View
+	availableProfiles    []string
 	ctx                  tui.ViewContext
+	currentViewType      ViewType
 	width                int
 	height               int
-	showViewSelector     bool // Whether the view selector modal is open
-	selectedViewIndex    int  // Index of the currently selected view in the modal
-	showProfileSelector  bool // Whether the profile selector modal is open
-	selectedProfileIndex int  // Index of the currently selected profile in the modal
-	showQuitConfirmation bool // Whether the quit confirmation modal is open
-	availableProfiles    []string
+	selectedViewIndex    int
+	selectedProfileIndex int
+	showViewSelector     bool
+	showProfileSelector  bool
+	showQuitConfirmation bool
 }
 
 func newTUIModel(profileName string, hatchetClient client.Client) tuiModel {
@@ -772,8 +772,8 @@ func (m tuiModel) renderQuitConfirmation() string {
 
 // profileSwitchedMsg is sent when a profile switch is successful
 type profileSwitchedMsg struct {
-	profileName   string
 	hatchetClient client.Client
+	profileName   string
 }
 
 // profileSwitchErrorMsg is sent when a profile switch fails

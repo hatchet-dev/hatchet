@@ -22,8 +22,8 @@ type Canvas struct {
 
 // Cell represents a single character on the canvas with optional styling
 type Cell struct {
-	Char  string         // The character to display
-	Style lipgloss.Style // Optional styling (color, bold, etc.)
+	Style lipgloss.Style
+	Char  string
 }
 
 // CellPriority defines priority for character collision resolution

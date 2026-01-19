@@ -3,7 +3,7 @@ import {
   limitedResources,
   LimitIndicator,
 } from './components/resource-limit-columns';
-import { PaymentMethods, Subscription } from '@/components/v1/cloud/billing';
+import { Subscription } from '@/components/v1/cloud/billing';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -29,9 +29,6 @@ export default function ResourceLimits() {
   });
 
   const billingEnabled = isCloudEnabled && cloud?.canBill;
-
-  const hasPaymentMethods =
-    (billingState.data?.paymentMethods?.length || 0) > 0;
 
   const resourceLimits = resourcePolicyQuery.data?.limits || [];
 
@@ -92,22 +89,9 @@ export default function ResourceLimits() {
     <div className="h-full w-full flex-grow">
       {billingEnabled && (
         <>
-          <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-            <div className="flex flex-row items-center justify-between">
-              <h2 className="text-2xl font-semibold leading-tight text-foreground">
-                Billing and Limits
-              </h2>
-            </div>
-          </div>
-          <Separator className="my-4" />
-          <PaymentMethods
-            hasMethods={hasPaymentMethods}
-            methods={billingState.data?.paymentMethods}
-          />
-          <Separator className="my-4" />
           <Subscription
-            hasPaymentMethods={hasPaymentMethods}
-            active={billingState.data?.subscription}
+            active={billingState.data?.currentSubscription}
+            upcoming={billingState.data?.upcomingSubscription}
             plans={billingState.data?.plans}
             coupons={billingState.data?.coupons}
           />
