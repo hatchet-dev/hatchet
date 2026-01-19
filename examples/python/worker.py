@@ -41,6 +41,7 @@ from examples.non_retryable.worker import non_retryable_workflow
 from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
 from examples.return_exceptions.worker import return_exceptions_task
 from examples.run_details.worker import run_detail_test_workflow
+from examples.serde.worker import serde_workflow
 from examples.simple.worker import simple, simple_durable
 from examples.timeout.worker import refresh_timeout_wf, timeout_wf
 from examples.webhooks.worker import webhook
@@ -98,6 +99,7 @@ def main() -> None:
             durable_sync_task_with_dependencies,
             say_hello,
             say_hello_unsafely,
+            serde_workflow,
         ],
         lifespan=lifespan,
     )
