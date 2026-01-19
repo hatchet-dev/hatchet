@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.22.6"
+version = "1.22.7"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 authors = [
-    "Alexander Belanger <alexander@hatchet.run>",
-    "Matt Kaye <matt@hatchet.run>",
-    "Gabe Ruttner <gabe@hatchet.run>",
-    "Mohammed Nafees <nafees@hatchet.run>",
+  "Alexander Belanger <alexander@hatchet.run>",
+  "Matt Kaye <matt@hatchet.run>",
+  "Gabe Ruttner <gabe@hatchet.run>",
+  "Mohammed Nafees <nafees@hatchet.run>",
 ]
 readme = "README.md"
 include = ["hatchet_sdk/py.typed"]
@@ -67,12 +67,12 @@ uvicorn = "^0.34.3"
 
 [tool.poetry.extras]
 otel = [
-    "opentelemetry-api",
-    "opentelemetry-sdk",
-    "opentelemetry-instrumentation",
-    "opentelemetry-distro",
-    "opentelemetry-exporter-otlp",
-    "opentelemetry-exporter-otlp-proto-http",
+  "opentelemetry-api",
+  "opentelemetry-sdk",
+  "opentelemetry-instrumentation",
+  "opentelemetry-distro",
+  "opentelemetry-exporter-otlp",
+  "opentelemetry-exporter-otlp-proto-http",
 ]
 v0-sdk = ["cel-python"]
 
@@ -89,15 +89,15 @@ asyncio_default_fixture_loop_scope = "session"
 [tool.isort]
 profile = "black"
 known_third_party = [
-    "grpcio",
-    "grpcio_tools",
-    "loguru",
-    "protobuf",
-    "pydantic",
-    "python_dotenv",
-    "python_dateutil",
-    "pyyaml",
-    "urllib3",
+  "grpcio",
+  "grpcio_tools",
+  "loguru",
+  "protobuf",
+  "pydantic",
+  "python_dotenv",
+  "python_dateutil",
+  "pyyaml",
+  "urllib3",
 ]
 extend_skip = ["hatchet_sdk/contracts/", "hatchet_sdk/v0/contracts/"]
 
@@ -107,112 +107,112 @@ extend_exclude = "(hatchet_sdk/contracts/|hatchet_sdk/v0/contracts/|site)"
 [tool.mypy]
 files = ["."]
 exclude = [
-    "hatchet_sdk/clients/rest/api/*",
-    "hatchet_sdk/clients/rest/models/*",
-    "hatchet_sdk/contracts",
-    "hatchet_sdk/clients/rest/api_client.py",
-    "hatchet_sdk/clients/rest/configuration.py",
-    "hatchet_sdk/clients/rest/exceptions.py",
-    "hatchet_sdk/clients/rest/rest.py",
-    "hatchet_sdk/v0/*",
-    "site/*",
+  "hatchet_sdk/clients/rest/api/*",
+  "hatchet_sdk/clients/rest/models/*",
+  "hatchet_sdk/contracts",
+  "hatchet_sdk/clients/rest/api_client.py",
+  "hatchet_sdk/clients/rest/configuration.py",
+  "hatchet_sdk/clients/rest/exceptions.py",
+  "hatchet_sdk/clients/rest/rest.py",
+  "hatchet_sdk/v0/*",
+  "site/*",
 ]
 strict = true
 enable_error_code = [
-    "possibly-undefined",
-    "truthy-bool",
-    "redundant-expr",
-    "truthy-iterable",
+  "possibly-undefined",
+  "truthy-bool",
+  "redundant-expr",
+  "truthy-iterable",
 ]
 
 [tool.ruff]
 exclude = [
-    "hatchet_sdk/clients/rest/api/*",
-    "hatchet_sdk/clients/rest/models/*",
-    "hatchet_sdk/contracts",
-    "hatchet_sdk/clients/rest/api_client.py",
-    "hatchet_sdk/clients/rest/configuration.py",
-    "hatchet_sdk/clients/rest/exceptions.py",
-    "hatchet_sdk/clients/rest/rest.py",
-    "hatchet_sdk/v0/*",
-    "site/*",
+  "hatchet_sdk/clients/rest/api/*",
+  "hatchet_sdk/clients/rest/models/*",
+  "hatchet_sdk/contracts",
+  "hatchet_sdk/clients/rest/api_client.py",
+  "hatchet_sdk/clients/rest/configuration.py",
+  "hatchet_sdk/clients/rest/exceptions.py",
+  "hatchet_sdk/clients/rest/rest.py",
+  "hatchet_sdk/v0/*",
+  "site/*",
 ]
 target-version = "py310"
 
 [tool.ruff.lint]
 select = [
-    # Pyflakes
-    "F",
-    # pycodestyle errors
-    "E",
-    # pycodestyle warnings
-    "W",
-    # isort
-    "I",
-    # pep8-naming
-    "N",
-    # pyupgrade (modern Python idioms)
-    "UP",
-    # flake8-async (async/await)
-    "ASYNC",
-    # flake8-bugbear (likely bugs)
-    "B",
-    # flake8-simplify (code simplification)
-    "SIM",
-    # flake8-comprehensions (list/dict comprehensions)
-    "C4",
-    # flake8-pie (misc improvements)
-    "PIE",
-    # flake8-return (return statement improvements)
-    "RET",
-    # flake8-unused-arguments
-    "ARG",
-    # flake8-logging-format
-    "G",
-    # Ruff-specific rules
-    "RUF",
-    # Datetime (timezone) rules
-    "DTZ",
-    "FIX",
-    ## Performance-related rules
-    "PERF",
+  # Pyflakes
+  "F",
+  # pycodestyle errors
+  "E",
+  # pycodestyle warnings
+  "W",
+  # isort
+  "I",
+  # pep8-naming
+  "N",
+  # pyupgrade (modern Python idioms)
+  "UP",
+  # flake8-async (async/await)
+  "ASYNC",
+  # flake8-bugbear (likely bugs)
+  "B",
+  # flake8-simplify (code simplification)
+  "SIM",
+  # flake8-comprehensions (list/dict comprehensions)
+  "C4",
+  # flake8-pie (misc improvements)
+  "PIE",
+  # flake8-return (return statement improvements)
+  "RET",
+  # flake8-unused-arguments
+  "ARG",
+  # flake8-logging-format
+  "G",
+  # Ruff-specific rules
+  "RUF",
+  # Datetime (timezone) rules
+  "DTZ",
+  "FIX",
+  ## Performance-related rules
+  "PERF",
 
-    # Print statements
-    "T201",
+  # Print statements
+  "T201",
 ]
 
 ignore = [
-    # Allow long lines
-    "E501",
-    # Allow complex variable names
-    "N806",
-    # Don't enforce specific exception types initially
-    "B008",
-    # Allow unused function arguments
-    "ARG001",
-    "ARG002",
-    # Allow empty returns
-    "RET503",
+  # Allow long lines
+  "E501",
+  # Allow complex variable names
+  "N806",
+  # Don't enforce specific exception types initially
+  "B008",
+  # Allow unused function arguments
+  "ARG001",
+  "ARG002",
+  # Allow empty returns
+  "RET503",
 
-    ## FIXME (ironic) - re-enable this later
-    "FIX",
+  ## FIXME (ironic) - re-enable this later
+  "FIX",
 
-    "RET506",
+  "RET506",
 ]
 exclude = [
-    "examples/*",
-    "docs/*",
-    "hatchet_sdk/clients/rest/api/*",
-    "hatchet_sdk/clients/rest/models/*",
-    "hatchet_sdk/contracts",
-    "hatchet_sdk/clients/rest/api_client.py",
-    "hatchet_sdk/clients/rest/configuration.py",
-    "hatchet_sdk/clients/rest/exceptions.py",
-    "hatchet_sdk/clients/rest/rest.py",
-    "hatchet_sdk/v0/*",
-    "apply_patches.py",
-    "site/*",
-    "tests/*",
+  "examples/*",
+  "docs/*",
+  "hatchet_sdk/clients/rest/api/*",
+  "hatchet_sdk/clients/rest/models/*",
+  "hatchet_sdk/contracts",
+  "hatchet_sdk/clients/rest/api_client.py",
+  "hatchet_sdk/clients/rest/configuration.py",
+  "hatchet_sdk/clients/rest/exceptions.py",
+  "hatchet_sdk/clients/rest/rest.py",
+  "hatchet_sdk/v0/*",
+  "apply_patches.py",
+  "site/*",
+  "tests/*",
 ]
 
 [tool.poetry.scripts]
