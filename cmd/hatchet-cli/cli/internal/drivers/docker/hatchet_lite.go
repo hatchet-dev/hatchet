@@ -46,14 +46,14 @@ const (
 )
 
 type HatchetLiteOpts struct {
+	tokenCb               func(string)
+	portsCb               func(dashboardPort, grpcPort int)
 	postgresName          string
 	hatchetName           string
 	projectName           string
 	serviceName           string
 	overrideDashboardPort int
 	overrideGrpcPort      int
-	tokenCb               func(string)
-	portsCb               func(dashboardPort, grpcPort int) // callback with actual ports used
 }
 
 func initDefaultHatchetLiteOpts() *HatchetLiteOpts {

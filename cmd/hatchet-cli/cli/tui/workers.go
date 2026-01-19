@@ -20,27 +20,25 @@ import (
 
 // WorkersView displays a list of workers in a table
 type WorkersView struct {
-	BaseModel
-	table           *TableWithStyleFunc
-	workers         []rest.Worker
-	filteredWorkers []rest.Worker // Cached filtered workers for StyleFunc
-	loading         bool
-	lastFetch       time.Time
-	debugLogger     *DebugLogger
-	showDebug       bool
-
-	// Filter state
-	showingFilter     bool
+	lastFetch         time.Time
+	table             *TableWithStyleFunc
+	debugLogger       *DebugLogger
 	filterForm        *huh.Form
-	selectedStatuses  []string // Currently selected statuses (ACTIVE, PAUSED, INACTIVE)
-	tempStatusFilters []string // Temporary status filters during form editing
+	workers           []rest.Worker
+	filteredWorkers   []rest.Worker
+	selectedStatuses  []string
+	tempStatusFilters []string
+	BaseModel
+	loading       bool
+	showDebug     bool
+	showingFilter bool
 }
 
 // workersMsg contains the fetched workers
 type workersMsg struct {
-	workers   []rest.Worker
 	err       error
 	debugInfo string
+	workers   []rest.Worker
 }
 
 // workerTickMsg is sent periodically to refresh the data

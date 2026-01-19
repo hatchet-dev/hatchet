@@ -78,30 +78,21 @@ type Edge struct {
 
 // Component represents a connected subgraph (part of the forest)
 type Component struct {
-	ID        int     // Component identifier
-	Nodes     []*Node // All nodes in this component
-	RootNodes []*Node // Nodes with no incoming edges (within this component)
-
-	// Bounding box after layout (absolute canvas coordinates)
+	Nodes       []*Node
+	RootNodes   []*Node
 	BoundingBox Rect
+	ID          int
 }
 
 // Graph represents the complete workflow execution graph
 // May be a forest (multiple disconnected components)
 type Graph struct {
-	// Graph structure
-	Nodes      map[string]*Node // Keyed by step ID
-	Edges      []*Edge
-	Components []*Component // Connected components
-
-	// Layout configuration
-	Direction string // "LR" (left-to-right) or "TD" (top-down)
-
-	// Space constraints
-	MaxWidth  int // Available terminal width
-	MaxHeight int // Available terminal height
-
-	// Actual dimensions after layout
+	Nodes        map[string]*Node
+	Direction    string
+	Edges        []*Edge
+	Components   []*Component
+	MaxWidth     int
+	MaxHeight    int
 	ActualWidth  int
 	ActualHeight int
 }

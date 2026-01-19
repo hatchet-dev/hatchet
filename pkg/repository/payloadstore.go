@@ -435,10 +435,10 @@ type CutoverBatchOutcome struct {
 type PartitionDate pgtype.Date
 
 type PayloadMetadata struct {
-	TenantID   pgtype.UUID
-	ID         int64
 	InsertedAt pgtype.Timestamptz
 	Type       sqlcv1.V1PayloadType
+	ID         int64
+	TenantID   pgtype.UUID
 }
 
 func (d PartitionDate) String() string {

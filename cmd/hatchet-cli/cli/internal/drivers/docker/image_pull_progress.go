@@ -16,10 +16,10 @@ import (
 
 // imagePullProgress represents the JSON structure from Docker's ImagePull API
 type imagePullProgress struct {
+	ProgressDetail *imagePullProgressDetail `json:"progressDetail"`
 	Status         string                   `json:"status"`
 	ID             string                   `json:"id"`
 	Progress       string                   `json:"progress"`
-	ProgressDetail *imagePullProgressDetail `json:"progressDetail"`
 }
 
 type imagePullProgressDetail struct {
@@ -29,8 +29,8 @@ type imagePullProgressDetail struct {
 
 // progressMsg is sent when progress updates
 type progressMsg struct {
-	percent float64
 	status  string
+	percent float64
 }
 
 // doneMsg is sent when pulling is complete
@@ -38,9 +38,9 @@ type doneMsg struct{}
 
 // model holds the bubbletea model for the progress bar
 type model struct {
-	progress     progress.Model
 	imageName    string
 	currentState string
+	progress     progress.Model
 	done         bool
 }
 
@@ -118,6 +118,9 @@ func displayImagePullProgress(reader io.Reader, imageName string) {
 
 	p := tea.NewProgram(m)
 
+	// Channel to signal when the goroutine has finished consuming the reader
+	done := make(chan struct{})
+
 	// Start parsing in background
 	go func() {
 		defer func() {
@@ -126,6 +129,7 @@ func displayImagePullProgress(reader io.Reader, imageName string) {
 				_ = r
 			}
 			p.Send(doneMsg{})
+			close(done) // Signal that we're done consuming the reader
 		}()
 
 		scanner := bufio.NewScanner(reader)
@@ -175,8 +179,13 @@ func displayImagePullProgress(reader io.Reader, imageName string) {
 
 	// Run the program (this blocks until done)
 	if _, err := p.Run(); err != nil {
-		// Fallback to simple message if TUI fails
+		// Fallback for non-TTY environments: wait for the goroutine to finish
+		// consuming the reader before returning to ensure the image pull completes
+		<-done
 		fmt.Fprintf(os.Stderr, "Pulled image %s\n", imageName)
+	} else {
+		// Even on success, wait for the goroutine to clean up
+		<-done
 	}
 }
 

@@ -21,18 +21,23 @@ var content embed.FS
 var quickstartCmd = &cobra.Command{
 	Use:   "quickstart",
 	Short: "Generate a quickstart Hatchet worker project",
-	Long:  `Generate a quickstart Hatchet worker project with boilerplate code in your language of choice.`,
-	Example: `  # Generate a project interactively (prompts for language, name, and directory)
+	Long: `Generate a quickstart Hatchet worker project with boilerplate code in your language of choice.
+
+Supports multiple package managers:
+  Python: poetry, uv, pip
+  TypeScript: npm, pnpm, yarn, bun
+  Go: go modules`,
+	Example: `  # Generate a project interactively (prompts for language, package manager, name, and directory)
   hatchet quickstart
 
-  # Generate a Python project with default settings
-  hatchet quickstart --language python
+  # Generate a Python project with Poetry
+  hatchet quickstart --language python --package-manager poetry
 
-  # Generate a TypeScript project with custom name and directory
-  hatchet quickstart --language typescript --project-name my-worker --directory ./workers/my-worker
+  # Generate a TypeScript project with pnpm
+  hatchet quickstart --language typescript --package-manager pnpm --project-name my-worker
 
-  # Generate a Go project with short flags
-  hatchet quickstart -l go -p my-worker -d ./my-worker`,
+  # Generate a Python project with uv using short flags
+  hatchet quickstart -l python -m uv -p my-worker -d ./my-worker`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Check if at least one profile exists
 		profileNames := cli.ListProfiles()
@@ -43,6 +48,7 @@ var quickstartCmd = &cobra.Command{
 
 		// Get flag values
 		language, _ := cmd.Flags().GetString("language")
+		packageManager, _ := cmd.Flags().GetString("package-manager")
 		projectName, _ := cmd.Flags().GetString("project-name")
 		dir, _ := cmd.Flags().GetString("directory")
 
@@ -58,6 +64,26 @@ var quickstartCmd = &cobra.Command{
 			cli.Logger.Fatalf("invalid language: %s (must be one of: python, typescript, go)", language)
 		}
 
+		// Get package manager
+		if packageManager == "" {
+			packageManager = selectPackageManagerForm(language)
+		}
+
+		// Validate package manager for the selected language
+		validPackageManagers := map[string]map[string]bool{
+			"python":     {"poetry": true, "uv": true, "pip": true},
+			"typescript": {"npm": true, "pnpm": true, "yarn": true, "bun": true},
+			"go":         {"go": true},
+		}
+
+		if !validPackageManagers[language][packageManager] {
+			var validOptions []string
+			for pm := range validPackageManagers[language] {
+				validOptions = append(validOptions, pm)
+			}
+			cli.Logger.Fatalf("invalid package manager '%s' for language '%s' (must be one of: %s)", packageManager, language, strings.Join(validOptions, ", "))
+		}
+
 		if projectName == "" {
 			projectName = selectNameForm()
 		}
@@ -71,24 +97,35 @@ var quickstartCmd = &cobra.Command{
 			}
 		}
 
-		templateData := templater.Data{
-			Name: projectName,
-		}
-
-		err := templater.Process(content, fmt.Sprintf("templates/%s", language), dir, templateData)
-
+		postQuickstart, err := GenerateQuickstart(language, packageManager, projectName, dir)
 		if err != nil {
-			cli.Logger.Fatalf("could not process templates: %v", err)
-		}
-
-		// Process POST_QUICKSTART.md if it exists
-		postQuickstart, err := templater.ProcessPostQuickstart(content, fmt.Sprintf("templates/%s", language), templateData)
-		if err != nil {
-			cli.Logger.Fatalf("could not process post-quickstart content: %v", err)
+			cli.Logger.Fatalf("could not generate quickstart: %v", err)
 		}
 
 		fmt.Println(quickstartSuccessView(language, projectName, dir, postQuickstart))
 	},
+}
+
+// GenerateQuickstart generates a quickstart project without interactive forms.
+// Returns the post-quickstart content that should be displayed to the user.
+func GenerateQuickstart(language, packageManager, projectName, dir string) (string, error) {
+	templateData := templater.Data{
+		Name:           projectName,
+		PackageManager: packageManager,
+	}
+
+	err := templater.ProcessMultiSource(content, language, packageManager, dir, templateData)
+	if err != nil {
+		return "", fmt.Errorf("could not process templates: %w", err)
+	}
+
+	// Process POST_QUICKSTART.md if it exists
+	postQuickstart, err := templater.ProcessPostQuickstartMultiSource(content, language, packageManager, templateData)
+	if err != nil {
+		return "", fmt.Errorf("could not process post-quickstart content: %w", err)
+	}
+
+	return postQuickstart, nil
 }
 
 func init() {
@@ -96,6 +133,7 @@ func init() {
 
 	// Add flags for quickstart command
 	quickstartCmd.Flags().StringP("language", "l", "", "Programming language (python, typescript, go)")
+	quickstartCmd.Flags().StringP("package-manager", "m", "", "Package manager (poetry, uv, pip for Python; npm, pnpm, yarn, bun for TypeScript)")
 	quickstartCmd.Flags().StringP("project-name", "p", "", "Name of the project (default: hatchet-worker)")
 	quickstartCmd.Flags().StringP("directory", "d", "", "Directory to create the project in (default: ./{project-name})")
 }
@@ -123,6 +161,50 @@ func selectLanguageForm() string {
 	}
 
 	return language
+}
+
+func selectPackageManagerForm(language string) string {
+	packageManager := ""
+
+	var options []huh.Option[string]
+
+	switch language {
+	case "python":
+		options = []huh.Option[string]{
+			huh.NewOption("Poetry (recommended)", "poetry"),
+			huh.NewOption("uv", "uv"),
+			huh.NewOption("pip", "pip"),
+		}
+	case "typescript":
+		options = []huh.Option[string]{
+			huh.NewOption("npm", "npm"),
+			huh.NewOption("pnpm", "pnpm"),
+			huh.NewOption("Yarn", "yarn"),
+			huh.NewOption("Bun", "bun"),
+		}
+	case "go":
+		// Go only has one package manager, return default
+		return "go"
+	default:
+		cli.Logger.Fatalf("unsupported language: %s", language)
+	}
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Choose your package manager").
+				Options(options...).
+				Value(&packageManager),
+		),
+	).WithTheme(styles.HatchetTheme())
+
+	err := form.Run()
+
+	if err != nil {
+		cli.Logger.Fatalf("could not run package manager form: %v", err)
+	}
+
+	return packageManager
 }
 
 func selectNameForm() string {

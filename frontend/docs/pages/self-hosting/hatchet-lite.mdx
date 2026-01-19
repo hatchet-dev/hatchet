@@ -13,7 +13,16 @@ This deployment requires [Docker](https://docs.docker.com/engine/install/) insta
 
 ### Getting Hatchet Lite Running
 
-<Tabs items={['With Postgres (Default)', 'With Postgres + RabbitMQ']}>
+<Tabs items={['Hatchet CLI', 'With Postgres (Default)', 'With Postgres + RabbitMQ']}>
+<Tabs.Tab>
+The easiest way to get Hatchet Lite running is via the Hatchet CLI. Simply run the following command:
+
+```sh
+hatchet server start
+```
+
+</Tabs.Tab>
+
   <Tabs.Tab>
 To use Postgres as both your DB and message queue, copy the following `docker-compose.hatchet.yml` file to the root of your repository:
 
@@ -173,24 +182,6 @@ Email: admin@example.com
 Password: Admin123!!
 ```
 
-## Run tasks against the Hatchet instance
-
-To run tasks against this instance, you will first need to create an API token for your worker. There are two ways to do this:
-
-1. **Using a CLI command**:
-
-   You can run the following command to create a token:
-
-   ```sh
-   docker compose -f docker-compose.hatchet.yml exec hatchet-lite /hatchet-admin token create --config /config --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52 | xargs
-   ```
-
-2. **Using the Hatchet dashboard**:
-   - Log in to the Hatchet dashboard.
-   - Navigate to the "Settings" page.
-   - Click on the "API Tokens" tab.
-   - Click on "Create API Token".
-
-Now that you have an API token, see the guide [here](https://docs.hatchet.run/home/setup) for how to run your first task.
+After logging in, follow the steps in the UI to create your first tenant and run your first workflow!
 
 </Steps>

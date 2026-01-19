@@ -12,9 +12,9 @@ import (
 
 // HelpView displays a fullscreen help modal with ASCII art logo and command reference
 type HelpView struct {
-	BaseModel
 	viewport viewport.Model
-	ready    bool
+	BaseModel
+	ready bool
 }
 
 // NewHelpView creates a new help view

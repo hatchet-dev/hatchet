@@ -1,4 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
+import { useAnalytics } from '@/hooks/use-analytics';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { queries } from '@/lib/api';
@@ -7,6 +8,7 @@ import { useApiError } from '@/lib/hooks';
 import { appRoutes } from '@/router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { redirect, useLoaderData, useNavigate } from '@tanstack/react-router';
+import { useEffect } from 'react';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function loader(_args: { request: Request }) {
@@ -58,10 +60,20 @@ export default function Invites() {
   const { setTenant } = useTenantDetails();
   const { acceptOrgInviteMutation, rejectOrgInviteMutation } =
     useOrganizations();
+  const { capture } = useAnalytics();
 
   const { tenantInvites, orgInvites } = useLoaderData({
     from: appRoutes.onboardingInvitesRoute.to,
   }) as Awaited<ReturnType<typeof loader>>;
+
+  // Track invites page view
+  useEffect(() => {
+    capture('onboarding_invites_viewed', {
+      tenant_invites_count: tenantInvites.length,
+      org_invites_count: orgInvites.length,
+      total_invites: tenantInvites.length + orgInvites.length,
+    });
+  }, [capture, tenantInvites.length, orgInvites.length]);
 
   const acceptMutation = useMutation({
     mutationKey: ['tenant-invite:accept'],
@@ -87,6 +99,9 @@ export default function Invites() {
 
       if (membership?.tenant) {
         setTenant(membership.tenant);
+        capture('onboarding_tenant_invite_accepted', {
+          tenant_id: tenantId,
+        });
       } else {
         throw new Error('Tenant not found after accepting invite');
       }
@@ -98,8 +113,12 @@ export default function Invites() {
     mutationKey: ['tenant-invite:reject'],
     mutationFn: async (data: { invite: string }) => {
       await api.tenantInviteReject(data);
+      return data.invite;
     },
-    onSuccess: async () => {
+    onSuccess: async (inviteId: string) => {
+      capture('onboarding_tenant_invite_rejected', {
+        invite_id: inviteId,
+      });
       navigate({ to: appRoutes.authenticatedRoute.to });
     },
     onError: handleApiError,
@@ -182,8 +201,12 @@ export default function Invites() {
                             inviteId: invite.metadata.id,
                           },
                           {
-                            onSuccess: () =>
-                              navigate({ to: appRoutes.authenticatedRoute.to }),
+                            onSuccess: () => {
+                              capture('onboarding_org_invite_rejected', {
+                                invite_id: invite.metadata.id,
+                              });
+                              navigate({ to: appRoutes.authenticatedRoute.to });
+                            },
                           },
                         );
                       }}
@@ -198,8 +221,12 @@ export default function Invites() {
                             inviteId: invite.metadata.id,
                           },
                           {
-                            onSuccess: () =>
-                              navigate({ to: appRoutes.authenticatedRoute.to }),
+                            onSuccess: () => {
+                              capture('onboarding_org_invite_accepted', {
+                                invite_id: invite.metadata.id,
+                              });
+                              navigate({ to: appRoutes.authenticatedRoute.to });
+                            },
                           },
                         );
                       }}

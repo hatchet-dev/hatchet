@@ -36,6 +36,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
@@ -201,14 +202,7 @@ export default function OrganizationPage() {
   });
 
   // Get current user to prevent self-deletion
-  const currentUserQuery = useQuery({
-    queryKey: ['user:get:current'],
-    queryFn: async () => {
-      const res = await api.userGetCurrent();
-      return res.data;
-    },
-    retry: false,
-  });
+  const { currentUser } = useCurrentUser();
 
   if (organizationQuery.isLoading) {
     return <Loading />;
@@ -574,8 +568,7 @@ export default function OrganizationPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {currentUserQuery.data?.email ===
-                                member.email ? (
+                                {currentUser?.email === member.email ? (
                                   <TooltipProvider>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -623,7 +616,7 @@ export default function OrganizationPage() {
                           </span>
                           <Badge variant="default">{member.role}</Badge>
                         </div>
-                        {currentUserQuery.data?.email !== member.email && (
+                        {currentUser?.email !== member.email && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button

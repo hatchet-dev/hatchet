@@ -10,6 +10,7 @@ import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table
 import { Button } from '@/components/v1/ui/button';
 import { Dialog } from '@/components/v1/ui/dialog';
 import { Separator } from '@/components/v1/ui/separator';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
@@ -65,17 +66,15 @@ function MembersList() {
 
   const organizationId = getOrganizationIdForTenant(tenantId);
 
-  // Get current user query
-  const currentUserQuery = useQuery({
-    ...queries.user.current,
-  });
+  // Get current user
+  const { currentUser } = useCurrentUser();
 
   // Check if current user is admin
   const currentUserMember = useMemo(() => {
     return listMembersQuery.data?.rows?.find(
-      (member) => member.user.email === currentUserQuery.data?.email,
+      (member) => member.user.email === currentUser?.email,
     );
-  }, [listMembersQuery.data?.rows, currentUserQuery.data?.email]);
+  }, [listMembersQuery.data?.rows, currentUser?.email]);
 
   const isCurrentUserOwner = currentUserMember?.role === 'OWNER';
 

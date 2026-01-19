@@ -1,20 +1,16 @@
 import TopNav from '@/components/v1/nav/top-nav';
 import { Loading } from '@/components/v1/ui/loading';
-import api from '@/lib/api';
+import { useAnalytics } from '@/hooks/use-analytics';
+import { queries } from '@/lib/api';
+import { AppContextProvider } from '@/providers/app-context';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { redirect, useLoaderData } from '@tanstack/react-router';
+import { useEffect } from 'react';
 
 export async function loader({ request }: { request: Request }) {
   try {
-    const user = await queryClient.fetchQuery({
-      queryKey: ['user:get:current'],
-      queryFn: async () => {
-        const res = await api.userGetCurrent();
-
-        return res.data;
-      },
-    });
+    const user = await queryClient.fetchQuery(queries.user.current);
 
     if (
       user.emailVerified &&
@@ -36,10 +32,15 @@ export async function loader({ request }: { request: Request }) {
   }
 }
 
-export default function VerifyEmail() {
+function VerifyEmailInner() {
   const res = useLoaderData({
     from: appRoutes.onboardingVerifyRoute.to,
   }) as Awaited<ReturnType<typeof loader>>;
+  const { capture } = useAnalytics();
+
+  useEffect(() => {
+    capture('onboarding_verify_email_viewed');
+  }, [capture]);
 
   if (!res?.user) {
     return <Loading />;
@@ -64,5 +65,13 @@ export default function VerifyEmail() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function VerifyEmail() {
+  return (
+    <AppContextProvider>
+      <VerifyEmailInner />
+    </AppContextProvider>
   );
 }

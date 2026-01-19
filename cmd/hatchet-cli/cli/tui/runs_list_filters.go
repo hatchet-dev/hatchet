@@ -16,11 +16,11 @@ import (
 
 // RunsListFilters holds the current filter state
 type RunsListFilters struct {
-	WorkflowIDs []string // Multiple workflow IDs
-	Statuses    map[rest.V1TaskStatus]bool
-	TimeWindow  string // "1h", "6h", "1d", "7d", "custom"
 	Since       time.Time
+	Statuses    map[rest.V1TaskStatus]bool
 	Until       *time.Time
+	TimeWindow  string
+	WorkflowIDs []string
 }
 
 // NewDefaultRunsListFilters creates default filters matching frontend defaults
@@ -179,8 +179,8 @@ func RunFiltersFormProgram(currentFilters *RunsListFilters, workflows []Workflow
 type filterFormModel struct {
 	form           *huh.Form
 	currentFilters *RunsListFilters
-	workflows      []WorkflowOption
 	newFilters     *RunsListFilters
+	workflows      []WorkflowOption
 	done           bool
 	cancelled      bool
 }

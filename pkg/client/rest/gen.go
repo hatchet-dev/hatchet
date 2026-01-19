@@ -190,7 +190,6 @@ const (
 	TASKRUN         TenantResource = "TASK_RUN"
 	WORKER          TenantResource = "WORKER"
 	WORKERSLOT      TenantResource = "WORKER_SLOT"
-	WORKFLOWRUN     TenantResource = "WORKFLOW_RUN"
 )
 
 // Defines values for TenantVersion.

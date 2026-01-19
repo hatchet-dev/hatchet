@@ -18,33 +18,29 @@ import (
 
 // WorkflowsView displays a list of workflows in a table
 type WorkflowsView struct {
-	BaseModel
-	table       *TableWithStyleFunc
-	workflows   []rest.Workflow
-	loading     bool
 	lastFetch   time.Time
+	table       *TableWithStyleFunc
 	debugLogger *DebugLogger
-	showDebug   bool
-
-	// Pagination state
+	searchForm  *huh.Form
+	searchQuery string
+	workflows   []rest.Workflow
+	BaseModel
+	totalPages    int
 	currentOffset int
 	pageSize      int
-	hasMore       bool
-	totalPages    int
-
-	// Search state
+	showDebug     bool
 	showingSearch bool
-	searchForm    *huh.Form
-	searchQuery   string
+	hasMore       bool
+	loading       bool
 }
 
 // workflowsMsg contains the fetched workflows
 type workflowsMsg struct {
-	workflows  []rest.Workflow
 	err        error
 	debugInfo  string
-	hasMore    bool
+	workflows  []rest.Workflow
 	totalPages int
+	hasMore    bool
 }
 
 // workflowTickMsg is sent periodically to refresh the data

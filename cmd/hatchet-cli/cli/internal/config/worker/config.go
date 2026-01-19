@@ -9,11 +9,11 @@ import (
 )
 
 type WorkerConfig struct {
-	Dev     WorkerDevConfig `mapstructure:"dev" json:"dev,omitempty"`
-	Scripts []Script        `mapstructure:"scripts" json:"scripts,omitempty"`
+	Triggers []Trigger       `mapstructure:"triggers" json:"triggers,omitempty"`
+	Dev      WorkerDevConfig `mapstructure:"dev" json:"dev,omitempty"`
 }
 
-type Script struct {
+type Trigger struct {
 	// command to execute
 	Command string `mapstructure:"command" json:"command"`
 

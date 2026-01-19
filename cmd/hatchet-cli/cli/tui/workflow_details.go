@@ -18,21 +18,19 @@ import (
 
 // WorkflowDetailsView displays details about a specific workflow and its recent runs
 type WorkflowDetailsView struct {
-	BaseModel
-	workflowID  string
-	workflow    *rest.Workflow
-	table       *TableWithStyleFunc
-	tasks       []rest.V1TaskSummary
-	loading     bool
 	lastFetch   time.Time
+	table       *TableWithStyleFunc
+	workflow    *rest.Workflow
 	debugLogger *DebugLogger
-	showDebug   bool
-
-	// Pagination state
+	workflowID  string
+	tasks       []rest.V1TaskSummary
+	BaseModel
 	currentOffset int64
 	pageSize      int64
-	hasMore       bool
 	totalCount    int
+	loading       bool
+	showDebug     bool
+	hasMore       bool
 }
 
 // workflowDetailsMsg contains the fetched workflow details
@@ -44,11 +42,11 @@ type workflowDetailsMsg struct {
 
 // workflowRunsMsg contains the fetched runs for this workflow
 type workflowRunsMsg struct {
-	tasks      []rest.V1TaskSummary
 	err        error
 	debugInfo  string
-	hasMore    bool
+	tasks      []rest.V1TaskSummary
 	totalCount int
+	hasMore    bool
 }
 
 // workflowDetailsTickMsg is sent periodically to refresh the data

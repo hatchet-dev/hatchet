@@ -45,14 +45,11 @@ type ListScheduledWorkflowsOpts struct {
 }
 
 type CreateScheduledWorkflowRunForWorkflowOpts struct {
-	WorkflowId string `validate:"required,uuid"`
-
-	ScheduledTrigger time.Time
-
+	ScheduledTrigger   time.Time
+	Priority           *int32 `validate:"omitempty,min=1,max=3"`
+	WorkflowId         string `validate:"required,uuid"`
 	Input              []byte
 	AdditionalMetadata []byte
-
-	Priority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type ScheduledWorkflowMeta struct {
@@ -62,8 +59,8 @@ type ScheduledWorkflowMeta struct {
 }
 
 type ScheduledWorkflowUpdate struct {
-	Id        string
 	TriggerAt time.Time
+	Id        string
 }
 
 type UpdateCronOpts struct {
@@ -98,18 +95,12 @@ type ListCronWorkflowsOpts struct {
 }
 
 type CreateCronWorkflowTriggerOpts struct {
-	// (required) the workflow id
-	WorkflowId string `validate:"required,uuid"`
-
-	// (required) the workflow name
-	Name string `validate:"required"`
-
-	Cron string `validate:"required,cron"`
-
 	Input              map[string]interface{}
 	AdditionalMetadata map[string]interface{}
-
-	Priority *int32 `validate:"omitempty,min=1,max=3"`
+	Priority           *int32 `validate:"omitempty,min=1,max=3"`
+	WorkflowId         string `validate:"required,uuid"`
+	Name               string `validate:"required"`
+	Cron               string `validate:"required,cron"`
 }
 
 type WorkflowScheduleRepository interface {

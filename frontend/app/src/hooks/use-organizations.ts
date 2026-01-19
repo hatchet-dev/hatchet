@@ -6,14 +6,21 @@ import {
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
-import useCloud from '@/pages/auth/hooks/use-cloud';
+import { useAppContext } from '@/providers/app-context';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useMemo, useCallback } from 'react';
 
+/**
+ * Hook for organization data and operations
+ *
+ * Now backed by AppContext for better performance.
+ * Gets organization data from context, but keeps all mutation logic here.
+ */
 export function useOrganizations() {
-  const { isCloudEnabled } = useCloud();
+  const { organizations: organizationData, isCloudEnabled } = useAppContext();
   const { handleApiError } = useApiError({});
 
+  // Re-query for mutations (will revalidate the context)
   const organizationListQuery = useQuery({
     queryKey: ['organization:list'],
     queryFn: async () => {
@@ -24,8 +31,8 @@ export function useOrganizations() {
   });
 
   const organizations = useMemo(
-    () => organizationListQuery.data?.rows || [],
-    [organizationListQuery.data?.rows],
+    () => organizationData?.rows || [],
+    [organizationData?.rows],
   );
 
   const getOrganizationForTenant = useCallback(
@@ -318,7 +325,7 @@ export function useOrganizations() {
 
   return {
     organizations,
-    organizationData: organizationListQuery.data,
+    organizationData, // From context
     isCloudEnabled,
     getOrganizationForTenant,
     getOrganizationIdForTenant,

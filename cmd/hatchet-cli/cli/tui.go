@@ -28,9 +28,13 @@ var tuiCmd = &cobra.Command{
   hatchet tui
 
   # Start TUI with a specific profile
-  hatchet tui --profile production`,
+  hatchet tui --profile production
+
+  # Start TUI and navigate to a specific workflow run
+  hatchet tui --run 8ff4f149-099e-4c16-a8d1-0535f8c79b83 --profile local`,
 	Run: func(cmd *cobra.Command, args []string) {
 		profileFlag, _ := cmd.Flags().GetString("profile")
+		runFlag, _ := cmd.Flags().GetString("run")
 
 		var selectedProfile string
 
@@ -52,17 +56,24 @@ var tuiCmd = &cobra.Command{
 
 		// Initialize Hatchet client
 		nopLogger := zerolog.Nop()
-		hatchetClient, err := client.New(
-			client.WithToken(profile.Token),
-			client.WithLogger(&nopLogger),
-		)
+		hatchetClient, err := NewClientFromProfile(profile, &nopLogger)
 		if err != nil {
 			cli.Logger.Fatalf("could not create Hatchet client: %v", err)
 		}
 
-		// Start the TUI
+		// Start the TUI with optional run navigation
+		var model tea.Model
+		if runFlag != "" {
+			model = tuiModelWithInitialRun{
+				tuiModel:     newTUIModel(selectedProfile, hatchetClient),
+				initialRunID: runFlag,
+			}
+		} else {
+			model = newTUIModel(selectedProfile, hatchetClient)
+		}
+
 		p := tea.NewProgram(
-			newTUIModel(selectedProfile, hatchetClient),
+			model,
 			tea.WithAltScreen(),
 		)
 
@@ -75,6 +86,7 @@ var tuiCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(tuiCmd)
 	tuiCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
+	tuiCmd.Flags().StringP("run", "r", "", "Navigate to a specific workflow run by ID")
 }
 
 // ViewType represents the type of primary view
@@ -88,9 +100,9 @@ const (
 
 // viewOption represents a selectable view in the view selector
 type viewOption struct {
-	Type        ViewType
 	Name        string
 	Description string
+	Type        ViewType
 }
 
 // availableViews is the list of all primary views that can be selected
@@ -103,17 +115,17 @@ var availableViews = []viewOption{
 // tuiModel is the root model that manages different views
 type tuiModel struct {
 	currentView          tui.View
-	currentViewType      ViewType
-	viewStack            []tui.View // Stack for back navigation
+	viewStack            []tui.View
+	availableProfiles    []string
 	ctx                  tui.ViewContext
+	currentViewType      ViewType
 	width                int
 	height               int
-	showViewSelector     bool // Whether the view selector modal is open
-	selectedViewIndex    int  // Index of the currently selected view in the modal
-	showProfileSelector  bool // Whether the profile selector modal is open
-	selectedProfileIndex int  // Index of the currently selected profile in the modal
-	showQuitConfirmation bool // Whether the quit confirmation modal is open
-	availableProfiles    []string
+	selectedViewIndex    int
+	selectedProfileIndex int
+	showViewSelector     bool
+	showProfileSelector  bool
+	showQuitConfirmation bool
 }
 
 func newTUIModel(profileName string, hatchetClient client.Client) tuiModel {
@@ -697,10 +709,7 @@ func (m tuiModel) switchProfile(profileName string) tea.Cmd {
 
 		// Initialize new Hatchet client with the new profile's token
 		nopLogger := zerolog.Nop()
-		hatchetClient, err := client.New(
-			client.WithToken(profile.Token),
-			client.WithLogger(&nopLogger),
-		)
+		hatchetClient, err := NewClientFromProfile(profile, &nopLogger)
 		if err != nil {
 			return profileSwitchErrorMsg{err: err}
 		}
@@ -763,8 +772,8 @@ func (m tuiModel) renderQuitConfirmation() string {
 
 // profileSwitchedMsg is sent when a profile switch is successful
 type profileSwitchedMsg struct {
-	profileName   string
 	hatchetClient client.Client
+	profileName   string
 }
 
 // profileSwitchErrorMsg is sent when a profile switch fails

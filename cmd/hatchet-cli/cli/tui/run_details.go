@@ -30,23 +30,21 @@ const (
 
 // RunDetailsView displays details for a DAG workflow run (multiple tasks)
 type RunDetailsView struct {
-	BaseModel
-	workflowRunID string
-	details       *rest.V1WorkflowRunDetails
-	loading       bool
-	activeTab     DAGTab
-	selectedTask  int // Selected task index in Tasks tab
-	debugLogger   *DebugLogger
-	showDebug     bool // Whether to show debug overlay
-	inputViewer   *ContentViewer
-	eventsViewer  *ContentViewer
-	viewerActive  bool // Whether content viewer is active
-
-	// DAG visualization
+	dagError          error
 	dagGraph          *dag.Graph
-	dagSelectedStepID string // Currently selected step ID in DAG
-	dagRendered       string // Cached DAG rendering
-	dagError          error  // DAG rendering error
+	eventsViewer      *ContentViewer
+	debugLogger       *DebugLogger
+	inputViewer       *ContentViewer
+	details           *rest.V1WorkflowRunDetails
+	dagRendered       string
+	dagSelectedStepID string
+	workflowRunID     string
+	BaseModel
+	activeTab    DAGTab
+	selectedTask int
+	loading      bool
+	showDebug    bool
+	viewerActive bool
 }
 
 // workflowRunMsg contains the fetched workflow run details

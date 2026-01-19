@@ -13,16 +13,16 @@ import (
 
 // ContentViewer is a component for viewing long content with scrolling and file writing
 type ContentViewer struct {
-	content          string   // Raw content to display
-	lines            []string // Content split into lines
-	scrollOffset     int      // Current scroll position (line offset)
-	width            int      // Available width
-	height           int      // Available height
-	active           bool     // Whether viewer is in focus (dive mode)
-	promptingFile    bool     // Whether prompting for filename
-	fileInput        string   // Current filename input
-	confirmOverwrite bool     // Whether confirming file overwrite
-	statusMessage    string   // Status message to display
+	content          string
+	fileInput        string
+	statusMessage    string
+	lines            []string
+	scrollOffset     int
+	width            int
+	height           int
+	active           bool
+	promptingFile    bool
+	confirmOverwrite bool
 }
 
 // contentViewerFileWrittenMsg signals that a file was written
