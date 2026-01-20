@@ -372,7 +372,11 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	var mqv1 msgqueue.MessageQueue
+	var mqv1Standby msgqueue.MessageQueue
 	cleanup1 := func() error {
+		return nil
+	}
+	cleanupStandby := func() error {
 		return nil
 	}
 
@@ -423,6 +427,47 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 			cleanup1 = func() error {
 				return cleanupv1()
+			}
+
+			standbyWritesEnabled := cf.OLAP.StandbyWritesEnabled
+			standbyDrainEnabled := cf.OLAP.StandbyDrainEnabled
+
+			if standbyWritesEnabled || standbyDrainEnabled {
+				standbyURL := strings.TrimSpace(cf.MessageQueue.RabbitMQ.StandbyURL)
+				if standbyURL == "" {
+					return nil, nil, fmt.Errorf("SERVER_MSGQUEUE_RABBITMQ_STANDBY_URL is required when SERVER_OLAP_STANDBY_WRITES_ENABLED or SERVER_OLAP_STANDBY_DRAIN_ENABLED is set")
+				}
+
+				var cleanupStandbyFn func() error
+
+				// Standby MQ is only used for OLAP standby writes/draining.
+				// We disable tenant exchange publishes on standby to avoid emitting pub/sub events there.
+				cleanupStandbyFn, mqv1Standby, err = rabbitmq.New(
+					rabbitmq.WithURL(standbyURL),
+					rabbitmq.WithLogger(&l),
+					rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
+					rabbitmq.WithDisableTenantExchangePubs(true),
+					rabbitmq.WithInitQueues(msgqueue.OLAP_QUEUE),
+					rabbitmq.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
+					rabbitmq.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
+					rabbitmq.WithGzipCompression(
+						cf.MessageQueue.RabbitMQ.CompressionEnabled,
+						cf.MessageQueue.RabbitMQ.CompressionThreshold,
+					),
+					rabbitmq.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
+				)
+
+				if err != nil {
+					return nil, nil, fmt.Errorf("could not init standby rabbitmq: %w", err)
+				}
+
+				cleanupStandby = func() error {
+					return cleanupStandbyFn()
+				}
+
+				if standbyWritesEnabled {
+					mqv1 = msgqueue.NewOLAPTeeMessageQueue(mqv1, mqv1Standby)
+				}
 			}
 		}
 
@@ -651,6 +696,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
+
+		if err := cleanupStandby(); err != nil {
+			return fmt.Errorf("error cleaning up standby rabbitmq: %w", err)
+		}
 		return nil
 	}
 
@@ -689,6 +738,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Encryption:             encryptionSvc,
 		Layer:                  dc,
 		MessageQueueV1:         mqv1,
+		MessageQueueV1Standby:  mqv1Standby,
 		Services:               services,
 		PausedControllers:      pausedControllers,
 		InternalClientFactory:  internalClientFactory,

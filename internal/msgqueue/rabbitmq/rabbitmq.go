@@ -72,6 +72,7 @@ type MessageQueueImplOpts struct {
 	compressionThreshold      int
 	enableMessageRejection    bool
 	maxDeathCount             int
+	initQueues                []msgqueue.Queue
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
@@ -83,6 +84,11 @@ func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
 		deadLetterBackoff:         5 * time.Second,
 		enableMessageRejection:    false,
 		maxDeathCount:             5,
+		initQueues: []msgqueue.Queue{
+			msgqueue.TASK_PROCESSING_QUEUE,
+			msgqueue.OLAP_QUEUE,
+			msgqueue.DISPATCHER_DEAD_LETTER_QUEUE,
+		},
 	}
 }
 
@@ -149,6 +155,14 @@ func WithMessageRejection(enabled bool, maxDeathCount int) MessageQueueImplOpt {
 		}
 
 		opts.maxDeathCount = maxDeathCount
+	}
+}
+
+// WithInitQueues configures which queues are declared during New().
+// If omitted, defaults to TASK_PROCESSING_QUEUE, OLAP_QUEUE, and DISPATCHER_DEAD_LETTER_QUEUE.
+func WithInitQueues(queues ...msgqueue.Queue) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
+		opts.initQueues = queues
 	}
 }
 
@@ -225,19 +239,11 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 
 	defer poolCh.Release()
 
-	if _, err := t.initQueue(ch, msgqueue.TASK_PROCESSING_QUEUE); err != nil {
-		cancel()
-		return nil, nil, fmt.Errorf("failed to initialize queue: %w", err)
-	}
-
-	if _, err := t.initQueue(ch, msgqueue.OLAP_QUEUE); err != nil {
-		cancel()
-		return nil, nil, fmt.Errorf("failed to initialize queue: %w", err)
-	}
-
-	if _, err := t.initQueue(ch, msgqueue.DISPATCHER_DEAD_LETTER_QUEUE); err != nil {
-		cancel()
-		return nil, nil, fmt.Errorf("failed to initialize queue: %w", err)
+	for _, q := range opts.initQueues {
+		if _, err := t.initQueue(ch, q); err != nil {
+			cancel()
+			return nil, nil, fmt.Errorf("failed to initialize queue %s: %w", q.Name(), err)
+		}
 	}
 
 	return func() error {

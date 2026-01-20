@@ -289,9 +289,19 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),
 		}
 
+		olapMQ := sc.MessageQueueV1
+
+		if sc.Operations.StandbyDrainEnabled {
+			if sc.MessageQueueV1Standby == nil {
+				return nil, fmt.Errorf("SERVER_OLAP_STANDBY_DRAIN_ENABLED is set but standby message queue is not configured (ensure SERVER_MSGQUEUE_RABBITMQ_STANDBY_URL is set and primary msgQueue.kind is rabbitmq)")
+			}
+
+			olapMQ = sc.MessageQueueV1Standby
+		}
+
 		olap, err := olap.New(
 			olap.WithAlerter(sc.Alerter),
-			olap.WithMessageQueue(sc.MessageQueueV1),
+			olap.WithMessageQueue(olapMQ),
 			olap.WithRepository(sc.V1),
 			olap.WithLogger(sc.Logger),
 			olap.WithPartition(p),
@@ -632,9 +642,19 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),
 			}
 
+			olapMQ := sc.MessageQueueV1
+
+			if sc.Operations.StandbyDrainEnabled {
+				if sc.MessageQueueV1Standby == nil {
+					return nil, fmt.Errorf("SERVER_OLAP_STANDBY_DRAIN_ENABLED is set but standby message queue is not configured (ensure SERVER_MSGQUEUE_RABBITMQ_STANDBY_URL is set and primary msgQueue.kind is rabbitmq)")
+				}
+
+				olapMQ = sc.MessageQueueV1Standby
+			}
+
 			olap, err := olap.New(
 				olap.WithAlerter(sc.Alerter),
-				olap.WithMessageQueue(sc.MessageQueueV1),
+				olap.WithMessageQueue(olapMQ),
 				olap.WithRepository(sc.V1),
 				olap.WithLogger(sc.Logger),
 				olap.WithPartition(p),
