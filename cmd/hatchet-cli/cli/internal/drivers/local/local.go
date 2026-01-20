@@ -3,6 +3,7 @@ package local
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -13,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	_ "github.com/lib/pq"
 	"sigs.k8s.io/yaml"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
@@ -330,21 +331,30 @@ func (d *LocalDriver) ensureDatabase(ctx context.Context) error {
 	adminURL.Path = "/postgres"
 	adminConnStr := adminURL.String()
 
-	conn, err := pgx.Connect(ctx, d.databaseURL)
+	// Try connecting to the target database
+	conn, err := sql.Open("postgres", d.databaseURL)
 	if err == nil {
-		conn.Close(ctx)
-		return d.ensureTimezone(ctx, dbName, adminConnStr)
+		if pingErr := conn.PingContext(ctx); pingErr == nil {
+			conn.Close()
+			return d.ensureTimezone(ctx, dbName, adminConnStr)
+		}
+		conn.Close()
 	}
 
 	fmt.Println(styles.InfoMessage(fmt.Sprintf("Creating database '%s'...", dbName)))
 
-	adminConn, err := pgx.Connect(ctx, adminConnStr)
+	// Connect to admin database to create our target database
+	adminConn, err := sql.Open("postgres", adminConnStr)
 	if err != nil {
 		return fmt.Errorf("could not connect to PostgreSQL: %w\n\nEnsure PostgreSQL is running and accessible", err)
 	}
-	defer adminConn.Close(ctx)
+	defer adminConn.Close()
 
-	_, err = adminConn.Exec(ctx, fmt.Sprintf(`CREATE DATABASE "%s"`, dbName))
+	if err := adminConn.PingContext(ctx); err != nil {
+		return fmt.Errorf("could not connect to PostgreSQL: %w\n\nEnsure PostgreSQL is running and accessible", err)
+	}
+
+	_, err = adminConn.ExecContext(ctx, fmt.Sprintf(`CREATE DATABASE "%s"`, dbName))
 	if err != nil {
 		if !strings.Contains(err.Error(), "already exists") {
 			return fmt.Errorf("could not create database: %w", err)
@@ -355,24 +365,24 @@ func (d *LocalDriver) ensureDatabase(ctx context.Context) error {
 }
 
 func (d *LocalDriver) ensureTimezone(ctx context.Context, dbName, adminConnStr string) error {
-	adminConn, err := pgx.Connect(ctx, adminConnStr)
+	adminConn, err := sql.Open("postgres", adminConnStr)
 	if err != nil {
 		return fmt.Errorf("could not connect to PostgreSQL: %w", err)
 	}
-	defer adminConn.Close(ctx)
+	defer adminConn.Close()
 
-	_, err = adminConn.Exec(ctx, fmt.Sprintf(`ALTER DATABASE "%s" SET TIMEZONE='UTC'`, dbName))
+	_, err = adminConn.ExecContext(ctx, fmt.Sprintf(`ALTER DATABASE "%s" SET TIMEZONE='UTC'`, dbName))
 	if err != nil {
 		return fmt.Errorf("could not set timezone: %w", err)
 	}
 
-	conn, err := pgx.Connect(ctx, d.databaseURL)
+	conn, err := sql.Open("postgres", d.databaseURL)
 	if err != nil {
 		return fmt.Errorf("could not connect to database: %w", err)
 	}
-	defer conn.Close(ctx)
+	defer conn.Close()
 
-	return conn.Ping(ctx)
+	return conn.PingContext(ctx)
 }
 
 func isValidIdentifier(s string) bool {
