@@ -1,29 +1,23 @@
 package local
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"sigs.k8s.io/yaml"
 
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-admin/cli/seed"
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-api/api"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
 	cliconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
-	"github.com/hatchet-dev/hatchet/pkg/config/loader"
-	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 const (
@@ -32,13 +26,9 @@ const (
 	DefaultHealthcheckPort = 8733
 	StateFileName          = "state.json"
 	KeysFileName           = "keys.json"
-
-	// Execution modes
-	ExecutionModeInProcess  = "in-process"
-	ExecutionModeSubprocess = "subprocess"
 )
 
-// LocalDriver manages a local Hatchet server running in-process
+// LocalDriver manages a local Hatchet server
 type LocalDriver struct {
 	configDir       string
 	databaseURL     string
@@ -47,7 +37,7 @@ type LocalDriver struct {
 	healthcheckPort int
 	profileName     string
 
-	// Encryption keys
+	// Encryption keys (loaded after hatchet-admin quickstart generates them)
 	masterKey     string
 	privateJWT    string
 	publicJWT     string
@@ -59,24 +49,22 @@ type LocalDriver struct {
 	postgresPort     uint32
 
 	// Subprocess execution
-	executionMode      string
-	binaryVersion      string
-	subprocessManager  *SubprocessManager
-	binaryDownloader   *BinaryDownloader
+	binaryVersion     string
+	subprocessManager *SubprocessManager
+	binaryDownloader  *BinaryDownloader
 }
 
 // LocalServerState persists the state of a running local server
 type LocalServerState struct {
-	ConfigDir       string    `json:"config_dir"`
-	DatabaseURL     string    `json:"database_url"`
-	PID             int       `json:"pid"` // PID of the CLI process running the server
-	ApiPort         int       `json:"api_port"`
-	GrpcPort        int       `json:"grpc_port"`
-	ProfileName     string    `json:"profile_name"`
-	StartedAt       time.Time `json:"started_at"`
-	EmbeddedPG      bool      `json:"embedded_pg,omitempty"`
-	PostgresPort    uint32    `json:"postgres_port,omitempty"`
-	ExecutionMode   string    `json:"execution_mode,omitempty"`
+	ConfigDir    string    `json:"config_dir"`
+	DatabaseURL  string    `json:"database_url"`
+	PID          int       `json:"pid"` // PID of the CLI process running the server
+	ApiPort      int       `json:"api_port"`
+	GrpcPort     int       `json:"grpc_port"`
+	ProfileName  string    `json:"profile_name"`
+	StartedAt    time.Time `json:"started_at"`
+	EmbeddedPG   bool      `json:"embedded_pg,omitempty"`
+	PostgresPort uint32    `json:"postgres_port,omitempty"`
 }
 
 // LocalOpts configures the local driver
@@ -91,8 +79,7 @@ type LocalOpts struct {
 	EmbeddedPostgres bool
 	PostgresPort     uint32
 
-	// Subprocess execution options
-	ExecutionMode string
+	// Binary version for downloaded binaries
 	BinaryVersion string
 }
 
@@ -148,14 +135,7 @@ func WithPostgresPort(port uint32) LocalOpt {
 	}
 }
 
-// WithExecutionMode sets the execution mode ("in-process" or "subprocess")
-func WithExecutionMode(mode string) LocalOpt {
-	return func(o *LocalOpts) {
-		o.ExecutionMode = mode
-	}
-}
-
-// WithBinaryVersion sets the binary version for subprocess mode
+// WithBinaryVersion sets the binary version for downloaded binaries
 func WithBinaryVersion(version string) LocalOpt {
 	return func(o *LocalOpts) {
 		o.BinaryVersion = version
@@ -174,8 +154,8 @@ func NewLocalDriver() *LocalDriver {
 	}
 }
 
-// Run starts the local Hatchet server in-process (foreground mode)
-// This method blocks until the server is stopped via interrupt signal
+// Run initializes the local Hatchet server (database, migrations, etc.)
+// Call StartServer() after this to actually start the API and engine.
 func (d *LocalDriver) Run(ctx context.Context, opts ...LocalOpt) (*RunResult, error) {
 	// Apply options
 	// Default: use embedded postgres when no database URL is provided
@@ -187,7 +167,6 @@ func (d *LocalDriver) Run(ctx context.Context, opts ...LocalOpt) (*RunResult, er
 		ProfileName:      "local",
 		EmbeddedPostgres: true, // Default to embedded postgres
 		PostgresPort:     DefaultPostgresPort,
-		ExecutionMode:    ExecutionModeInProcess,
 		BinaryVersion:    "", // Will use CLI version if empty
 	}
 	for _, opt := range opts {
@@ -205,7 +184,6 @@ func (d *LocalDriver) Run(ctx context.Context, opts ...LocalOpt) (*RunResult, er
 	d.profileName = options.ProfileName
 	d.useEmbeddedPG = options.EmbeddedPostgres
 	d.postgresPort = options.PostgresPort
-	d.executionMode = options.ExecutionMode
 	d.binaryVersion = options.BinaryVersion
 
 	// Start embedded postgres if enabled
@@ -232,23 +210,49 @@ func (d *LocalDriver) Run(ctx context.Context, opts ...LocalOpt) (*RunResult, er
 		return nil, fmt.Errorf("failed to initialize config directory: %w", err)
 	}
 
-	if err := d.ensureEncryptionKeys(); err != nil {
-		return nil, fmt.Errorf("failed to setup encryption keys: %w", err)
+	// Initialize binary downloader
+	downloader, err := NewBinaryDownloader()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create binary downloader: %w", err)
+	}
+	d.binaryDownloader = downloader
+
+	version := d.binaryVersion
+	if version == "" {
+		return nil, fmt.Errorf("binary version is required")
 	}
 
-	if err := d.writeConfigFiles(); err != nil {
-		return nil, fmt.Errorf("failed to write config files: %w", err)
+	// Download required binaries
+	fmt.Println(styles.InfoMessage(fmt.Sprintf("Ensuring binaries are available for version %s...", version)))
+
+	migrateBinary, err := downloader.EnsureBinary(ctx, "hatchet-migrate", version)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure hatchet-migrate binary: %w", err)
 	}
 
-	if err := d.runMigrations(ctx); err != nil {
+	adminBinary, err := downloader.EnsureBinary(ctx, "hatchet-admin", version)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure hatchet-admin binary: %w", err)
+	}
+
+	// Run migrations using hatchet-migrate binary
+	if err := d.runMigrations(ctx, migrateBinary); err != nil {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	if err := d.seedDatabase(); err != nil {
-		return nil, fmt.Errorf("failed to seed database: %w", err)
+	// Run quickstart to generate keys and seed database using hatchet-admin binary
+	if err := d.runQuickstart(ctx, adminBinary); err != nil {
+		return nil, fmt.Errorf("failed to run quickstart: %w", err)
 	}
 
-	token, err := d.generateToken(ctx)
+	// Load the generated keys
+	keysPath := filepath.Join(d.configDir, "server.yaml")
+	if err := d.loadGeneratedKeys(keysPath); err != nil {
+		return nil, fmt.Errorf("failed to load generated keys: %w", err)
+	}
+
+	// Generate API token using hatchet-admin binary
+	token, err := d.generateToken(ctx, adminBinary)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate API token: %w", err)
 	}
@@ -263,73 +267,6 @@ func (d *LocalDriver) Run(ctx context.Context, opts ...LocalOpt) (*RunResult, er
 		APIPort:     d.apiPort,
 		GRPCPort:    d.grpcPort,
 	}, nil
-}
-
-// StartServer starts the API and engine in-process and blocks until interrupted.
-// This should be called after Run() to actually start the server.
-func (d *LocalDriver) StartServer(ctx context.Context, interruptCh <-chan interface{}, onReady func()) error {
-	d.setEnvVars()
-	cf := loader.NewConfigLoader(d.configDir)
-
-	var wg sync.WaitGroup
-	errCh := make(chan error, 2)
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := api.Start(cf, interruptCh, "local"); err != nil {
-			fmt.Println(styles.Muted.Render(fmt.Sprintf("API error: %v", err)))
-			errCh <- fmt.Errorf("API server error: %w", err)
-		}
-	}()
-
-	engineCtx, engineCancel := context.WithCancel(ctx)
-	defer engineCancel()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := engine.Run(engineCtx, cf, "local"); err != nil {
-			fmt.Println(styles.Muted.Render(fmt.Sprintf("Engine error: %v", err)))
-			errCh <- fmt.Errorf("engine error: %w", err)
-		}
-	}()
-
-	if err := d.waitForHealth(ctx); err != nil {
-		return fmt.Errorf("server failed to become healthy: %w", err)
-	}
-
-	if onReady != nil {
-		onReady()
-	}
-
-	select {
-	case <-interruptCh:
-		fmt.Println(styles.InfoMessage("Shutting down..."))
-	case err := <-errCh:
-		return err
-	}
-
-	engineCancel()
-
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		fmt.Println(styles.Muted.Render("Shutdown timeout, some goroutines may not have exited cleanly"))
-	}
-
-	// Stop embedded postgres if running
-	d.stopEmbeddedPostgres()
-
-	d.removeState()
-
-	return nil
 }
 
 // RunResult contains the result of starting a local server
@@ -457,121 +394,131 @@ func (d *LocalDriver) initConfigDir() error {
 	return os.MkdirAll(d.configDir, 0700)
 }
 
-func (d *LocalDriver) runMigrations(ctx context.Context) error {
-	os.Setenv("DATABASE_URL", d.databaseURL)
-	migrate.RunMigrations(ctx)
+// runMigrations runs database migrations using the hatchet-migrate binary
+func (d *LocalDriver) runMigrations(ctx context.Context, migrateBinary string) error {
+	fmt.Println(styles.InfoMessage("Running database migrations..."))
+
+	cmd := exec.CommandContext(ctx, migrateBinary)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("DATABASE_URL=%s", d.databaseURL))
+	cmd.Dir = d.configDir
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("migration failed: %w\nOutput: %s", err, string(output))
+	}
+
+	fmt.Println(styles.SuccessMessage("Migrations completed"))
+	return nil
+}
+
+// runQuickstart runs hatchet-admin quickstart to generate keys and seed database
+func (d *LocalDriver) runQuickstart(ctx context.Context, adminBinary string) error {
+	fmt.Println(styles.InfoMessage("Running quickstart (generating keys, seeding database)..."))
+
+	// First, write the base database.yaml config (needed for seeding)
+	if err := d.writeDatabaseConfig(); err != nil {
+		return fmt.Errorf("failed to write database config: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, adminBinary,
+		"quickstart",
+		"--skip", "certs",
+		"--generated-config-dir", d.configDir,
+		"--overwrite=false",
+	)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("DATABASE_URL=%s", d.databaseURL))
+	cmd.Dir = d.configDir
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("quickstart failed: %w\nOutput: %s", err, string(output))
+	}
+
+	fmt.Println(styles.SuccessMessage("Quickstart completed"))
+	return nil
+}
+
+// loadGeneratedKeys loads the encryption keys from the generated server.yaml
+func (d *LocalDriver) loadGeneratedKeys(serverConfigPath string) error {
+	data, err := os.ReadFile(serverConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to read server config: %w", err)
+	}
+
+	// Parse just the encryption section we need
+	var config struct {
+		Auth struct {
+			Cookie struct {
+				Secrets string `yaml:"secrets"`
+			} `yaml:"cookie"`
+		} `yaml:"auth"`
+		Encryption struct {
+			MasterKeyset string `yaml:"masterKeyset"`
+			JWT          struct {
+				PrivateJWTKeyset string `yaml:"privateJwtKeyset"`
+				PublicJWTKeyset  string `yaml:"publicJwtKeyset"`
+			} `yaml:"jwt"`
+		} `yaml:"encryption"`
+	}
+
+	if err := parseYAML(data, &config); err != nil {
+		return fmt.Errorf("failed to parse server config: %w", err)
+	}
+
+	d.masterKey = config.Encryption.MasterKeyset
+	d.privateJWT = config.Encryption.JWT.PrivateJWTKeyset
+	d.publicJWT = config.Encryption.JWT.PublicJWTKeyset
+	d.cookieSecrets = config.Auth.Cookie.Secrets
 
 	return nil
 }
 
-func (d *LocalDriver) seedDatabase() error {
-	configLoader := loader.NewConfigLoader(d.configDir)
-
-	dbLayer, err := configLoader.InitDataLayer()
-	if err != nil {
-		return fmt.Errorf("failed to initialize data layer: %w", err)
-	}
-	defer dbLayer.Disconnect() // nolint: errcheck
-
-	return seed.SeedDatabase(dbLayer)
+// parseYAML parses YAML data into the given interface
+func parseYAML(data []byte, v interface{}) error {
+	return yaml.Unmarshal(data, v)
 }
 
-func (d *LocalDriver) generateToken(ctx context.Context) (string, error) {
-	configLoader := loader.NewConfigLoader(d.configDir)
+// generateToken generates an API token using hatchet-admin
+func (d *LocalDriver) generateToken(ctx context.Context, adminBinary string) (string, error) {
+	fmt.Println(styles.InfoMessage("Generating API token..."))
 
-	cleanup, serverConfig, err := configLoader.CreateServerFromConfig("local",
-		func(scf *server.ServerConfigFile) {
-			scf.MessageQueue.Enabled = false
-			scf.SecurityCheck.Enabled = false
-		},
+	cmd := exec.CommandContext(ctx, adminBinary,
+		"token", "create",
+		"--tenant-id", DefaultTenantID,
+		"--name", "local-cli-token",
+		"--expiresIn", "8760h", // 365 days
 	)
-	if err != nil {
-		return "", fmt.Errorf("failed to create server config: %w", err)
-	}
-	defer cleanup() // nolint: errcheck
+	cmd.Env = append(os.Environ(), fmt.Sprintf("DATABASE_URL=%s", d.databaseURL))
+	cmd.Dir = d.configDir
 
-	tenantID := DefaultTenantID
-	expiresAt := time.Now().UTC().Add(365 * 24 * time.Hour)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
-	token, err := serverConfig.Auth.JWTManager.GenerateTenantToken(
-		ctx,
-		tenantID,
-		"local-cli-token",
-		false,
-		&expiresAt,
-	)
-	if err != nil {
-		return "", err
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("token generation failed: %w\nStderr: %s", err, stderr.String())
 	}
 
-	return token.Token, nil
-}
-
-func (d *LocalDriver) setEnvVars() {
-	os.Setenv("DATABASE_URL", d.databaseURL)
-	os.Setenv("SERVER_AUTH_COOKIE_DOMAIN", "localhost")
-	os.Setenv("SERVER_AUTH_COOKIE_INSECURE", "t")
-	os.Setenv("SERVER_AUTH_COOKIE_SECRETS", d.cookieSecrets)
-	os.Setenv("SERVER_GRPC_BIND_ADDRESS", "0.0.0.0")
-	os.Setenv("SERVER_GRPC_INSECURE", "t")
-	os.Setenv("SERVER_GRPC_PORT", strconv.Itoa(d.grpcPort))
-	os.Setenv("SERVER_GRPC_BROADCAST_ADDRESS", fmt.Sprintf("localhost:%d", d.grpcPort))
-	os.Setenv("SERVER_URL", fmt.Sprintf("http://localhost:%d", d.apiPort))
-	os.Setenv("SERVER_PORT", strconv.Itoa(d.apiPort))
-	os.Setenv("SERVER_HEALTHCHECK_PORT", strconv.Itoa(d.healthcheckPort))
-	os.Setenv("SERVER_AUTH_SET_EMAIL_VERIFIED", "t")
-	os.Setenv("SERVER_ENCRYPTION_MASTER_KEYSET", d.masterKey)
-	os.Setenv("SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET", d.privateJWT)
-	os.Setenv("SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET", d.publicJWT)
-	os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
-	os.Setenv("SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS", fmt.Sprintf("localhost:%d", d.grpcPort))
-}
-
-func (d *LocalDriver) waitForHealth(ctx context.Context) error {
-	healthURL := fmt.Sprintf("http://localhost:%d/api/ready", d.apiPort)
-	healthCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
-	client := &http.Client{Timeout: 2 * time.Second}
-
-	for {
-		select {
-		case <-healthCtx.Done():
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			return fmt.Errorf("timeout waiting for server to become healthy")
-		case <-ticker.C:
-			req, err := http.NewRequestWithContext(healthCtx, "GET", healthURL, nil)
-			if err != nil {
-				continue
-			}
-			resp, err := client.Do(req)
-			if err == nil {
-				resp.Body.Close()
-				if resp.StatusCode == http.StatusOK {
-					return nil
-				}
-			}
-		}
+	token := strings.TrimSpace(stdout.String())
+	if token == "" {
+		return "", fmt.Errorf("token generation returned empty token\nStderr: %s", stderr.String())
 	}
+
+	fmt.Println(styles.SuccessMessage("API token generated"))
+	return token, nil
 }
 
 func (d *LocalDriver) saveState() error {
 	state := LocalServerState{
-		ConfigDir:     d.configDir,
-		DatabaseURL:   d.databaseURL,
-		PID:           os.Getpid(),
-		ApiPort:       d.apiPort,
-		GrpcPort:      d.grpcPort,
-		ProfileName:   d.profileName,
-		StartedAt:     time.Now(),
-		EmbeddedPG:    d.useEmbeddedPG,
-		PostgresPort:  d.postgresPort,
-		ExecutionMode: d.executionMode,
+		ConfigDir:    d.configDir,
+		DatabaseURL:  d.databaseURL,
+		PID:          os.Getpid(),
+		ApiPort:      d.apiPort,
+		GrpcPort:     d.grpcPort,
+		ProfileName:  d.profileName,
+		StartedAt:    time.Now(),
+		EmbeddedPG:   d.useEmbeddedPG,
+		PostgresPort: d.postgresPort,
 	}
 
 	data, err := json.MarshalIndent(state, "", "  ")
@@ -694,32 +641,24 @@ func (d *LocalDriver) stopEmbeddedPostgres() {
 	}
 }
 
-// StartServerSubprocess starts the API and engine as separate subprocesses
-func (d *LocalDriver) StartServerSubprocess(ctx context.Context, interruptCh <-chan interface{}, onReady func(), version string) error {
-	// Initialize binary downloader
-	downloader, err := NewBinaryDownloader()
-	if err != nil {
-		return fmt.Errorf("failed to create binary downloader: %w", err)
-	}
-	d.binaryDownloader = downloader
-
+// StartServer starts the API and engine as separate subprocesses and blocks until interrupted.
+// This should be called after Run() to actually start the server.
+func (d *LocalDriver) StartServer(ctx context.Context, interruptCh <-chan interface{}, onReady func(), version string) error {
 	// Determine version to use
 	if version == "" {
 		version = d.binaryVersion
 	}
 	if version == "" {
-		return fmt.Errorf("binary version is required for subprocess mode")
+		return fmt.Errorf("binary version is required")
 	}
 
-	// Download/ensure binaries are available
-	fmt.Println(styles.InfoMessage(fmt.Sprintf("Ensuring binaries are available for version %s...", version)))
-
-	apiBinaryPath, err := downloader.EnsureBinary(ctx, "hatchet-api", version)
+	// Download/ensure binaries are available (api and engine)
+	apiBinaryPath, err := d.binaryDownloader.EnsureBinary(ctx, "hatchet-api", version)
 	if err != nil {
 		return fmt.Errorf("failed to ensure hatchet-api binary: %w", err)
 	}
 
-	engineBinaryPath, err := downloader.EnsureBinary(ctx, "hatchet-engine", version)
+	engineBinaryPath, err := d.binaryDownloader.EnsureBinary(ctx, "hatchet-engine", version)
 	if err != nil {
 		return fmt.Errorf("failed to ensure hatchet-engine binary: %w", err)
 	}
@@ -793,11 +732,6 @@ func (d *LocalDriver) buildEnvVars() []string {
 		"SERVER_MSGQUEUE_KIND=postgres",
 		fmt.Sprintf("SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS=localhost:%d", d.grpcPort),
 	}
-}
-
-// GetExecutionMode returns the current execution mode
-func (d *LocalDriver) GetExecutionMode() string {
-	return d.executionMode
 }
 
 // IsEmbeddedPostgresEnabled returns whether embedded postgres is enabled
