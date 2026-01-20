@@ -48,4 +48,4 @@ services:
 volumes:
   hatchet_prometheus_data:
   hatchet_grafana_data:
-  hatchet_hyperdx_data:  
+  hatchet_hyperdx_data:
