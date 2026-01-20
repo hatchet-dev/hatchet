@@ -1,7 +1,7 @@
-import { useState, useCallback, useMemo } from 'react';
-import { ParsedLogQuery } from './types';
 import { parseLogQuery } from './parser';
+import { ParsedLogQuery } from './types';
 import { ListCloudLogsQuery } from '@/lib/api/queries';
+import { useState, useCallback, useMemo } from 'react';
 
 export interface UseLogSearchReturn {
   queryString: string;
@@ -15,10 +15,7 @@ export interface UseLogSearchReturn {
 export function useLogSearch(initialQuery = ''): UseLogSearchReturn {
   const [queryString, setQueryString] = useState(initialQuery);
 
-  const parsedQuery = useMemo(
-    () => parseLogQuery(queryString),
-    [queryString],
-  );
+  const parsedQuery = useMemo(() => parseLogQuery(queryString), [queryString]);
 
   const apiQueryParams = useMemo((): ListCloudLogsQuery => {
     const params: ListCloudLogsQuery = {};
@@ -39,11 +36,6 @@ export function useLogSearch(initialQuery = ''): UseLogSearchReturn {
     return params;
   }, [parsedQuery]);
 
-  const handleQueryChange = useCallback((_query: ParsedLogQuery) => {
-    // This is called when the parsed query updates
-    // Can be used for analytics, validation, etc.
-  }, []);
-
   const clearSearch = useCallback(() => {
     setQueryString('');
   }, []);
@@ -53,7 +45,6 @@ export function useLogSearch(initialQuery = ''): UseLogSearchReturn {
     setQueryString,
     parsedQuery,
     apiQueryParams,
-    handleQueryChange,
     clearSearch,
   };
 }

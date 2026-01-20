@@ -1,4 +1,8 @@
-import { AutocompleteContext, AutocompleteSuggestion, LOG_LEVELS } from './types';
+import {
+  AutocompleteContext,
+  AutocompleteSuggestion,
+  LOG_LEVELS,
+} from './types';
 
 const LEVEL_DESCRIPTIONS: Record<string, string> = {
   error: 'Error messages',

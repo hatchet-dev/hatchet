@@ -21,7 +21,6 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 export function LogSearchInput({
   value,
   onChange,
-  onQueryChange,
   placeholder = 'Search logs...',
   showAutocomplete = true,
   className,
@@ -38,8 +37,7 @@ export function LogSearchInput({
   useEffect(() => {
     const parsed = parseLogQuery(value);
     setParsedQuery(parsed);
-    onQueryChange(parsed);
-  }, [value, onQueryChange]);
+  }, [value]);
 
   const autocompleteContext = getAutocompleteContext(value, cursorPosition);
   const suggestions = getSuggestions(autocompleteContext);
@@ -122,7 +120,6 @@ export function LogSearchInput({
           handleSuggestionSelect(suggestions[selectedIndex].value);
         } else {
           e.preventDefault();
-          onQueryChange(parsedQuery);
         }
       } else if (
         e.key === 'Tab' &&
@@ -133,14 +130,7 @@ export function LogSearchInput({
         handleSuggestionSelect(suggestions[selectedIndex].value);
       }
     },
-    [
-      isOpen,
-      suggestions,
-      selectedIndex,
-      handleSuggestionSelect,
-      onQueryChange,
-      parsedQuery,
-    ],
+    [isOpen, suggestions, selectedIndex, handleSuggestionSelect],
   );
 
   const handleClear = useCallback(() => {

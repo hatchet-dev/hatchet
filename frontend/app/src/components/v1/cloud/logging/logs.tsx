@@ -49,13 +49,8 @@ const LoggingComponent: React.FC<LogProps> = ({
   const previousScrollHeightRef = useRef<number>(0);
   const lastInfiniteScrollCallRef = useRef<number>(0);
 
-  const {
-    queryString,
-    setQueryString,
-    parsedQuery,
-    apiQueryParams,
-    handleQueryChange,
-  } = useLogSearch();
+  const { queryString, setQueryString, parsedQuery, apiQueryParams } =
+    useLogSearch();
 
   useEffect(() => {
     onSearchChange?.(apiQueryParams);
@@ -196,11 +191,7 @@ const LoggingComponent: React.FC<LogProps> = ({
 
   return (
     <div className="flex flex-col justify-center gap-y-2">
-      <LogSearchInput
-        value={queryString}
-        onChange={setQueryString}
-        onQueryChange={handleQueryChange}
-      />
+      <LogSearchInput value={queryString} onChange={setQueryString} />
       <div
         className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground mx-auto max-h-[25rem] min-h-[25rem] w-full overflow-y-auto rounded-md bg-muted p-6 font-mono text-xs text-indigo-300"
         ref={containerRef}
