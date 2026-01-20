@@ -63,7 +63,6 @@ const LoggingComponent: React.FC<LogProps> = ({
   const previousScrollHeightRef = useRef<number>(0);
   const lastInfiniteScrollCallRef = useRef<number>(0);
 
-  // Log search state
   const {
     queryString,
     setQueryString,
@@ -74,7 +73,6 @@ const LoggingComponent: React.FC<LogProps> = ({
   const metadataKeys = useMetadataKeys(rawLogs);
   const metadataValues = useMetadataValues(rawLogs);
 
-  // Notify parent when API query params change
   useEffect(() => {
     onSearchChange?.(apiQueryParams);
   }, [apiQueryParams, onSearchChange]);
@@ -158,7 +156,7 @@ const LoggingComponent: React.FC<LogProps> = ({
     }
   }, [logs, autoScroll]);
 
-  // Filter logs based on parsed query
+  // todo: remove this when we implement server-side filtering
   const filteredLogs = useMemo(() => {
     if (!parsedQuery || !queryString.trim()) {
       return logs;
@@ -167,7 +165,6 @@ const LoggingComponent: React.FC<LogProps> = ({
     return logs.filter((log, index) => {
       const rawLog = rawLogs[index];
 
-      // Filter by free text search (case-insensitive)
       if (parsedQuery.search) {
         const searchLower = parsedQuery.search.toLowerCase();
         const lineMatches = log.line?.toLowerCase().includes(searchLower);
@@ -179,18 +176,15 @@ const LoggingComponent: React.FC<LogProps> = ({
         }
       }
 
-      // Filter by level
       if (parsedQuery.level && rawLog) {
         const levelLower = parsedQuery.level.toLowerCase();
         const rawLevel = rawLog.level?.toLowerCase();
-        // Also check if level appears in the log line
         const lineHasLevel = log.line?.toLowerCase().includes(levelLower);
         if (rawLevel !== levelLower && !lineHasLevel) {
           return false;
         }
       }
 
-      // Filter by timestamp range
       if (log.timestamp) {
         const logTime = new Date(log.timestamp).getTime();
 
@@ -209,7 +203,6 @@ const LoggingComponent: React.FC<LogProps> = ({
         }
       }
 
-      // Filter by metadata (if rawLog available)
       if (rawLog?.metadata && Object.keys(parsedQuery.metadata).length > 0) {
         const logMetadata = rawLog.metadata as Record<string, unknown>;
         for (const [key, value] of Object.entries(parsedQuery.metadata)) {
