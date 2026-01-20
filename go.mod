@@ -33,6 +33,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/labstack/echo/v4 v4.15.0
+	github.com/lib/pq v1.10.9
 	github.com/mattn/go-runewidth v0.0.19
 	github.com/oapi-codegen/runtime v1.1.2
 	github.com/opencontainers/go-digest v1.0.0
@@ -143,7 +144,6 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	github.com/lib/pq v1.10.9 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
