@@ -563,6 +563,24 @@ func (d *LocalDriver) removeState() {
 	}
 }
 
+// Cleanup cleans up orphan processes and state files
+func (d *LocalDriver) Cleanup() error {
+	// Try to stop any running process from saved state
+	state, err := d.loadState()
+	if err == nil && state.PID > 0 {
+		fmt.Println(styles.InfoMessage(fmt.Sprintf("Found saved state with PID %d, attempting to stop...", state.PID)))
+		if err := killProcessByPID(state.PID); err != nil {
+			fmt.Println(styles.Muted.Render(fmt.Sprintf("Could not stop process %d: %v", state.PID, err)))
+		} else {
+			fmt.Println(styles.SuccessMessage(fmt.Sprintf("Stopped process %d", state.PID)))
+		}
+	}
+
+	// Remove state file
+	d.removeState()
+	return nil
+}
+
 func killProcessByPID(pid int) error {
 	process, err := os.FindProcess(pid)
 	if err != nil {
