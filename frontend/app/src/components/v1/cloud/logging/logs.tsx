@@ -15,17 +15,8 @@ const convert = new AnsiToHtml({
   bg: 'transparent',
 });
 
-export interface ExtendedLogLine {
-  badge?: React.ReactNode;
-  /** @format date-time */
-  timestamp?: string;
-  instance?: string;
-  line: string;
-}
-
 type LogProps = {
-  logs: ExtendedLogLine[];
-  rawLogs?: LogLine[];
+  logs: LogLine[];
   onTopReached: () => void;
   onBottomReached: () => void;
   onInfiniteScroll?: (scrollMetrics: {
@@ -48,7 +39,6 @@ const options: Intl.DateTimeFormatOptions = {
 
 const LoggingComponent: React.FC<LogProps> = ({
   logs,
-  rawLogs = [],
   onTopReached,
   onBottomReached,
   onInfiniteScroll,
@@ -70,8 +60,8 @@ const LoggingComponent: React.FC<LogProps> = ({
     apiQueryParams,
     handleQueryChange,
   } = useLogSearch();
-  const metadataKeys = useMetadataKeys(rawLogs);
-  const metadataValues = useMetadataValues(rawLogs);
+  const metadataKeys = useMetadataKeys(logs);
+  const metadataValues = useMetadataValues(logs);
 
   useEffect(() => {
     onSearchChange?.(apiQueryParams);
@@ -163,7 +153,7 @@ const LoggingComponent: React.FC<LogProps> = ({
     }
 
     return logs.filter((log, index) => {
-      const rawLog = rawLogs[index];
+      const rawLog = logs[index];
 
       if (parsedQuery.search) {
         const searchLower = parsedQuery.search.toLowerCase();
@@ -215,7 +205,7 @@ const LoggingComponent: React.FC<LogProps> = ({
 
       return true;
     });
-  }, [logs, rawLogs, parsedQuery, queryString]);
+  }, [logs, parsedQuery, queryString]);
 
   const showLogs =
     filteredLogs.length > 0
@@ -278,7 +268,6 @@ const LoggingComponent: React.FC<LogProps> = ({
               className="overflow-x-hidden whitespace-pre-wrap break-all pb-2"
               id={'log' + i}
             >
-              {log.badge}
               {log.timestamp && (
                 <span className="ml--2 mr-2 text-gray-500">
                   {new Date(log.timestamp)
