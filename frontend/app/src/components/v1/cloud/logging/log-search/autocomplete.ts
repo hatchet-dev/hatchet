@@ -1,8 +1,4 @@
-import {
-  AutocompleteContext,
-  AutocompleteSuggestion,
-  LOG_LEVELS,
-} from './types';
+import { AutocompleteSuggestion, LOG_LEVELS } from './types';
 
 const LEVEL_DESCRIPTIONS: Record<string, string> = {
   error: 'Error messages',
@@ -11,83 +7,84 @@ const LEVEL_DESCRIPTIONS: Record<string, string> = {
   debug: 'Debug messages',
 };
 
-export function getAutocompleteContext(
-  query: string,
-  cursorPosition: number,
-): AutocompleteContext {
-  const beforeCursor = query.slice(0, cursorPosition);
+export type AutocompleteMode = 'key' | 'value' | 'none';
 
-  const lastColonIndex = beforeCursor.lastIndexOf(':');
-  const lastSpaceIndex = beforeCursor.lastIndexOf(' ');
-
-  if (lastColonIndex > lastSpaceIndex) {
-    const keyStart = lastSpaceIndex + 1;
-    const key = beforeCursor.slice(keyStart, lastColonIndex);
-    const partialValue = beforeCursor.slice(lastColonIndex + 1);
-
-    return {
-      mode: 'value',
-      currentKey: key.toLowerCase(),
-      partialValue,
-      cursorPosition,
-    };
-  }
-
-  const lastWord = beforeCursor.slice(lastSpaceIndex + 1);
-  if (lastWord.length > 0 && !lastWord.includes(':')) {
-    return {
-      mode: 'key',
-      partialValue: lastWord,
-      cursorPosition,
-    };
-  }
-
-  return {
-    mode: 'idle',
-    cursorPosition,
-  };
+export interface AutocompleteState {
+  mode: AutocompleteMode;
+  suggestions: AutocompleteSuggestion[];
 }
 
-export function getSuggestions(
-  context: AutocompleteContext,
-): AutocompleteSuggestion[] {
-  if (context.mode === 'idle') {
-    return [
-      {
-        type: 'key',
-        label: 'level',
-        value: 'level:',
-        description: 'Filter by log level',
-      },
-    ];
+export function getAutocomplete(query: string): AutocompleteState {
+  const trimmed = query.trimEnd();
+  const lastWord = trimmed.split(' ').pop() || '';
+
+  // Check if we're typing a level value (after "level:")
+  if (lastWord.startsWith('level:')) {
+    const partial = lastWord.slice(6).toLowerCase();
+    const suggestions = LOG_LEVELS.filter((level) =>
+      level.startsWith(partial),
+    ).map((level) => ({
+      type: 'value' as const,
+      label: level,
+      value: level,
+      description: LEVEL_DESCRIPTIONS[level],
+    }));
+    return { mode: 'value', suggestions };
   }
 
-  if (context.mode === 'key') {
-    const partial = (context.partialValue || '').toLowerCase();
-    if ('level'.startsWith(partial)) {
-      return [
+  // Check if we're typing the start of "level"
+  if ('level:'.startsWith(lastWord.toLowerCase()) && lastWord.length > 0) {
+    return {
+      mode: 'key',
+      suggestions: [
         {
           type: 'key',
           label: 'level',
           value: 'level:',
           description: 'Filter by log level',
         },
-      ];
+      ],
+    };
+  }
+
+  // Show level suggestion when input is empty or ends with space
+  if (trimmed === '' || query.endsWith(' ')) {
+    return {
+      mode: 'key',
+      suggestions: [
+        {
+          type: 'key',
+          label: 'level',
+          value: 'level:',
+          description: 'Filter by log level',
+        },
+      ],
+    };
+  }
+
+  return { mode: 'none', suggestions: [] };
+}
+
+export function applySuggestion(
+  query: string,
+  suggestion: AutocompleteSuggestion,
+): string {
+  const trimmed = query.trimEnd();
+  const words = trimmed.split(' ');
+  const lastWord = words.pop() || '';
+
+  if (suggestion.type === 'value') {
+    // Replace partial value after "level:"
+    const prefix = lastWord.slice(0, lastWord.indexOf(':') + 1);
+    words.push(prefix + suggestion.value);
+  } else {
+    // Replace partial key or append
+    if (lastWord && 'level:'.startsWith(lastWord.toLowerCase())) {
+      words.push(suggestion.value);
+    } else {
+      words.push(lastWord, suggestion.value);
     }
-    return [];
   }
 
-  if (context.mode === 'value' && context.currentKey === 'level') {
-    const partial = (context.partialValue || '').toLowerCase();
-    return LOG_LEVELS.filter((level) => level.startsWith(partial)).map(
-      (level) => ({
-        type: 'value' as const,
-        label: level,
-        value: level,
-        description: LEVEL_DESCRIPTIONS[level],
-      }),
-    );
-  }
-
-  return [];
+  return words.filter(Boolean).join(' ');
 }
