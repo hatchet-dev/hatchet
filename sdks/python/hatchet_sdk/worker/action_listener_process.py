@@ -249,8 +249,13 @@ class WorkerActionListenerProcess:
 
     async def stop_health_server(self) -> None:
         if self._event_loop_monitor_task is not None:
-            self._event_loop_monitor_task.cancel()
+            task = self._event_loop_monitor_task
             self._event_loop_monitor_task = None
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
         if self._health_runner is None:
             return
