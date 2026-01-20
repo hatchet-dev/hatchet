@@ -2,7 +2,6 @@ import asyncio
 import multiprocessing
 import multiprocessing.context
 import os
-import re
 import signal
 import sys
 from collections.abc import AsyncGenerator, Callable
@@ -14,12 +13,6 @@ from multiprocessing.process import BaseProcess
 from types import FrameType
 from typing import Any, TypeVar
 from warnings import warn
-
-from aiohttp import web
-from aiohttp.web_request import Request
-from aiohttp.web_response import Response
-from prometheus_client import Gauge, generate_latest
-from pydantic import BaseModel
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.config import ClientConfig
@@ -50,15 +43,6 @@ class WorkerStatus(Enum):
 @dataclass
 class WorkerStartOptions:
     loop: asyncio.AbstractEventLoop | None = field(default=None)
-
-
-class HealthCheckResponse(BaseModel):
-    status: str
-    name: str
-    slots: int
-    actions: list[str]
-    labels: dict[str, str | int]
-    python_version: str
 
 
 LifespanGenerator = AsyncGenerator[Any, Any]
@@ -127,11 +111,6 @@ class Worker:
 
         self._setup_signal_handlers()
 
-        self.worker_status_gauge = Gauge(
-            "hatchet_worker_status_" + re.sub(r"\W+", "", name),
-            "Current status of the Hatchet worker",
-        )
-
         self.has_any_durable = False
         self.has_any_non_durable = False
 
@@ -190,45 +169,6 @@ class Worker:
         logger.debug("creating new event loop")
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-
-    async def _health_check_handler(self, request: Request) -> Response:
-        response = HealthCheckResponse(
-            status=self.status.name,
-            name=self.name,
-            slots=self.slots or 0,
-            actions=list(self.action_registry.keys()),
-            labels=self.labels,
-            python_version=sys.version,
-        ).model_dump()
-
-        return web.json_response(response)
-
-    async def _metrics_handler(self, request: Request) -> Response:
-        self.worker_status_gauge.set(1 if self.status == WorkerStatus.HEALTHY else 0)
-
-        return web.Response(body=generate_latest(), content_type="text/plain")
-
-    async def _start_health_server(self) -> None:
-        port = self.config.healthcheck.port
-
-        app = web.Application()
-        app.add_routes(
-            [
-                web.get("/health", self._health_check_handler),
-                web.get("/metrics", self._metrics_handler),
-            ]
-        )
-
-        runner = web.AppRunner(app)
-
-        try:
-            await runner.setup()
-            await web.TCPSite(runner, "0.0.0.0", port).start()
-        except Exception:
-            logger.exception("failed to start healthcheck server")
-            return
-
-        logger.info(f"healthcheck server running on port {port}")
 
     def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
         if not (self.action_registry or self.durable_action_registry):
