@@ -1,10 +1,6 @@
 import os
 from typing import cast
 
-from dotenv import load_dotenv
-
-load_dotenv()  # Load .env file from current directory or parents
-
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -21,7 +17,6 @@ else:
             SERVICE_NAME: os.getenv("HATCHET_CLIENT_OTEL_SERVICE_NAME", "test-service")
         }
     )
-    print(os.getenv("HATCHET_CLIENT_OTEL_EXPORTER_OTLP_HEADERS"))
 
     headers = dict(
         [
@@ -39,7 +34,7 @@ else:
     processor = BatchSpanProcessor(
         OTLPSpanExporter(
             endpoint=os.getenv(
-                "HATCHET_CLIENT_OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces"
+                "HATCHET_CLIENT_OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"
             ),
             headers=headers,
         ),
