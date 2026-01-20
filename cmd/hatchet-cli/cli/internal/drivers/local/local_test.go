@@ -103,11 +103,6 @@ func TestLocalOpts(t *testing.T) {
 		t.Errorf("PostgresPort = %d, want 5434", opts.PostgresPort)
 	}
 
-	WithExecutionMode(ExecutionModeSubprocess)(opts)
-	if opts.ExecutionMode != ExecutionModeSubprocess {
-		t.Errorf("ExecutionMode = %q, want %q", opts.ExecutionMode, ExecutionModeSubprocess)
-	}
-
 	WithBinaryVersion("v0.73.10")(opts)
 	if opts.BinaryVersion != "v0.73.10" {
 		t.Errorf("BinaryVersion = %q, want v0.73.10", opts.BinaryVersion)

@@ -8,12 +8,10 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/hatchet-dev/hatchet/pkg/config/database"
-	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
+// StoredKeys holds the encryption keys for the local server
 type StoredKeys struct {
 	MasterKey     string `json:"master_key"`
 	PrivateJWT    string `json:"private_jwt"`
@@ -21,29 +19,81 @@ type StoredKeys struct {
 	CookieSecrets string `json:"cookie_secrets"`
 }
 
-func (d *LocalDriver) ensureEncryptionKeys() error {
-	keysPath := filepath.Join(d.configDir, KeysFileName)
+// DatabaseConfigFile is a minimal database config for local mode
+type DatabaseConfigFile struct {
+	Seed DatabaseSeedConfig `yaml:"seed"`
+}
 
-	if fileExists(keysPath) {
-		return d.loadKeys(keysPath)
-	}
+// DatabaseSeedConfig holds seed configuration
+type DatabaseSeedConfig struct {
+	AdminEmail        string `yaml:"adminEmail"`
+	AdminPassword     string `yaml:"adminPassword"`
+	AdminName         string `yaml:"adminName"`
+	DefaultTenantName string `yaml:"defaultTenantName"`
+	DefaultTenantSlug string `yaml:"defaultTenantSlug"`
+	DefaultTenantID   string `yaml:"defaultTenantId"`
+}
 
-	masterKey, privateJWT, publicJWT, err := encryption.GenerateLocalKeys()
-	if err != nil {
-		return fmt.Errorf("failed to generate encryption keys: %w", err)
-	}
+// ServerConfigFile is a minimal server config for local mode
+type ServerConfigFile struct {
+	Auth              ServerAuthConfig       `yaml:"auth,omitempty"`
+	Encryption        ServerEncryptionConfig `yaml:"encryption,omitempty"`
+	Runtime           ServerRuntimeConfig    `yaml:"runtime,omitempty"`
+	MessageQueue      MessageQueueConfig     `yaml:"msgQueue,omitempty"`
+	SecurityCheck     SecurityCheckConfig    `yaml:"securityCheck,omitempty"`
+	EnableDataRetention   bool               `yaml:"enableDataRetention,omitempty"`
+	EnableWorkerRetention bool               `yaml:"enableWorkerRetention,omitempty"`
+}
 
-	d.masterKey = string(masterKey)
-	d.privateJWT = string(privateJWT)
-	d.publicJWT = string(publicJWT)
+// ServerAuthConfig holds auth configuration
+type ServerAuthConfig struct {
+	Cookie           ServerCookieConfig `yaml:"cookie,omitempty"`
+	SetEmailVerified bool               `yaml:"setEmailVerified,omitempty"`
+}
 
-	cookieSecrets, err := generateCookieSecrets()
-	if err != nil {
-		return fmt.Errorf("failed to generate cookie secrets: %w", err)
-	}
-	d.cookieSecrets = cookieSecrets
+// ServerCookieConfig holds cookie configuration
+type ServerCookieConfig struct {
+	Domain   string `yaml:"domain,omitempty"`
+	Insecure bool   `yaml:"insecure,omitempty"`
+	Secrets  string `yaml:"secrets,omitempty"`
+	Name     string `yaml:"name,omitempty"`
+}
 
-	return d.saveKeys(keysPath)
+// ServerEncryptionConfig holds encryption configuration
+type ServerEncryptionConfig struct {
+	MasterKeyset string          `yaml:"masterKeyset,omitempty"`
+	JWT          ServerJWTConfig `yaml:"jwt,omitempty"`
+}
+
+// ServerJWTConfig holds JWT configuration
+type ServerJWTConfig struct {
+	PrivateJWTKeyset string `yaml:"privateJwtKeyset,omitempty"`
+	PublicJWTKeyset  string `yaml:"publicJwtKeyset,omitempty"`
+}
+
+// ServerRuntimeConfig holds runtime configuration
+type ServerRuntimeConfig struct {
+	Port                 int    `yaml:"port,omitempty"`
+	ServerURL            string `yaml:"serverUrl,omitempty"`
+	GRPCPort             int    `yaml:"grpcPort,omitempty"`
+	GRPCBindAddress      string `yaml:"grpcBindAddress,omitempty"`
+	GRPCBroadcastAddress string `yaml:"grpcBroadcastAddress,omitempty"`
+	GRPCInsecure         bool   `yaml:"grpcInsecure,omitempty"`
+	AllowSignup          bool   `yaml:"allowSignup,omitempty"`
+	AllowInvites         bool   `yaml:"allowInvites,omitempty"`
+	AllowCreateTenant    bool   `yaml:"allowCreateTenant,omitempty"`
+	AllowChangePassword  bool   `yaml:"allowChangePassword,omitempty"`
+}
+
+// MessageQueueConfig holds message queue configuration
+type MessageQueueConfig struct {
+	Enabled bool   `yaml:"enabled,omitempty"`
+	Kind    string `yaml:"kind,omitempty"`
+}
+
+// SecurityCheckConfig holds security check configuration
+type SecurityCheckConfig struct {
+	Enabled bool `yaml:"enabled,omitempty"`
 }
 
 func (d *LocalDriver) loadKeys(path string) error {
@@ -106,8 +156,8 @@ func (d *LocalDriver) writeConfigFiles() error {
 }
 
 func (d *LocalDriver) writeDatabaseConfig() error {
-	config := &database.ConfigFile{
-		Seed: database.SeedConfigFile{
+	config := &DatabaseConfigFile{
+		Seed: DatabaseSeedConfig{
 			AdminEmail:        "admin@example.com",
 			AdminPassword:     "Admin123!!",
 			AdminName:         "Admin",
@@ -127,9 +177,9 @@ func (d *LocalDriver) writeDatabaseConfig() error {
 }
 
 func (d *LocalDriver) writeServerConfig() error {
-	config := &server.ServerConfigFile{
-		Auth: server.ConfigFileAuth{
-			Cookie: server.ConfigFileAuthCookie{
+	config := &ServerConfigFile{
+		Auth: ServerAuthConfig{
+			Cookie: ServerCookieConfig{
 				Domain:   "localhost",
 				Insecure: true,
 				Secrets:  d.cookieSecrets,
@@ -137,14 +187,14 @@ func (d *LocalDriver) writeServerConfig() error {
 			},
 			SetEmailVerified: true,
 		},
-		Encryption: server.EncryptionConfigFile{
+		Encryption: ServerEncryptionConfig{
 			MasterKeyset: d.masterKey,
-			JWT: server.EncryptionConfigFileJWT{
+			JWT: ServerJWTConfig{
 				PrivateJWTKeyset: d.privateJWT,
 				PublicJWTKeyset:  d.publicJWT,
 			},
 		},
-		Runtime: server.ConfigFileRuntime{
+		Runtime: ServerRuntimeConfig{
 			Port:                 d.apiPort,
 			ServerURL:            fmt.Sprintf("http://localhost:%d", d.apiPort),
 			GRPCPort:             d.grpcPort,
@@ -156,11 +206,11 @@ func (d *LocalDriver) writeServerConfig() error {
 			AllowCreateTenant:    true,
 			AllowChangePassword:  true,
 		},
-		MessageQueue: server.MessageQueueConfigFile{
+		MessageQueue: MessageQueueConfig{
 			Enabled: true,
 			Kind:    "postgres",
 		},
-		SecurityCheck: server.SecurityCheckConfigFile{
+		SecurityCheck: SecurityCheckConfig{
 			Enabled: false,
 		},
 		EnableDataRetention:   true,
