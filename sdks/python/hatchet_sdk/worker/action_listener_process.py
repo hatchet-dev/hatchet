@@ -2,7 +2,6 @@ import asyncio
 import logging
 import re
 import signal
-import sys
 import time
 from dataclasses import dataclass
 from multiprocessing import Queue
@@ -244,7 +243,9 @@ class WorkerActionListenerProcess:
         )
 
         if self._event_loop_monitor_task is None:
-            self._event_loop_monitor_task = asyncio.create_task(self._monitor_event_loop())
+            self._event_loop_monitor_task = asyncio.create_task(
+                self._monitor_event_loop()
+            )
 
     async def stop_health_server(self) -> None:
         if self._event_loop_monitor_task is not None:
