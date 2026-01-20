@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
@@ -79,6 +83,11 @@ func (ep *EmbeddedPostgres) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to create binary directory: %w", err)
 	}
 
+	// Check for and clean up orphan postgres processes
+	if err := ep.cleanupOrphanPostgres(); err != nil {
+		fmt.Println(styles.Muted.Render(fmt.Sprintf("Warning: could not clean up orphan postgres: %v", err)))
+	}
+
 	// Check if port is available before attempting to start
 	if err := checkPortAvailable(ep.port); err != nil {
 		return fmt.Errorf("port %d is already in use (possibly from a previous run)\n\n"+
@@ -128,6 +137,103 @@ func (ep *EmbeddedPostgres) Start(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// cleanupOrphanPostgres checks for and cleans up orphan postgres processes
+func (ep *EmbeddedPostgres) cleanupOrphanPostgres() error {
+	postmasterPidFile := filepath.Join(ep.dataPath, "postmaster.pid")
+
+	// Check if postmaster.pid exists
+	if !fileExists(postmasterPidFile) {
+		return nil
+	}
+
+	// Read the PID from the file
+	data, err := os.ReadFile(postmasterPidFile)
+	if err != nil {
+		return fmt.Errorf("could not read postmaster.pid: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	if len(lines) == 0 {
+		return nil
+	}
+
+	pid, err := strconv.Atoi(strings.TrimSpace(lines[0]))
+	if err != nil {
+		return fmt.Errorf("could not parse PID from postmaster.pid: %w", err)
+	}
+
+	// Check if the process is still running
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		// Process doesn't exist, safe to remove the pid file
+		fmt.Println(styles.InfoMessage("Cleaning up stale postmaster.pid file..."))
+		return os.Remove(postmasterPidFile)
+	}
+
+	// Check if process is actually running (signal 0 test)
+	if err := process.Signal(syscall.Signal(0)); err != nil {
+		// Process is not running, safe to remove the pid file
+		fmt.Println(styles.InfoMessage("Cleaning up stale postmaster.pid file..."))
+		return os.Remove(postmasterPidFile)
+	}
+
+	// Process is running - try to stop it gracefully using pg_ctl
+	fmt.Println(styles.InfoMessage(fmt.Sprintf("Found orphan PostgreSQL process (PID %d), stopping it...", pid)))
+
+	pgCtl := filepath.Join(ep.binPath, "bin", "pg_ctl")
+	if fileExists(pgCtl) {
+		cmd := exec.Command(pgCtl, "stop", "-D", ep.dataPath, "-m", "fast", "-w")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			fmt.Println(styles.Muted.Render(fmt.Sprintf("pg_ctl stop failed: %v\nOutput: %s", err, string(output))))
+			// Fall back to sending SIGTERM directly
+			return ep.killOrphanProcess(process, pid)
+		}
+		fmt.Println(styles.SuccessMessage("Orphan PostgreSQL process stopped"))
+		return nil
+	}
+
+	// No pg_ctl available, kill the process directly
+	return ep.killOrphanProcess(process, pid)
+}
+
+// killOrphanProcess kills an orphan postgres process
+func (ep *EmbeddedPostgres) killOrphanProcess(process *os.Process, pid int) error {
+	fmt.Println(styles.InfoMessage(fmt.Sprintf("Sending SIGTERM to orphan process (PID %d)...", pid)))
+
+	if err := process.Signal(syscall.SIGTERM); err != nil {
+		if err == os.ErrProcessDone {
+			return nil
+		}
+		return fmt.Errorf("could not send SIGTERM to process %d: %w", pid, err)
+	}
+
+	// Wait for the process to exit (with timeout)
+	done := make(chan error, 1)
+	go func() {
+		_, err := process.Wait()
+		done <- err
+	}()
+
+	select {
+	case <-done:
+		fmt.Println(styles.SuccessMessage("Orphan process terminated"))
+		// Clean up the pid file
+		postmasterPidFile := filepath.Join(ep.dataPath, "postmaster.pid")
+		os.Remove(postmasterPidFile)
+		return nil
+	case <-time.After(10 * time.Second):
+		// Force kill
+		fmt.Println(styles.InfoMessage("Process did not exit, sending SIGKILL..."))
+		if err := process.Kill(); err != nil {
+			return fmt.Errorf("could not kill process %d: %w", pid, err)
+		}
+		// Clean up the pid file
+		postmasterPidFile := filepath.Join(ep.dataPath, "postmaster.pid")
+		os.Remove(postmasterPidFile)
+		return nil
+	}
 }
 
 // Stop gracefully stops the embedded postgres instance
@@ -184,4 +290,9 @@ func checkPortAvailable(port uint32) error {
 	}
 	ln.Close()
 	return nil
+}
+
+// Cleanup cleans up orphan postgres processes without starting a new instance
+func (ep *EmbeddedPostgres) Cleanup() error {
+	return ep.cleanupOrphanPostgres()
 }

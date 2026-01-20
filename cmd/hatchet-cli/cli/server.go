@@ -137,6 +137,53 @@ was started with Docker or --local mode and stops it appropriately.`,
 	},
 }
 
+var cleanupCmd = &cobra.Command{
+	Use:   "cleanup",
+	Short: "Clean up orphan processes from a local Hatchet server",
+	Long: `Clean up orphan PostgreSQL and Hatchet processes that may be left over
+from a crashed or interrupted local server. This is useful when you see errors
+about ports already in use or postmaster.pid lock files.`,
+	Example: `  # Clean up orphan processes
+  hatchet server cleanup
+
+  # Clean up with a specific postgres port
+  hatchet server cleanup --postgres-port 5444`,
+	Run: func(cmd *cobra.Command, args []string) {
+		postgresPort, _ := cmd.Flags().GetInt("postgres-port")
+
+		if postgresPort == 0 {
+			postgresPort = int(local.DefaultPostgresPort)
+		}
+
+		fmt.Println(styles.InfoMessage("Cleaning up orphan processes..."))
+
+		// Clean up embedded postgres
+		cfg := local.PostgresConfig{
+			Port: uint32(postgresPort),
+		}
+		ep, err := local.NewEmbeddedPostgres(cfg)
+		if err != nil {
+			cli.Logger.Fatalf("could not create embedded postgres config: %v\n", err)
+		}
+
+		if err := ep.Cleanup(); err != nil {
+			fmt.Println(styles.Muted.Render(fmt.Sprintf("PostgreSQL cleanup: %v", err)))
+		} else {
+			fmt.Println(styles.SuccessMessage("PostgreSQL cleanup completed"))
+		}
+
+		// Clean up state file
+		localDriver := local.NewLocalDriver()
+		if err := localDriver.Cleanup(); err != nil {
+			fmt.Println(styles.Muted.Render(fmt.Sprintf("State cleanup: %v", err)))
+		} else {
+			fmt.Println(styles.SuccessMessage("State cleanup completed"))
+		}
+
+		fmt.Println(styles.SuccessBox.Render("Cleanup completed!"))
+	},
+}
+
 // ServerStartResult contains the result of starting a local server
 type ServerStartResult struct {
 	ProfileName   string
@@ -335,6 +382,7 @@ func init() {
 
 	serverCmd.AddCommand(startCmd)
 	serverCmd.AddCommand(stopCmd)
+	serverCmd.AddCommand(cleanupCmd)
 
 	// Flags for start command
 	// Local mode flags
@@ -361,4 +409,7 @@ func init() {
 	// Flags for stop command
 	stopCmd.Flags().BoolP("local", "l", false, "Explicitly stop a local (non-Docker) server")
 	stopCmd.Flags().StringP("project-name", "p", "", "Docker project name for containers (default: hatchet-cli)")
+
+	// Flags for cleanup command
+	cleanupCmd.Flags().Int("postgres-port", 0, "Port for embedded PostgreSQL to clean up (default: 5433)")
 }
