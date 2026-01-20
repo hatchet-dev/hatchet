@@ -28,6 +28,7 @@ import {
   MagnifyingGlassIcon,
   Cross2Icon,
   ClockIcon,
+  LayersIcon,
   GearIcon,
   ListBulletIcon,
 } from '@radix-ui/react-icons';
@@ -37,6 +38,8 @@ function getCategoryIcon(category: SuggestionCategory | 'other') {
   switch (category) {
     case 'time':
       return <ClockIcon className="h-3.5 w-3.5" />;
+    case 'log-attributes':
+      return <LayersIcon className="h-3.5 w-3.5" />;
     case 'metadata':
       return <ListBulletIcon className="h-3.5 w-3.5" />;
     default:
@@ -203,6 +206,7 @@ export function LogSearchInput({
               }}
               onBlur={() => setTimeout(() => setIsOpen(false), 200)}
               onClick={(e) => {
+                e.stopPropagation();
                 const target = e.target as HTMLInputElement;
                 setCursorPosition(target.selectionStart || 0);
               }}
