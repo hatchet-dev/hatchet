@@ -58,14 +58,12 @@ export function useLogs({ taskRun, resetTrigger }: UseLogsOptions): UseLogsRetur
   const lastScrollPercentageRef = useRef(0);
   const lastPageNumberRef = useRef(0);
 
-  // Filter state
   const [queryString, setQueryString] = useState('');
   const parsedQuery = useMemo(() => parseLogQuery(queryString), [queryString]);
 
   const isTaskRunning = taskRun?.status === V1TaskStatus.RUNNING;
   const MAX_PAGES = isTaskRunning ? 0 : 2;
 
-  // Reset state when resetTrigger changes or filters change
   useEffect(() => {
     if (taskRun?.metadata.id) {
       queryClient.resetQueries({
@@ -82,7 +80,7 @@ export function useLogs({ taskRun, resetTrigger }: UseLogsOptions): UseLogsRetur
     V1LogLineList,
     Error,
     InfiniteData<V1LogLineList>,
-    string[],
+    (string | undefined)[],
     { since: string | undefined; until: string | undefined }
   >({
     queryKey: ['v1Tasks', 'getLogs', taskRun?.metadata.id, parsedQuery.level, parsedQuery.search],
@@ -185,7 +183,6 @@ export function useLogs({ taskRun, resetTrigger }: UseLogsOptions): UseLogsRetur
 
   isRefetchingRef.current = getLogsQuery.isRefetching;
 
-  // Fetch logs every second while the task is running
   useEffect(() => {
     if (!isTaskRunning) {
       return;
