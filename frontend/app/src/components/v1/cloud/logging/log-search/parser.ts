@@ -5,7 +5,6 @@ export function parseLogQuery(query: string): ParsedLogQuery {
   const textParts: string[] = [];
   let level: LogLevel | undefined;
 
-  // Match key:value pairs or plain words
   const tokenRegex = /(\S+?):(\S+)|(\S+)/g;
   let match;
 
@@ -21,7 +20,6 @@ export function parseLogQuery(query: string): ParsedLogQuery {
           errors.push(`Invalid log level: "${value}"`);
         }
       } else {
-        // Unknown filter - treat as text
         textParts.push(`${key}:${value}`);
       }
     } else if (text) {

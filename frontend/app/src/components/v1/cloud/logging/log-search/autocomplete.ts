@@ -18,7 +18,6 @@ export function getAutocomplete(query: string): AutocompleteState {
   const trimmed = query.trimEnd();
   const lastWord = trimmed.split(' ').pop() || '';
 
-  // Check if we're typing a level value (after "level:")
   if (lastWord.startsWith('level:')) {
     const partial = lastWord.slice(6).toLowerCase();
     const suggestions = LOG_LEVELS.filter((level) =>
@@ -32,7 +31,6 @@ export function getAutocomplete(query: string): AutocompleteState {
     return { mode: 'value', suggestions };
   }
 
-  // Check if we're typing the start of "level"
   if ('level:'.startsWith(lastWord.toLowerCase()) && lastWord.length > 0) {
     return {
       mode: 'key',
@@ -47,7 +45,6 @@ export function getAutocomplete(query: string): AutocompleteState {
     };
   }
 
-  // Show level suggestion when input is empty or ends with space
   if (trimmed === '' || query.endsWith(' ')) {
     return {
       mode: 'key',
@@ -74,11 +71,9 @@ export function applySuggestion(
   const lastWord = words.pop() || '';
 
   if (suggestion.type === 'value') {
-    // Replace partial value after "level:"
     const prefix = lastWord.slice(0, lastWord.indexOf(':') + 1);
     words.push(prefix + suggestion.value);
   } else {
-    // Replace partial key or append
     if (lastWord && 'level:'.startsWith(lastWord.toLowerCase())) {
       words.push(suggestion.value);
     } else {
