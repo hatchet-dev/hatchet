@@ -5,6 +5,18 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.8] - 2026-01-20
+
+### Added
+
+- Adds `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS` to configure when the worker healthcheck becomes unhealthy if the listener process event loop is blocked / task runs are not starting promptly.
+
+### Changed
+
+- The worker healthcheck server (`/health`, `/metrics`) now runs in the spawned action-listener process (non-durable preferred; durable fallback), instead of the main worker process.
+- The worker `/health` endpoint now checks for listener connection status and aio event loop health.
+- The worker `/metrics` endpoint now exposes listener-focused metrics like `hatchet_worker_listener_health_<worker_name>` and `hatchet_worker_event_loop_lag_seconds_<worker_name>`.
+
 ## [1.22.7] - 2026-01-19
 
 ### Added
