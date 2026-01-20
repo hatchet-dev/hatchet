@@ -1,8 +1,5 @@
 import { ReactNode } from 'react';
 
-/**
- * Represents a single filter token in the parsed query
- */
 export interface QueryToken {
   type: 'filter' | 'text';
   key?: string;
@@ -14,9 +11,6 @@ export interface QueryToken {
   };
 }
 
-/**
- * Reserved filter keys with special handling
- */
 export const RESERVED_FILTER_KEYS = [
   'after',
   'before',
@@ -28,9 +22,6 @@ export const RESERVED_FILTER_KEYS = [
 ] as const;
 export type ReservedFilterKey = (typeof RESERVED_FILTER_KEYS)[number];
 
-/**
- * Suggestion categories for grouped display
- */
 export type SuggestionCategory =
   | 'time'
   | 'log-attributes'
@@ -44,9 +35,6 @@ export const SUGGESTION_CATEGORY_LABELS: Record<SuggestionCategory, string> = {
   metadata: 'Metadata',
 };
 
-/**
- * The parsed query output - this is what the component emits
- */
 export interface ParsedLogQuery {
   search?: string;
   after?: string;
@@ -59,9 +47,6 @@ export interface ParsedLogQuery {
   errors: string[];
 }
 
-/**
- * Autocomplete suggestion types
- */
 export type AutocompleteSuggestionType = 'key' | 'value';
 
 export interface AutocompleteSuggestion {
@@ -73,9 +58,6 @@ export interface AutocompleteSuggestion {
   category?: SuggestionCategory;
 }
 
-/**
- * Autocomplete context - determines what suggestions to show
- */
 export interface AutocompleteContext {
   mode: 'idle' | 'key' | 'value';
   currentKey?: string;
@@ -83,9 +65,6 @@ export interface AutocompleteContext {
   cursorPosition: number;
 }
 
-/**
- * Props for the LogSearchInput component
- */
 export interface LogSearchInputProps {
   value: string;
   onChange: (value: string) => void;

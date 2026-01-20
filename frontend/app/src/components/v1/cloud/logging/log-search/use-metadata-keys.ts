@@ -1,9 +1,6 @@
 import { useMemo } from 'react';
 import { LogLine } from '@/lib/api/generated/cloud/data-contracts';
 
-/**
- * Extract unique metadata keys from log data
- */
 export function useMetadataKeys(logs: LogLine[]): string[] {
   return useMemo(() => {
     const keys = new Set<string>();
@@ -20,9 +17,6 @@ export function useMetadataKeys(logs: LogLine[]): string[] {
   }, [logs]);
 }
 
-/**
- * Extract unique values for each metadata key (for value autocomplete)
- */
 export function useMetadataValues(
   logs: LogLine[],
 ): Record<string, string[]> {
@@ -43,7 +37,6 @@ export function useMetadataValues(
         }
       }
 
-      // Also track level values
       if (log.level) {
         if (!values['level']) {
           values['level'] = new Set();
@@ -52,10 +45,9 @@ export function useMetadataValues(
       }
     }
 
-    // Convert Sets to sorted arrays
     const result: Record<string, string[]> = {};
     for (const [key, valueSet] of Object.entries(values)) {
-      result[key] = Array.from(valueSet).sort().slice(0, 50); // Limit values
+      result[key] = Array.from(valueSet).sort().slice(0, 50);
     }
 
     return result;

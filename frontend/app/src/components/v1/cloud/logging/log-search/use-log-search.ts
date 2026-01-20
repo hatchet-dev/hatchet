@@ -16,9 +16,6 @@ export interface UseLogSearchReturn {
   clearSearch: () => void;
 }
 
-/**
- * Hook to manage log search state and convert to API params
- */
 export function useLogSearch(
   options: UseLogSearchOptions = {},
 ): UseLogSearchReturn {
@@ -31,7 +28,6 @@ export function useLogSearch(
     [queryString],
   );
 
-  // Convert parsed query to API params
   const apiQueryParams = useMemo((): ListCloudLogsQuery => {
     const params: ListCloudLogsQuery = {};
 
@@ -43,8 +39,6 @@ export function useLogSearch(
       params.before = parsedQuery.before;
     }
 
-    // Combine free text search with metadata filters for the search param
-    // The API accepts a single search string
     const searchParts: string[] = [];
 
     if (parsedQuery.search) {

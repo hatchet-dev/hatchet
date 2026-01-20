@@ -1,18 +1,13 @@
 import { parse, parseISO, isValid as isValidDate, formatISO } from 'date-fns';
 import { ParsedLogQuery, QueryToken } from './types';
 
-/**
- * Parse date strings with various formats
- * Supports: ISO 8601, YYYY-MM-DD, relative dates (1h, 2d, 1w)
- */
+
 export function parseDateValue(value: string): string | null {
-  // Try ISO 8601 first
   const isoDate = parseISO(value);
   if (isValidDate(isoDate)) {
     return formatISO(isoDate);
   }
 
-  // Try common date formats
   const formats = [
     'yyyy-MM-dd',
     'yyyy-MM-dd HH:mm',
@@ -28,7 +23,6 @@ export function parseDateValue(value: string): string | null {
     }
   }
 
-  // Handle relative dates like "1h", "2d", "1w"
   const relativeMatch = value.match(/^(\d+)([smhdw])$/);
   if (relativeMatch) {
     const [, amount, unit] = relativeMatch;
@@ -48,13 +42,9 @@ export function parseDateValue(value: string): string | null {
   return null;
 }
 
-/**
- * Tokenize the query string into individual tokens
- */
 export function tokenize(query: string): QueryToken[] {
   const tokens: QueryToken[] = [];
 
-  // Regex to match key:value pairs (with optional quoted values) or plain text
   const tokenRegex = /(\S+?):((?:"[^"]*")|(?:\S+))|(\S+)/g;
   let match;
 
@@ -64,7 +54,6 @@ export function tokenize(query: string): QueryToken[] {
     const end = start + fullMatch.length;
 
     if (key && value !== undefined) {
-      // Filter token (key:value)
       const cleanValue =
         value.startsWith('"') && value.endsWith('"')
           ? value.slice(1, -1)
@@ -78,7 +67,6 @@ export function tokenize(query: string): QueryToken[] {
         position: { start, end },
       });
     } else if (text) {
-      // Text token
       tokens.push({
         type: 'text',
         value: text,
@@ -91,9 +79,6 @@ export function tokenize(query: string): QueryToken[] {
   return tokens;
 }
 
-/**
- * Parse a query string into a structured ParsedLogQuery
- */
 export function parseLogQuery(query: string): ParsedLogQuery {
   const tokens = tokenize(query);
   const errors: string[] = [];
@@ -127,12 +112,10 @@ export function parseLogQuery(query: string): ParsedLogQuery {
     } else if (key === 'level') {
       result.level = value.toLowerCase();
     } else {
-      // Metadata filter
       result.metadata[key] = value;
     }
   }
 
-  // Combine text parts for free text search
   if (textParts.length > 0) {
     result.search = textParts.join(' ');
   }
@@ -143,9 +126,6 @@ export function parseLogQuery(query: string): ParsedLogQuery {
   return result;
 }
 
-/**
- * Convert ParsedLogQuery back to query string
- */
 export function serializeLogQuery(query: Partial<ParsedLogQuery>): string {
   const parts: string[] = [];
 
@@ -175,9 +155,6 @@ export function serializeLogQuery(query: Partial<ParsedLogQuery>): string {
   return parts.join(' ');
 }
 
-/**
- * Get the token at a specific cursor position
- */
 export function getTokenAtPosition(
   tokens: QueryToken[],
   position: number,

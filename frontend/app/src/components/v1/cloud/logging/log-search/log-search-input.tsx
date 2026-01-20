@@ -28,9 +28,7 @@ import {
   MagnifyingGlassIcon,
   Cross2Icon,
   ClockIcon,
-  LayersIcon,
   GearIcon,
-  CubeIcon,
   ListBulletIcon,
 } from '@radix-ui/react-icons';
 import React, { useState, useRef, useCallback, useEffect } from 'react';
@@ -39,10 +37,6 @@ function getCategoryIcon(category: SuggestionCategory | 'other') {
   switch (category) {
     case 'time':
       return <ClockIcon className="h-3.5 w-3.5" />;
-    case 'log-attributes':
-      return <LayersIcon className="h-3.5 w-3.5" />;
-    case 'workflow':
-      return <CubeIcon className="h-3.5 w-3.5" />;
     case 'metadata':
       return <ListBulletIcon className="h-3.5 w-3.5" />;
     default:

@@ -5,9 +5,7 @@ import {
   SuggestionCategory,
 } from './types';
 
-/**
- * Built-in filter key definitions with metadata
- */
+
 interface FilterKeyDefinition {
   key: string;
   description: string;
@@ -53,44 +51,18 @@ const FILTER_KEY_DEFINITIONS: FilterKeyDefinition[] = [
       { label: '7d', description: '7 days ago' },
     ],
   },
-  {
-    key: 'workflow',
-    description: 'Filter by workflow name',
-    category: 'workflow',
-  },
-  {
-    key: 'worker',
-    description: 'Filter by worker ID',
-    category: 'workflow',
-  },
-  {
-    key: 'step',
-    description: 'Filter by step name',
-    category: 'workflow',
-  },
-  {
-    key: 'run',
-    description: 'Filter by run ID',
-    category: 'workflow',
-  },
 ];
 
-/**
- * Determine the autocomplete context based on query and cursor position
- */
 export function getAutocompleteContext(
   query: string,
   cursorPosition: number,
 ): AutocompleteContext {
-  // Get the text before cursor
   const beforeCursor = query.slice(0, cursorPosition);
 
-  // Check if we're in the middle of typing a key:value pair
   const lastColonIndex = beforeCursor.lastIndexOf(':');
   const lastSpaceIndex = beforeCursor.lastIndexOf(' ');
 
   if (lastColonIndex > lastSpaceIndex) {
-    // We're after a colon - suggest values
     const keyStart = lastSpaceIndex + 1;
     const key = beforeCursor.slice(keyStart, lastColonIndex);
     const partialValue = beforeCursor.slice(lastColonIndex + 1);
@@ -103,7 +75,6 @@ export function getAutocompleteContext(
     };
   }
 
-  // Check if we're typing a key (word without space after last space)
   const lastWord = beforeCursor.slice(lastSpaceIndex + 1);
   if (lastWord.length > 0 && !lastWord.includes(':')) {
     return {
@@ -113,23 +84,16 @@ export function getAutocompleteContext(
     };
   }
 
-  // Empty or just after a space - show all available filter keys
   return {
     mode: 'idle',
     cursorPosition,
   };
 }
 
-/**
- * Get the filter definition for a key
- */
 function getFilterDefinition(key: string): FilterKeyDefinition | undefined {
   return FILTER_KEY_DEFINITIONS.find((def) => def.key === key);
 }
 
-/**
- * Generate autocomplete suggestions based on context
- */
 export function getSuggestions(
   context: AutocompleteContext,
   metadataKeys: string[],
@@ -138,7 +102,6 @@ export function getSuggestions(
   const suggestions: AutocompleteSuggestion[] = [];
 
   if (context.mode === 'idle') {
-    // Show all available filter keys when input is empty or after a space
     for (const def of FILTER_KEY_DEFINITIONS) {
       suggestions.push({
         type: 'key',
@@ -149,7 +112,6 @@ export function getSuggestions(
       });
     }
 
-    // Add metadata keys
     for (const key of metadataKeys) {
       if (
         !RESERVED_FILTER_KEYS.includes(
@@ -168,7 +130,6 @@ export function getSuggestions(
   } else if (context.mode === 'key') {
     const partial = (context.partialValue || '').toLowerCase();
 
-    // Add built-in keys that match
     for (const def of FILTER_KEY_DEFINITIONS) {
       if (def.key.startsWith(partial)) {
         suggestions.push({
@@ -181,7 +142,6 @@ export function getSuggestions(
       }
     }
 
-    // Add metadata keys that match
     for (const key of metadataKeys) {
       if (
         key.toLowerCase().startsWith(partial) &&
@@ -203,7 +163,6 @@ export function getSuggestions(
     const key = context.currentKey;
     const filterDef = getFilterDefinition(key);
 
-    // Use built-in values if available
     if (filterDef?.values) {
       for (const val of filterDef.values) {
         if (val.label.toLowerCase().startsWith(partial)) {
@@ -218,7 +177,6 @@ export function getSuggestions(
       }
     }
 
-    // Also check knownValues (from data) for this key
     if (knownValues[key]) {
       const existingLabels = new Set(suggestions.map((s) => s.label));
       for (const value of knownValues[key]) {
@@ -240,40 +198,29 @@ export function getSuggestions(
   return suggestions.slice(0, 15); // Limit to 15 suggestions
 }
 
-/**
- * Group suggestions by category for display
- */
 export function groupSuggestionsByCategory(
   suggestions: AutocompleteSuggestion[],
-): Map<SuggestionCategory | 'other', AutocompleteSuggestion[]> {
-  const groups = new Map<SuggestionCategory | 'other', AutocompleteSuggestion[]>();
+): Map<SuggestionCategory , AutocompleteSuggestion[]> {
+  const groups = new Map<SuggestionCategory , AutocompleteSuggestion[]>();
 
-  // Define category order
-  const categoryOrder: (SuggestionCategory | 'other')[] = [
+  const categoryOrder: (SuggestionCategory)[] = [
     'log-attributes',
     'time',
-    'workflow',
     'metadata',
-    'other',
   ];
 
-  // Initialize groups in order
   for (const cat of categoryOrder) {
     groups.set(cat, []);
   }
 
-  // Group suggestions
   for (const suggestion of suggestions) {
-    const category = suggestion.category || 'other';
-    const group = groups.get(category);
+    const category = suggestion.category;
+    const group = category ? groups.get(category) : undefined;
     if (group) {
       group.push(suggestion);
-    } else {
-      groups.get('other')!.push(suggestion);
     }
   }
 
-  // Remove empty groups
   for (const [cat, items] of groups) {
     if (items.length === 0) {
       groups.delete(cat);
