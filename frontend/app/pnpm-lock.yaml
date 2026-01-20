@@ -129,6 +129,9 @@ importers:
       dompurify:
         specifier: ^3.2.4
         version: 3.2.6
+      ghostty-web:
+        specifier: ^0.4.0
+        version: 0.4.0
       jotai:
         specifier: ^2.12.2
         version: 2.13.1(@babel/core@7.28.3)(@babel/template@7.27.2)(@types/react@18.3.23)(react@18.3.1)
@@ -2715,6 +2718,9 @@ packages:
 
   getpass@0.1.7:
     resolution: {integrity: sha512-0fzj9JxOLfJ+XGLhR8ze3unN0KZCgZwiSSDz168VERjK8Wl8kVSdcu2kspd4s4wtAa1y/qrVRiAA0WclVsu0ng==}
+
+  ghostty-web@0.4.0:
+    resolution: {integrity: sha512-0puDBik2qapbD/QQBW9o5ZHfXnZBqZWx/ctBiVtKZ6ZLds4NYb+wZuw1cRLXZk9zYovIQ908z3rvFhexAvc5Hg==}
 
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
@@ -7034,6 +7040,8 @@ snapshots:
   getpass@0.1.7:
     dependencies:
       assert-plus: 1.0.0
+
+  ghostty-web@0.4.0: {}
 
   glob-parent@5.1.2:
     dependencies:
