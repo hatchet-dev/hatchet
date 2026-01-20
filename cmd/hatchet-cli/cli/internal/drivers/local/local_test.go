@@ -91,4 +91,143 @@ func TestLocalOpts(t *testing.T) {
 	if opts.ProfileName != "test-profile" {
 		t.Errorf("ProfileName = %q, want test-profile", opts.ProfileName)
 	}
+
+	// Test new options
+	WithEmbeddedPostgres(true)(opts)
+	if !opts.EmbeddedPostgres {
+		t.Error("EmbeddedPostgres should be true")
+	}
+
+	WithPostgresPort(5434)(opts)
+	if opts.PostgresPort != 5434 {
+		t.Errorf("PostgresPort = %d, want 5434", opts.PostgresPort)
+	}
+
+	WithExecutionMode(ExecutionModeSubprocess)(opts)
+	if opts.ExecutionMode != ExecutionModeSubprocess {
+		t.Errorf("ExecutionMode = %q, want %q", opts.ExecutionMode, ExecutionModeSubprocess)
+	}
+
+	WithBinaryVersion("v0.73.10")(opts)
+	if opts.BinaryVersion != "v0.73.10" {
+		t.Errorf("BinaryVersion = %q, want v0.73.10", opts.BinaryVersion)
+	}
+}
+
+func TestNewEmbeddedPostgres(t *testing.T) {
+	cfg := PostgresConfig{
+		Port: 5434,
+	}
+
+	ep, err := NewEmbeddedPostgres(cfg)
+	if err != nil {
+		t.Fatalf("NewEmbeddedPostgres() error = %v", err)
+	}
+
+	if ep.Port() != 5434 {
+		t.Errorf("Port() = %d, want 5434", ep.Port())
+	}
+
+	if ep.DataPath() == "" {
+		t.Error("DataPath() returned empty string")
+	}
+
+	if ep.BinPath() == "" {
+		t.Error("BinPath() returned empty string")
+	}
+
+	if ep.IsRunning() {
+		t.Error("IsRunning() should be false before Start()")
+	}
+}
+
+func TestEmbeddedPostgresConnectionURL(t *testing.T) {
+	cfg := PostgresConfig{
+		Port: 5433,
+	}
+
+	ep, err := NewEmbeddedPostgres(cfg)
+	if err != nil {
+		t.Fatalf("NewEmbeddedPostgres() error = %v", err)
+	}
+
+	url := ep.ConnectionURL("hatchet")
+	expected := "postgresql://postgres:postgres@localhost:5433/hatchet?sslmode=disable"
+	if url != expected {
+		t.Errorf("ConnectionURL() = %q, want %q", url, expected)
+	}
+
+	// Test with empty database name
+	url = ep.ConnectionURL("")
+	expected = "postgresql://postgres:postgres@localhost:5433/hatchet?sslmode=disable"
+	if url != expected {
+		t.Errorf("ConnectionURL(\"\") = %q, want %q", url, expected)
+	}
+}
+
+func TestNewBinaryDownloader(t *testing.T) {
+	bd, err := NewBinaryDownloader()
+	if err != nil {
+		t.Fatalf("NewBinaryDownloader() error = %v", err)
+	}
+
+	if bd.CacheDir() == "" {
+		t.Error("CacheDir() returned empty string")
+	}
+
+	if !strings.Contains(bd.CacheDir(), "hatchet") {
+		t.Errorf("CacheDir() = %q, expected to contain 'hatchet'", bd.CacheDir())
+	}
+}
+
+func TestBinaryDownloaderGetArchiveName(t *testing.T) {
+	bd, err := NewBinaryDownloader()
+	if err != nil {
+		t.Fatalf("NewBinaryDownloader() error = %v", err)
+	}
+
+	name := bd.getArchiveName("hatchet-api", "v0.73.10")
+
+	// Check the name follows the expected format
+	if !strings.HasPrefix(name, "hatchet-api_v0.73.10_") {
+		t.Errorf("getArchiveName() = %q, expected to start with 'hatchet-api_v0.73.10_'", name)
+	}
+
+	if !strings.HasSuffix(name, ".tar.gz") {
+		t.Errorf("getArchiveName() = %q, expected to end with '.tar.gz'", name)
+	}
+}
+
+func TestNewSubprocessManager(t *testing.T) {
+	sm := NewSubprocessManager()
+	if sm == nil {
+		t.Fatal("NewSubprocessManager() returned nil")
+	}
+
+	if sm.IsRunning() {
+		t.Error("IsRunning() should be false for new manager")
+	}
+}
+
+func TestCapitalizeFirst(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"linux", "Linux"},
+		{"darwin", "Darwin"},
+		{"windows", "Windows"},
+		{"", ""},
+		{"L", "L"},
+		{"a", "A"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := capitalizeFirst(tt.input)
+			if result != tt.expected {
+				t.Errorf("capitalizeFirst(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
 }

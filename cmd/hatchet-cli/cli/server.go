@@ -26,20 +26,34 @@ var startCmd = &cobra.Command{
 
 Use --local to run without Docker:
   - Runs API and engine in-process (single binary, no external deps)
+  - Uses embedded PostgreSQL by default (no external database needed)
   - Headless mode (no web UI) - use TUI or SDK to interact
-  - Requires PostgreSQL running locally
-  - Auto-creates database and sets timezone if needed
-  - Runs in foreground, press Ctrl+C to stop`,
+  - Runs in foreground, press Ctrl+C to stop
+
+Database options for --local mode:
+  - By default: Uses embedded PostgreSQL (zero configuration)
+  - With --database-url: Uses external PostgreSQL (embedded PG disabled)
+  - With --no-embedded-postgres: Requires external PostgreSQL
+
+Execution modes for --local:
+  - in-process (default): Runs API and engine in the same process
+  - subprocess: Downloads and runs separate hatchet-api and hatchet-engine binaries`,
 	Example: `  # Start server with Docker (default)
   hatchet server start
 
-  # Start server without Docker (headless, in foreground)
+  # Start server without Docker (uses embedded PostgreSQL)
   hatchet server start --local
 
-  # Start local server with custom database URL
+  # Start local server with external PostgreSQL
   hatchet server start --local --database-url "postgresql://user:pass@localhost:5432/hatchet"
 
-  # Start local server on custom ports (useful alongside Docker)
+  # Start local server with custom embedded postgres port
+  hatchet server start --local --postgres-port 5434
+
+  # Start local server in subprocess mode (downloads binaries)
+  hatchet server start --local --execution-mode subprocess
+
+  # Start local server on custom ports
   hatchet server start --local --api-port 9080 --grpc-port 9077
 
   # Start Docker server with custom dashboard port
@@ -224,6 +238,10 @@ func runLocalServerNative(cmd *cobra.Command, profileName string) error {
 	apiPort, _ := cmd.Flags().GetInt("api-port")
 	grpcPort, _ := cmd.Flags().GetInt("grpc-port")
 	healthcheckPort, _ := cmd.Flags().GetInt("healthcheck-port")
+	noEmbeddedPG, _ := cmd.Flags().GetBool("no-embedded-postgres")
+	postgresPort, _ := cmd.Flags().GetInt("postgres-port")
+	executionMode, _ := cmd.Flags().GetString("execution-mode")
+	binaryVersion, _ := cmd.Flags().GetString("binary-version")
 
 	localDriver := local.NewLocalDriver()
 
@@ -236,6 +254,17 @@ func runLocalServerNative(cmd *cobra.Command, profileName string) error {
 		opts = append(opts, local.WithDatabaseURL(databaseURL))
 	}
 
+	// Embedded postgres is enabled by default unless:
+	// 1. A database URL is provided (handled in local.Run)
+	// 2. --no-embedded-postgres is set
+	if noEmbeddedPG {
+		opts = append(opts, local.WithEmbeddedPostgres(false))
+	}
+
+	if postgresPort != 0 {
+		opts = append(opts, local.WithPostgresPort(uint32(postgresPort)))
+	}
+
 	if apiPort != 0 {
 		opts = append(opts, local.WithAPIPort(apiPort))
 	}
@@ -246,6 +275,17 @@ func runLocalServerNative(cmd *cobra.Command, profileName string) error {
 
 	if healthcheckPort != 0 {
 		opts = append(opts, local.WithHealthcheckPort(healthcheckPort))
+	}
+
+	if executionMode != "" {
+		opts = append(opts, local.WithExecutionMode(executionMode))
+	}
+
+	if binaryVersion != "" {
+		opts = append(opts, local.WithBinaryVersion(binaryVersion))
+	} else {
+		// Default to CLI version
+		opts = append(opts, local.WithBinaryVersion(Version))
 	}
 
 	// Setup: migrations, keys, seed, etc.
@@ -268,22 +308,37 @@ func runLocalServerNative(cmd *cobra.Command, profileName string) error {
 	// Setup interrupt handler
 	interruptCh := cmdutils.InterruptChan()
 
-	// Start server in foreground (blocks until Ctrl+C)
-	// The onReady callback prints the success message when server is ready
-	err = localDriver.StartServer(cmd.Context(), interruptCh, func() {
-		fmt.Println(localServerStartedView(result.ProfileName, result.APIPort, result.GRPCPort))
-	})
+	// Start server based on execution mode
+	onReady := func() {
+		mode := "in-process"
+		if localDriver.GetExecutionMode() == local.ExecutionModeSubprocess {
+			mode = "subprocess"
+		}
+		pgMode := "external"
+		if localDriver.IsEmbeddedPostgresEnabled() {
+			pgMode = "embedded"
+		}
+		fmt.Println(localServerStartedView(result.ProfileName, result.APIPort, result.GRPCPort, mode, pgMode))
+	}
+
+	if localDriver.GetExecutionMode() == local.ExecutionModeSubprocess {
+		err = localDriver.StartServerSubprocess(cmd.Context(), interruptCh, onReady, binaryVersion)
+	} else {
+		err = localDriver.StartServer(cmd.Context(), interruptCh, onReady)
+	}
 
 	return err
 }
 
 // localServerStartedView renders the server started message for local mode
-func localServerStartedView(profileName string, apiPort, grpcPort int) string {
+func localServerStartedView(profileName string, apiPort, grpcPort int, executionMode, pgMode string) string {
 	var lines []string
 
 	lines = append(lines, styles.SuccessMessage("Local Hatchet server started successfully!"))
 	lines = append(lines, "")
 	lines = append(lines, styles.KeyValue("Mode", "Local (headless, no Docker)"))
+	lines = append(lines, styles.KeyValue("Execution", executionMode))
+	lines = append(lines, styles.KeyValue("PostgreSQL", pgMode))
 	lines = append(lines, styles.KeyValue("Profile", profileName))
 	lines = append(lines, styles.KeyValue("API Port", fmt.Sprintf("%d", apiPort)))
 	lines = append(lines, styles.KeyValue("gRPC Port", fmt.Sprintf("%d", grpcPort)))
@@ -304,10 +359,18 @@ func init() {
 
 	// Flags for start command
 	// Local mode flags
-	startCmd.Flags().BoolP("local", "l", false, "Run without Docker (requires local PostgreSQL, runs in foreground)")
-	startCmd.Flags().String("database-url", "", "PostgreSQL connection string for --local mode (default: postgresql://localhost:5432/hatchet)")
+	startCmd.Flags().BoolP("local", "l", false, "Run without Docker (uses embedded PostgreSQL by default)")
+	startCmd.Flags().String("database-url", "", "PostgreSQL connection string (disables embedded PostgreSQL)")
 	startCmd.Flags().Int("api-port", 0, "Port for the API server in --local mode (default: 8080)")
 	startCmd.Flags().Int("healthcheck-port", 0, "Port for the healthcheck server in --local mode (default: 8733)")
+
+	// Embedded Postgres flags
+	startCmd.Flags().Bool("no-embedded-postgres", false, "Disable embedded PostgreSQL (requires external PostgreSQL)")
+	startCmd.Flags().Int("postgres-port", 0, "Port for embedded PostgreSQL (default: 5433)")
+
+	// Execution mode flags
+	startCmd.Flags().String("execution-mode", "", "Execution mode: 'in-process' (default) or 'subprocess'")
+	startCmd.Flags().String("binary-version", "", "Version of hatchet-api/engine binaries for subprocess mode (default: CLI version)")
 
 	// Docker mode flags
 	startCmd.Flags().IntP("dashboard-port", "d", 0, "Port for the Hatchet dashboard in Docker mode (default: auto-detect starting at 8888)")
