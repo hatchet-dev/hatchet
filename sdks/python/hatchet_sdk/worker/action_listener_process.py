@@ -149,7 +149,7 @@ class WorkerActionListenerProcess:
         if self.killing:
             return ("UNHEALTHY", False)
 
-        # If the event loop has been blocked for >5s, report unhealthy.
+        # If the event loop has been blocked longer than the configured threshold, report unhealthy.
         if (
             self._event_loop_blocked_since is not None
             and (time.time() - self._event_loop_blocked_since)
