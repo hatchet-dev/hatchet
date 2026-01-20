@@ -5,11 +5,17 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.8] - 2026-01-20
+
+### Removed
+
+- Removes a bunch of Poetry scripts that were mostly used for local development and are not necessary for end users of the SDK.
+
 ## [1.22.7] - 2026-01-19
 
 ### Added
 
-- Adds `is_in_hatchet_serialization_context` function which can be used on a Pydantic `ValidationInfo.context` to determine if the validation/serialization is occurring  as a part of Hatchet deserializing task input or serializing task outputs.
+- Adds `is_in_hatchet_serialization_context` function which can be used on a Pydantic `ValidationInfo.context` to determine if the validation/serialization is occurring as a part of Hatchet deserializing task input or serializing task outputs.
 
 ## [1.22.6] - 2026-01-14
 
