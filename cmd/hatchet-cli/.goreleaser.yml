@@ -26,8 +26,54 @@ builds:
       - -X github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli.Version={{.Version}}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
+  - id: hatchet-api
+    dir: ../hatchet-api
+    main: ./main.go
+    binary: hatchet-api
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    goamd64:
+      - v1
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  - id: hatchet-engine
+    dir: ../hatchet-engine
+    main: ./main.go
+    binary: hatchet-engine
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    goamd64:
+      - v1
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
 archives:
   - id: hatchet
+    builds:
+      - hatchet
     formats:
       - tar.gz
     name_template: >-
@@ -46,6 +92,46 @@ archives:
       - LICENSE*
       - README*
       - CHANGELOG*
+
+  - id: hatchet-api
+    builds:
+      - hatchet-api
+    formats:
+      - tar.gz
+    name_template: >-
+      hatchet-api_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - none*
+
+  - id: hatchet-engine
+    builds:
+      - hatchet-engine
+    formats:
+      - tar.gz
+    name_template: >-
+      hatchet-engine_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - none*
 
 checksum:
   name_template: "checksums.txt"

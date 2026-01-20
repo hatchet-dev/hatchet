@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-admin/cli/seed"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-api/api"
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
 	cliconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
@@ -32,6 +32,10 @@ const (
 	DefaultHealthcheckPort = 8733
 	StateFileName          = "state.json"
 	KeysFileName           = "keys.json"
+
+	// Execution modes
+	ExecutionModeInProcess  = "in-process"
+	ExecutionModeSubprocess = "subprocess"
 )
 
 // LocalDriver manages a local Hatchet server running in-process
@@ -48,17 +52,31 @@ type LocalDriver struct {
 	privateJWT    string
 	publicJWT     string
 	cookieSecrets string
+
+	// Embedded Postgres
+	embeddedPostgres *EmbeddedPostgres
+	useEmbeddedPG    bool
+	postgresPort     uint32
+
+	// Subprocess execution
+	executionMode      string
+	binaryVersion      string
+	subprocessManager  *SubprocessManager
+	binaryDownloader   *BinaryDownloader
 }
 
 // LocalServerState persists the state of a running local server
 type LocalServerState struct {
-	ConfigDir   string    `json:"config_dir"`
-	DatabaseURL string    `json:"database_url"`
-	PID         int       `json:"pid"` // PID of the CLI process running the server
-	ApiPort     int       `json:"api_port"`
-	GrpcPort    int       `json:"grpc_port"`
-	ProfileName string    `json:"profile_name"`
-	StartedAt   time.Time `json:"started_at"`
+	ConfigDir       string    `json:"config_dir"`
+	DatabaseURL     string    `json:"database_url"`
+	PID             int       `json:"pid"` // PID of the CLI process running the server
+	ApiPort         int       `json:"api_port"`
+	GrpcPort        int       `json:"grpc_port"`
+	ProfileName     string    `json:"profile_name"`
+	StartedAt       time.Time `json:"started_at"`
+	EmbeddedPG      bool      `json:"embedded_pg,omitempty"`
+	PostgresPort    uint32    `json:"postgres_port,omitempty"`
+	ExecutionMode   string    `json:"execution_mode,omitempty"`
 }
 
 // LocalOpts configures the local driver
@@ -68,6 +86,14 @@ type LocalOpts struct {
 	GRPCPort        int
 	HealthcheckPort int
 	ProfileName     string
+
+	// Embedded Postgres options
+	EmbeddedPostgres bool
+	PostgresPort     uint32
+
+	// Subprocess execution options
+	ExecutionMode string
+	BinaryVersion string
 }
 
 // LocalOpt is a functional option for LocalDriver
@@ -108,6 +134,34 @@ func WithProfileName(name string) LocalOpt {
 	}
 }
 
+// WithEmbeddedPostgres enables or disables embedded PostgreSQL
+func WithEmbeddedPostgres(enabled bool) LocalOpt {
+	return func(o *LocalOpts) {
+		o.EmbeddedPostgres = enabled
+	}
+}
+
+// WithPostgresPort sets the port for embedded PostgreSQL
+func WithPostgresPort(port uint32) LocalOpt {
+	return func(o *LocalOpts) {
+		o.PostgresPort = port
+	}
+}
+
+// WithExecutionMode sets the execution mode ("in-process" or "subprocess")
+func WithExecutionMode(mode string) LocalOpt {
+	return func(o *LocalOpts) {
+		o.ExecutionMode = mode
+	}
+}
+
+// WithBinaryVersion sets the binary version for subprocess mode
+func WithBinaryVersion(version string) LocalOpt {
+	return func(o *LocalOpts) {
+		o.BinaryVersion = version
+	}
+}
+
 // NewLocalDriver creates a new local driver
 func NewLocalDriver() *LocalDriver {
 	homeDir, _ := os.UserHomeDir()
@@ -124,25 +178,53 @@ func NewLocalDriver() *LocalDriver {
 // This method blocks until the server is stopped via interrupt signal
 func (d *LocalDriver) Run(ctx context.Context, opts ...LocalOpt) (*RunResult, error) {
 	// Apply options
-	// Default DB URL works with Mac Homebrew Postgres (current user, no password)
+	// Default: use embedded postgres when no database URL is provided
 	options := &LocalOpts{
-		DatabaseURL:     "postgresql://localhost:5432/hatchet?sslmode=disable",
-		APIPort:         DefaultAPIPort,
-		GRPCPort:        DefaultGRPCPort,
-		HealthcheckPort: DefaultHealthcheckPort,
-		ProfileName:     "local",
+		DatabaseURL:      "", // Empty means use embedded postgres
+		APIPort:          DefaultAPIPort,
+		GRPCPort:         DefaultGRPCPort,
+		HealthcheckPort:  DefaultHealthcheckPort,
+		ProfileName:      "local",
+		EmbeddedPostgres: true, // Default to embedded postgres
+		PostgresPort:     DefaultPostgresPort,
+		ExecutionMode:    ExecutionModeInProcess,
+		BinaryVersion:    "", // Will use CLI version if empty
 	}
 	for _, opt := range opts {
 		opt(options)
 	}
 
-	d.databaseURL = options.DatabaseURL
+	// If database URL is explicitly provided, disable embedded postgres
+	if options.DatabaseURL != "" {
+		options.EmbeddedPostgres = false
+	}
+
 	d.apiPort = options.APIPort
 	d.grpcPort = options.GRPCPort
 	d.healthcheckPort = options.HealthcheckPort
 	d.profileName = options.ProfileName
+	d.useEmbeddedPG = options.EmbeddedPostgres
+	d.postgresPort = options.PostgresPort
+	d.executionMode = options.ExecutionMode
+	d.binaryVersion = options.BinaryVersion
+
+	// Start embedded postgres if enabled
+	if d.useEmbeddedPG {
+		if err := d.startEmbeddedPostgres(ctx); err != nil {
+			return nil, fmt.Errorf("embedded postgres setup failed: %w", err)
+		}
+		d.databaseURL = d.embeddedPostgres.ConnectionURL("hatchet")
+	} else {
+		// Use provided database URL or default
+		if options.DatabaseURL != "" {
+			d.databaseURL = options.DatabaseURL
+		} else {
+			d.databaseURL = "postgresql://localhost:5432/hatchet?sslmode=disable"
+		}
+	}
 
 	if err := d.ensureDatabase(ctx); err != nil {
+		d.stopEmbeddedPostgres() // Clean up on failure
 		return nil, fmt.Errorf("database setup failed: %w", err)
 	}
 
@@ -196,7 +278,7 @@ func (d *LocalDriver) StartServer(ctx context.Context, interruptCh <-chan interf
 	go func() {
 		defer wg.Done()
 		if err := api.Start(cf, interruptCh, "local"); err != nil {
-			log.Printf("API error: %v", err)
+			fmt.Println(styles.Muted.Render(fmt.Sprintf("API error: %v", err)))
 			errCh <- fmt.Errorf("API server error: %w", err)
 		}
 	}()
@@ -208,7 +290,7 @@ func (d *LocalDriver) StartServer(ctx context.Context, interruptCh <-chan interf
 	go func() {
 		defer wg.Done()
 		if err := engine.Run(engineCtx, cf, "local"); err != nil {
-			log.Printf("Engine error: %v", err)
+			fmt.Println(styles.Muted.Render(fmt.Sprintf("Engine error: %v", err)))
 			errCh <- fmt.Errorf("engine error: %w", err)
 		}
 	}()
@@ -223,7 +305,7 @@ func (d *LocalDriver) StartServer(ctx context.Context, interruptCh <-chan interf
 
 	select {
 	case <-interruptCh:
-		log.Println("cleaning up server config")
+		fmt.Println(styles.InfoMessage("Shutting down..."))
 	case err := <-errCh:
 		return err
 	}
@@ -239,8 +321,11 @@ func (d *LocalDriver) StartServer(ctx context.Context, interruptCh <-chan interf
 	select {
 	case <-done:
 	case <-time.After(10 * time.Second):
-		log.Println("shutdown timeout, some goroutines may not have exited cleanly")
+		fmt.Println(styles.Muted.Render("Shutdown timeout, some goroutines may not have exited cleanly"))
 	}
+
+	// Stop embedded postgres if running
+	d.stopEmbeddedPostgres()
 
 	d.removeState()
 
@@ -314,7 +399,7 @@ func (d *LocalDriver) ensureDatabase(ctx context.Context) error {
 		return d.ensureTimezone(ctx, dbName, adminConnStr)
 	}
 
-	log.Printf("Creating database '%s'...", dbName)
+	fmt.Println(styles.InfoMessage(fmt.Sprintf("Creating database '%s'...", dbName)))
 
 	adminConn, err := pgx.Connect(ctx, adminConnStr)
 	if err != nil {
@@ -477,13 +562,16 @@ func (d *LocalDriver) waitForHealth(ctx context.Context) error {
 
 func (d *LocalDriver) saveState() error {
 	state := LocalServerState{
-		ConfigDir:   d.configDir,
-		DatabaseURL: d.databaseURL,
-		PID:         os.Getpid(),
-		ApiPort:     d.apiPort,
-		GrpcPort:    d.grpcPort,
-		ProfileName: d.profileName,
-		StartedAt:   time.Now(),
+		ConfigDir:     d.configDir,
+		DatabaseURL:   d.databaseURL,
+		PID:           os.Getpid(),
+		ApiPort:       d.apiPort,
+		GrpcPort:      d.grpcPort,
+		ProfileName:   d.profileName,
+		StartedAt:     time.Now(),
+		EmbeddedPG:    d.useEmbeddedPG,
+		PostgresPort:  d.postgresPort,
+		ExecutionMode: d.executionMode,
 	}
 
 	data, err := json.MarshalIndent(state, "", "  ")
@@ -514,7 +602,7 @@ func (d *LocalDriver) loadState() (*LocalServerState, error) {
 func (d *LocalDriver) removeState() {
 	stateFile := filepath.Join(d.configDir, StateFileName)
 	if err := os.Remove(stateFile); err != nil && !os.IsNotExist(err) {
-		log.Printf("Warning: failed to remove state file: %v", err)
+		fmt.Println(styles.Muted.Render(fmt.Sprintf("Warning: failed to remove state file: %v", err)))
 	}
 }
 
@@ -571,4 +659,148 @@ func CreateProfileFromResult(result *RunResult) (*cliconfig.Profile, error) {
 		TLSStrategy:  "none",
 		ExpiresAt:    time.Now().Add(365 * 24 * time.Hour),
 	}, nil
+}
+
+// startEmbeddedPostgres initializes and starts embedded PostgreSQL
+func (d *LocalDriver) startEmbeddedPostgres(ctx context.Context) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	cfg := PostgresConfig{
+		Port:     d.postgresPort,
+		DataPath: filepath.Join(homeDir, ".hatchet", "local", "postgres-data"),
+	}
+
+	ep, err := NewEmbeddedPostgres(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create embedded postgres: %w", err)
+	}
+
+	if err := ep.Start(ctx); err != nil {
+		return err
+	}
+
+	d.embeddedPostgres = ep
+	return nil
+}
+
+// stopEmbeddedPostgres stops the embedded PostgreSQL instance
+func (d *LocalDriver) stopEmbeddedPostgres() {
+	if d.embeddedPostgres != nil {
+		d.embeddedPostgres.Stop()
+		d.embeddedPostgres = nil
+	}
+}
+
+// StartServerSubprocess starts the API and engine as separate subprocesses
+func (d *LocalDriver) StartServerSubprocess(ctx context.Context, interruptCh <-chan interface{}, onReady func(), version string) error {
+	// Initialize binary downloader
+	downloader, err := NewBinaryDownloader()
+	if err != nil {
+		return fmt.Errorf("failed to create binary downloader: %w", err)
+	}
+	d.binaryDownloader = downloader
+
+	// Determine version to use
+	if version == "" {
+		version = d.binaryVersion
+	}
+	if version == "" {
+		return fmt.Errorf("binary version is required for subprocess mode")
+	}
+
+	// Download/ensure binaries are available
+	fmt.Println(styles.InfoMessage(fmt.Sprintf("Ensuring binaries are available for version %s...", version)))
+
+	apiBinaryPath, err := downloader.EnsureBinary(ctx, "hatchet-api", version)
+	if err != nil {
+		return fmt.Errorf("failed to ensure hatchet-api binary: %w", err)
+	}
+
+	engineBinaryPath, err := downloader.EnsureBinary(ctx, "hatchet-engine", version)
+	if err != nil {
+		return fmt.Errorf("failed to ensure hatchet-engine binary: %w", err)
+	}
+
+	// Build environment variables
+	env := d.buildEnvVars()
+
+	// Initialize subprocess manager
+	d.subprocessManager = NewSubprocessManager()
+
+	// Start API subprocess
+	if err := d.subprocessManager.StartAPI(ctx, apiBinaryPath, env, d.configDir); err != nil {
+		return fmt.Errorf("failed to start API subprocess: %w", err)
+	}
+
+	// Start Engine subprocess
+	if err := d.subprocessManager.StartEngine(ctx, engineBinaryPath, env, d.configDir); err != nil {
+		d.subprocessManager.StopAll()
+		return fmt.Errorf("failed to start Engine subprocess: %w", err)
+	}
+
+	// Wait for health
+	if err := d.subprocessManager.WaitForHealth(ctx, d.apiPort); err != nil {
+		d.subprocessManager.StopAll()
+		return fmt.Errorf("server failed to become healthy: %w", err)
+	}
+
+	if onReady != nil {
+		onReady()
+	}
+
+	// Wait for interrupt or process exit
+	select {
+	case <-interruptCh:
+		fmt.Println(styles.InfoMessage("Shutting down..."))
+	case <-ctx.Done():
+		fmt.Println(styles.InfoMessage("Context cancelled, shutting down..."))
+	}
+
+	// Stop subprocesses
+	if err := d.subprocessManager.StopAll(); err != nil {
+		fmt.Println(styles.Muted.Render(fmt.Sprintf("Warning: error stopping subprocesses: %v", err)))
+	}
+
+	// Stop embedded postgres if running
+	d.stopEmbeddedPostgres()
+
+	d.removeState()
+
+	return nil
+}
+
+// buildEnvVars returns environment variables for subprocess execution
+func (d *LocalDriver) buildEnvVars() []string {
+	return []string{
+		fmt.Sprintf("DATABASE_URL=%s", d.databaseURL),
+		"SERVER_AUTH_COOKIE_DOMAIN=localhost",
+		"SERVER_AUTH_COOKIE_INSECURE=t",
+		fmt.Sprintf("SERVER_AUTH_COOKIE_SECRETS=%s", d.cookieSecrets),
+		"SERVER_GRPC_BIND_ADDRESS=0.0.0.0",
+		"SERVER_GRPC_INSECURE=t",
+		fmt.Sprintf("SERVER_GRPC_PORT=%d", d.grpcPort),
+		fmt.Sprintf("SERVER_GRPC_BROADCAST_ADDRESS=localhost:%d", d.grpcPort),
+		fmt.Sprintf("SERVER_URL=http://localhost:%d", d.apiPort),
+		fmt.Sprintf("SERVER_PORT=%d", d.apiPort),
+		fmt.Sprintf("SERVER_HEALTHCHECK_PORT=%d", d.healthcheckPort),
+		"SERVER_AUTH_SET_EMAIL_VERIFIED=t",
+		fmt.Sprintf("SERVER_ENCRYPTION_MASTER_KEYSET=%s", d.masterKey),
+		fmt.Sprintf("SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET=%s", d.privateJWT),
+		fmt.Sprintf("SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET=%s", d.publicJWT),
+		"SERVER_MSGQUEUE_KIND=postgres",
+		fmt.Sprintf("SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS=localhost:%d", d.grpcPort),
+	}
+}
+
+// GetExecutionMode returns the current execution mode
+func (d *LocalDriver) GetExecutionMode() string {
+	return d.executionMode
+}
+
+// IsEmbeddedPostgresEnabled returns whether embedded postgres is enabled
+func (d *LocalDriver) IsEmbeddedPostgresEnabled() bool {
+	return d.useEmbeddedPG
 }
