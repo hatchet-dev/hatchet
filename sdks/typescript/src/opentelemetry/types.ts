@@ -4,4 +4,3 @@ export const DEFAULT_CONFIG = {
   excludedAttributes: [] as string[],
   includeTaskNameInSpanName: false,
 };
-

@@ -55,7 +55,7 @@ if (isCI) {
       new HatchetInstrumentor({
         // Optional: exclude sensitive attributes from spans
         // excludedAttributes: ['payload', 'additional_metadata'],
-  
+
         // Optional: include task name in span names for better filtering
         includeTaskNameInSpanName: true,
       }),
