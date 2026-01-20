@@ -19,7 +19,9 @@ type EnvVars =
   | 'HATCHET_CLIENT_LOG_LEVEL'
   | 'HATCHET_CLIENT_NAMESPACE'
   | 'HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED'
-  | 'HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT';
+  | 'HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT'
+  | 'HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES'
+  | 'HATCHET_CLIENT_OPENTELEMETRY_INCLUDE_TASK_NAME_IN_SPAN_NAME';
 
 type TLSStrategy = 'tls' | 'mtls';
 
@@ -94,6 +96,15 @@ export class ConfigLoader {
       namespace = `${namespace}_`;
     }
 
+    const otelConfig = override?.otel ??
+      yaml?.otel ?? {
+        excludedAttributes: this.parseJsonArray(
+          this.env('HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES') || '[]'
+        ),
+        includeTaskNameInSpanName:
+          this.env('HATCHET_CLIENT_OPENTELEMETRY_INCLUDE_TASK_NAME_IN_SPAN_NAME') === 'true',
+      };
+
     return {
       token: override?.token ?? yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN'),
       host_port: grpcBroadcastAddress,
@@ -107,7 +118,18 @@ export class ConfigLoader {
         'INFO',
       tenant_id: tenantId,
       namespace: namespace ? `${namespace}`.toLowerCase() : '',
+      otel: otelConfig,
     };
+  }
+
+
+  private static parseJsonArray(value: string): string[] {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   }
 
   static get default_yaml_config_path() {
