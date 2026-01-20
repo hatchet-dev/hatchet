@@ -40,7 +40,6 @@ export interface AutocompleteContext {
 export interface LogSearchInputProps {
   value: string;
   onChange: (value: string) => void;
-  onQueryChange: (query: ParsedLogQuery) => void;
   placeholder?: string;
   showAutocomplete?: boolean;
   className?: string;

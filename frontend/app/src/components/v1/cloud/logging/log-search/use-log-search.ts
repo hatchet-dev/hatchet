@@ -8,7 +8,6 @@ export interface UseLogSearchReturn {
   setQueryString: (value: string) => void;
   parsedQuery: ParsedLogQuery;
   apiQueryParams: ListCloudLogsQuery;
-  handleQueryChange: (query: ParsedLogQuery) => void;
   clearSearch: () => void;
 }
 
