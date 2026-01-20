@@ -12,13 +12,13 @@ import (
 // consumers and non-OLAP publishers are unaffected.
 type OLAPTeeMessageQueue struct {
 	primary MessageQueue
-	standbyQueue Queue
+	standby MessageQueue
 }
 
-func NewOLAPTeeMessageQueue(primary MessageQueue, standbyQueue Queue) *OLAPTeeMessageQueue {
+func NewOLAPTeeMessageQueue(primary MessageQueue, standby MessageQueue) *OLAPTeeMessageQueue {
 	return &OLAPTeeMessageQueue{
 		primary: primary,
-		standbyQueue: standbyQueue,
+		standby: standby,
 	}
 }
 
@@ -32,16 +32,30 @@ func (m *OLAPTeeMessageQueue) Clone() (func() error, MessageQueue, error) {
 		return nil, nil, err
 	}
 
+	var cleanupStandby func() error
+	var standbyClone MessageQueue
+
+	if m.standby != nil {
+		cleanupStandby, standbyClone, err = m.standby.Clone()
+		if err != nil {
+			_ = cleanupPrimary()
+			return nil, nil, err
+		}
+	}
+
 	cleanup := func() error {
 		if cleanupPrimary != nil {
 			_ = cleanupPrimary()
+		}
+		if cleanupStandby != nil {
+			_ = cleanupStandby()
 		}
 		return nil
 	}
 
 	return cleanup, &OLAPTeeMessageQueue{
 		primary: primaryClone,
-		standbyQueue: m.standbyQueue,
+		standby: standbyClone,
 	}, nil
 }
 
@@ -62,8 +76,8 @@ func (m *OLAPTeeMessageQueue) SendMessage(ctx context.Context, queue Queue, msg 
 	}
 
 	// Only OLAP queue messages are dual-written.
-	if m.standbyQueue != nil && queue != nil && queue.Name() == OLAP_QUEUE.Name() {
-		if err := m.primary.SendMessage(ctx, m.standbyQueue, msg); err != nil {
+	if m.standby != nil && queue != nil && queue.Name() == OLAP_QUEUE.Name() {
+		if err := m.standby.SendMessage(ctx, queue, msg); err != nil {
 			return err
 		}
 	}
