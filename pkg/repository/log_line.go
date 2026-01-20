@@ -31,6 +31,8 @@ type ListLogsOpts struct {
 }
 
 type CreateLogLineOpts struct {
+	TaskExternalId string `validate:"required,uuid"`
+
 	TaskId int64
 
 	TaskInsertedAt pgtype.Timestamptz
