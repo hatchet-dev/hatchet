@@ -1,6 +1,9 @@
 import AnsiToHtml from 'ansi-to-html';
 import DOMPurify from 'dompurify';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
+import { LogSearchInput, useLogSearch, useMetadataKeys, useMetadataValues } from './log-search';
+import { ListCloudLogsQuery } from '@/lib/api/queries';
+import { LogLine } from '@/lib/api/generated/cloud/data-contracts';
 
 const convert = new AnsiToHtml({
   newline: true,
@@ -17,6 +20,7 @@ export interface ExtendedLogLine {
 
 type LogProps = {
   logs: ExtendedLogLine[];
+  rawLogs?: LogLine[];
   onTopReached: () => void;
   onBottomReached: () => void;
   onInfiniteScroll?: (scrollMetrics: {
@@ -24,6 +28,7 @@ type LogProps = {
     scrollHeight: number;
     clientHeight: number;
   }) => void;
+  onSearchChange?: (query: ListCloudLogsQuery) => void;
   autoScroll?: boolean;
 };
 
@@ -38,19 +43,36 @@ const options: Intl.DateTimeFormatOptions = {
 
 const LoggingComponent: React.FC<LogProps> = ({
   logs,
+  rawLogs = [],
   onTopReached,
   onBottomReached,
   onInfiniteScroll,
+  onSearchChange,
   autoScroll = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastTopCall, setLastTopCall] = useState<number>(0);
-  const [lastBottomCall, setLastBottomCall] = useState<number>(0);
-  const [firstMount, setFirstMount] = useState<boolean>(true);
+  const refreshingRef = useRef(false);
+  const lastTopCallRef = useRef<number>(0);
+  const lastBottomCallRef = useRef<number>(0);
+  const firstMountRef = useRef<boolean>(true);
   const previousScrollHeightRef = useRef<number>(0);
-  const [lastInfiniteScrollCall, setLastInfiniteScrollCall] =
-    useState<number>(0);
+  const lastInfiniteScrollCallRef = useRef<number>(0);
+
+  // Log search state
+  const {
+    queryString,
+    setQueryString,
+    parsedQuery,
+    apiQueryParams,
+    handleQueryChange,
+  } = useLogSearch();
+  const metadataKeys = useMetadataKeys(rawLogs);
+  const metadataValues = useMetadataValues(rawLogs);
+
+  // Notify parent when API query params change
+  useEffect(() => {
+    onSearchChange?.(apiQueryParams);
+  }, [apiQueryParams, onSearchChange]);
   const handleScroll = () => {
     if (!containerRef.current) {
       return;
@@ -62,30 +84,30 @@ const LoggingComponent: React.FC<LogProps> = ({
     if (
       onInfiniteScroll &&
       logs.length > 0 &&
-      now - lastInfiniteScrollCall >= 100
+      now - lastInfiniteScrollCallRef.current >= 100
     ) {
       onInfiniteScroll({
         scrollTop,
         scrollHeight,
         clientHeight,
       });
-      setLastInfiniteScrollCall(now);
+      lastInfiniteScrollCallRef.current = now;
       return;
     }
 
-    if (scrollTop === 0 && now - lastTopCall >= 1000) {
+    if (scrollTop === 0 && now - lastTopCallRef.current >= 1000) {
       if (logs.length > 0) {
         onTopReached();
       }
-      setLastTopCall(now);
+      lastTopCallRef.current = now;
     } else if (
       scrollTop + clientHeight >= scrollHeight &&
-      now - lastBottomCall >= 1000
+      now - lastBottomCallRef.current >= 1000
     ) {
       if (logs.length > 0) {
         onBottomReached();
       }
-      setLastBottomCall(now);
+      lastBottomCallRef.current = now;
     }
   };
 
@@ -94,26 +116,17 @@ const LoggingComponent: React.FC<LogProps> = ({
       const container = containerRef.current;
 
       if (container && container.scrollHeight > container.clientHeight) {
-        if (firstMount && autoScroll) {
+        if (firstMountRef.current && autoScroll) {
           container.scrollTo({
             top: container.scrollHeight,
             behavior: 'smooth',
           });
 
-          setFirstMount(false);
+          firstMountRef.current = false;
         }
       }
     }, 250);
-  }, [containerRef, firstMount, autoScroll]);
-
-  useEffect(() => {
-    if (refreshing) {
-      const timer = setTimeout(() => {
-        setRefreshing(false);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [refreshing]);
+  }, [autoScroll]);
 
   useEffect(() => {
     if (!autoScroll) {
@@ -140,16 +153,84 @@ const LoggingComponent: React.FC<LogProps> = ({
     }
   }, [logs, autoScroll]);
 
+  // Filter logs based on parsed query
+  const filteredLogs = useMemo(() => {
+    if (!parsedQuery || !queryString.trim()) {
+      return logs;
+    }
+
+    return logs.filter((log, index) => {
+      const rawLog = rawLogs[index];
+
+      // Filter by free text search (case-insensitive)
+      if (parsedQuery.search) {
+        const searchLower = parsedQuery.search.toLowerCase();
+        const lineMatches = log.line?.toLowerCase().includes(searchLower);
+        const instanceMatches = log.instance
+          ?.toLowerCase()
+          .includes(searchLower);
+        if (!lineMatches && !instanceMatches) {
+          return false;
+        }
+      }
+
+      // Filter by level
+      if (parsedQuery.level && rawLog) {
+        const levelLower = parsedQuery.level.toLowerCase();
+        const rawLevel = rawLog.level?.toLowerCase();
+        // Also check if level appears in the log line
+        const lineHasLevel = log.line?.toLowerCase().includes(levelLower);
+        if (rawLevel !== levelLower && !lineHasLevel) {
+          return false;
+        }
+      }
+
+      // Filter by timestamp range
+      if (log.timestamp) {
+        const logTime = new Date(log.timestamp).getTime();
+
+        if (parsedQuery.after) {
+          const afterTime = new Date(parsedQuery.after).getTime();
+          if (logTime < afterTime) {
+            return false;
+          }
+        }
+
+        if (parsedQuery.before) {
+          const beforeTime = new Date(parsedQuery.before).getTime();
+          if (logTime > beforeTime) {
+            return false;
+          }
+        }
+      }
+
+      // Filter by metadata (if rawLog available)
+      if (rawLog?.metadata && Object.keys(parsedQuery.metadata).length > 0) {
+        const logMetadata = rawLog.metadata as Record<string, unknown>;
+        for (const [key, value] of Object.entries(parsedQuery.metadata)) {
+          const metaValue = logMetadata[key];
+          if (metaValue === undefined || String(metaValue) !== value) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    });
+  }, [logs, rawLogs, parsedQuery, queryString]);
+
   const showLogs =
-    logs.length > 0
-      ? logs
-      : [
-          {
-            line: 'Waiting for logs...',
-            timestamp: new Date().toISOString(),
-            instance: 'Hatchet',
-          },
-        ];
+    filteredLogs.length > 0
+      ? filteredLogs
+      : logs.length > 0
+        ? [] // Show nothing if filters match nothing
+        : [
+            {
+              line: 'Waiting for logs...',
+              timestamp: new Date().toISOString(),
+              instance: 'Hatchet',
+            },
+          ];
 
   const sortedLogs = [...showLogs].sort((a, b) => {
     if (!a.timestamp || !b.timestamp) {
@@ -160,54 +241,68 @@ const LoggingComponent: React.FC<LogProps> = ({
   });
 
   return (
-    <div
-      className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground mx-auto max-h-[25rem] min-h-[25rem] w-full overflow-y-auto rounded-md bg-muted p-6 font-mono text-xs text-indigo-300"
-      ref={containerRef}
-      onScroll={handleScroll}
-    >
-      {refreshing && (
-        <div className="absolute left-0 right-0 top-0 bg-gray-800 p-2 text-center text-white">
-          Refreshing...
-        </div>
-      )}
-      {sortedLogs.map((log, i) => {
-        const sanitizedHtml = DOMPurify.sanitize(
-          convert.toHtml(log.line || ''),
-          {
-            USE_PROFILES: { html: true },
-          },
-        );
+    <div className="flex flex-col justify-center gap-y-2">
+      <LogSearchInput
+        value={queryString}
+        onChange={setQueryString}
+        onQueryChange={handleQueryChange}
+        metadataKeys={metadataKeys}
+        knownValues={metadataValues}
+      />
+      <div
+        className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground mx-auto max-h-[25rem] min-h-[25rem] w-full overflow-y-auto rounded-md bg-muted p-6 font-mono text-xs text-indigo-300"
+        ref={containerRef}
+        onScroll={handleScroll}
+      >
+        {refreshingRef.current && (
+          <div className="absolute left-0 right-0 top-0 bg-gray-800 p-2 text-center text-white">
+            Refreshing...
+          </div>
+        )}
+        {sortedLogs.length === 0 && queryString.trim() && (
+          <div className="text-muted-foreground">
+            No logs match your search criteria
+          </div>
+        )}
+        {sortedLogs.map((log, i) => {
+          const sanitizedHtml = DOMPurify.sanitize(
+            convert.toHtml(log.line || ''),
+            {
+              USE_PROFILES: { html: true },
+            },
+          );
 
-        const logHash = log.timestamp + generateHash(log.line);
+          const logHash = log.timestamp + generateHash(log.line);
 
-        return (
-          <p
-            key={logHash}
-            className="overflow-x-hidden whitespace-pre-wrap break-all pb-2"
-            id={'log' + i}
-          >
-            {log.badge}
-            {log.timestamp && (
-              <span className="ml--2 mr-2 text-gray-500">
-                {new Date(log.timestamp)
-                  .toLocaleString('sv', options)
-                  .replace(',', '.')
-                  .replace(' ', 'T')}
-              </span>
-            )}
-            {log.instance && (
-              <span className="ml--2 mr-2 text-foreground dark:text-white">
-                {log.instance}
-              </span>
-            )}
-            <span
-              dangerouslySetInnerHTML={{
-                __html: sanitizedHtml,
-              }}
-            />
-          </p>
-        );
-      })}
+          return (
+            <p
+              key={logHash}
+              className="overflow-x-hidden whitespace-pre-wrap break-all pb-2"
+              id={'log' + i}
+            >
+              {log.badge}
+              {log.timestamp && (
+                <span className="ml--2 mr-2 text-gray-500">
+                  {new Date(log.timestamp)
+                    .toLocaleString('sv', options)
+                    .replace(',', '.')
+                    .replace(' ', 'T')}
+                </span>
+              )}
+              {log.instance && (
+                <span className="ml--2 mr-2 text-foreground dark:text-white">
+                  {log.instance}
+                </span>
+              )}
+              <span
+                dangerouslySetInnerHTML={{
+                  __html: sanitizedHtml,
+                }}
+              />
+            </p>
+          );
+        })}
+      </div>
     </div>
   );
 };
