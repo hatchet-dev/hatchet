@@ -87,7 +87,6 @@ class WorkerActionListenerProcess:
         self._event_loop_blocked_since: float | None = None
         self._event_loop_block_threshold_seconds: float = float(
             getattr(self.config.healthcheck, "event_loop_block_threshold_seconds", 5.0)
-            or 5.0
         )
         self._waiting_steps_blocked_since: float | None = None
 
