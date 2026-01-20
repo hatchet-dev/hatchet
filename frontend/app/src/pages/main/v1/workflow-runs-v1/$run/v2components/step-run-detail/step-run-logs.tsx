@@ -1,4 +1,4 @@
-import LoggingComponent from '@/components/v1/cloud/logging/logs';
+import FilterableLogs from '@/components/v1/cloud/logging/filterable-logs';
 import { V1TaskSummary, V1LogLineList, V1TaskStatus } from '@/lib/api';
 import api from '@/lib/api/api';
 import { V1LogLineListQuery } from '@/lib/api/queries';
@@ -260,7 +260,7 @@ export function StepRunLogs({
 
   return (
     <div className="my-4">
-      <LoggingComponent
+      <FilterableLogs
         logs={allLogs}
         onTopReached={() => {}}
         onBottomReached={() => {}}
