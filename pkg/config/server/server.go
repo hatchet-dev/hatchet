@@ -111,9 +111,6 @@ type ConfigFileOperations struct {
 
 	// StandbyWritesEnabled controls whether OLAP queue messages are dual-written to a standby RabbitMQ instance.
 	StandbyWritesEnabled bool `mapstructure:"standbyWritesEnabled" json:"standbyWritesEnabled,omitempty" default:"false"`
-
-	// StandbyDrainEnabled controls whether the OLAP controller consumes from the standby RabbitMQ instance.
-	StandbyDrainEnabled bool `mapstructure:"standbyDrainEnabled" json:"standbyDrainEnabled,omitempty" default:"false"`
 }
 
 type TaskOperationLimitsConfigFile struct {
@@ -469,7 +466,6 @@ type PostgresMQConfigFile struct {
 
 type RabbitMQConfigFile struct {
 	URL                    string `mapstructure:"url" json:"url,omitempty" validate:"required"`
-	StandbyURL             string `mapstructure:"standbyUrl" json:"standbyUrl,omitempty"`
 	Qos                    int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
 	MaxPubChans            int32  `mapstructure:"maxPubChans" json:"maxPubChans,omitempty" default:"20"`
 	MaxSubChans            int32  `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"100"`
@@ -568,9 +564,6 @@ type ServerConfig struct {
 	Namespaces []string
 
 	MessageQueueV1 msgqueue.MessageQueue
-
-	// MessageQueueV1Standby is an optional standby MQ connection (currently used for OLAP dual-writes/draining).
-	MessageQueueV1Standby msgqueue.MessageQueue
 
 	Logger *zerolog.Logger
 
@@ -765,7 +758,6 @@ func BindAllEnv(v *viper.Viper) {
 
 	_ = v.BindEnv("msgQueue.kind", "SERVER_MSGQUEUE_KIND")
 	_ = v.BindEnv("msgQueue.rabbitmq.url", "SERVER_MSGQUEUE_RABBITMQ_URL")
-	_ = v.BindEnv("msgQueue.rabbitmq.standbyUrl", "SERVER_MSGQUEUE_RABBITMQ_STANDBY_URL")
 	_ = v.BindEnv("msgQueue.rabbitmq.maxPubChans", "SERVER_MSGQUEUE_RABBITMQ_MAX_PUB_CHANS")
 	_ = v.BindEnv("msgQueue.rabbitmq.maxSubChans", "SERVER_MSGQUEUE_RABBITMQ_MAX_SUB_CHANS")
 	_ = v.BindEnv("msgQueue.rabbitmq.compressionEnabled", "SERVER_MSGQUEUE_RABBITMQ_COMPRESSION_ENABLED")
@@ -856,7 +848,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("olap.jitter", "SERVER_OPERATIONS_JITTER")
 	_ = v.BindEnv("olap.pollInterval", "SERVER_OPERATIONS_POLL_INTERVAL")
 	_ = v.BindEnv("olap.standbyWritesEnabled", "SERVER_OLAP_STANDBY_WRITES_ENABLED")
-	_ = v.BindEnv("olap.standbyDrainEnabled", "SERVER_OLAP_STANDBY_DRAIN_ENABLED")
 
 	// task operation limits options
 	_ = v.BindEnv("taskOperationLimits.timeoutLimit", "SERVER_TASK_OPERATION_LIMITS_TIMEOUT_LIMIT")
