@@ -48,7 +48,10 @@ export interface UseLogsReturn {
   }) => void;
 }
 
-export function useLogs({ taskRun, resetTrigger }: UseLogsOptions): UseLogsReturn {
+export function useLogs({
+  taskRun,
+  resetTrigger,
+}: UseLogsOptions): UseLogsReturn {
   const queryClient = useQueryClient();
   const pageBoundariesRef = useRef<Record<number, PageBoundary>>({});
   const lastPageTimestampRef = useRef<string | undefined>(undefined);
@@ -74,7 +77,13 @@ export function useLogs({ taskRun, resetTrigger }: UseLogsOptions): UseLogsRetur
       currentPageNumberRef.current = 0;
       lastPageTimestampRef.current = undefined;
     }
-  }, [resetTrigger, queryClient, taskRun?.metadata.id, parsedQuery.level, parsedQuery.search]);
+  }, [
+    resetTrigger,
+    queryClient,
+    taskRun?.metadata.id,
+    parsedQuery.level,
+    parsedQuery.search,
+  ]);
 
   const getLogsQuery = useInfiniteQuery<
     V1LogLineList,
@@ -83,7 +92,13 @@ export function useLogs({ taskRun, resetTrigger }: UseLogsOptions): UseLogsRetur
     (string | undefined)[],
     { since: string | undefined; until: string | undefined }
   >({
-    queryKey: ['v1Tasks', 'getLogs', taskRun?.metadata.id, parsedQuery.level, parsedQuery.search],
+    queryKey: [
+      'v1Tasks',
+      'getLogs',
+      taskRun?.metadata.id,
+      parsedQuery.level,
+      parsedQuery.search,
+    ],
     queryFn: async ({ pageParam }) => {
       const params: V1LogLineListQuery = {
         limit: LOGS_PER_PAGE,
@@ -282,7 +297,8 @@ export function useLogs({ taskRun, resetTrigger }: UseLogsOptions): UseLogsRetur
   return {
     logs,
     isLoading: getLogsQuery.isLoading,
-    isFetchingMore: getLogsQuery.isFetchingNextPage || getLogsQuery.isFetchingPreviousPage,
+    isFetchingMore:
+      getLogsQuery.isFetchingNextPage || getLogsQuery.isFetchingPreviousPage,
     queryString,
     setQueryString,
     parsedQuery,

@@ -37,7 +37,9 @@ export function LogViewer({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const previousScrollHeight = previousScrollHeightRef.current;
     const currentScrollHeight = container.scrollHeight;
@@ -53,7 +55,9 @@ export function LogViewer({
   }, [logs]);
 
   const handleScroll = () => {
-    if (!containerRef.current || !onScroll) return;
+    if (!containerRef.current || !onScroll) {
+      return;
+    }
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     previousScrollHeightRef.current = scrollHeight;
     onScroll({ scrollTop, scrollHeight, clientHeight });
