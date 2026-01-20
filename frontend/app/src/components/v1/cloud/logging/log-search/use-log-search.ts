@@ -3,10 +3,6 @@ import { ParsedLogQuery } from './types';
 import { parseLogQuery } from './parser';
 import { ListCloudLogsQuery } from '@/lib/api/queries';
 
-export interface UseLogSearchOptions {
-  initialQuery?: string;
-}
-
 export interface UseLogSearchReturn {
   queryString: string;
   setQueryString: (value: string) => void;
@@ -16,11 +12,7 @@ export interface UseLogSearchReturn {
   clearSearch: () => void;
 }
 
-export function useLogSearch(
-  options: UseLogSearchOptions = {},
-): UseLogSearchReturn {
-  const { initialQuery = '' } = options;
-
+export function useLogSearch(initialQuery = ''): UseLogSearchReturn {
   const [queryString, setQueryString] = useState(initialQuery);
 
   const parsedQuery = useMemo(
@@ -30,15 +22,6 @@ export function useLogSearch(
 
   const apiQueryParams = useMemo((): ListCloudLogsQuery => {
     const params: ListCloudLogsQuery = {};
-
-    if (parsedQuery.after) {
-      params.after = parsedQuery.after;
-    }
-
-    if (parsedQuery.before) {
-      params.before = parsedQuery.before;
-    }
-
     const searchParts: string[] = [];
 
     if (parsedQuery.search) {
@@ -47,10 +30,6 @@ export function useLogSearch(
 
     if (parsedQuery.level) {
       searchParts.push(`level:${parsedQuery.level}`);
-    }
-
-    for (const [key, value] of Object.entries(parsedQuery.metadata)) {
-      searchParts.push(`${key}:${value}`);
     }
 
     if (searchParts.length > 0) {

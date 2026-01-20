@@ -1,5 +1,3 @@
-import { ReactNode } from 'react';
-
 export interface QueryToken {
   type: 'filter' | 'text';
   key?: string;
@@ -11,36 +9,12 @@ export interface QueryToken {
   };
 }
 
-export const RESERVED_FILTER_KEYS = [
-  'after',
-  'before',
-  'level',
-  'worker',
-  'workflow',
-  'step',
-  'run',
-] as const;
-export type ReservedFilterKey = (typeof RESERVED_FILTER_KEYS)[number];
-
-export type SuggestionCategory =
-  | 'time'
-  | 'log-attributes'
-  | 'workflow'
-  | 'metadata';
-
-export const SUGGESTION_CATEGORY_LABELS: Record<SuggestionCategory, string> = {
-  time: 'Time Filters',
-  'log-attributes': 'Log Attributes',
-  workflow: 'Workflow',
-  metadata: 'Metadata',
-};
+export const LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const;
+export type LogLevel = (typeof LOG_LEVELS)[number];
 
 export interface ParsedLogQuery {
   search?: string;
-  after?: string;
-  before?: string;
-  level?: string;
-  metadata: Record<string, string>;
+  level?: LogLevel;
   tokens: QueryToken[];
   raw: string;
   isValid: boolean;
@@ -54,8 +28,6 @@ export interface AutocompleteSuggestion {
   label: string;
   value: string;
   description?: string;
-  icon?: ReactNode;
-  category?: SuggestionCategory;
 }
 
 export interface AutocompleteContext {
@@ -69,9 +41,7 @@ export interface LogSearchInputProps {
   value: string;
   onChange: (value: string) => void;
   onQueryChange: (query: ParsedLogQuery) => void;
-  metadataKeys: string[];
   placeholder?: string;
   showAutocomplete?: boolean;
   className?: string;
-  knownValues?: Record<string, string[]>;
 }

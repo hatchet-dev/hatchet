@@ -1,9 +1,5 @@
 import { LogSearchInput } from './log-search/log-search-input';
 import { useLogSearch } from './log-search/use-log-search';
-import {
-  useMetadataKeys,
-  useMetadataValues,
-} from './log-search/use-metadata-keys';
 import { LogLine } from '@/lib/api/generated/cloud/data-contracts';
 import { ListCloudLogsQuery } from '@/lib/api/queries';
 import AnsiToHtml from 'ansi-to-html';
@@ -60,8 +56,6 @@ const LoggingComponent: React.FC<LogProps> = ({
     apiQueryParams,
     handleQueryChange,
   } = useLogSearch();
-  const metadataKeys = useMetadataKeys(logs);
-  const metadataValues = useMetadataValues(logs);
 
   useEffect(() => {
     onSearchChange?.(apiQueryParams);
@@ -175,34 +169,6 @@ const LoggingComponent: React.FC<LogProps> = ({
         }
       }
 
-      if (log.timestamp) {
-        const logTime = new Date(log.timestamp).getTime();
-
-        if (parsedQuery.after) {
-          const afterTime = new Date(parsedQuery.after).getTime();
-          if (logTime < afterTime) {
-            return false;
-          }
-        }
-
-        if (parsedQuery.before) {
-          const beforeTime = new Date(parsedQuery.before).getTime();
-          if (logTime > beforeTime) {
-            return false;
-          }
-        }
-      }
-
-      if (rawLog?.metadata && Object.keys(parsedQuery.metadata).length > 0) {
-        const logMetadata = rawLog.metadata as Record<string, unknown>;
-        for (const [key, value] of Object.entries(parsedQuery.metadata)) {
-          const metaValue = logMetadata[key];
-          if (metaValue === undefined || String(metaValue) !== value) {
-            return false;
-          }
-        }
-      }
-
       return true;
     });
   }, [logs, parsedQuery, queryString]);
@@ -234,8 +200,6 @@ const LoggingComponent: React.FC<LogProps> = ({
         value={queryString}
         onChange={setQueryString}
         onQueryChange={handleQueryChange}
-        metadataKeys={metadataKeys}
-        knownValues={metadataValues}
       />
       <div
         className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground mx-auto max-h-[25rem] min-h-[25rem] w-full overflow-y-auto rounded-md bg-muted p-6 font-mono text-xs text-indigo-300"

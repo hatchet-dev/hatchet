@@ -1,15 +1,6 @@
-import {
-  getAutocompleteContext,
-  getSuggestions,
-  groupSuggestionsByCategory,
-} from './autocomplete';
+import { getAutocompleteContext, getSuggestions } from './autocomplete';
 import { parseLogQuery } from './parser';
-import {
-  LogSearchInputProps,
-  ParsedLogQuery,
-  SUGGESTION_CATEGORY_LABELS,
-  SuggestionCategory,
-} from './types';
+import { LogSearchInputProps, ParsedLogQuery } from './types';
 import {
   Command,
   CommandEmpty,
@@ -24,40 +15,19 @@ import {
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
 import { cn } from '@/lib/utils';
-import {
-  MagnifyingGlassIcon,
-  Cross2Icon,
-  ClockIcon,
-  LayersIcon,
-  GearIcon,
-  ListBulletIcon,
-} from '@radix-ui/react-icons';
+import { MagnifyingGlassIcon, Cross2Icon } from '@radix-ui/react-icons';
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-
-function getCategoryIcon(category: SuggestionCategory | 'other') {
-  switch (category) {
-    case 'time':
-      return <ClockIcon className="h-3.5 w-3.5" />;
-    case 'log-attributes':
-      return <LayersIcon className="h-3.5 w-3.5" />;
-    case 'metadata':
-      return <ListBulletIcon className="h-3.5 w-3.5" />;
-    default:
-      return <GearIcon className="h-3.5 w-3.5" />;
-  }
-}
 
 export function LogSearchInput({
   value,
   onChange,
   onQueryChange,
-  metadataKeys,
-  placeholder = 'Search log messages...',
+  placeholder = 'Search logs...',
   showAutocomplete = true,
   className,
-  knownValues = {},
 }: LogSearchInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -72,12 +42,7 @@ export function LogSearchInput({
   }, [value, onQueryChange]);
 
   const autocompleteContext = getAutocompleteContext(value, cursorPosition);
-  const suggestions = getSuggestions(
-    autocompleteContext,
-    metadataKeys,
-    knownValues,
-  );
-  const groupedSuggestions = groupSuggestionsByCategory(suggestions);
+  const suggestions = getSuggestions(autocompleteContext);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -200,11 +165,20 @@ export function LogSearchInput({
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               onFocus={() => {
+                if (blurTimeoutRef.current) {
+                  clearTimeout(blurTimeoutRef.current);
+                  blurTimeoutRef.current = null;
+                }
                 if (suggestions.length > 0) {
                   setIsOpen(true);
                 }
               }}
-              onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+              onBlur={() => {
+                blurTimeoutRef.current = setTimeout(() => {
+                  setIsOpen(false);
+                  blurTimeoutRef.current = null;
+                }, 200);
+              }}
               onClick={(e) => {
                 e.stopPropagation();
                 const target = e.target as HTMLInputElement;
@@ -241,61 +215,37 @@ export function LogSearchInput({
                   Type to search or select a filter
                 </div>
               )}
-              {(() => {
-                let globalIndex = 0;
-                return Array.from(groupedSuggestions.entries()).map(
-                  ([category, items]) => (
-                    <CommandGroup
-                      key={category}
-                      heading={
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          {getCategoryIcon(category)}
-                          <span>
-                            {SUGGESTION_CATEGORY_LABELS[
-                              category as SuggestionCategory
-                            ] || 'Other'}
-                          </span>
-                        </div>
-                      }
-                    >
-                      {items.map((suggestion) => {
-                        const currentIndex = globalIndex++;
-                        return (
-                          <CommandItem
-                            key={`${suggestion.value}-${currentIndex}`}
-                            onSelect={() =>
-                              handleSuggestionSelect(suggestion.value)
-                            }
-                            className={cn(
-                              'flex items-center justify-between',
-                              currentIndex === selectedIndex &&
-                                'bg-accent text-accent-foreground',
-                            )}
-                            onMouseEnter={() => setSelectedIndex(currentIndex)}
-                          >
-                            <div className="flex items-center gap-2">
-                              {suggestion.type === 'key' ? (
-                                <code className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">
-                                  {suggestion.label}:
-                                </code>
-                              ) : (
-                                <span className="font-mono text-sm">
-                                  {suggestion.label}
-                                </span>
-                              )}
-                            </div>
-                            {suggestion.description && (
-                              <span className="text-xs text-muted-foreground truncate ml-2">
-                                {suggestion.description}
-                              </span>
-                            )}
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  ),
-                );
-              })()}
+              <CommandGroup>
+                {suggestions.map((suggestion, index) => (
+                  <CommandItem
+                    key={`${suggestion.value}-${index}`}
+                    onSelect={() => handleSuggestionSelect(suggestion.value)}
+                    className={cn(
+                      'flex items-center justify-between',
+                      index === selectedIndex &&
+                        'bg-accent text-accent-foreground',
+                    )}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                  >
+                    <div className="flex items-center gap-2">
+                      {suggestion.type === 'key' ? (
+                        <code className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">
+                          {suggestion.label}:
+                        </code>
+                      ) : (
+                        <span className="font-mono text-sm">
+                          {suggestion.label}
+                        </span>
+                      )}
+                    </div>
+                    {suggestion.description && (
+                      <span className="text-xs text-muted-foreground truncate ml-2">
+                        {suggestion.description}
+                      </span>
+                    )}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
             </CommandList>
           </Command>
         </PopoverContent>
