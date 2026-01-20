@@ -18,15 +18,15 @@ type DebugLog struct {
 
 // DebugLogger is a fixed-size ring buffer for debug logs with file writing support
 type DebugLogger struct {
-	mu               sync.RWMutex
+	fileInput        string
+	statusMessage    string
 	logs             []DebugLog
 	capacity         int
 	index            int
 	size             int
-	promptingFile    bool   // Whether prompting for filename
-	fileInput        string // Current filename input
-	confirmOverwrite bool   // Whether confirming file overwrite
-	statusMessage    string // Status message to display
+	mu               sync.RWMutex
+	promptingFile    bool
+	confirmOverwrite bool
 }
 
 // NewDebugLogger creates a new debug logger with the specified capacity

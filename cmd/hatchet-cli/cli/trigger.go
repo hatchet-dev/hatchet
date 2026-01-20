@@ -591,8 +591,8 @@ func triggerWorkflowWithClient(hatchetClient client.Client, workflowName string,
 	// Trigger workflow using the Admin client with a timeout context
 	// Create a channel to handle the async workflow trigger
 	type result struct {
-		runID string
 		err   error
+		runID string
 	}
 	resultChan := make(chan result, 1)
 
@@ -659,8 +659,8 @@ func launchTUIWithRun(runID string, profileName string, hatchetClient client.Cli
 
 // tuiModelWithInitialRun wraps tuiModel to add initial run navigation
 type tuiModelWithInitialRun struct {
-	tuiModel
 	initialRunID string
+	tuiModel
 }
 
 func (m tuiModelWithInitialRun) Init() tea.Cmd {

@@ -19,42 +19,40 @@ import (
 
 // RunsListView displays a list of runs in a table
 type RunsListView struct {
-	BaseModel
-	table          *TableWithStyleFunc
-	tasks          []rest.V1TaskSummary
-	metrics        rest.V1TaskRunMetrics // Metrics matching current filters
-	workflows      []WorkflowOption
-	filters        *RunsListFilters
-	loading        bool
 	lastFetch      time.Time
+	filterStatuses *[]rest.V1TaskStatus
+	newFilters     *RunsListFilters
+	filters        *RunsListFilters
 	debugLogger    *DebugLogger
-	showDebug      bool                 // Whether to show debug overlay
-	showingFilter  bool                 // Whether filter modal is open
-	filterForm     *huh.Form            // The filter form when modal is open
-	newFilters     *RunsListFilters     // Temp storage for filter edits
-	filterStatuses *[]rest.V1TaskStatus // Status slice being edited by multiselect
-
-	// Pagination state
-	currentOffset int64 // Current offset in the dataset
-	pageSize      int64 // Number of items per page
-	hasMore       bool  // Whether there are more pages available
-	totalCount    int   // Total number of items (from pagination info)
+	filterForm     *huh.Form
+	table          *TableWithStyleFunc
+	workflows      []WorkflowOption
+	metrics        rest.V1TaskRunMetrics
+	tasks          []rest.V1TaskSummary
+	BaseModel
+	currentOffset int64
+	totalCount    int
+	pageSize      int64
+	loading       bool
+	showingFilter bool
+	hasMore       bool
+	showDebug     bool
 }
 
 // tasksMsg contains the fetched tasks
 type tasksMsg struct {
-	tasks      []rest.V1TaskSummary
 	err        error
 	debugInfo  string
-	hasMore    bool // Whether there are more pages
-	totalCount int  // Total count from pagination
+	tasks      []rest.V1TaskSummary
+	totalCount int
+	hasMore    bool
 }
 
 // metricsMsg contains the fetched metrics
 type metricsMsg struct {
-	metrics   rest.V1TaskRunMetrics
 	err       error
 	debugInfo string
+	metrics   rest.V1TaskRunMetrics
 }
 
 // tickMsg is sent periodically to refresh the data

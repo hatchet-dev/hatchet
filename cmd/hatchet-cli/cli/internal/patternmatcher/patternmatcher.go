@@ -285,10 +285,10 @@ func (pm *PatternMatcher) Patterns() []*Pattern {
 
 // Pattern defines a single regexp used to filter file paths.
 type Pattern struct {
-	matchType      matchType
+	regexp         *regexp.Regexp
 	cleanedPattern string
 	dirs           []string
-	regexp         *regexp.Regexp
+	matchType      matchType
 	exclusion      bool
 }
 

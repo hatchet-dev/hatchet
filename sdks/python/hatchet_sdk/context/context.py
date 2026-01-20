@@ -98,6 +98,7 @@ class Context:
         :raises ValueError: If the task was skipped or if the step output for the task is not found.
         """
         from hatchet_sdk.runnables.types import R
+        from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 
         if self.was_skipped(task):
             raise ValueError(f"{task.name} was skipped")
@@ -107,7 +108,12 @@ class Context:
         except KeyError as e:
             raise ValueError(f"Step output for '{task.name}' not found") from e
 
-        return cast(R, task.validators.step_output.validate_python(parent_step_data))
+        return cast(
+            R,
+            task.validators.step_output.validate_python(
+                parent_step_data, context=HATCHET_PYDANTIC_SENTINEL
+            ),
+        )
 
     def aio_task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         warn(

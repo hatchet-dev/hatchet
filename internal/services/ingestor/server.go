@@ -220,27 +220,12 @@ type BulkCreateEventOpts struct {
 }
 
 type CreateEventOpts struct {
-	// (required) the tenant id
-	TenantId string `validate:"required,uuid"`
-
-	// (required) the event key
-	Key string `validate:"required"`
-
-	// (optional) the event data
-	Data []byte
-
-	// (optional) the event that this event is replaying
-	ReplayedEvent *string `validate:"omitempty,uuid"`
-
-	// (optional) the event metadata
-	AdditionalMetadata []byte
-
-	// (optional) the event priority
-	Priority *int32 `validate:"omitempty,min=1,max=3"`
-
-	// (optional) the event scope
-	Scope *string `validate:"omitempty"`
-
-	// (optional) the triggering webhook name
+	ReplayedEvent         *string `validate:"omitempty,uuid"`
+	Priority              *int32  `validate:"omitempty,min=1,max=3"`
+	Scope                 *string `validate:"omitempty"`
 	TriggeringWebhookName *string `validate:"omitempty"`
+	TenantId              string  `validate:"required,uuid"`
+	Key                   string  `validate:"required"`
+	Data                  []byte
+	AdditionalMetadata    []byte
 }

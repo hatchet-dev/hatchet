@@ -5,7 +5,6 @@ export const limitedResources: Record<TenantResource, string> = {
   [TenantResource.WORKER]: 'Total Workers',
   [TenantResource.WORKER_SLOT]: 'Concurrency Slots',
   [TenantResource.EVENT]: 'Events',
-  [TenantResource.WORKFLOW_RUN]: 'Workflow Runs',
   [TenantResource.TASK_RUN]: 'Task Runs',
   [TenantResource.CRON]: 'Cron Triggers',
   [TenantResource.SCHEDULE]: 'Schedule Triggers',

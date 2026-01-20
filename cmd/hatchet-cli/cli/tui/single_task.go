@@ -26,21 +26,21 @@ const (
 
 // SingleTaskView displays details for a single task run
 type SingleTaskView struct {
+	outputViewer *ContentViewer
+	debugLogger  *DebugLogger
+	task         *rest.V1TaskSummary
+	eventsViewer *ContentViewer
+	inputViewer  *ContentViewer
+	taskID       string
+	events       []rest.V1TaskEvent
+	logs         []rest.V1LogLine
 	BaseModel
-	taskID        string
-	task          *rest.V1TaskSummary
-	events        []rest.V1TaskEvent
-	logs          []rest.V1LogLine
-	loading       bool
-	loadingEvents bool
-	loadingLogs   bool
 	activeTab     SingleTaskTab
-	debugLogger   *DebugLogger
+	loadingLogs   bool
 	showDebug     bool
-	outputViewer  *ContentViewer
-	inputViewer   *ContentViewer
-	eventsViewer  *ContentViewer
-	viewerActive  bool // Whether any content viewer is active
+	loadingEvents bool
+	loading       bool
+	viewerActive  bool
 }
 
 // singleTaskMsg contains the fetched task details
@@ -51,14 +51,14 @@ type singleTaskMsg struct {
 
 // eventsMsg contains the fetched task events
 type eventsMsg struct {
-	events []rest.V1TaskEvent
 	err    error
+	events []rest.V1TaskEvent
 }
 
 // logsMsg contains the fetched log lines
 type logsMsg struct {
-	logs []rest.V1LogLine
 	err  error
+	logs []rest.V1LogLine
 }
 
 // NewSingleTaskView creates a new single task details view

@@ -16,10 +16,10 @@ import (
 
 // imagePullProgress represents the JSON structure from Docker's ImagePull API
 type imagePullProgress struct {
+	ProgressDetail *imagePullProgressDetail `json:"progressDetail"`
 	Status         string                   `json:"status"`
 	ID             string                   `json:"id"`
 	Progress       string                   `json:"progress"`
-	ProgressDetail *imagePullProgressDetail `json:"progressDetail"`
 }
 
 type imagePullProgressDetail struct {
@@ -29,8 +29,8 @@ type imagePullProgressDetail struct {
 
 // progressMsg is sent when progress updates
 type progressMsg struct {
-	percent float64
 	status  string
+	percent float64
 }
 
 // doneMsg is sent when pulling is complete
@@ -38,9 +38,9 @@ type doneMsg struct{}
 
 // model holds the bubbletea model for the progress bar
 type model struct {
-	progress     progress.Model
 	imageName    string
 	currentState string
+	progress     progress.Model
 	done         bool
 }
 

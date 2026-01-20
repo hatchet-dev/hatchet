@@ -731,12 +731,6 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		countTasks += len(steps)
 	}
 
-	preWR, postWR := r.m.Meter(ctx, sqlcv1.LimitResourceWORKFLOWRUN, tenantId, int32(countWorkflowRuns)) // nolint: gosec
-
-	if err := preWR(); err != nil {
-		return nil, nil, err
-	}
-
 	preTask, postTask := r.m.Meter(ctx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
 
 	if err := preTask(); err != nil {
@@ -1285,7 +1279,6 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		return nil, nil, err
 	}
 
-	postWR()
 	postTask()
 
 	return tasks, dags, nil

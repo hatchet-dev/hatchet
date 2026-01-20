@@ -16,11 +16,10 @@ import (
 
 // ProcessManager manages the lifecycle of a child process which can be started, stopped, and restarted.
 type ProcessManager struct {
-	procLk sync.Mutex
-
 	proc    *exec.Cmd
-	cmd     string
 	profile *cliconfig.Profile
+	cmd     string
+	procLk  sync.Mutex
 }
 
 func NewProcessManager(cmd string, profile *cliconfig.Profile) *ProcessManager {

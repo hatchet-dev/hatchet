@@ -9,8 +9,8 @@ import (
 )
 
 type WorkerConfig struct {
-	Dev      WorkerDevConfig `mapstructure:"dev" json:"dev,omitempty"`
 	Triggers []Trigger       `mapstructure:"triggers" json:"triggers,omitempty"`
+	Dev      WorkerDevConfig `mapstructure:"dev" json:"dev,omitempty"`
 }
 
 type Trigger struct {

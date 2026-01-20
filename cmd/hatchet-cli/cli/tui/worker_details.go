@@ -16,13 +16,13 @@ import (
 
 // WorkerDetailsView displays details about a specific worker
 type WorkerDetailsView struct {
-	BaseModel
-	workerID    string
-	worker      *rest.Worker
-	loading     bool
 	lastFetch   time.Time
+	worker      *rest.Worker
 	debugLogger *DebugLogger
-	showDebug   bool
+	workerID    string
+	BaseModel
+	loading   bool
+	showDebug bool
 }
 
 // workerDetailsMsg contains the fetched worker details

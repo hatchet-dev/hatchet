@@ -3909,18 +3909,18 @@ func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*tim
 }
 
 type TaskRunDetails struct {
-	OutputPayload []byte
-	Status        statusutils.V1RunStatus
 	Error         *string
+	Status        statusutils.V1RunStatus
 	ExternalId    string
+	OutputPayload []byte
 }
 
 type StepReadableId string
 
 type WorkflowRunDetails struct {
+	ReadableIdToDetails map[StepReadableId]TaskRunDetails
 	InputPayload        []byte
 	AdditionalMetadata  []byte
-	ReadableIdToDetails map[StepReadableId]TaskRunDetails
 }
 
 func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunDetails, error) {
