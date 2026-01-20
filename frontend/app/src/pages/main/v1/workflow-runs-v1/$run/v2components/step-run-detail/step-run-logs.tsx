@@ -187,6 +187,8 @@ export function StepRunLogs({
           timestamp: row.createdAt,
           line: row.message,
           instance: taskRun.displayName,
+          level: row.level,
+          metadata: row.metadata,
         })) || [],
     );
   }, [getLogsQuery.data?.pages, taskRun.displayName]);
