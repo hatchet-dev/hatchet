@@ -37,12 +37,15 @@ Database options for --local mode:
 
 Execution modes for --local:
   - in-process (default): Runs API and engine in the same process
-  - subprocess: Downloads and runs separate hatchet-api and hatchet-engine binaries`,
+  - subprocess (-s): Downloads and runs separate hatchet-api and hatchet-engine binaries`,
 	Example: `  # Start server with Docker (default)
   hatchet server start
 
   # Start server without Docker (uses embedded PostgreSQL)
   hatchet server start --local
+
+  # Short form: start local with subprocess mode
+  hatchet server start -ls
 
   # Start local server with external PostgreSQL
   hatchet server start --local --database-url "postgresql://user:pass@localhost:5432/hatchet"
@@ -51,7 +54,8 @@ Execution modes for --local:
   hatchet server start --local --postgres-port 5434
 
   # Start local server in subprocess mode (downloads binaries)
-  hatchet server start --local --execution-mode subprocess
+  hatchet server start --local --subprocess
+  hatchet server start -l -s
 
   # Start local server on custom ports
   hatchet server start --local --api-port 9080 --grpc-port 9077
@@ -240,8 +244,14 @@ func runLocalServerNative(cmd *cobra.Command, profileName string) error {
 	healthcheckPort, _ := cmd.Flags().GetInt("healthcheck-port")
 	noEmbeddedPG, _ := cmd.Flags().GetBool("no-embedded-postgres")
 	postgresPort, _ := cmd.Flags().GetInt("postgres-port")
+	subprocessMode, _ := cmd.Flags().GetBool("subprocess")
 	executionMode, _ := cmd.Flags().GetString("execution-mode")
 	binaryVersion, _ := cmd.Flags().GetString("binary-version")
+
+	// Handle --subprocess flag as shorthand for --execution-mode subprocess
+	if subprocessMode {
+		executionMode = local.ExecutionModeSubprocess
+	}
 
 	localDriver := local.NewLocalDriver()
 
@@ -369,7 +379,8 @@ func init() {
 	startCmd.Flags().Int("postgres-port", 0, "Port for embedded PostgreSQL (default: 5433)")
 
 	// Execution mode flags
-	startCmd.Flags().String("execution-mode", "", "Execution mode: 'in-process' (default) or 'subprocess'")
+	startCmd.Flags().BoolP("subprocess", "s", false, "Run API and engine as separate subprocesses (downloads binaries)")
+	startCmd.Flags().String("execution-mode", "", "Execution mode: 'in-process' or 'subprocess' (prefer --subprocess flag)")
 	startCmd.Flags().String("binary-version", "", "Version of hatchet-api/engine binaries for subprocess mode (default: CLI version)")
 
 	// Docker mode flags

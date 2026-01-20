@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
@@ -46,10 +45,8 @@ func (sm *SubprocessManager) StartAPI(ctx context.Context, binaryPath string, en
 	cmd.Stdout = newPrefixWriter(os.Stdout, "[api] ")
 	cmd.Stderr = newPrefixWriter(os.Stderr, "[api] ")
 
-	// Set process group so we can kill all children
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
+	// Set platform-specific process attributes
+	setPlatformAttributes(cmd)
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start API: %w", err)
@@ -80,10 +77,8 @@ func (sm *SubprocessManager) StartEngine(ctx context.Context, binaryPath string,
 	cmd.Stdout = newPrefixWriter(os.Stdout, "[engine] ")
 	cmd.Stderr = newPrefixWriter(os.Stderr, "[engine] ")
 
-	// Set process group so we can kill all children
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
+	// Set platform-specific process attributes
+	setPlatformAttributes(cmd)
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start Engine: %w", err)
@@ -105,7 +100,7 @@ func (sm *SubprocessManager) StopAll() error {
 
 	if sm.apiCmd != nil && sm.apiCmd.Process != nil {
 		fmt.Println(styles.InfoMessage("Stopping API subprocess..."))
-		if err := sm.stopProcess(sm.apiCmd); err != nil {
+		if err := stopProcess(sm.apiCmd); err != nil {
 			errs = append(errs, fmt.Errorf("failed to stop API: %w", err))
 		}
 		sm.apiCmd = nil
@@ -113,7 +108,7 @@ func (sm *SubprocessManager) StopAll() error {
 
 	if sm.engineCmd != nil && sm.engineCmd.Process != nil {
 		fmt.Println(styles.InfoMessage("Stopping Engine subprocess..."))
-		if err := sm.stopProcess(sm.engineCmd); err != nil {
+		if err := stopProcess(sm.engineCmd); err != nil {
 			errs = append(errs, fmt.Errorf("failed to stop Engine: %w", err))
 		}
 		sm.engineCmd = nil
@@ -126,42 +121,6 @@ func (sm *SubprocessManager) StopAll() error {
 	}
 
 	return nil
-}
-
-// stopProcess sends SIGTERM and waits for process to exit, then SIGKILL if needed
-func (sm *SubprocessManager) stopProcess(cmd *exec.Cmd) error {
-	if cmd.Process == nil {
-		return nil
-	}
-
-	// Send SIGTERM to process group
-	pgid, err := syscall.Getpgid(cmd.Process.Pid)
-	if err == nil {
-		syscall.Kill(-pgid, syscall.SIGTERM)
-	} else {
-		cmd.Process.Signal(syscall.SIGTERM)
-	}
-
-	// Wait for process to exit with timeout
-	done := make(chan error, 1)
-	go func() {
-		_, err := cmd.Process.Wait()
-		done <- err
-	}()
-
-	select {
-	case <-done:
-		return nil
-	case <-time.After(10 * time.Second):
-		// Force kill if graceful shutdown times out
-		fmt.Println(styles.Muted.Render("Graceful shutdown timed out, force killing..."))
-		if pgid, err := syscall.Getpgid(cmd.Process.Pid); err == nil {
-			syscall.Kill(-pgid, syscall.SIGKILL)
-		} else {
-			cmd.Process.Kill()
-		}
-		return nil
-	}
 }
 
 // WaitForHealth waits for the API to become healthy
