@@ -6,7 +6,7 @@ The Python SDK allows you to enable and ping a healthcheck to check on the statu
 
 First, set the `HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED` environment variable to `True`. Once that flag is set, two health check endpoints will be available (on port `8001` by default):
 
-1. `/health` - Returns **200** when the worker listener is healthy, otherwise **503**. The response is intentionally minimal because the endpoint is public: `{"status":"HEALTHY"}` or `{"status":"UNHEALTHY"}`.
+1. `/health` - Returns **200** when the worker listener is healthy, otherwise **503** with body `{"status":"HEALTHY"}` or `{"status":"UNHEALTHY"}`.
 2. `/metrics` - A metrics endpoint intended to be used by a monitoring system like Prometheus.
 
 ### Custom Port
