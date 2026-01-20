@@ -53,7 +53,7 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		Until: until,
 	}
 
-	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, task.ID, task.InsertedAt, opts)
+	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, task.ExternalID.String(), opts)
 
 	if err != nil {
 		span.RecordError(err)

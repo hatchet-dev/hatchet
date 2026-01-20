@@ -52,7 +52,7 @@ type CreateLogLineOpts struct {
 }
 
 type LogLineRepository interface {
-	ListLogLines(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error)
+	ListLogLines(ctx context.Context, tenantId, taskExternalId string, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error)
 
 	PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) error
 }
@@ -67,8 +67,15 @@ func newLogLineRepository(s *sharedRepository) LogLineRepository {
 	}
 }
 
-func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error) {
+func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, taskExternalId string, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error) {
 	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	// get the task id and inserted at
+	task, err := r.GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
+
+	if err != nil {
 		return nil, err
 	}
 
@@ -76,8 +83,8 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId strin
 
 	queryParams := sqlcv1.ListLogLinesParams{
 		Tenantid:       pgTenantId,
-		Taskid:         taskId,
-		Taskinsertedat: taskInsertedAt,
+		Taskid:         task.ID,
+		Taskinsertedat: task.InsertedAt,
 	}
 
 	if opts.Search != nil {
