@@ -40,6 +40,11 @@ services:
       - "8081:8080" # HyperDX UI
       - "4317:4317" # OTLP gRPC
       - "4318:4318" # OTLP HTTP
+    environment:
+      - HYPERDX_APP_URL=https://log.hiringshortformbackend.xyz
+      - HYPERDX_API_URL=https://log.hiringshortformbackend.xyz
+      - SERVER_URL=https://log.hiringshortformbackend.xyz
+      - FRONTEND_URL=https://log.hiringshortformbackend.xyz
     volumes:
       - hatchet_hyperdx_data:/data/db
       - hatchet_hyperdx_data:/var/lib/clickhouse

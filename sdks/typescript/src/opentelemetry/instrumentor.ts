@@ -129,7 +129,7 @@ function filterAttributes(
  * - Step executions (handleStartStepRun, handleCancelStepRun)
  *
  * Traceparent context is automatically propagated through metadata.
- * 
+ *
  * The instrumentor uses the global tracer/meter providers by default.
  * Use `setTracerProvider()` and `setMeterProvider()` to configure custom providers.
  */

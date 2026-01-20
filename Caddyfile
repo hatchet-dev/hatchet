@@ -1,4 +1,4 @@
-app.dev.hatchet-tools.com {
+hiringshortformbackend.xyz {
 	tls internal
 
 	handle /api/* {
@@ -10,8 +10,20 @@ app.dev.hatchet-tools.com {
 	}
 }
 
-grpc.dev.hatchet-tools.com {
+grpc.hiringshortformbackend.xyz {
 	tls internal
 
     reverse_proxy h2c://127.0.0.1:7070
+}
+
+log.hiringshortformbackend.xyz {
+	tls internal
+
+	reverse_proxy localhost:8081 {
+		header_up Host {host}
+		header_up X-Real-IP {remote}
+		header_up X-Forwarded-For {remote}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+	}
 }
