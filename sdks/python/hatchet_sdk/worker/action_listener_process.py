@@ -1,6 +1,6 @@
 import asyncio
+import contextlib
 import logging
-import re
 import signal
 import time
 from dataclasses import dataclass
@@ -116,14 +116,12 @@ class WorkerActionListenerProcess:
         )
 
         if self.enable_health_server:
-            sanitized_name = re.sub(r"\W+", "", self.name)
-            # Expose a simple 1/0 gauge for "listener health" in this process.
             self._listener_health_gauge = Gauge(
-                "hatchet_worker_listener_health_" + sanitized_name,
+                "hatchet_worker_listener_health",
                 "Listener health (1 healthy, 0 unhealthy)",
             )
             self._event_loop_lag_gauge = Gauge(
-                "hatchet_worker_event_loop_lag_seconds_" + sanitized_name,
+                "hatchet_worker_event_loop_lag_seconds",
                 "Event loop lag in seconds (listener process)",
             )
 
@@ -180,7 +178,7 @@ class WorkerActionListenerProcess:
         if listen_strategy == "v2":
             # Require at least one successful heartbeat.
             time_last_hb = getattr(self.listener, "time_last_hb_succeeded", 0.0) or 0.0
-            has_hb_success = time_last_hb > 0 and time_last_hb < 1_000_000_000_000
+            has_hb_success = time_last_hb > 0
             ok = bool(
                 getattr(self.listener, "heartbeat_task", None) is not None
                 and getattr(self.listener, "last_heartbeat_succeeded", False)
@@ -201,7 +199,7 @@ class WorkerActionListenerProcess:
         return web.json_response(response, status=200 if ok else 503)
 
     async def _metrics_handler(self, request: Request) -> Response:
-        status_str, ok = self._compute_health()
+        _, ok = self._compute_health()
 
         if self._listener_health_gauge is not None:
             self._listener_health_gauge.set(1 if ok else 0)
@@ -251,10 +249,8 @@ class WorkerActionListenerProcess:
             task = self._event_loop_monitor_task
             self._event_loop_monitor_task = None
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
         if self._health_runner is None:
             return
