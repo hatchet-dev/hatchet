@@ -3,6 +3,7 @@ package local
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -76,6 +77,15 @@ func (ep *EmbeddedPostgres) Start(ctx context.Context) error {
 	}
 	if err := os.MkdirAll(ep.binPath, 0700); err != nil {
 		return fmt.Errorf("failed to create binary directory: %w", err)
+	}
+
+	// Check if port is available before attempting to start
+	if err := checkPortAvailable(ep.port); err != nil {
+		return fmt.Errorf("port %d is already in use (possibly from a previous run)\n\n"+
+			"To fix this, either:\n"+
+			"  1. Use a different port: --postgres-port <port>\n"+
+			"  2. Kill the existing process: lsof -i :%d | grep LISTEN\n"+
+			"  3. Wait for the previous server to shut down", ep.port, ep.port)
 	}
 
 	// Check if this is a fresh install (no existing data)
@@ -164,4 +174,14 @@ func (ep *EmbeddedPostgres) BinPath() string {
 // IsRunning returns whether the embedded postgres is currently running
 func (ep *EmbeddedPostgres) IsRunning() bool {
 	return ep.started
+}
+
+// checkPortAvailable checks if a port is available for use
+func checkPortAvailable(port uint32) error {
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return err
+	}
+	ln.Close()
+	return nil
 }
