@@ -14,4 +14,4 @@ grpc.dev.hatchet-tools.com {
 	tls internal
 
     reverse_proxy h2c://127.0.0.1:7070
-} 
+}
