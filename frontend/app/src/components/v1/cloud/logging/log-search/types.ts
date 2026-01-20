@@ -17,8 +17,32 @@ export interface QueryToken {
 /**
  * Reserved filter keys with special handling
  */
-export const RESERVED_FILTER_KEYS = ['after', 'before', 'level'] as const;
+export const RESERVED_FILTER_KEYS = [
+  'after',
+  'before',
+  'level',
+  'worker',
+  'workflow',
+  'step',
+  'run',
+] as const;
 export type ReservedFilterKey = (typeof RESERVED_FILTER_KEYS)[number];
+
+/**
+ * Suggestion categories for grouped display
+ */
+export type SuggestionCategory =
+  | 'time'
+  | 'log-attributes'
+  | 'workflow'
+  | 'metadata';
+
+export const SUGGESTION_CATEGORY_LABELS: Record<SuggestionCategory, string> = {
+  time: 'Time Filters',
+  'log-attributes': 'Log Attributes',
+  workflow: 'Workflow',
+  metadata: 'Metadata',
+};
 
 /**
  * The parsed query output - this is what the component emits
@@ -46,6 +70,7 @@ export interface AutocompleteSuggestion {
   value: string;
   description?: string;
   icon?: ReactNode;
+  category?: SuggestionCategory;
 }
 
 /**

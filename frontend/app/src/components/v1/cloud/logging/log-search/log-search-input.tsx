@@ -30,13 +30,44 @@ import {
   ClockIcon,
   LayersIcon,
   InfoCircledIcon,
+  GearIcon,
+  CubeIcon,
+  ListBulletIcon,
 } from '@radix-ui/react-icons';
 
-import { LogSearchInputProps, ParsedLogQuery, QueryToken } from './types';
+import {
+  LogSearchInputProps,
+  ParsedLogQuery,
+  QueryToken,
+  SUGGESTION_CATEGORY_LABELS,
+  SuggestionCategory,
+} from './types';
 import { parseLogQuery } from './parser';
-import { getAutocompleteContext, getSuggestions } from './autocomplete';
+import {
+  getAutocompleteContext,
+  getSuggestions,
+  groupSuggestionsByCategory,
+} from './autocomplete';
 
 const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'fatal'] as const;
+
+/**
+ * Get icon for a suggestion category
+ */
+function getCategoryIcon(category: SuggestionCategory | 'other') {
+  switch (category) {
+    case 'time':
+      return <ClockIcon className="h-3.5 w-3.5" />;
+    case 'log-attributes':
+      return <LayersIcon className="h-3.5 w-3.5" />;
+    case 'workflow':
+      return <CubeIcon className="h-3.5 w-3.5" />;
+    case 'metadata':
+      return <ListBulletIcon className="h-3.5 w-3.5" />;
+    default:
+      return <GearIcon className="h-3.5 w-3.5" />;
+  }
+}
 
 const TIME_PRESETS = [
   { label: 'Last 15 minutes', value: '15m' },
@@ -79,6 +110,7 @@ export function LogSearchInput({
     metadataKeys,
     knownValues,
   );
+  const groupedSuggestions = groupSuggestionsByCategory(suggestions);
 
   // Reset selected index when suggestions change
   useEffect(() => {
@@ -89,7 +121,7 @@ export function LogSearchInput({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onChange(e.target.value);
       setCursorPosition(e.target.selectionStart || 0);
-      if (showAutocomplete && e.target.value.length > 0) {
+      if (showAutocomplete) {
         setIsOpen(true);
       }
     },
@@ -274,37 +306,73 @@ export function LogSearchInput({
           </div>
         </PopoverTrigger>
         <PopoverContent
-          className="w-[var(--radix-popover-trigger-width)] p-0"
+          className="w-[var(--radix-popover-trigger-width)] min-w-[320px] p-0"
           align="start"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <Command>
-            <CommandList>
+            <CommandList className="max-h-[300px]">
               <CommandEmpty>No suggestions</CommandEmpty>
-              <CommandGroup
-                heading={
-                  autocompleteContext.mode === 'key' ? 'Filter Keys' : 'Values'
-                }
-              >
-                {suggestions.map((suggestion, index) => (
-                  <CommandItem
-                    key={`${suggestion.value}-${index}`}
-                    onSelect={() => handleSuggestionSelect(suggestion.value)}
-                    className={cn(
-                      index === selectedIndex &&
-                        'bg-accent text-accent-foreground',
-                    )}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                  >
-                    <span className="font-mono text-sm">{suggestion.label}</span>
-                    {suggestion.description && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {suggestion.description}
-                      </span>
-                    )}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {autocompleteContext.mode === 'idle' && (
+                <div className="px-3 py-2 text-xs text-muted-foreground border-b">
+                  Type to search or select a filter
+                </div>
+              )}
+              {(() => {
+                let globalIndex = 0;
+                return Array.from(groupedSuggestions.entries()).map(
+                  ([category, items]) => (
+                    <CommandGroup
+                      key={category}
+                      heading={
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          {getCategoryIcon(category)}
+                          <span>
+                            {SUGGESTION_CATEGORY_LABELS[
+                              category as SuggestionCategory
+                            ] || 'Other'}
+                          </span>
+                        </div>
+                      }
+                    >
+                      {items.map((suggestion) => {
+                        const currentIndex = globalIndex++;
+                        return (
+                          <CommandItem
+                            key={`${suggestion.value}-${currentIndex}`}
+                            onSelect={() =>
+                              handleSuggestionSelect(suggestion.value)
+                            }
+                            className={cn(
+                              'flex items-center justify-between',
+                              currentIndex === selectedIndex &&
+                                'bg-accent text-accent-foreground',
+                            )}
+                            onMouseEnter={() => setSelectedIndex(currentIndex)}
+                          >
+                            <div className="flex items-center gap-2">
+                              {suggestion.type === 'key' ? (
+                                <code className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">
+                                  {suggestion.label}:
+                                </code>
+                              ) : (
+                                <span className="font-mono text-sm">
+                                  {suggestion.label}
+                                </span>
+                              )}
+                            </div>
+                            {suggestion.description && (
+                              <span className="text-xs text-muted-foreground truncate ml-2">
+                                {suggestion.description}
+                              </span>
+                            )}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  ),
+                );
+              })()}
             </CommandList>
           </Command>
         </PopoverContent>

@@ -1,9 +1,14 @@
+import { LogSearchInput } from './log-search/log-search-input';
+import { useLogSearch } from './log-search/use-log-search';
+import {
+  useMetadataKeys,
+  useMetadataValues,
+} from './log-search/use-metadata-keys';
+import { LogLine } from '@/lib/api/generated/cloud/data-contracts';
+import { ListCloudLogsQuery } from '@/lib/api/queries';
 import AnsiToHtml from 'ansi-to-html';
 import DOMPurify from 'dompurify';
 import React, { useEffect, useRef, useMemo } from 'react';
-import { LogSearchInput, useLogSearch, useMetadataKeys, useMetadataValues } from './log-search';
-import { ListCloudLogsQuery } from '@/lib/api/queries';
-import { LogLine } from '@/lib/api/generated/cloud/data-contracts';
 
 const convert = new AnsiToHtml({
   newline: true,
