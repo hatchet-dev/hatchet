@@ -1,13 +1,19 @@
 import asyncio
 import logging
+import re
 import signal
+import sys
 import time
 from dataclasses import dataclass
 from multiprocessing import Queue
 from typing import Any
 
 import grpc
+from aiohttp import web
+from aiohttp.web_request import Request
+from aiohttp.web_response import Response
 from grpc.aio import UnaryUnaryCall
+from prometheus_client import Gauge, generate_latest
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import (
@@ -59,6 +65,8 @@ class WorkerActionListenerProcess:
         handle_kill: bool,
         debug: bool,
         labels: dict[str, str | int],
+        enable_health_server: bool = False,
+        healthcheck_port: int = 8001,
     ) -> None:
         self.name = name
         self.actions = actions
@@ -69,6 +77,20 @@ class WorkerActionListenerProcess:
         self.debug = debug
         self.labels = labels
         self.handle_kill = handle_kill
+        self.enable_health_server = enable_health_server
+        self.healthcheck_port = healthcheck_port
+
+        self._health_runner: web.AppRunner | None = None
+        self._listener_health_gauge: Gauge | None = None
+        self._event_loop_lag_gauge: Gauge | None = None
+        self._event_loop_monitor_task: asyncio.Task[None] | None = None
+        self._event_loop_last_lag_seconds: float = 0.0
+        self._event_loop_blocked_since: float | None = None
+        self._event_loop_block_threshold_seconds: float = float(
+            getattr(self.config.healthcheck, "event_loop_block_threshold_seconds", 5.0)
+            or 5.0
+        )
+        self._waiting_steps_blocked_since: float | None = None
 
         self.listener: ActionListener | None = None
         self.killing = False
@@ -94,6 +116,150 @@ class WorkerActionListenerProcess:
         loop.add_signal_handler(
             signal.SIGQUIT, lambda: asyncio.create_task(self.exit_gracefully())
         )
+
+        if self.enable_health_server:
+            sanitized_name = re.sub(r"\W+", "", self.name)
+            # Expose a simple 1/0 gauge for "listener health" in this process.
+            self._listener_health_gauge = Gauge(
+                "hatchet_worker_listener_health_" + sanitized_name,
+                "Listener health (1 healthy, 0 unhealthy)",
+            )
+            self._event_loop_lag_gauge = Gauge(
+                "hatchet_worker_event_loop_lag_seconds_" + sanitized_name,
+                "Event loop lag in seconds (listener process)",
+            )
+
+    async def _monitor_event_loop(self) -> None:
+        # If the loop is blocked, this coroutine itself can't run; when it resumes,
+        # we detect the lag by comparing elapsed time vs expected sleep.
+        interval = 0.5
+
+        while not self.killing:
+            start = time.time()
+            await asyncio.sleep(interval)
+            elapsed = time.time() - start
+            lag = max(0.0, elapsed - interval)
+            self._event_loop_last_lag_seconds = lag
+
+            if lag >= self._event_loop_block_threshold_seconds:
+                if self._event_loop_blocked_since is None:
+                    self._event_loop_blocked_since = start + interval
+            else:
+                self._event_loop_blocked_since = None
+
+    def _compute_health(self) -> tuple[str, bool]:
+        if self.killing:
+            return ("UNHEALTHY", False)
+
+        # If the event loop has been blocked for >5s, report unhealthy.
+        if (
+            self._event_loop_blocked_since is not None
+            and (time.time() - self._event_loop_blocked_since)
+            > self._event_loop_block_threshold_seconds
+        ):
+            return ("UNHEALTHY", False)
+
+        # If steps have been waiting to start for longer than the threshold,
+        # treat this as unhealthy as well (this is what triggers the
+        # "Waiting Steps" blocked-loop warning).
+        if (
+            self._waiting_steps_blocked_since is not None
+            and (time.time() - self._waiting_steps_blocked_since)
+            > self._event_loop_block_threshold_seconds
+        ):
+            return ("UNHEALTHY", False)
+
+        if self.listener is None:
+            return ("STARTING", False)
+
+        # Avoid false positives before we have any listener connection attempts.
+        last_attempt = getattr(self.listener, "last_connection_attempt", 0.0) or 0.0
+        if last_attempt <= 0:
+            return ("STARTING", False)
+
+        listen_strategy = getattr(self.listener, "listen_strategy", "v2")
+
+        if listen_strategy == "v2":
+            # Require at least one successful heartbeat.
+            time_last_hb = getattr(self.listener, "time_last_hb_succeeded", 0.0) or 0.0
+            has_hb_success = time_last_hb > 0 and time_last_hb < 1_000_000_000_000
+            ok = bool(
+                getattr(self.listener, "heartbeat_task", None) is not None
+                and getattr(self.listener, "last_heartbeat_succeeded", False)
+                and has_hb_success
+            )
+        else:
+            # For v1 listen strategy (no heartbeater), treat "no retries" as healthy.
+            ok = bool(getattr(self.listener, "retries", 0) == 0)
+
+        return ("HEALTHY" if ok else "UNHEALTHY", ok)
+
+    async def _health_handler(self, request: Request) -> Response:
+        _, ok = self._compute_health()
+
+        # Keep this response minimal because the endpoint is public.
+        response = {"status": "HEALTHY" if ok else "UNHEALTHY"}
+
+        return web.json_response(response, status=200 if ok else 503)
+
+    async def _metrics_handler(self, request: Request) -> Response:
+        status_str, ok = self._compute_health()
+
+        if self._listener_health_gauge is not None:
+            self._listener_health_gauge.set(1 if ok else 0)
+
+        if self._event_loop_lag_gauge is not None:
+            self._event_loop_lag_gauge.set(self._event_loop_last_lag_seconds)
+
+        # Note: this is a local Prometheus endpoint for the worker process itself.
+        return web.Response(body=generate_latest(), content_type="text/plain")
+
+    async def start_health_server(self) -> None:
+        if not self.enable_health_server:
+            return
+
+        if self._health_runner is not None:
+            return
+
+        app = web.Application()
+        app.add_routes(
+            [
+                web.get("/health", self._health_handler),
+                web.get("/metrics", self._metrics_handler),
+            ]
+        )
+
+        runner = web.AppRunner(app)
+
+        try:
+            await runner.setup()
+            await web.TCPSite(runner, "0.0.0.0", self.healthcheck_port).start()
+        except Exception:
+            logger.exception("failed to start healthcheck server (listener process)")
+            return
+
+        self._health_runner = runner
+        logger.info(
+            f"healthcheck server (listener process) running on port {self.healthcheck_port}"
+        )
+
+        if self._event_loop_monitor_task is None:
+            self._event_loop_monitor_task = asyncio.create_task(self._monitor_event_loop())
+
+    async def stop_health_server(self) -> None:
+        if self._event_loop_monitor_task is not None:
+            self._event_loop_monitor_task.cancel()
+            self._event_loop_monitor_task = None
+
+        if self._health_runner is None:
+            return
+
+        try:
+            await self._health_runner.cleanup()
+        except Exception:
+            logger.exception("failed to stop healthcheck server (listener process)")
+        finally:
+            self._health_runner = None
 
     async def pause_task_assignment(self) -> None:
         if self.listener is None:
@@ -161,7 +327,11 @@ class WorkerActionListenerProcess:
                     count += 1
 
             if count > 0:
+                if self._waiting_steps_blocked_since is None:
+                    self._waiting_steps_blocked_since = time.time()
                 logger.warning(f"{BLOCKED_THREAD_WARNING} Waiting Steps {count}")
+            else:
+                self._waiting_steps_blocked_since = None
             await asyncio.sleep(1)
 
     async def send_event(self, event: ActionEvent, retry_attempt: int = 1) -> None:
@@ -275,6 +445,8 @@ class WorkerActionListenerProcess:
     async def cleanup(self) -> None:
         self.killing = True
 
+        await self.stop_health_server()
+
         if self.listener is not None:
             self.listener.cleanup()
 
@@ -306,6 +478,7 @@ class WorkerActionListenerProcess:
 def worker_action_listener_process(*args: Any, **kwargs: Any) -> None:
     async def run() -> None:
         process = WorkerActionListenerProcess(*args, **kwargs)
+        await process.start_health_server()
         await process.start()
         # Keep the process running
         while not process.killing:  # noqa: ASYNC110

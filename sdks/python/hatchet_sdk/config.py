@@ -36,6 +36,10 @@ class HealthcheckConfig(BaseSettings):
 
     port: int = 8001
     enabled: bool = False
+    event_loop_block_threshold_seconds: float = Field(
+        default=5.0,
+        description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503.",
+    )
 
 
 class OpenTelemetryConfig(BaseSettings):

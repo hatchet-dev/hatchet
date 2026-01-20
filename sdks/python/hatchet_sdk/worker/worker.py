@@ -283,18 +283,33 @@ class Worker:
                     self.loop.stop()
                 raise e
 
-        if self.config.healthcheck.enabled:
-            await self._start_health_server()
+        # Healthcheck server is started inside the spawned action-listener process
+        # (non-durable preferred) to avoid being affected by the main worker loop.
+        healthcheck_port = self.config.healthcheck.port
+        enable_health_server_non_durable = (
+            self.config.healthcheck.enabled and self.has_any_non_durable
+        )
+        enable_health_server_durable = (
+            self.config.healthcheck.enabled
+            and (not self.has_any_non_durable)
+            and self.has_any_durable
+        )
 
         if self.has_any_non_durable:
-            self.action_listener_process = self._start_action_listener(is_durable=False)
+            self.action_listener_process = self._start_action_listener(
+                is_durable=False,
+                enable_health_server=enable_health_server_non_durable,
+                healthcheck_port=healthcheck_port,
+            )
             self.action_runner = self._run_action_runner(
                 is_durable=False, lifespan_context=lifespan_context
             )
 
         if self.has_any_durable:
             self.durable_action_listener_process = self._start_action_listener(
-                is_durable=True
+                is_durable=True,
+                enable_health_server=enable_health_server_durable,
+                healthcheck_port=healthcheck_port,
             )
             self.durable_action_runner = self._run_action_runner(
                 is_durable=True, lifespan_context=lifespan_context
@@ -355,7 +370,11 @@ class Worker:
             raise LifespanSetupError("An error occurred during lifespan cleanup") from e
 
     def _start_action_listener(
-        self, is_durable: bool
+        self,
+        is_durable: bool,
+        *,
+        enable_health_server: bool = False,
+        healthcheck_port: int = 8001,
     ) -> multiprocessing.context.SpawnProcess:
         try:
             process = self.ctx.Process(
@@ -374,6 +393,8 @@ class Worker:
                     self.handle_kill,
                     self.client.debug,
                     self.labels,
+                    enable_health_server,
+                    healthcheck_port,
                 ),
             )
             process.start()
