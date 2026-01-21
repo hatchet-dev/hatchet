@@ -103,6 +103,7 @@ import {
   V1EventList,
   V1Filter,
   V1FilterList,
+  V1LogLineLevel,
   V1LogLineList,
   V1ReplayTaskRequest,
   V1ReplayedTasks,
@@ -236,6 +237,10 @@ export class Api<
        * @format date-time
        */
       until?: string;
+      /** A full-text search query to filter for */
+      search?: string;
+      /** The log level(s) to include */
+      levels?: V1LogLineLevel[];
     },
     params: RequestParams = {},
   ) =>

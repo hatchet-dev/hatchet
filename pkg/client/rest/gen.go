@@ -2400,6 +2400,12 @@ type V1LogLineListParams struct {
 
 	// Until The end time to get logs for
 	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// Search A full-text search query to filter for
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// Levels The log level(s) to include
+	Levels *[]V1LogLineLevel `form:"levels,omitempty" json:"levels,omitempty"`
 }
 
 // V1TaskEventListParams defines parameters for V1TaskEventList.
@@ -6322,6 +6328,38 @@ func NewV1LogLineListRequest(server string, task openapi_types.UUID, params *V1L
 		if params.Until != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Levels != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "levels", runtime.ParamLocationQuery, *params.Levels); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

@@ -1,4 +1,5 @@
-import LoggingComponent from '@/components/v1/cloud/logging/logs';
+import { parseLogQuery } from './parser';
+import { ParsedLogQuery } from './types';
 import { V1TaskSummary, V1LogLineList, V1TaskStatus } from '@/lib/api';
 import api from '@/lib/api/api';
 import { V1LogLineListQuery } from '@/lib/api/queries';
@@ -7,7 +8,7 @@ import {
   InfiniteData,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useMemo, useCallback, useRef, useEffect } from 'react';
+import { useMemo, useCallback, useRef, useEffect, useState } from 'react';
 
 const LOGS_PER_PAGE = 100;
 const FETCH_THRESHOLD_DOWN = 0.7;
@@ -18,16 +19,39 @@ interface PageBoundary {
   rowLastTimestamp: string;
   fetchedNext?: boolean;
   fetchedPrevious?: boolean;
-  currentPageText?: string;
 }
 
-export function StepRunLogs({
+export interface LogLine {
+  timestamp?: string;
+  line?: string;
+  instance?: string;
+  level?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UseLogsOptions {
+  taskRun: V1TaskSummary | undefined;
+  resetTrigger?: number;
+}
+
+export interface UseLogsReturn {
+  logs: LogLine[];
+  isLoading: boolean;
+  isFetchingMore: boolean;
+  queryString: string;
+  setQueryString: (value: string) => void;
+  parsedQuery: ParsedLogQuery;
+  handleScroll: (scrollData: {
+    scrollTop: number;
+    scrollHeight: number;
+    clientHeight: number;
+  }) => void;
+}
+
+export function useLogs({
   taskRun,
   resetTrigger,
-}: {
-  taskRun: V1TaskSummary;
-  resetTrigger?: number;
-}) {
+}: UseLogsOptions): UseLogsReturn {
   const queryClient = useQueryClient();
   const pageBoundariesRef = useRef<Record<number, PageBoundary>>({});
   const lastPageTimestampRef = useRef<string | undefined>(undefined);
@@ -37,33 +61,50 @@ export function StepRunLogs({
   const lastScrollPercentageRef = useRef(0);
   const lastPageNumberRef = useRef(0);
 
-  const isTaskRunning = taskRun?.status === V1TaskStatus.RUNNING;
+  const [queryString, setQueryString] = useState('');
+  const parsedQuery = useMemo(() => parseLogQuery(queryString), [queryString]);
 
-  // NOTE: Old pages are retained when a task is running, 0 = unlimited
+  const isTaskRunning = taskRun?.status === V1TaskStatus.RUNNING;
   const MAX_PAGES = isTaskRunning ? 0 : 2;
 
-  // Reset state (when logs tab is reopened)
   useEffect(() => {
-    if (resetTrigger !== undefined && resetTrigger > 0) {
+    if (taskRun?.metadata.id) {
       queryClient.resetQueries({
-        queryKey: ['v1Tasks', 'getLogs', taskRun?.metadata.id],
-        exact: true,
+        queryKey: ['v1Tasks', 'getLogs', taskRun.metadata.id],
+        exact: false,
       });
+      pageBoundariesRef.current = {};
+      currentPageNumberRef.current = 0;
+      lastPageTimestampRef.current = undefined;
     }
-  }, [resetTrigger, queryClient, taskRun?.metadata.id]);
+  }, [
+    resetTrigger,
+    queryClient,
+    taskRun?.metadata.id,
+    parsedQuery.level,
+    parsedQuery.search,
+  ]);
 
   const getLogsQuery = useInfiniteQuery<
     V1LogLineList,
     Error,
     InfiniteData<V1LogLineList>,
-    string[],
+    (string | undefined)[],
     { since: string | undefined; until: string | undefined }
   >({
-    queryKey: ['v1Tasks', 'getLogs', taskRun?.metadata.id],
+    queryKey: [
+      'v1Tasks',
+      'getLogs',
+      taskRun?.metadata.id,
+      parsedQuery.level,
+      parsedQuery.search,
+    ],
     queryFn: async ({ pageParam }) => {
       const params: V1LogLineListQuery = {
         limit: LOGS_PER_PAGE,
         ...(pageParam && { since: pageParam.since, until: pageParam.until }),
+        ...(parsedQuery.level && { levels: parsedQuery.level }),
+        ...(parsedQuery.search && { search: parsedQuery.search }),
       };
 
       const response = await api.v1LogLineList(
@@ -157,7 +198,6 @@ export function StepRunLogs({
 
   isRefetchingRef.current = getLogsQuery.isRefetching;
 
-  //NOTE: Fetch logs every second while the task is running.
   useEffect(() => {
     if (!isTaskRunning) {
       return;
@@ -169,27 +209,25 @@ export function StepRunLogs({
       }
     }, 1000);
 
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
+    return () => clearInterval(interval);
   }, [isTaskRunning, getLogsQuery]);
 
-  const allLogs = useMemo(() => {
+  const logs = useMemo((): LogLine[] => {
     if (!getLogsQuery.data?.pages) {
       return [];
     }
 
     return getLogsQuery.data.pages.flatMap(
       (page) =>
-        page?.rows?.map((row: any) => ({
+        page?.rows?.map((row) => ({
           timestamp: row.createdAt,
           line: row.message,
-          instance: taskRun.displayName,
+          instance: taskRun?.displayName,
+          level: row.level,
+          metadata: row.metadata as Record<string, unknown> | undefined,
         })) || [],
     );
-  }, [getLogsQuery.data?.pages, taskRun.displayName]);
+  }, [getLogsQuery.data?.pages, taskRun?.displayName]);
 
   const handleScroll = useCallback(
     (scrollData: {
@@ -256,15 +294,14 @@ export function StepRunLogs({
     [getLogsQuery, isTaskRunning],
   );
 
-  return (
-    <div className="my-4">
-      <LoggingComponent
-        logs={allLogs}
-        onTopReached={() => {}}
-        onBottomReached={() => {}}
-        autoScroll={false}
-        onInfiniteScroll={handleScroll}
-      />
-    </div>
-  );
+  return {
+    logs,
+    isLoading: getLogsQuery.isLoading,
+    isFetchingMore:
+      getLogsQuery.isFetchingNextPage || getLogsQuery.isFetchingPreviousPage,
+    queryString,
+    setQueryString,
+    parsedQuery,
+    handleScroll,
+  };
 }

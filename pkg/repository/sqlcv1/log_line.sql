@@ -26,9 +26,10 @@ WHERE
     l.tenant_id = @tenantId::UUID
     AND l.task_id = @taskId::BIGINT
     AND l.task_inserted_at = @taskInsertedAt::TIMESTAMPTZ
-    AND (sqlc.narg('search')::TEXT IS NULL OR l.message iLIKE concat('%', sqlc.narg('search')::TEXT, '%'))
+    AND (sqlc.narg('search')::TEXT IS NULL OR l.message ILIKE CONCAT('%', sqlc.narg('search')::TEXT, '%'))
     AND (sqlc.narg('since')::TIMESTAMPTZ IS NULL OR l.created_at > sqlc.narg('since')::TIMESTAMPTZ)
     AND (sqlc.narg('until')::TIMESTAMPTZ IS NULL OR l.created_at < sqlc.narg('until')::TIMESTAMPTZ)
+    AND (sqlc.narg('levels')::v1_log_line_level[] IS NULL OR l.level = ANY(sqlc.narg('levels')::v1_log_line_level[]))
 ORDER BY
     l.created_at ASC
 LIMIT COALESCE(sqlc.narg('limit'), 1000)

@@ -20,6 +20,16 @@ The Hatchet worker can be configured via environment variables and programmatic 
 | `slots`         | Maximum number of concurrent runs          | `100`         |
 | `durable_slots` | Maximum number of concurrent durable tasks | `1000`        |
 
+## Worker healthcheck server (Python SDK)
+
+These variables enable a local HTTP server that exposes `/health` and `/metrics` for a running worker.
+
+| Variable                                                               | Description                                                                                            | Default Value |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------- |
+| `HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED`                            | Enable the local worker healthcheck server                                                             | `false`       |
+| `HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT`                               | Port for the local worker healthcheck server                                                           | `8001`        |
+| `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS` | If the worker listener process event loop is blocked longer than this threshold, `/health` returns 503 | `5.0`         |
+
 ## TLS Configuration
 
 | Variable                          | Description                    | Default Value |
