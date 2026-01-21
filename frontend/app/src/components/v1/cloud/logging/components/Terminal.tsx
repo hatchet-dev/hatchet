@@ -15,16 +15,10 @@ function Terminal({ logs, autoScroll, callbacks, className }: TerminalProps) {
   const [initFailed, setInitFailed] = useState(false);
   const { theme: themeMode } = useTheme();
 
-  // Determine if dark mode
-  const isDark =
-    themeMode === 'dark' ||
-    (themeMode === 'system' &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const isDark = themeMode === 'dark';
 
-  // Memoize theme to prevent unnecessary reinitializations
   const theme = useMemo(() => (isDark ? darkTheme : lightTheme), [isDark]);
 
-  // Memoize options to prevent unnecessary effect triggers
   const options = useMemo(
     () => ({
       autoScroll,
@@ -35,13 +29,16 @@ function Terminal({ logs, autoScroll, callbacks, className }: TerminalProps) {
     [autoScroll, callbacks, theme],
   );
 
+  // useTerminal mounts the terminal in the containerRef. It's a complicated method with multiple effects,
+  // so we call it as a hook.
   useTerminal(containerRef, logs, options);
 
   // Fallback: render plain text if terminal init failed
   if (initFailed) {
     // Strip ANSI codes for plain text display
+    // This regex catches all ANSI escape sequences (colors, cursor movement, clear screen, etc.)
     // eslint-disable-next-line no-control-regex
-    const plainText = logs.replace(/\x1b\[[0-9;]*m/g, '');
+    const plainText = logs.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '');
 
     return (
       <div

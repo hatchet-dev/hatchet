@@ -40,8 +40,8 @@ export function useTerminal(
   },
 ) {
   const [terminalInitialized, setTerminalInitialized] = useState(false);
-  const terminalRef = useRef<any>(null);
-  const fitAddonRef = useRef<any>(null);
+  const terminalRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const isWritingRef = useRef(false);
   const callbacksRef = useRef<TerminalScrollCallbacks | undefined>(
@@ -148,7 +148,7 @@ export function useTerminal(
             background: '#1e293b',
             foreground: '#dddddd',
           },
-          scrollback: 10000000,
+          scrollback: 10 * 1024 * 1024, // 10MB (these are bytes, not lines)
           rows: 24,
           cols: 80,
         });
@@ -210,6 +210,10 @@ export function useTerminal(
 
         setTerminalInitialized(true);
       } catch (error) {
+        console.error(
+          'Failed to initialize terminal in useTerminal hook:',
+          error,
+        );
         options?.onInitError?.();
       }
     }
@@ -226,7 +230,8 @@ export function useTerminal(
       // Clear last written logs so they get rewritten when terminal reinitializes
       lastWrittenLogsRef.current = '';
     };
-  }, [containerRef, options]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [containerRef, options?.theme]);
 
   // Update terminal content when logs change
   useEffect(() => {
@@ -292,10 +297,7 @@ export function useTerminal(
     lastWrittenLogsRef.current = logs;
     isFreshTerminalRef.current = false;
 
-    // Unlock after a brief delay to ensure write is fully processed
-    setTimeout(() => {
-      isWritingRef.current = false;
-    }, 100);
+    isWritingRef.current = false;
   }, [logs, terminalInitialized]);
 
   return { terminalInitialized };

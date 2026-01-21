@@ -44,7 +44,6 @@ const getInstanceColor = (instance: string): string => {
 const formatLogLine = (log: LogLine): string => {
   let line = '';
 
-  // Add timestamp
   if (log.timestamp) {
     const formattedTime = new Date(log.timestamp)
       .toLocaleString('sv', DATE_FORMAT_OPTIONS)
@@ -53,13 +52,11 @@ const formatLogLine = (log: LogLine): string => {
     line += `${WHITE}${formattedTime}${RESET} `;
   }
 
-  // Add instance name with stable color
   if (log.instance) {
     const color = getInstanceColor(log.instance);
     line += `${color}[${log.instance}]${RESET} `;
   }
 
-  // Add the actual log line (preserving any ANSI codes it already has)
   line += log.line || '';
 
   return line;
@@ -80,7 +77,6 @@ export function LogViewer({
   onScroll,
   emptyMessage = 'Waiting for logs...',
 }: LogViewerProps) {
-  // Format and sort logs
   const formattedLogs = useMemo(() => {
     const showLogs =
       logs.length > 0
@@ -93,7 +89,6 @@ export function LogViewer({
             },
           ];
 
-    // Sort by timestamp
     const sortedLogs = [...showLogs].sort((a, b) => {
       if (!a.timestamp || !b.timestamp) {
         return 0;
@@ -101,19 +96,18 @@ export function LogViewer({
       return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
     });
 
-    // Convert to terminal format
     return sortedLogs.map(formatLogLine).join('\n');
   }, [logs, emptyMessage]);
 
   // Memoize callbacks object to prevent unnecessary recreations
-  const callbacks = useMemo(
-    () => ({
-      onTopReached: () => {},
-      onBottomReached: () => {},
-      onInfiniteScroll: onScroll,
-    }),
-    [onScroll],
-  );
+  const callbacks = useMemo(() => {
+    const noOp = () => {};
+    return {
+      onTopReached: noOp,
+      onBottomReached: noOp,
+      onInfiniteScroll: onScroll || noOp,
+    };
+  }, [onScroll]);
 
   return (
     <Terminal
