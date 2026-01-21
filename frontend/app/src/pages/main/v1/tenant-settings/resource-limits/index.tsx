@@ -90,31 +90,29 @@ export default function ResourceLimits() {
     );
   }
 
-  if (!isOwner) {
-    return (
-      <div className="h-full w-full flex-grow px-4 py-8 sm:px-6 lg:px-8">
-        <Alert variant="destructive">
-          <ExclamationTriangleIcon className="size-4" />
-          <AlertTitle>Unauthorized</AlertTitle>
-          <AlertDescription>
-            You do not have permission to access this page. Only tenant owners
-            can view billing and resource limits.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
   return (
     <div className="h-full w-full flex-grow">
       {billingEnabled && (
         <>
-          <Subscription
-            active={billingState.data?.currentSubscription}
-            upcoming={billingState.data?.upcomingSubscription}
-            plans={billingState.data?.plans}
-            coupons={billingState.data?.coupons}
-          />
+          {isOwner ? (
+            <Subscription
+              active={billingState.data?.currentSubscription}
+              upcoming={billingState.data?.upcomingSubscription}
+              plans={billingState.data?.plans}
+              coupons={billingState.data?.coupons}
+            />
+          ) : (
+            <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+              <Alert variant="destructive">
+                <ExclamationTriangleIcon className="size-4" />
+                <AlertTitle>Unauthorized</AlertTitle>
+                <AlertDescription>
+                  You do not have permission to view billing information. Only
+                  tenant owners can access billing details.
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
           <Separator className="my-4" />
         </>
       )}
