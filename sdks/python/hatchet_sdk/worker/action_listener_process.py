@@ -143,12 +143,18 @@ class WorkerActionListenerProcess:
             await asyncio.sleep(interval)
             elapsed = time.time() - start
             lag = max(0.0, elapsed - interval)
-            self._event_loop_last_lag_seconds = lag
-
+            # If the loop is "completely blocked" across multiple monitor ticks,
+            # report a continuously increasing lag value (time since first detected block).
             if timedelta(seconds=lag) >= self._event_loop_block_threshold:
                 if self._event_loop_blocked_since is None:
                     self._event_loop_blocked_since = start + interval
+                self._event_loop_last_lag_seconds = max(
+                    lag, time.time() - self._event_loop_blocked_since
+                )
             else:
+                self._event_loop_last_lag_seconds = lag
+
+            if timedelta(seconds=lag) < self._event_loop_block_threshold:
                 self._event_loop_blocked_since = None
 
     def _compute_health(self) -> HealthStatus:
@@ -345,7 +351,11 @@ class WorkerActionListenerProcess:
             if count > 0:
                 if self._waiting_steps_blocked_since is None:
                     self._waiting_steps_blocked_since = time.time()
-                logger.warning(f"{BLOCKED_THREAD_WARNING} Waiting Steps {count}")
+                blocked_for = time.time() - self._waiting_steps_blocked_since
+                # Continuously increasing "lag length" while we're blocked waiting for steps to start.
+                logger.warning(
+                    f"{BLOCKED_THREAD_WARNING} Waiting Steps {count} blocked_for={blocked_for:.1f}s"
+                )
             else:
                 self._waiting_steps_blocked_since = None
             await asyncio.sleep(1)
