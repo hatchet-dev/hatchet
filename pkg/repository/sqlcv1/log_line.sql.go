@@ -33,7 +33,7 @@ WHERE
     AND ($4::TEXT IS NULL OR l.message ILIKE CONCAT('%', $4::TEXT, '%'))
     AND ($5::TIMESTAMPTZ IS NULL OR l.created_at > $5::TIMESTAMPTZ)
     AND ($6::TIMESTAMPTZ IS NULL OR l.created_at < $6::TIMESTAMPTZ)
-    AND ($7::v1_log_line_level IS NULL OR l.level = $7::v1_log_line_level)
+    AND ($7::v1_log_line_level[] IS NULL OR l.level = ANY($7::v1_log_line_level[]))
 ORDER BY
     l.created_at ASC
 LIMIT COALESCE($9, 1000)
@@ -47,7 +47,7 @@ type ListLogLinesParams struct {
 	Search         pgtype.Text        `json:"search"`
 	Since          pgtype.Timestamptz `json:"since"`
 	Until          pgtype.Timestamptz `json:"until"`
-	Level          NullV1LogLineLevel `json:"level"`
+	Levels         []V1LogLineLevel   `json:"levels"`
 	Offset         interface{}        `json:"offset"`
 	Limit          interface{}        `json:"limit"`
 }
@@ -60,7 +60,7 @@ func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesPar
 		arg.Search,
 		arg.Since,
 		arg.Until,
-		arg.Level,
+		arg.Levels,
 		arg.Offset,
 		arg.Limit,
 	)

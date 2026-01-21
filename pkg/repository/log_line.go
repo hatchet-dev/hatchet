@@ -115,6 +115,15 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 		}
 	}
 
+	if opts.Levels != nil {
+		levels := make([]sqlcv1.V1LogLineLevel, len(opts.Levels))
+		for i, level := range opts.Levels {
+			levels[i] = sqlcv1.V1LogLineLevel(level)
+		}
+
+		queryParams.Levels = levels
+	}
+
 	logLines, err := r.queries.ListLogLines(ctx, r.pool, queryParams)
 	if err != nil {
 		return nil, err
