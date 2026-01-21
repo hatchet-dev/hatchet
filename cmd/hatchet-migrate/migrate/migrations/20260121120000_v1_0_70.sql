@@ -11,4 +11,3 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_v1_step_concurrency_tenant_step_id
 -- +goose StatementBegin
 DROP INDEX IF EXISTS idx_v1_step_concurrency_tenant_step_id;
 -- +goose StatementEnd
-
