@@ -35,12 +35,12 @@ const RESET = '\x1b[0m'; // Reset to default
 
 // Nice theme colors for instance names (using bright ANSI colors)
 const INSTANCE_COLORS = [
-  '\x1b[91m', // Bright red
-  '\x1b[92m', // Bright green
-  '\x1b[93m', // Bright yellow
   '\x1b[94m', // Bright blue
-  '\x1b[95m', // Bright magenta
   '\x1b[96m', // Bright cyan
+  '\x1b[95m', // Bright magenta
+  '\x1b[36m', // Cyan
+  '\x1b[34m', // Blue
+  '\x1b[35m', // Magenta
 ];
 
 // Simple hash function for stable color assignment
@@ -115,15 +115,21 @@ const LoggingComponent: React.FC<LogProps> = ({
     return sortedLogs.map(formatLogLine).join('\n');
   }, [logs]);
 
+  // Memoize callbacks object to prevent unnecessary recreations
+  const callbacks = useMemo(
+    () => ({
+      onTopReached,
+      onBottomReached,
+      onInfiniteScroll,
+    }),
+    [onTopReached, onBottomReached, onInfiniteScroll],
+  );
+
   return (
     <Terminal
       logs={formattedLogs}
       autoScroll={autoScroll}
-      callbacks={{
-        onTopReached,
-        onBottomReached,
-        onInfiniteScroll,
-      }}
+      callbacks={callbacks}
     />
   );
 };

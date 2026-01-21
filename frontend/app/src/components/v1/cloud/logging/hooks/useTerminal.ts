@@ -1,6 +1,7 @@
 // @ts-ignore - ghostty-web doesn't have TypeScript declarations
+import { TerminalTheme } from '../terminalThemes';
 import { init, Terminal, FitAddon } from 'ghostty-web';
-import { useEffect, useRef, RefObject } from 'react';
+import { useEffect, useRef, RefObject, useState } from 'react';
 
 export interface TerminalScrollCallbacks {
   onTopReached?: () => void;
@@ -12,45 +13,70 @@ export interface TerminalScrollCallbacks {
   }) => void;
 }
 
+// Initialize WASM once globally, not per terminal instance
+let wasmInitialized = false;
+let wasmInitPromise: Promise<void> | null = null;
+
+async function ensureWasmInit() {
+  if (wasmInitialized) {
+    return;
+  }
+  if (wasmInitPromise) {
+    return wasmInitPromise;
+  }
+  wasmInitPromise = init().then(() => {
+    wasmInitialized = true;
+  });
+  return wasmInitPromise;
+}
+
 export function useTerminal(
   containerRef: RefObject<HTMLDivElement>,
   logs: string,
   options?: {
     autoScroll?: boolean;
     callbacks?: TerminalScrollCallbacks;
+    theme?: TerminalTheme;
+    onInitError?: () => void;
   },
 ) {
+  const [terminalInitialized, setTerminalInitialized] = useState(false);
   const terminalRef = useRef<any>(null);
   const fitAddonRef = useRef<any>(null);
   const initializedRef = useRef(false);
+  const isWritingRef = useRef(false);
+  const callbacksRef = useRef<TerminalScrollCallbacks | undefined>(
+    options?.callbacks,
+  );
   const lastTopCallRef = useRef<number>(0);
   const lastBottomCallRef = useRef<number>(0);
   const lastInfiniteScrollCallRef = useRef<number>(0);
-  const firstMountRef = useRef<boolean>(true);
-  const logsRef = useRef<string>(logs);
-  const isWritingLogsRef = useRef<boolean>(false);
+  const lastWrittenLogsRef = useRef<string>('');
+  const isFreshTerminalRef = useRef<boolean>(true);
 
-  // Initialize terminal once
+  // Update callbacks ref when they change (without reinitializing terminal)
+  useEffect(() => {
+    callbacksRef.current = options?.callbacks;
+  }, [options?.callbacks]);
+
+  // Initialize terminal once and keep it alive
   useEffect(() => {
     if (!containerRef.current || initializedRef.current) return;
 
-    let term: any;
-    let fitAddon: any;
-    let isCleanedUp = false;
-
     const handleResize = () => {
-      if (fitAddon && !isCleanedUp) {
-        fitAddon.fit();
+      if (fitAddonRef.current && !isWritingRef.current) {
+        fitAddonRef.current.fit();
       }
     };
 
     const handleScroll = () => {
-      if (!term || isCleanedUp || isWritingLogsRef.current) return;
+      const term = terminalRef.current;
+      if (!term || isWritingRef.current) return;
 
       const buffer = term.buffer.active;
-      const viewportY = term.viewportY; // Current scroll position (from term, not buffer!)
-      const rows = term.rows; // Visible rows
-      const bufferLength = buffer.length; // Total buffer lines
+      const viewportY = term.viewportY;
+      const rows = term.rows;
+      const bufferLength = buffer.length;
 
       const now = Date.now();
 
@@ -61,10 +87,10 @@ export function useTerminal(
 
       // Call infinite scroll callback if provided
       if (
-        options?.callbacks?.onInfiniteScroll &&
+        callbacksRef.current?.onInfiniteScroll &&
         now - lastInfiniteScrollCallRef.current >= 100
       ) {
-        options.callbacks.onInfiniteScroll({
+        callbacksRef.current.onInfiniteScroll({
           scrollTop,
           scrollHeight,
           clientHeight,
@@ -87,8 +113,8 @@ export function useTerminal(
         isAtTop &&
         now - lastTopCallRef.current >= 1000
       ) {
-        if (options?.callbacks?.onTopReached) {
-          options.callbacks.onTopReached();
+        if (callbacksRef.current?.onTopReached) {
+          callbacksRef.current.onTopReached();
         }
         lastTopCallRef.current = now;
       }
@@ -100,8 +126,8 @@ export function useTerminal(
         isAtBottom &&
         now - lastBottomCallRef.current >= 1000
       ) {
-        if (options?.callbacks?.onBottomReached) {
-          options.callbacks.onBottomReached();
+        if (callbacksRef.current?.onBottomReached) {
+          callbacksRef.current.onBottomReached();
         }
         lastBottomCallRef.current = now;
       }
@@ -109,84 +135,40 @@ export function useTerminal(
 
     async function initTerminal() {
       try {
-        // Initialize WASM
-        await init();
+        await ensureWasmInit();
 
-        term = new Terminal({
+        const term = new Terminal({
           cursorBlink: false,
-          fontSize: 11, // text-xs
+          fontSize: 11,
           fontFamily: 'Monaco, Menlo, "Courier New", monospace',
-          // Dark theme based on Aardvark Blue theme
-          // TODO: add light theme
-          theme: {
+          theme: options?.theme || {
             background: '#1e293b',
             foreground: '#dddddd',
-            cursor: '#007acc',
-            cursorAccent: '#bfdbfe',
-            selectionBackground: '#bfdbfe',
-            selectionForeground: '#000000',
-            // ANSI colors (palette 0-15)
-            black: '#191919',
-            red: '#aa342e',
-            green: '#4b8c0f',
-            yellow: '#dbba00',
-            blue: '#1370d3',
-            magenta: '#c43ac3',
-            cyan: '#008eb0',
-            white: '#bebebe',
-            brightBlack: '#525252',
-            brightRed: '#f05b50',
-            brightGreen: '#95dc55',
-            brightYellow: '#ffe763',
-            brightBlue: '#60a4ec',
-            brightMagenta: '#e26be2',
-            brightCyan: '#60b6cb',
-            brightWhite: '#f7f7f7',
           },
-          scrollback: 10000,
+          scrollback: 10000000,
+          rows: 24,
+          cols: 80,
         });
 
-        fitAddon = new FitAddon();
+        if (!containerRef.current) {
+          return;
+        }
+
+        const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);
+        term.open(containerRef.current);
+        fitAddon.fit();
+        fitAddon.observeResize();
 
-        if (containerRef.current && !isCleanedUp) {
-          term.open(containerRef.current);
-          fitAddon.fit();
-          fitAddon.observeResize();
+        terminalRef.current = term;
+        fitAddonRef.current = fitAddon;
+        initializedRef.current = true;
 
-          terminalRef.current = term;
-          fitAddonRef.current = fitAddon;
+        // Register scroll event handler
+        term.onScroll(handleScroll);
 
-          initializedRef.current = true;
-
-          // Write any existing logs immediately after initialization
-          if (logsRef.current && logsRef.current.trim()) {
-            isWritingLogsRef.current = true;
-            term.clear();
-            const lines = logsRef.current.split('\n');
-            for (const line of lines) {
-              if (line) {
-                term.write(line + '\r\n');
-              }
-            }
-
-            // Block scroll events briefly
-            // TODO: determine if this is necessary
-            setTimeout(() => {
-              isWritingLogsRef.current = false;
-            }, 150);
-
-            if (options?.autoScroll !== false) {
-              setTimeout(() => {
-                if (terminalRef.current) {
-                  terminalRef.current.scrollToBottom();
-                }
-              }, 100);
-              firstMountRef.current = false;
-            }
-          }
-
-          // Prevent terminal from capturing keyboard events and focus (read-only view)
+        // Prevent terminal from capturing keyboard events and focus (read-only view)
+        if (containerRef.current) {
           const textarea = containerRef.current.querySelector('textarea');
           const canvas = containerRef.current.querySelector('canvas');
 
@@ -216,77 +198,100 @@ export function useTerminal(
               true,
             );
           }
-
-          // Handle scroll events
-          term.onScroll(handleScroll);
-
-          // Handle window resize
-          window.addEventListener('resize', handleResize);
         }
+
+        window.addEventListener('resize', handleResize);
+
+        // Mark as fresh terminal so we don't call reset() on first write
+        isFreshTerminalRef.current = true;
+
+        setTerminalInitialized(true);
       } catch (error) {
-        console.error('Failed to initialize terminal:', error);
+        options?.onInitError?.();
       }
     }
 
     initTerminal();
 
     return () => {
-      isCleanedUp = true;
       window.removeEventListener('resize', handleResize);
       if (terminalRef.current) {
         terminalRef.current.dispose();
         terminalRef.current = null;
       }
-      if (fitAddonRef.current) {
-        fitAddonRef.current = null;
-      }
       initializedRef.current = false;
+      // Clear last written logs so they get rewritten when terminal reinitializes
+      lastWrittenLogsRef.current = '';
     };
-  }, [containerRef, options?.callbacks]);
-
-  // Keep logsRef updated
-  useEffect(() => {
-    logsRef.current = logs;
-  }, [logs]);
+  }, [containerRef, options?.theme]);
 
   // Update terminal content when logs change
   useEffect(() => {
-    if (!terminalRef.current) {
+    if (!terminalRef.current || !terminalInitialized) return;
+
+    const term = terminalRef.current;
+
+    // Check if logs have actually changed
+    if (logs === lastWrittenLogsRef.current) {
       return;
     }
 
-    isWritingLogsRef.current = true;
+    // Lock to prevent fit from running during reset/write
+    isWritingRef.current = true;
 
-    const term = terminalRef.current;
-    // viewportY === 0 means at bottom in ghostty-web/xterm.js
-    const wasAtBottom = term.viewportY === 0;
+    // Detect if logs were appended (starts with previous logs)
+    const isAppend =
+      lastWrittenLogsRef.current.length > 0 &&
+      logs &&
+      logs.startsWith(lastWrittenLogsRef.current);
 
-    term.clear();
+    if (isAppend) {
+      // Only write the new part
+      const newLogs = logs.slice(lastWrittenLogsRef.current.length);
 
-    if (logs) {
-      const lines = logs.split('\n');
-      for (const line of lines) {
-        if (line) {
-          term.write(line + '\r\n');
+      if (newLogs) {
+        const lines = newLogs.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const isLastLine = i === lines.length - 1;
+          // TODO: We use \x1b[0m (reset) and \x1b[K (clear to end of line) as workarounds:
+          // 1. \x1b[0m resets any lingering ANSI state (colors, styles) from previous lines
+          // 2. \x1b[K clears garbage data due to ghostty-web memory pollution bug
+          // When terminal instances are disposed and recreated, WASM memory isn't properly cleared,
+          // causing old buffer data to appear in new terminal instances.
+          // This should be reported to ghostty-web maintainers as a memory management bug:
+          // - dispose() doesn't fully clear WASM buffers
+          // - graphemeBufferPtr is never freed (see free() implementation)
+          // - Sequential terminal instances show memory pollution from previous instances
+          term.write('\x1b[0m' + line + '\x1b[K' + (isLastLine ? '' : '\r\n'));
+        }
+      }
+    } else {
+      // Logs completely replaced - reset and write all
+      // Skip reset() for freshly initialized terminals to avoid WASM memory pollution
+      if (!isFreshTerminalRef.current) {
+        term.reset();
+      }
+
+      // Write actual log content, split by newlines
+      if (logs) {
+        const lines = logs.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const isLastLine = i === lines.length - 1;
+          term.write('\x1b[0m' + line + '\x1b[K' + (isLastLine ? '' : '\r\n'));
         }
       }
     }
 
-    // Block scroll events briefly to prevent false triggers during write
-    setTimeout(() => {
-      isWritingLogsRef.current = false;
-    }, 150);
+    lastWrittenLogsRef.current = logs;
+    isFreshTerminalRef.current = false;
 
-    // Auto-scroll to bottom if enabled and conditions are met
-    if (options?.autoScroll !== false) {
-      if (firstMountRef.current || wasAtBottom) {
-        setTimeout(() => {
-          if (terminalRef.current) {
-            terminalRef.current.scrollToBottom();
-          }
-        }, 100);
-        firstMountRef.current = false;
-      }
-    }
-  }, [logs, options?.autoScroll]);
+    // Unlock after a brief delay to ensure write is fully processed
+    setTimeout(() => {
+      isWritingRef.current = false;
+    }, 100);
+  }, [logs, terminalInitialized]);
+
+  return { terminalInitialized };
 }
