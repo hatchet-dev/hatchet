@@ -1,12 +1,6 @@
+import Terminal from './components/Terminal';
 import { LogLine } from './log-search/use-logs';
-import AnsiToHtml from 'ansi-to-html';
-import DOMPurify from 'dompurify';
-import { useRef, useEffect } from 'react';
-
-const convert = new AnsiToHtml({
-  newline: true,
-  bg: 'transparent',
-});
+import { useMemo } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   year: 'numeric',
@@ -15,6 +9,57 @@ const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   hour: 'numeric',
   minute: 'numeric',
   second: 'numeric',
+};
+
+// ANSI color codes
+const WHITE = '\x1b[37m'; // Regular white for timestamps (dimmer than bright white)
+const RESET = '\x1b[0m'; // Reset to default
+
+// Nice theme colors for instance names (using bright ANSI colors)
+const INSTANCE_COLORS = [
+  '\x1b[94m', // Bright blue
+  '\x1b[96m', // Bright cyan
+  '\x1b[95m', // Bright magenta
+  '\x1b[36m', // Cyan
+  '\x1b[34m', // Blue
+  '\x1b[35m', // Magenta
+];
+
+// Simple hash function for stable color assignment
+const hashString = (str: string): number => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+};
+
+const getInstanceColor = (instance: string): string => {
+  const hash = hashString(instance);
+  return INSTANCE_COLORS[hash % INSTANCE_COLORS.length];
+};
+
+const formatLogLine = (log: LogLine): string => {
+  let line = '';
+
+  if (log.timestamp) {
+    const formattedTime = new Date(log.timestamp)
+      .toLocaleString('sv', DATE_FORMAT_OPTIONS)
+      .replace(',', '.')
+      .replace(' ', 'T');
+    line += `${WHITE}${formattedTime}${RESET} `;
+  }
+
+  if (log.instance) {
+    const color = getInstanceColor(log.instance);
+    line += `${color}[${log.instance}]${RESET} `;
+  }
+
+  line += log.line || '';
+
+  return line;
 };
 
 export interface LogViewerProps {
@@ -32,82 +77,43 @@ export function LogViewer({
   onScroll,
   emptyMessage = 'Waiting for logs...',
 }: LogViewerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const previousScrollHeightRef = useRef<number>(0);
+  const formattedLogs = useMemo(() => {
+    const showLogs =
+      logs.length > 0
+        ? logs
+        : [
+            {
+              line: emptyMessage,
+              timestamp: new Date().toISOString(),
+              instance: 'Hatchet',
+            },
+          ];
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) {
-      return;
-    }
+    const sortedLogs = [...showLogs].sort((a, b) => {
+      if (!a.timestamp || !b.timestamp) {
+        return 0;
+      }
+      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    });
 
-    const previousScrollHeight = previousScrollHeightRef.current;
-    const currentScrollHeight = container.scrollHeight;
-    const { scrollTop, clientHeight } = container;
+    return sortedLogs.map(formatLogLine).join('\n');
+  }, [logs, emptyMessage]);
 
-    const isAtBottom = scrollTop + clientHeight >= previousScrollHeight - 10;
-
-    if (isAtBottom) {
-      container.scrollTo({ top: currentScrollHeight, behavior: 'smooth' });
-    }
-
-    previousScrollHeightRef.current = currentScrollHeight;
-  }, [logs]);
-
-  const handleScroll = () => {
-    if (!containerRef.current || !onScroll) {
-      return;
-    }
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    previousScrollHeightRef.current = scrollHeight;
-    onScroll({ scrollTop, scrollHeight, clientHeight });
-  };
-
-  const showLogs =
-    logs.length > 0
-      ? logs
-      : [
-          {
-            line: emptyMessage,
-            timestamp: new Date().toISOString(),
-            instance: 'Hatchet',
-          },
-        ];
+  // Memoize callbacks object to prevent unnecessary recreations
+  const callbacks = useMemo(() => {
+    const noOp = () => {};
+    return {
+      onTopReached: noOp,
+      onBottomReached: noOp,
+      onInfiniteScroll: onScroll || noOp,
+    };
+  }, [onScroll]);
 
   return (
-    <div
-      ref={containerRef}
-      onScroll={handleScroll}
-      className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground mx-auto max-h-[25rem] min-h-[25rem] w-full overflow-y-auto rounded-md bg-muted p-6 font-mono text-xs text-indigo-300"
-    >
-      {showLogs.map((log, i) => {
-        const sanitizedHtml = DOMPurify.sanitize(
-          convert.toHtml(log.line || ''),
-          { USE_PROFILES: { html: true } },
-        );
-
-        return (
-          <p
-            key={`${log.timestamp}-${i}`}
-            className="overflow-x-hidden whitespace-pre-wrap break-all pb-2"
-          >
-            {log.timestamp && (
-              <span className="mr-2 text-gray-500">
-                {new Date(log.timestamp)
-                  .toLocaleString('sv', DATE_FORMAT_OPTIONS)
-                  .replace(',', '.')
-                  .replace(' ', 'T')}
-              </span>
-            )}
-            {log.instance && (
-              <span className="mr-2 text-foreground dark:text-white">
-                {log.instance}
-              </span>
-            )}
-            <span dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
-          </p>
-        );
-      })}
-    </div>
+    <Terminal
+      logs={formattedLogs}
+      callbacks={callbacks}
+      className="max-h-[25rem] min-h-[25rem] pl-6 pt-6 pb-6 rounded-md relative overflow-hidden font-mono text-xs [&_canvas]:block [&_.xterm-cursor]:!hidden [&_textarea]:!fixed [&_textarea]:!left-[-9999px] [&_textarea]:!top-[-9999px]"
+    />
   );
 }
