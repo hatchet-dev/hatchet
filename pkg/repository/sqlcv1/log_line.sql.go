@@ -30,13 +30,14 @@ WHERE
     l.tenant_id = $1::UUID
     AND l.task_id = $2::BIGINT
     AND l.task_inserted_at = $3::TIMESTAMPTZ
-    AND ($4::TEXT IS NULL OR l.message iLIKE concat('%', $4::TEXT, '%'))
+    AND ($4::TEXT IS NULL OR l.message ILIKE CONCAT('%', $4::TEXT, '%'))
     AND ($5::TIMESTAMPTZ IS NULL OR l.created_at > $5::TIMESTAMPTZ)
     AND ($6::TIMESTAMPTZ IS NULL OR l.created_at < $6::TIMESTAMPTZ)
+    AND ($7::v1_log_line_level IS NULL OR l.level = $7::v1_log_line_level)
 ORDER BY
     l.created_at ASC
-LIMIT COALESCE($8, 1000)
-OFFSET COALESCE($7, 0)
+LIMIT COALESCE($9, 1000)
+OFFSET COALESCE($8, 0)
 `
 
 type ListLogLinesParams struct {
@@ -46,6 +47,7 @@ type ListLogLinesParams struct {
 	Search         pgtype.Text        `json:"search"`
 	Since          pgtype.Timestamptz `json:"since"`
 	Until          pgtype.Timestamptz `json:"until"`
+	Level          NullV1LogLineLevel `json:"level"`
 	Offset         interface{}        `json:"offset"`
 	Limit          interface{}        `json:"limit"`
 }
@@ -58,6 +60,7 @@ func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesPar
 		arg.Search,
 		arg.Since,
 		arg.Until,
+		arg.Level,
 		arg.Offset,
 		arg.Limit,
 	)
