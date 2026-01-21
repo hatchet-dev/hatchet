@@ -6,16 +6,21 @@ import {
 import { Subscription } from '@/components/v1/cloud/billing';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { queries, TenantResourceLimit } from '@/lib/api';
+import { queries, TenantMemberRole, TenantResourceLimit } from '@/lib/api';
 import useCloud from '@/pages/auth/hooks/use-cloud';
+import { useAppContext } from '@/providers/app-context';
+import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
+  const { membership } = useAppContext();
+  const isOwner = membership === TenantMemberRole.OWNER;
 
   const { cloud, isCloudEnabled } = useCloud();
 
@@ -81,6 +86,21 @@ export default function ResourceLimits() {
     return (
       <div className="h-full w-full flex-grow px-4 sm:px-6 lg:px-8">
         <Spinner />
+      </div>
+    );
+  }
+
+  if (!isOwner) {
+    return (
+      <div className="h-full w-full flex-grow px-4 py-8 sm:px-6 lg:px-8">
+        <Alert variant="destructive">
+          <ExclamationTriangleIcon className="size-4" />
+          <AlertTitle>Unauthorized</AlertTitle>
+          <AlertDescription>
+            You do not have permission to access this page. Only tenant owners
+            can view billing and resource limits.
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }

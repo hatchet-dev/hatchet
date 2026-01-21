@@ -20,6 +20,7 @@ import {
 export function sideNavItems(opts: {
   canBill?: boolean;
   managedWorkerEnabled?: boolean;
+  isOwner?: boolean;
 }): SideNavSection[] {
   const billingLabel = opts.canBill ? 'Billing & Limits' : 'Resource Limits';
 
@@ -44,11 +45,15 @@ export function sideNavItems(opts: {
       name: 'Members',
       to: appRoutes.tenantSettingsMembersRoute.to,
     },
-    {
-      key: 'tenant-settings-billing-and-limits',
-      name: billingLabel,
-      to: appRoutes.tenantSettingsBillingRoute.to,
-    },
+    ...(opts.isOwner
+      ? [
+          {
+            key: 'tenant-settings-billing-and-limits',
+            name: billingLabel,
+            to: appRoutes.tenantSettingsBillingRoute.to,
+          },
+        ]
+      : []),
     {
       key: 'tenant-settings-alerting',
       name: 'Alerting',

@@ -3,6 +3,7 @@ import { sideNavItems } from './side-nav-items';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { TenantMemberRole } from '@/lib/api';
 import {
   MembershipsContextType,
   UserContextType,
@@ -19,13 +20,21 @@ function Main() {
   const { cloud, featureFlags } = useCloud(tenantId);
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
 
+  const isOwner = useMemo(() => {
+    const membership = memberships?.find(
+      (m) => m.tenant?.metadata.id === tenantId,
+    );
+    return membership?.role === TenantMemberRole.OWNER;
+  }, [memberships, tenantId]);
+
   const navSections = useMemo(
     () =>
       sideNavItems({
         canBill: cloud?.canBill,
         managedWorkerEnabled,
+        isOwner,
       }),
-    [cloud?.canBill, managedWorkerEnabled],
+    [cloud?.canBill, managedWorkerEnabled, isOwner],
   );
 
   const childCtx = useContextFromParent({
