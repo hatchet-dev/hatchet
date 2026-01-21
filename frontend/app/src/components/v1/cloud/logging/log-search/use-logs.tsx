@@ -118,9 +118,7 @@ export function useLogs({
         limit: LOGS_PER_PAGE,
         ...(pageParam && { since: pageParam.since, until: pageParam.until }),
         ...(parsedQuery.level && {
-          levels: [
-            parsedQuery.level.toUpperCase() as V1LogLineLevel,
-          ],
+          levels: [parsedQuery.level.toUpperCase() as V1LogLineLevel],
         }),
         ...(parsedQuery.search && { search: parsedQuery.search }),
       };
