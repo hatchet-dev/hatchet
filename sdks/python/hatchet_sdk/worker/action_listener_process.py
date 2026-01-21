@@ -4,6 +4,7 @@ import logging
 import signal
 import time
 from dataclasses import dataclass
+from datetime import timedelta
 from enum import Enum
 from multiprocessing import Queue
 from typing import Any
@@ -92,7 +93,7 @@ class WorkerActionListenerProcess:
         self._event_loop_monitor_task: asyncio.Task[None] | None = None
         self._event_loop_last_lag_seconds: float = 0.0
         self._event_loop_blocked_since: float | None = None
-        self._event_loop_block_threshold_seconds: float = float(
+        self._event_loop_block_threshold: timedelta = (
             self.config.healthcheck.event_loop_block_threshold_seconds
         )
         self._waiting_steps_blocked_since: float | None = None
@@ -144,7 +145,7 @@ class WorkerActionListenerProcess:
             lag = max(0.0, elapsed - interval)
             self._event_loop_last_lag_seconds = lag
 
-            if lag >= self._event_loop_block_threshold_seconds:
+            if timedelta(seconds=lag) >= self._event_loop_block_threshold:
                 if self._event_loop_blocked_since is None:
                     self._event_loop_blocked_since = start + interval
             else:
@@ -157,8 +158,8 @@ class WorkerActionListenerProcess:
         # If the event loop has been blocked longer than the configured threshold, report unhealthy.
         if (
             self._event_loop_blocked_since is not None
-            and (time.time() - self._event_loop_blocked_since)
-            > self._event_loop_block_threshold_seconds
+            and timedelta(seconds=(time.time() - self._event_loop_blocked_since))
+            > self._event_loop_block_threshold
         ):
             return HealthStatus.UNHEALTHY
 
@@ -167,8 +168,8 @@ class WorkerActionListenerProcess:
         # "Waiting Steps" blocked-loop warning).
         if (
             self._waiting_steps_blocked_since is not None
-            and (time.time() - self._waiting_steps_blocked_since)
-            > self._event_loop_block_threshold_seconds
+            and timedelta(seconds=(time.time() - self._waiting_steps_blocked_since))
+            > self._event_loop_block_threshold
         ):
             return HealthStatus.UNHEALTHY
 

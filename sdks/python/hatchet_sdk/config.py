@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 from logging import Logger, getLogger
 from typing import overload
 
@@ -36,10 +37,30 @@ class HealthcheckConfig(BaseSettings):
 
     port: int = 8001
     enabled: bool = False
-    event_loop_block_threshold_seconds: float = Field(
-        default=5.0,
-        description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503.",
+    # HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS
+    event_loop_block_threshold_seconds: timedelta = Field(
+        default=timedelta(seconds=5),
+        description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503. Value is interpreted as seconds.",
     )
+
+    @field_validator("event_loop_block_threshold_seconds", mode="before")
+    @classmethod
+    def validate_event_loop_block_threshold_seconds(
+        cls, value: timedelta | int | float | str
+    ) -> timedelta:
+        # Settings env vars are strings; interpret as seconds.
+        if isinstance(value, timedelta):
+            return value
+
+        if isinstance(value, (int, float)):
+            return timedelta(seconds=float(value))
+
+        v = value.strip()
+        # Allow a small convenience suffix, but keep "seconds" as the contract.
+        if v.endswith("s"):
+            v = v[:-1].strip()
+
+        return timedelta(seconds=float(v))
 
 
 class OpenTelemetryConfig(BaseSettings):
