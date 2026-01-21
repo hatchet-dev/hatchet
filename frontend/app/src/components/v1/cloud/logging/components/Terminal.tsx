@@ -7,9 +7,10 @@ interface TerminalProps {
   logs: string;
   autoScroll?: boolean;
   callbacks?: TerminalScrollCallbacks;
+  className?: string;
 }
 
-function Terminal({ logs, autoScroll, callbacks }: TerminalProps) {
+function Terminal({ logs, autoScroll, callbacks, className }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [initFailed, setInitFailed] = useState(false);
   const { theme: themeMode } = useTheme();
@@ -46,7 +47,10 @@ function Terminal({ logs, autoScroll, callbacks }: TerminalProps) {
 
     return (
       <div
-        className="h-[500px] md:h-[600px] pl-6 pt-6 pb-6 bg-muted rounded-md overflow-auto font-mono text-xs whitespace-pre-wrap"
+        className={
+          className ||
+          'h-[500px] md:h-[600px] pl-6 pt-6 pb-6 bg-muted rounded-md overflow-auto font-mono text-xs whitespace-pre-wrap'
+        }
         style={{ color: theme.foreground }}
       >
         {plainText}
@@ -56,7 +60,10 @@ function Terminal({ logs, autoScroll, callbacks }: TerminalProps) {
 
   return (
     <div
-      className="h-[500px] md:h-[600px] pl-6 pt-6 pb-6 rounded-md relative overflow-hidden font-mono text-xs [&_canvas]:block [&_.xterm-cursor]:!hidden [&_textarea]:!fixed [&_textarea]:!left-[-9999px] [&_textarea]:!top-[-9999px]"
+      className={
+        className ||
+        'h-[500px] md:h-[600px] pl-6 pt-6 pb-6 rounded-md relative overflow-hidden font-mono text-xs [&_canvas]:block [&_.xterm-cursor]:!hidden [&_textarea]:!fixed [&_textarea]:!left-[-9999px] [&_textarea]:!top-[-9999px]'
+      }
       style={{ backgroundColor: theme.background }}
       ref={containerRef}
       onFocus={(e) => e.currentTarget.blur()}
