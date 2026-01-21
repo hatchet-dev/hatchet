@@ -215,39 +215,6 @@ exclude = [
   "tests/*",
 ]
 
-[tool.poetry.scripts]
-
-api = "examples.api.api:main"
-async = "examples.async.worker:main"
-fanout = "examples.fanout.worker:main"
-fanout_sync = "examples.fanout_sync.worker:main"
-cancellation = "examples.cancellation.worker:main"
-concurrency_limit = "examples.concurrency_limit.worker:main"
-concurrency_limit_rr = "examples.concurrency_limit_rr.worker:main"
-dag = "examples.dag.worker:main"
-delayed = "examples.delayed.worker:main"
-events = "examples.events.worker:main"
-logger = "examples.logger.worker:main"
-manual_trigger = "examples.manual_trigger.worker:main"
-on_failure = "examples.on_failure.worker:main"
-programatic_replay = "examples.programatic_replay.worker:main"
-dynamic_rate_limit = "examples.rate_limit.dynamic:main"
-rate_limit = "examples.rate_limit.worker:main"
-simple = "examples.simple.worker:main"
-timeout = "examples.timeout.worker:main"
-blocked = "examples.blocked_async.worker:main"
-existing_loop = "examples.worker_existing_loop.worker:main"
-bulk_fanout = "examples.bulk_fanout.worker:main"
-retries_with_backoff = "examples.retries_with_backoff.worker:main"
-pydantic = "examples.pydantic.worker:main"
-v2_simple = "examples.v2.simple.worker:main"
-otel = "examples.opentelemetry_instrumentation.worker:main"
-waits = "examples.waits.worker:main"
-durable = "examples.durable.worker:main"
-streaming = "examples.streaming.worker:main"
-lifespans = "examples.lifespans.worker:main"
-docs-gen = "docs.generator.generate:main"
-
 [tool.pydoclint]
 style = 'sphinx'
 exclude = 'v0|clients/rest/*|contracts/*|.venv|site/*'
