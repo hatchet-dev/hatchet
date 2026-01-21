@@ -36,9 +36,16 @@ export function LogSearchInput({
     (index: number) => {
       const suggestion = suggestions[index];
       if (suggestion) {
-        onChange(applySuggestion(value, suggestion));
+        const newValue = applySuggestion(value, suggestion);
+        onChange(newValue);
         setIsOpen(false);
-        setTimeout(() => inputRef.current?.focus(), 0);
+        setTimeout(() => {
+          const input = inputRef.current;
+          if (input) {
+            input.focus();
+            input.setSelectionRange(newValue.length, newValue.length);
+          }
+        }, 0);
       }
     },
     [value, onChange, suggestions],
@@ -68,7 +75,7 @@ export function LogSearchInput({
 
   return (
     <div className={cn('space-y-2', className)}>
-      <Popover open={isOpen && suggestions.length > 0} onOpenChange={setIsOpen}>
+      <Popover open={isOpen && suggestions.length > 0} modal={false}>
         <PopoverTrigger asChild>
           <div className="relative">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -97,7 +104,6 @@ export function LogSearchInput({
                   blurTimeoutRef.current = null;
                 }, 200);
               }}
-              onClick={(e) => e.stopPropagation()}
               placeholder={placeholder}
               className="pl-9 pr-8"
             />
@@ -119,6 +125,7 @@ export function LogSearchInput({
           className="w-[var(--radix-popover-trigger-width)] min-w-[320px] p-0"
           align="start"
           onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
         >
           <Command>
             <CommandList className="max-h-[300px]">
