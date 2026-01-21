@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -110,6 +111,10 @@ func TestRevokeTenantToken(t *testing.T) {
 		if err != nil {
 			t.Fatal(err.Error())
 		}
+
+		// With CACHE_DURATION=0 the repo cache uses a very short TTL (1ms).
+		// Sleep briefly to ensure any cached token entry expires before re-validation.
+		time.Sleep(5 * time.Millisecond)
 
 		// validate the token again
 		_, _, err = jwtManager.ValidateTenantToken(context.Background(), token.Token)

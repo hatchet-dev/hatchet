@@ -103,6 +103,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 	}
 
 	opts := &v1.CreateLogLineOpts{
+		TaskExternalId: task.ExternalID.String(),
 		TaskId:         task.ID,
 		TaskInsertedAt: task.InsertedAt,
 		CreatedAt:      createdAt,
