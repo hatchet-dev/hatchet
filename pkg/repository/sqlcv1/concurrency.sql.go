@@ -202,8 +202,6 @@ FROM
 WHERE
     tenant_id = $1::uuid AND
     step_id = ANY($2::uuid[])
-ORDER BY
-    id ASC
 `
 
 type ListConcurrencyStrategiesByStepIdParams struct {
