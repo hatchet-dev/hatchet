@@ -1,4 +1,3 @@
-// @ts-ignore - ghostty-web doesn't have TypeScript declarations
 import { TerminalTheme } from '../terminalThemes';
 import { init, Terminal, FitAddon } from 'ghostty-web';
 import { useEffect, useRef, RefObject, useState } from 'react';
@@ -61,7 +60,9 @@ export function useTerminal(
 
   // Initialize terminal once and keep it alive
   useEffect(() => {
-    if (!containerRef.current || initializedRef.current) return;
+    if (!containerRef.current || initializedRef.current) {
+      return;
+    }
 
     const handleResize = () => {
       if (fitAddonRef.current && !isWritingRef.current) {
@@ -71,7 +72,9 @@ export function useTerminal(
 
     const handleScroll = () => {
       const term = terminalRef.current;
-      if (!term || isWritingRef.current) return;
+      if (!term || isWritingRef.current) {
+        return;
+      }
 
       const buffer = term.buffer.active;
       const viewportY = term.viewportY;
@@ -223,11 +226,13 @@ export function useTerminal(
       // Clear last written logs so they get rewritten when terminal reinitializes
       lastWrittenLogsRef.current = '';
     };
-  }, [containerRef, options?.theme]);
+  }, [containerRef, options]);
 
   // Update terminal content when logs change
   useEffect(() => {
-    if (!terminalRef.current || !terminalInitialized) return;
+    if (!terminalRef.current || !terminalInitialized) {
+      return;
+    }
 
     const term = terminalRef.current;
 

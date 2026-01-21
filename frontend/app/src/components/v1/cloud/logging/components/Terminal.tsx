@@ -22,10 +22,7 @@ function Terminal({ logs, autoScroll, callbacks, className }: TerminalProps) {
       window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   // Memoize theme to prevent unnecessary reinitializations
-  const theme = useMemo(
-    () => (isDark ? darkTheme : lightTheme),
-    [isDark],
-  );
+  const theme = useMemo(() => (isDark ? darkTheme : lightTheme), [isDark]);
 
   // Memoize options to prevent unnecessary effect triggers
   const options = useMemo(
@@ -43,6 +40,7 @@ function Terminal({ logs, autoScroll, callbacks, className }: TerminalProps) {
   // Fallback: render plain text if terminal init failed
   if (initFailed) {
     // Strip ANSI codes for plain text display
+    // eslint-disable-next-line no-control-regex
     const plainText = logs.replace(/\x1b\[[0-9;]*m/g, '');
 
     return (

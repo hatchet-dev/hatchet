@@ -1,5 +1,5 @@
-import { LogLine } from './log-search/use-logs';
 import Terminal from './components/Terminal';
+import { LogLine } from './log-search/use-logs';
 import { useMemo } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
