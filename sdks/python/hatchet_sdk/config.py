@@ -52,7 +52,7 @@ class HealthcheckConfig(BaseSettings):
         if isinstance(value, timedelta):
             return value
 
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             return timedelta(seconds=float(value))
 
         v = value.strip()
