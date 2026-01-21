@@ -20,36 +20,27 @@ type Cacheable interface {
 type Cache struct {
 	cache      *cache.TTLCache[string, interface{}]
 	expiration time.Duration
-	disabled   bool
 }
 
 func (c *Cache) Set(key string, value interface{}) {
-	if c.disabled {
-		return
-	}
 	c.cache.Set(key, value, c.expiration)
 }
 
 func (c *Cache) Get(key string) (interface{}, bool) {
-	if c.disabled {
-		return nil, false
-	}
 	return c.cache.Get(key)
 }
 
 func (c *Cache) Stop() {
-	if c.disabled {
-		return
-	}
 	c.cache.Stop()
 }
 
 func New(duration time.Duration) *Cache {
-	// A duration of 0 means "disable caching" (useful for tests / debugging).
-	disabled := duration == 0
+	if duration == 0 {
+		// consider a duration of 0 a very short expiry instead of no expiry
+		duration = 1 * time.Millisecond
+	}
 
 	return &Cache{
-		disabled:   disabled,
 		expiration: duration,
 		cache:      cache.NewTTL[string, interface{}](),
 	}
