@@ -93,7 +93,7 @@ class WorkerActionListenerProcess:
         self._event_loop_last_lag_seconds: float = 0.0
         self._event_loop_blocked_since: float | None = None
         self._event_loop_block_threshold_seconds: float = float(
-            getattr(self.config.healthcheck, "event_loop_block_threshold_seconds", 5.0)
+            self.config.healthcheck.event_loop_block_threshold_seconds
         )
         self._waiting_steps_blocked_since: float | None = None
 
@@ -175,25 +175,30 @@ class WorkerActionListenerProcess:
         if self.listener is None:
             return HealthStatus.STARTING
 
+        listener = self.listener
+
         # Avoid false positives before we have any listener connection attempts.
-        last_attempt = getattr(self.listener, "last_connection_attempt", 0.0) or 0.0
+        last_attempt = listener.last_connection_attempt or 0.0
         if last_attempt <= 0:
             return HealthStatus.STARTING
 
-        listen_strategy = getattr(self.listener, "listen_strategy", "v2")
-
-        if listen_strategy == "v2":
+        if listener.listen_strategy == "v2":
             # Require at least one successful heartbeat.
-            time_last_hb = getattr(self.listener, "time_last_hb_succeeded", 0.0) or 0.0
-            has_hb_success = time_last_hb > 0
+            #
+            # Note: the listener initializes `time_last_hb_succeeded` to a sentinel
+            # value; only treat it as "real" after it's been updated to a timestamp
+            # <= now.
+            now = time.time()
+            time_last_hb = listener.time_last_hb_succeeded or 0.0
+            has_hb_success = 0.0 < time_last_hb <= now
             ok = bool(
-                getattr(self.listener, "heartbeat_task", None) is not None
-                and getattr(self.listener, "last_heartbeat_succeeded", False)
+                listener.heartbeat_task is not None
+                and listener.last_heartbeat_succeeded
                 and has_hb_success
             )
         else:
             # For v1 listen strategy (no heartbeater), treat "no retries" as healthy.
-            ok = bool(getattr(self.listener, "retries", 0) == 0)
+            ok = bool(listener.retries == 0)
 
         return HealthStatus.HEALTHY if ok else HealthStatus.UNHEALTHY
 
