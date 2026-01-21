@@ -41,6 +41,7 @@ from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 
 ACTION_EVENT_RETRY_COUNT = 5
+STARTING_UNHEALTHY_AFTER_SECONDS = 10.0
 
 
 class HealthStatus(str, Enum):
@@ -97,6 +98,7 @@ class WorkerActionListenerProcess:
             self.config.healthcheck.event_loop_block_threshold_seconds
         )
         self._waiting_steps_blocked_since: float | None = None
+        self._starting_since: float = time.time()
 
         self.listener: ActionListener | None = None
         self.killing = False
@@ -157,6 +159,9 @@ class WorkerActionListenerProcess:
             if timedelta(seconds=lag) < self._event_loop_block_threshold:
                 self._event_loop_blocked_since = None
 
+    def _starting_timed_out(self) -> bool:
+        return (time.time() - self._starting_since) > STARTING_UNHEALTHY_AFTER_SECONDS
+
     def _compute_health(self) -> HealthStatus:
         if self.killing:
             return HealthStatus.UNHEALTHY
@@ -180,6 +185,8 @@ class WorkerActionListenerProcess:
             return HealthStatus.UNHEALTHY
 
         if self.listener is None:
+            if self._starting_timed_out():
+                return HealthStatus.UNHEALTHY
             return HealthStatus.STARTING
 
         listener = self.listener
@@ -187,6 +194,8 @@ class WorkerActionListenerProcess:
         # Avoid false positives before we have any listener connection attempts.
         last_attempt = listener.last_connection_attempt or 0.0
         if last_attempt <= 0:
+            if self._starting_timed_out():
+                return HealthStatus.UNHEALTHY
             return HealthStatus.STARTING
 
         if listener.listen_strategy == "v2":
