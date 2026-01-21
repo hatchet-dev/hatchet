@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.22.8] - 2026-01-20
 
+### Added
+
+- Adds `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS` to configure when the worker healthcheck becomes unhealthy if the listener process event loop is blocked / task runs are not starting promptly.
+
 ### Removed
 
 - Removes a bunch of Poetry scripts that were mostly used for local development and are not necessary for end users of the SDK.
+
+### Changed
+
+- The worker healthcheck server (`/health`, `/metrics`) now runs in the spawned action-listener process (non-durable preferred; durable fallback), instead of the main worker process.
+- The worker `/health` endpoint now checks for listener connection status and aio event loop health.
+- The worker `/metrics` endpoint now exposes listener-focused metrics like `hatchet_worker_listener_health_<worker_name>` and `hatchet_worker_event_loop_lag_seconds_<worker_name>`.
 
 ## [1.22.7] - 2026-01-19
 
