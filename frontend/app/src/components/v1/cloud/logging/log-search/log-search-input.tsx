@@ -1,5 +1,5 @@
 import { getAutocomplete, applySuggestion } from './autocomplete';
-import { LogSearchInputProps } from './types';
+import { useLogsContext } from './use-logs';
 import {
   Command,
   CommandEmpty,
@@ -18,11 +18,13 @@ import { MagnifyingGlassIcon, Cross2Icon } from '@radix-ui/react-icons';
 import React, { useState, useRef, useCallback } from 'react';
 
 export function LogSearchInput({
-  value,
-  onChange,
   placeholder = 'Search logs...',
   className,
-}: LogSearchInputProps) {
+}: {
+  placeholder?: string;
+  className?: string;
+}) {
+  const { queryString: value, setQueryString: onChange } = useLogsContext();
   const inputRef = useRef<HTMLInputElement>(null);
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isOpen, setIsOpen] = useState(false);

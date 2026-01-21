@@ -1,6 +1,11 @@
 import { parseLogQuery } from './parser';
 import { ParsedLogQuery } from './types';
-import { V1TaskSummary, V1LogLineList, V1TaskStatus } from '@/lib/api';
+import {
+  V1TaskSummary,
+  V1LogLineList,
+  V1TaskStatus,
+  V1LogLineLevel,
+} from '@/lib/api';
 import api from '@/lib/api/api';
 import { V1LogLineListQuery } from '@/lib/api/queries';
 import {
@@ -8,7 +13,16 @@ import {
   InfiniteData,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useMemo, useCallback, useRef, useEffect, useState } from 'react';
+import {
+  useMemo,
+  useCallback,
+  useRef,
+  useEffect,
+  useState,
+  createContext,
+  useContext,
+  ReactNode,
+} from 'react';
 
 const LOGS_PER_PAGE = 100;
 const FETCH_THRESHOLD_DOWN = 0.7;
@@ -103,7 +117,11 @@ export function useLogs({
       const params: V1LogLineListQuery = {
         limit: LOGS_PER_PAGE,
         ...(pageParam && { since: pageParam.since, until: pageParam.until }),
-        ...(parsedQuery.level && { levels: parsedQuery.level }),
+        ...(parsedQuery.level && {
+          levels: [
+            parsedQuery.level.toUpperCase() as V1LogLineLevel,
+          ],
+        }),
         ...(parsedQuery.search && { search: parsedQuery.search }),
       };
 
@@ -304,4 +322,26 @@ export function useLogs({
     parsedQuery,
     handleScroll,
   };
+}
+
+const LogsContext = createContext<UseLogsReturn | null>(null);
+
+export function LogsProvider({
+  taskRun,
+  resetTrigger,
+  children,
+}: UseLogsOptions & { children: ReactNode }) {
+  const logsState = useLogs({ taskRun, resetTrigger });
+
+  return (
+    <LogsContext.Provider value={logsState}>{children}</LogsContext.Provider>
+  );
+}
+
+export function useLogsContext(): UseLogsReturn {
+  const context = useContext(LogsContext);
+  if (!context) {
+    throw new Error('useLogsContext must be used within a LogsProvider');
+  }
+  return context;
 }
