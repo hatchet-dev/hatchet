@@ -4,6 +4,7 @@ import logging
 import signal
 import time
 from dataclasses import dataclass
+from enum import Enum
 from multiprocessing import Queue
 from typing import Any
 
@@ -39,6 +40,12 @@ from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 
 ACTION_EVENT_RETRY_COUNT = 5
+
+
+class HealthStatus(str, Enum):
+    STARTING = "STARTING"
+    HEALTHY = "HEALTHY"
+    UNHEALTHY = "UNHEALTHY"
 
 
 @dataclass
@@ -143,9 +150,9 @@ class WorkerActionListenerProcess:
             else:
                 self._event_loop_blocked_since = None
 
-    def _compute_health(self) -> tuple[str, bool]:
+    def _compute_health(self) -> HealthStatus:
         if self.killing:
-            return ("UNHEALTHY", False)
+            return HealthStatus.UNHEALTHY
 
         # If the event loop has been blocked longer than the configured threshold, report unhealthy.
         if (
@@ -153,7 +160,7 @@ class WorkerActionListenerProcess:
             and (time.time() - self._event_loop_blocked_since)
             > self._event_loop_block_threshold_seconds
         ):
-            return ("UNHEALTHY", False)
+            return HealthStatus.UNHEALTHY
 
         # If steps have been waiting to start for longer than the threshold,
         # treat this as unhealthy as well (this is what triggers the
@@ -163,15 +170,15 @@ class WorkerActionListenerProcess:
             and (time.time() - self._waiting_steps_blocked_since)
             > self._event_loop_block_threshold_seconds
         ):
-            return ("UNHEALTHY", False)
+            return HealthStatus.UNHEALTHY
 
         if self.listener is None:
-            return ("STARTING", False)
+            return HealthStatus.STARTING
 
         # Avoid false positives before we have any listener connection attempts.
         last_attempt = getattr(self.listener, "last_connection_attempt", 0.0) or 0.0
         if last_attempt <= 0:
-            return ("STARTING", False)
+            return HealthStatus.STARTING
 
         listen_strategy = getattr(self.listener, "listen_strategy", "v2")
 
@@ -188,18 +195,20 @@ class WorkerActionListenerProcess:
             # For v1 listen strategy (no heartbeater), treat "no retries" as healthy.
             ok = bool(getattr(self.listener, "retries", 0) == 0)
 
-        return ("HEALTHY" if ok else "UNHEALTHY", ok)
+        return HealthStatus.HEALTHY if ok else HealthStatus.UNHEALTHY
 
     async def _health_handler(self, request: Request) -> Response:
-        _, ok = self._compute_health()
+        status = self._compute_health()
+        ok = status == HealthStatus.HEALTHY
 
         # Keep this response minimal because the endpoint is public.
-        response = {"status": "HEALTHY" if ok else "UNHEALTHY"}
+        response = {"status": status.value}
 
         return web.json_response(response, status=200 if ok else 503)
 
     async def _metrics_handler(self, request: Request) -> Response:
-        _, ok = self._compute_health()
+        status = self._compute_health()
+        ok = status == HealthStatus.HEALTHY
 
         if self._listener_health_gauge is not None:
             self._listener_health_gauge.set(1 if ok else 0)
