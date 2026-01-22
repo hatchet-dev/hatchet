@@ -1,7 +1,7 @@
 import { useTheme } from '@/components/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import { LazyLog, ScrollFollow } from '@melloware/react-logviewer';
-import { useMemo, useCallback, useRef, useState, useEffect } from 'react';
+import { useMemo, useCallback, useRef } from 'react';
 
 interface TerminalProps {
   logs: string;
