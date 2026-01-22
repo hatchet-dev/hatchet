@@ -129,59 +129,17 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 	return nil
 }
 
-// RunMigrationController is a specialized entrypoint for running only the OLAP controller (and required wiring).
-// It does NOT change the behavior of the standard Run() path.
-func RunMigrationController(ctx context.Context, cf *loader.ConfigLoader, version string) error {
-	serverCleanup, server, err := cf.CreateServerFromConfig(version)
-	if err != nil {
-		return fmt.Errorf("could not load server config: %w", err)
-	}
-
-	var l = server.Logger
-
-	teardown, err := runMigrationController(ctx, server)
-
-	if err != nil {
-		return fmt.Errorf("could not run migration with config: %w", err)
-	}
-
-	teardown = append(teardown, Teardown{
-		Name: "server",
-		Fn: func() error {
-			return serverCleanup()
-		},
-	})
-
-	teardown = append(teardown, Teardown{
-		Name: "database",
-		Fn: func() error {
-			return server.Disconnect()
-		},
-	})
-
-	time.Sleep(server.Runtime.ShutdownWait)
-
-	l.Debug().Msgf("interrupt received, shutting down")
-
-	l.Debug().Msgf("waiting for all other services to gracefully exit...")
-	for i, t := range teardown {
-		l.Debug().Msgf("shutting down %s (%d/%d)", t.Name, i+1, len(teardown))
-		err := t.Fn()
-
-		if err != nil {
-			return fmt.Errorf("could not teardown %s: %w", t.Name, err)
-		}
-		l.Debug().Msgf("successfully shutdown %s (%d/%d)", t.Name, i+1, len(teardown))
-	}
-	l.Debug().Msgf("all services have successfully gracefully exited")
-
-	l.Debug().Msgf("successfully shutdown")
-
-	return nil
-}
-
 func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {
-	isV1 := sc.HasService("all") || sc.HasService("scheduler") || sc.HasService("controllers") || sc.HasService("grpc-api") || sc.HasService("olap")
+	isMigrationController := sc.HasService("migration-controller")
+	if isMigrationController {
+		return runMigrationController(ctx, sc)
+	}
+
+	isV1 := sc.HasService("all") || sc.HasService("scheduler") || sc.HasService("controllers") || sc.HasService("grpc-api")
+
+	if isV1 {
+		return runV1Config(ctx, sc)
+	}
 
 	if isV1 {
 		return runV1Config(ctx, sc)
