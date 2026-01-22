@@ -23,7 +23,7 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 			o.l.Debug().Msgf("partition: running status updates for dags")
 
 			// list all tenants
-			tenants, err := o.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV1)
+			tenants, err := o.listAllTenantsShuffled(ctx, sqlcv1.TenantMajorEngineVersionV1)
 
 			if err != nil {
 				o.l.Error().Err(err).Msg("could not list tenants")

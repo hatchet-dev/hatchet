@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -261,18 +262,23 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 
 	wg := sync.WaitGroup{}
 
-	startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancelStartupPartition()
+	migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
 
-	// always create table partition on startup
-	if err := o.createTablePartition(startupPartitionCtx); err != nil {
-		return nil, fmt.Errorf("could not create table partition: %w", err)
+	// if the environment variable is set, disable the table partition on startup
+	if !migrationDisabled {
+		startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancelStartupPartition()
+
+		// always create table partition on startup
+		if err := o.createTablePartition(startupPartitionCtx); err != nil {
+			return nil, fmt.Errorf("could not create table partition: %w", err)
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Start prometheus workers if metrics are enabled
-	if o.prometheusMetricsEnabled {
+	if o.prometheusMetricsEnabled && !migrationDisabled {
 		o.taskPrometheusWorkerCtx, o.taskPrometheusWorkerCancel = context.WithCancel(context.Background())
 		wg.Add(1)
 		go func() {
@@ -864,6 +870,7 @@ func (oc *OLAPControllerImpl) processPayloadExternalCutovers(ctx context.Context
 		ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.processPayloadExternalCutovers")
 		defer span.End()
 
+		// CHECKME: same key double write?
 		oc.l.Debug().Msgf("payload external cutover: processing external cutover payloads")
 
 		p := oc.repo.Payloads()

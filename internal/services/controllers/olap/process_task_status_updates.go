@@ -2,6 +2,7 @@ package olap
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -11,6 +12,33 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+func (o *OLAPControllerImpl) listAllTenantsShuffled(ctx context.Context, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error) {
+	tenants, err := o.repo.Tenant().ListTenants(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]*sqlcv1.Tenant, 0, len(tenants))
+
+	for _, t := range tenants {
+		if t == nil {
+			continue
+		}
+
+		if t.Version != majorVersion {
+			continue
+		}
+
+		filtered = append(filtered, t)
+	}
+
+	// shuffle to avoid always processing tenants in the same order
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng.Shuffle(len(filtered), func(i, j int) { filtered[i], filtered[j] = filtered[j], filtered[i] })
+
+	return filtered, nil
+}
 
 func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 	return func() {
@@ -23,7 +51,7 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 			o.l.Debug().Msgf("partition: running status updates for tasks")
 
 			// list all tenants
-			tenants, err := o.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV1)
+			tenants, err := o.listAllTenantsShuffled(ctx, sqlcv1.TenantMajorEngineVersionV1)
 
 			if err != nil {
 				o.l.Error().Err(err).Msg("could not list tenants")
