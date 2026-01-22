@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -99,11 +98,10 @@ func NewRepository(
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
-	enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error),
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, enforceLimitsFunc, cacheDuration)
+	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
@@ -132,7 +130,7 @@ func NewRepository(
 		slack:             newSlackRepository(shared),
 		sns:               newSNSRepository(shared),
 		tenantInvite:      newTenantInviteRepository(shared),
-		tenantLimit:       newTenantLimitRepository(shared, tenantLimitConfig, enforceLimits, enforceLimitsFunc, cacheDuration),
+		tenantLimit:       newTenantLimitRepository(shared, tenantLimitConfig, enforceLimits, cacheDuration),
 		tenantAlerting:    newTenantAlertingRepository(shared, cacheDuration),
 		tenant:            newTenantRepository(shared, cacheDuration),
 		user:              newUserRepository(shared),

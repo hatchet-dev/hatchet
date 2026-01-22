@@ -52,28 +52,23 @@ type TenantLimitRepository interface {
 	Stop()
 
 	Meter(ctx context.Context, resource sqlcv1.LimitResource, tenantId string, numberOfResources int32) (precommit func() error, postcommit func())
-
-	SetOnSuccessMeterCallback(cb func(resource sqlcv1.LimitResource, tenantId string, currentUsage int64))
 }
 
 type tenantLimitRepository struct {
 	c cache.Cacheable
 	*sharedRepository
-	plans             *PlanLimitMap
-	enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error)
-	onSuccessMeterCb  func(resource sqlcv1.LimitResource, tenantId string, currentUsage int64)
-	config            limits.LimitConfigFile
-	enforceLimits     bool
+	plans         *PlanLimitMap
+	config        limits.LimitConfigFile
+	enforceLimits bool
 }
 
-func newTenantLimitRepository(shared *sharedRepository, s limits.LimitConfigFile, enforceLimits bool, enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error), cacheDuration time.Duration) TenantLimitRepository {
+func newTenantLimitRepository(shared *sharedRepository, s limits.LimitConfigFile, enforceLimits bool, cacheDuration time.Duration) TenantLimitRepository {
 	return &tenantLimitRepository{
-		sharedRepository:  shared,
-		config:            s,
-		enforceLimits:     enforceLimits,
-		plans:             nil,
-		c:                 cache.New(cacheDuration),
-		enforceLimitsFunc: enforceLimitsFunc,
+		sharedRepository: shared,
+		config:           s,
+		enforceLimits:    enforceLimits,
+		plans:            nil,
+		c:                cache.New(cacheDuration),
 	}
 }
 
@@ -229,16 +224,7 @@ func (t *tenantLimitRepository) patchTenantResourceLimit(ctx context.Context, te
 }
 
 func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) ([]*sqlcv1.TenantResourceLimit, error) {
-	if t.enforceLimitsFunc != nil {
-		enforce, err := t.enforceLimitsFunc(ctx, tenantId)
-		if err != nil {
-			return nil, err
-		}
-
-		if !enforce {
-			return []*sqlcv1.TenantResourceLimit{}, nil
-		}
-	} else if !t.enforceLimits {
+	if !t.enforceLimits {
 		return []*sqlcv1.TenantResourceLimit{}, nil
 	}
 
@@ -273,16 +259,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 }
 
 func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId string, numberOfResources int32) (bool, int, error) {
-	if t.enforceLimitsFunc != nil {
-		enforce, err := t.enforceLimitsFunc(ctx, tenantId)
-		if err != nil {
-			return false, 0, err
-		}
-
-		if !enforce {
-			return true, 0, nil
-		}
-	} else if !t.enforceLimits {
+	if !t.enforceLimits {
 		return true, 0, nil
 	}
 
@@ -330,25 +307,12 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.L
 	return true, calcPercent(value+numberOfResources, limit.LimitValue), nil
 }
 
-func (t *tenantLimitRepository) SetOnSuccessMeterCallback(cb func(resource sqlcv1.LimitResource, tenantId string, currentUsage int64)) {
-	t.onSuccessMeterCb = cb
-}
-
 func calcPercent(value int32, limit int32) int {
 	return int((float64(value) / float64(limit)) * 100)
 }
 
 func (t *tenantLimitRepository) saveMeter(ctx context.Context, resource sqlcv1.LimitResource, tenantId string, numberOfResources int32) (*sqlcv1.TenantResourceLimit, error) {
-	if t.enforceLimitsFunc != nil {
-		enforce, err := t.enforceLimitsFunc(ctx, tenantId)
-		if err != nil {
-			return nil, err
-		}
-
-		if !enforce {
-			return nil, nil
-		}
-	} else if !t.enforceLimits {
+	if !t.enforceLimits {
 		return nil, nil
 	}
 
@@ -363,12 +327,6 @@ func (t *tenantLimitRepository) saveMeter(ctx context.Context, resource sqlcv1.L
 
 	if err != nil {
 		return nil, err
-	}
-
-	if t.onSuccessMeterCb != nil {
-		go func() { // non-blocking callback
-			t.onSuccessMeterCb(resource, tenantId, int64(r.Value))
-		}()
 	}
 
 	return r, nil
