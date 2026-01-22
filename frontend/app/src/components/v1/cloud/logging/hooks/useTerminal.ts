@@ -251,22 +251,22 @@ export function useTerminal(
 
     const isInitialLoad = isFreshTerminalRef.current;
 
-    // Detect if older logs were appended (newest-first means older logs are at the end)
-    // If new logs string starts with the old string, we can just append the difference
-    const isAppendingOlderLogs =
+    // Detect if new logs were appended at the end (for running tasks)
+    // New logs string ends with old string = older logs prepended at beginning
+    // New logs string starts with old string = new logs appended at end
+    const isAppendingNewLogs =
       !isInitialLoad &&
       lastWrittenLogsRef.current.length > 0 &&
       logs.startsWith(lastWrittenLogsRef.current);
 
-    if (isAppendingOlderLogs) {
-      // Save scroll position relative to the TOP of the buffer
-      // viewportY is distance from bottom, so we convert to distance from top
-      const buffer = term.buffer.active;
-      const oldBufferLength = buffer.length;
-      const oldMaxScroll = Math.max(0, oldBufferLength - term.rows);
-      const distanceFromTop = oldMaxScroll - term.viewportY;
+    const isPrependingOlderLogs =
+      !isInitialLoad &&
+      lastWrittenLogsRef.current.length > 0 &&
+      logs.endsWith(lastWrittenLogsRef.current);
 
-      // Only write the new (older) logs that were appended
+    if (isAppendingNewLogs) {
+      // New logs appended at the end (running task) - just write them
+      // Terminal auto-scrolls to bottom which is what we want
       const newLogs = logs.slice(lastWrittenLogsRef.current.length);
       if (newLogs) {
         const lines = newLogs.split('\n');
@@ -277,54 +277,62 @@ export function useTerminal(
         }
       }
 
-      // Restore scroll position - keep isWritingRef true until scroll is restored
-      // to prevent scroll handler from triggering more fetches
       lastWrittenLogsRef.current = logs;
       isFreshTerminalRef.current = false;
+      isWritingRef.current = false;
+      return;
+    }
 
-      setTimeout(() => {
-        // Scroll to the target position
-        term.scrollToTop();
-        if (distanceFromTop > 0) {
-          term.scrollLines(-distanceFromTop);
-        }
-        // Only release the writing lock after scroll is restored
-        isWritingRef.current = false;
-      }, 0);
+    if (isPrependingOlderLogs) {
+      // Older logs prepended at the beginning - need full rewrite
+      // Save position from BOTTOM (which is stable as we add content to top)
+      const linesFromBottom = term.viewportY;
 
-      return; // Exit early since we handled everything above
-    } else {
-      // Full rewrite needed (initial load or new logs prepended)
-      // Skip reset() for freshly initialized terminals to avoid WASM memory pollution
-      if (!isInitialLoad) {
-        term.reset();
-      }
+      term.reset();
 
-      // Write all log content
       if (logs) {
         const lines = logs.split('\n');
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
           const isLastLine = i === lines.length - 1;
-          // We use \x1b[0m (reset) and \x1b[K (clear to end of line) as workarounds:
-          // 1. \x1b[0m resets any lingering ANSI state (colors, styles) from previous lines
-          // 2. \x1b[K clears garbage data due to ghostty-web memory pollution bug
           term.write('\x1b[0m' + line + '\x1b[K' + (isLastLine ? '' : '\r\n'));
         }
       }
 
-      // Only scroll to top on initial load to show newest logs
-      // Use requestAnimationFrame to ensure content is rendered before scrolling
-      if (isInitialLoad) {
-        requestAnimationFrame(() => {
-          term.scrollToTop();
-        });
+      lastWrittenLogsRef.current = logs;
+      isFreshTerminalRef.current = false;
+
+      // Restore scroll position based on distance from bottom
+      setTimeout(() => {
+        // scrollLines with positive value scrolls UP (increases viewportY)
+        term.scrollLines(linesFromBottom);
+        isWritingRef.current = false;
+      }, 10);
+
+      return;
+    }
+
+    // Initial load or complete content change - full rewrite
+    if (!isInitialLoad) {
+      term.reset();
+    }
+
+    if (logs) {
+      const lines = logs.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const isLastLine = i === lines.length - 1;
+        // We use \x1b[0m (reset) and \x1b[K (clear to end of line) as workarounds:
+        // 1. \x1b[0m resets any lingering ANSI state (colors, styles) from previous lines
+        // 2. \x1b[K clears garbage data due to ghostty-web memory pollution bug
+        term.write('\x1b[0m' + line + '\x1b[K' + (isLastLine ? '' : '\r\n'));
       }
     }
 
+    // Initial load: terminal auto-scrolls to bottom (newest logs) which is what we want
+
     lastWrittenLogsRef.current = logs;
     isFreshTerminalRef.current = false;
-
     isWritingRef.current = false;
   }, [logs, terminalInitialized]);
 

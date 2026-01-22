@@ -113,7 +113,7 @@ export function useLogs({
       );
       const rows = response.data.rows;
 
-      // API returns logs in descending order (newest first)
+      // API returns logs in descending order (newest first, oldest last)
       // Track the newest timestamp for running task polling (first row is newest)
       const newestTimestamp = rows?.[0]?.createdAt;
       if (isTaskRunning && newestTimestamp) {
@@ -194,16 +194,16 @@ export function useLogs({
 
       // In ghostty: viewportY=0 is bottom, viewportY=max is top
       // scrollTop here is viewportY, so:
-      // - scrollTop decreasing = scrolling toward bottom
-      // - scrollPercentage near 0 = near bottom of buffer
+      // - scrollTop increasing = scrolling toward top
+      // - scrollPercentage near 1 = near top of buffer
       //
-      // With newest-first display:
-      // - Top of terminal (high scrollTop) = newest logs
-      // - Bottom of terminal (low scrollTop) = oldest logs
-      // - Scrolling down toward older logs = scrollTop decreasing
+      // With newest-at-bottom display:
+      // - Top of terminal (high scrollTop) = oldest logs
+      // - Bottom of terminal (low scrollTop) = newest logs
+      // - Scrolling up toward older logs = scrollTop increasing
       const scrollPercentage = scrollTop / scrollableHeight;
-      const isScrollingTowardOlder = scrollTop < lastScrollTopRef.current;
-      const nearOldestLogs = scrollPercentage < 1 - FETCH_THRESHOLD;
+      const isScrollingTowardOlder = scrollTop > lastScrollTopRef.current;
+      const nearOldestLogs = scrollPercentage > FETCH_THRESHOLD;
 
       if (isScrollingTowardOlder && nearOldestLogs && getLogsQuery.hasNextPage) {
         getLogsQuery.fetchNextPage();
