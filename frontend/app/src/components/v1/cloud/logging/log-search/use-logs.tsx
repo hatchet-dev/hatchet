@@ -140,7 +140,17 @@ export function useLogs({
       return;
     }
 
+    const isPollingRef = { current: false };
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
     const pollForNewLogs = async () => {
+      // Prevent overlapping requests
+      if (isPollingRef.current) {
+        return;
+      }
+
+      isPollingRef.current = true;
+
       try {
         const params: V1LogLineListQuery = {
           limit: LOGS_PER_PAGE,
@@ -185,12 +195,21 @@ export function useLogs({
         }
       } catch (error) {
         console.error('Failed to poll for new logs:', error);
+      } finally {
+        isPollingRef.current = false;
+        // Schedule next poll using setTimeout chaining
+        timeoutId = setTimeout(pollForNewLogs, 1000);
       }
     };
 
-    const interval = setInterval(pollForNewLogs, 1000);
+    // Start the polling loop
+    pollForNewLogs();
 
-    return () => clearInterval(interval);
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [
     isTaskRunning,
     isPollingEnabled,
