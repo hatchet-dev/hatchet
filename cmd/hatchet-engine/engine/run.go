@@ -141,10 +141,6 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		return runV1Config(ctx, sc)
 	}
 
-	if isV1 {
-		return runV1Config(ctx, sc)
-	}
-
 	return runV0Config(ctx, sc)
 }
 
