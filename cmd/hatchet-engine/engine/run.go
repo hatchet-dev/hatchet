@@ -129,6 +129,57 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 	return nil
 }
 
+// RunMigrationController is a specialized entrypoint for running only the OLAP controller (and required wiring).
+// It does NOT change the behavior of the standard Run() path.
+func RunMigrationController(ctx context.Context, cf *loader.ConfigLoader, version string) error {
+	serverCleanup, server, err := cf.CreateServerFromConfig(version)
+	if err != nil {
+		return fmt.Errorf("could not load server config: %w", err)
+	}
+
+	var l = server.Logger
+
+	teardown, err := runMigrationController(ctx, server)
+
+	if err != nil {
+		return fmt.Errorf("could not run migration with config: %w", err)
+	}
+
+	teardown = append(teardown, Teardown{
+		Name: "server",
+		Fn: func() error {
+			return serverCleanup()
+		},
+	})
+
+	teardown = append(teardown, Teardown{
+		Name: "database",
+		Fn: func() error {
+			return server.Disconnect()
+		},
+	})
+
+	time.Sleep(server.Runtime.ShutdownWait)
+
+	l.Debug().Msgf("interrupt received, shutting down")
+
+	l.Debug().Msgf("waiting for all other services to gracefully exit...")
+	for i, t := range teardown {
+		l.Debug().Msgf("shutting down %s (%d/%d)", t.Name, i+1, len(teardown))
+		err := t.Fn()
+
+		if err != nil {
+			return fmt.Errorf("could not teardown %s: %w", t.Name, err)
+		}
+		l.Debug().Msgf("successfully shutdown %s (%d/%d)", t.Name, i+1, len(teardown))
+	}
+	l.Debug().Msgf("all services have successfully gracefully exited")
+
+	l.Debug().Msgf("successfully shutdown")
+
+	return nil
+}
+
 func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {
 	isV1 := sc.HasService("all") || sc.HasService("scheduler") || sc.HasService("controllers") || sc.HasService("grpc-api") || sc.HasService("olap")
 
@@ -137,6 +188,84 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	}
 
 	return runV0Config(ctx, sc)
+}
+
+func runMigrationController(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {
+	var l = sc.Logger
+
+	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
+		ServiceName:   sc.OpenTelemetry.ServiceName,
+		CollectorURL:  sc.OpenTelemetry.CollectorURL,
+		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
+		Insecure:      sc.OpenTelemetry.Insecure,
+		CollectorAuth: sc.OpenTelemetry.CollectorAuth,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not initialize tracer: %w", err)
+	}
+
+	teardown := []Teardown{
+		{
+			Name: "tracer",
+			Fn: func() error {
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				return shutdown(shutdownCtx)
+			},
+		},
+	}
+
+	// Partition is required by the OLAP controller, since it uses controller partitions to
+	// determine which tenants to process.
+	p, err := partition.NewPartition(l, sc.V1.Tenant())
+	if err != nil {
+		return nil, fmt.Errorf("could not create partitioner: %w", err)
+	}
+
+	teardown = append(teardown, Teardown{
+		Name: "partitioner",
+		Fn:   p.Shutdown,
+	})
+
+	sizeLimits := v1.StatusUpdateBatchSizeLimits{
+		Task: int32(sc.OLAPStatusUpdates.TaskBatchSizeLimit),
+		DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),
+	}
+
+	olapController, err := olap.New(
+		olap.WithAlerter(sc.Alerter),
+		olap.WithMessageQueue(sc.MessageQueueV1),
+		olap.WithRepository(sc.V1),
+		olap.WithLogger(sc.Logger),
+		olap.WithPartition(p),
+		olap.WithTenantAlertManager(sc.TenantAlerter),
+		olap.WithSamplingConfig(sc.Sampling),
+		olap.WithOperationsConfig(sc.Operations),
+		// Explicitly keep prometheus workers disabled for this entrypoint.
+		olap.WithPrometheusMetricsEnabled(false),
+		olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
+		olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create olap controller: %w", err)
+	}
+
+	cleanupOlap, err := olapController.Start()
+	if err != nil {
+		return nil, fmt.Errorf("could not start olap controller: %w", err)
+	}
+
+	teardown = append(teardown, Teardown{
+		Name: "olap controller",
+		Fn:   cleanupOlap,
+	})
+
+	l.Debug().Msg("migration engine has started (olap controller only)")
+
+	<-ctx.Done()
+
+	return teardown, nil
 }
 
 func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {
@@ -188,83 +317,73 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	// FIXME: jobscontroller and workflowscontroller are deprecated service names, but there's not a clear upgrade
 	// path for old config files.
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") || sc.HasService("retention") || sc.HasService("ticker") {
-		// In "migration controller" mode we want to avoid starting components that may enqueue new tasks.
-		// This includes the scheduler (which can publish to TASK_PROCESSING_QUEUE in some recovery paths).
-		migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
-
-		if !migrationDisabled {
-			partitionCleanup, err := p.StartControllerPartition(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
-			}
-
-			teardown = append(teardown, Teardown{
-				Name: "controller partition",
-				Fn:   partitionCleanup,
-			})
-
-			schedulePartitionCleanup, err := p.StartSchedulerPartition(ctx)
-
-			if err != nil {
-				return nil, fmt.Errorf("could not create create scheduler partition: %w", err)
-			}
-
-			teardown = append(teardown, Teardown{
-				Name: "scheduler partition",
-				Fn:   schedulePartitionCleanup,
-			})
-
-			sv1, err := schedulerv1.New(
-				schedulerv1.WithAlerter(sc.Alerter),
-				schedulerv1.WithMessageQueue(sc.MessageQueueV1),
-				schedulerv1.WithRepository(sc.V1),
-				schedulerv1.WithLogger(sc.Logger),
-				schedulerv1.WithPartition(p),
-				schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
-				schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
-			)
-
-			if err != nil {
-				return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
-			}
-
-			cleanup, err := sv1.Start()
-
-			if err != nil {
-				return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
-			}
-
-			teardown = append(teardown, Teardown{
-				Name: "schedulerv1",
-				Fn:   cleanup,
-			})
+		partitionCleanup, err := p.StartControllerPartition(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
 		}
+
+		teardown = append(teardown, Teardown{
+			Name: "controller partition",
+			Fn:   partitionCleanup,
+		})
+
+		schedulePartitionCleanup, err := p.StartSchedulerPartition(ctx)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create create scheduler partition: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "scheduler partition",
+			Fn:   schedulePartitionCleanup,
+		})
+
+		sv1, err := schedulerv1.New(
+			schedulerv1.WithAlerter(sc.Alerter),
+			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
+			schedulerv1.WithRepository(sc.V1),
+			schedulerv1.WithLogger(sc.Logger),
+			schedulerv1.WithPartition(p),
+			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
+		}
+
+		cleanup, err := sv1.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "schedulerv1",
+			Fn:   cleanup,
+		})
 	}
 
 	if sc.HasService("ticker") {
-		// The ticker publishes to TASK_PROCESSING_QUEUE for cron/scheduled workflow triggers.
-		// When running a migration controller (MIGRATION_DISABLE_EXTRA=true), we don't want to enqueue new tasks.
-		if os.Getenv("MIGRATION_DISABLE_EXTRA") != "true" {
-			t, err := ticker.New(
-				ticker.WithMessageQueueV1(sc.MessageQueueV1),
-				ticker.WithRepositoryV1(sc.V1),
-				ticker.WithLogger(sc.Logger),
-				ticker.WithTenantAlerter(sc.TenantAlerter),
-			)
+		t, err := ticker.New(
+			ticker.WithMessageQueueV1(sc.MessageQueueV1),
+			ticker.WithRepositoryV1(sc.V1),
+			ticker.WithLogger(sc.Logger),
+			ticker.WithTenantAlerter(sc.TenantAlerter),
+		)
 
-			if err != nil {
-				return nil, fmt.Errorf("could not create ticker: %w", err)
-			}
-
-			cleanup, err := t.Start()
-			if err != nil {
-				return nil, fmt.Errorf("could not start ticker: %w", err)
-			}
-			teardown = append(teardown, Teardown{
-				Name: "ticker",
-				Fn:   cleanup,
-			})
+		if err != nil {
+			return nil, fmt.Errorf("could not create ticker: %w", err)
 		}
+
+		cleanup, err := t.Start()
+		if err != nil {
+			return nil, fmt.Errorf("could not start ticker: %w", err)
+		}
+		teardown = append(teardown, Teardown{
+			Name: "ticker",
+			Fn:   cleanup,
+		})
 	}
 
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
@@ -329,31 +448,28 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	}
 
 	if sc.HasService("retention") {
-		migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
-		if !migrationDisabled && (sc.EnableDataRetention || sc.EnableWorkerRetention) {
-			rc, err := retention.New(
-				retention.WithAlerter(sc.Alerter),
-				retention.WithRepository(sc.V1),
-				retention.WithLogger(sc.Logger),
-				retention.WithTenantAlerter(sc.TenantAlerter),
-				retention.WithPartition(p),
-				retention.WithDataRetention(sc.EnableDataRetention),
-				retention.WithWorkerRetention(sc.EnableWorkerRetention),
-			)
+		rc, err := retention.New(
+			retention.WithAlerter(sc.Alerter),
+			retention.WithRepository(sc.V1),
+			retention.WithLogger(sc.Logger),
+			retention.WithTenantAlerter(sc.TenantAlerter),
+			retention.WithPartition(p),
+			retention.WithDataRetention(sc.EnableDataRetention),
+			retention.WithWorkerRetention(sc.EnableWorkerRetention),
+		)
 
-			if err != nil {
-				return nil, fmt.Errorf("could not create retention controller: %w", err)
-			}
-
-			cleanupRetention, err := rc.Start()
-			if err != nil {
-				return nil, fmt.Errorf("could not start retention controller: %w", err)
-			}
-			teardown = append(teardown, Teardown{
-				Name: "retention controller",
-				Fn:   cleanupRetention,
-			})
+		if err != nil {
+			return nil, fmt.Errorf("could not create retention controller: %w", err)
 		}
+
+		cleanupRetention, err := rc.Start()
+		if err != nil {
+			return nil, fmt.Errorf("could not start retention controller: %w", err)
+		}
+		teardown = append(teardown, Teardown{
+			Name: "retention controller",
+			Fn:   cleanupRetention,
+		})
 	}
 
 	if sc.HasService("grpc") {
@@ -592,74 +708,63 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	}
 
 	if sc.HasService("all") || sc.HasService("controllers") {
+		partitionCleanup, err := p.StartControllerPartition(ctx)
 
-		migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
-		if !migrationDisabled {
-			partitionCleanup, err := p.StartControllerPartition(ctx)
-
-			if err != nil {
-				return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
-			}
-
-			teardown = append(teardown, Teardown{
-				Name: "controller partition",
-				Fn:   partitionCleanup,
-			})
+		if err != nil {
+			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
 		}
 
-		// The ticker publishes to TASK_PROCESSING_QUEUE for cron/scheduled workflow triggers.
-		// When running a migration controller (MIGRATION_DISABLE_EXTRA=true), we don't want to enqueue new tasks.
-		if !migrationDisabled {
-			t, err := ticker.New(
-				ticker.WithMessageQueueV1(sc.MessageQueueV1),
-				ticker.WithRepositoryV1(sc.V1),
-				ticker.WithLogger(sc.Logger),
-				ticker.WithTenantAlerter(sc.TenantAlerter),
-			)
+		teardown = append(teardown, Teardown{
+			Name: "controller partition",
+			Fn:   partitionCleanup,
+		})
 
-			if err != nil {
-				return nil, fmt.Errorf("could not create ticker: %w", err)
-			}
+		t, err := ticker.New(
+			ticker.WithMessageQueueV1(sc.MessageQueueV1),
+			ticker.WithRepositoryV1(sc.V1),
+			ticker.WithLogger(sc.Logger),
+			ticker.WithTenantAlerter(sc.TenantAlerter),
+		)
 
-			cleanup, err := t.Start()
-
-			if err != nil {
-				return nil, fmt.Errorf("could not start ticker: %w", err)
-			}
-
-			teardown = append(teardown, Teardown{
-				Name: "ticker",
-				Fn:   cleanup,
-			})
+		if err != nil {
+			return nil, fmt.Errorf("could not create ticker: %w", err)
 		}
 
-		// Disable retention in migration-controller mode, and skip if both retention modes are disabled.
-		if !migrationDisabled && (sc.EnableDataRetention || sc.EnableWorkerRetention) {
-			rc, err := retention.New(
-				retention.WithAlerter(sc.Alerter),
-				retention.WithRepository(sc.V1),
-				retention.WithLogger(sc.Logger),
-				retention.WithTenantAlerter(sc.TenantAlerter),
-				retention.WithPartition(p),
-				retention.WithDataRetention(sc.EnableDataRetention),
-				retention.WithWorkerRetention(sc.EnableWorkerRetention),
-			)
+		cleanup, err := t.Start()
 
-			if err != nil {
-				return nil, fmt.Errorf("could not create retention controller: %w", err)
-			}
-
-			cleanupRetention, err := rc.Start()
-
-			if err != nil {
-				return nil, fmt.Errorf("could not start retention controller: %w", err)
-			}
-
-			teardown = append(teardown, Teardown{
-				Name: "retention controller",
-				Fn:   cleanupRetention,
-			})
+		if err != nil {
+			return nil, fmt.Errorf("could not start ticker: %w", err)
 		}
+
+		teardown = append(teardown, Teardown{
+			Name: "ticker",
+			Fn:   cleanup,
+		})
+
+		rc, err := retention.New(
+			retention.WithAlerter(sc.Alerter),
+			retention.WithRepository(sc.V1),
+			retention.WithLogger(sc.Logger),
+			retention.WithTenantAlerter(sc.TenantAlerter),
+			retention.WithPartition(p),
+			retention.WithDataRetention(sc.EnableDataRetention),
+			retention.WithWorkerRetention(sc.EnableWorkerRetention),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create retention controller: %w", err)
+		}
+
+		cleanupRetention, err := rc.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start retention controller: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "retention controller",
+			Fn:   cleanupRetention,
+		})
 
 		if isControllerActive(sc.PausedControllers, TaskController) {
 			tasks, err := task.New(
