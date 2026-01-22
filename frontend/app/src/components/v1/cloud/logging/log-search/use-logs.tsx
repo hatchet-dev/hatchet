@@ -57,6 +57,8 @@ export function useLogs({
 }: UseLogsOptions): UseLogsReturn {
   const queryClient = useQueryClient();
   const lastPageTimestampRef = useRef<string | undefined>(undefined);
+  const isPollingRef = useRef(false);
+  const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [queryString, setQueryString] = useState('');
   const [isPollingEnabled, setPollingEnabled] = useState(true);
@@ -140,7 +142,21 @@ export function useLogs({
       return;
     }
 
+    // Clear any existing timeout and reset polling state when starting a new polling session
+    if (timeoutIdRef.current) {
+      clearTimeout(timeoutIdRef.current);
+    }
+    isPollingRef.current = false;
+    timeoutIdRef.current = null;
+
     const pollForNewLogs = async () => {
+      // Prevent overlapping requests
+      if (isPollingRef.current) {
+        return;
+      }
+
+      isPollingRef.current = true;
+
       try {
         const params: V1LogLineListQuery = {
           limit: LOGS_PER_PAGE,
@@ -185,12 +201,24 @@ export function useLogs({
         }
       } catch (error) {
         console.error('Failed to poll for new logs:', error);
+      } finally {
+        isPollingRef.current = false;
+        // Schedule next poll using setTimeout chaining
+        timeoutIdRef.current = setTimeout(pollForNewLogs, 1000);
       }
     };
 
-    const interval = setInterval(pollForNewLogs, 1000);
+    // Start the polling loop
+    pollForNewLogs();
 
-    return () => clearInterval(interval);
+    return () => {
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
+      }
+      // Reset polling state to ensure clean teardown
+      // Note: If a poll is in-flight, it will also set this to false when complete
+      isPollingRef.current = false;
+    };
   }, [
     isTaskRunning,
     isPollingEnabled,
