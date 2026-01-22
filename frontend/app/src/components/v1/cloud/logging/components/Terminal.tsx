@@ -1,5 +1,5 @@
-import { LazyLog, ScrollFollow } from '@melloware/react-logviewer';
 import { useTheme } from '@/components/hooks/use-theme';
+import { LazyLog, ScrollFollow } from '@melloware/react-logviewer';
 import { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 
 interface TerminalProps {
@@ -25,7 +25,9 @@ function Terminal({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const updateDimensions = () => {
       setDimensions({
@@ -61,7 +63,9 @@ function Terminal({
       clientHeight: number;
     }) => {
       const scrollableHeight = scrollHeight - clientHeight;
-      if (scrollableHeight <= 0) return;
+      if (scrollableHeight <= 0) {
+        return;
+      }
 
       const scrollPercentage = scrollTop / scrollableHeight;
       const isScrollingUp = scrollTop < lastScrollTopRef.current;

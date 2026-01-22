@@ -155,8 +155,8 @@ export function ManagedWorkerLogs({
       </div>
       <LoggingComponent
         logs={mergedLogs}
-        onBottomReached={handleBottomReached}
-        onTopReached={handleTopReached}
+        onScrollToBottom={handleBottomReached}
+        onScrollToTop={handleTopReached}
       />
     </div>
   );

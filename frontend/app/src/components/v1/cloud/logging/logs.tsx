@@ -12,8 +12,6 @@ type LogProps = {
   logs: ExtendedLogLine[];
   onScrollToTop?: () => void;
   onScrollToBottom?: () => void;
-  onTopReached?: () => void;
-  onBottomReached?: () => void;
   autoScroll?: boolean;
 };
 
@@ -84,14 +82,8 @@ const LoggingComponent: React.FC<LogProps> = ({
   logs,
   onScrollToTop,
   onScrollToBottom,
-  onTopReached,
-  onBottomReached,
   autoScroll = true,
 }) => {
-  // Support both old and new API
-  const handleScrollToTop = onScrollToTop || onTopReached;
-  const handleScrollToBottom = onScrollToBottom || onBottomReached;
-  // Format and sort logs
   const formattedLogs = useMemo(() => {
     const showLogs =
       logs.length > 0
@@ -120,8 +112,8 @@ const LoggingComponent: React.FC<LogProps> = ({
     <Terminal
       logs={formattedLogs}
       autoScroll={autoScroll}
-      onScrollToTop={handleScrollToTop}
-      onScrollToBottom={handleScrollToBottom}
+      onScrollToTop={onScrollToTop}
+      onScrollToBottom={onScrollToBottom}
     />
   );
 };

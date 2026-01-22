@@ -27,11 +27,7 @@ export function ManagedWorkerIaCLogs({
 
   return (
     <div className="w-full">
-      <LoggingComponent
-        logs={logs}
-        onBottomReached={() => {}}
-        onTopReached={() => {}}
-      />
+      <LoggingComponent logs={logs} />
     </div>
   );
 }
