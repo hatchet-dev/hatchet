@@ -1,5 +1,6 @@
 import Terminal from './components/Terminal';
 import { LogLine } from './log-search/use-logs';
+import { V1TaskStatus } from '@/lib/api';
 import { useMemo } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -66,28 +67,40 @@ export interface LogViewerProps {
   logs: LogLine[];
   onScrollToBottom?: () => void;
   onAtTopChange?: (atTop: boolean) => void;
-  emptyMessage?: string;
+  isLoading?: boolean;
+  taskStatus?: V1TaskStatus;
+}
+
+function getEmptyStateMessage(taskStatus?: V1TaskStatus): string {
+  switch (taskStatus) {
+    case V1TaskStatus.COMPLETED:
+      return 'Task completed with no logs.';
+    case V1TaskStatus.FAILED:
+      return 'Task failed with no logs.';
+    case V1TaskStatus.CANCELLED:
+      return 'Task was cancelled with no logs.';
+    case V1TaskStatus.RUNNING:
+    case V1TaskStatus.QUEUED:
+    case V1TaskStatus.PENDING:
+      return 'Waiting for logs...';
+    default:
+      return 'No logs available.';
+  }
 }
 
 export function LogViewer({
   logs,
   onScrollToBottom,
   onAtTopChange,
-  emptyMessage = 'Waiting for logs...',
+  isLoading,
+  taskStatus,
 }: LogViewerProps) {
   const formattedLogs = useMemo(() => {
-    const showLogs =
-      logs.length > 0
-        ? logs
-        : [
-            {
-              line: emptyMessage,
-              timestamp: new Date().toISOString(),
-              instance: 'Hatchet',
-            },
-          ];
+    if (logs.length === 0) {
+      return '';
+    }
 
-    const sortedLogs = [...showLogs].sort((a, b) => {
+    const sortedLogs = [...logs].sort((a, b) => {
       if (!a.timestamp || !b.timestamp) {
         return 0;
       }
@@ -96,14 +109,48 @@ export function LogViewer({
     });
 
     return sortedLogs.map(formatLogLine).join('\n');
-  }, [logs, emptyMessage]);
+  }, [logs]);
+
+  const isRunning = taskStatus === V1TaskStatus.RUNNING;
+  const isEmpty = logs.length === 0 && !isLoading;
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="max-h-[25rem] min-h-[25rem] rounded-md relative overflow-hidden bg-[var(--terminal-bg)] flex items-center justify-center">
+        <span className="text-sm text-muted-foreground">Loading logs...</span>
+      </div>
+    );
+  }
+
+  // Show empty state
+  if (isEmpty) {
+    return (
+      <div className="max-h-[25rem] min-h-[25rem] rounded-md relative overflow-hidden bg-[var(--terminal-bg)] flex items-center justify-center">
+        <span className="text-sm text-muted-foreground">
+          {getEmptyStateMessage(taskStatus)}
+        </span>
+      </div>
+    );
+  }
 
   return (
-    <Terminal
-      logs={formattedLogs}
-      onScrollToBottom={onScrollToBottom}
-      onAtTopChange={onAtTopChange}
-      className="max-h-[25rem] min-h-[25rem] rounded-md relative overflow-hidden"
-    />
+    <div className="relative">
+      {isRunning && (
+        <div className="absolute top-2 right-4 z-10 flex items-center gap-2 text-xs text-muted-foreground bg-[var(--terminal-bg)]/80 px-2 py-1 rounded">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+          </span>
+          <span>Live</span>
+        </div>
+      )}
+      <Terminal
+        logs={formattedLogs}
+        onScrollToBottom={onScrollToBottom}
+        onAtTopChange={onAtTopChange}
+        className="max-h-[25rem] min-h-[25rem] rounded-md relative overflow-hidden"
+      />
+    </div>
   );
 }

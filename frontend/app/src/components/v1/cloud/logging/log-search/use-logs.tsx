@@ -48,6 +48,7 @@ export interface UseLogsReturn {
   parsedQuery: ParsedLogQuery;
   fetchOlderLogs: () => void;
   setPollingEnabled: (enabled: boolean) => void;
+  taskStatus: V1TaskStatus | undefined;
 }
 
 export function useLogs({
@@ -229,6 +230,7 @@ export function useLogs({
     parsedQuery,
     fetchOlderLogs,
     setPollingEnabled,
+    taskStatus: taskRun?.status,
   };
 }
 

@@ -25,8 +25,14 @@ export function TaskRunLogs({
 
 function TaskRunLogsContent() {
   const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
-  const { logs, fetchOlderLogs, setPollingEnabled, queryString } =
-    useLogsContext();
+  const {
+    logs,
+    fetchOlderLogs,
+    setPollingEnabled,
+    queryString,
+    isLoading,
+    taskStatus,
+  } = useLogsContext();
   const { featureFlags } = useCloud(tenantId);
   const isLogSearchEnabled = featureFlags?.enable_log_search === 'true';
 
@@ -38,6 +44,8 @@ function TaskRunLogsContent() {
         logs={logs}
         onScrollToBottom={fetchOlderLogs}
         onAtTopChange={setPollingEnabled}
+        isLoading={isLoading}
+        taskStatus={taskStatus}
       />
     </div>
   );
