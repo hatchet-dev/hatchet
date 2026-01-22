@@ -517,19 +517,39 @@ pre.shiki > code > span::before {
   color: var(--terminal-fg) !important;
 }
 
-/* Allow log lines to grow past viewport */
+/* Log line styling - truncate with ellipsis */
 .terminal-root .log-line {
-  min-width: max-content !important;
-  white-space: pre !important;
   background-color: var(--terminal-bg) !important;
   color: var(--terminal-fg) !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
 }
 
+.terminal-root .log-line:hover {
+  background-color: hsl(var(--muted) / 0.3) !important;
+}
 
-/* Fix virtualization row wrapper forcing width:100% inline */
+/* Expanded log line */
+.terminal-root .log-line.expanded {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  overflow: visible;
+  text-overflow: unset;
+  background-color: hsl(var(--muted) / 0.4) !important;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 4px 0;
+  display: block;
+  line-height: 1.6;
+}
+
+/* Fix virtualization row wrapper background */
 .terminal-root div[style*="position: absolute"] {
   background-color: var(--terminal-bg) !important;
-  width: max-content !important;
 }
 
 /* Terminal scrollbar styling */

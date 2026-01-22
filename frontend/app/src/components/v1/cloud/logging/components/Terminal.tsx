@@ -22,6 +22,16 @@ function Terminal({
   const lastScrollTopRef = useRef(0);
   const wasAtTopRef = useRef(true);
 
+  const handleLineClick = useCallback(
+    (event: React.MouseEvent<HTMLSpanElement>) => {
+      const lineElement = (event.target as HTMLElement).closest('.log-line');
+      if (lineElement) {
+        lineElement.classList.toggle('expanded');
+      }
+    },
+    [],
+  );
+
   const handleScroll = useCallback(
     ({
       scrollTop,
@@ -79,6 +89,8 @@ function Terminal({
               onScroll(args);
               handleScroll(args);
             }}
+            onLineContentClick={handleLineClick}
+            selectableLines
           />
         )}
       />
