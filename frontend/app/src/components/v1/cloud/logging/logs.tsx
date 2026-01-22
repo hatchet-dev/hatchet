@@ -10,13 +10,10 @@ export interface ExtendedLogLine {
 
 type LogProps = {
   logs: ExtendedLogLine[];
-  onTopReached: () => void;
-  onBottomReached: () => void;
-  onInfiniteScroll?: (scrollMetrics: {
-    scrollTop: number;
-    scrollHeight: number;
-    clientHeight: number;
-  }) => void;
+  onScrollToTop?: () => void;
+  onScrollToBottom?: () => void;
+  onTopReached?: () => void;
+  onBottomReached?: () => void;
   autoScroll?: boolean;
 };
 
@@ -85,11 +82,15 @@ const formatLogLine = (log: ExtendedLogLine): string => {
 
 const LoggingComponent: React.FC<LogProps> = ({
   logs,
+  onScrollToTop,
+  onScrollToBottom,
   onTopReached,
   onBottomReached,
-  onInfiniteScroll,
   autoScroll = true,
 }) => {
+  // Support both old and new API
+  const handleScrollToTop = onScrollToTop || onTopReached;
+  const handleScrollToBottom = onScrollToBottom || onBottomReached;
   // Format and sort logs
   const formattedLogs = useMemo(() => {
     const showLogs =
@@ -103,33 +104,24 @@ const LoggingComponent: React.FC<LogProps> = ({
             },
           ];
 
-    // Sort by timestamp
+    // Sort by timestamp (newest first at top)
     const sortedLogs = [...showLogs].sort((a, b) => {
       if (!a.timestamp || !b.timestamp) {
         return 0;
       }
-      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     });
 
     // Convert to terminal format
     return sortedLogs.map(formatLogLine).join('\n');
   }, [logs]);
 
-  // Memoize callbacks object to prevent unnecessary recreations
-  const callbacks = useMemo(
-    () => ({
-      onTopReached,
-      onBottomReached,
-      onInfiniteScroll,
-    }),
-    [onTopReached, onBottomReached, onInfiniteScroll],
-  );
-
   return (
     <Terminal
       logs={formattedLogs}
       autoScroll={autoScroll}
-      callbacks={callbacks}
+      onScrollToTop={handleScrollToTop}
+      onScrollToBottom={handleScrollToBottom}
     />
   );
 };

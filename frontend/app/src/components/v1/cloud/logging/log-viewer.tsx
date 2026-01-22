@@ -64,17 +64,13 @@ const formatLogLine = (log: LogLine): string => {
 
 export interface LogViewerProps {
   logs: LogLine[];
-  onScroll?: (scrollData: {
-    scrollTop: number;
-    scrollHeight: number;
-    clientHeight: number;
-  }) => void;
+  onScrollToBottom?: () => void;
   emptyMessage?: string;
 }
 
 export function LogViewer({
   logs,
-  onScroll,
+  onScrollToBottom,
   emptyMessage = 'Waiting for logs...',
 }: LogViewerProps) {
   const formattedLogs = useMemo(() => {
@@ -93,28 +89,18 @@ export function LogViewer({
       if (!a.timestamp || !b.timestamp) {
         return 0;
       }
-      // Oldest first, newest at bottom (ascending order)
-      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      // Newest first at top (descending order)
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     });
 
     return sortedLogs.map(formatLogLine).join('\n');
   }, [logs, emptyMessage]);
 
-  // Memoize callbacks object to prevent unnecessary recreations
-  const callbacks = useMemo(() => {
-    const noOp = () => {};
-    return {
-      onTopReached: noOp,
-      onBottomReached: noOp,
-      onInfiniteScroll: onScroll || noOp,
-    };
-  }, [onScroll]);
-
   return (
     <Terminal
       logs={formattedLogs}
-      callbacks={callbacks}
-      className="max-h-[25rem] min-h-[25rem] pl-6 pt-6 pb-6 rounded-md relative overflow-hidden font-mono text-xs [&_canvas]:block [&_.xterm-cursor]:!hidden [&_textarea]:!fixed [&_textarea]:!left-[-9999px] [&_textarea]:!top-[-9999px]"
+      onScrollToBottom={onScrollToBottom}
+      className="max-h-[25rem] min-h-[25rem] rounded-md relative overflow-hidden"
     />
   );
 }

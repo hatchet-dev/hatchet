@@ -21,11 +21,10 @@ import {
   useState,
   createContext,
   useContext,
-  ReactNode,
+  type ReactNode,
 } from 'react';
 
 const LOGS_PER_PAGE = 100;
-const FETCH_THRESHOLD = 0.7;
 
 export interface LogLine {
   timestamp?: string;
@@ -47,11 +46,7 @@ export interface UseLogsReturn {
   queryString: string;
   setQueryString: (value: string) => void;
   parsedQuery: ParsedLogQuery;
-  handleScroll: (scrollData: {
-    scrollTop: number;
-    scrollHeight: number;
-    clientHeight: number;
-  }) => void;
+  fetchOlderLogs: () => void;
 }
 
 export function useLogs({
@@ -59,7 +54,6 @@ export function useLogs({
   resetTrigger,
 }: UseLogsOptions): UseLogsReturn {
   const queryClient = useQueryClient();
-  const lastScrollTopRef = useRef(0);
   const lastPageTimestampRef = useRef<string | undefined>(undefined);
 
   const [queryString, setQueryString] = useState('');
@@ -174,45 +168,15 @@ export function useLogs({
     );
   }, [getLogsQuery.data?.pages, taskRun?.displayName]);
 
-  const handleScroll = useCallback(
-    (scrollData: {
-      scrollTop: number;
-      scrollHeight: number;
-      clientHeight: number;
-    }) => {
-      const { scrollTop, scrollHeight, clientHeight } = scrollData;
-
-      const scrollableHeight = scrollHeight - clientHeight;
-
-      if (
-        scrollableHeight <= 0 ||
-        getLogsQuery.isFetchingNextPage ||
-        isTaskRunning
-      ) {
-        return;
-      }
-
-      // In ghostty: viewportY=0 is bottom, viewportY=max is top
-      // scrollTop here is viewportY, so:
-      // - scrollTop increasing = scrolling toward top
-      // - scrollPercentage near 1 = near top of buffer
-      //
-      // With newest-at-bottom display:
-      // - Top of terminal (high scrollTop) = oldest logs
-      // - Bottom of terminal (low scrollTop) = newest logs
-      // - Scrolling up toward older logs = scrollTop increasing
-      const scrollPercentage = scrollTop / scrollableHeight;
-      const isScrollingTowardOlder = scrollTop > lastScrollTopRef.current;
-      const nearOldestLogs = scrollPercentage > FETCH_THRESHOLD;
-
-      if (isScrollingTowardOlder && nearOldestLogs && getLogsQuery.hasNextPage) {
-        getLogsQuery.fetchNextPage();
-      }
-
-      lastScrollTopRef.current = scrollTop;
-    },
-    [getLogsQuery, isTaskRunning],
-  );
+  const fetchOlderLogs = useCallback(() => {
+    if (
+      !getLogsQuery.isFetchingNextPage &&
+      !isTaskRunning &&
+      getLogsQuery.hasNextPage
+    ) {
+      getLogsQuery.fetchNextPage();
+    }
+  }, [getLogsQuery, isTaskRunning]);
 
   return {
     logs,
@@ -221,7 +185,7 @@ export function useLogs({
     queryString,
     setQueryString,
     parsedQuery,
-    handleScroll,
+    fetchOlderLogs,
   };
 }
 
