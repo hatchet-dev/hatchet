@@ -525,9 +525,6 @@ pre.shiki > code > span::before {
   color: var(--terminal-fg) !important;
 }
 
-.terminal-root .log-line span {
-  color: var(--terminal-fg) !important;
-}
 
 /* Fix virtualization row wrapper forcing width:100% inline */
 .terminal-root div[style*="position: absolute"] {
