@@ -1,5 +1,6 @@
 import { hatchet } from './client';
 import { getTracer } from './tracer';
+import { SpanStatusCode } from '@opentelemetry/api';
 
 const tracer = getTracer('opentelemetry-worker');
 
@@ -32,6 +33,10 @@ otelWorkflow.task({
     return tracer.startActiveSpan('custom-span-with-error', async (span) => {
       try {
         throw new Error('Intentional error for demonstration');
+      } catch (error: any) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+        throw error;
       } finally {
         span.end();
       }
@@ -41,9 +46,6 @@ otelWorkflow.task({
 
 /**
  * Task that is automatically instrumented without any manual span creation.
- *
- * Even without creating your own spans, this step execution is traced
- * automatically by the HatchetInstrumentor.
  */
 otelWorkflow.task({
   name: 'auto-instrumented-step',
@@ -55,8 +57,6 @@ otelWorkflow.task({
 
 /**
  * Task demonstrating error handling in auto-instrumented steps.
- *
- * Errors are automatically captured and the span is marked as ERROR status.
  */
 otelWorkflow.task({
   name: 'auto-instrumented-step-with-error',

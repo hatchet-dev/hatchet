@@ -50,7 +50,7 @@ export const ClientConfigSchema = z.object({
   log_level: z.enum(['OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR']).optional(),
   tenant_id: z.string(),
   namespace: z.string().optional(),
-  otel: OpenTelemetryConfigSchema.optional().default({}),
+  otel: OpenTelemetryConfigSchema.optional(),
   middleware: TaskMiddlewareSchema,
   cancellation_grace_period: DurationMsSchema.optional().default(1000),
   cancellation_warning_threshold: DurationMsSchema.optional().default(300),

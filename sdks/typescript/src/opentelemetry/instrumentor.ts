@@ -46,7 +46,7 @@ type HatchetInstrumentationConfig = OpenTelemetryConfig & InstrumentationConfig;
 type Carrier = Record<string, string>;
 
 const INSTRUMENTOR_NAME = '@hatchet-dev/typescript-sdk';
-const SUPPORTED_VERSIONS = ['>=1.10.0'];
+const SUPPORTED_VERSIONS = ['>=1.9.0'];
 
 function extractContext(carrier: Carrier | undefined | null): OtelContext {
   return propagation.extract(context.active(), carrier ?? {});
@@ -153,28 +153,28 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
    */
   protected init(): InstanceType<typeof InstrumentationNodeModuleDefinition>[] {
     const eventClientModuleFile = new InstrumentationNodeModuleFile(
-      '@hatchet-dev/typescript-sdk/dist/clients/event/event-client.js',
+      '@hatchet-dev/typescript-sdk/clients/event/event-client.js',
       SUPPORTED_VERSIONS,
       this.patchEventClient.bind(this),
       this.unpatchEventClient.bind(this)
     );
 
     const adminClientModuleFile = new InstrumentationNodeModuleFile(
-      '@hatchet-dev/typescript-sdk/dist/v1/client/admin.js',
+      '@hatchet-dev/typescript-sdk/v1/client/admin.js',
       SUPPORTED_VERSIONS,
       this.patchAdminClient.bind(this),
       this.unpatchAdminClient.bind(this)
     );
 
     const workerModuleFile = new InstrumentationNodeModuleFile(
-      '@hatchet-dev/typescript-sdk/dist/v1/client/worker/worker-internal.js',
+      '@hatchet-dev/typescript-sdk/v1/client/worker/worker-internal.js',
       SUPPORTED_VERSIONS,
       this.patchWorker.bind(this),
       this.unpatchWorker.bind(this)
     );
 
     const moduleDefinition = new InstrumentationNodeModuleDefinition(
-      '@hatchet-dev/typescript-sdk',
+      INSTRUMENTOR_NAME,
       SUPPORTED_VERSIONS,
       undefined,
       undefined,
@@ -190,7 +190,6 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
       diag.debug('hatchet instrumentation: EventClient not found in module exports');
       return moduleExports;
     }
-
     this._patchPushEvent(moduleExports.EventClient.prototype);
     this._patchBulkPushEvent(moduleExports.EventClient.prototype);
 
@@ -253,19 +252,11 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               additionalMetadata: enhancedMetadata,
             };
 
-            const result = safeExecuteInTheMiddle(
-              () => original.call(this, type, input, enhancedOptions),
-              (error: Error | undefined) => {
-                if (error) {
-                  diag.error('hatchet instrumentation: push error', error);
-                  span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
-                }
-              },
-              true
-            );
+            const result = original.call(this, type, input, enhancedOptions);
 
-            span.end();
-            return result;
+            return result.finally(() => {
+              span.end();
+            });
           }
         );
       };
@@ -315,19 +306,11 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               };
             });
 
-            const result = safeExecuteInTheMiddle(
-              () => original.call(this, type, enhancedInputs, options),
-              (error: Error | undefined) => {
-                if (error) {
-                  diag.error('hatchet instrumentation: bulkPush error', error);
-                  span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
-                }
-              },
-              true
-            );
+            const result = original.call(this, type, enhancedInputs, options);
 
-            span.end();
-            return result;
+            return result.finally(() => {
+              span.end();
+            });
           }
         );
       };
@@ -382,7 +365,6 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           priority?: number;
         }
       ) {
-        console.log('workflowName', workflowName);
         const attributes = filterAttributes(
           {
             [OTelAttribute.WORKFLOW_NAME]: workflowName,
@@ -406,7 +388,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             kind: SpanKind.PRODUCER,
             attributes,
           },
-          async (span: Span) => {
+          (span: Span) => {
             const enhancedMetadata: Carrier = { ...(options?.additionalMetadata ?? {}) };
             injectContext(enhancedMetadata);
 
@@ -415,16 +397,15 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               additionalMetadata: enhancedMetadata,
             };
 
-            try {
-              const result = await original.call(this, workflowName, input, enhancedOptions);
-              span.end();
-              return result;
-            } catch (error: any) {
-              diag.error('hatchet instrumentation: runWorkflow error', error);
-              span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
-              span.end();
-              throw error;
-            }
+            return original.call(this, workflowName, input, enhancedOptions)
+              .catch((error: Error) => {
+                span.recordException(error);
+                span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+                throw error;
+              })
+              .finally(() => {
+                span.end();
+              });
           }
         );
       } as AdminClient['runWorkflow'];
@@ -469,7 +450,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             kind: SpanKind.PRODUCER,
             attributes,
           },
-          async (span: Span) => {
+          (span: Span) => {
             const enhancedWorkflowRuns = workflowRuns.map((run) => {
               const enhancedMetadata: Carrier = { ...(run.options?.additionalMetadata ?? {}) };
               injectContext(enhancedMetadata);
@@ -482,16 +463,15 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               };
             });
 
-            try {
-              const result = await original.call(this, enhancedWorkflowRuns, batchSize);
-              span.end();
-              return result;
-            } catch (error: any) {
-              diag.error('hatchet instrumentation: runWorkflows error', error);
-              span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
-              span.end();
-              throw error;
-            }
+            return original.call(this, enhancedWorkflowRuns, batchSize)
+              .catch((error: Error) => {
+                span.recordException(error);
+                span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+                throw error;
+              })
+              .finally(() => {
+                span.end();
+              });
           }
         );
       } as AdminClient['runWorkflows'];
@@ -525,6 +505,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     return moduleExports;
   }
 
+  // IMPORTANT: Keep this wrapper's signature in sync with V1Worker.handleStartStepRun
   private _patchHandleStartStepRun(prototype: V1Worker): void {
     if (isWrapped(prototype.handleStartStepRun)) {
       return;
@@ -535,7 +516,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
       return async function wrappedHandleStartStepRun(
         this: V1Worker,
         action: Action
-      ): Promise<void> {
+      ): Promise<Error | undefined> {
         const additionalMetadata = parseAdditionalMetadata(action);
         const parentContext = extractContext(additionalMetadata);
         const attributes = getActionOtelAttributes(action, self.getConfig().excludedAttributes, this.workerId);
@@ -552,17 +533,18 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             attributes,
           },
           parentContext,
-          async (span: Span) => {
-            try {
-              const result = await original.call(this, action);
-              span.end();
-              return result;
-            } catch (error: any) {
-              diag.error('hatchet instrumentation: handleStartStepRun error', error);
-              span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
-              span.end();
-              throw error;
-            }
+          (span: Span) => {
+            return original.call(this, action)
+              .then((taskError: Error | undefined) => {
+                if (taskError instanceof Error) {
+                  span.recordException(taskError);
+                  span.setStatus({ code: SpanStatusCode.ERROR, message: taskError.message });
+                }
+                return taskError;
+              })
+              .finally(() => {
+                span.end();
+              });
           }
         );
       };
@@ -590,17 +572,12 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             kind: SpanKind.CONSUMER,
             attributes,
           },
-          async (span: Span) => {
-            try {
-              const result = await original.call(this, action);
+          (span: Span) => {
+            const result = original.call(this, action);
+
+            return result.finally(() => {
               span.end();
-              return result;
-            } catch (error: any) {
-              diag.error('hatchet instrumentation: handleCancelStepRun error', error);
-              span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
-              span.end();
-              throw error;
-            }
+            });
           }
         );
       };
