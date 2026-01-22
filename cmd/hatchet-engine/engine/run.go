@@ -538,16 +538,20 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	}
 
 	if sc.HasService("all") || sc.HasService("controllers") {
-		partitionCleanup, err := p.StartControllerPartition(ctx)
 
-		if err != nil {
-			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
+		migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
+		if !migrationDisabled {
+			partitionCleanup, err := p.StartControllerPartition(ctx)
+
+			if err != nil {
+				return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
+			}
+
+			teardown = append(teardown, Teardown{
+				Name: "controller partition",
+				Fn:   partitionCleanup,
+			})
 		}
-
-		teardown = append(teardown, Teardown{
-			Name: "controller partition",
-			Fn:   partitionCleanup,
-		})
 
 		t, err := ticker.New(
 			ticker.WithMessageQueueV1(sc.MessageQueueV1),

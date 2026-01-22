@@ -265,14 +265,12 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
 
 	// if the environment variable is set, disable the table partition on startup
-	if !migrationDisabled {
-		startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancelStartupPartition()
+	startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelStartupPartition()
 
-		// always create table partition on startup
-		if err := o.createTablePartition(startupPartitionCtx); err != nil {
-			return nil, fmt.Errorf("could not create table partition: %w", err)
-		}
+	// always create table partition on startup
+	if err := o.createTablePartition(startupPartitionCtx); err != nil {
+		return nil, fmt.Errorf("could not create table partition: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
