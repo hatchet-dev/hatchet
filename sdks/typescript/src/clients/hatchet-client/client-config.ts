@@ -40,7 +40,7 @@ export const ClientConfigSchema = z.object({
   log_level: z.enum(['OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR']).optional(),
   tenant_id: z.string(),
   namespace: z.string().optional(),
-  otel: OpenTelemetryConfigSchema.optional().default({}),
+  otel: OpenTelemetryConfigSchema.optional(),
 });
 
 export type LogConstructor = (context: string, logLevel?: LogLevel) => Logger;

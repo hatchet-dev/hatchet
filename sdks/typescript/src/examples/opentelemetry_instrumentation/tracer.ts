@@ -1,6 +1,3 @@
-// Load .env file before anything else
-require('dotenv').config();
-
 const { NodeTracerProvider } = require('@opentelemetry/sdk-trace-node');
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
 const { resourceFromAttributes } = require('@opentelemetry/resources');
@@ -10,7 +7,7 @@ const { registerInstrumentations } = require('@opentelemetry/instrumentation');
 const { trace } = require('@opentelemetry/api');
 
 import type { TracerProvider, Tracer } from '@opentelemetry/api';
-import { HatchetInstrumentor } from '../../opentelemetry';
+import { HatchetInstrumentor } from '@hatchet-dev/typescript-sdk/opentelemetry';
 
 const isCI = process.env.CI === 'true';
 
@@ -19,6 +16,7 @@ let traceProvider: TracerProvider;
 if (isCI) {
   traceProvider = trace.getTracerProvider();
   registerInstrumentations({
+    tracerProvider: traceProvider,
     instrumentations: [new HatchetInstrumentor()],
   });
 } else {
@@ -32,8 +30,6 @@ if (isCI) {
   const headers: Record<string, string> | undefined = headersEnv
     ? { [headersEnv.split('=')[0]]: headersEnv.split('=')[1] }
     : undefined;
-
-  console.log('headers', headers);
 
   const exporter = new OTLPTraceExporter({
     url:
@@ -50,7 +46,10 @@ if (isCI) {
 
   traceProvider = provider;
 
+
+  // NOTE: Instrumentation has to be registered before the instrumented libraries are imported
   registerInstrumentations({
+    tracerProvider: traceProvider,
     instrumentations: [
       new HatchetInstrumentor({
         // Optional: exclude sensitive attributes from spans
