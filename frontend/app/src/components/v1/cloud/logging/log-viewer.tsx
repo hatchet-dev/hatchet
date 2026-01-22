@@ -81,7 +81,6 @@ function getEmptyStateMessage(taskStatus?: V1TaskStatus): string {
       return 'Task was cancelled with no logs.';
     case V1TaskStatus.RUNNING:
     case V1TaskStatus.QUEUED:
-    case V1TaskStatus.PENDING:
       return 'Waiting for logs...';
     default:
       return 'No logs available.';
