@@ -25,7 +25,8 @@ export function TaskRunLogs({
 
 function TaskRunLogsContent() {
   const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
-  const { logs, fetchOlderLogs, setPollingEnabled } = useLogsContext();
+  const { logs, fetchOlderLogs, setPollingEnabled, queryString } =
+    useLogsContext();
   const { featureFlags } = useCloud(tenantId);
   const isLogSearchEnabled = featureFlags?.enable_log_search === 'true';
 
@@ -33,6 +34,7 @@ function TaskRunLogsContent() {
     <div className="my-4 flex flex-col gap-y-2">
       {isLogSearchEnabled && <LogSearchInput />}
       <LogViewer
+        key={queryString}
         logs={logs}
         onScrollToBottom={fetchOlderLogs}
         onAtTopChange={setPollingEnabled}
