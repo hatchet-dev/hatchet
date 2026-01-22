@@ -76,7 +76,7 @@ function Terminal({
         startFollowing={autoScroll}
         render={({ follow, onScroll }) => (
           <LazyLog
-            text={logs || ' '}
+            text={logs}
             follow={follow}
             onScroll={(args) => {
               onScroll(args);
