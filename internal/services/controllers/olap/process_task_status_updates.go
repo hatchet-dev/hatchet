@@ -3,6 +3,7 @@ package olap
 import (
 	"context"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -50,8 +51,14 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 		for shouldContinue {
 			o.l.Debug().Msgf("partition: running status updates for tasks")
 
-			// list all tenants
-			tenants, err := o.listAllTenantsShuffled(ctx, sqlcv1.TenantMajorEngineVersionV1)
+			var tenants []*sqlcv1.Tenant
+			var err error
+
+			if os.Getenv("MIGRATION_DISABLE_EXTRA") == "true" {
+				tenants, err = o.listAllTenantsShuffled(ctx, sqlcv1.TenantMajorEngineVersionV1)
+			} else {
+				tenants, err = o.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV1)
+			}
 
 			if err != nil {
 				o.l.Error().Err(err).Msg("could not list tenants")
