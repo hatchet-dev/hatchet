@@ -57,6 +57,8 @@ export function useLogs({
 }: UseLogsOptions): UseLogsReturn {
   const queryClient = useQueryClient();
   const lastPageTimestampRef = useRef<string | undefined>(undefined);
+  const isPollingRef = useRef(false);
+  const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [queryString, setQueryString] = useState('');
   const [isPollingEnabled, setPollingEnabled] = useState(true);
@@ -140,8 +142,9 @@ export function useLogs({
       return;
     }
 
-    const isPollingRef = { current: false };
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    // Reset polling state when starting a new polling session
+    isPollingRef.current = false;
+    timeoutIdRef.current = null;
 
     const pollForNewLogs = async () => {
       // Prevent overlapping requests
@@ -198,7 +201,7 @@ export function useLogs({
       } finally {
         isPollingRef.current = false;
         // Schedule next poll using setTimeout chaining
-        timeoutId = setTimeout(pollForNewLogs, 1000);
+        timeoutIdRef.current = setTimeout(pollForNewLogs, 1000);
       }
     };
 
@@ -206,8 +209,8 @@ export function useLogs({
     pollForNewLogs();
 
     return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
       }
     };
   }, [
