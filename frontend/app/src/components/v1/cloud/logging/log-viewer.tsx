@@ -93,7 +93,7 @@ export function LogViewer({
       if (!a.timestamp || !b.timestamp) {
         return 0;
       }
-      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     });
 
     return sortedLogs.map(formatLogLine).join('\n');

@@ -249,48 +249,76 @@ export function useTerminal(
     // Lock to prevent fit from running during reset/write
     isWritingRef.current = true;
 
-    // Detect if logs were appended (starts with previous logs)
-    const isAppend =
+    const isInitialLoad = isFreshTerminalRef.current;
+
+    // Detect if older logs were appended (newest-first means older logs are at the end)
+    // If new logs string starts with the old string, we can just append the difference
+    const isAppendingOlderLogs =
+      !isInitialLoad &&
       lastWrittenLogsRef.current.length > 0 &&
-      logs &&
       logs.startsWith(lastWrittenLogsRef.current);
 
-    if (isAppend) {
-      // Only write the new part
-      const newLogs = logs.slice(lastWrittenLogsRef.current.length);
+    if (isAppendingOlderLogs) {
+      // Save scroll position relative to the TOP of the buffer
+      // viewportY is distance from bottom, so we convert to distance from top
+      const buffer = term.buffer.active;
+      const oldBufferLength = buffer.length;
+      const oldMaxScroll = Math.max(0, oldBufferLength - term.rows);
+      const distanceFromTop = oldMaxScroll - term.viewportY;
 
+      // Only write the new (older) logs that were appended
+      const newLogs = logs.slice(lastWrittenLogsRef.current.length);
       if (newLogs) {
         const lines = newLogs.split('\n');
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
           const isLastLine = i === lines.length - 1;
-          // TODO: We use \x1b[0m (reset) and \x1b[K (clear to end of line) as workarounds:
-          // 1. \x1b[0m resets any lingering ANSI state (colors, styles) from previous lines
-          // 2. \x1b[K clears garbage data due to ghostty-web memory pollution bug
-          // When terminal instances are disposed and recreated, WASM memory isn't properly cleared,
-          // causing old buffer data to appear in new terminal instances.
-          // This should be reported to ghostty-web maintainers as a memory management bug:
-          // - dispose() doesn't fully clear WASM buffers
-          // - graphemeBufferPtr is never freed (see free() implementation)
-          // - Sequential terminal instances show memory pollution from previous instances
           term.write('\x1b[0m' + line + '\x1b[K' + (isLastLine ? '' : '\r\n'));
         }
       }
+
+      // Restore scroll position - keep isWritingRef true until scroll is restored
+      // to prevent scroll handler from triggering more fetches
+      lastWrittenLogsRef.current = logs;
+      isFreshTerminalRef.current = false;
+
+      setTimeout(() => {
+        // Scroll to the target position
+        term.scrollToTop();
+        if (distanceFromTop > 0) {
+          term.scrollLines(-distanceFromTop);
+        }
+        // Only release the writing lock after scroll is restored
+        isWritingRef.current = false;
+      }, 0);
+
+      return; // Exit early since we handled everything above
     } else {
-      // Logs completely replaced - reset and write all
+      // Full rewrite needed (initial load or new logs prepended)
       // Skip reset() for freshly initialized terminals to avoid WASM memory pollution
-      if (!isFreshTerminalRef.current) {
+      if (!isInitialLoad) {
         term.reset();
       }
 
-      // Write actual log content, split by newlines
+      // Write all log content
       if (logs) {
         const lines = logs.split('\n');
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
           const isLastLine = i === lines.length - 1;
+          // We use \x1b[0m (reset) and \x1b[K (clear to end of line) as workarounds:
+          // 1. \x1b[0m resets any lingering ANSI state (colors, styles) from previous lines
+          // 2. \x1b[K clears garbage data due to ghostty-web memory pollution bug
           term.write('\x1b[0m' + line + '\x1b[K' + (isLastLine ? '' : '\r\n'));
         }
+      }
+
+      // Only scroll to top on initial load to show newest logs
+      // Use requestAnimationFrame to ensure content is rendered before scrolling
+      if (isInitialLoad) {
+        requestAnimationFrame(() => {
+          term.scrollToTop();
+        });
       }
     }
 
