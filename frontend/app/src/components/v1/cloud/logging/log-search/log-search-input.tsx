@@ -15,7 +15,7 @@ import {
 } from '@/components/v1/ui/popover';
 import { cn } from '@/lib/utils';
 import { MagnifyingGlassIcon, Cross2Icon } from '@radix-ui/react-icons';
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 
 export function LogSearchInput({
   placeholder = 'Search logs...',
@@ -24,20 +24,30 @@ export function LogSearchInput({
   placeholder?: string;
   className?: string;
 }) {
-  const { queryString: value, setQueryString: onChange } = useLogsContext();
+  const { queryString, setQueryString } = useLogsContext();
   const inputRef = useRef<HTMLInputElement>(null);
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [localValue, setLocalValue] = useState(queryString);
 
-  const { suggestions } = getAutocomplete(value);
+  useEffect(() => {
+    setLocalValue(queryString);
+  }, [queryString]);
+
+  const { suggestions } = getAutocomplete(localValue);
+
+  const submitSearch = useCallback(() => {
+    setQueryString(localValue);
+  }, [localValue, setQueryString]);
 
   const handleSelect = useCallback(
     (index: number) => {
       const suggestion = suggestions[index];
       if (suggestion) {
-        const newValue = applySuggestion(value, suggestion);
-        onChange(newValue);
+        const newValue = applySuggestion(localValue, suggestion);
+        setLocalValue(newValue);
+        setQueryString(newValue);
         setIsOpen(false);
         setTimeout(() => {
           const input = inputRef.current;
@@ -48,11 +58,22 @@ export function LogSearchInput({
         }, 0);
       }
     },
-    [value, onChange, suggestions],
+    [localValue, suggestions, setQueryString],
   );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        if (isOpen && suggestions.length > 0) {
+          e.preventDefault();
+          handleSelect(selectedIndex);
+        } else {
+          e.preventDefault();
+          submitSearch();
+        }
+        return;
+      }
+
       if (!isOpen || suggestions.length === 0) {
         return;
       }
@@ -65,12 +86,12 @@ export function LogSearchInput({
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedIndex((i) => (i > 0 ? i - 1 : suggestions.length - 1));
-      } else if (e.key === 'Enter' || e.key === 'Tab') {
+      } else if (e.key === 'Tab') {
         e.preventDefault();
         handleSelect(selectedIndex);
       }
     },
-    [isOpen, suggestions.length, selectedIndex, handleSelect],
+    [isOpen, suggestions.length, selectedIndex, handleSelect, submitSearch],
   );
 
   return (
@@ -82,9 +103,9 @@ export function LogSearchInput({
             <Input
               ref={inputRef}
               type="text"
-              value={value}
+              value={localValue}
               onChange={(e) => {
-                onChange(e.target.value);
+                setLocalValue(e.target.value);
                 setIsOpen(true);
                 setSelectedIndex(0);
               }}
@@ -107,11 +128,12 @@ export function LogSearchInput({
               placeholder={placeholder}
               className="pl-9 pr-8"
             />
-            {value && (
+            {localValue && (
               <button
                 type="button"
                 onClick={() => {
-                  onChange('');
+                  setLocalValue('');
+                  setQueryString('');
                   inputRef.current?.focus();
                 }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
