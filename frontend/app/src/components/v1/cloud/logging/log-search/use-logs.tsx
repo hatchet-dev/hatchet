@@ -215,6 +215,8 @@ export function useLogs({
       if (timeoutIdRef.current) {
         clearTimeout(timeoutIdRef.current);
       }
+      // Reset polling state to ensure clean teardown
+      // Note: If a poll is in-flight, it will also set this to false when complete
       isPollingRef.current = false;
     };
   }, [
