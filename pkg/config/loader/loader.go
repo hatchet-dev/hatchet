@@ -440,7 +440,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 					rabbitmq.WithURL(standbyURL),
 					rabbitmq.WithLogger(&l),
 					rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
-					rabbitmq.WithDisableTenantExchangePubs(true),
+					rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
 					rabbitmq.WithInitQueues(msgqueue.OLAP_QUEUE),
 					rabbitmq.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
 					rabbitmq.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
