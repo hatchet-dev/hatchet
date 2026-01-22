@@ -41,6 +41,9 @@
     --chart-3: 216 92% 60%;
     --chart-4: 210 98% 78%;
     --chart-5: 212 97% 87%;
+
+    --terminal-bg: #f8fafc;
+    --terminal-fg: #1e293b;
   }
 
   .dark {
@@ -77,6 +80,9 @@
     --chart-3: 216 92% 60%;
     --chart-4: 210 98% 78%;
     --chart-5: 212 97% 87%;
+
+    --terminal-bg: #1e293b;
+    --terminal-fg: #e2e8f0;
   }
 }
 
@@ -500,13 +506,45 @@ pre.shiki > code > span::before {
   animation: pulse-border 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Terminal styling */
+.terminal-root {
+  background-color: var(--terminal-bg) !important;
+  color: var(--terminal-fg) !important;
+}
+
+.terminal-root .react-lazylog {
+  background-color: var(--terminal-bg) !important;
+  color: var(--terminal-fg) !important;
+}
+
 /* Allow log lines to grow past viewport */
 .terminal-root .log-line {
   min-width: max-content !important;
   white-space: pre !important;
+  background-color: var(--terminal-bg) !important;
+  color: var(--terminal-fg) !important;
+}
+
+.terminal-root .log-line span {
+  color: var(--terminal-fg) !important;
 }
 
 /* Fix virtualization row wrapper forcing width:100% inline */
 .terminal-root div[style*="position: absolute"] {
+  background-color: var(--terminal-bg) !important;
   width: max-content !important;
+}
+
+/* Terminal scrollbar styling */
+.terminal-root ::-webkit-scrollbar-track {
+  background-color: var(--terminal-bg);
+}
+
+.terminal-root ::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+.terminal-root ::-webkit-scrollbar-corner {
+  background-color: var(--terminal-bg);
 }

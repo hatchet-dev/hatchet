@@ -1,7 +1,6 @@
-import { useTheme } from '@/components/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import { LazyLog, ScrollFollow } from '@melloware/react-logviewer';
-import { useMemo, useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 
 interface TerminalProps {
   logs: string;
@@ -18,17 +17,7 @@ function Terminal({
   onScrollToBottom,
   className,
 }: TerminalProps) {
-  const { theme: themeMode } = useTheme();
-  const isDark = themeMode === 'dark';
   const lastScrollTopRef = useRef(0);
-
-  const containerStyle = useMemo(
-    () => ({
-      background: isDark ? '#1e293b' : '#f8fafc',
-      color: isDark ? '#dddddd' : '#1e293b',
-    }),
-    [isDark],
-  );
 
   const handleScroll = useCallback(
     ({
@@ -70,7 +59,6 @@ function Terminal({
         'terminal-root h-[500px] md:h-[600px] rounded-md w-full overflow-hidden',
         className,
       )}
-      style={containerStyle}
     >
       <ScrollFollow
         startFollowing={autoScroll}
