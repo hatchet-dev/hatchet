@@ -620,47 +620,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		})
 	}
 
-	// Standalone OLAP controller service. This is intended for running only the OLAP controller without
-	// implicitly starting other controllers (ticker/task/retention/etc). We also avoid changing the
-	// existing behavior of the "controllers" service by ensuring we do not start OLAP twice.
-	if sc.HasService("olap") && !sc.HasService("all") && !sc.HasService("controllers") {
-		if isControllerActive(sc.PausedControllers, OLAPController) {
-			sizeLimits := v1.StatusUpdateBatchSizeLimits{
-				Task: int32(sc.OLAPStatusUpdates.TaskBatchSizeLimit),
-				DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),
-			}
-
-			olapController, err := olap.New(
-				olap.WithAlerter(sc.Alerter),
-				olap.WithMessageQueue(sc.MessageQueueV1),
-				olap.WithRepository(sc.V1),
-				olap.WithLogger(sc.Logger),
-				olap.WithPartition(p),
-				olap.WithTenantAlertManager(sc.TenantAlerter),
-				olap.WithSamplingConfig(sc.Sampling),
-				olap.WithOperationsConfig(sc.Operations),
-				olap.WithPrometheusMetricsEnabled(sc.Prometheus.Enabled),
-				olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
-				olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
-			)
-
-			if err != nil {
-				return nil, fmt.Errorf("could not create olap controller: %w", err)
-			}
-
-			cleanupOlap, err := olapController.Start()
-
-			if err != nil {
-				return nil, fmt.Errorf("could not start olap controller: %w", err)
-			}
-
-			teardown = append(teardown, Teardown{
-				Name: "olap controller",
-				Fn:   cleanupOlap,
-			})
-		}
-	}
-
 	if sc.HasService("all") || sc.HasService("controllers") {
 		partitionCleanup, err := p.StartControllerPartition(ctx)
 
