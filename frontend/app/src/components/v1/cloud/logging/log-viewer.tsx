@@ -65,12 +65,14 @@ const formatLogLine = (log: LogLine): string => {
 export interface LogViewerProps {
   logs: LogLine[];
   onScrollToBottom?: () => void;
+  onAtTopChange?: (atTop: boolean) => void;
   emptyMessage?: string;
 }
 
 export function LogViewer({
   logs,
   onScrollToBottom,
+  onAtTopChange,
   emptyMessage = 'Waiting for logs...',
 }: LogViewerProps) {
   const formattedLogs = useMemo(() => {
@@ -100,6 +102,7 @@ export function LogViewer({
     <Terminal
       logs={formattedLogs}
       onScrollToBottom={onScrollToBottom}
+      onAtTopChange={onAtTopChange}
       className="max-h-[25rem] min-h-[25rem] rounded-md relative overflow-hidden"
     />
   );

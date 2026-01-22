@@ -7,6 +7,7 @@ interface TerminalProps {
   autoScroll?: boolean;
   onScrollToTop?: () => void;
   onScrollToBottom?: () => void;
+  onAtTopChange?: (atTop: boolean) => void;
   className?: string;
 }
 
@@ -15,9 +16,11 @@ function Terminal({
   autoScroll = false,
   onScrollToTop,
   onScrollToBottom,
+  onAtTopChange,
   className,
 }: TerminalProps) {
   const lastScrollTopRef = useRef(0);
+  const wasAtTopRef = useRef(true);
 
   const handleScroll = useCallback(
     ({
@@ -38,6 +41,12 @@ function Terminal({
       const isScrollingUp = scrollTop < lastScrollTopRef.current;
       const isScrollingDown = scrollTop > lastScrollTopRef.current;
 
+      const isAtTop = scrollPercentage < 0.05;
+      if (onAtTopChange && isAtTop !== wasAtTopRef.current) {
+        wasAtTopRef.current = isAtTop;
+        onAtTopChange(isAtTop);
+      }
+
       // Near top (newest logs with newest-first) - for running tasks
       if (isScrollingUp && scrollPercentage < 0.3 && onScrollToTop) {
         onScrollToTop();
@@ -50,7 +59,7 @@ function Terminal({
 
       lastScrollTopRef.current = scrollTop;
     },
-    [onScrollToTop, onScrollToBottom],
+    [onScrollToTop, onScrollToBottom, onAtTopChange],
   );
 
   return (

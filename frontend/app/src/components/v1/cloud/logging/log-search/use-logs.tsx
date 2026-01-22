@@ -47,6 +47,7 @@ export interface UseLogsReturn {
   setQueryString: (value: string) => void;
   parsedQuery: ParsedLogQuery;
   fetchOlderLogs: () => void;
+  setPollingEnabled: (enabled: boolean) => void;
 }
 
 export function useLogs({
@@ -57,6 +58,7 @@ export function useLogs({
   const lastPageTimestampRef = useRef<string | undefined>(undefined);
 
   const [queryString, setQueryString] = useState('');
+  const [isPollingEnabled, setPollingEnabled] = useState(true);
   const parsedQuery = useMemo(() => parseLogQuery(queryString), [queryString]);
 
   const isTaskRunning = taskRun?.status === V1TaskStatus.RUNNING;
@@ -123,33 +125,77 @@ export function useLogs({
     staleTime: Infinity,
     getNextPageParam: (lastPage) => {
       const rows = lastPage?.rows;
-      // API returns descending order: first row is newest, last row is oldest
-      if (!isTaskRunning && rows && rows.length === LOGS_PER_PAGE) {
-        // Fetch older logs: use the last (oldest) log's timestamp as 'until'
+      if (rows && rows.length === LOGS_PER_PAGE) {
         const oldestLog = rows[rows.length - 1];
         return { since: undefined, until: oldestLog?.createdAt };
-      } else if (isTaskRunning) {
-        // For running tasks, fetch newer logs using 'since' with newest timestamp
-        return { since: lastPageTimestampRef.current, until: undefined };
       }
       return undefined;
     },
   });
 
-  // Poll for new logs when task is running
+  // Poll for new logs when task is running and polling is enabled
   useEffect(() => {
-    if (!isTaskRunning) {
+    if (!isTaskRunning || !isPollingEnabled || !taskRun?.metadata.id) {
       return;
     }
 
-    const interval = setInterval(() => {
-      if (!getLogsQuery.isFetchingNextPage) {
-        getLogsQuery.fetchNextPage();
+    const pollForNewLogs = async () => {
+      try {
+        const params: V1LogLineListQuery = {
+          limit: LOGS_PER_PAGE,
+          ...(lastPageTimestampRef.current && {
+            since: lastPageTimestampRef.current,
+          }),
+          ...(parsedQuery.level && {
+            levels: [parsedQuery.level.toUpperCase() as V1LogLineLevel],
+          }),
+          ...(parsedQuery.search && { search: parsedQuery.search }),
+        };
+
+        const response = await api.v1LogLineList(taskRun.metadata.id, params);
+        const newRows = response.data.rows;
+
+        if (newRows && newRows.length > 0) {
+          lastPageTimestampRef.current = newRows[0]?.createdAt;
+
+          queryClient.setQueryData<InfiniteData<V1LogLineList>>(
+            [
+              'v1Tasks',
+              'getLogs',
+              taskRun.metadata.id,
+              parsedQuery.level,
+              parsedQuery.search,
+            ],
+            (oldData) => {
+              if (!oldData) return oldData;
+              const firstPage = oldData.pages[0];
+              const updatedFirstPage = {
+                ...firstPage,
+                rows: [...newRows, ...(firstPage?.rows || [])],
+              };
+              return {
+                ...oldData,
+                pages: [updatedFirstPage, ...oldData.pages.slice(1)],
+              };
+            },
+          );
+        }
+      } catch (error) {
+        console.error('Failed to poll for new logs:', error);
       }
-    }, 1000);
+    };
+
+    const interval = setInterval(pollForNewLogs, 1000);
 
     return () => clearInterval(interval);
-  }, [isTaskRunning, getLogsQuery]);
+  }, [
+    isTaskRunning,
+    isPollingEnabled,
+    taskRun?.metadata.id,
+    parsedQuery.level,
+    parsedQuery.search,
+    queryClient,
+  ]);
 
   const logs = useMemo((): LogLine[] => {
     if (!getLogsQuery.data?.pages) {
@@ -169,14 +215,10 @@ export function useLogs({
   }, [getLogsQuery.data?.pages, taskRun?.displayName]);
 
   const fetchOlderLogs = useCallback(() => {
-    if (
-      !getLogsQuery.isFetchingNextPage &&
-      !isTaskRunning &&
-      getLogsQuery.hasNextPage
-    ) {
+    if (!getLogsQuery.isFetchingNextPage && getLogsQuery.hasNextPage) {
       getLogsQuery.fetchNextPage();
     }
-  }, [getLogsQuery, isTaskRunning]);
+  }, [getLogsQuery]);
 
   return {
     logs,
@@ -186,6 +228,7 @@ export function useLogs({
     setQueryString,
     parsedQuery,
     fetchOlderLogs,
+    setPollingEnabled,
   };
 }
 
