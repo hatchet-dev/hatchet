@@ -51,8 +51,7 @@ FROM
 WHERE
     tenant_id = @tenantId::uuid AND
     step_id = ANY(@stepIds::uuid[])
-ORDER BY
-    id ASC;
+;
 
 -- name: CheckStrategyActive :one
 -- A strategy is active if the workflow is not deleted, and it is attached to the latest workflow version or it has

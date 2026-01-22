@@ -31,6 +31,7 @@ type sharedRepository struct {
 	queries                   *sqlcv1.Queries
 	queueCache                *cache.Cache
 	stepExpressionCache       *cache.Cache
+	concurrencyStrategyCache  *cache.Cache
 	tenantIdWorkflowNameCache *cache.Cache
 	celParser                 *cel.CELParser
 	env                       *celgo.Env
@@ -52,6 +53,7 @@ func newSharedRepository(
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
 	stepExpressionCache := cache.New(5 * time.Minute)
+	concurrencyStrategyCache := cache.New(5 * time.Minute)
 	tenantIdWorkflowNameCache := cache.New(5 * time.Minute)
 	payloadStore := NewPayloadStoreRepository(pool, l, queries, payloadStoreOpts)
 
@@ -79,6 +81,7 @@ func newSharedRepository(
 		queries:                   queries,
 		queueCache:                queueCache,
 		stepExpressionCache:       stepExpressionCache,
+		concurrencyStrategyCache:  concurrencyStrategyCache,
 		tenantIdWorkflowNameCache: tenantIdWorkflowNameCache,
 		celParser:                 celParser,
 		env:                       env,
@@ -93,6 +96,7 @@ func newSharedRepository(
 	return s, func() error {
 		queueCache.Stop()
 		stepExpressionCache.Stop()
+		concurrencyStrategyCache.Stop()
 		tenantIdWorkflowNameCache.Stop()
 		s.m.Stop()
 		return nil
