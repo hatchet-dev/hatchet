@@ -168,7 +168,9 @@ export function useLogs({
               parsedQuery.search,
             ],
             (oldData) => {
-              if (!oldData) return oldData;
+              if (!oldData) {
+                return oldData;
+              }
               const firstPage = oldData.pages[0];
               const updatedFirstPage = {
                 ...firstPage,
