@@ -45,31 +45,6 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-var migrationCmd = &cobra.Command{
-	Use:   "migration-controller",
-	Short: "Run only the OLAP migration controller.",
-	Run: func(cmd *cobra.Command, args []string) {
-		if printVersion {
-			fmt.Println(Version)
-			os.Exit(0)
-		}
-
-		cf := loader.NewConfigLoader(configDirectory)
-
-		context := context.Background()
-		if !noGracefulShutdown {
-			ctx, cancel := cmdutils.NewInterruptContext()
-			defer cancel()
-			context = ctx
-		}
-
-		if err := engine.RunMigrationController(context, cf, Version); err != nil {
-			log.Printf("migration engine failure: %s", err.Error())
-			os.Exit(1)
-		}
-	},
-}
-
 // Version will be linked by an ldflag during build
 var Version = "v0.1.0-alpha.0"
 
