@@ -74,7 +74,11 @@ function Terminal({
       // The region is defined by both scroll direction AND position, so changing
       // direction automatically resets the region state
       const isInBottomRegion = isScrollingDown && scrollPercentage > 0.7;
-      if (isInBottomRegion && !wasInBottomRegionRef.current && onScrollToBottom) {
+      if (
+        isInBottomRegion &&
+        !wasInBottomRegionRef.current &&
+        onScrollToBottom
+      ) {
         onScrollToBottom();
       }
       wasInBottomRegionRef.current = isInBottomRegion;
