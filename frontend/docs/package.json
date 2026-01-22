@@ -67,6 +67,7 @@
   "type": "module",
   "pnpm": {
     "overrides": {
+      "preact": "10.28.2",
       "prismjs": "^1.30.0",
       "mdast-util-to-hast": ">=13.2.1"
     }

@@ -2513,50 +2513,77 @@ func (r *sharedRepository) getConcurrencyExpressions(
 		return nil, nil
 	}
 
-	stepIds := make([]pgtype.UUID, 0, len(stepIdsWithExpressions))
+	cacheKey := func(stepId string) string {
+		return fmt.Sprintf("concurrency-strategies:%s:%s", tenantId, stepId)
+	}
+
+	sortStrategies := func(strats []*sqlcv1.V1StepConcurrency) {
+		sort.SliceStable(strats, func(i, j int) bool {
+			iStrat := strats[i]
+			jStrat := strats[j]
+
+			if iStrat.ParentStrategyID.Valid && jStrat.ParentStrategyID.Valid && iStrat.ParentStrategyID.Int64 != jStrat.ParentStrategyID.Int64 {
+				return iStrat.ParentStrategyID.Int64 < jStrat.ParentStrategyID.Int64
+			}
+
+			if iStrat.ParentStrategyID.Valid && !jStrat.ParentStrategyID.Valid {
+				return true
+			}
+
+			if !iStrat.ParentStrategyID.Valid && jStrat.ParentStrategyID.Valid {
+				return false
+			}
+
+			return iStrat.ID < jStrat.ID
+		})
+	}
+
+	stepIdToStrats := make(map[string][]*sqlcv1.V1StepConcurrency, len(stepIdsWithExpressions))
+
+	// Only hit the DB for step IDs that aren't cached.
+	missingStepIds := make([]pgtype.UUID, 0, len(stepIdsWithExpressions))
+	missingStepIdStrs := make([]string, 0, len(stepIdsWithExpressions))
 
 	for stepId := range stepIdsWithExpressions {
-		stepIds = append(stepIds, sqlchelpers.UUIDFromStr(stepId))
+		if cached, ok := r.concurrencyStrategyCache.Get(cacheKey(stepId)); ok {
+			stepIdToStrats[stepId] = cached.([]*sqlcv1.V1StepConcurrency)
+			continue
+		}
+
+		missingStepIds = append(missingStepIds, sqlchelpers.UUIDFromStr(stepId))
+		missingStepIdStrs = append(missingStepIdStrs, stepId)
+	}
+
+	if len(missingStepIds) == 0 {
+		return stepIdToStrats, nil
 	}
 
 	strats, err := r.queries.ListConcurrencyStrategiesByStepId(ctx, tx, sqlcv1.ListConcurrencyStrategiesByStepIdParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Stepids:  stepIds,
+		Stepids:  missingStepIds,
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
-	stepIdToStrats := make(map[string][]*sqlcv1.V1StepConcurrency)
-
-	sort.SliceStable(strats, func(i, j int) bool {
-		iStrat := strats[i]
-		jStrat := strats[j]
-
-		if iStrat.ParentStrategyID.Valid && jStrat.ParentStrategyID.Valid && iStrat.ParentStrategyID.Int64 != jStrat.ParentStrategyID.Int64 {
-			return iStrat.ParentStrategyID.Int64 < jStrat.ParentStrategyID.Int64
-		}
-
-		if iStrat.ParentStrategyID.Valid && !jStrat.ParentStrategyID.Valid {
-			return true
-		}
-
-		if !iStrat.ParentStrategyID.Valid && jStrat.ParentStrategyID.Valid {
-			return false
-		}
-
-		return iStrat.ID < jStrat.ID
-	})
+	fetchedByStepId := make(map[string][]*sqlcv1.V1StepConcurrency)
 
 	for _, strat := range strats {
 		stepId := sqlchelpers.UUIDToStr(strat.StepID)
+		fetchedByStepId[stepId] = append(fetchedByStepId[stepId], strat)
+	}
 
-		if _, ok := stepIdToStrats[stepId]; !ok {
-			stepIdToStrats[stepId] = make([]*sqlcv1.V1StepConcurrency, 0)
+	// Populate cache for all missing step IDs, including negative-caching empty results.
+	for _, stepId := range missingStepIdStrs {
+		stepStrats := fetchedByStepId[stepId]
+		if stepStrats == nil {
+			stepStrats = []*sqlcv1.V1StepConcurrency{}
+		} else {
+			sortStrategies(stepStrats)
 		}
 
-		stepIdToStrats[stepId] = append(stepIdToStrats[stepId], strat)
+		r.concurrencyStrategyCache.Set(cacheKey(stepId), stepStrats)
+		stepIdToStrats[stepId] = stepStrats
 	}
 
 	return stepIdToStrats, nil
