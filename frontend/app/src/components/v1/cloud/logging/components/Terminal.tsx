@@ -21,7 +21,6 @@ function Terminal({
   const { theme: themeMode } = useTheme();
   const isDark = themeMode === 'dark';
   const lastScrollTopRef = useRef(0);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const containerStyle = useMemo(
     () => ({
@@ -67,7 +66,6 @@ function Terminal({
 
   return (
     <div
-      ref={containerRef}
       className={cn(
         'terminal-root h-[500px] md:h-[600px] rounded-md w-full overflow-hidden',
         className,
@@ -83,14 +81,6 @@ function Terminal({
             onScroll={(args) => {
               onScroll(args);
               handleScroll(args);
-            }}
-            enableSearch={false}
-            wrapLines={false}
-            style={{
-              overflowX: 'auto',
-            }}
-            containerStyle={{
-              overflowX: 'auto',
             }}
           />
         )}
