@@ -142,7 +142,10 @@ export function useLogs({
       return;
     }
 
-    // Reset polling state when starting a new polling session
+    // Clear any existing timeout and reset polling state when starting a new polling session
+    if (timeoutIdRef.current) {
+      clearTimeout(timeoutIdRef.current);
+    }
     isPollingRef.current = false;
     timeoutIdRef.current = null;
 
@@ -212,6 +215,7 @@ export function useLogs({
       if (timeoutIdRef.current) {
         clearTimeout(timeoutIdRef.current);
       }
+      isPollingRef.current = false;
     };
   }, [
     isTaskRunning,
