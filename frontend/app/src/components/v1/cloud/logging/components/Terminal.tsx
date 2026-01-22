@@ -1,4 +1,5 @@
 import { useTheme } from '@/components/hooks/use-theme';
+import { cn } from '@/lib/utils';
 import { LazyLog, ScrollFollow } from '@melloware/react-logviewer';
 import { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 
@@ -21,28 +22,6 @@ function Terminal({
   const isDark = themeMode === 'dark';
   const lastScrollTopRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) {
-      return;
-    }
-
-    const updateDimensions = () => {
-      setDimensions({
-        width: container.offsetWidth,
-        height: container.offsetHeight,
-      });
-    };
-
-    updateDimensions();
-
-    const resizeObserver = new ResizeObserver(updateDimensions);
-    resizeObserver.observe(container);
-
-    return () => resizeObserver.disconnect();
-  }, []);
 
   const containerStyle = useMemo(
     () => ({
@@ -89,39 +68,33 @@ function Terminal({
   return (
     <div
       ref={containerRef}
-      className={
-        className ||
-        'h-[500px] md:h-[600px] rounded-md relative overflow-hidden font-mono text-xs'
-      }
+      className={cn(
+        'terminal-root h-[500px] md:h-[600px] rounded-md w-full overflow-hidden',
+        className,
+      )}
       style={containerStyle}
     >
-      {dimensions.height > 0 && dimensions.width > 0 && (
-        <ScrollFollow
-          startFollowing={autoScroll}
-          render={({ follow, onScroll }) => (
-            <LazyLog
-              text={logs || ' '}
-              follow={follow}
-              height={dimensions.height}
-              width={dimensions.width}
-              onScroll={(args) => {
-                onScroll(args);
-                handleScroll(args);
-              }}
-              enableSearch={false}
-              enableHotKeys={false}
-              selectableLines={false}
-              style={{
-                background: 'transparent',
-                fontFamily: 'Monaco, Menlo, "Courier New", monospace',
-                fontSize: '11px',
-              }}
-              caseInsensitive
-              extraLines={1}
-            />
-          )}
-        />
-      )}
+      <ScrollFollow
+        startFollowing={autoScroll}
+        render={({ follow, onScroll }) => (
+          <LazyLog
+            text={logs || ' '}
+            follow={follow}
+            onScroll={(args) => {
+              onScroll(args);
+              handleScroll(args);
+            }}
+            enableSearch={false}
+            wrapLines={false}
+            style={{
+              overflowX: 'auto',
+            }}
+            containerStyle={{
+              overflowX: 'auto',
+            }}
+          />
+        )}
+      />
     </div>
   );
 }

@@ -499,3 +499,14 @@ pre.shiki > code > span::before {
 .animate-pulse-border {
   animation: pulse-border 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Allow log lines to grow past viewport */
+.terminal-root .log-line {
+  min-width: max-content !important;
+  white-space: pre !important;
+}
+
+/* Fix virtualization row wrapper forcing width:100% inline */
+.terminal-root div[style*="position: absolute"] {
+  width: max-content !important;
+}
