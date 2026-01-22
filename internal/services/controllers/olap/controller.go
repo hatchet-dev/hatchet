@@ -238,12 +238,15 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	// Default timeout
 	timeout := 15 * time.Second
 
-	o.processTenantAlertOperations = queueutils.NewOperationPool(
-		opts.l,
-		timeout,
-		"process tenant alerts",
-		o.processTenantAlerts,
-	).WithJitter(jitter)
+	migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
+	if !migrationDisabled {
+		o.processTenantAlertOperations = queueutils.NewOperationPool(
+			opts.l,
+			timeout,
+			"process tenant alerts",
+			o.processTenantAlerts,
+		).WithJitter(jitter)
+	}
 
 	return o, nil
 }
