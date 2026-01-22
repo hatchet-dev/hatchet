@@ -61,6 +61,8 @@ function Terminal({
 
       // Near top (newest logs with newest-first) - for running tasks
       // Only fire when entering the region (edge detection)
+      // The region is defined by both scroll direction AND position, so changing
+      // direction automatically resets the region state
       const isInTopRegion = isScrollingUp && scrollPercentage < 0.3;
       if (isInTopRegion && !wasInTopRegionRef.current && onScrollToTop) {
         onScrollToTop();
@@ -69,6 +71,8 @@ function Terminal({
 
       // Near bottom (older logs with newest-first) - for infinite scroll
       // Only fire when entering the region (edge detection)
+      // The region is defined by both scroll direction AND position, so changing
+      // direction automatically resets the region state
       const isInBottomRegion = isScrollingDown && scrollPercentage > 0.7;
       if (isInBottomRegion && !wasInBottomRegionRef.current && onScrollToBottom) {
         onScrollToBottom();
