@@ -70,8 +70,6 @@ func main() {
 		"Whether not to shut down gracefully (useful for nodemon/air).",
 	)
 
-	rootCmd.AddCommand(migrationCmd)
-
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
