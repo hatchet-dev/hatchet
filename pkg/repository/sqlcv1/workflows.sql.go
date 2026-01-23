@@ -869,7 +869,8 @@ INSERT INTO "WorkflowVersion" (
     "sticky",
     "kind",
     "defaultPriority",
-    "createWorkflowVersionOpts"
+    "createWorkflowVersionOpts",
+    "inputJsonSchema"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -883,8 +884,9 @@ INSERT INTO "WorkflowVersion" (
     $8::"StickyStrategy",
     coalesce($9::"WorkflowKind", 'DAG'),
     $10 :: integer,
-    $11::jsonb
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts"
+    $11::jsonb,
+    $12::jsonb
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema"
 `
 
 type CreateWorkflowVersionParams struct {
@@ -899,6 +901,7 @@ type CreateWorkflowVersionParams struct {
 	Kind                      NullWorkflowKind   `json:"kind"`
 	DefaultPriority           pgtype.Int4        `json:"defaultPriority"`
 	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
+	InputJsonSchema           []byte             `json:"inputJsonSchema"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
@@ -914,6 +917,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.Kind,
 		arg.DefaultPriority,
 		arg.CreateWorkflowVersionOpts,
+		arg.InputJsonSchema,
 	)
 	var i WorkflowVersion
 	err := row.Scan(
@@ -931,6 +935,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.Kind,
 		&i.DefaultPriority,
 		&i.CreateWorkflowVersionOpts,
+		&i.InputJsonSchema,
 	)
 	return &i, err
 }
@@ -1170,7 +1175,7 @@ func (q *Queries) GetWorkflowShape(ctx context.Context, db DBTX, workflowversion
 
 const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
 SELECT
-    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts",
+    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts", wv."inputJsonSchema",
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused",
     wc.id as "concurrencyId",
     wc.max_concurrency as "concurrencyMaxRuns",
@@ -1213,6 +1218,7 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id pgtype
 		&i.WorkflowVersion.Kind,
 		&i.WorkflowVersion.DefaultPriority,
 		&i.WorkflowVersion.CreateWorkflowVersionOpts,
+		&i.WorkflowVersion.InputJsonSchema,
 		&i.Workflow.ID,
 		&i.Workflow.CreatedAt,
 		&i.Workflow.UpdatedAt,
@@ -1305,7 +1311,7 @@ func (q *Queries) GetWorkflowVersionEventTriggerRefs(ctx context.Context, db DBT
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority", workflowversions."createWorkflowVersionOpts",
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority", workflowversions."createWorkflowVersionOpts", workflowversions."inputJsonSchema",
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
@@ -1362,6 +1368,7 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowVersion.Kind,
 			&i.WorkflowVersion.DefaultPriority,
 			&i.WorkflowVersion.CreateWorkflowVersionOpts,
+			&i.WorkflowVersion.InputJsonSchema,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -1428,7 +1435,7 @@ const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid
 WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema"
 `
 
 type LinkOnFailureJobParams struct {
@@ -1454,6 +1461,7 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 		&i.Kind,
 		&i.DefaultPriority,
 		&i.CreateWorkflowVersionOpts,
+		&i.InputJsonSchema,
 	)
 	return &i, err
 }
