@@ -41,6 +41,8 @@ import type { AdminClient } from '@hatchet/v1/client/admin';
 import type { V1Worker } from '@hatchet/v1/client/worker/worker-internal';
 import { OTelAttribute } from '../util/opentelemetry';
 import { OpenTelemetryConfig, DEFAULT_CONFIG } from './types';
+import { ScheduledWorkflows } from '../clients/rest/generated/data-contracts';
+import { ScheduleClient } from '../v1/client/features/schedules';
 
 type HatchetInstrumentationConfig = OpenTelemetryConfig & InstrumentationConfig;
 type Carrier = Record<string, string>;
@@ -125,6 +127,7 @@ function filterAttributes(
  *
  * It automatically instruments:
  * - Workflow runs (runWorkflow, runWorkflows)
+ * - Scheduled workflow runs (schedules.create)
  * - Event pushes (push, bulkPush)
  * - Step executions (handleStartStepRun, handleCancelStepRun)
  *
@@ -142,15 +145,6 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     super.setConfig({ ...DEFAULT_CONFIG, ...config } as HatchetInstrumentationConfig);
   }
 
-  /**
-   * Returns module definitions to patch. This is called by InstrumentationBase
-   * when the instrumentation is enabled.
-   *
-   * The instrumentation patches the following modules:
-   * - EventClient (for push, bulkPush)
-   * - AdminClient (for runWorkflow, runWorkflows)
-   * - V1Worker (for handleStartStepRun, handleCancelStepRun)
-   */
   protected init(): InstanceType<typeof InstrumentationNodeModuleDefinition>[] {
     const eventClientModuleFile = new InstrumentationNodeModuleFile(
       '@hatchet-dev/typescript-sdk/clients/event/event-client.js',
@@ -166,6 +160,13 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
       this.unpatchAdminClient.bind(this)
     );
 
+    const scheduleClientModuleFile = new InstrumentationNodeModuleFile(
+      '@hatchet-dev/typescript-sdk/v1/client/features/schedules.js',
+      SUPPORTED_VERSIONS,
+      this.patchScheduleClient.bind(this),
+      this.unpatchScheduleClient.bind(this)
+    );
+
     const workerModuleFile = new InstrumentationNodeModuleFile(
       '@hatchet-dev/typescript-sdk/v1/client/worker/worker-internal.js',
       SUPPORTED_VERSIONS,
@@ -178,7 +179,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
       SUPPORTED_VERSIONS,
       undefined,
       undefined,
-      [eventClientModuleFile, adminClientModuleFile, workerModuleFile]
+      [eventClientModuleFile, adminClientModuleFile, workerModuleFile, scheduleClientModuleFile]
     );
 
     return [moduleDefinition];
@@ -578,6 +579,90 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             return result.finally(() => {
               span.end();
             });
+          }
+        );
+      };
+    });
+  }
+
+  private patchScheduleClient(moduleExports: any, moduleVersion?: string): any {
+    if (!moduleExports?.ScheduleClient?.prototype) {
+      diag.debug('hatchet instrumentation: ScheduleClient not found in module exports');
+      return moduleExports;
+    }
+
+    this._patchScheduleCreate(moduleExports.ScheduleClient.prototype);
+
+    return moduleExports;
+  }
+
+  private unpatchScheduleClient(moduleExports: any, moduleVersion?: string): any {
+    if (!moduleExports?.ScheduleClient?.prototype) {
+      return moduleExports;
+    }
+
+    if (isWrapped(moduleExports.ScheduleClient.prototype.create)) {
+      this._unwrap(moduleExports.ScheduleClient.prototype, 'create');
+    }
+
+    return moduleExports;
+  }
+
+  // IMPORTANT: Keep this wrapper's signature in sync with ScheduleClient.create
+  private _patchScheduleCreate(prototype: ScheduleClient): void {
+    if (isWrapped(prototype.create)) {
+      return;
+    }
+    const self = this;
+
+    this._wrap(prototype, 'create', (original: ScheduleClient['create']) => {
+      return async function wrappedCreate(
+        this: ScheduleClient,
+        workflow: string,
+        input: any
+      ): Promise<ScheduledWorkflows> {
+        const triggerAtIso = input.triggerAt instanceof Date
+          ? input.triggerAt.toISOString()
+          : new Date(input.triggerAt).toISOString();
+
+        const attributes = filterAttributes(
+          {
+            [OTelAttribute.WORKFLOW_NAME]: workflow,
+            [OTelAttribute.RUN_AT_TIMESTAMPS]: JSON.stringify([triggerAtIso]),
+            [OTelAttribute.ACTION_PAYLOAD]: JSON.stringify(input.input),
+            [OTelAttribute.ADDITIONAL_METADATA]: input.additionalMetadata
+              ? JSON.stringify(input.additionalMetadata)
+              : undefined,
+            [OTelAttribute.PRIORITY]: input.priority,
+          },
+          self.getConfig().excludedAttributes
+        );
+
+        return self.tracer.startActiveSpan(
+          'hatchet.schedule_workflow',
+          {
+            kind: SpanKind.PRODUCER,
+            attributes,
+          },
+          (span: Span) => {
+            // Inject traceparent into additionalMetadata for context propagation
+            const enhancedMetadata: Carrier = { ...(input.additionalMetadata ?? {}) };
+            injectContext(enhancedMetadata);
+
+            const enhancedInput = {
+              ...input,
+              additionalMetadata: enhancedMetadata,
+            };
+
+            return original.call(this, workflow, enhancedInput)
+              .catch((error: Error) => {
+                span.recordException(error);
+                span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+                throw error;
+              })
+              .finally(() => {
+                span.end();
+              });
           }
         );
       };
