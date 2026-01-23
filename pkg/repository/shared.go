@@ -48,6 +48,7 @@ func newSharedRepository(
 	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
 	enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error),
+	enforceRateLimits bool,
 	cacheDuration time.Duration,
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
@@ -89,7 +90,13 @@ func newSharedRepository(
 		payloadStore:              payloadStore,
 	}
 
-	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, enforceLimitsFunc, cacheDuration)
+	var tenantLimitRepository TenantLimitRepository
+
+	if enforceRateLimits {
+		tenantLimitRepository = newTenantRateLimitRepository(s, c, enforceRateLimits, enforceLimitsFunc)
+	} else {
+		tenantLimitRepository = newTenantLimitRepository(s, c, shouldEnforceLimits, enforceLimitsFunc, cacheDuration)
+	}
 
 	s.m = tenantLimitRepository
 

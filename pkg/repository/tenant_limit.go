@@ -29,6 +29,15 @@ type Limit struct {
 
 type PlanLimitMap map[string][]Limit
 
+type RateLimitConfig struct {
+	Resource sqlcv1.LimitResource
+	Limit    int32 // requests per minute
+}
+
+type PlanRateLimitMap map[string][]RateLimitConfig
+
+type TenantGetter func() []string
+
 type TenantLimitRepository interface {
 	GetLimits(ctx context.Context, tenantId string) ([]*sqlcv1.TenantResourceLimit, error)
 
@@ -54,6 +63,14 @@ type TenantLimitRepository interface {
 	Meter(ctx context.Context, resource sqlcv1.LimitResource, tenantId string, numberOfResources int32) (precommit func() error, postcommit func())
 
 	SetOnSuccessMeterCallback(cb func(resource sqlcv1.LimitResource, tenantId string, currentUsage int64))
+}
+
+// TenantLimitRepositoryWithPartition extends TenantLimitRepository with partition support
+// for rate limiting implementations that need to know which tenants are assigned to the current partition
+type TenantLimitRepositoryWithPartition interface {
+	TenantLimitRepository
+	SetTenantGetter(getter TenantGetter)
+	SetPlanRateLimitMap(planRateLimitMap PlanRateLimitMap) error
 }
 
 type tenantLimitRepository struct {
