@@ -3,6 +3,7 @@ import { useTheme } from '@/components/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import Editor, { Monaco } from '@monaco-editor/react';
 import 'monaco-themes/themes/Pastels on Dark.json';
+import { useId } from 'react';
 
 interface CodeEditorProps {
   code?: string;
@@ -30,18 +31,34 @@ export function CodeEditor({
   jsonSchema,
 }: CodeEditorProps) {
   const { theme } = useTheme();
+  const editorId = useId();
+  const modelPath = `file:///editor-${editorId.replace(/:/g, '-')}.json`;
+
+  const hasJsonSchema =
+    (language === 'json' && jsonSchema && Object.keys(jsonSchema).length > 0) ??
+    false;
 
   const handleBeforeMount = (monaco: Monaco) => {
     monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
     monaco.editor.setTheme('pastels-on-dark');
 
-    if (language === 'json' && jsonSchema) {
+    if (hasJsonSchema) {
+      const existingOptions =
+        monaco.languages.json.jsonDefaults.diagnosticsOptions;
+      const existingSchemas = existingOptions.schemas || [];
+
+      const otherSchemas = existingSchemas.filter(
+        (s) => !s.fileMatch?.includes(modelPath),
+      );
+
       monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
         validate: true,
+        enableSchemaRequest: false,
         schemas: [
+          ...otherSchemas,
           {
-            uri: 'http://hatchet/workflow-input-schema.json',
-            fileMatch: ['*'],
+            uri: `http://hatchet/schema-${editorId}.json`,
+            fileMatch: [modelPath],
             schema: jsonSchema,
           },
         ],
@@ -60,6 +77,7 @@ export function CodeEditor({
     >
       <Editor
         beforeMount={handleBeforeMount}
+        path={hasJsonSchema ? modelPath : undefined}
         language={language}
         value={code || ''}
         onChange={setCode}
@@ -84,8 +102,11 @@ export function CodeEditor({
           colorDecorators: false,
           hideCursorInOverviewRuler: true,
           contextmenu: false,
-          quickSuggestions: jsonSchema ? { strings: true, other: true } : false,
-          suggestOnTriggerCharacters: !!jsonSchema,
+          hover: { enabled: false },
+          quickSuggestions: hasJsonSchema
+            ? { strings: true, other: true }
+            : undefined,
+          suggestOnTriggerCharacters: hasJsonSchema ? true : undefined,
         }}
       />
       {copy && (
