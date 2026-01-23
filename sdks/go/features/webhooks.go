@@ -2,8 +2,8 @@ package features
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
@@ -88,111 +88,115 @@ type UpdateWebhookOpts struct {
 	EventKeyExpression string
 }
 
-type WebhooksClient interface {
-	List(ctx context.Context, opts *rest.V1WebhookListParams) (*rest.V1WebhookList, error)
-
-	Get(ctx context.Context, webhookID string) (*rest.V1Webhook, error)
-
-	Create(ctx context.Context, opts CreateWebhookOpts) (*rest.V1Webhook, error)
-
-	Update(ctx context.Context, webhookID string, opts UpdateWebhookOpts) (*rest.V1Webhook, error)
-
-	Delete(ctx context.Context, webhookID string) (*rest.V1Webhook, error)
-}
-
-type webhooksClientImpl struct {
+// WebhooksClient provides methods for managing webhook configurations
+type WebhooksClient struct {
 	api      *rest.ClientWithResponses
-	tenantID uuid.UUID
+	tenantId uuid.UUID
 }
 
+// NewWebhooksClient creates a new WebhooksClient
 func NewWebhooksClient(
 	api *rest.ClientWithResponses,
-	tenantID *string,
-) WebhooksClient {
-	return &webhooksClientImpl{
+	tenantId string,
+) *WebhooksClient {
+	tenantIdUUID := uuid.MustParse(tenantId)
+
+	return &WebhooksClient{
 		api:      api,
-		tenantID: uuid.MustParse(*tenantID),
+		tenantId: tenantIdUUID,
 	}
 }
 
-func (c *webhooksClientImpl) List(ctx context.Context, opts *rest.V1WebhookListParams) (*rest.V1WebhookList, error) {
+// List retrieves a collection of webhooks based on the provided parameters.
+func (c *WebhooksClient) List(ctx context.Context, opts rest.V1WebhookListParams) (*rest.V1WebhookList, error) {
 	resp, err := c.api.V1WebhookListWithResponse(
 		ctx,
-		c.tenantID,
-		opts,
+		c.tenantId,
+		&opts,
 	)
-
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to list webhooks")
 	}
 
 	return resp.JSON200, nil
 }
 
-func (c *webhooksClientImpl) Get(ctx context.Context, webhookID string) (*rest.V1Webhook, error) {
+// Get retrieves a specific webhook by its ID.
+func (c *WebhooksClient) Get(ctx context.Context, webhookId string) (*rest.V1Webhook, error) {
 	resp, err := c.api.V1WebhookGetWithResponse(
 		ctx,
-		c.tenantID,
-		webhookID,
+		c.tenantId,
+		webhookId,
 	)
-
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get webhook")
 	}
 
 	return resp.JSON200, nil
 }
 
-func (c *webhooksClientImpl) Create(ctx context.Context, opts CreateWebhookOpts) (*rest.V1Webhook, error) {
+// Create creates a new webhook configuration.
+func (c *WebhooksClient) Create(ctx context.Context, opts CreateWebhookOpts) (*rest.V1Webhook, error) {
 	if opts.Auth == nil {
-		return nil, fmt.Errorf("auth is required")
+		return nil, errors.New("auth is required")
 	}
 
 	req, err := opts.Auth.toCreateRequest(opts)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create webhook request")
 	}
 
 	resp, err := c.api.V1WebhookCreateWithResponse(
 		ctx,
-		c.tenantID,
+		c.tenantId,
 		req,
 	)
-
 	if err != nil {
+		return nil, errors.Wrap(err, "failed to create webhook")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
 		return nil, err
 	}
 
 	return resp.JSON200, nil
 }
 
-func (c *webhooksClientImpl) Update(ctx context.Context, webhookID string, opts UpdateWebhookOpts) (*rest.V1Webhook, error) {
+// Update updates an existing webhook configuration.
+func (c *WebhooksClient) Update(ctx context.Context, webhookId string, opts UpdateWebhookOpts) (*rest.V1Webhook, error) {
 	resp, err := c.api.V1WebhookUpdateWithResponse(
 		ctx,
-		c.tenantID,
-		webhookID,
+		c.tenantId,
+		webhookId,
 		rest.V1UpdateWebhookRequest{
 			EventKeyExpression: opts.EventKeyExpression,
 		},
 	)
-
 	if err != nil {
+		return nil, errors.Wrap(err, "failed to update webhook")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
 		return nil, err
 	}
 
 	return resp.JSON200, nil
 }
 
-func (c *webhooksClientImpl) Delete(ctx context.Context, webhookID string) (*rest.V1Webhook, error) {
+// Delete removes a webhook configuration.
+func (c *WebhooksClient) Delete(ctx context.Context, webhookId string) error {
 	resp, err := c.api.V1WebhookDeleteWithResponse(
 		ctx,
-		c.tenantID,
-		webhookID,
+		c.tenantId,
+		webhookId,
 	)
-
 	if err != nil {
-		return nil, err
+		return errors.Wrap(err, "failed to delete webhook")
 	}
 
-	return resp.JSON200, nil
+	if err := validateStatusCodeResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+
+	return nil
 }
