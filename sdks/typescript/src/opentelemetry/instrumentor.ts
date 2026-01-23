@@ -214,7 +214,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
 
   private _patchPushEvent(prototype: EventClient): void {
     if (isWrapped(prototype.push)) {
-      return;
+      this._unwrap(prototype, 'push');
     }
     const self = this;
 
@@ -266,7 +266,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
 
   private _patchBulkPushEvent(prototype: EventClient): void {
     if (isWrapped(prototype.bulkPush)) {
-      return;
+      this._unwrap(prototype, 'bulkPush');
     }
     const self = this;
 
@@ -347,7 +347,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
 
   private _patchRunWorkflow(prototype: AdminClient): void {
     if (isWrapped(prototype.runWorkflow)) {
-      return;
+      this._unwrap(prototype, 'runWorkflow');
     }
     const self = this;
 
@@ -415,7 +415,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
 
   private _patchRunWorkflows(prototype: AdminClient): void {
     if (isWrapped(prototype.runWorkflows)) {
-      return;
+      this._unwrap(prototype, 'runWorkflows');
     }
     const self = this;
 
@@ -509,7 +509,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
   // IMPORTANT: Keep this wrapper's signature in sync with V1Worker.handleStartStepRun
   private _patchHandleStartStepRun(prototype: V1Worker): void {
     if (isWrapped(prototype.handleStartStepRun)) {
-      return;
+      this._unwrap(prototype, 'handleStartStepRun');
     }
     const self = this;
 
@@ -554,7 +554,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
 
   private _patchHandleCancelStepRun(prototype: V1Worker): void {
     if (isWrapped(prototype.handleCancelStepRun)) {
-      return;
+      this._unwrap(prototype, 'handleCancelStepRun');
     }
     const self = this;
 
@@ -611,7 +611,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
   // IMPORTANT: Keep this wrapper's signature in sync with ScheduleClient.create
   private _patchScheduleCreate(prototype: ScheduleClient): void {
     if (isWrapped(prototype.create)) {
-      return;
+      this._unwrap(prototype, 'create');
     }
     const self = this;
 
