@@ -1080,6 +1080,7 @@ CREATE TABLE
         "kind" "WorkflowKind" NOT NULL DEFAULT 'DAG',
         "defaultPriority" INTEGER,
         "createWorkflowVersionOpts" JSONB,
+        "inputJsonSchema" JSONB,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 
