@@ -78,7 +78,8 @@ func (m *OLAPTeeMessageQueue) SendMessage(ctx context.Context, queue Queue, msg 
 	// Only OLAP queue messages are dual-written.
 	if m.standby != nil && queue != nil && queue.Name() == OLAP_QUEUE.Name() {
 		if err := m.standby.SendMessage(ctx, queue, msg); err != nil {
-			return err
+			// log the error but don't return it
+			fmt.Printf("MIGRATION failed to dual-write OLAP queue message to standby: %v\n", err)
 		}
 	}
 
