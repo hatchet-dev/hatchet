@@ -39,7 +39,8 @@ func (m *OLAPTeeMessageQueue) Clone() (func() error, MessageQueue, error) {
 		cleanupStandby, standbyClone, err = m.standby.Clone()
 		if err != nil {
 			_ = cleanupPrimary()
-			return nil, nil, err
+			// just log the error but don't return it
+			fmt.Printf("MIGRATION failed to clone standby message queue: %v\n", err)
 		}
 	}
 
