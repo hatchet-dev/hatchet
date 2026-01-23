@@ -227,6 +227,12 @@ const (
 	V1LogLineLevelWARN  V1LogLineLevel = "WARN"
 )
 
+// Defines values for V1LogLineOrderByDirection.
+const (
+	V1LogLineOrderByDirectionASC  V1LogLineOrderByDirection = "ASC"
+	V1LogLineOrderByDirectionDESC V1LogLineOrderByDirection = "DESC"
+)
+
 // Defines values for V1TaskEventType.
 const (
 	V1TaskEventTypeACKNOWLEDGED         V1TaskEventType = "ACKNOWLEDGED"
@@ -328,8 +334,8 @@ const (
 
 // Defines values for WorkflowRunOrderByDirection.
 const (
-	ASC  WorkflowRunOrderByDirection = "ASC"
-	DESC WorkflowRunOrderByDirection = "DESC"
+	WorkflowRunOrderByDirectionASC  WorkflowRunOrderByDirection = "ASC"
+	WorkflowRunOrderByDirectionDESC WorkflowRunOrderByDirection = "DESC"
 )
 
 // Defines values for WorkflowRunOrderByField.
@@ -1624,6 +1630,9 @@ type V1LogLineList struct {
 	Rows       *[]V1LogLine        `json:"rows,omitempty"`
 }
 
+// V1LogLineOrderByDirection defines model for V1LogLineOrderByDirection.
+type V1LogLineOrderByDirection string
+
 // V1ReplayTaskRequest defines model for V1ReplayTaskRequest.
 type V1ReplayTaskRequest struct {
 	// ExternalIds A list of external IDs, which can refer to either task or workflow run external IDs
@@ -2406,6 +2415,9 @@ type V1LogLineListParams struct {
 
 	// Levels The log level(s) to include
 	Levels *[]V1LogLineLevel `form:"levels,omitempty" json:"levels,omitempty"`
+
+	// OrderByDirection The direction to order by
+	OrderByDirection *V1LogLineOrderByDirection `form:"order_by_direction,omitempty" json:"order_by_direction,omitempty"`
 }
 
 // V1TaskEventListParams defines parameters for V1TaskEventList.
@@ -6360,6 +6372,22 @@ func NewV1LogLineListRequest(server string, task openapi_types.UUID, params *V1L
 		if params.Levels != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "levels", runtime.ParamLocationQuery, *params.Levels); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByDirection != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "order_by_direction", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

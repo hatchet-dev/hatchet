@@ -254,6 +254,11 @@ export enum TenantVersion {
   V1 = "V1",
 }
 
+export enum V1LogLineOrderByDirection {
+  ASC = "ASC",
+  DESC = "DESC",
+}
+
 export enum V1LogLineLevel {
   DEBUG = "DEBUG",
   INFO = "INFO",
