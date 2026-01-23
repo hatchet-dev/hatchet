@@ -38,6 +38,7 @@ type HatchetClient interface {
 	Schedules() features.SchedulesClient
 	Events() v0Client.EventClient
 	Filters() features.FiltersClient
+	Webhooks() features.WebhooksClient
 
 	// TODO Run, RunNoWait, bulk
 }
@@ -55,6 +56,7 @@ type v1HatchetClientImpl struct {
 	crons      features.CronsClient
 	schedules  features.SchedulesClient
 	filters    features.FiltersClient
+	webhooks   features.WebhooksClient
 }
 
 // NewHatchetClient creates a new V1 Hatchet client with the provided configuration.
@@ -184,4 +186,13 @@ func (c *v1HatchetClientImpl) CEL() features.CELClient {
 		c.cel = features.NewCELClient(api, &tenantId)
 	}
 	return c.cel
+}
+
+func (c *v1HatchetClientImpl) Webhooks() features.WebhooksClient {
+	if c.webhooks == nil {
+		api := c.V0().API()
+		tenantID := c.V0().TenantId()
+		c.webhooks = features.NewWebhooksClient(api, &tenantID)
+	}
+	return c.webhooks
 }
