@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
@@ -17,6 +19,9 @@ func main() {
 	}
 
 	ctx := context.Background()
+
+	// Generate a unique suffix for webhook names
+	suffix := uuid.New().String()[:8]
 
 	// List existing webhooks
 	fmt.Println("Listing existing webhooks...")
@@ -31,7 +36,7 @@ func main() {
 	// Create a webhook with Basic Auth
 	fmt.Println("\nCreating webhook with Basic Auth...")
 	basicWebhook, err := client.Webhooks().Create(ctx, features.CreateWebhookOpts{
-		Name:               "test-basic-webhook",
+		Name:               fmt.Sprintf("test-basic-webhook-%s", suffix),
 		SourceName:         rest.GENERIC,
 		EventKeyExpression: "body.event_type",
 		Auth: features.BasicAuth{
@@ -65,7 +70,7 @@ func main() {
 	// Create a webhook with API Key Auth
 	fmt.Println("\nCreating webhook with API Key Auth...")
 	apiKeyWebhook, err := client.Webhooks().Create(ctx, features.CreateWebhookOpts{
-		Name:               "test-apikey-webhook",
+		Name:               fmt.Sprintf("test-apikey-webhook-%s", suffix),
 		SourceName:         rest.STRIPE,
 		EventKeyExpression: "body.type",
 		Auth: features.APIKeyAuth{
@@ -81,7 +86,7 @@ func main() {
 	// Create a webhook with HMAC Auth
 	fmt.Println("\nCreating webhook with HMAC Auth...")
 	hmacWebhook, err := client.Webhooks().Create(ctx, features.CreateWebhookOpts{
-		Name:               "test-hmac-webhook",
+		Name:               fmt.Sprintf("test-hmac-webhook-%s", suffix),
 		SourceName:         rest.GITHUB,
 		EventKeyExpression: "headers['X-GitHub-Event']",
 		Auth: features.HMACAuth{
