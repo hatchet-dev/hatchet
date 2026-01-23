@@ -88,40 +88,48 @@ type UpdateWebhookOpts struct {
 	EventKeyExpression string
 }
 
+// WebhooksClient provides methods for managing webhook configurations.
 type WebhooksClient interface {
-	List(ctx context.Context, opts *rest.V1WebhookListParams) (*rest.V1WebhookList, error)
+	// List retrieves a collection of webhooks based on the provided parameters.
+	List(ctx context.Context, opts rest.V1WebhookListParams) (*rest.V1WebhookList, error)
 
-	Get(ctx context.Context, webhookID string) (*rest.V1Webhook, error)
+	// Get retrieves a specific webhook by its name.
+	Get(ctx context.Context, webhookName string) (*rest.V1Webhook, error)
 
+	// Create creates a new webhook configuration.
 	Create(ctx context.Context, opts CreateWebhookOpts) (*rest.V1Webhook, error)
 
-	Update(ctx context.Context, webhookID string, opts UpdateWebhookOpts) (*rest.V1Webhook, error)
+	// Update updates an existing webhook configuration.
+	Update(ctx context.Context, webhookName string, opts UpdateWebhookOpts) (*rest.V1Webhook, error)
 
-	Delete(ctx context.Context, webhookID string) (*rest.V1Webhook, error)
+	// Delete removes a webhook configuration.
+	Delete(ctx context.Context, webhookName string) error
 }
 
 type webhooksClientImpl struct {
 	api      *rest.ClientWithResponses
-	tenantID uuid.UUID
+	tenantId uuid.UUID
 }
 
+// NewWebhooksClient creates a new client for managing webhook configurations.
 func NewWebhooksClient(
 	api *rest.ClientWithResponses,
-	tenantID *string,
+	tenantId *string,
 ) WebhooksClient {
+	tenantIdUUID := uuid.MustParse(*tenantId)
+
 	return &webhooksClientImpl{
 		api:      api,
-		tenantID: uuid.MustParse(*tenantID),
+		tenantId: tenantIdUUID,
 	}
 }
 
-func (c *webhooksClientImpl) List(ctx context.Context, opts *rest.V1WebhookListParams) (*rest.V1WebhookList, error) {
+func (c *webhooksClientImpl) List(ctx context.Context, opts rest.V1WebhookListParams) (*rest.V1WebhookList, error) {
 	resp, err := c.api.V1WebhookListWithResponse(
 		ctx,
-		c.tenantID,
-		opts,
+		c.tenantId,
+		&opts,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -129,13 +137,12 @@ func (c *webhooksClientImpl) List(ctx context.Context, opts *rest.V1WebhookListP
 	return resp.JSON200, nil
 }
 
-func (c *webhooksClientImpl) Get(ctx context.Context, webhookID string) (*rest.V1Webhook, error) {
+func (c *webhooksClientImpl) Get(ctx context.Context, webhookName string) (*rest.V1Webhook, error) {
 	resp, err := c.api.V1WebhookGetWithResponse(
 		ctx,
-		c.tenantID,
-		webhookID,
+		c.tenantId,
+		webhookName,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -155,10 +162,9 @@ func (c *webhooksClientImpl) Create(ctx context.Context, opts CreateWebhookOpts)
 
 	resp, err := c.api.V1WebhookCreateWithResponse(
 		ctx,
-		c.tenantID,
+		c.tenantId,
 		req,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -166,16 +172,15 @@ func (c *webhooksClientImpl) Create(ctx context.Context, opts CreateWebhookOpts)
 	return resp.JSON200, nil
 }
 
-func (c *webhooksClientImpl) Update(ctx context.Context, webhookID string, opts UpdateWebhookOpts) (*rest.V1Webhook, error) {
+func (c *webhooksClientImpl) Update(ctx context.Context, webhookName string, opts UpdateWebhookOpts) (*rest.V1Webhook, error) {
 	resp, err := c.api.V1WebhookUpdateWithResponse(
 		ctx,
-		c.tenantID,
-		webhookID,
+		c.tenantId,
+		webhookName,
 		rest.V1UpdateWebhookRequest{
 			EventKeyExpression: opts.EventKeyExpression,
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -183,16 +188,11 @@ func (c *webhooksClientImpl) Update(ctx context.Context, webhookID string, opts 
 	return resp.JSON200, nil
 }
 
-func (c *webhooksClientImpl) Delete(ctx context.Context, webhookID string) (*rest.V1Webhook, error) {
-	resp, err := c.api.V1WebhookDeleteWithResponse(
+func (c *webhooksClientImpl) Delete(ctx context.Context, webhookName string) error {
+	_, err := c.api.V1WebhookDeleteWithResponse(
 		ctx,
-		c.tenantID,
-		webhookID,
+		c.tenantId,
+		webhookName,
 	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return resp.JSON200, nil
+	return err
 }

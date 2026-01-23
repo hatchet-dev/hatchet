@@ -20,7 +20,7 @@ func main() {
 
 	// List existing webhooks
 	fmt.Println("Listing existing webhooks...")
-	webhooks, err := client.Webhooks().List(ctx, nil)
+	webhooks, err := client.Webhooks().List(ctx, rest.V1WebhookListParams{})
 	if err != nil {
 		log.Fatalf("failed to list webhooks: %v", err)
 	}
@@ -42,11 +42,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create basic auth webhook: %v", err)
 	}
-	fmt.Printf("Created webhook: %s (ID: %s)\n", basicWebhook.Name, basicWebhook.Metadata.Id)
+	fmt.Printf("Created webhook: %s\n", basicWebhook.Name)
 
 	// Get the webhook
 	fmt.Println("\nGetting webhook...")
-	retrieved, err := client.Webhooks().Get(ctx, basicWebhook.Metadata.Id)
+	retrieved, err := client.Webhooks().Get(ctx, basicWebhook.Name)
 	if err != nil {
 		log.Fatalf("failed to get webhook: %v", err)
 	}
@@ -54,7 +54,7 @@ func main() {
 
 	// Update the webhook
 	fmt.Println("\nUpdating webhook...")
-	updated, err := client.Webhooks().Update(ctx, basicWebhook.Metadata.Id, features.UpdateWebhookOpts{
+	updated, err := client.Webhooks().Update(ctx, basicWebhook.Name, features.UpdateWebhookOpts{
 		EventKeyExpression: "body.type",
 	})
 	if err != nil {
@@ -76,7 +76,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create api key webhook: %v", err)
 	}
-	fmt.Printf("Created webhook: %s (ID: %s)\n", apiKeyWebhook.Name, apiKeyWebhook.Metadata.Id)
+	fmt.Printf("Created webhook: %s\n", apiKeyWebhook.Name)
 
 	// Create a webhook with HMAC Auth
 	fmt.Println("\nCreating webhook with HMAC Auth...")
@@ -94,11 +94,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create hmac webhook: %v", err)
 	}
-	fmt.Printf("Created webhook: %s (ID: %s)\n", hmacWebhook.Name, hmacWebhook.Metadata.Id)
+	fmt.Printf("Created webhook: %s\n", hmacWebhook.Name)
 
 	// List webhooks again to see our new ones
 	fmt.Println("\nListing all webhooks...")
-	webhooks, err = client.Webhooks().List(ctx, nil)
+	webhooks, err = client.Webhooks().List(ctx, rest.V1WebhookListParams{})
 	if err != nil {
 		log.Fatalf("failed to list webhooks: %v", err)
 	}
@@ -111,21 +111,21 @@ func main() {
 	// Clean up - delete the webhooks we created
 	fmt.Println("\nCleaning up - deleting test webhooks...")
 
-	_, err = client.Webhooks().Delete(ctx, basicWebhook.Metadata.Id)
+	err = client.Webhooks().Delete(ctx, basicWebhook.Name)
 	if err != nil {
 		log.Printf("failed to delete basic webhook: %v", err)
 	} else {
 		fmt.Printf("Deleted webhook: %s\n", basicWebhook.Name)
 	}
 
-	_, err = client.Webhooks().Delete(ctx, apiKeyWebhook.Metadata.Id)
+	err = client.Webhooks().Delete(ctx, apiKeyWebhook.Name)
 	if err != nil {
 		log.Printf("failed to delete apikey webhook: %v", err)
 	} else {
 		fmt.Printf("Deleted webhook: %s\n", apiKeyWebhook.Name)
 	}
 
-	_, err = client.Webhooks().Delete(ctx, hmacWebhook.Metadata.Id)
+	err = client.Webhooks().Delete(ctx, hmacWebhook.Name)
 	if err != nil {
 		log.Printf("failed to delete hmac webhook: %v", err)
 	} else {

@@ -118,18 +118,26 @@ func (c *WebhooksClient) List(ctx context.Context, opts rest.V1WebhookListParams
 		return nil, errors.Wrap(err, "failed to list webhooks")
 	}
 
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
 	return resp.JSON200, nil
 }
 
-// Get retrieves a specific webhook by its ID.
-func (c *WebhooksClient) Get(ctx context.Context, webhookId string) (*rest.V1Webhook, error) {
+// Get retrieves a specific webhook by its name.
+func (c *WebhooksClient) Get(ctx context.Context, webhookName string) (*rest.V1Webhook, error) {
 	resp, err := c.api.V1WebhookGetWithResponse(
 		ctx,
 		c.tenantId,
-		webhookId,
+		webhookName,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get webhook")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -163,11 +171,11 @@ func (c *WebhooksClient) Create(ctx context.Context, opts CreateWebhookOpts) (*r
 }
 
 // Update updates an existing webhook configuration.
-func (c *WebhooksClient) Update(ctx context.Context, webhookId string, opts UpdateWebhookOpts) (*rest.V1Webhook, error) {
+func (c *WebhooksClient) Update(ctx context.Context, webhookName string, opts UpdateWebhookOpts) (*rest.V1Webhook, error) {
 	resp, err := c.api.V1WebhookUpdateWithResponse(
 		ctx,
 		c.tenantId,
-		webhookId,
+		webhookName,
 		rest.V1UpdateWebhookRequest{
 			EventKeyExpression: opts.EventKeyExpression,
 		},
@@ -184,11 +192,11 @@ func (c *WebhooksClient) Update(ctx context.Context, webhookId string, opts Upda
 }
 
 // Delete removes a webhook configuration.
-func (c *WebhooksClient) Delete(ctx context.Context, webhookId string) error {
+func (c *WebhooksClient) Delete(ctx context.Context, webhookName string) error {
 	resp, err := c.api.V1WebhookDeleteWithResponse(
 		ctx,
 		c.tenantId,
-		webhookId,
+		webhookName,
 	)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete webhook")
