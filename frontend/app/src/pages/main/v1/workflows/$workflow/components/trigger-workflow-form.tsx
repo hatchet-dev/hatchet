@@ -142,6 +142,8 @@ export function TriggerWorkflowForm({
     [selectedWorkflowId, workflowKeys],
   );
 
+  const jsonSchema = selectedWorkflow?.inputJsonSchema;
+
   const triggerNowMutation = useMutation({
     mutationKey: ['workflow-run:create', selectedWorkflow?.metadata.id],
     mutationFn: async (data: { input: object; addlMeta: object }) => {
@@ -342,6 +344,7 @@ export function TriggerWorkflowForm({
           setCode={setInput}
           language="json"
           height="180px"
+          jsonSchema={jsonSchema}
         />
         <div className="font-bold">Additional Metadata</div>
         <CodeEditor
