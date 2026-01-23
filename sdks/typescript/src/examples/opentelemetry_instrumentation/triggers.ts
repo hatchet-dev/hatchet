@@ -149,7 +149,7 @@ async function main() {
   await runWorkflow();
   await runWorkflows();
   await scheduleWorkflow();
-  
+
   console.log('\n--- Waiting for spans to be exported... ---');
   await new Promise((resolve) => setTimeout(resolve, 5000));
   console.log('Done!');
