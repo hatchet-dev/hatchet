@@ -1528,6 +1528,8 @@ export interface Workflow {
   jobs?: Job[];
   /** The tenant id of the workflow. */
   tenantId: string;
+  /** The JSON schema for the workflow input. */
+  inputJsonSchema?: object;
 }
 
 export interface WorkflowVersionMeta {

@@ -106,7 +106,7 @@ func ToWorkflowVersion(
 	}
 
 	if version.WorkflowId.Valid {
-		res.Workflow = ToWorkflowFromSQLC(workflow)
+		res.Workflow = ToWorkflowFromSQLC(workflow, nil)
 	}
 
 	triggersResp := gen.WorkflowTriggers{}
@@ -231,12 +231,23 @@ func ToStep(step *sqlcv1.Step, parents []pgtype.UUID) *gen.Step {
 	return res
 }
 
-func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
+func ToWorkflowFromSQLC(row *sqlcv1.Workflow, inputJsonSchema []byte) *gen.Workflow {
+	jsonSchema := make(map[string]interface{})
+
+	if inputJsonSchema != nil {
+		err := json.Unmarshal(inputJsonSchema, &jsonSchema)
+
+		if err != nil {
+			// do nothing
+		}
+	}
+
 	res := &gen.Workflow{
-		Metadata:    *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
-		Name:        row.Name,
-		Description: &row.Description.String,
-		IsPaused:    &row.IsPaused.Bool,
+		Metadata:        *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
+		Name:            row.Name,
+		Description:     &row.Description.String,
+		IsPaused:        &row.IsPaused.Bool,
+		InputJsonSchema: &jsonSchema,
 	}
 
 	return res
