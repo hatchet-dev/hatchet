@@ -180,8 +180,13 @@ type ListWorkflowsOpts struct {
 	Name *string
 }
 
+type WorkflowWithInputSchema struct {
+	*sqlcv1.Workflow
+	InputJsonSchema []byte
+}
+
 type ListWorkflowsResult struct {
-	Rows  []*sqlcv1.Workflow
+	Rows  []*WorkflowWithInputSchema
 	Count int
 }
 
@@ -1071,10 +1076,13 @@ func (r *workflowRepository) ListWorkflows(tenantId string, opts *ListWorkflowsO
 
 	res.Count = int(count)
 
-	sqlcWorkflows := make([]*sqlcv1.Workflow, len(workflows))
+	sqlcWorkflows := make([]*WorkflowWithInputSchema, len(workflows))
 
 	for i := range workflows {
-		sqlcWorkflows[i] = &workflows[i].Workflow
+		sqlcWorkflows[i] = &WorkflowWithInputSchema{
+			Workflow:        &workflows[i].Workflow,
+			InputJsonSchema: workflows[i].InputJsonSchema,
+		}
 	}
 
 	res.Rows = sqlcWorkflows

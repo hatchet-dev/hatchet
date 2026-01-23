@@ -2155,6 +2155,9 @@ type Workflow struct {
 	// Description The description of the workflow.
 	Description *string `json:"description,omitempty"`
 
+	// InputJsonSchema The JSON schema for the workflow input.
+	InputJsonSchema *map[string]interface{} `json:"inputJsonSchema,omitempty"`
+
 	// IsPaused Whether the workflow is paused.
 	IsPaused *bool `json:"isPaused,omitempty"`
 

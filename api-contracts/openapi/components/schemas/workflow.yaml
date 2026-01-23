@@ -28,6 +28,9 @@ Workflow:
     tenantId:
       type: string
       description: The tenant id of the workflow.
+    inputJsonSchema:
+      type: object
+      description: The JSON schema for the workflow input.
   required:
     - metadata
     - name
