@@ -109,6 +109,36 @@ async function runWorkflows() {
   });
 }
 
+async function scheduleWorkflow() {
+  console.log('\n--- Schedule Workflow ---');
+
+  return tracer.startActiveSpan('schedule_workflow', async (span: Span) => {
+    try {
+      // Schedule workflow to run 10 seconds from now
+      const triggerAt = new Date(Date.now() + 10 * 1000);
+
+      const scheduledRun = await hatchet.schedules.create(otelWorkflow.name, {
+        triggerAt,
+        input: { message: 'Hello from scheduled workflow!' },
+        additionalMetadata: ADDITIONAL_METADATA,
+      });
+
+      console.log(`Scheduled workflow run: ${scheduledRun.metadata.id}`);
+      console.log(`Will trigger at: ${triggerAt.toISOString()}`);
+
+      span.setStatus({ code: SpanStatusCode.OK, message: 'Workflow scheduled' });
+    } catch (error: any) {
+      const errorMessage = Array.isArray(error) ? error.join(', ') : error?.message || String(error);
+      console.error('Schedule workflow failed:', errorMessage);
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+    } finally {
+      span.end();
+    }
+  });
+}
+
+
 
 async function main() {
   console.log('OpenTelemetry Triggers Example');
@@ -118,7 +148,8 @@ async function main() {
   await bulkPushEvents();
   await runWorkflow();
   await runWorkflows();
-
+  await scheduleWorkflow();
+  
   console.log('\n--- Waiting for spans to be exported... ---');
   await new Promise((resolve) => setTimeout(resolve, 5000));
   console.log('Done!');
