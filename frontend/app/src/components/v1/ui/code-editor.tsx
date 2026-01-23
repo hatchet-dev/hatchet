@@ -14,6 +14,7 @@ interface CodeEditorProps {
   copy?: boolean;
   wrapLines?: boolean;
   lineNumbers?: boolean;
+  jsonSchema?: object;
 }
 
 export function CodeEditor({
@@ -26,12 +27,26 @@ export function CodeEditor({
   copy = true,
   wrapLines = true,
   lineNumbers = false,
+  jsonSchema,
 }: CodeEditorProps) {
   const { theme } = useTheme();
 
-  const setEditorTheme = (monaco: Monaco) => {
+  const handleBeforeMount = (monaco: Monaco) => {
     monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
     monaco.editor.setTheme('pastels-on-dark');
+
+    if (language === 'json' && jsonSchema) {
+      monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+        validate: true,
+        schemas: [
+          {
+            uri: 'http://hatchet/workflow-input-schema.json',
+            fileMatch: ['*'],
+            schema: jsonSchema,
+          },
+        ],
+      });
+    }
   };
 
   const editorTheme = theme === 'dark' ? 'pastels-on-dark' : '';
@@ -44,7 +59,7 @@ export function CodeEditor({
       )}
     >
       <Editor
-        beforeMount={setEditorTheme}
+        beforeMount={handleBeforeMount}
         language={language}
         value={code || ''}
         onChange={setCode}
@@ -69,6 +84,8 @@ export function CodeEditor({
           colorDecorators: false,
           hideCursorInOverviewRuler: true,
           contextmenu: false,
+          quickSuggestions: jsonSchema ? { strings: true, other: true } : false,
+          suggestOnTriggerCharacters: !!jsonSchema,
         }}
       />
       {copy && (
