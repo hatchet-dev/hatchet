@@ -31,6 +31,7 @@ type Client struct {
 	workers    *features.WorkersClient
 	workflows  *features.WorkflowsClient
 	logs       *features.LogsClient
+	webhooks   *features.WebhooksClient
 }
 
 // NewClient creates a new Hatchet client.
@@ -708,4 +709,14 @@ func (c *Client) Logs() *features.LogsClient {
 	}
 
 	return c.logs
+}
+
+// Webhooks returns a client for managing webhooks.
+func (c *Client) Webhooks() *features.WebhooksClient {
+	if c.webhooks == nil {
+		tenantId := c.legacyClient.TenantId()
+		c.webhooks = features.NewWebhooksClient(c.legacyClient.API(), tenantId)
+	}
+
+	return c.webhooks
 }
