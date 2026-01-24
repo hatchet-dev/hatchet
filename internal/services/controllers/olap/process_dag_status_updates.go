@@ -53,11 +53,15 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 				return
 			}
 
-			err = o.notifyDAGsUpdated(ctx, rows)
+			migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
 
-			if err != nil {
-				o.l.Error().Err(err).Msg("failed to notify updated DAG statuses")
-				return
+			if !migrationDisabled {
+				err = o.notifyDAGsUpdated(ctx, rows)
+
+				if err != nil {
+					o.l.Error().Err(err).Msg("failed to notify updated DAG statuses")
+					return
+				}
 			}
 		}
 

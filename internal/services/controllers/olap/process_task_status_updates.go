@@ -81,11 +81,15 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 				return
 			}
 
-			err = o.notifyTasksUpdated(ctx, rows)
+			migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
 
-			if err != nil {
-				o.l.Error().Err(err).Msg("failed to notify updated task statuses")
-				return
+			if !migrationDisabled {
+				err = o.notifyTasksUpdated(ctx, rows)
+
+				if err != nil {
+					o.l.Error().Err(err).Msg("failed to notify updated task statuses")
+					return
+				}
 			}
 		}
 	}
