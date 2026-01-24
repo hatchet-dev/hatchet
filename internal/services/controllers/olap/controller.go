@@ -257,15 +257,18 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		return nil, err
 	}
-	heavyReadMQ.SetQOS(2000)
+
+	migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
+
+	if !migrationDisabled {
+		heavyReadMQ.SetQOS(2000)
+	}
 
 	o.s.Start()
 
 	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.OLAP_QUEUE, heavyReadMQ, o.handleBufferedMsgs)
 
 	wg := sync.WaitGroup{}
-
-	migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
 
 	// if the environment variable is set, disable the table partition on startup
 	startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
