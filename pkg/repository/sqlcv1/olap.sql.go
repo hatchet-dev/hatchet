@@ -3386,7 +3386,7 @@ WITH tenants AS (
         (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
 ), dags_to_update AS (
     -- DAGs that need updating and don't already exist in target partition
-    SELECT
+    SELECT DISTINCT ON (dns.tenant_id, dns.id, dns.inserted_at)
         dns.tenant_id,
         dns.id,
         dns.inserted_at,
@@ -3400,6 +3400,8 @@ WITH tenants AS (
             FROM already_in_target_partition ap
             WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (dns.tenant_id, dns.id, dns.inserted_at)
         )
+    ORDER BY
+        dns.tenant_id, dns.id, dns.inserted_at, dns.old_readable_status
 ), updated_dags AS (
     UPDATE
         v1_dags_olap d
