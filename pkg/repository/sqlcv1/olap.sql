@@ -788,8 +788,8 @@ WITH tenants AS (
         worker_id IS NOT NULL
     GROUP BY
         tenant_id, task_id, task_inserted_at, retry_count
-), locked_tasks AS (
-    SELECT
+), distinct_tasks_to_lock AS (
+    SELECT DISTINCT ON (t.tenant_id, t.id, t.inserted_at)
         t.tenant_id,
         t.id,
         t.inserted_at,
@@ -801,9 +801,18 @@ WITH tenants AS (
     JOIN
         updatable_events e ON
             (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
-    WHERE t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    WHERE
+        t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
     ORDER BY
-        t.inserted_at, t.id
+        t.tenant_id, t.id, t.inserted_at, t.readable_status
+), locked_tasks AS (
+    SELECT
+        dt.*
+    FROM
+        v1_tasks_olap t
+    JOIN
+        distinct_tasks_to_lock dt ON
+            (dt.inserted_at, dt.id) = (t.inserted_at, t.id)
     FOR UPDATE
 ), already_in_target_partition AS (
     -- Check if rows already exist in the target partition (with the new readable_status)
