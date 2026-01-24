@@ -45,7 +45,7 @@
   "devDependencies": {
     "@tsd/typescript": "^5.8.2",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.19.7",
+    "@types/node": "^22.13.14",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "autoprefixer": "^10.4.21",
@@ -79,11 +79,6 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.5",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.210.0",
-    "@opentelemetry/resources": "^2.4.0",
-    "@opentelemetry/sdk-trace-base": "^2.4.0",
-    "@opentelemetry/sdk-trace-node": "^2.4.0",
-    "@opentelemetry/semantic-conventions": "^1.39.0",
     "@types/qs": "^6.9.18",
     "abort-controller-x": "^0.4.3",
     "axios": "^1.11.0",
