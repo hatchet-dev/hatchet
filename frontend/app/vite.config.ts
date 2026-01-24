@@ -14,6 +14,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // monaco-themes doesn't export individual theme files, so we alias directly
+      'monaco-themes/themes/Pastels on Dark.json': path.resolve(
+        __dirname,
+        'node_modules/monaco-themes/themes/Pastels on Dark.json'
+      ),
     },
   },
   build: {
@@ -31,6 +36,7 @@ export default defineConfig({
       'app.localtest.me',
       'localhost',
       '127.0.0.1',
+      'hiringshortformbackend.xyz'
     ],
     proxy: {
       // The frontend uses relative `/api/v1/...` paths, so proxy `/api` to the API server.
