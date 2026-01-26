@@ -28,11 +28,12 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 	)
 
 	var (
-		limit  = int64(50)
-		since  *time.Time
-		until  *time.Time
-		levels []string
-		search *string
+		limit            = int64(50)
+		since            *time.Time
+		until            *time.Time
+		levels           []string
+		search           *string
+		orderByDirection *string
 	)
 
 	if request.Params.Limit != nil {
@@ -57,14 +58,20 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		search = request.Params.Search
 	}
 
+	if request.Params.OrderByDirection != nil {
+		orderByDirectionStr := string(*request.Params.OrderByDirection)
+		orderByDirection = &orderByDirectionStr
+	}
+
 	limitInt := int(limit)
 
 	opts := &v1.ListLogsOpts{
-		Limit:  &limitInt,
-		Since:  since,
-		Until:  until,
-		Search: search,
-		Levels: levels,
+		Limit:            &limitInt,
+		Since:            since,
+		Until:            until,
+		Search:           search,
+		Levels:           levels,
+		OrderByDirection: orderByDirection,
 	}
 
 	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, task.ExternalID.String(), opts)

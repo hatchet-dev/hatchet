@@ -1,5 +1,10 @@
 import LoggingComponent from '@/components/v1/cloud/logging/logs';
-import { V1TaskSummary, V1LogLineList, V1TaskStatus } from '@/lib/api';
+import {
+  V1TaskSummary,
+  V1LogLineList,
+  V1TaskStatus,
+  V1LogLineOrderByDirection,
+} from '@/lib/api';
 import api from '@/lib/api/api';
 import { V1LogLineListQuery } from '@/lib/api/queries';
 import {
@@ -63,6 +68,7 @@ export function StepRunLogs({
     queryFn: async ({ pageParam }) => {
       const params: V1LogLineListQuery = {
         limit: LOGS_PER_PAGE,
+        order_by_direction: V1LogLineOrderByDirection.ASC,
         ...(pageParam && { since: pageParam.since, until: pageParam.until }),
       };
 

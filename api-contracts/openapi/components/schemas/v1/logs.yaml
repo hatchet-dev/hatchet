@@ -32,6 +32,12 @@ V1LogLineLevel:
     - WARN
     - ERROR
 
+V1LogLineOrderByDirection:
+  type: string
+  enum:
+    - ASC
+    - DESC
+
 V1LogLineList:
   properties:
     pagination:
