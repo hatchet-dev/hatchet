@@ -73,8 +73,6 @@ class WorkerActionListenerProcess:
         handle_kill: bool,
         debug: bool,
         labels: dict[str, str | int],
-        enable_health_server: bool = False,
-        healthcheck_port: int = 8001,
     ) -> None:
         self.name = name
         self.actions = actions
@@ -85,9 +83,9 @@ class WorkerActionListenerProcess:
         self.debug = debug
         self.labels = labels
         self.handle_kill = handle_kill
-        self.enable_health_server = enable_health_server
-        self.healthcheck_port = healthcheck_port
-        self._healthcheck_bind_address = self.config.healthcheck.bind_address
+        self.enable_health_server = self.config.healthcheck.enabled
+        self.healthcheck_port = self.config.healthcheck.port
+        self.healthcheck_bind_address = self.config.healthcheck.bind_address
 
         self._health_runner: web.AppRunner | None = None
         self._listener_health_gauge: Gauge | None = None
@@ -261,7 +259,7 @@ class WorkerActionListenerProcess:
         try:
             await runner.setup()
             await web.TCPSite(
-                runner, host=self._healthcheck_bind_address, port=self.healthcheck_port
+                runner, host=self.healthcheck_bind_address, port=self.healthcheck_port
             ).start()
         except Exception:
             logger.exception("failed to start healthcheck server (listener process)")
@@ -269,7 +267,7 @@ class WorkerActionListenerProcess:
 
         self._health_runner = runner
         logger.info(
-            f"healthcheck server (listener process) running on {self._healthcheck_bind_address}:{self.healthcheck_port}"
+            f"healthcheck server (listener process) running on {self.healthcheck_bind_address}:{self.healthcheck_port}"
         )
 
         if self._event_loop_monitor_task is None:
@@ -513,9 +511,29 @@ class WorkerActionListenerProcess:
         logger.debug("forcefully closing listener...")
 
 
-def worker_action_listener_process(*args: Any, **kwargs: Any) -> None:
+def worker_action_listener_process(
+    name: str,
+    actions: list[str],
+    slots: int,
+    config: ClientConfig,
+    action_queue: "Queue[Action]",
+    event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
+    handle_kill: bool,
+    debug: bool,
+    labels: dict[str, str | int],
+) -> None:
     async def run() -> None:
-        process = WorkerActionListenerProcess(*args, **kwargs)
+        process = WorkerActionListenerProcess(
+            name=name,
+            actions=actions,
+            slots=slots,
+            config=config,
+            action_queue=action_queue,
+            event_queue=event_queue,
+            handle_kill=handle_kill,
+            debug=debug,
+            labels=labels,
+        )
         await process.start_health_server()
         await process.start()
         # Keep the process running
