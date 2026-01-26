@@ -163,6 +163,3 @@ cython_debug/
 
 openapitools.json
 .python-version
-
-# Dev-specific poetry overrides - e.g. local venvs (use pyproject.toml for project-level config)
-poetry.toml
