@@ -47,7 +47,9 @@ class HealthcheckConfig(BaseSettings):
 
     @field_validator("event_loop_block_threshold_seconds", mode="before")
     @classmethod
-    def validate_event_loop_block_threshold_seconds(cls, value: timedelta | int | float | str) -> timedelta:
+    def validate_event_loop_block_threshold_seconds(
+        cls, value: timedelta | int | float | str
+    ) -> timedelta:
         # Settings env vars are strings; interpret as seconds.
         if isinstance(value, timedelta):
             return value
@@ -105,8 +107,12 @@ class ClientConfig(BaseSettings):
     otel: OpenTelemetryConfig = Field(default_factory=lambda: OpenTelemetryConfig())
 
     listener_v2_timeout: int | None = None
-    grpc_max_recv_message_length: int = Field(default=4 * 1024 * 1024, description="4MB default")
-    grpc_max_send_message_length: int = Field(default=4 * 1024 * 1024, description="4MB default")
+    grpc_max_recv_message_length: int = Field(
+        default=4 * 1024 * 1024, description="4MB default"
+    )
+    grpc_max_send_message_length: int = Field(
+        default=4 * 1024 * 1024, description="4MB default"
+    )
 
     worker_preset_labels: dict[str, str] = Field(default_factory=dict)
 
@@ -139,7 +145,9 @@ class ClientConfig(BaseSettings):
     def validate_addresses(self) -> "ClientConfig":
         ## If nothing is set, read from the token
         ## If either is set, override what's in the JWT
-        server_url_from_jwt, grpc_broadcast_address_from_jwt = get_addresses_from_jwt(self.token)
+        server_url_from_jwt, grpc_broadcast_address_from_jwt = get_addresses_from_jwt(
+            self.token
+        )
 
         if "host_port" not in self.model_fields_set:
             self.host_port = grpc_broadcast_address_from_jwt
@@ -181,12 +189,18 @@ class ClientConfig(BaseSettings):
         return hash(json.dumps(self.model_dump(), default=str))
 
     @overload
-    def apply_namespace(self, resource_name: str, namespace_override: str | None = None) -> str: ...
+    def apply_namespace(
+        self, resource_name: str, namespace_override: str | None = None
+    ) -> str: ...
 
     @overload
-    def apply_namespace(self, resource_name: None, namespace_override: str | None = None) -> None: ...
+    def apply_namespace(
+        self, resource_name: None, namespace_override: str | None = None
+    ) -> None: ...
 
-    def apply_namespace(self, resource_name: str | None, namespace_override: str | None = None) -> str | None:
+    def apply_namespace(
+        self, resource_name: str | None, namespace_override: str | None = None
+    ) -> str | None:
         if resource_name is None:
             return None
 
