@@ -37,20 +37,11 @@ class HealthcheckConfig(BaseSettings):
 
     port: int = 8001
     enabled: bool = False
-    # HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS
     event_loop_block_threshold_seconds: timedelta = Field(
         default=timedelta(seconds=5),
         description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503. Value is interpreted as seconds.",
     )
-    # HATCHET_CLIENT_WORKER_HEALTHCHECK_BIND_ADDRESS
-    bind_address: str | None = "0.0.0.0"
-
-    @field_validator("bind_address", mode="after")
-    @classmethod
-    def validate_bind_address(cls, value: str | None) -> str | None:
-        if value is None or value.lower() == "none" or len(value) == 0:
-            return None
-        return value
+    bind_address: str = "0.0.0.0"
 
     @field_validator("event_loop_block_threshold_seconds", mode="before")
     @classmethod
