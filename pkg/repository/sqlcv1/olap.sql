@@ -1307,17 +1307,18 @@ ORDER BY r.inserted_at DESC, r.run_id DESC;
 SELECT
     DATE_BIN(
         COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
-        inserted_at,
+        task_inserted_at,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS bucket,
+    ) :: TIMESTAMPTZ AS bucket_2,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
     COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_statuses_olap
+FROM
+    v1_task_events_olap
 WHERE
     tenant_id = @tenantId::UUID
-    AND inserted_at BETWEEN @createdAfter::TIMESTAMPTZ AND @createdBefore::TIMESTAMPTZ
-GROUP BY bucket
-ORDER BY bucket;
+    AND task_inserted_at BETWEEN @createdAfter::TIMESTAMPTZ AND @createdBefore::TIMESTAMPTZ
+GROUP BY bucket_2
+ORDER BY bucket_2;
 
 
 -- name: GetTenantStatusMetrics :one

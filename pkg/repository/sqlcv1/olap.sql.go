@@ -1089,17 +1089,18 @@ const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
 SELECT
     DATE_BIN(
         COALESCE($1::INTERVAL, '1 minute'),
-        inserted_at,
+        task_inserted_at,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS bucket,
+    ) :: TIMESTAMPTZ AS bucket_2,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
     COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_statuses_olap
+FROM
+    v1_task_events_olap
 WHERE
     tenant_id = $2::UUID
-    AND inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
-GROUP BY bucket
-ORDER BY bucket
+    AND task_inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
+GROUP BY bucket_2
+ORDER BY bucket_2
 `
 
 type GetTaskPointMetricsParams struct {
@@ -1110,7 +1111,7 @@ type GetTaskPointMetricsParams struct {
 }
 
 type GetTaskPointMetricsRow struct {
-	Bucket         pgtype.Timestamptz `json:"bucket"`
+	Bucket2        pgtype.Timestamptz `json:"bucket_2"`
 	CompletedCount int64              `json:"completed_count"`
 	FailedCount    int64              `json:"failed_count"`
 }
@@ -1129,7 +1130,7 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 	var items []*GetTaskPointMetricsRow
 	for rows.Next() {
 		var i GetTaskPointMetricsRow
-		if err := rows.Scan(&i.Bucket, &i.CompletedCount, &i.FailedCount); err != nil {
+		if err := rows.Scan(&i.Bucket2, &i.CompletedCount, &i.FailedCount); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

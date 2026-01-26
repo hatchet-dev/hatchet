@@ -78,11 +78,11 @@ func convertToGenMetrics(metrics []*sqlcv1.GetTaskPointMetricsRow) []gen.V1TaskP
 	converted := make([]gen.V1TaskPointMetric, len(metrics))
 
 	for i, metric := range metrics {
-		if metric == nil || !metric.Bucket.Valid {
+		if metric == nil || !metric.Bucket2.Valid {
 			continue
 		}
 
-		timeMinute := metric.Bucket.Time.UTC()
+		timeMinute := metric.Bucket2.Time.UTC()
 
 		converted[i] = gen.V1TaskPointMetric{
 			FAILED:    int(metric.FailedCount),
