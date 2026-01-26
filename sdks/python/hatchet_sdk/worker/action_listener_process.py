@@ -242,7 +242,7 @@ class WorkerActionListenerProcess:
 
         try:
             await runner.setup()
-            await web.TCPSite(runner, self._healthcheck_bind_address, self.healthcheck_port).start()
+            await web.TCPSite(runner, host=self._healthcheck_bind_address, port=self.healthcheck_port).start()
         except Exception:
             logger.exception("failed to start healthcheck server (listener process)")
             return
