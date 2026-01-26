@@ -83,9 +83,6 @@ class WorkerActionListenerProcess:
         self.debug = debug
         self.labels = labels
         self.handle_kill = handle_kill
-        self.enable_health_server = self.config.healthcheck.enabled
-        self.healthcheck_port = self.config.healthcheck.port
-        self.healthcheck_bind_address = self.config.healthcheck.bind_address
 
         self._health_runner: web.AppRunner | None = None
         self._listener_health_gauge: Gauge | None = None
@@ -93,9 +90,6 @@ class WorkerActionListenerProcess:
         self._event_loop_monitor_task: asyncio.Task[None] | None = None
         self._event_loop_last_lag_seconds: float = 0.0
         self._event_loop_blocked_since: float | None = None
-        self._event_loop_block_threshold: timedelta = (
-            self.config.healthcheck.event_loop_block_threshold_seconds
-        )
         self._waiting_steps_blocked_since: float | None = None
         self._starting_since: float = time.time()
 
@@ -124,7 +118,7 @@ class WorkerActionListenerProcess:
             signal.SIGQUIT, lambda: asyncio.create_task(self.exit_gracefully())
         )
 
-        if self.enable_health_server:
+        if self.config.healthcheck.enabled:
             self._listener_health_gauge = Gauge(
                 "hatchet_worker_listener_health",
                 "Listener health (1 healthy, 0 unhealthy)",
@@ -146,7 +140,10 @@ class WorkerActionListenerProcess:
             lag = max(0.0, elapsed - interval)
             # If the loop is "completely blocked" across multiple monitor ticks,
             # report a continuously increasing lag value (time since first detected block).
-            if timedelta(seconds=lag) >= self._event_loop_block_threshold:
+            if (
+                timedelta(seconds=lag)
+                >= self.config.healthcheck.event_loop_block_threshold_seconds
+            ):
                 if self._event_loop_blocked_since is None:
                     self._event_loop_blocked_since = start + interval
                 self._event_loop_last_lag_seconds = max(
@@ -155,7 +152,10 @@ class WorkerActionListenerProcess:
             else:
                 self._event_loop_last_lag_seconds = lag
 
-            if timedelta(seconds=lag) < self._event_loop_block_threshold:
+            if (
+                timedelta(seconds=lag)
+                < self.config.healthcheck.event_loop_block_threshold_seconds
+            ):
                 self._event_loop_blocked_since = None
 
     def _starting_timed_out(self) -> bool:
@@ -169,7 +169,7 @@ class WorkerActionListenerProcess:
         if (
             self._event_loop_blocked_since is not None
             and timedelta(seconds=(time.time() - self._event_loop_blocked_since))
-            > self._event_loop_block_threshold
+            > self.config.healthcheck.event_loop_block_threshold_seconds
         ):
             return HealthStatus.UNHEALTHY
 
@@ -179,7 +179,7 @@ class WorkerActionListenerProcess:
         if (
             self._waiting_steps_blocked_since is not None
             and timedelta(seconds=(time.time() - self._waiting_steps_blocked_since))
-            > self._event_loop_block_threshold
+            > self.config.healthcheck.event_loop_block_threshold_seconds
         ):
             return HealthStatus.UNHEALTHY
 
@@ -240,7 +240,7 @@ class WorkerActionListenerProcess:
         return web.Response(body=generate_latest(), content_type="text/plain")
 
     async def start_health_server(self) -> None:
-        if not self.enable_health_server:
+        if not self.config.healthcheck.enabled:
             return
 
         if self._health_runner is not None:
@@ -259,7 +259,9 @@ class WorkerActionListenerProcess:
         try:
             await runner.setup()
             await web.TCPSite(
-                runner, host=self.healthcheck_bind_address, port=self.healthcheck_port
+                runner,
+                host=self.config.healthcheck.bind_address,
+                port=self.config.healthcheck.port,
             ).start()
         except Exception:
             logger.exception("failed to start healthcheck server (listener process)")
@@ -267,7 +269,7 @@ class WorkerActionListenerProcess:
 
         self._health_runner = runner
         logger.info(
-            f"healthcheck server (listener process) running on {self.healthcheck_bind_address}:{self.healthcheck_port}"
+            f"healthcheck server (listener process) running on {self.config.healthcheck.bind_address}:{self.config.healthcheck.port}"
         )
 
         if self._event_loop_monitor_task is None:
