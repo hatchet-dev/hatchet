@@ -723,5 +723,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         unwrap(hatchet_sdk, "clients.events.EventClient.bulk_push")
         unwrap(hatchet_sdk, "clients.admin.AdminClient.run_workflow")
         unwrap(hatchet_sdk, "clients.admin.AdminClient.aio_run_workflow")
+        unwrap(hatchet_sdk, "clients.admin.AdminClient.schedule_workflow")
         unwrap(hatchet_sdk, "clients.admin.AdminClient.run_workflows")
         unwrap(hatchet_sdk, "clients.admin.AdminClient.aio_run_workflows")
