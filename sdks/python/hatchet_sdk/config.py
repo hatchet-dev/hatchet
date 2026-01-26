@@ -45,6 +45,13 @@ class HealthcheckConfig(BaseSettings):
     # HATCHET_CLIENT_WORKER_HEALTHCHECK_BIND_ADDRESS
     bind_address: str | None = "0.0.0.0"
 
+    @field_validator("bind_address", mode="after")
+    @classmethod
+    def validate_bind_address(cls, value: str | None) -> str | None:
+        if value is None or value.lower() == "none" or len(value) == 0:
+            return None
+        return value
+
     @field_validator("event_loop_block_threshold_seconds", mode="before")
     @classmethod
     def validate_event_loop_block_threshold_seconds(
