@@ -87,6 +87,7 @@ class WorkerActionListenerProcess:
         self.handle_kill = handle_kill
         self.enable_health_server = enable_health_server
         self.healthcheck_port = healthcheck_port
+        self._healthcheck_bind_address = self.config.healthcheck.bind_address
 
         self._health_runner: web.AppRunner | None = None
         self._listener_health_gauge: Gauge | None = None
@@ -94,9 +95,7 @@ class WorkerActionListenerProcess:
         self._event_loop_monitor_task: asyncio.Task[None] | None = None
         self._event_loop_last_lag_seconds: float = 0.0
         self._event_loop_blocked_since: float | None = None
-        self._event_loop_block_threshold: timedelta = (
-            self.config.healthcheck.event_loop_block_threshold_seconds
-        )
+        self._event_loop_block_threshold: timedelta = self.config.healthcheck.event_loop_block_threshold_seconds
         self._waiting_steps_blocked_since: float | None = None
         self._starting_since: float = time.time()
 
@@ -105,9 +104,7 @@ class WorkerActionListenerProcess:
         self.action_loop_task: asyncio.Task[None] | None = None
         self.event_send_loop_task: asyncio.Task[None] | None = None
         self.running_step_runs: dict[str, float] = {}
-        self.step_action_events: set[
-            asyncio.Task[UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None]
-        ] = set()
+        self.step_action_events: set[asyncio.Task[UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None]] = set()
 
         if self.debug:
             logger.setLevel(logging.DEBUG)
@@ -115,15 +112,9 @@ class WorkerActionListenerProcess:
         self.client = Client(config=self.config, debug=self.debug)
 
         loop = asyncio.get_event_loop()
-        loop.add_signal_handler(
-            signal.SIGINT, lambda: asyncio.create_task(self.pause_task_assignment())
-        )
-        loop.add_signal_handler(
-            signal.SIGTERM, lambda: asyncio.create_task(self.pause_task_assignment())
-        )
-        loop.add_signal_handler(
-            signal.SIGQUIT, lambda: asyncio.create_task(self.exit_gracefully())
-        )
+        loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(self.pause_task_assignment()))
+        loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(self.pause_task_assignment()))
+        loop.add_signal_handler(signal.SIGQUIT, lambda: asyncio.create_task(self.exit_gracefully()))
 
         if self.enable_health_server:
             self._listener_health_gauge = Gauge(
@@ -150,9 +141,7 @@ class WorkerActionListenerProcess:
             if timedelta(seconds=lag) >= self._event_loop_block_threshold:
                 if self._event_loop_blocked_since is None:
                     self._event_loop_blocked_since = start + interval
-                self._event_loop_last_lag_seconds = max(
-                    lag, time.time() - self._event_loop_blocked_since
-                )
+                self._event_loop_last_lag_seconds = max(lag, time.time() - self._event_loop_blocked_since)
             else:
                 self._event_loop_last_lag_seconds = lag
 
@@ -169,8 +158,7 @@ class WorkerActionListenerProcess:
         # If the event loop has been blocked longer than the configured threshold, report unhealthy.
         if (
             self._event_loop_blocked_since is not None
-            and timedelta(seconds=(time.time() - self._event_loop_blocked_since))
-            > self._event_loop_block_threshold
+            and timedelta(seconds=(time.time() - self._event_loop_blocked_since)) > self._event_loop_block_threshold
         ):
             return HealthStatus.UNHEALTHY
 
@@ -179,8 +167,7 @@ class WorkerActionListenerProcess:
         # "Waiting Steps" blocked-loop warning).
         if (
             self._waiting_steps_blocked_since is not None
-            and timedelta(seconds=(time.time() - self._waiting_steps_blocked_since))
-            > self._event_loop_block_threshold
+            and timedelta(seconds=(time.time() - self._waiting_steps_blocked_since)) > self._event_loop_block_threshold
         ):
             return HealthStatus.UNHEALTHY
 
@@ -207,11 +194,7 @@ class WorkerActionListenerProcess:
             now = time.time()
             time_last_hb = listener.time_last_hb_succeeded or 0.0
             has_hb_success = 0.0 < time_last_hb <= now
-            ok = bool(
-                listener.heartbeat_task is not None
-                and listener.last_heartbeat_succeeded
-                and has_hb_success
-            )
+            ok = bool(listener.heartbeat_task is not None and listener.last_heartbeat_succeeded and has_hb_success)
         else:
             # For v1 listen strategy (no heartbeater), treat "no retries" as healthy.
             ok = bool(listener.retries == 0)
@@ -259,22 +242,18 @@ class WorkerActionListenerProcess:
 
         try:
             await runner.setup()
-            await web.TCPSite(
-                runner, self.config.healthcheck.bind_address, self.healthcheck_port
-            ).start()
+            await web.TCPSite(runner, self._healthcheck_bind_address, self.healthcheck_port).start()
         except Exception:
             logger.exception("failed to start healthcheck server (listener process)")
             return
 
         self._health_runner = runner
         logger.info(
-            f"healthcheck server (listener process) running on port {self.healthcheck_port}"
+            f"healthcheck server (listener process) running on {self._healthcheck_bind_address}:{self.healthcheck_port}"
         )
 
         if self._event_loop_monitor_task is None:
-            self._event_loop_monitor_task = asyncio.create_task(
-                self._monitor_event_loop()
-            )
+            self._event_loop_monitor_task = asyncio.create_task(self._monitor_event_loop())
 
     async def stop_health_server(self) -> None:
         if self._event_loop_monitor_task is not None:
@@ -364,9 +343,7 @@ class WorkerActionListenerProcess:
                     self._waiting_steps_blocked_since = time.time()
                 blocked_for = time.time() - self._waiting_steps_blocked_since
                 # Continuously increasing "lag length" while we're blocked waiting for steps to start.
-                logger.warning(
-                    f"{BLOCKED_THREAD_WARNING} Waiting Steps {count} blocked_for={blocked_for:.1f}s"
-                )
+                logger.warning(f"{BLOCKED_THREAD_WARNING} Waiting Steps {count} blocked_for={blocked_for:.1f}s")
             else:
                 self._waiting_steps_blocked_since = None
             await asyncio.sleep(1)
@@ -382,21 +359,14 @@ class WorkerActionListenerProcess:
                     # ideally we change the first to an ack to set the time
                     if event.type == STEP_EVENT_TYPE_STARTED:
                         if event.action.step_run_id in self.running_step_runs:
-                            diff = (
-                                self.now()
-                                - self.running_step_runs[event.action.step_run_id]
-                            )
+                            diff = self.now() - self.running_step_runs[event.action.step_run_id]
                             if diff > 0.1:
-                                logger.warning(
-                                    f"{BLOCKED_THREAD_WARNING} time to start: {diff}s"
-                                )
+                                logger.warning(f"{BLOCKED_THREAD_WARNING} time to start: {diff}s")
                             else:
                                 logger.debug(f"start time: {diff}")
                             del self.running_step_runs[event.action.step_run_id]
                         else:
-                            self.running_step_runs[event.action.step_run_id] = (
-                                self.now()
-                            )
+                            self.running_step_runs[event.action.step_run_id] = self.now()
 
                     send_started_event_task = asyncio.create_task(
                         self.dispatcher_client.send_step_action_event(
@@ -408,17 +378,13 @@ class WorkerActionListenerProcess:
                     )
 
                     self.step_action_events.add(send_started_event_task)
-                    send_started_event_task.add_done_callback(
-                        lambda t: self.step_action_events.discard(t)
-                    )
+                    send_started_event_task.add_done_callback(lambda t: self.step_action_events.discard(t))
                 case ActionType.CANCEL_STEP_RUN:
                     logger.debug("unimplemented event send")
                 case _:
                     logger.error("unknown action type for event send")
         except Exception:
-            logger.exception(
-                f"could not send action event ({retry_attempt}/{ACTION_EVENT_RETRY_COUNT})"
-            )
+            logger.exception(f"could not send action event ({retry_attempt}/{ACTION_EVENT_RETRY_COUNT})")
             if retry_attempt <= ACTION_EVENT_RETRY_COUNT:
                 await exp_backoff_sleep(retry_attempt, 1)
                 await self.send_event(event, retry_attempt + 1)
@@ -451,22 +417,16 @@ class WorkerActionListenerProcess:
                                 should_not_retry=False,
                             )
                         )
-                        logger.info(
-                            f"rx: start step run: {action.step_run_id}/{action.action_id}"
-                        )
+                        logger.info(f"rx: start step run: {action.step_run_id}/{action.action_id}")
 
                         # TODO handle this case better...
                         if action.step_run_id in self.running_step_runs:
-                            logger.warning(
-                                f"step run already running: {action.step_run_id}"
-                            )
+                            logger.warning(f"step run already running: {action.step_run_id}")
 
                     case ActionType.CANCEL_STEP_RUN:
                         logger.info(f"rx: cancel step run: {action.step_run_id}")
                     case _:
-                        logger.error(
-                            f"rx: unknown action type ({action.action_type}): {action.action_type}"
-                        )
+                        logger.error(f"rx: unknown action type ({action.action_type}): {action.action_type}")
                 try:
                     self.action_queue.put(action)
                 except Exception:
