@@ -298,6 +298,18 @@ func (q *Queries) DeleteSchedulerPartition(ctx context.Context, db DBTX, id stri
 	return &i, err
 }
 
+const deleteTenant = `-- name: DeleteTenant :exec
+UPDATE "Tenant"
+SET "deletedAt" = NOW(),
+    slug = slug || '_deleted_' || gen_random_uuid()
+WHERE "id" = $1::uuid
+`
+
+func (q *Queries) DeleteTenant(ctx context.Context, db DBTX, id pgtype.UUID) error {
+	_, err := db.Exec(ctx, deleteTenant, id)
+	return err
+}
+
 const deleteTenantAlertGroup = `-- name: DeleteTenantAlertGroup :exec
 DELETE FROM
     "TenantAlertEmailGroup"
@@ -742,6 +754,51 @@ func (q *Queries) GetTenantTotalQueueMetrics(ctx context.Context, db DBTX, arg G
 	row := db.QueryRow(ctx, getTenantTotalQueueMetrics, arg.TenantId, arg.AdditionalMetadata, arg.WorkflowIds)
 	var i GetTenantTotalQueueMetricsRow
 	err := row.Scan(&i.PendingAssignmentCount, &i.PendingCount, &i.RunningCount)
+	return &i, err
+}
+
+const getTenantUsageData = `-- name: GetTenantUsageData :one
+WITH active_workers AS (
+    SELECT
+        workers."id",
+        workers."maxRuns"
+    FROM
+        "Worker" workers
+    WHERE
+        workers."tenantId" = $1::uuid
+        AND workers."dispatcherId" IS NOT NULL
+        AND workers."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND workers."isActive" = true
+        AND workers."isPaused" = false
+), worker_slots AS (
+    SELECT
+        aw."id" AS worker_id,
+        aw."maxRuns" - (
+            SELECT COUNT(*)
+            FROM v1_task_runtime runtime
+            WHERE
+                runtime.tenant_id = $1::uuid AND
+                runtime.worker_id = aw."id"
+        ) AS "remainingSlots"
+    FROM
+        active_workers aw
+)
+SELECT
+    (SELECT COUNT(*) FROM active_workers) AS "workerCount",
+    (SELECT SUM("maxRuns") - SUM("remainingSlots") FROM active_workers aw JOIN worker_slots ws ON aw."id" = ws.worker_id) AS "usedWorkerSlotsCount",
+    (SELECT COUNT(*) FROM "TenantMember" WHERE "tenantId" = $1::uuid) AS "tenantMembersCount"
+`
+
+type GetTenantUsageDataRow struct {
+	WorkerCount          int64 `json:"workerCount"`
+	UsedWorkerSlotsCount int32 `json:"usedWorkerSlotsCount"`
+	TenantMembersCount   int64 `json:"tenantMembersCount"`
+}
+
+func (q *Queries) GetTenantUsageData(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*GetTenantUsageDataRow, error) {
+	row := db.QueryRow(ctx, getTenantUsageData, tenantid)
+	var i GetTenantUsageDataRow
+	err := row.Scan(&i.WorkerCount, &i.UsedWorkerSlotsCount, &i.TenantMembersCount)
 	return &i, err
 }
 
