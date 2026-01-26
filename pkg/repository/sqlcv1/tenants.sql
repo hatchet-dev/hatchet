@@ -677,5 +677,5 @@ WITH active_workers AS (
 )
 SELECT
     (SELECT COUNT(*) FROM active_workers) AS "workerCount",
-    (SELECT SUM("maxRuns") - SUM("remainingSlots") FROM active_workers aw JOIN worker_slots ws ON aw."id" = ws.worker_id) AS "usedWorkerSlotsCount",
+    COALESCE((SELECT SUM("maxRuns") - SUM("remainingSlots") FROM active_workers aw JOIN worker_slots ws ON aw."id" = ws.worker_id), 0)::bigint AS "usedWorkerSlotsCount",
     (SELECT COUNT(*) FROM "TenantMember" WHERE "tenantId" = @tenantId::uuid) AS "tenantMembersCount";
