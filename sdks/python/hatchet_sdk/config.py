@@ -62,6 +62,17 @@ class HealthcheckConfig(BaseSettings):
 
         return timedelta(seconds=float(v))
 
+    @field_validator("bind_address", mode="after")
+    @classmethod
+    def validate_bind_address(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        if value.lower() == "none" or not value.strip():
+            return None
+
+        return value
+
 
 class OpenTelemetryConfig(BaseSettings):
     model_config = create_settings_config(
