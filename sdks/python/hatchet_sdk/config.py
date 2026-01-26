@@ -42,6 +42,8 @@ class HealthcheckConfig(BaseSettings):
         default=timedelta(seconds=5),
         description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503. Value is interpreted as seconds.",
     )
+    # HATCHET_CLIENT_WORKER_HEALTHCHECK_BIND_ADDRESS
+    bind_address: str = "0.0.0.0"
 
     @field_validator("event_loop_block_threshold_seconds", mode="before")
     @classmethod
