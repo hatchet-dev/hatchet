@@ -333,8 +333,6 @@ class Worker:
                     self.handle_kill,
                     self.client.debug,
                     self.labels,
-                    enable_health_server,
-                    healthcheck_port,
                 ),
             )
             process.start()
