@@ -375,9 +375,9 @@ export class V1Worker {
 
       // Convert Zod schema to JSON Schema if provided
       let inputJsonSchema: Uint8Array | undefined;
-      if (workflow.input) {
+      if (workflow.inputValidator) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const jsonSchema = zodToJsonSchema(workflow.input as any);
+        const jsonSchema = zodToJsonSchema(workflow.inputValidator as any);
         inputJsonSchema = new TextEncoder().encode(JSON.stringify(jsonSchema));
       }
 

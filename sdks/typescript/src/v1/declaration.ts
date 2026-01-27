@@ -139,9 +139,10 @@ export type CreateBaseWorkflowOpts = {
 
   /**
    * (optional) Zod schema for the workflow input.
-   * When provided, a JSON Schema is generated and sent to the Hatchet backend.
+   * When provided, a JSON Schema is generated and sent to the Hatchet backend, which
+   * can be used on the dashboard for autocomplete.
    */
-  input?: z.ZodType<any>;
+  inputValidator?: z.ZodType<any>;
 };
 
 export type CreateTaskWorkflowOpts<
