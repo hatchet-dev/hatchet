@@ -244,10 +244,11 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	createCoreEventsExternalIds := []pgtype.UUID{}
 	createCoreEventsSeenAts := []pgtype.Timestamptz{}
 	createCoreEventsKeys := []string{}
-	createCoreEventsPayloads := [][]byte{}
 	createCoreEventsAdditionalMetadatas := [][]byte{}
 	createCoreEventsScopes := []pgtype.Text{}
 	createCoreEventsTriggeringWebhookNames := []pgtype.Text{}
+
+	eventExternalIdsToPayloads := make(map[string][]byte)
 
 	seenAt := time.Now().UTC() // TODO: propagate this to caller, and figure out how we should be setting this
 
@@ -262,7 +263,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 			createCoreEventsExternalIds = append(createCoreEventsExternalIds, sqlchelpers.UUIDFromStr(opt.ExternalId))
 			createCoreEventsSeenAts = append(createCoreEventsSeenAts, sqlchelpers.TimestamptzFromTime(seenAt))
 			createCoreEventsKeys = append(createCoreEventsKeys, opt.Key)
-			createCoreEventsPayloads = append(createCoreEventsPayloads, opt.Data)
+			eventExternalIdsToPayloads[opt.ExternalId] = opt.Data
 			createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
 			if opt.Scope != nil {
 				createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{String: *opt.Scope, Valid: true})
@@ -442,12 +443,12 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 				Externalids:            createCoreEventsExternalIds,
 				Seenats:                createCoreEventsSeenAts,
 				Keys:                   createCoreEventsKeys,
-				Payloads:               createCoreEventsPayloads,
 				Additionalmetadatas:    createCoreEventsAdditionalMetadatas,
 				Scopes:                 createCoreEventsScopes,
 				TriggeringWebhookNames: createCoreEventsTriggeringWebhookNames,
 			},
 			externalIdToEventIdAndFilterId: externalIdToEventIdAndFilterId,
+			externalIdsToPayloads:          eventExternalIdsToPayloads,
 		}
 	}
 
@@ -737,6 +738,7 @@ type triggerTuple struct {
 
 type createCoreUserEventOpts struct {
 	externalIdToEventIdAndFilterId map[string]EventExternalIdFilterId
+	externalIdsToPayloads          map[string][]byte
 	params                         sqlcv1.BulkCreateEventsParams
 }
 
@@ -1329,12 +1331,6 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		})
 	}
 
-	err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to store payloads: %w", err)
-	}
-
 	if coreEvents != nil {
 		eventExternalIdsToIds := make(map[string]EventIds)
 
@@ -1418,6 +1414,29 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create event to runs: %w", err)
 		}
+
+		for _, e := range createdEvents {
+			payload, ok := coreEvents.externalIdsToPayloads[e.ExternalID.String()]
+
+			if !ok {
+				continue
+			}
+
+			storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+				Id:         e.ID,
+				InsertedAt: e.SeenAt,
+				ExternalId: e.ExternalID,
+				Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
+				Payload:    payload,
+				TenantId:   tenantId,
+			})
+		}
+	}
+
+	err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to store payloads: %w", err)
 	}
 
 	// commit

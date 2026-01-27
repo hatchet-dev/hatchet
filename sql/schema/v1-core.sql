@@ -1640,7 +1640,7 @@ CREATE TABLE v1_durable_sleep (
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
 
-CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA');
+CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA', 'USER_EVENT_INPUT');
 
 -- IMPORTANT: Keep these values in sync with `v1_payload_type_olap` in the OLAP db
 CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
@@ -2154,7 +2154,6 @@ CREATE TABLE v1_event (
     tenant_id UUID NOT NULL,
     external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     key TEXT NOT NULL,
-    payload JSONB NOT NULL,
     additional_metadata JSONB,
     scope TEXT,
     triggering_webhook_name TEXT,

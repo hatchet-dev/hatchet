@@ -1482,10 +1482,11 @@ func (ns NullV1PayloadLocationOlap) Value() (driver.Value, error) {
 type V1PayloadType string
 
 const (
-	V1PayloadTypeTASKINPUT     V1PayloadType = "TASK_INPUT"
-	V1PayloadTypeDAGINPUT      V1PayloadType = "DAG_INPUT"
-	V1PayloadTypeTASKOUTPUT    V1PayloadType = "TASK_OUTPUT"
-	V1PayloadTypeTASKEVENTDATA V1PayloadType = "TASK_EVENT_DATA"
+	V1PayloadTypeTASKINPUT      V1PayloadType = "TASK_INPUT"
+	V1PayloadTypeDAGINPUT       V1PayloadType = "DAG_INPUT"
+	V1PayloadTypeTASKOUTPUT     V1PayloadType = "TASK_OUTPUT"
+	V1PayloadTypeTASKEVENTDATA  V1PayloadType = "TASK_EVENT_DATA"
+	V1PayloadTypeUSEREVENTINPUT V1PayloadType = "USER_EVENT_INPUT"
 )
 
 func (e *V1PayloadType) Scan(src interface{}) error {
@@ -3025,7 +3026,6 @@ type V1Event struct {
 	TenantID              pgtype.UUID        `json:"tenant_id"`
 	ExternalID            pgtype.UUID        `json:"external_id"`
 	Key                   string             `json:"key"`
-	Payload               []byte             `json:"payload"`
 	AdditionalMetadata    []byte             `json:"additional_metadata"`
 	Scope                 pgtype.Text        `json:"scope"`
 	TriggeringWebhookName pgtype.Text        `json:"triggering_webhook_name"`

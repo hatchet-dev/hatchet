@@ -1,12 +1,13 @@
 -- +goose Up
 -- +goose StatementBegin
+ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'USER_EVENT_INPUT';
+
 CREATE TABLE IF NOT EXISTS v1_event (
     id bigint GENERATED ALWAYS AS IDENTITY,
     seen_at TIMESTAMPTZ NOT NULL,
     tenant_id UUID NOT NULL,
     external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     key TEXT NOT NULL,
-    payload JSONB NOT NULL,
     additional_metadata JSONB,
     scope TEXT,
     triggering_webhook_name TEXT,
