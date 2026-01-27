@@ -1,7 +1,7 @@
 import CopyToClipboard from './copy-to-clipboard';
 import { useTheme } from '@/components/hooks/use-theme';
 import { cn } from '@/lib/utils';
-import Editor, { Monaco } from '@monaco-editor/react';
+import Editor, { Monaco, OnMount } from '@monaco-editor/react';
 import 'monaco-themes/themes/Pastels on Dark.json';
 import { useEffect, useId, useRef } from 'react';
 
@@ -39,15 +39,8 @@ export function CodeEditor({
     (language === 'json' && jsonSchema && Object.keys(jsonSchema).length > 0) ??
     false;
 
-  const handleBeforeMount = (monaco: Monaco) => {
-    monacoRef.current = monaco;
-    monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
-    monaco.editor.setTheme('pastels-on-dark');
-  };
-
-  useEffect(() => {
-    const monaco = monacoRef.current;
-    if (!monaco || language !== 'json') {
+  const configureJsonSchema = (monaco: Monaco) => {
+    if (language !== 'json') {
       return;
     }
 
@@ -75,6 +68,24 @@ export function CodeEditor({
       enableSchemaRequest: false,
       schemas: newSchemas,
     });
+  };
+
+  const handleBeforeMount = (monaco: Monaco) => {
+    monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
+    monaco.editor.setTheme('pastels-on-dark');
+  };
+
+  const handleMount: OnMount = (editor, monaco) => {
+    monacoRef.current = monaco;
+    configureJsonSchema(monaco);
+  };
+
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco) {
+      return;
+    }
+    configureJsonSchema(monaco);
   }, [jsonSchema, hasJsonSchema, language, modelPath, editorId]);
 
   const editorTheme = theme === 'dark' ? 'pastels-on-dark' : '';
@@ -88,6 +99,7 @@ export function CodeEditor({
     >
       <Editor
         beforeMount={handleBeforeMount}
+        onMount={handleMount}
         path={hasJsonSchema ? modelPath : undefined}
         language={language}
         value={code || ''}
