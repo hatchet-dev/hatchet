@@ -209,9 +209,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         if input_type is None or input_type is EmptyModel:
             json_schema = None
         else:
-            json_schema = json.dumps(self.config.input_validator.json_schema()).encode(
-                "utf-8"
-            )
+            try:
+                json_schema = json.dumps(
+                    self.config.input_validator.json_schema()
+                ).encode("utf-8")
+            except Exception:
+                json_schema = None
 
         return CreateWorkflowVersionRequest(
             name=name,
