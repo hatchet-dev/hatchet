@@ -55,7 +55,7 @@ func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowLis
 	rows := make([]gen.Workflow, len(listResp.Rows))
 
 	for i := range listResp.Rows {
-		workflow := transformers.ToWorkflowFromSQLC(listResp.Rows[i].Workflow, listResp.Rows[i].InputJsonSchema)
+		workflow := transformers.ToWorkflowFromSQLC(listResp.Rows[i])
 
 		rows[i] = *workflow
 	}
