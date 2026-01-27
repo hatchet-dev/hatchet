@@ -3,7 +3,7 @@ import { useTheme } from '@/components/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import Editor, { Monaco } from '@monaco-editor/react';
 import 'monaco-themes/themes/Pastels on Dark.json';
-import { useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
 
 interface CodeEditorProps {
   code?: string;
@@ -33,38 +33,48 @@ export function CodeEditor({
   const { theme } = useTheme();
   const editorId = useId();
   const modelPath = `file:///editor-${editorId.replace(/:/g, '-')}.json`;
+  const monacoRef = useRef<Monaco | null>(null);
 
   const hasJsonSchema =
     (language === 'json' && jsonSchema && Object.keys(jsonSchema).length > 0) ??
     false;
 
   const handleBeforeMount = (monaco: Monaco) => {
+    monacoRef.current = monaco;
     monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
     monaco.editor.setTheme('pastels-on-dark');
+  };
 
-    if (hasJsonSchema) {
-      const existingOptions =
-        monaco.languages.json.jsonDefaults.diagnosticsOptions;
-      const existingSchemas = existingOptions.schemas || [];
+    const monaco = monacoRef.current;
+    if (!monaco || language !== 'json') {
+      return;
+    }
 
-      const otherSchemas = existingSchemas.filter(
-        (s) => !s.fileMatch?.includes(modelPath),
-      );
+    const existingOptions =
+      monaco.languages.json.jsonDefaults.diagnosticsOptions;
+    const existingSchemas = existingOptions.schemas || [];
 
-      monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
-        validate: true,
-        enableSchemaRequest: false,
-        schemas: [
+    const otherSchemas = existingSchemas.filter(
+      (s) => !s.fileMatch?.includes(modelPath),
+    );
+
+    const newSchemas = hasJsonSchema
+      ? [
           ...otherSchemas,
           {
             uri: `http://hatchet/schema-${editorId}.json`,
             fileMatch: [modelPath],
             schema: jsonSchema,
           },
-        ],
-      });
-    }
-  };
+        ]
+      : otherSchemas;
+
+    monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+      validate: true,
+      enableSchemaRequest: false,
+      schemas: newSchemas,
+    });
+  }, [jsonSchema, hasJsonSchema, language, modelPath, editorId]);
 
   const editorTheme = theme === 'dark' ? 'pastels-on-dark' : '';
 
