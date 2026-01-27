@@ -604,8 +604,7 @@ export class InternalWorker {
       });
 
       try {
-        const taskError = await future.promise;
-        return taskError;
+        return await future.promise;
       } catch (e: any) {
         const message = e?.message || String(e);
         // TODO is this cased correctly...

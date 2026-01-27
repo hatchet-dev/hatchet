@@ -138,11 +138,11 @@ function filterAttributes(
  */
 export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentationConfig> {
   constructor(config: Partial<HatchetInstrumentationConfig> = {}) {
-    super(INSTRUMENTOR_NAME, HATCHET_VERSION, { ...DEFAULT_CONFIG, ...config } as HatchetInstrumentationConfig);
+    super(INSTRUMENTOR_NAME, HATCHET_VERSION, { ...DEFAULT_CONFIG, ...config });
   }
 
   override setConfig(config: Partial<HatchetInstrumentationConfig> = {}): void {
-    super.setConfig({ ...DEFAULT_CONFIG, ...config } as HatchetInstrumentationConfig);
+    super.setConfig({ ...DEFAULT_CONFIG, ...config });
   }
 
   protected init(): InstanceType<typeof InstrumentationNodeModuleDefinition>[] {
