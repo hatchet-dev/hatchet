@@ -49,6 +49,7 @@ The response is a JSON object keyed by task name, with each task containing stat
     },
     "running": {
       "total": 25,
+      "oldest": "2024-01-15T10:25:00Z",
       "concurrency": []
     }
   }
@@ -59,11 +60,11 @@ Each task stat includes:
 
 - **total**: The total count of tasks in this state
 - **concurrency**: Distribution across concurrency groups (if concurrency limits are configured)
+- **oldest**: Timestamp of the oldest task in the specified state
 
 These are available only for `queued` tasks:
 
 - **queues**: A breakdown of task counts by queue name
-- **oldest**: Timestamp of the oldest task currently enqueued (useful for detecting queue backlogs)
 
 ### Example Usage
 
