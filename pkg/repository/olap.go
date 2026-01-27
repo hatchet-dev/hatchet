@@ -246,7 +246,9 @@ type OLAPRepository interface {
 	ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
 
 	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
-	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
+
+	// Events queries
+	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error)
 	GetEvent(ctx context.Context, externalId string) (*sqlcv1.V1EventsOlap, error)
 	GetEventWithPayload(ctx context.Context, externalId, tenantId string) (*EventWithPayload, error)
@@ -2056,7 +2058,7 @@ type EventTriggersFromExternalId struct {
 	FilterId        pgtype.UUID        `json:"filter_id"`
 }
 
-func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error {
+func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, triggers []EventTriggersFromExternalId) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
@@ -2083,7 +2085,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		eventsToInsert.Payloads = payloads
 	}
 
-	insertedEvents, err := r.queries.BulkCreateEvents(ctx, tx, eventsToInsert)
+	insertedEvents, err := r.queries.BulkCreateEventsOLAP(ctx, tx, eventsToInsert)
 
 	if err != nil {
 		return fmt.Errorf("error creating events: %v", err)

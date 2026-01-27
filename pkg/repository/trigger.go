@@ -103,11 +103,14 @@ type TriggerRepository interface {
 
 type TriggerRepositoryImpl struct {
 	*sharedRepository
+
+	enableDurableUserEventLog bool
 }
 
-func newTriggerRepository(s *sharedRepository) TriggerRepository {
+func newTriggerRepository(s *sharedRepository, enableDurableUserEventLog bool) TriggerRepository {
 	return &TriggerRepositoryImpl{
-		sharedRepository: s,
+		sharedRepository:          s,
+		enableDurableUserEventLog: enableDurableUserEventLog,
 	}
 }
 
@@ -216,6 +219,11 @@ type EventExternalIdFilterId struct {
 	FilterId   *string
 }
 
+type EventIds struct {
+	SeenAt pgtype.Timestamptz
+	Id     int64
+}
+
 type WorkflowAndScope struct {
 	WorkflowId pgtype.UUID
 	Scope      string
@@ -230,12 +238,44 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 	eventKeysToOpts := make(map[string][]EventTriggerOpts)
 	eventExternalIdToRuns := make(map[string][]*Run)
+	var createCoreEventOpts *createCoreUserEventOpts
+
+	createCoreEventsTenantIds := []pgtype.UUID{}
+	createCoreEventsExternalIds := []pgtype.UUID{}
+	createCoreEventsSeenAts := []pgtype.Timestamptz{}
+	createCoreEventsKeys := []string{}
+	createCoreEventsPayloads := [][]byte{}
+	createCoreEventsAdditionalMetadatas := [][]byte{}
+	createCoreEventsScopes := []pgtype.Text{}
+	createCoreEventsTriggeringWebhookNames := []pgtype.Text{}
+
+	seenAt := time.Now().UTC() // TODO: propagate this to caller, and figure out how we should be setting this
 
 	eventKeys := make([]string, 0, len(opts))
 	uniqueEventKeys := make(map[string]struct{})
 
 	for _, opt := range opts {
 		eventExternalIdToRuns[opt.ExternalId] = []*Run{}
+
+		if r.enableDurableUserEventLog {
+			createCoreEventsTenantIds = append(createCoreEventsTenantIds, sqlchelpers.UUIDFromStr(tenantId))
+			createCoreEventsExternalIds = append(createCoreEventsExternalIds, sqlchelpers.UUIDFromStr(opt.ExternalId))
+			createCoreEventsSeenAts = append(createCoreEventsSeenAts, sqlchelpers.TimestamptzFromTime(seenAt))
+			createCoreEventsKeys = append(createCoreEventsKeys, opt.Key)
+			createCoreEventsPayloads = append(createCoreEventsPayloads, opt.Data)
+			createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
+			if opt.Scope != nil {
+				createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{String: *opt.Scope, Valid: true})
+			} else {
+				createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{Valid: false})
+			}
+
+			if opt.TriggeringWebhookName != nil {
+				createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{String: *opt.TriggeringWebhookName, Valid: true})
+			} else {
+				createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{Valid: false})
+			}
+		}
 
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
 
@@ -395,7 +435,23 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 	}
 
-	tasks, dags, err := r.triggerWorkflows(ctx, tenantId, triggerOpts)
+	if r.enableDurableUserEventLog {
+		createCoreEventOpts = &createCoreUserEventOpts{
+			params: sqlcv1.BulkCreateEventsParams{
+				Tenantids:              createCoreEventsTenantIds,
+				Externalids:            createCoreEventsExternalIds,
+				Seenats:                createCoreEventsSeenAts,
+				Keys:                   createCoreEventsKeys,
+				Payloads:               createCoreEventsPayloads,
+				Additionalmetadatas:    createCoreEventsAdditionalMetadatas,
+				Scopes:                 createCoreEventsScopes,
+				TriggeringWebhookNames: createCoreEventsTriggeringWebhookNames,
+			},
+			externalIdToEventIdAndFilterId: externalIdToEventIdAndFilterId,
+		}
+	}
+
+	tasks, dags, err := r.triggerWorkflows(ctx, tenantId, triggerOpts, createCoreEventOpts)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to trigger workflows: %w", err)
@@ -532,7 +588,7 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 		}
 	}
 
-	return r.triggerWorkflows(ctx, tenantId, triggerOpts)
+	return r.triggerWorkflows(ctx, tenantId, triggerOpts, nil)
 }
 
 type ErrNamesNotFound struct {
@@ -679,7 +735,12 @@ type triggerTuple struct {
 	childKey             *string
 }
 
-func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId string, tuples []triggerTuple) ([]*V1TaskWithPayload, []*DAGWithData, error) {
+type createCoreUserEventOpts struct {
+	externalIdToEventIdAndFilterId map[string]EventExternalIdFilterId
+	params                         sqlcv1.BulkCreateEventsParams
+}
+
+func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId string, tuples []triggerTuple, coreEvents *createCoreUserEventOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[string]struct{})
 
@@ -1272,6 +1333,91 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to store payloads: %w", err)
+	}
+
+	if coreEvents != nil {
+		eventExternalIdsToIds := make(map[string]EventIds)
+
+		createdEvents, err := r.queries.BulkCreateEvents(ctx, tx, coreEvents.params)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create core events: %w", err)
+		}
+
+		for _, createdEvent := range createdEvents {
+			eventExternalIdsToIds[createdEvent.ExternalID.String()] = EventIds{
+				Id:     createdEvent.ID,
+				SeenAt: createdEvent.SeenAt,
+			}
+		}
+
+		eventToRunExternalIds := []pgtype.UUID{}
+		eventToRunEventIds := []int64{}
+		eventToRunEventSeenAts := []pgtype.Timestamptz{}
+		eventToRunRunFilterIds := []pgtype.UUID{}
+
+		for _, task := range tasks {
+			externalId := task.ExternalID
+
+			eventIdAndFilterId, ok := coreEvents.externalIdToEventIdAndFilterId[externalId.String()]
+
+			if !ok {
+				continue
+			}
+
+			eventIds, ok := eventExternalIdsToIds[eventIdAndFilterId.ExternalId]
+
+			if !ok {
+				continue
+			}
+
+			eventToRunExternalIds = append(eventToRunExternalIds, task.ExternalID)
+			eventToRunEventIds = append(eventToRunEventIds, eventIds.Id)
+			eventToRunEventSeenAts = append(eventToRunEventSeenAts, eventIds.SeenAt)
+
+			if eventIdAndFilterId.FilterId != nil {
+				eventToRunRunFilterIds = append(eventToRunRunFilterIds, sqlchelpers.UUIDFromStr(*eventIdAndFilterId.FilterId))
+			} else {
+				eventToRunRunFilterIds = append(eventToRunRunFilterIds, pgtype.UUID{Valid: false})
+			}
+		}
+
+		for _, dag := range dags {
+			externalId := dag.ExternalID
+
+			eventIdAndFilterId, ok := coreEvents.externalIdToEventIdAndFilterId[externalId.String()]
+
+			if !ok {
+				continue
+			}
+
+			eventIds, ok := eventExternalIdsToIds[eventIdAndFilterId.ExternalId]
+
+			if !ok {
+				continue
+			}
+
+			eventToRunExternalIds = append(eventToRunExternalIds, dag.ExternalID)
+			eventToRunEventIds = append(eventToRunEventIds, eventIds.Id)
+			eventToRunEventSeenAts = append(eventToRunEventSeenAts, eventIds.SeenAt)
+
+			if eventIdAndFilterId.FilterId != nil {
+				eventToRunRunFilterIds = append(eventToRunRunFilterIds, sqlchelpers.UUIDFromStr(*eventIdAndFilterId.FilterId))
+			} else {
+				eventToRunRunFilterIds = append(eventToRunRunFilterIds, pgtype.UUID{Valid: false})
+			}
+		}
+
+		_, err = r.queries.CreateEventToRuns(ctx, tx, sqlcv1.CreateEventToRunsParams{
+			Runexternalids: eventToRunExternalIds,
+			Eventids:       eventToRunEventIds,
+			Eventseenats:   eventToRunEventSeenAts,
+			Filterids:      eventToRunRunFilterIds,
+		})
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create event to runs: %w", err)
+		}
 	}
 
 	// commit

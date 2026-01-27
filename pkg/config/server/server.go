@@ -284,6 +284,10 @@ type ConfigFileRuntime struct {
 
 	// TaskOperationLimits controls the limits for various task operations
 	TaskOperationLimits TaskOperationLimitsConfigFile `mapstructure:"taskOperationLimits" json:"taskOperationLimits,omitempty"`
+
+	// EnableDurableUserEventLog controls whether we enable the durable event log for user events. By default, we don't persist user events
+	// to the core database, we only use them to trigger workflows. Enabling this will persist them to the core database.
+	EnableDurableUserEventLog bool `mapstructure:"enableDurableUserEventLog" json:"enableDurableUserEventLog,omitempty" default:"false"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -850,6 +854,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("taskOperationLimits.reassignLimit", "SERVER_TASK_OPERATION_LIMITS_REASSIGN_LIMIT")
 	_ = v.BindEnv("taskOperationLimits.retryQueueLimit", "SERVER_TASK_OPERATION_LIMITS_RETRY_QUEUE_LIMIT")
 	_ = v.BindEnv("taskOperationLimits.durableSleepLimit", "SERVER_TASK_OPERATION_LIMITS_DURABLE_SLEEP_LIMIT")
+
+	// enable durable user event log
+	_ = v.BindEnv("enableDurableUserEventLog", "SERVER_ENABLE_DURABLE_USER_EVENT_LOG")
 
 	// payload store options
 	_ = v.BindEnv("payloadStore.enablePayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES")
