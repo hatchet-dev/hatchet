@@ -78,7 +78,7 @@ export function CodeEditor({
     monaco.editor.setTheme('pastels-on-dark');
   };
 
-  const handleMount: OnMount = (editor, monaco) => {
+  const handleMount: OnMount = (_, monaco) => {
     monacoRef.current = monaco;
     configureJsonSchema(monaco);
   };
