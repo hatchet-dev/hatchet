@@ -55,3 +55,43 @@ type OTelCollectorRepository interface {
 
 	ListSpansByTraceID(ctx context.Context, tenantId string, traceId []byte, opts *ListSpansOpts) ([]*SpanData, error)
 }
+
+type otelCollectorRepositoryImpl struct {
+	*sharedRepository
+}
+
+func newOTelCollectorRepository(s *sharedRepository) OTelCollectorRepository {
+	return &otelCollectorRepositoryImpl{
+		sharedRepository: s,
+	}
+}
+
+func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId string, opts *CreateSpansOpts) error {
+	if err := o.v.Validate(opts); err != nil {
+		return err
+	}
+
+	// TODO: Implement CreateSpans to store spans in database
+	// For now, just log that we received spans
+	o.l.Debug().
+		Int("span_count", len(opts.Spans)).
+		Str("tenant_id", tenantId).
+		Msg("received spans for storage (not yet implemented)")
+
+	return nil
+}
+
+func (o *otelCollectorRepositoryImpl) ListSpansByTask(ctx context.Context, tenantId, taskExternalId string, opts *ListSpansOpts) ([]*SpanData, error) {
+	// TODO: Implement ListSpansByTask
+	return nil, nil
+}
+
+func (o *otelCollectorRepositoryImpl) ListSpansByWorkflowRun(ctx context.Context, tenantId, workflowRunId string, opts *ListSpansOpts) ([]*SpanData, error) {
+	// TODO: Implement ListSpansByWorkflowRun
+	return nil, nil
+}
+
+func (o *otelCollectorRepositoryImpl) ListSpansByTraceID(ctx context.Context, tenantId string, traceId []byte, opts *ListSpansOpts) ([]*SpanData, error) {
+	// TODO: Implement ListSpansByTraceID
+	return nil, nil
+}

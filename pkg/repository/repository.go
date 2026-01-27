@@ -141,6 +141,7 @@ func NewRepository(
 		user:              newUserRepository(shared),
 		userSession:       newUserSessionRepository(shared),
 		workflowSchedules: newWorkflowScheduleRepository(shared),
+		otelcol:           newOTelCollectorRepository(shared),
 	}
 
 	return impl, func() error {
