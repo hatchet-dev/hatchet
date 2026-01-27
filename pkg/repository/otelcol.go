@@ -23,9 +23,9 @@ type SpanData struct {
 	Links              []byte
 	ResourceAttributes []byte
 
-	TaskExternalID *pgtype.UUID // hatchet.task_external_id
-	WorkflowRunID  *pgtype.UUID // hatchet.workflow_run_id
-	TenantID       pgtype.UUID  // hatchet.tenant_id
+	TaskRunExternalID *pgtype.UUID // from hatchet.task_run_external_id attribute
+	WorkflowRunID     *pgtype.UUID // from hatchet.workflow_run_id attribute
+	TenantID          pgtype.UUID  // from auth context
 
 	InstrumentationScope string
 }

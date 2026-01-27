@@ -17,8 +17,8 @@ import (
 
 const (
 	AttrHatchetTenantID      = "hatchet.tenant_id"
-	AttrHatchetTaskID        = "hatchet.task.id"
-	AttrHatchetWorkflowRunID = "hatchet.workflow_run.id"
+	AttrHatchetTaskRunID     = "hatchet.task_run_external_id" // Task run external ID from SDK
+	AttrHatchetWorkflowRunID = "hatchet.workflow_run_id"      // Workflow run ID from SDK
 )
 
 type otelCollectorImpl struct {
@@ -110,10 +110,10 @@ func (oc *otelCollectorImpl) convertOTLPToSpanData(resourceSpans []*tracev1.Reso
 func (oc *otelCollectorImpl) extractHatchetCorrelation(attrs []*commonv1.KeyValue, spanData *repository.SpanData) {
 	for _, attr := range attrs {
 		switch attr.GetKey() {
-		case AttrHatchetTaskID:
+		case AttrHatchetTaskRunID:
 			if strVal := attr.GetValue().GetStringValue(); strVal != "" {
 				uuid := sqlchelpers.UUIDFromStr(strVal)
-				spanData.TaskExternalID = &uuid
+				spanData.TaskRunExternalID = &uuid
 			}
 		case AttrHatchetWorkflowRunID:
 			if strVal := attr.GetValue().GetStringValue(); strVal != "" {
