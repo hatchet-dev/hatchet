@@ -195,9 +195,6 @@ class Runner:
             try:
                 output = self.serialize_output(output)
 
-                if was_cancelled:
-                    return
-
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
