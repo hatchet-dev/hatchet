@@ -145,17 +145,17 @@ export function TriggerWorkflowForm({
     refetchInterval: 15000,
   });
 
-const jsonSchema = selectedWorkflow?.inputJsonSchema;
+  const jsonSchema = selectedWorkflow?.inputJsonSchema;
 
   const triggerNowMutation = useMutation({
     mutationKey: ['workflow-run:create', selectedWorkflow?.metadata.id],
     mutationFn: async (data: { input: object; addlMeta: object }) => {
-      if (!selectedWorkflow) {
+      if (!selectedWorkflow || !selectedWorkflow.workflow) {
         return;
       }
 
       const res = await api.v1WorkflowRunCreate(tenantId, {
-        workflowName: selectedWorkflow.name,
+        workflowName: selectedWorkflow.workflow.name,
         input: data.input,
         additionalMetadata: data.addlMeta,
       });
@@ -185,13 +185,13 @@ const jsonSchema = selectedWorkflow?.inputJsonSchema;
       addlMeta: object;
       scheduledAt: string;
     }) => {
-      if (!selectedWorkflow) {
+      if (!selectedWorkflow || !selectedWorkflow.workflow) {
         return;
       }
 
       const res = await api.scheduledWorkflowRunCreate(
         tenantId,
-        selectedWorkflow?.name,
+        selectedWorkflow.workflow.name,
         {
           input: data.input,
           additionalMetadata: data.addlMeta,
@@ -228,13 +228,13 @@ const jsonSchema = selectedWorkflow?.inputJsonSchema;
       cron: string;
       cronName: string;
     }) => {
-      if (!selectedWorkflow) {
+      if (!selectedWorkflow || !selectedWorkflow.workflow) {
         return;
       }
 
       const res = await api.cronWorkflowTriggerCreate(
         tenantId,
-        selectedWorkflow?.name,
+        selectedWorkflow.workflow.name,
         {
           input: data.input,
           additionalMetadata: data.addlMeta,
