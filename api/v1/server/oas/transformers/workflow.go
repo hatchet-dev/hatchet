@@ -109,6 +109,16 @@ func ToWorkflowVersion(
 		res.Workflow = ToWorkflowFromSQLC(workflow, nil)
 	}
 
+	if len(version.InputJsonSchema) > 0 {
+		versionMap := make(map[string]interface{})
+
+		err := json.Unmarshal(version.InputJsonSchema, &versionMap)
+
+		if err == nil {
+			res.InputJsonSchema = &versionMap
+		}
+	}
+
 	triggersResp := gen.WorkflowTriggers{}
 
 	if len(crons) > 0 {
@@ -243,11 +253,10 @@ func ToWorkflowFromSQLC(row *sqlcv1.Workflow, inputJsonSchema []byte) *gen.Workf
 	}
 
 	res := &gen.Workflow{
-		Metadata:        *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
-		Name:            row.Name,
-		Description:     &row.Description.String,
-		IsPaused:        &row.IsPaused.Bool,
-		InputJsonSchema: &jsonSchema,
+		Metadata:    *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
+		Name:        row.Name,
+		Description: &row.Description.String,
+		IsPaused:    &row.IsPaused.Bool,
 	}
 
 	return res

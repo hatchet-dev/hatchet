@@ -28,9 +28,6 @@ Workflow:
     tenantId:
       type: string
       description: The tenant id of the workflow.
-    inputJsonSchema:
-      type: object
-      description: The JSON schema for the workflow input.
   required:
     - metadata
     - name
@@ -130,6 +127,9 @@ WorkflowVersion:
       type: array
       items:
         $ref: "#/ConcurrencySetting"
+    inputJsonSchema:
+      type: object
+      description: The JSON schema for the workflow input.
   required:
     - metadata
     - version
