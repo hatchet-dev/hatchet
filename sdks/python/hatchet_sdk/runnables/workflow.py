@@ -204,7 +204,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             _concurrency_arr = []
 
         # Hack to not send a JSON schema if the input type is None/EmptyModel
-
         input_type = self.config.input_validator.core_schema.get("cls")
 
         if input_type is None or input_type is EmptyModel:
