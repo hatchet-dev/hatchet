@@ -3,7 +3,7 @@ import { useTheme } from '@/components/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import Editor, { Monaco, OnMount } from '@monaco-editor/react';
 import 'monaco-themes/themes/Pastels on Dark.json';
-import { useEffect, useId, useRef } from 'react';
+import { useCallback, useEffect, useId, useRef } from 'react';
 
 interface CodeEditorProps {
   code?: string;
@@ -39,36 +39,39 @@ export function CodeEditor({
     (language === 'json' && jsonSchema && Object.keys(jsonSchema).length > 0) ??
     false;
 
-  const configureJsonSchema = (monaco: Monaco) => {
-    if (language !== 'json') {
-      return;
-    }
+  const configureJsonSchema = useCallback(
+    (monaco: Monaco) => {
+      if (language !== 'json') {
+        return;
+      }
 
-    const existingOptions =
-      monaco.languages.json.jsonDefaults.diagnosticsOptions;
-    const existingSchemas = existingOptions.schemas || [];
+      const existingOptions =
+        monaco.languages.json.jsonDefaults.diagnosticsOptions;
+      const existingSchemas = existingOptions.schemas || [];
 
-    const otherSchemas = existingSchemas.filter(
-      (s) => !s.fileMatch?.includes(modelPath),
-    );
+      const otherSchemas = existingSchemas.filter(
+        (s) => !s.fileMatch?.includes(modelPath),
+      );
 
-    const newSchemas = hasJsonSchema
-      ? [
-          ...otherSchemas,
-          {
-            uri: `http://hatchet/schema-${editorId}.json`,
-            fileMatch: [modelPath],
-            schema: jsonSchema,
-          },
-        ]
-      : otherSchemas;
+      const newSchemas = hasJsonSchema
+        ? [
+            ...otherSchemas,
+            {
+              uri: `http://hatchet/schema-${editorId}.json`,
+              fileMatch: [modelPath],
+              schema: jsonSchema,
+            },
+          ]
+        : otherSchemas;
 
-    monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
-      validate: true,
-      enableSchemaRequest: false,
-      schemas: newSchemas,
-    });
-  };
+      monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+        validate: true,
+        enableSchemaRequest: false,
+        schemas: newSchemas,
+      });
+    },
+    [language, jsonSchema, hasJsonSchema, modelPath, editorId],
+  );
 
   const handleBeforeMount = (monaco: Monaco) => {
     monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
@@ -86,7 +89,14 @@ export function CodeEditor({
       return;
     }
     configureJsonSchema(monaco);
-  }, [jsonSchema, hasJsonSchema, language, modelPath, editorId]);
+  }, [
+    jsonSchema,
+    hasJsonSchema,
+    language,
+    modelPath,
+    editorId,
+    configureJsonSchema,
+  ]);
 
   const editorTheme = theme === 'dark' ? 'pastels-on-dark' : '';
 
