@@ -319,11 +319,19 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_TENANT_ALERTING_SLACK_CLIENT_ID`     | Slack client ID                     |                        |
 | `SERVER_TENANT_ALERTING_SLACK_CLIENT_SECRET` | Slack client secret                 |                        |
 | `SERVER_TENANT_ALERTING_SLACK_SCOPES`        | Slack scopes                        | `["incoming-webhook"]` |
+| `SERVER_EMAIL_KIND`                          | Email integration kind              | `postmark`             |
 | `SERVER_EMAIL_POSTMARK_ENABLED`              | Enable Postmark                     |                        |
 | `SERVER_EMAIL_POSTMARK_SERVER_KEY`           | Postmark server key                 |                        |
 | `SERVER_EMAIL_POSTMARK_FROM_EMAIL`           | Postmark from email                 |                        |
 | `SERVER_EMAIL_POSTMARK_FROM_NAME`            | Postmark from name                  | `Hatchet Support`      |
 | `SERVER_EMAIL_POSTMARK_SUPPORT_EMAIL`        | Postmark support email              |                        |
+| `SERVER_EMAIL_SMTP_ENABLED`                  | Enable SMTP                         |                        |
+| `SERVER_EMAIL_SMTP_SERVER_ADDR`              | SMTP server address                 |                        |
+| `SERVER_EMAIL_SMTP_FROM_EMAIL`               | SMTP from email                     |                        |
+| `SERVER_EMAIL_SMTP_FROM_NAME`                | SMTP from name                      | `Hatchet Support`      |
+| `SERVER_EMAIL_SMTP_SUPPORT_EMAIL`            | SMTP support email                  |                        |
+| `SERVER_EMAIL_SMTP_AUTH_USERNAME`            | SMTP authentication username        |                        |
+| `SERVER_EMAIL_SMTP_AUTH_PASSWORD`            | SMTP authentication password        |                        |
 | `SERVER_MONITORING_ENABLED`                  | Enable monitoring                   | `true`                 |
 | `SERVER_MONITORING_PERMITTED_TENANTS`        | Permitted tenants for monitoring    |                        |
 | `SERVER_MONITORING_PROBE_TIMEOUT`            | Monitoring probe timeout            | `30s`                  |

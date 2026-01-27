@@ -6,6 +6,14 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting/alerttypes"
 )
 
+const (
+	UserInviteTemplate         = "user-invitation"
+	WorkflowRunsFailedTemplate = "workflow-runs-failed"
+	TokenAlertExpiringTemplate = "token-expiring" // nolint: gosec
+	ResourceLimitAlertTemplate = "resource-limit-alert"
+	OrganizationInviteTemplate = "organization-invite"
+)
+
 type TenantInviteEmailData struct {
 	InviteSenderName string `json:"invite_sender_name"`
 	TenantName       string `json:"tenant_name"`
@@ -42,6 +50,14 @@ type ResourceLimitAlertData struct {
 	LimitValue   int    `json:"limit_value"`
 	Percentage   int    `json:"percentage"`
 	SettingsLink string `json:"settings_link"`
+}
+
+type SendEmailFromTemplateRequest struct {
+	From          string      `json:"From"`
+	To            string      `json:"To,omitempty"`
+	Bcc           string      `json:"Bcc,omitempty"`
+	TemplateAlias string      `json:"TemplateAlias"`
+	TemplateModel interface{} `json:"TemplateModel"`
 }
 
 type EmailService interface {
