@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
+import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
   Tabs,
   TabsContent,
@@ -81,6 +82,7 @@ export function TriggerWorkflowForm({
     enabled: !!selectedWorkflowId,
   });
   const selectedWorkflow = workflowVersionQuery.data;
+  const isLoadingWorkflow = workflowVersionQuery.isLoading;
 
   const handleSearchChange = useCallback(
     (value: string) => {
@@ -341,21 +343,36 @@ export function TriggerWorkflowForm({
               : 'No workflows found'
           }
         />
-        <div className="font-bold">Input</div>
-        <CodeEditor
-          code={input || '{}'}
-          setCode={setInput}
-          language="json"
-          height="180px"
-          jsonSchema={jsonSchema}
-        />
+        <div className="font-bold">
+          Input
+          {isLoadingWorkflow && (
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              (Loading schema...)
+            </span>
+          )}
+        </div>
+        {isLoadingWorkflow ? (
+          <Skeleton className="h-[180px] w-full" />
+        ) : (
+          <CodeEditor
+            code={input || '{}'}
+            setCode={setInput}
+            language="json"
+            height="180px"
+            jsonSchema={jsonSchema}
+          />
+        )}
         <div className="font-bold">Additional Metadata</div>
-        <CodeEditor
-          code={addlMeta || '{}'}
-          setCode={setAddlMeta}
-          height="90px"
-          language="json"
-        />
+        {isLoadingWorkflow ? (
+          <Skeleton className="h-[90px] w-full" />
+        ) : (
+          <CodeEditor
+            code={addlMeta || '{}'}
+            setCode={setAddlMeta}
+            height="90px"
+            language="json"
+          />
+        )}
         <div>
           <div className="mb-2 font-bold">Timing</div>
           <Tabs
@@ -478,7 +495,8 @@ export function TriggerWorkflowForm({
               triggerNowMutation.isPending ||
               triggerScheduleMutation.isPending ||
               triggerCronMutation.isPending ||
-              !selectedWorkflow
+              !selectedWorkflow ||
+              isLoadingWorkflow
             }
             onClick={handleSubmit}
           >

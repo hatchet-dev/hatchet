@@ -45,6 +45,7 @@ export function CodeEditor({
     monaco.editor.setTheme('pastels-on-dark');
   };
 
+  useEffect(() => {
     const monaco = monacoRef.current;
     if (!monaco || language !== 'json') {
       return;
