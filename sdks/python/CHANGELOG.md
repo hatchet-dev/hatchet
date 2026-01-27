@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Improves handling of cancellations for sync tasks in the runner so to limit how often tasks receive a cancellation but then are marked as succeeded anyways.
+- Improves handling of cancellations for tasks to limit how often tasks receive a cancellation but then are marked as succeeded anyways.
 
 ## [1.22.10] - 2026-01-26
 
