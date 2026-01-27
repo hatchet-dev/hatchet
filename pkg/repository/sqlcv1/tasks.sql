@@ -7,7 +7,7 @@ SELECT
     create_v1_range_partition('v1_payload', @date::date),
     create_v1_range_partition('v1_event', @date::date),
     create_v1_weekly_range_partition('v1_event_lookup_table', @date::date),
-    create_v1_weekly_range_partition('v1_event_to_run', @date::date);
+    create_v1_range_partition('v1_event_to_run', @date::date);
 
 -- name: EnsureTablePartitionsExist :one
 WITH tomorrow_date AS (
@@ -53,7 +53,7 @@ WITH task_partitions AS (
 ), event_partitions AS (
     SELECT 'v1_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event', @date::date) AS p
 ), event_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table', @date::date) AS p
+    SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table', @date::date) AS p
 ), event_to_run_partitions AS (
     SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', @date::date) AS p
 )
