@@ -158,7 +158,7 @@ class Runner:
     ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
             self.cleanup_run_id(action.key)
-            was_cancelled = self.cancellations.pop(action.key)
+            was_cancelled = self.cancellations.pop(action.key, False)
 
             if was_cancelled or task.cancelled():
                 return
