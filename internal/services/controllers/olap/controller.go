@@ -591,7 +591,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 		}
 	}
 
-	bulkCreateEventParams := sqlcv1.BulkCreateEventsParams{
+	bulkCreateEventParams := sqlcv1.BulkCreateEventsOLAPParams{
 		Tenantids:              tenantIds,
 		Externalids:            externalIds,
 		Seenats:                seenAts,

@@ -100,6 +100,7 @@ func NewRepository(
 	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
 	enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error),
+	enableDurableUserEventLog bool,
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
@@ -113,7 +114,7 @@ func NewRepository(
 		health:            newHealthRepository(shared),
 		messageQueue:      mq,
 		rateLimit:         newRateLimitRepository(shared),
-		triggers:          newTriggerRepository(shared),
+		triggers:          newTriggerRepository(shared, enableDurableUserEventLog),
 		tasks:             newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler:         newSchedulerRepository(shared),
 		matches:           newMatchRepository(shared),
