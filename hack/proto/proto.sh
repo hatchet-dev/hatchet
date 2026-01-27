@@ -28,6 +28,13 @@ protoc --proto_path=api-contracts \
     --go-grpc_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
     v1/workflows.proto
 
+protoc --proto_path=api-contracts \
+    --go_out=./internal/services/shared/proto/v1 \
+    --go_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
+    --go-grpc_out=./internal/services/shared/proto/v1 \
+    --go-grpc_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
+    v1/otelcol.proto
+
 protoc --proto_path=api-contracts/dispatcher --go_out=./internal/services/dispatcher/contracts --go_opt=paths=source_relative \
     --go-grpc_out=./internal/services/dispatcher/contracts --go-grpc_opt=paths=source_relative \
     dispatcher.proto
