@@ -6,6 +6,7 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -25,19 +26,28 @@ type taskExternalIdTenantIdTuple struct {
 }
 
 type sharedRepository struct {
-	pool                      *pgxpool.Pool
-	v                         validator.Validator
-	l                         *zerolog.Logger
-	queries                   *sqlcv1.Queries
-	queueCache                *cache.Cache
-	stepExpressionCache       *cache.Cache
-	concurrencyStrategyCache  *cache.Cache
-	tenantIdWorkflowNameCache *cache.Cache
-	celParser                 *cel.CELParser
-	env                       *celgo.Env
-	taskLookupCache           *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
-	payloadStore              PayloadStoreRepository
-	m                         TenantLimitRepository
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	l       *zerolog.Logger
+	queries *sqlcv1.Queries
+
+	// TODO: modify these caches to use expirable.LRU as well
+	queueCache               *cache.Cache
+	stepExpressionCache      *cache.Cache
+	concurrencyStrategyCache *cache.Cache
+
+	// TODO: verify whether these three caches are actually necessary
+	tenantIdWorkflowNameCache   *expirable.LRU[string, *sqlcv1.ListWorkflowsByNamesRow]
+	stepsInWorkflowVersionCache *expirable.LRU[string, []*sqlcv1.ListStepsByWorkflowVersionIdsRow]
+	stepIdLabelsCache           *expirable.LRU[string, []*sqlcv1.GetDesiredLabelsRow]
+
+	celParser       *cel.CELParser
+	env             *celgo.Env
+	taskLookupCache *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
+	payloadStore    PayloadStoreRepository
+	m               TenantLimitRepository
+
+	enableDurableUserEventLog bool
 }
 
 func newSharedRepository(
@@ -49,13 +59,17 @@ func newSharedRepository(
 	shouldEnforceLimits bool,
 	enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error),
 	cacheDuration time.Duration,
+	enableDurableUserEventLog bool,
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
 	stepExpressionCache := cache.New(5 * time.Minute)
 	concurrencyStrategyCache := cache.New(5 * time.Minute)
-	tenantIdWorkflowNameCache := cache.New(5 * time.Minute)
 	payloadStore := NewPayloadStoreRepository(pool, l, queries, payloadStoreOpts)
+
+	tenantIdWorkflowNameCache := expirable.NewLRU(10000, func(key string, value *sqlcv1.ListWorkflowsByNamesRow) {}, 5*time.Second)
+	stepsInWorkflowVersionCache := expirable.NewLRU(10000, func(key string, value []*sqlcv1.ListStepsByWorkflowVersionIdsRow) {}, 5*time.Second)
+	stepIdLabelsCache := expirable.NewLRU(10000, func(key string, value []*sqlcv1.GetDesiredLabelsRow) {}, 5*time.Minute)
 
 	celParser := cel.NewCELParser()
 
@@ -75,18 +89,21 @@ func newSharedRepository(
 	}
 
 	s := &sharedRepository{
-		pool:                      pool,
-		v:                         v,
-		l:                         l,
-		queries:                   queries,
-		queueCache:                queueCache,
-		stepExpressionCache:       stepExpressionCache,
-		concurrencyStrategyCache:  concurrencyStrategyCache,
-		tenantIdWorkflowNameCache: tenantIdWorkflowNameCache,
-		celParser:                 celParser,
-		env:                       env,
-		taskLookupCache:           lookupCache,
-		payloadStore:              payloadStore,
+		pool:                        pool,
+		v:                           v,
+		l:                           l,
+		queries:                     queries,
+		queueCache:                  queueCache,
+		stepExpressionCache:         stepExpressionCache,
+		concurrencyStrategyCache:    concurrencyStrategyCache,
+		tenantIdWorkflowNameCache:   tenantIdWorkflowNameCache,
+		stepsInWorkflowVersionCache: stepsInWorkflowVersionCache,
+		stepIdLabelsCache:           stepIdLabelsCache,
+		celParser:                   celParser,
+		env:                         env,
+		taskLookupCache:             lookupCache,
+		payloadStore:                payloadStore,
+		enableDurableUserEventLog:   enableDurableUserEventLog,
 	}
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, enforceLimitsFunc, cacheDuration)
@@ -97,7 +114,6 @@ func newSharedRepository(
 		queueCache.Stop()
 		stepExpressionCache.Stop()
 		concurrencyStrategyCache.Stop()
-		tenantIdWorkflowNameCache.Stop()
 		s.m.Stop()
 		return nil
 	}

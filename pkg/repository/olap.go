@@ -305,10 +305,11 @@ func NewOLAPRepositoryFromPool(
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	cacheDuration time.Duration,
+	enableDurableUserEventLog bool,
 ) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, enforceLimitsFunc, cacheDuration)
+	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, enforceLimitsFunc, cacheDuration, enableDurableUserEventLog)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, statusUpdateBatchSizeLimits), cleanupShared
 }
