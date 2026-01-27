@@ -364,8 +364,6 @@ export interface SubscriptionPlan {
   planCode: string;
   /** The name of the plan. */
   name: string;
-  /** The description of the plan. */
-  description: string;
   /** The price of the plan. */
   amountCents: number;
   /** The period of the plan. */
