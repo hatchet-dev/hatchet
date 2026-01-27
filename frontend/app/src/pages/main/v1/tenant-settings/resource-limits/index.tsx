@@ -3,24 +3,28 @@ import {
   limitedResources,
   LimitIndicator,
 } from './components/resource-limit-columns';
-import { Subscription } from '@/components/v1/cloud/billing';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { queries, TenantMemberRole, TenantResourceLimit } from '@/lib/api';
+import { queries, TenantResourceLimit } from '@/lib/api';
 import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useAppContext } from '@/providers/app-context';
-import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { appRoutes } from '@/router';
+import {
+  ArrowRightIcon,
+  InformationCircleIcon,
+} from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
-  const { membership } = useAppContext();
-  const isOwner = membership === TenantMemberRole.OWNER;
+  const { getCurrentOrganization } = useAppContext();
 
   const { cloud, isCloudEnabled } = useCloud();
 
@@ -28,12 +32,8 @@ export default function ResourceLimits() {
     ...queries.tenantResourcePolicy.get(tenantId),
   });
 
-  const billingState = useQuery({
-    ...queries.cloud.billing(tenantId),
-    enabled: isCloudEnabled && !!cloud?.canBill,
-  });
-
   const billingEnabled = isCloudEnabled && cloud?.canBill;
+  const currentOrg = getCurrentOrganization();
 
   const resourceLimits = resourcePolicyQuery.data?.limits || [];
 
@@ -82,7 +82,7 @@ export default function ResourceLimits() {
     [],
   );
 
-  if (resourcePolicyQuery.isLoading || billingState.isLoading) {
+  if (resourcePolicyQuery.isLoading) {
     return (
       <div className="h-full w-full flex-grow px-4 sm:px-6 lg:px-8">
         <Spinner />
@@ -92,27 +92,29 @@ export default function ResourceLimits() {
 
   return (
     <div className="h-full w-full flex-grow">
-      {billingEnabled && (
+      {billingEnabled && currentOrg && (
         <>
-          {isOwner ? (
-            <Subscription
-              active={billingState.data?.currentSubscription}
-              upcoming={billingState.data?.upcomingSubscription}
-              plans={billingState.data?.plans}
-              coupons={billingState.data?.coupons}
-            />
-          ) : (
-            <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-              <Alert variant="destructive">
-                <ExclamationTriangleIcon className="size-4" />
-                <AlertTitle>Unauthorized</AlertTitle>
-                <AlertDescription>
-                  You do not have permission to view billing information. Only
-                  tenant owners can access billing details.
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
+          <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+            <Alert>
+              <InformationCircleIcon className="size-4" />
+              <AlertTitle>Subscription Management</AlertTitle>
+              <AlertDescription className="flex items-center justify-between">
+                <span>
+                  Subscription and billing is now managed at the organization
+                  level.
+                </span>
+                <Link
+                  to={appRoutes.organizationsRoute.to}
+                  params={{ organization: currentOrg.metadata.id }}
+                >
+                  <Button variant="outline" size="sm">
+                    Go to Organization Billing
+                    <ArrowRightIcon className="ml-2 size-4" />
+                  </Button>
+                </Link>
+              </AlertDescription>
+            </Alert>
+          </div>
           <Separator className="my-4" />
         </>
       )}

@@ -42,8 +42,10 @@ import {
   Matrix,
   MonthlyComputeCost,
   Organization,
+  OrganizationBillingState,
   OrganizationForUserList,
   OrganizationInviteList,
+  OrganizationPaymentMethodList,
   OrganizationTenant,
   RejectOrganizationInviteRequest,
   RemoveOrganizationMembersRequest,
@@ -52,6 +54,8 @@ import {
   TenantPaymentMethodList,
   UpdateManagedWorkerRequest,
   UpdateOrganizationRequest,
+  UpdateOrganizationSubscriptionRequest,
+  UpdateOrganizationSubscriptionResponse,
   UpdateOrganizationTenantRequest,
   UpdateTenantSubscriptionRequest,
   UpdateTenantSubscriptionResponse,
@@ -829,6 +833,95 @@ export class Api<
   tenantPaymentMethodsGet = (tenant: string, params: RequestParams = {}) =>
     this.request<TenantPaymentMethodList, APIErrors>({
       path: `/api/v1/billing/tenants/${tenant}/payment-methods`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Gets the billing state for an organization
+   *
+   * @tags Organization
+   * @name OrganizationBillingStateGet
+   * @summary Get the billing state for an organization
+   * @request GET:/api/v1/billing/organizations/{organization}
+   * @secure
+   */
+  organizationBillingStateGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationBillingState, APIErrors | APIError>({
+      path: `/api/v1/billing/organizations/${organization}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update an organization subscription
+   *
+   * @tags Billing
+   * @name OrganizationSubscriptionUpdate
+   * @summary Update an organization subscription
+   * @request PATCH:/api/v1/billing/organizations/{organization}/subscription
+   * @secure
+   */
+  organizationSubscriptionUpdate = (
+    organization: string,
+    data: UpdateOrganizationSubscriptionRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<UpdateOrganizationSubscriptionResponse, APIErrors>({
+      path: `/api/v1/billing/organizations/${organization}/subscription`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the billing portal link for an organization
+   *
+   * @tags Billing
+   * @name OrganizationBillingPortalLinkGet
+   * @summary Create a link to the billing portal for an organization
+   * @request GET:/api/v1/billing/organizations/{organization}/billing-portal-link
+   * @secure
+   */
+  organizationBillingPortalLinkGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<
+      {
+        /** The url to the billing portal */
+        url?: string;
+      },
+      APIErrors
+    >({
+      path: `/api/v1/billing/organizations/${organization}/billing-portal-link`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the payment methods for an organization
+   *
+   * @tags Billing
+   * @name OrganizationPaymentMethodsGet
+   * @summary Get the payment methods for an organization
+   * @request GET:/api/v1/billing/organizations/{organization}/payment-methods
+   * @secure
+   */
+  organizationPaymentMethodsGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationPaymentMethodList, APIErrors>({
+      path: `/api/v1/billing/organizations/${organization}/payment-methods`,
       method: "GET",
       secure: true,
       format: "json",
