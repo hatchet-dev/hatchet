@@ -1,10 +1,10 @@
 // > Declaring a Task
-import { hatchet } from '../hatchet-client';
 import * as z from 'zod';
+import { hatchet } from '../hatchet-client';
 
 const SimpleInputSchema = z.object({
-    Message: z.string(),
-})
+  Message: z.string(),
+});
 
 // (optional) Define the input type for the workflow
 export type SimpleInputWithZod = z.infer<typeof SimpleInputSchema>;
