@@ -655,8 +655,7 @@ export class V1Worker {
       });
 
       try {
-        const taskError = await future.promise;
-        return taskError;
+        return await future.promise;
       } catch (e: any) {
         this.logger.error('Could not wait for step run to finish: ', e);
         return e instanceof Error ? e : new Error(String(e));
