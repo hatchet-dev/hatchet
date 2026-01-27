@@ -1528,8 +1528,6 @@ export interface Workflow {
   jobs?: Job[];
   /** The tenant id of the workflow. */
   tenantId: string;
-  /** The JSON schema for the workflow input. */
-  inputJsonSchema?: object;
 }
 
 export interface WorkflowVersionMeta {
@@ -1825,6 +1823,8 @@ export interface WorkflowVersion {
   jobs?: Job[];
   workflowConfig?: object;
   v1Concurrency?: ConcurrencySetting[];
+  /** The JSON schema for the workflow input. */
+  inputJsonSchema?: object;
 }
 
 export interface TriggerWorkflowRunRequest {

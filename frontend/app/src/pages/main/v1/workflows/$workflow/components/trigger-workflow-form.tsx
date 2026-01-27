@@ -1,3 +1,4 @@
+import { useWorkflows } from '../../hooks/use-workflows';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
@@ -20,6 +21,7 @@ import {
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   CronWorkflows,
+  queries,
   ScheduledWorkflows,
   V1WorkflowRunDetails,
   Workflow,
@@ -73,6 +75,12 @@ export function TriggerWorkflowForm({
     () => debounce((value: string) => setDebouncedWorkflowSearch(value), 300),
     [],
   );
+
+  const workflowVersionQuery = useQuery({
+    ...queries.workflows.getVersion(selectedWorkflowId || ''),
+    enabled: !!selectedWorkflowId,
+  });
+  const selectedWorkflow = workflowVersionQuery.data;
 
   const handleSearchChange = useCallback(
     (value: string) => {
@@ -137,12 +145,7 @@ export function TriggerWorkflowForm({
     refetchInterval: 15000,
   });
 
-  const selectedWorkflow = useMemo(
-    () => workflowKeys?.rows?.find((w) => w.metadata.id === selectedWorkflowId),
-    [selectedWorkflowId, workflowKeys],
-  );
-
-  const jsonSchema = selectedWorkflow?.inputJsonSchema;
+const jsonSchema = selectedWorkflow?.inputJsonSchema;
 
   const triggerNowMutation = useMutation({
     mutationKey: ['workflow-run:create', selectedWorkflow?.metadata.id],

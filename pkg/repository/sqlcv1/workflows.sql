@@ -690,46 +690,24 @@ WHERE
 LIMIT 1;
 
 -- name: ListWorkflows :many
-WITH workflows AS (
-    SELECT *
-    FROM
-        "Workflow" as workflows
-    WHERE
-        workflows."tenantId" = @tenantId::uuid AND
-        workflows."deletedAt" IS NULL AND
-        (
-            sqlc.narg('search')::text IS NULL OR
-            workflows.name iLIKE concat('%', sqlc.narg('search')::TEXT, '%')
-        )
-    ORDER BY
-        case when @orderBy = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
-        case when @orderBy = 'createdAt DESC' then workflows."createdAt" END DESC
-    OFFSET
-        COALESCE(sqlc.narg('offset'), 0)
-    LIMIT
-        COALESCE(sqlc.narg('limit'), 50)
-), latest_json_schemas AS (
-    SELECT DISTINCT ON (wv."workflowId")
-        wv."workflowId",
-        wv."inputJsonSchema"
-    FROM
-        "WorkflowVersion" wv
-    WHERE
-        wv."workflowId" IN (SELECT w."id" FROM workflows w)
-        AND wv."deletedAt" IS NULL
-    ORDER BY
-        wv."workflowId",
-        wv."order" DESC
-)
-
 SELECT
-    sqlc.embed(workflows),
-    ljs."inputJsonSchema"
+    sqlc.embed(workflows)
 FROM
-    workflows
-JOIN
-    latest_json_schemas ljs ON ljs."workflowId" = workflows."id"
-;
+    "Workflow" as workflows
+WHERE
+    workflows."tenantId" = @tenantId::uuid AND
+    workflows."deletedAt" IS NULL AND
+    (
+        sqlc.narg('search')::text IS NULL OR
+        workflows.name iLIKE concat('%', sqlc.narg('search')::TEXT, '%')
+    )
+ORDER BY
+    case when @orderBy = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
+    case when @orderBy = 'createdAt DESC' then workflows."createdAt" END DESC
+OFFSET
+    COALESCE(sqlc.narg('offset'), 0)
+LIMIT
+    COALESCE(sqlc.narg('limit'), 50);
 
 -- name: CountWorkflows :one
 SELECT COUNT(w.*)
