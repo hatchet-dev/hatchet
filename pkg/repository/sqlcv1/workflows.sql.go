@@ -1796,45 +1796,24 @@ func (q *Queries) ListWorkflowNamesByIds(ctx context.Context, db DBTX, ids []pgt
 }
 
 const listWorkflows = `-- name: ListWorkflows :many
-WITH workflows AS (
-    SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
-    FROM
-        "Workflow" as workflows
-    WHERE
-        workflows."tenantId" = $1::uuid AND
-        workflows."deletedAt" IS NULL AND
-        (
-            $2::text IS NULL OR
-            workflows.name iLIKE concat('%', $2::TEXT, '%')
-        )
-    ORDER BY
-        case when $3 = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
-        case when $3 = 'createdAt DESC' then workflows."createdAt" END DESC
-    OFFSET
-        COALESCE($4, 0)
-    LIMIT
-        COALESCE($5, 50)
-), latest_json_schemas AS (
-    SELECT DISTINCT ON (wv."workflowId")
-        wv."workflowId",
-        wv."inputJsonSchema"
-    FROM
-        "WorkflowVersion" wv
-    WHERE
-        wv."workflowId" IN (SELECT w."id" FROM workflows w)
-        AND wv."deletedAt" IS NULL
-    ORDER BY
-        wv."workflowId",
-        wv."order" DESC
-)
-
 SELECT
-    workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description, workflows."isPaused",
-    ljs."inputJsonSchema"
+    workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description, workflows."isPaused"
 FROM
-    workflows
-JOIN
-    latest_json_schemas ljs ON ljs."workflowId" = workflows."id"
+    "Workflow" as workflows
+WHERE
+    workflows."tenantId" = $1::uuid AND
+    workflows."deletedAt" IS NULL AND
+    (
+        $2::text IS NULL OR
+        workflows.name iLIKE concat('%', $2::TEXT, '%')
+    )
+ORDER BY
+    case when $3 = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
+    case when $3 = 'createdAt DESC' then workflows."createdAt" END DESC
+OFFSET
+    COALESCE($4, 0)
+LIMIT
+    COALESCE($5, 50)
 `
 
 type ListWorkflowsParams struct {
@@ -1846,8 +1825,7 @@ type ListWorkflowsParams struct {
 }
 
 type ListWorkflowsRow struct {
-	Workflow        Workflow `json:"workflow"`
-	InputJsonSchema []byte   `json:"inputJsonSchema"`
+	Workflow Workflow `json:"workflow"`
 }
 
 func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsParams) ([]*ListWorkflowsRow, error) {
@@ -1874,7 +1852,6 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 			&i.Workflow.Name,
 			&i.Workflow.Description,
 			&i.Workflow.IsPaused,
-			&i.InputJsonSchema,
 		); err != nil {
 			return nil, err
 		}
