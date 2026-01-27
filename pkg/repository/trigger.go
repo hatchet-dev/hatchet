@@ -103,11 +103,14 @@ type TriggerRepository interface {
 
 type TriggerRepositoryImpl struct {
 	*sharedRepository
+
+	enableDurableUserEventLog bool
 }
 
-func newTriggerRepository(s *sharedRepository) TriggerRepository {
+func newTriggerRepository(s *sharedRepository, enableDurableUserEventLog bool) TriggerRepository {
 	return &TriggerRepositoryImpl{
-		sharedRepository: s,
+		sharedRepository:          s,
+		enableDurableUserEventLog: enableDurableUserEventLog,
 	}
 }
 

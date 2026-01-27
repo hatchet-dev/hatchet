@@ -232,7 +232,7 @@ SELECT
     create_v1_range_partition('v1_payload', $1::date),
     create_v1_range_partition('v1_event', $1::date),
     create_v1_weekly_range_partition('v1_event_lookup_table', $1::date),
-    create_v1_weekly_range_partition('v1_event_to_run', $1::date)
+    create_v1_range_partition('v1_event_to_run', $1::date)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -1179,7 +1179,7 @@ WITH task_partitions AS (
 ), event_partitions AS (
     SELECT 'v1_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event', $1::date) AS p
 ), event_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table', $1::date) AS p
+    SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table', $1::date) AS p
 ), event_to_run_partitions AS (
     SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', $1::date) AS p
 )

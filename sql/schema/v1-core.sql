@@ -2175,7 +2175,7 @@ CREATE TABLE v1_event_lookup_table (
     event_id BIGINT NOT NULL,
     event_seen_at TIMESTAMPTZ NOT NULL,
 
-    PRIMARY KEY (tenant_id, external_id, event_seen_at)
+    PRIMARY KEY (external_id, event_seen_at)
 ) PARTITION BY RANGE(event_seen_at);
 
 CREATE OR REPLACE FUNCTION v1_event_lookup_table_insert_function()
@@ -2194,7 +2194,7 @@ BEGIN
         id,
         seen_at
     FROM new_rows
-    ON CONFLICT (tenant_id, external_id, event_seen_at) DO NOTHING;
+    ON CONFLICT (external_id, event_seen_at) DO NOTHING;
 
     RETURN NULL;
 END;
