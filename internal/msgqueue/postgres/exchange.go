@@ -44,12 +44,8 @@ func (p *PostgresMessageQueue) pubNonDurableMessages(ctx context.Context, queueN
 
 		if err == nil {
 			eg.Go(func() error {
-				// if the message is greater than 8kb, store the message in the database
-				if len(msgBytes) > 8000 {
-					return p.repo.AddMessage(ctx, queueName, msgBytes)
-				}
-
-				// if the message is less than 8kb, publish the message to the channel
+				// Notify will automatically fall back to database storage if the
+				// wrapped message exceeds pg_notify's 8KB limit
 				return p.repo.Notify(ctx, queueName, string(msgBytes))
 			})
 		} else {
