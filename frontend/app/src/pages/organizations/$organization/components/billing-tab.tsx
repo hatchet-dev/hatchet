@@ -11,9 +11,16 @@ import {
 } from '@/components/v1/ui/card';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/v1/ui/select';
 import { Separator } from '@/components/v1/ui/separator';
 import { Switch } from '@/components/v1/ui/switch';
-import { queries, TenantResource } from '@/lib/api';
+import api, { queries, TenantResource, TenantResourceLimit } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import {
   Organization,
@@ -28,7 +35,7 @@ import {
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 
 const ALLOWED_PLAN_CODES = [
   'free',
@@ -82,16 +89,6 @@ const limitDurationMap: Record<string, string> = {
   '720h0m0s': 'Monthly',
 };
 
-interface AggregatedResourceLimit {
-  metadata: { id: string };
-  resource: TenantResource;
-  value: number;
-  limitValue: number;
-  alarmValue?: number;
-  window?: string;
-  lastRefill?: string;
-}
-
 interface BillingTabProps {
   organization: Organization;
   orgId: string;
@@ -125,55 +122,43 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
     [organization.tenants],
   );
 
-  const resourcePolicyQueries = useQueries({
+  const tenantQueries = useQueries({
     queries: activeTenants.map((tenant) => ({
-      ...queries.tenantResourcePolicy.get(tenant.id),
+      queryKey: ['tenant:get', tenant.id],
+      queryFn: async () => {
+        const result = await api.tenantGet(tenant.id);
+        return result.data;
+      },
       enabled: !!tenant.id,
     })),
   });
 
-  const resourcePoliciesLoading = resourcePolicyQueries.some(
-    (q) => q.isLoading,
+  const detailedTenants = useMemo(
+    () =>
+      tenantQueries.filter((query) => query.data).map((query) => query.data),
+    [tenantQueries],
   );
 
-  const aggregatedResourceLimits = useMemo(() => {
-    const aggregateMap = new Map<TenantResource, AggregatedResourceLimit>();
+  const [selectedTenantId, setSelectedTenantId] = useState<string | undefined>(
+    activeTenants[0]?.id,
+  );
 
-    for (const query of resourcePolicyQueries) {
-      if (!query.data?.limits) {
-        continue;
-      }
-
-      for (const limit of query.data.limits) {
-        const existing = aggregateMap.get(limit.resource);
-        if (existing) {
-          existing.value += limit.value;
-          existing.limitValue += limit.limitValue;
-          if (limit.alarmValue) {
-            existing.alarmValue = (existing.alarmValue || 0) + limit.alarmValue;
-          }
-        } else {
-          aggregateMap.set(limit.resource, {
-            metadata: { id: limit.resource },
-            resource: limit.resource,
-            value: limit.value,
-            limitValue: limit.limitValue,
-            alarmValue: limit.alarmValue,
-            window: limit.window,
-            lastRefill: limit.lastRefill,
-          });
-        }
-      }
+  useEffect(() => {
+    if (!selectedTenantId && activeTenants.length > 0) {
+      setSelectedTenantId(activeTenants[0].id);
     }
+  }, [activeTenants, selectedTenantId]);
 
-    return Array.from(aggregateMap.values());
-  }, [resourcePolicyQueries]);
+  const resourcePolicyQuery = useQuery({
+    ...queries.tenantResourcePolicy.get(selectedTenantId || ''),
+    enabled: !!selectedTenantId,
+  });
 
   const resourceLimitColumns = useMemo(
     () => [
       {
         columnLabel: 'Resource',
-        cellRenderer: (limit: AggregatedResourceLimit) => (
+        cellRenderer: (limit: TenantResourceLimit) => (
           <div className="flex flex-row items-center gap-4">
             <LimitIndicator
               value={limit.value}
@@ -186,27 +171,26 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
       },
       {
         columnLabel: 'Current Value',
-        cellRenderer: (limit: AggregatedResourceLimit) => limit.value,
+        cellRenderer: (limit: TenantResourceLimit) => limit.value,
       },
       {
         columnLabel: 'Limit Value',
-        cellRenderer: (limit: AggregatedResourceLimit) => limit.limitValue,
+        cellRenderer: (limit: TenantResourceLimit) => limit.limitValue,
       },
       {
         columnLabel: 'Alarm Value',
-        cellRenderer: (limit: AggregatedResourceLimit) =>
-          limit.alarmValue || 'N/A',
+        cellRenderer: (limit: TenantResourceLimit) => limit.alarmValue || 'N/A',
       },
       {
         columnLabel: 'Meter Window',
-        cellRenderer: (limit: AggregatedResourceLimit) =>
+        cellRenderer: (limit: TenantResourceLimit) =>
           (limit.window || '-') in limitDurationMap
             ? limitDurationMap[limit.window || '-']
             : limit.window,
       },
       {
         columnLabel: 'Last Refill',
-        cellRenderer: (limit: AggregatedResourceLimit) =>
+        cellRenderer: (limit: TenantResourceLimit) =>
           !limit.window
             ? 'N/A'
             : limit.lastRefill && <RelativeDate date={limit.lastRefill} />,
@@ -603,30 +587,46 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
               Resource Limits
             </h3>
             {activeTenants.length > 1 && (
-              <span className="text-sm text-muted-foreground">
-                Aggregated across {activeTenants.length} tenants
-              </span>
+              <Select
+                value={selectedTenantId}
+                onValueChange={setSelectedTenantId}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select tenant" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeTenants.map((tenant) => {
+                    const detailedTenant = detailedTenants.find(
+                      (t) => t?.metadata.id === tenant.id,
+                    );
+                    return (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {detailedTenant?.name || tenant.id}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
             )}
           </div>
           <p className="my-4 text-gray-700 dark:text-gray-300">
-            Resource limits are shared across your organization and divided
-            equally amongst all tenants. When a limit is reached, the system
-            will take action based on the limit type. Please upgrade your plan,
-            or{' '}
+            Resource limits are applied per tenant. When a limit is reached, the
+            system will take action based on the limit type. Please upgrade your
+            plan, or{' '}
             <a href="https://hatchet.run/office-hours" className="underline">
               contact us
             </a>{' '}
             if you need to adjust your limits.
           </p>
 
-          {resourcePoliciesLoading ? (
+          {resourcePolicyQuery.isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Spinner />
             </div>
           ) : (
             <SimpleTable
               columns={resourceLimitColumns}
-              data={aggregatedResourceLimits}
+              data={resourcePolicyQuery.data?.limits || []}
             />
           )}
         </div>
