@@ -47,7 +47,7 @@ func NewOTelCollector(fs ...OTelCollectorOpt) (OTelCollector, error) {
 		return nil, fmt.Errorf("logger is required. use WithLogger")
 	}
 
-	newLogger := opts.l.With().Str("service", "trace-collector").Logger()
+	newLogger := opts.l.With().Str("service", "otel-collector").Logger()
 
 	return &otelCollectorImpl{
 		repo: opts.repo,
