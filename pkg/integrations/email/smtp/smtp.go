@@ -130,6 +130,11 @@ func (s *SMTPService) sendRequest(ctx context.Context, req *email.SendEmailFromT
 		}
 	}
 
+	switch data := req.TemplateModel.(type) {
+	case interface{ GetSubject() string }:
+		msg.Subject(data.GetSubject())
+	}
+
 	tmpl, err := getTemplate(req.TemplateAlias)
 	if err != nil {
 		return err

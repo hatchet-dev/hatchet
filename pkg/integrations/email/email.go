@@ -2,6 +2,7 @@ package email
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting/alerttypes"
 )
@@ -20,12 +21,21 @@ type TenantInviteEmailData struct {
 	ActionURL        string `json:"action_url"`
 }
 
+func (r TenantInviteEmailData) GetSubject() string {
+	return fmt.Sprintf("%s invited you to join %s on Hatchet",
+		r.InviteSenderName, r.TenantName)
+}
+
 type WorkflowRunsFailedEmailData struct {
 	Items        []alerttypes.WorkflowRunFailedItem `json:"items"`
 	Subject      string                             `json:"subject"`
 	Summary      string                             `json:"summary"`
 	TenantName   string                             `json:"tenant_name"`
 	SettingsLink string                             `json:"settings_link"`
+}
+
+func (r ExpiringTokenEmailData) GetSubject() string {
+	return fmt.Sprintf("[%s] %s", r.TenantName, r.Subject)
 }
 
 type ExpiringTokenEmailData struct {
@@ -36,6 +46,10 @@ type ExpiringTokenEmailData struct {
 	TenantName            string `json:"tenant_name"`
 	TokenSettings         string `json:"token_settings"`
 	SettingsLink          string `json:"settings_link"`
+}
+
+func (r WorkflowRunsFailedEmailData) GetSubject() string {
+	return fmt.Sprintf("[%s] %s", r.TenantName, r.Subject)
 }
 
 type ResourceLimitAlertData struct {
@@ -50,6 +64,10 @@ type ResourceLimitAlertData struct {
 	LimitValue   int    `json:"limit_value"`
 	Percentage   int    `json:"percentage"`
 	SettingsLink string `json:"settings_link"`
+}
+
+func (r ResourceLimitAlertData) GetSubject() string {
+	return fmt.Sprintf("[%s] %s", r.TenantName, r.Subject)
 }
 
 type SendEmailFromTemplateRequest struct {
