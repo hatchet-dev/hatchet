@@ -7,6 +7,11 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
 
 export PATH="$PATH:$(go env GOPATH)/bin"
 
+# Export buf dependencies to a temporary directory for protoc to use
+BUF_EXPORT_DIR=$(mktemp -d)
+trap "rm -rf $BUF_EXPORT_DIR" EXIT
+buf export buf.build/opentelemetry/opentelemetry --output "$BUF_EXPORT_DIR"
+
 protoc --proto_path=api-contracts \
     --go_out=./internal/services/shared/proto/v1 \
     --go_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
@@ -29,6 +34,7 @@ protoc --proto_path=api-contracts \
     v1/workflows.proto
 
 protoc --proto_path=api-contracts \
+    --proto_path="$BUF_EXPORT_DIR" \
     --go_out=./internal/services/shared/proto/v1 \
     --go_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
     --go-grpc_out=./internal/services/shared/proto/v1 \

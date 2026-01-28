@@ -36,7 +36,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
@@ -48,7 +47,7 @@ type Server struct {
 	admincontracts.UnimplementedWorkflowServiceServer
 	v1contracts.UnimplementedAdminServiceServer
 	v1contracts.UnimplementedV1DispatcherServer
-	collectortracev1.UnimplementedTraceServiceServer
+	v1contracts.UnimplementedOtelCollectorServiceServer
 
 	l           *zerolog.Logger
 	a           errors.Alerter
@@ -354,7 +353,7 @@ func (s *Server) startGRPC() (func() error, error) {
 	}
 
 	if s.otelCollector != nil {
-		collectortracev1.RegisterTraceServiceServer(grpcServer, s.otelCollector)
+		v1contracts.RegisterOtelCollectorServiceServer(grpcServer, s.otelCollector)
 	}
 
 	go func() {

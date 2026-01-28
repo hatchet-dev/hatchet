@@ -8,6 +8,7 @@ package v1
 
 import (
 	context "context"
+	v1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -22,7 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type OtelCollectorServiceClient interface {
-	Export(ctx context.Context, in *ExportTraceServiceRequest, opts ...grpc.CallOption) (*ExportTraceServiceResponse, error)
+	Export(ctx context.Context, in *v1.ExportTraceServiceRequest, opts ...grpc.CallOption) (*v1.ExportTraceServiceResponse, error)
 }
 
 type otelCollectorServiceClient struct {
@@ -33,8 +34,8 @@ func NewOtelCollectorServiceClient(cc grpc.ClientConnInterface) OtelCollectorSer
 	return &otelCollectorServiceClient{cc}
 }
 
-func (c *otelCollectorServiceClient) Export(ctx context.Context, in *ExportTraceServiceRequest, opts ...grpc.CallOption) (*ExportTraceServiceResponse, error) {
-	out := new(ExportTraceServiceResponse)
+func (c *otelCollectorServiceClient) Export(ctx context.Context, in *v1.ExportTraceServiceRequest, opts ...grpc.CallOption) (*v1.ExportTraceServiceResponse, error) {
+	out := new(v1.ExportTraceServiceResponse)
 	err := c.cc.Invoke(ctx, "/v1.OtelCollectorService/Export", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -46,7 +47,7 @@ func (c *otelCollectorServiceClient) Export(ctx context.Context, in *ExportTrace
 // All implementations must embed UnimplementedOtelCollectorServiceServer
 // for forward compatibility
 type OtelCollectorServiceServer interface {
-	Export(context.Context, *ExportTraceServiceRequest) (*ExportTraceServiceResponse, error)
+	Export(context.Context, *v1.ExportTraceServiceRequest) (*v1.ExportTraceServiceResponse, error)
 	mustEmbedUnimplementedOtelCollectorServiceServer()
 }
 
@@ -54,7 +55,7 @@ type OtelCollectorServiceServer interface {
 type UnimplementedOtelCollectorServiceServer struct {
 }
 
-func (UnimplementedOtelCollectorServiceServer) Export(context.Context, *ExportTraceServiceRequest) (*ExportTraceServiceResponse, error) {
+func (UnimplementedOtelCollectorServiceServer) Export(context.Context, *v1.ExportTraceServiceRequest) (*v1.ExportTraceServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Export not implemented")
 }
 func (UnimplementedOtelCollectorServiceServer) mustEmbedUnimplementedOtelCollectorServiceServer() {}
@@ -71,7 +72,7 @@ func RegisterOtelCollectorServiceServer(s grpc.ServiceRegistrar, srv OtelCollect
 }
 
 func _OtelCollectorService_Export_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ExportTraceServiceRequest)
+	in := new(v1.ExportTraceServiceRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -83,7 +84,7 @@ func _OtelCollectorService_Export_Handler(srv interface{}, ctx context.Context, 
 		FullMethod: "/v1.OtelCollectorService/Export",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OtelCollectorServiceServer).Export(ctx, req.(*ExportTraceServiceRequest))
+		return srv.(OtelCollectorServiceServer).Export(ctx, req.(*v1.ExportTraceServiceRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

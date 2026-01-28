@@ -4,13 +4,13 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog"
-	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 
+	"github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type OTelCollector interface {
-	collectortracev1.TraceServiceServer
+	v1.OtelCollectorServiceServer
 }
 
 type OTelCollectorOpt func(*OTelCollectorOpts)
