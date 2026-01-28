@@ -16,9 +16,10 @@ import (
 )
 
 const (
+	// keep these in sync with attributes sent from the sdks
 	AttrHatchetTenantID      = "hatchet.tenant_id"
-	AttrHatchetTaskRunID     = "hatchet.task_run_external_id" // Task run external ID from SDK
-	AttrHatchetWorkflowRunID = "hatchet.workflow_run_id"      // Workflow run ID from SDK
+	AttrHatchetTaskRunID     = "hatchet.step_run_id"     // Task run external ID from SDK
+	AttrHatchetWorkflowRunID = "hatchet.workflow_run_id" // Workflow run ID from SDK
 )
 
 type otelCollectorImpl struct {
