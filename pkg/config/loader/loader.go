@@ -634,6 +634,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.SchedulerConcurrencyRateLimit,
 		cf.Runtime.SchedulerConcurrencyPollingMinInterval,
 		cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
+		cf.Runtime.OptimisticSchedulingEnabled,
+		cf.Runtime.OptimisticSchedulingSlots,
 	)
 
 	if err != nil {

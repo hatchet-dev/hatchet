@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -20,6 +21,8 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	schedulingv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
 
 func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
@@ -230,6 +233,53 @@ func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId str
 }
 
 func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...*v1.WorkflowNameTriggerOpts) error {
+	if i.localScheduler != nil {
+		localWorkerIds := map[string]struct{}{}
+
+		if i.localDispatcher != nil {
+			localWorkerIds = i.localDispatcher.GetLocalWorkerIds()
+		}
+
+		localAssigned, schedulingErr := i.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
+
+		if schedulingErr != nil {
+			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
+				i.l.Error().Err(schedulingErr).Msg("could not run optimistic scheduling")
+			}
+		}
+
+		if i.localDispatcher != nil && len(localAssigned) > 0 {
+			eg := errgroup.Group{}
+
+			for workerId, assignedItems := range localAssigned {
+				eg.Go(func() error {
+					err := i.localDispatcher.HandleLocalAssignments(ctx, tenantId, workerId, assignedItems)
+
+					if err != nil {
+						return fmt.Errorf("could not dispatch assigned items: %w", err)
+					}
+
+					return nil
+				})
+			}
+
+			dispatcherErr := eg.Wait()
+
+			if dispatcherErr != nil {
+				i.l.Error().Err(dispatcherErr).Msg("could not handle local assignments")
+			}
+
+			// we return nil because the failed assignments would have been requeued by the local dispatcher,
+			// and we have already written the tasks to the database
+			return nil
+		}
+
+		// if there's no scheduling error, we return here because the tasks have been scheduled optimistically
+		if schedulingErr == nil {
+			return nil
+		}
+	}
+
 	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
 
 	for _, opt := range opts {

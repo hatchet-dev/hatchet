@@ -424,7 +424,7 @@ type createCoreUserEventOpts struct {
 	params                         sqlcv1.BulkCreateEventsParams
 }
 
-func (r *TriggerRepositoryImpl) triggerWorkflows(
+func (r *sharedRepository) triggerWorkflows(
 	ctx context.Context,
 	existingTx *OptimisticTx,
 	tenantId string,

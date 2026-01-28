@@ -14,6 +14,7 @@ type SchedulerRepository interface {
 	QueueFactory() QueueFactoryRepository
 	RateLimit() RateLimitRepository
 	Assignment() AssignmentRepository
+	Optimistic() OptimisticSchedulingRepository
 }
 
 type LeaseRepository interface {
@@ -44,12 +45,23 @@ type AssignmentRepository interface {
 	ListAvailableSlotsForWorkers(ctx context.Context, tenantId pgtype.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error)
 }
 
+type OptimisticSchedulingRepository interface {
+	StartTx(ctx context.Context) (*OptimisticTx, error)
+
+	TriggerFromEvents(ctx context.Context, tx *OptimisticTx, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1QueueItem, *TriggerFromEventsResult, error)
+
+	TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, error)
+
+	MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId pgtype.UUID, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
+}
+
 type schedulerRepository struct {
 	concurrency  ConcurrencyRepository
 	lease        LeaseRepository
 	queueFactory QueueFactoryRepository
 	rateLimit    RateLimitRepository
 	assignment   AssignmentRepository
+	optimistic   OptimisticSchedulingRepository
 }
 
 func newSchedulerRepository(shared *sharedRepository) *schedulerRepository {
@@ -59,6 +71,7 @@ func newSchedulerRepository(shared *sharedRepository) *schedulerRepository {
 		queueFactory: newQueueFactoryRepository(shared),
 		rateLimit:    newRateLimitRepository(shared),
 		assignment:   newAssignmentRepository(shared),
+		optimistic:   newOptimisticSchedulingRepository(shared),
 	}
 }
 
@@ -80,4 +93,8 @@ func (d *schedulerRepository) RateLimit() RateLimitRepository {
 
 func (d *schedulerRepository) Assignment() AssignmentRepository {
 	return d.assignment
+}
+
+func (d *schedulerRepository) Optimistic() OptimisticSchedulingRepository {
+	return d.optimistic
 }

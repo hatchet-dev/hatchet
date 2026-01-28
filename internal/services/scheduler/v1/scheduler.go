@@ -13,6 +13,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -117,6 +118,8 @@ type Scheduler struct {
 
 	pool *v1.SchedulingPool
 
+	signaler *signal.OLAPSignaler
+
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
 }
 
@@ -159,6 +162,9 @@ func New(
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
 
+	// TODO: fix propagation of replayEnabled, it's hardcoded to true here
+	signaler := signal.NewOLAPSignaler(true, opts.mq, opts.repov1, opts.l, pubBuffer)
+
 	q := &Scheduler{
 		mq:                     opts.mq,
 		pubBuffer:              pubBuffer,
@@ -171,6 +177,7 @@ func New(
 		ql:                     opts.queueLogger,
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
+		signaler:               signaler,
 	}
 
 	return q, nil
@@ -409,7 +416,9 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
 			}
 
-			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
+			if !bulkAssigned.IsAssignedLocally {
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
+			}
 
 			taskId := bulkAssigned.QueueItem.TaskID
 

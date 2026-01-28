@@ -110,6 +110,21 @@ ORDER BY
 LIMIT
     COALESCE(sqlc.narg('limit')::integer, 100);
 
+-- name: ListQueueItemsForTasks :many
+WITH input AS (
+    SELECT
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@retryCounts::integer[]) AS retry_count
+)
+SELECT
+    qi.*
+FROM
+    v1_queue_item qi
+WHERE
+    (qi.task_id, qi.task_inserted_at, qi.retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    AND qi.tenant_id = @tenantId::uuid;
+
 -- name: GetMinUnprocessedQueueItemId :one
 WITH priority_1 AS (
     SELECT

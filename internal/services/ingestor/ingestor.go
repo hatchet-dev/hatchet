@@ -7,10 +7,15 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
+	"github.com/rs/zerolog"
 )
 
 type Ingestor interface {
@@ -28,6 +33,10 @@ type IngestorOpts struct {
 	mqv1                  msgqueue.MessageQueue
 	repov1                v1.Repository
 	isLogIngestionEnabled bool
+
+	localScheduler  *scheduler.Scheduler
+	localDispatcher *dispatcher.DispatcherImpl
+	l               *zerolog.Logger
 }
 
 func WithMessageQueueV1(mq msgqueue.MessageQueue) IngestorOptFunc {
@@ -49,8 +58,29 @@ func WithLogIngestionEnabled(isEnabled bool) IngestorOptFunc {
 }
 
 func defaultIngestorOpts() *IngestorOpts {
+	l := logger.NewDefaultLogger("ingestor")
+
 	return &IngestorOpts{
 		isLogIngestionEnabled: true,
+		l:                     &l,
+	}
+}
+
+func WithLocalScheduler(s *scheduler.Scheduler) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.localScheduler = s
+	}
+}
+
+func WithLocalDispatcher(d *dispatcher.DispatcherImpl) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.localDispatcher = d
+	}
+}
+
+func WithLogger(l *zerolog.Logger) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.l = l
 	}
 }
 
@@ -64,6 +94,10 @@ type IngestorImpl struct {
 	repov1 v1.Repository
 
 	isLogIngestionEnabled bool
+
+	localScheduler  *scheduler.Scheduler
+	localDispatcher *dispatcher.DispatcherImpl
+	l               *zerolog.Logger
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -94,6 +128,9 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		v:                        validator.NewDefaultValidator(),
 		repov1:                   opts.repov1,
 		isLogIngestionEnabled:    opts.isLogIngestionEnabled,
+		l:                        opts.l,
+		localScheduler:           opts.localScheduler,
+		localDispatcher:          opts.localDispatcher,
 	}, nil
 }
 

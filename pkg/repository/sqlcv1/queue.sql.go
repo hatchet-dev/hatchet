@@ -513,6 +513,71 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 	return items, nil
 }
 
+const listQueueItemsForTasks = `-- name: ListQueueItemsForTasks :many
+WITH input AS (
+    SELECT
+        UNNEST($2::bigint[]) AS task_id,
+        UNNEST($3::timestamptz[]) AS task_inserted_at,
+        UNNEST($4::integer[]) AS retry_count
+)
+SELECT
+    qi.id, qi.tenant_id, qi.queue, qi.task_id, qi.task_inserted_at, qi.external_id, qi.action_id, qi.step_id, qi.workflow_id, qi.workflow_run_id, qi.schedule_timeout_at, qi.step_timeout, qi.priority, qi.sticky, qi.desired_worker_id, qi.retry_count
+FROM
+    v1_queue_item qi
+WHERE
+    (qi.task_id, qi.task_inserted_at, qi.retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    AND qi.tenant_id = $1::uuid
+`
+
+type ListQueueItemsForTasksParams struct {
+	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+}
+
+func (q *Queries) ListQueueItemsForTasks(ctx context.Context, db DBTX, arg ListQueueItemsForTasksParams) ([]*V1QueueItem, error) {
+	rows, err := db.Query(ctx, listQueueItemsForTasks,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1QueueItem
+	for rows.Next() {
+		var i V1QueueItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Queue,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.ExternalID,
+			&i.ActionID,
+			&i.StepID,
+			&i.WorkflowID,
+			&i.WorkflowRunID,
+			&i.ScheduleTimeoutAt,
+			&i.StepTimeout,
+			&i.Priority,
+			&i.Sticky,
+			&i.DesiredWorkerID,
+			&i.RetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQueues = `-- name: ListQueues :many
 SELECT
     tenant_id, name, last_active
