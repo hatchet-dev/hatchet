@@ -10,7 +10,6 @@ import (
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 
-	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -23,7 +22,7 @@ const (
 )
 
 type otelCollectorImpl struct {
-	v1.UnimplementedOtelCollectorServiceServer
+	collectortracev1.UnimplementedTraceServiceServer
 
 	repo repository.Repository
 	l    *zerolog.Logger
