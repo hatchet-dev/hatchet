@@ -2,6 +2,7 @@ import { AppLayout } from '@/components/layout/app-layout';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { queries, User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
@@ -86,14 +87,8 @@ function AuthenticatedInner() {
     },
   });
 
-  const invitesQuery = useQuery({
-    queryKey: ['user:list-tenant-invites'],
-    retry: false,
-    queryFn: async () => {
-      const res = await api.userListTenantInvites();
-      return res.data.rows || [];
-    },
-  });
+  const { pendingInvitesQuery, isLoading: isPendingInvitesLoading } =
+    usePendingInvites();
 
   const listMembershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
@@ -134,15 +129,19 @@ function AuthenticatedInner() {
     }
 
     if (
-      invitesQuery.data?.length &&
-      invitesQuery.data.length > 0 &&
+      pendingInvitesQuery.data &&
+      pendingInvitesQuery.data > 0 &&
       !isOnboardingInvitesPage
     ) {
       navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
       return;
     }
 
-    if (listMembershipsQuery.data?.rows?.length === 0 && !isOnboardingPage) {
+    if (
+      !isPendingInvitesLoading &&
+      listMembershipsQuery.data?.rows?.length === 0 &&
+      !isOnboardingPage
+    ) {
       navigate({ to: appRoutes.onboardingCreateTenantRoute.to, replace: true });
       return;
     }
@@ -198,7 +197,8 @@ function AuthenticatedInner() {
   }, [
     tenant?.metadata.id,
     currentUser,
-    invitesQuery.data,
+    pendingInvitesQuery.data,
+    isPendingInvitesLoading,
     listMembershipsQuery.data,
     tenant?.version,
     userError,

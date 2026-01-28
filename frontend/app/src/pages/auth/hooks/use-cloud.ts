@@ -69,6 +69,7 @@ export default function useCloud(tenantId?: string) {
   return {
     cloud: cloudMetaQuery.data?.data,
     isCloudEnabled,
+    isCloudLoading: cloudMetaQuery.isLoading,
     featureFlags: featureFlagsQuery.data?.data,
   };
 }
