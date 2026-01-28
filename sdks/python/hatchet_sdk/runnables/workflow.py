@@ -229,6 +229,23 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             ),
         )
 
+    def _combine_additional_metadata(
+        self, additional_metadata_from_trigger: JSONSerializableMapping
+    ) -> JSONSerializableMapping:
+        return {
+            **self.config.default_additional_metadata,
+            **additional_metadata_from_trigger,
+        }
+
+    def _create_options_with_combined_additional_meta(
+        self, options: TriggerWorkflowOptions
+    ) -> TriggerWorkflowOptions:
+        options.additional_metadata = self._combine_additional_metadata(
+            options.additional_metadata
+        )
+
+        return options
+
     @property
     def input_validator(self) -> type[TWorkflowInput]:
         return cast(type[TWorkflowInput], self.config.input_validator)
@@ -270,7 +287,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return WorkflowRunTriggerConfig(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
-            options=options,
+            options=self._create_options_with_combined_additional_meta(options),
             key=key,
         )
 
@@ -605,7 +622,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         return self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
-            options=options,
+            options=self._create_options_with_combined_additional_meta(options),
         )
 
     def run(
@@ -627,7 +644,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ref = self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
-            options=options,
+            options=self._create_options_with_combined_additional_meta(options),
         )
 
         return ref.result()
@@ -650,7 +667,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
-            options=options,
+            options=self._create_options_with_combined_additional_meta(options),
         )
 
     async def aio_run(
@@ -671,7 +688,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
-            options=options,
+            options=self._create_options_with_combined_additional_meta(options),
         )
 
         return await ref.aio_result()

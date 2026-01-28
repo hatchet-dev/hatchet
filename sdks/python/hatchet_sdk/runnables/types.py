@@ -130,6 +130,7 @@ class WorkflowConfig(BaseModel):
 
     task_defaults: TaskDefaults = TaskDefaults()
     default_filters: list[DefaultFilter] = Field(default_factory=list)
+    default_additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
 
 
 class StepType(str, Enum):
