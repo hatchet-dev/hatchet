@@ -494,6 +494,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...
 
 		localAssigned, schedulingErr := i.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
 
+		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
 			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
 				i.l.Error().Err(schedulingErr).Msg("could not run optimistic scheduling")

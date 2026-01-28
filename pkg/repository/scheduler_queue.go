@@ -346,9 +346,17 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	return succeeded, failed, nil
 }
 
-func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error) {
+func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticTx, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-step-run-rate-limits")
 	defer span.End()
+
+	var queryTx sqlcv1.DBTX
+
+	if tx != nil {
+		queryTx = tx.tx
+	} else {
+		queryTx = d.pool
+	}
 
 	taskIds := make([]int64, 0, len(queueItems))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(queueItems))
@@ -381,7 +389,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 	}
 
 	// get all step run expression evals which correspond to rate limits, grouped by step run id
-	expressionEvals, err := d.queries.ListTaskExpressionEvals(ctx, d.pool, sqlcv1.ListTaskExpressionEvalsParams{
+	expressionEvals, err := d.queries.ListTaskExpressionEvals(ctx, queryTx, sqlcv1.ListTaskExpressionEvalsParams{
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 	})
@@ -532,7 +540,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 
 	if len(upsertRateLimitBulkParams.Keys) > 0 {
 		// upsert all rate limits based on the keys, limit values, and durations
-		err = d.queries.UpsertRateLimitsBulk(ctx, d.pool, upsertRateLimitBulkParams)
+		err = d.queries.UpsertRateLimitsBulk(ctx, queryTx, upsertRateLimitBulkParams)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
@@ -546,7 +554,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 		uniqueStepIds = append(uniqueStepIds, sqlchelpers.UUIDFromStr(stepId))
 	}
 
-	stepRateLimits, err = d.queries.ListRateLimitsForSteps(ctx, d.pool, sqlcv1.ListRateLimitsForStepsParams{
+	stepRateLimits, err = d.queries.ListRateLimitsForSteps(ctx, queryTx, sqlcv1.ListRateLimitsForStepsParams{
 		Tenantid: d.tenantId,
 		Stepids:  uniqueStepIds,
 	})
@@ -578,8 +586,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 	return taskIdToKeyToUnits, nil
 }
 
-// TODO: it seems like there's a risk of deadlocking if we have a tx open and we call d.pool to open a new connection
-func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error) {
+func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
 	defer span.End()
 
@@ -600,7 +607,15 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype
 		return stepIdToLabels, nil
 	}
 
-	labels, err := d.queries.GetDesiredLabels(ctx, d.pool, stepIdsToLookup)
+	var queryTx sqlcv1.DBTX
+
+	if tx != nil {
+		queryTx = tx.tx
+	} else {
+		queryTx = d.pool
+	}
+
+	labels, err := d.queries.GetDesiredLabels(ctx, queryTx, stepIdsToLookup)
 
 	if err != nil {
 		return nil, err

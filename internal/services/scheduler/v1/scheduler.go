@@ -162,8 +162,7 @@ func New(
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
 
-	// TODO: fix propagation of replayEnabled, it's hardcoded to true here
-	signaler := signal.NewOLAPSignaler(true, opts.mq, opts.repov1, opts.l, pubBuffer)
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer)
 
 	q := &Scheduler{
 		mq:                     opts.mq,

@@ -169,7 +169,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		refillTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		rls, err := q.repo.GetTaskRateLimits(ctx, qis)
+		rls, err := q.repo.GetTaskRateLimits(ctx, nil, qis)
 
 		if err != nil {
 			span.RecordError(err)
@@ -194,7 +194,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			stepIds = append(stepIds, qi.StepID)
 		}
 
-		labels, err := q.repo.GetDesiredLabels(ctx, stepIds)
+		labels, err := q.repo.GetDesiredLabels(ctx, nil, stepIds)
 
 		if err != nil {
 			span.RecordError(err)
@@ -577,8 +577,7 @@ func (q *Queuer) runOptimisticQueue(
 	qis []*sqlcv1.V1QueueItem,
 	localWorkerIds map[string]struct{},
 ) ([]*v1.AssignedItem, []*QueueResults, error) {
-	// TODO: use tx
-	rls, err := q.repo.GetTaskRateLimits(ctx, qis)
+	rls, err := q.repo.GetTaskRateLimits(ctx, tx, qis)
 
 	if err != nil {
 		return nil, nil, err
@@ -590,8 +589,7 @@ func (q *Queuer) runOptimisticQueue(
 		stepIds = append(stepIds, qi.StepID)
 	}
 
-	// TODO: use tx
-	labels, err := q.repo.GetDesiredLabels(ctx, stepIds)
+	labels, err := q.repo.GetDesiredLabels(ctx, tx, stepIds)
 
 	if err != nil {
 		return nil, nil, err
@@ -625,7 +623,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 ) ([]*v1.AssignedItem, *QueueResults, error) {
 	begin := time.Now()
 
-	ctx, span := telemetry.NewSpan(ctx, "flush-to-database")
+	ctx, span := telemetry.NewSpan(ctx, "Queuer.flushToDatabaseOptimistic")
 	defer span.End()
 
 	q.l.Debug().Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")

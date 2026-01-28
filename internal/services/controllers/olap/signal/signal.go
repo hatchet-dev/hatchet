@@ -19,20 +19,18 @@ import (
 )
 
 type OLAPSignaler struct {
-	mq            msgqueue.MessageQueue
-	repo          v1.Repository
-	pubBuffer     *msgqueue.MQPubBuffer
-	l             *zerolog.Logger
-	replayEnabled bool
+	mq        msgqueue.MessageQueue
+	repo      v1.Repository
+	pubBuffer *msgqueue.MQPubBuffer
+	l         *zerolog.Logger
 }
 
-func NewOLAPSignaler(replayEnabled bool, mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.Logger, pubBuffer *msgqueue.MQPubBuffer) *OLAPSignaler {
+func NewOLAPSignaler(mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.Logger, pubBuffer *msgqueue.MQPubBuffer) *OLAPSignaler {
 	return &OLAPSignaler{
-		replayEnabled: replayEnabled,
-		mq:            mq,
-		l:             l,
-		repo:          repo,
-		pubBuffer:     pubBuffer,
+		mq:        mq,
+		l:         l,
+		repo:      repo,
+		pubBuffer: pubBuffer,
 	}
 }
 
@@ -511,11 +509,6 @@ func (s *OLAPSignaler) signalTasksCreatedAndSkipped(ctx context.Context, tenantI
 }
 
 func (s *OLAPSignaler) SignalTasksReplayed(ctx context.Context, tenantId string, tasks []v1.TaskIdInsertedAtRetryCount) error {
-	if !s.replayEnabled {
-		s.l.Debug().Msg("replay is disabled, skipping signalTasksReplayed")
-		return nil
-	}
-
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?
 	for _, task := range tasks {
@@ -554,11 +547,6 @@ func (s *OLAPSignaler) SignalTasksReplayed(ctx context.Context, tenantId string,
 }
 
 func (s *OLAPSignaler) SignalTasksReplayedFromMatch(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
-	if !s.replayEnabled {
-		s.l.Debug().Msg("replay is disabled, skipping signalTasksReplayedFromMatch")
-		return nil
-	}
-
 	// group tasks by initial states
 	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
 	failedTasks := make([]*v1.V1TaskWithPayload, 0)

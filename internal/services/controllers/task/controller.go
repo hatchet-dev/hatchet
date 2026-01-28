@@ -203,7 +203,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
-	signaler := signal.NewOLAPSignaler(opts.replayEnabled, opts.mq, opts.repov1, opts.l, pubBuffer)
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer)
 
 	t := &TasksControllerImpl{
 		mq:                  opts.mq,

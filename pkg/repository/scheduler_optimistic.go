@@ -33,19 +33,13 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Conte
 		return nil, nil, err
 	}
 
-	triggerOpts, createCoreEventOpts, eventExternalIdToRuns, externalIdToEventIdAndFilterId, celEvaluationFailures, err := r.prepareTriggerFromEvents(ctx, tx.tx, tenantId, opts)
+	result, err := r.doTriggerFromEvents(ctx, tx, tenantId, opts)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to prepare trigger from events: %w", err)
+		return nil, nil, err
 	}
 
-	tasks, dags, err := r.triggerWorkflows(ctx, tx, tenantId, triggerOpts, createCoreEventOpts)
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to trigger workflows: %w", err)
-	}
-
-	populateEventExternalIdToRuns(eventExternalIdToRuns, externalIdToEventIdAndFilterId, tasks, dags)
+	tasks := result.Tasks
 
 	// get the queue items for the tasks that were created
 	taskIds := make([]int64, 0, len(tasks))
@@ -75,12 +69,7 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Conte
 
 	tx.AddPostCommit(post)
 
-	return qis, &TriggerFromEventsResult{
-		Tasks:                 tasks,
-		Dags:                  dags,
-		EventExternalIdToRuns: eventExternalIdToRuns,
-		CELEvaluationFailures: celEvaluationFailures,
-	}, nil
+	return qis, result, nil
 }
 
 func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, error) {

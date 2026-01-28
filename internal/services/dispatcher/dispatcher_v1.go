@@ -101,7 +101,7 @@ func (d *DispatcherImpl) GetLocalWorkerIds() map[string]struct{} {
 // Note: this is very similar to handleTaskBulkAssignedTask, with some differences in what's sync vs run in a goroutine
 // In this method, we wait until all tasks have been sent to the worker before returning
 func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, workerId string, tasks []*schedulingv1.AssignedItemWithTask) error {
-	ctx, span := telemetry.NewSpan(ctx, "task-local-assignmnets")
+	ctx, span := telemetry.NewSpan(ctx, "DispatcherImpl.HandleLocalAssignments")
 	defer span.End()
 
 	// we set a timeout of 25 seconds because we don't want to hold the semaphore for longer than the visibility timeout (30 seconds)
@@ -180,11 +180,17 @@ func (d *DispatcherImpl) populateTaskData(
 
 	inputs, err := d.repov1.Payloads().Retrieve(ctx, nil, retrievePayloadOpts...)
 
+	// FIXME: we should differentiate between a retryable error and a non-retryable error here;
+	// for example, if we're hitting an S3 rate limit for payloads that exist in S3, we should retry;
+	// however, if the payloads simply don't exist, we should fail the tasks instead of requeuing them.
+	// The tasks will eventually fail but the extra retries are wasteful.
 	if err != nil {
-		d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
 		for _, task := range bulkDatas {
 			requeue(task)
 		}
+
+		d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
+		return nil, err
 	}
 
 	// this is to avoid a nil pointer dereference in the code below

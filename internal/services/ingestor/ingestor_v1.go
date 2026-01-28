@@ -112,6 +112,7 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 
 		localAssigned, schedulingErr := i.localScheduler.RunOptimisticSchedulingFromEvents(ctx, tenantId, opts, localWorkerIds)
 
+		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
 			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
 				i.l.Error().Err(schedulingErr).Msg("could not run optimistic scheduling")

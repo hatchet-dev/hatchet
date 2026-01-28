@@ -236,21 +236,44 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, err
 	}
 
-	triggerOpts, createCoreEventOpts, eventExternalIdToRuns, externalIdToEventIdAndFilterId, celEvaluationFailures, err := r.prepareTriggerFromEvents(ctx, r.pool, tenantId, opts)
+	result, err := r.doTriggerFromEvents(ctx, nil, tenantId, opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	post()
+
+	return result, nil
+}
+
+func (r *sharedRepository) doTriggerFromEvents(
+	ctx context.Context,
+	tx *OptimisticTx,
+	tenantId string,
+	opts []EventTriggerOpts,
+) (*TriggerFromEventsResult, error) {
+	var prepareTx sqlcv1.DBTX
+
+	if tx != nil {
+		prepareTx = tx.tx
+	} else {
+		prepareTx = r.pool
+	}
+
+	triggerOpts, createCoreEventOpts, externalIdToEventIdAndFilterId, celEvaluationFailures, err := r.prepareTriggerFromEvents(ctx, prepareTx, tenantId, opts)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare trigger from events: %w", err)
 	}
 
-	tasks, dags, err := r.triggerWorkflows(ctx, nil, tenantId, triggerOpts, createCoreEventOpts)
+	tasks, dags, err := r.triggerWorkflows(ctx, tx, tenantId, triggerOpts, createCoreEventOpts)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to trigger workflows: %w", err)
 	}
 
-	populateEventExternalIdToRuns(eventExternalIdToRuns, externalIdToEventIdAndFilterId, tasks, dags)
-
-	post()
+	eventExternalIdToRuns := getEventExternalIdToRuns(opts, externalIdToEventIdAndFilterId, tasks, dags)
 
 	return &TriggerFromEventsResult{
 		Tasks:                 tasks,
@@ -260,7 +283,13 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}, nil
 }
 
-func populateEventExternalIdToRuns(eventExternalIdToRuns map[string][]*Run, externalIdToEventIdAndFilterId map[string]EventExternalIdFilterId, tasks []*V1TaskWithPayload, dags []*DAGWithData) {
+func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFilterId map[string]EventExternalIdFilterId, tasks []*V1TaskWithPayload, dags []*DAGWithData) map[string][]*Run {
+	eventExternalIdToRuns := make(map[string][]*Run)
+
+	for _, opt := range opts {
+		eventExternalIdToRuns[opt.ExternalId] = make([]*Run, 0)
+	}
+
 	for _, task := range tasks {
 		externalId := task.ExternalID
 
@@ -292,6 +321,8 @@ func populateEventExternalIdToRuns(eventExternalIdToRuns map[string][]*Run, exte
 			FilterId:   eventIdAndFilterId.FilterId,
 		})
 	}
+
+	return eventExternalIdToRuns
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
@@ -1817,13 +1848,11 @@ func (r *sharedRepository) listStepsByWorkflowVersionIds(ctx context.Context, tx
 func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts []EventTriggerOpts) (
 	[]triggerTuple,
 	*createCoreUserEventOpts,
-	map[string][]*Run,
 	map[string]EventExternalIdFilterId,
 	[]CELEvaluationFailure,
 	error,
 ) {
 	eventKeysToOpts := make(map[string][]EventTriggerOpts)
-	eventExternalIdToRuns := make(map[string][]*Run)
 
 	var createCoreEventOpts *createCoreUserEventOpts
 
@@ -1843,8 +1872,6 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 	uniqueEventKeys := make(map[string]struct{})
 
 	for _, opt := range opts {
-		eventExternalIdToRuns[opt.ExternalId] = []*Run{}
-
 		if r.enableDurableUserEventLog {
 			createCoreEventsTenantIds = append(createCoreEventsTenantIds, sqlchelpers.UUIDFromStr(tenantId))
 			createCoreEventsExternalIds = append(createCoreEventsExternalIds, sqlchelpers.UUIDFromStr(opt.ExternalId))
@@ -1882,7 +1909,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 	})
 
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("failed to list workflows for events: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
 
 	externalIdToEventIdAndFilterId := make(map[string]EventExternalIdFilterId)
@@ -1930,7 +1957,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 	})
 
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("failed to list filters: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to list filters: %w", err)
 	}
 
 	workflowIdAndScopeToFilters := make(map[WorkflowAndScope][]*sqlcv1.V1Filter)
@@ -1950,7 +1977,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 	})
 
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("failed to list filter counts: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to list filter counts: %w", err)
 	}
 
 	workflowIdToCount := make(map[string]int64)
@@ -2039,7 +2066,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		}
 	}
 
-	return triggerOpts, createCoreEventOpts, eventExternalIdToRuns, externalIdToEventIdAndFilterId, celEvaluationFailures, nil
+	return triggerOpts, createCoreEventOpts, externalIdToEventIdAndFilterId, celEvaluationFailures, nil
 }
 
 func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts []*WorkflowNameTriggerOpts) (
