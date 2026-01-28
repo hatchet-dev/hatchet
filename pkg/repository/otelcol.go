@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -33,17 +32,6 @@ type SpanData struct {
 type CreateSpansOpts struct {
 	TenantID string `validate:"required,uuid"`
 	Spans    []*SpanData
-}
-
-type ListSpansOpts struct {
-	StartTime        *time.Time
-	EndTime          *time.Time
-	TaskExternalID   *string
-	WorkflowRunID    *string
-	TraceID          []byte
-	Limit            *int `validate:"omitnil,min=1,max=10000"`
-	Offset           *int
-	OrderByDirection *string `validate:"omitempty,oneof=ASC DESC"`
 }
 
 type OTelCollectorRepository interface {
