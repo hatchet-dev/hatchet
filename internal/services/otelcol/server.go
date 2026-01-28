@@ -38,9 +38,9 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	tracesRepo := oc.repo.OTelCollector()
-	if tracesRepo == nil {
-		oc.l.Debug().Msg("traces repository not configured, discarding spans")
+	otelColRepo := oc.repo.OTelCollector()
+	if otelColRepo == nil {
+		oc.l.Debug().Msg("otel collector repository not configured, discarding spans")
 		return &collectortracev1.ExportTraceServiceResponse{}, nil
 	}
 
@@ -50,7 +50,7 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		return &collectortracev1.ExportTraceServiceResponse{}, nil
 	}
 
-	err := tracesRepo.CreateSpans(ctx, tenantId, &repository.CreateSpansOpts{
+	err := otelColRepo.CreateSpans(ctx, tenantId, &repository.CreateSpansOpts{
 		TenantID: tenantId,
 		Spans:    spans,
 	})
