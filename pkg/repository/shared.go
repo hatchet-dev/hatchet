@@ -31,12 +31,10 @@ type sharedRepository struct {
 	l       *zerolog.Logger
 	queries *sqlcv1.Queries
 
-	// TODO: modify these caches to use expirable.LRU as well
 	queueCache               *cache.Cache
 	stepExpressionCache      *cache.Cache
 	concurrencyStrategyCache *cache.Cache
 
-	// TODO: verify whether these three caches are actually necessary
 	tenantIdWorkflowNameCache   *expirable.LRU[string, *sqlcv1.ListWorkflowsByNamesRow]
 	stepsInWorkflowVersionCache *expirable.LRU[string, []*sqlcv1.ListStepsByWorkflowVersionIdsRow]
 	stepIdLabelsCache           *expirable.LRU[string, []*sqlcv1.GetDesiredLabelsRow]
