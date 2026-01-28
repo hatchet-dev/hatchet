@@ -23,7 +23,7 @@ type SpanData struct {
 	Links              []byte
 	ResourceAttributes []byte
 
-	TaskRunExternalID *pgtype.UUID // from hatchet.task_run_external_id attribute
+	TaskRunExternalID *pgtype.UUID // from hatchet.step_run_id attribute
 	WorkflowRunID     *pgtype.UUID // from hatchet.workflow_run_id attribute
 	TenantID          pgtype.UUID  // from auth context
 
@@ -48,12 +48,6 @@ type ListSpansOpts struct {
 
 type OTelCollectorRepository interface {
 	CreateSpans(ctx context.Context, tenantId string, opts *CreateSpansOpts) error
-
-	ListSpansByTask(ctx context.Context, tenantId, taskExternalId string, opts *ListSpansOpts) ([]*SpanData, error)
-
-	ListSpansByWorkflowRun(ctx context.Context, tenantId, workflowRunId string, opts *ListSpansOpts) ([]*SpanData, error)
-
-	ListSpansByTraceID(ctx context.Context, tenantId string, traceId []byte, opts *ListSpansOpts) ([]*SpanData, error)
 }
 
 type otelCollectorRepositoryImpl struct {
@@ -67,31 +61,6 @@ func newOTelCollectorRepository(s *sharedRepository) OTelCollectorRepository {
 }
 
 func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId string, opts *CreateSpansOpts) error {
-	if err := o.v.Validate(opts); err != nil {
-		return err
-	}
-
-	// TODO: Implement CreateSpans to store spans in database
-	// For now, just log that we received spans
-	o.l.Debug().
-		Int("span_count", len(opts.Spans)).
-		Str("tenant_id", tenantId).
-		Msg("received spans for storage (not yet implemented)")
-
+	// intentional no-op, intended to be overridden
 	return nil
-}
-
-func (o *otelCollectorRepositoryImpl) ListSpansByTask(ctx context.Context, tenantId, taskExternalId string, opts *ListSpansOpts) ([]*SpanData, error) {
-	// TODO: Implement ListSpansByTask
-	return nil, nil
-}
-
-func (o *otelCollectorRepositoryImpl) ListSpansByWorkflowRun(ctx context.Context, tenantId, workflowRunId string, opts *ListSpansOpts) ([]*SpanData, error) {
-	// TODO: Implement ListSpansByWorkflowRun
-	return nil, nil
-}
-
-func (o *otelCollectorRepositoryImpl) ListSpansByTraceID(ctx context.Context, tenantId string, traceId []byte, opts *ListSpansOpts) ([]*SpanData, error) {
-	// TODO: Implement ListSpansByTraceID
-	return nil, nil
 }
