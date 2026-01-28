@@ -17,9 +17,12 @@ import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate } from '@tanstack/react-router';
+import { useParams, useNavigate, useSearch } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+const VALID_TABS = ['tenants', 'members', 'tokens', 'billing'] as const;
+type TabValue = (typeof VALID_TABS)[number];
 
 export default function OrganizationPage() {
   const { organization: orgId } = useParams({
@@ -27,10 +30,34 @@ export default function OrganizationPage() {
   });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const search = useSearch({ strict: false }) as { tab?: string };
   const { handleUpdateOrganization, updateOrganizationLoading } =
     useOrganizations();
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
+
+  const initialTab =
+    search.tab && VALID_TABS.includes(search.tab as TabValue)
+      ? (search.tab as TabValue)
+      : 'tenants';
+  const [activeTab, setActiveTab] = useState<TabValue>(initialTab);
+
+  useEffect(() => {
+    if (search.tab && VALID_TABS.includes(search.tab as TabValue)) {
+      setActiveTab(search.tab as TabValue);
+    }
+  }, [search.tab]);
+
+  const handleTabChange = (value: string) => {
+    const tab = value as TabValue;
+    setActiveTab(tab);
+    navigate({
+      to: appRoutes.organizationsRoute.to,
+      params: { organization: orgId },
+      search: { tab },
+      replace: true,
+    });
+  };
 
   const handleStartEdit = () => {
     if (organizationQuery.data?.name) {
@@ -111,7 +138,10 @@ export default function OrganizationPage() {
     <div className="max-h-full overflow-y-auto">
       <div className="mx-auto max-w-6xl space-y-6 p-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Organization Settings
+            </p>
             <div className="flex items-center gap-2">
               {isEditingName ? (
                 <>
@@ -178,7 +208,7 @@ export default function OrganizationPage() {
           </Button>
         </div>
 
-        <Tabs defaultValue="tenants">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList layout="underlined">
             <TabsTrigger value="tenants" variant="underlined">
               Tenants
@@ -190,7 +220,7 @@ export default function OrganizationPage() {
               Management Tokens
             </TabsTrigger>
             <TabsTrigger value="billing" variant="underlined">
-              Billing
+              Billing & Limits
             </TabsTrigger>
           </TabsList>
 

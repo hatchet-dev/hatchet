@@ -1,4 +1,6 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -9,15 +11,86 @@ import {
 } from '@/components/v1/ui/card';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
 import { Switch } from '@/components/v1/ui/switch';
+import { queries, TenantResource } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import {
   Organization,
   SubscriptionPlan,
+  TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { cn } from '@/lib/utils';
+import {
+  useQuery,
+  useQueries,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+
+const ALLOWED_PLAN_CODES = [
+  'free',
+  'starter_monthly',
+  'starter_yearly',
+  'growth_monthly',
+  'growth_yearly',
+];
+
+const limitedResources: Record<TenantResource, string> = {
+  [TenantResource.WORKER]: 'Total Workers',
+  [TenantResource.WORKER_SLOT]: 'Concurrency Slots',
+  [TenantResource.EVENT]: 'Events',
+  [TenantResource.TASK_RUN]: 'Task Runs',
+  [TenantResource.CRON]: 'Cron Triggers',
+  [TenantResource.SCHEDULE]: 'Schedule Triggers',
+  [TenantResource.INCOMING_WEBHOOK]: 'Incoming Webhooks',
+};
+
+const indicatorVariants = {
+  ok: 'border-transparent rounded-full bg-green-500',
+  alarm: 'border-transparent rounded-full bg-yellow-500',
+  exhausted: 'border-transparent rounded-full bg-red-500',
+};
+
+function LimitIndicator({
+  value,
+  alarmValue,
+  limitValue,
+}: {
+  value: number;
+  alarmValue?: number;
+  limitValue: number;
+}) {
+  let variant = indicatorVariants.ok;
+
+  if (alarmValue && value >= alarmValue) {
+    variant = indicatorVariants.alarm;
+  }
+
+  if (value >= limitValue) {
+    variant = indicatorVariants.exhausted;
+  }
+
+  return <div className={cn(variant, 'h-[6px] w-[6px] rounded-full')} />;
+}
+
+const limitDurationMap: Record<string, string> = {
+  '24h0m0s': 'Daily',
+  '168h0m0s': 'Weekly',
+  '720h0m0s': 'Monthly',
+};
+
+interface AggregatedResourceLimit {
+  metadata: { id: string };
+  resource: TenantResource;
+  value: number;
+  limitValue: number;
+  alarmValue?: number;
+  window?: string;
+  lastRefill?: string;
+}
 
 interface BillingTabProps {
   organization: Organization;
@@ -43,6 +116,104 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
     },
     enabled: !!orgId,
   });
+
+  const activeTenants = useMemo(
+    () =>
+      (organization.tenants || []).filter(
+        (t) => t.status !== TenantStatusType.ARCHIVED,
+      ),
+    [organization.tenants],
+  );
+
+  const resourcePolicyQueries = useQueries({
+    queries: activeTenants.map((tenant) => ({
+      ...queries.tenantResourcePolicy.get(tenant.id),
+      enabled: !!tenant.id,
+    })),
+  });
+
+  const resourcePoliciesLoading = resourcePolicyQueries.some(
+    (q) => q.isLoading,
+  );
+
+  const aggregatedResourceLimits = useMemo(() => {
+    const aggregateMap = new Map<TenantResource, AggregatedResourceLimit>();
+
+    for (const query of resourcePolicyQueries) {
+      if (!query.data?.limits) {
+        continue;
+      }
+
+      for (const limit of query.data.limits) {
+        const existing = aggregateMap.get(limit.resource);
+        if (existing) {
+          existing.value += limit.value;
+          existing.limitValue += limit.limitValue;
+          if (limit.alarmValue) {
+            existing.alarmValue = (existing.alarmValue || 0) + limit.alarmValue;
+          }
+        } else {
+          aggregateMap.set(limit.resource, {
+            metadata: { id: limit.resource },
+            resource: limit.resource,
+            value: limit.value,
+            limitValue: limit.limitValue,
+            alarmValue: limit.alarmValue,
+            window: limit.window,
+            lastRefill: limit.lastRefill,
+          });
+        }
+      }
+    }
+
+    return Array.from(aggregateMap.values());
+  }, [resourcePolicyQueries]);
+
+  const resourceLimitColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Resource',
+        cellRenderer: (limit: AggregatedResourceLimit) => (
+          <div className="flex flex-row items-center gap-4">
+            <LimitIndicator
+              value={limit.value}
+              alarmValue={limit.alarmValue}
+              limitValue={limit.limitValue}
+            />
+            {limitedResources[limit.resource]}
+          </div>
+        ),
+      },
+      {
+        columnLabel: 'Current Value',
+        cellRenderer: (limit: AggregatedResourceLimit) => limit.value,
+      },
+      {
+        columnLabel: 'Limit Value',
+        cellRenderer: (limit: AggregatedResourceLimit) => limit.limitValue,
+      },
+      {
+        columnLabel: 'Alarm Value',
+        cellRenderer: (limit: AggregatedResourceLimit) =>
+          limit.alarmValue || 'N/A',
+      },
+      {
+        columnLabel: 'Meter Window',
+        cellRenderer: (limit: AggregatedResourceLimit) =>
+          (limit.window || '-') in limitDurationMap
+            ? limitDurationMap[limit.window || '-']
+            : limit.window,
+      },
+      {
+        columnLabel: 'Last Refill',
+        cellRenderer: (limit: AggregatedResourceLimit) =>
+          !limit.window
+            ? 'N/A'
+            : limit.lastRefill && <RelativeDate date={limit.lastRefill} />,
+      },
+    ],
+    [],
+  );
 
   const active = billingQuery.data?.currentSubscription;
   const upcoming = billingQuery.data?.upcomingSubscription;
@@ -112,10 +283,11 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
     return plans
       ?.filter(
         (v) =>
-          v.planCode === 'free' ||
-          (showAnnual
-            ? v.period?.includes('yearly')
-            : v.period?.includes('monthly')),
+          ALLOWED_PLAN_CODES.includes(v.planCode) &&
+          (v.planCode === 'free' ||
+            (showAnnual
+              ? v.period?.includes('yearly')
+              : v.period?.includes('monthly'))),
       )
       .sort((a, b) => a.amountCents - b.amountCents);
   }, [plans, showAnnual]);
@@ -269,7 +441,6 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
                         </div>
                         {formattedEndDate && (
                           <p className="text-sm text-muted-foreground flex items-center gap-2">
-                            <span>📅</span>
                             Your service will end on {formattedEndDate}.
                           </p>
                         )}
@@ -423,6 +594,42 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
             </p>
           </>
         )}
+
+        <Separator className="my-4" />
+
+        <div>
+          <div className="flex flex-row items-center justify-between">
+            <h3 className="text-xl font-semibold leading-tight text-foreground">
+              Resource Limits
+            </h3>
+            {activeTenants.length > 1 && (
+              <span className="text-sm text-muted-foreground">
+                Aggregated across {activeTenants.length} tenants
+              </span>
+            )}
+          </div>
+          <p className="my-4 text-gray-700 dark:text-gray-300">
+            Resource limits are shared across your organization and divided
+            equally amongst all tenants. When a limit is reached, the system
+            will take action based on the limit type. Please upgrade your plan,
+            or{' '}
+            <a href="https://hatchet.run/office-hours" className="underline">
+              contact us
+            </a>{' '}
+            if you need to adjust your limits.
+          </p>
+
+          {resourcePoliciesLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner />
+            </div>
+          ) : (
+            <SimpleTable
+              columns={resourceLimitColumns}
+              data={aggregatedResourceLimits}
+            />
+          )}
+        </div>
       </div>
     </>
   );
