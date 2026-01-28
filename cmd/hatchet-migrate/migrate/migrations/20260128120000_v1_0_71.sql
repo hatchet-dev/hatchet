@@ -133,7 +133,7 @@ CREATE OR REPLACE FUNCTION cleanup_workflow_concurrency_slots(
     p_workflow_run_id UUID
 ) RETURNS VOID AS $$
 DECLARE
-    v_sort_id BIGINT;
+    v_sort_id INTEGER;
 BEGIN
     SELECT sort_id INTO v_sort_id
     FROM v1_workflow_concurrency_slot
