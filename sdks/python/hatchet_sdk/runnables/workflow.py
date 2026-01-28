@@ -240,11 +240,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def _create_options_with_combined_additional_meta(
         self, options: TriggerWorkflowOptions
     ) -> TriggerWorkflowOptions:
-        options.additional_metadata = self._combine_additional_metadata(
+        options_copy = options.model_copy()
+        options_copy.additional_metadata = self._combine_additional_metadata(
             options.additional_metadata
         )
 
-        return options
+        return options_copy
 
     @property
     def input_validator(self) -> type[TWorkflowInput]:
