@@ -45,6 +45,7 @@ export default {
     display: "hidden",
   },
   "worker-healthchecks": "Worker Health Checks",
+  "autoscaling-workers": "Autoscaling Workers",
   "--flow-control": {
     title: "Flow Control",
     type: "separator",
