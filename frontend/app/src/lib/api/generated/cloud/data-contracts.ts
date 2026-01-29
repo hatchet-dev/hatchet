@@ -21,6 +21,7 @@ export enum ManagementTokenDuration {
   Value30D = "30d",
   Value60D = "60d",
   Value90D = "90d",
+  Never = "never",
 }
 
 export enum TenantStatusType {
@@ -746,7 +747,7 @@ export interface ManagementToken {
    * The timestamp at which the management token expires
    * @format date-time
    */
-  expiresAt: string;
+  expiresAt?: string;
 }
 
 export interface ManagementTokenList {

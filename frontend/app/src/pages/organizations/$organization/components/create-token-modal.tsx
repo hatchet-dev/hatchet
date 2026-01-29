@@ -18,7 +18,7 @@ import {
 } from '@/components/v1/ui/select';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
-import { KeyIcon } from '@heroicons/react/24/outline';
+import { KeyIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
@@ -52,6 +52,7 @@ export function CreateTokenModal({
     handleSubmit,
     reset,
     control,
+    watch,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -91,11 +92,13 @@ export function CreateTokenModal({
 
   const nameError = errors.name?.message?.toString();
   const durationError = errors.duration?.message?.toString();
+  const selectedDuration = watch('duration');
 
   const durationOptions = [
     { value: ManagementTokenDuration.Value30D, label: '30 days' },
     { value: ManagementTokenDuration.Value60D, label: '60 days' },
     { value: ManagementTokenDuration.Value90D, label: '90 days' },
+    { value: ManagementTokenDuration.Never, label: 'Never' },
   ];
 
   return (
@@ -186,6 +189,15 @@ export function CreateTokenModal({
               <p className="text-sm text-muted-foreground">
                 How long the token should remain valid.
               </p>
+              {selectedDuration === ManagementTokenDuration.Never && (
+                <div className="flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+                  <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <span>
+                    Tokens that never expire pose a security risk. Consider
+                    using a shorter duration and rotating tokens regularly.
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-4">
