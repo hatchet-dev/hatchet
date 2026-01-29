@@ -64,13 +64,13 @@ export function LogSearchInput({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') {
+        e.preventDefault();
         if (isOpen && suggestions.length > 0 && selectedIndex !== undefined) {
-          e.preventDefault();
           handleSelect(selectedIndex);
         } else {
-          e.preventDefault();
           submitSearch();
         }
+        setIsOpen(false);
         return;
       }
 
