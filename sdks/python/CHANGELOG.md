@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.13] - 2026-01-29
+
+### Added
+
+- Sends the `task_retry_count` when sending logs to the engine to enable filtering on the frontend.
+
 ## [1.22.12] - 2026-01-28
 
 ### Added
