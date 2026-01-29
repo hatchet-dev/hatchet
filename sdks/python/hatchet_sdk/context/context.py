@@ -218,7 +218,12 @@ class Context:
 
         logger.info(line)
         self.log_sender.publish(
-            LogRecord(message=line, step_run_id=self.step_run_id, level=LogLevel.INFO)
+            LogRecord(
+                message=line,
+                step_run_id=self.step_run_id,
+                level=LogLevel.INFO,
+                task_retry_count=self.retry_count,
+            )
         )
 
     def release_slot(self) -> None:

@@ -40,6 +40,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
     ctx_step_run_id,
+    ctx_task_retry_count,
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
@@ -248,6 +249,7 @@ class Runner:
         ctx_worker_id.set(action.worker_id)
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
+        ctx_task_retry_count.set(action.retry_count)
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             try:
