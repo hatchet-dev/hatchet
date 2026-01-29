@@ -31,6 +31,7 @@ import {
   NonRetryableError,
 } from '@hatchet/v1/task';
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
@@ -372,6 +373,14 @@ export class V1Worker {
       const concurrencyArr = Array.isArray(concurrency) ? concurrency : [];
       const concurrencySolo = !Array.isArray(concurrency) ? concurrency : undefined;
 
+      // Convert Zod schema to JSON Schema if provided
+      let inputJsonSchema: Uint8Array | undefined;
+      if (workflow.inputValidator) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const jsonSchema = zodToJsonSchema(workflow.inputValidator as any);
+        inputJsonSchema = new TextEncoder().encode(JSON.stringify(jsonSchema));
+      }
+
       const registeredWorkflow = this.client._v0.admin.putWorkflowV1({
         name: workflow.name,
         description: workflow.description || '',
@@ -382,6 +391,7 @@ export class V1Worker {
         concurrencyArr,
         onFailureTask,
         defaultPriority: workflow.defaultPriority,
+        inputJsonSchema,
         tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => ({
           readableId: task.name,
           action: `${workflow.name}:${task.name}`,

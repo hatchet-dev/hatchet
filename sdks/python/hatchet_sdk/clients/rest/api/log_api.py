@@ -26,6 +26,7 @@ from hatchet_sdk.clients.rest.models.log_line_order_by_direction import (
     LogLineOrderByDirection,
 )
 from hatchet_sdk.clients.rest.models.log_line_order_by_field import LogLineOrderByField
+from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
@@ -464,6 +465,14 @@ class LogApi:
         until: Annotated[
             Optional[datetime], Field(description="The end time to get logs for")
         ] = None,
+        search: Annotated[
+            Optional[StrictStr],
+            Field(description="A full-text search query to filter for"),
+        ] = None,
+        levels: Annotated[
+            Optional[List[V1LogLineLevel]],
+            Field(description="The log level(s) to include"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -488,6 +497,10 @@ class LogApi:
         :type since: datetime
         :param until: The end time to get logs for
         :type until: datetime
+        :param search: A full-text search query to filter for
+        :type search: str
+        :param levels: The log level(s) to include
+        :type levels: List[V1LogLineLevel]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -515,6 +528,8 @@ class LogApi:
             limit=limit,
             since=since,
             until=until,
+            search=search,
+            levels=levels,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -551,6 +566,14 @@ class LogApi:
         until: Annotated[
             Optional[datetime], Field(description="The end time to get logs for")
         ] = None,
+        search: Annotated[
+            Optional[StrictStr],
+            Field(description="A full-text search query to filter for"),
+        ] = None,
+        levels: Annotated[
+            Optional[List[V1LogLineLevel]],
+            Field(description="The log level(s) to include"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -575,6 +598,10 @@ class LogApi:
         :type since: datetime
         :param until: The end time to get logs for
         :type until: datetime
+        :param search: A full-text search query to filter for
+        :type search: str
+        :param levels: The log level(s) to include
+        :type levels: List[V1LogLineLevel]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -602,6 +629,8 @@ class LogApi:
             limit=limit,
             since=since,
             until=until,
+            search=search,
+            levels=levels,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -638,6 +667,14 @@ class LogApi:
         until: Annotated[
             Optional[datetime], Field(description="The end time to get logs for")
         ] = None,
+        search: Annotated[
+            Optional[StrictStr],
+            Field(description="A full-text search query to filter for"),
+        ] = None,
+        levels: Annotated[
+            Optional[List[V1LogLineLevel]],
+            Field(description="The log level(s) to include"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -662,6 +699,10 @@ class LogApi:
         :type since: datetime
         :param until: The end time to get logs for
         :type until: datetime
+        :param search: A full-text search query to filter for
+        :type search: str
+        :param levels: The log level(s) to include
+        :type levels: List[V1LogLineLevel]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -689,6 +730,8 @@ class LogApi:
             limit=limit,
             since=since,
             until=until,
+            search=search,
+            levels=levels,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -711,6 +754,8 @@ class LogApi:
         limit,
         since,
         until,
+        search,
+        levels,
         _request_auth,
         _content_type,
         _headers,
@@ -719,7 +764,9 @@ class LogApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+            "levels": "multi",
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -759,6 +806,14 @@ class LogApi:
                 )
             else:
                 _query_params.append(("until", until))
+
+        if search is not None:
+
+            _query_params.append(("search", search))
+
+        if levels is not None:
+
+            _query_params.append(("levels", levels))
 
         # process the header parameters
         # process the form parameters

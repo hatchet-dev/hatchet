@@ -39,7 +39,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
-from hatchet_sdk.utils.typing import CoroutineLike
+from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.worker.worker import LifespanFn, Worker
 
 P = ParamSpec("P")
@@ -236,6 +236,7 @@ class Hatchet:
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Workflow[EmptyModel]: ...
 
     @overload
@@ -255,6 +256,7 @@ class Hatchet:
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Workflow[TWorkflowInput]: ...
 
     def workflow(
@@ -273,6 +275,7 @@ class Hatchet:
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
         """
         Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
@@ -299,6 +302,8 @@ class Hatchet:
 
         :param default_filters: A list of filters to create with the workflow is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the workflow is created to create them.
 
+        :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this workflow by default.
+
         :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
         """
 
@@ -315,6 +320,7 @@ class Hatchet:
                 task_defaults=task_defaults,
                 default_priority=default_priority,
                 default_filters=default_filters or [],
+                default_additional_metadata=default_additional_metadata or {},
             ),
             self,
         )
@@ -342,6 +348,7 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -370,6 +377,7 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Standalone[TWorkflowInput, R],
@@ -397,6 +405,7 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> (
         Callable[
             [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
@@ -444,6 +453,8 @@ class Hatchet:
 
         :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
 
+        :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
+
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -465,6 +476,7 @@ class Hatchet:
                     default_priority=default_priority,
                     input_validator=TypeAdapter(normalize_validator(input_validator)),
                     default_filters=default_filters or [],
+                    default_additional_metadata=default_additional_metadata or {},
                 ),
                 self,
             )
@@ -523,6 +535,7 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -551,6 +564,7 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Callable[
         [
             Callable[
@@ -582,6 +596,7 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> (
         Callable[
             [
@@ -637,6 +652,8 @@ class Hatchet:
 
         :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
 
+        :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
+
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -657,6 +674,7 @@ class Hatchet:
                     input_validator=TypeAdapter(normalize_validator(input_validator)),
                     default_priority=default_priority,
                     default_filters=default_filters or [],
+                    default_additional_metadata=default_additional_metadata or {},
                 ),
                 self,
             )
