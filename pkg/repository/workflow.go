@@ -54,6 +54,8 @@ type CreateWorkflowVersionOpts struct {
 	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
 
 	DefaultFilters []types.DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
+
+	InputJsonSchema []byte `json:"inputJsonSchema,omitempty"`
 }
 
 type CreateConcurrencyOpts struct {
@@ -409,6 +411,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		Checksum:                  cs,
 		Workflowid:                workflowId,
 		CreateWorkflowVersionOpts: optsJson,
+		InputJsonSchema:           opts.InputJsonSchema,
 	}
 
 	if opts.Sticky != nil {

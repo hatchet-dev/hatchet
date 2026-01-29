@@ -2348,11 +2348,14 @@ type WorkflowVersion struct {
 	Concurrency *WorkflowConcurrency `json:"concurrency,omitempty"`
 
 	// DefaultPriority The default priority of the workflow.
-	DefaultPriority *int32          `json:"defaultPriority,omitempty"`
-	Jobs            *[]Job          `json:"jobs,omitempty"`
-	Metadata        APIResourceMeta `json:"metadata"`
-	Order           int32           `json:"order"`
-	ScheduleTimeout *string         `json:"scheduleTimeout,omitempty"`
+	DefaultPriority *int32 `json:"defaultPriority,omitempty"`
+
+	// InputJsonSchema The JSON schema for the workflow input.
+	InputJsonSchema *map[string]interface{} `json:"inputJsonSchema,omitempty"`
+	Jobs            *[]Job                  `json:"jobs,omitempty"`
+	Metadata        APIResourceMeta         `json:"metadata"`
+	Order           int32                   `json:"order"`
+	ScheduleTimeout *string                 `json:"scheduleTimeout,omitempty"`
 
 	// Sticky The sticky strategy of the workflow.
 	Sticky        *string               `json:"sticky,omitempty"`

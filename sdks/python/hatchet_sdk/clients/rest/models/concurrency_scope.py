@@ -20,23 +20,18 @@ from enum import Enum
 from typing_extensions import Self
 
 
-class TenantResource(str, Enum):
+class ConcurrencyScope(str, Enum):
     """
-    TenantResource
+    ConcurrencyScope
     """
 
     """
     allowed enum values
     """
-    WORKER = "WORKER"
-    WORKER_SLOT = "WORKER_SLOT"
-    EVENT = "EVENT"
-    TASK_RUN = "TASK_RUN"
-    CRON = "CRON"
-    SCHEDULE = "SCHEDULE"
-    INCOMING_WEBHOOK = "INCOMING_WEBHOOK"
+    WORKFLOW = "WORKFLOW"
+    TASK = "TASK"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
-        """Create an instance of TenantResource from a JSON string"""
+        """Create an instance of ConcurrencyScope from a JSON string"""
         return cls(json.loads(json_str))
