@@ -469,6 +469,19 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			})
 
 			g.Go(func() error {
+				if err := adminSvc.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup admin service: %w", err)
+				}
+				if err := adminv1Svc.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup adminv1 service: %w", err)
+				}
+				if err := ei.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup ingestor: %w", err)
+				}
+				return nil
+			})
+
+			g.Go(func() error {
 				err := grpcServerCleanup()
 				if err != nil {
 					return fmt.Errorf("failed to cleanup GRPC server: %w", err)
@@ -880,6 +893,19 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				}
 
 				cacheInstance.Stop()
+				return nil
+			})
+
+			g.Go(func() error {
+				if err := adminSvc.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup admin service: %w", err)
+				}
+				if err := adminv1Svc.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup adminv1 service: %w", err)
+				}
+				if err := ei.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup ingestor: %w", err)
+				}
 				return nil
 			})
 

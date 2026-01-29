@@ -26,6 +26,7 @@ type Ingestor interface {
 	BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenant *sqlcv1.Tenant, replayedEvent *sqlcv1.Event) (*sqlcv1.Event, error)
 	IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error
+	Cleanup() error
 }
 
 type IngestorOptFunc func(*IngestorOpts)
@@ -122,7 +123,8 @@ type IngestorImpl struct {
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
 
-	tw *trigger.TriggerWriter
+	tw        *trigger.TriggerWriter
+	pubBuffer *msgqueue.MQPubBuffer
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -148,9 +150,10 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}
 
 	var tw *trigger.TriggerWriter
+	var pubBuffer *msgqueue.MQPubBuffer
 
 	if opts.grpcTriggersEnabled {
-		pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
+		pubBuffer = msgqueue.NewMQPubBuffer(opts.mqv1)
 
 		tw = trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots)
 	}
@@ -173,6 +176,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		localScheduler:           localScheduler,
 		localDispatcher:          opts.localDispatcher,
 		tw:                       tw,
+		pubBuffer:                pubBuffer,
 	}, nil
 }
 
@@ -199,4 +203,12 @@ func (i *IngestorImpl) IngestCELEvaluationFailure(ctx context.Context, tenantId,
 		errorText,
 		source,
 	)
+}
+
+// Cleanup stops the pubBuffer goroutines if they exist
+func (i *IngestorImpl) Cleanup() error {
+	if i.pubBuffer != nil {
+		i.pubBuffer.Stop()
+	}
+	return nil
 }

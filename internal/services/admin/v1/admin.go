@@ -18,6 +18,7 @@ import (
 
 type AdminService interface {
 	contracts.AdminServiceServer
+	Cleanup() error
 }
 
 type AdminServiceImpl struct {
@@ -32,7 +33,8 @@ type AdminServiceImpl struct {
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
 
-	tw *trigger.TriggerWriter
+	tw        *trigger.TriggerWriter
+	pubBuffer *msgqueue.MQPubBuffer
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
@@ -138,9 +140,10 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	}
 
 	var tw *trigger.TriggerWriter
+	var pubBuffer *msgqueue.MQPubBuffer
 
 	if opts.grpcTriggersEnabled {
-		pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
+		pubBuffer = msgqueue.NewMQPubBuffer(opts.mq)
 
 		tw = trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, opts.grpcTriggerSlots)
 	}
@@ -162,5 +165,14 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		localDispatcher: opts.localDispatcher,
 		l:               opts.l,
 		tw:              tw,
+		pubBuffer:       pubBuffer,
 	}, nil
+}
+
+// Cleanup stops the pubBuffer goroutines if they exist
+func (a *AdminServiceImpl) Cleanup() error {
+	if a.pubBuffer != nil {
+		a.pubBuffer.Stop()
+	}
+	return nil
 }
