@@ -13,6 +13,7 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
@@ -918,14 +919,14 @@ func isPermanentPreAckError(err error) bool {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		// invalid input syntax for type json / jsonb
-		if pgErr.Code == "22P02" {
+		if pgErr.Code == pgerrcode.InvalidTextRepresentation {
 			return true
 		}
 	}
 
 	// Fallback: some error paths may lose pg error type info.
 	errStr := err.Error()
-	if strings.Contains(errStr, "SQLSTATE 22P02") {
+	if strings.Contains(errStr, fmt.Sprintf("SQLSTATE %s", pgerrcode.InvalidTextRepresentation)) {
 		return true
 	}
 	if strings.Contains(errStr, "invalid input syntax for type json") {

@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestIsPermanentPreAckError_PgError22P02(t *testing.T) {
-	pgErr := &pgconn.PgError{Code: "22P02", Message: "invalid input syntax for type json"}
+	pgErr := &pgconn.PgError{Code: pgerrcode.InvalidTextRepresentation, Message: "invalid input syntax for type json"}
 	wrapped := fmt.Errorf("wrap: %w", pgErr)
 
 	if !isPermanentPreAckError(wrapped) {
