@@ -1073,12 +1073,8 @@ func (r *workflowRepository) ListWorkflows(tenantId string, opts *ListWorkflowsO
 
 	sqlcWorkflows := make([]*sqlcv1.Workflow, len(workflows))
 
-	for i, wf := range workflows {
-		if wf == nil {
-			continue
-		}
-
-		sqlcWorkflows[i] = &wf.Workflow
+	for i := range workflows {
+		sqlcWorkflows[i] = &workflows[i].Workflow
 	}
 
 	res.Rows = sqlcWorkflows
