@@ -2,7 +2,6 @@ import { getAutocomplete, applySuggestion } from './autocomplete';
 import { useLogsContext } from './use-logs';
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandItem,
   CommandList,
@@ -40,6 +39,23 @@ export function LogSearchInput({
   const submitSearch = useCallback(() => {
     setQueryString(localValue);
   }, [localValue, setQueryString]);
+
+  const handleFilterChipClick = useCallback(
+    (filterKey: string) => {
+      const newValue = localValue ? `${localValue} ${filterKey}` : filterKey;
+      setLocalValue(newValue);
+      setIsOpen(true);
+      setSelectedIndex(undefined);
+      setTimeout(() => {
+        const input = inputRef.current;
+        if (input) {
+          input.focus();
+          input.setSelectionRange(newValue.length, newValue.length);
+        }
+      }, 0);
+    },
+    [localValue],
+  );
 
   const handleSelect = useCallback(
     (index: number) => {
@@ -84,13 +100,17 @@ export function LogSearchInput({
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSelectedIndex((i) => {
-          if (i === undefined) return 0;
+          if (i === undefined) {
+            return 0;
+          }
           return i < suggestions.length - 1 ? i + 1 : 0;
         });
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedIndex((i) => {
-          if (i === undefined) return suggestions.length - 1;
+          if (i === undefined) {
+            return suggestions.length - 1;
+          }
           return i > 0 ? i - 1 : suggestions.length - 1;
         });
       } else if (e.key === 'Tab') {
@@ -105,7 +125,7 @@ export function LogSearchInput({
 
   return (
     <div className={cn('space-y-2', className)}>
-      <Popover open={isOpen && suggestions.length > 0} modal={false}>
+      <Popover open={isOpen} modal={false}>
         <PopoverTrigger asChild>
           <div className="relative">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -124,10 +144,8 @@ export function LogSearchInput({
                   clearTimeout(blurTimeoutRef.current);
                   blurTimeoutRef.current = null;
                 }
-                if (suggestions.length > 0) {
-                  setIsOpen(true);
-                  setSelectedIndex(undefined);
-                }
+                setIsOpen(true);
+                setSelectedIndex(undefined);
               }}
               onBlur={() => {
                 blurTimeoutRef.current = setTimeout(() => {
@@ -159,50 +177,74 @@ export function LogSearchInput({
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          <Command
-            value={
-              selectedIndex !== undefined
-                ? suggestions[selectedIndex]?.value
-                : ''
-            }
-          >
-            <CommandList className="max-h-[300px]">
-              <CommandEmpty>No suggestions</CommandEmpty>
-              <CommandGroup>
-                {suggestions.map((suggestion, index) => (
-                  <CommandItem
-                    key={suggestion.value}
-                    value={suggestion.value}
-                    onSelect={() => handleSelect(index)}
-                    className={cn(
-                      'flex items-center justify-between',
-                      selectedIndex !== undefined &&
-                        index === selectedIndex &&
-                        'bg-accent text-accent-foreground',
-                    )}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                  >
-                    <div className="flex items-center gap-2">
-                      {suggestion.type === 'key' ? (
-                        <code className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">
-                          {suggestion.label}:
-                        </code>
-                      ) : (
-                        <span className="font-mono text-sm">
-                          {suggestion.label}
+          {suggestions.length > 0 && (
+            <Command
+              value={
+                selectedIndex !== undefined
+                  ? suggestions[selectedIndex]?.value
+                  : ''
+              }
+            >
+              <CommandList className="max-h-[300px]">
+                <CommandGroup>
+                  {suggestions.map((suggestion, index) => (
+                    <CommandItem
+                      key={suggestion.value}
+                      value={suggestion.value}
+                      onSelect={() => handleSelect(index)}
+                      className={cn(
+                        'flex items-center justify-between',
+                        selectedIndex !== undefined &&
+                          index === selectedIndex &&
+                          'bg-accent text-accent-foreground',
+                      )}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {suggestion.color && (
+                          <div
+                            className={cn(
+                              suggestion.color,
+                              'h-[6px] w-[6px] rounded-full',
+                            )}
+                          />
+                        )}
+                        {suggestion.type === 'key' ? (
+                          <code className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">
+                            {suggestion.label}:
+                          </code>
+                        ) : (
+                          <span className="font-mono text-sm">
+                            {suggestion.label}
+                          </span>
+                        )}
+                      </div>
+                      {suggestion.description && (
+                        <span className="text-xs text-muted-foreground truncate ml-2">
+                          {suggestion.description}
                         </span>
                       )}
-                    </div>
-                    {suggestion.description && (
-                      <span className="text-xs text-muted-foreground truncate ml-2">
-                        {suggestion.description}
-                      </span>
-                    )}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          )}
+          <div
+            className={cn(
+              'flex items-center gap-2 px-3 py-2 text-xs',
+              suggestions.length > 0 && 'border-t',
+            )}
+          >
+            <span className="text-muted-foreground">Available filters:</span>
+            <button
+              type="button"
+              onClick={() => handleFilterChipClick('level:')}
+              className="inline-flex items-center rounded-md border border-input px-2 py-0.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              Level
+            </button>
+          </div>
         </PopoverContent>
       </Popover>
     </div>

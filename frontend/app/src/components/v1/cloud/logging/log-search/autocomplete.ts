@@ -1,4 +1,5 @@
-import { AutocompleteSuggestion, LOG_LEVELS } from './types';
+import { AutocompleteSuggestion, LOG_LEVELS, LOG_LEVEL_COLORS } from './types';
+import { LogLevel } from './types';
 
 const LEVEL_DESCRIPTIONS: Record<string, string> = {
   error: 'Error messages',
@@ -27,6 +28,7 @@ export function getAutocomplete(query: string): AutocompleteState {
       label: level,
       value: level,
       description: LEVEL_DESCRIPTIONS[level],
+      color: LOG_LEVEL_COLORS[level],
     }));
     return { mode: 'value', suggestions };
   }
