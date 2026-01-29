@@ -64,8 +64,11 @@ export function LogSearchInput({
       if (suggestion) {
         const newValue = applySuggestion(localValue, suggestion);
         setLocalValue(newValue);
-        setQueryString(newValue);
-        setIsOpen(false);
+        if (suggestion.type === 'value') {
+          setQueryString(newValue);
+          setIsOpen(false);
+        }
+        setSelectedIndex(undefined);
         setTimeout(() => {
           const input = inputRef.current;
           if (input) {
@@ -86,8 +89,8 @@ export function LogSearchInput({
           handleSelect(selectedIndex);
         } else {
           submitSearch();
+          setIsOpen(false);
         }
-        setIsOpen(false);
         return;
       }
 
