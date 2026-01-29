@@ -278,7 +278,6 @@ export function useLogs({
     return Array.from(uniqueLogsMap.values());
   }, [getLogsQuery.data?.pages, taskRun?.displayName]);
 
-  // Generate available attempts based on task's retry count
   const availableAttempts = useMemo(
     () =>
       Array.from({ length: (taskRun?.retryCount ?? 0) + 1 }, (_, i) => i + 1),
