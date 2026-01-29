@@ -18,6 +18,7 @@ type HatchetApiTokenRateLimiter struct {
 	dispatcherLimiter *rate.Limiter
 	workflowLimiter   *rate.Limiter
 	adminV1Limiter    *rate.Limiter
+	otelColLimiter    *rate.Limiter
 }
 
 type HatchetRateLimiter struct {
@@ -37,8 +38,9 @@ func (rl *HatchetRateLimiter) GetOrCreateTenantRateLimiter(rateLimitToken string
 			eventsLimiter:   rate.NewLimiter(rl.rate, rl.burst),
 			workflowLimiter: rate.NewLimiter(rl.rate, rl.burst),
 			adminV1Limiter:  rate.NewLimiter(rl.rate, rl.burst),
-			// 10x the rate for dispatcher
+			// 10x the rate for dispatcher and otelcol
 			dispatcherLimiter: rate.NewLimiter(rl.rate*10, rl.burst*10),
+			otelColLimiter:    rate.NewLimiter(rl.rate*10, rl.burst*10),
 		}
 	}
 
@@ -91,6 +93,12 @@ func (r *HatchetRateLimiter) Limit(ctx context.Context) error {
 		if !r.GetOrCreateTenantRateLimiter(rateLimitToken).adminV1Limiter.Allow() {
 			r.l.Info().Msgf("admin rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken).adminV1Limiter.Limit())
 			return status.Errorf(codes.ResourceExhausted, "admin rate limit exceeded")
+		}
+
+	case "otelcol":
+		if !r.GetOrCreateTenantRateLimiter(rateLimitToken).otelColLimiter.Allow() {
+			r.l.Info().Msgf("otel collector rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken).otelColLimiter.Limit())
+			return status.Errorf(codes.ResourceExhausted, "otel collector rate limit exceeded")
 		}
 
 	default:
@@ -153,6 +161,8 @@ func matchServiceName(name string) string {
 		return "workflow"
 	case strings.HasPrefix(name, "/v1.AdminService"):
 		return "admin"
+	case strings.HasPrefix(name, "/opentelemetry.proto.collector"):
+		return "otelcol"
 	default:
 		return "unknown"
 	}
