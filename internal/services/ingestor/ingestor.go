@@ -35,9 +35,10 @@ type IngestorOpts struct {
 	repov1                v1.Repository
 	isLogIngestionEnabled bool
 
-	localScheduler  *scheduler.Scheduler
-	localDispatcher *dispatcher.DispatcherImpl
-	l               *zerolog.Logger
+	localScheduler              *scheduler.Scheduler
+	localDispatcher             *dispatcher.DispatcherImpl
+	optimisticSchedulingEnabled bool
+	l                           *zerolog.Logger
 
 	grpcTriggersEnabled bool
 	grpcTriggerSlots    int
@@ -79,6 +80,12 @@ func defaultIngestorOpts() *IngestorOpts {
 	return &IngestorOpts{
 		isLogIngestionEnabled: true,
 		l:                     &l,
+	}
+}
+
+func WithOptimisticSchedulingEnabled(enabled bool) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.optimisticSchedulingEnabled = enabled
 	}
 }
 
@@ -148,6 +155,14 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		tw = trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots)
 	}
 
+	var localScheduler *scheduler.Scheduler
+
+	if opts.optimisticSchedulingEnabled && opts.localScheduler != nil {
+		localScheduler = opts.localScheduler
+	} else if opts.optimisticSchedulingEnabled && opts.localScheduler == nil {
+		return nil, fmt.Errorf("optimistic writes enabled but no local scheduler provided")
+	}
+
 	return &IngestorImpl{
 		steprunTenantLookupCache: stepRunCache,
 		mqv1:                     opts.mqv1,
@@ -155,7 +170,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		repov1:                   opts.repov1,
 		isLogIngestionEnabled:    opts.isLogIngestionEnabled,
 		l:                        opts.l,
-		localScheduler:           opts.localScheduler,
+		localScheduler:           localScheduler,
 		localDispatcher:          opts.localDispatcher,
 		tw:                       tw,
 	}, nil

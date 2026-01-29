@@ -37,12 +37,13 @@ type AdminServiceImpl struct {
 type AdminServiceOpt func(*AdminServiceOpts)
 
 type AdminServiceOpts struct {
-	repov1          v1.Repository
-	mqv1            msgqueue.MessageQueue
-	v               validator.Validator
-	localScheduler  *scheduler.Scheduler
-	localDispatcher *dispatcher.DispatcherImpl
-	l               *zerolog.Logger
+	repov1                      v1.Repository
+	mqv1                        msgqueue.MessageQueue
+	v                           validator.Validator
+	localScheduler              *scheduler.Scheduler
+	localDispatcher             *dispatcher.DispatcherImpl
+	optimisticSchedulingEnabled bool
+	l                           *zerolog.Logger
 
 	grpcTriggersEnabled bool
 	grpcTriggerSlots    int
@@ -88,6 +89,12 @@ func WithLocalDispatcher(d *dispatcher.DispatcherImpl) AdminServiceOpt {
 	}
 }
 
+func WithOptimisticSchedulingEnabled(enabled bool) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.optimisticSchedulingEnabled = enabled
+	}
+}
+
 func WithLogger(l *zerolog.Logger) AdminServiceOpt {
 	return func(opts *AdminServiceOpts) {
 		opts.l = l
@@ -129,11 +136,19 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		tw = trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots)
 	}
 
+	var localScheduler *scheduler.Scheduler
+
+	if opts.optimisticSchedulingEnabled && opts.localScheduler != nil {
+		localScheduler = opts.localScheduler
+	} else if opts.optimisticSchedulingEnabled && opts.localScheduler == nil {
+		return nil, fmt.Errorf("optimistic writes enabled but no local scheduler provided")
+	}
+
 	return &AdminServiceImpl{
 		repov1:          opts.repov1,
 		mqv1:            opts.mqv1,
 		v:               opts.v,
-		localScheduler:  opts.localScheduler,
+		localScheduler:  localScheduler,
 		localDispatcher: opts.localDispatcher,
 		l:               opts.l,
 		tw:              tw,

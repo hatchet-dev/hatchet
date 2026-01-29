@@ -387,6 +387,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 			ingestor.WithLocalScheduler(localScheduler),
 			ingestor.WithLocalDispatcher(d),
+			ingestor.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
@@ -400,6 +401,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithLocalScheduler(localScheduler),
 			admin.WithLocalDispatcher(d),
+			admin.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
@@ -413,6 +415,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			adminv1.WithAnalytics(sc.Analytics),
 			adminv1.WithLocalScheduler(localScheduler),
 			adminv1.WithLocalDispatcher(d),
+			adminv1.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
@@ -798,6 +801,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 			ingestor.WithLocalScheduler(localScheduler),
 			ingestor.WithLocalDispatcher(d),
+			ingestor.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
@@ -811,6 +815,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithLocalScheduler(localScheduler),
 			admin.WithLocalDispatcher(d),
+			admin.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
@@ -825,6 +830,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			adminv1.WithAnalytics(sc.Analytics),
 			adminv1.WithLocalScheduler(localScheduler),
 			adminv1.WithLocalDispatcher(d),
+			adminv1.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
