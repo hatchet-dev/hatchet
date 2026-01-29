@@ -228,9 +228,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         enable_hatchet_otel_collector: bool = False,
     ):
         self.config = config or ClientConfig()
-        self._enable_hatchet_otel_collector = enable_hatchet_otel_collector
-        self._span_exporter: OTLPSpanExporter | None = None
-        self._hatchet_span_processor: BatchSpanProcessor | None = None
+        self.enable_hatchet_otel_collector = enable_hatchet_otel_collector
 
         if tracer_provider is not None:
             self.tracer_provider = tracer_provider
@@ -259,14 +257,13 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         insecure = self.config.tls_config.strategy == "none"
         headers = (("authorization", f"Bearer {self.config.token}"),)
 
-        self._span_exporter = OTLPSpanExporter(
+        span_exporter = OTLPSpanExporter(
             endpoint=endpoint,
             headers=headers,
             insecure=insecure,
         )
 
-        self._hatchet_span_processor = BatchSpanProcessor(self._span_exporter)
-        self.tracer_provider.add_span_processor(self._hatchet_span_processor)
+        self.tracer_provider.add_span_processor(BatchSpanProcessor(span_exporter))
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return ()
@@ -777,11 +774,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             return await wrapped(workflow_run_configs_with_meta)
 
     def _uninstrument(self, **kwargs: InstrumentKwargs) -> None:
-        # Shutdown the span exporter if we created one
-        if self._span_exporter is not None:
-            self._span_exporter.shutdown()
-            self._span_exporter = None
-
         self.tracer_provider = NoOpTracerProvider()
         self.meter_provider = NoOpMeterProvider()
 
