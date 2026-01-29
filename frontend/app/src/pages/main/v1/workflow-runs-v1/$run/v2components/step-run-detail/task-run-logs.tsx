@@ -1,4 +1,3 @@
-import { AttemptSwitcher } from '@/components/v1/cloud/logging/log-search/attempt-switcher';
 import { LogSearchInput } from '@/components/v1/cloud/logging/log-search/log-search-input';
 import {
   LogsProvider,
@@ -39,12 +38,7 @@ function TaskRunLogsContent() {
 
   return (
     <div className="my-4 flex flex-col gap-y-2">
-      {isLogSearchEnabled && (
-        <div className="flex items-center gap-4">
-          <LogSearchInput className="flex-1" />
-          <AttemptSwitcher />
-        </div>
-      )}
+      {isLogSearchEnabled && <LogSearchInput />}
       <LogViewer
         key={queryString}
         logs={logs}

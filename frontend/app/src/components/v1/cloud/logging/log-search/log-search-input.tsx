@@ -23,7 +23,7 @@ export function LogSearchInput({
   placeholder?: string;
   className?: string;
 }) {
-  const { queryString, setQueryString } = useLogsContext();
+  const { queryString, setQueryString, availableAttempts } = useLogsContext();
   const inputRef = useRef<HTMLInputElement>(null);
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -34,7 +34,7 @@ export function LogSearchInput({
     setLocalValue(queryString);
   }, [queryString]);
 
-  const { suggestions } = getAutocomplete(localValue);
+  const { suggestions } = getAutocomplete(localValue, availableAttempts);
 
   const submitSearch = useCallback(() => {
     setQueryString(localValue);
@@ -243,6 +243,13 @@ export function LogSearchInput({
               className="inline-flex items-center rounded-md border border-input px-2 py-0.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               Level
+            </button>
+            <button
+              type="button"
+              onClick={() => handleFilterChipClick('attempt:')}
+              className="inline-flex items-center rounded-md border border-input px-2 py-0.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              Attempt
             </button>
           </div>
         </PopoverContent>
