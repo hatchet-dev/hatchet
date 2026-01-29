@@ -6,6 +6,7 @@ import {
   V1LogLine,
   V1TaskStatus,
   V1LogLineLevel,
+  V1LogLineOrderByDirection,
 } from '@/lib/api';
 import api from '@/lib/api/api';
 import { V1LogLineListQuery } from '@/lib/api/queries';
@@ -109,6 +110,7 @@ export function useLogs({
           levels: [parsedQuery.level.toUpperCase() as V1LogLineLevel],
         }),
         ...(parsedQuery.search && { search: parsedQuery.search }),
+        order_by_direction: V1LogLineOrderByDirection.DESC,
       };
 
       const response = await api.v1LogLineList(
