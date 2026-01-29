@@ -1,5 +1,6 @@
 import { getAutocomplete, applySuggestion } from './autocomplete';
 import { useLogsContext } from './use-logs';
+import { Button } from '@/components/v1/ui/button';
 import {
   Command,
   CommandGroup,
@@ -237,20 +238,22 @@ export function LogSearchInput({
             )}
           >
             <span className="text-muted-foreground">Available filters:</span>
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-auto px-2 py-0.5 text-xs"
               onClick={() => handleFilterChipClick('level:')}
-              className="inline-flex items-center rounded-md border border-input px-2 py-0.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               Level
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-auto px-2 py-0.5 text-xs"
               onClick={() => handleFilterChipClick('attempt:')}
-              className="inline-flex items-center rounded-md border border-input px-2 py-0.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               Attempt
-            </button>
+            </Button>
           </div>
         </PopoverContent>
       </Popover>
