@@ -33,4 +33,3 @@ func TestValidateJSONB_RejectsEncodedNull(t *testing.T) {
 		t.Fatalf("expected error for encoded null, got nil")
 	}
 }
-

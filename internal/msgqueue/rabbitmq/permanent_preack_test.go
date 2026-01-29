@@ -31,4 +31,3 @@ func TestIsPermanentPreAckError_OtherError(t *testing.T) {
 		t.Fatalf("expected false for non-permanent error")
 	}
 }
-
