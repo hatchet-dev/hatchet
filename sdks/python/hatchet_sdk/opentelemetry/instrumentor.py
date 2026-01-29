@@ -8,11 +8,14 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 try:
     from opentelemetry.context import Context
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
     from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
         BaseInstrumentor,
     )
     from opentelemetry.instrumentation.utils import unwrap
     from opentelemetry.metrics import MeterProvider, NoOpMeterProvider, get_meter
+    from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
     from opentelemetry.trace import (
         NoOpTracerProvider,
         SpanKind,
@@ -25,6 +28,7 @@ try:
         TraceContextTextMapPropagator,
     )
     from wrapt import wrap_function_wrapper  # type: ignore[import-untyped]
+    import grpc
 except (RuntimeError, ImportError, ModuleNotFoundError) as e:
     raise ModuleNotFoundError(
         "To use the HatchetInstrumentor, you must install Hatchet's `otel` extra using (e.g.) `pip install hatchet-sdk[otel]`"
@@ -185,11 +189,38 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     tracing and metrics collection.
 
     :param tracer_provider: TracerProvider | None: The OpenTelemetry TracerProvider to use.
-            If not provided, the global tracer provider will be used.
+            If not provided and `forward_traces_to_hatchet` is True, a new SDKTracerProvider
+            will be created. Otherwise, the global tracer provider will be used.
     :param meter_provider: MeterProvider | None: The OpenTelemetry MeterProvider to use.
             If not provided, a no-op meter provider will be used.
     :param config: ClientConfig | None: The configuration for the Hatchet client. If not provided,
             a default configuration will be used.
+    :param forward_traces_to_hatchet: bool: If True, adds an OTLP exporter to send traces to the
+            Hatchet engine. Uses the same connection settings (host, TLS, token) as the Hatchet
+            client. This can be combined with your own tracer_provider to send traces to multiple
+            destinations (e.g., both Hatchet and Jaeger/Datadog). Default is False.
+
+    Example usage::
+
+        # Send traces only to Hatchet
+        instrumentor = HatchetInstrumentor(
+            config=config,
+            forward_traces_to_hatchet=True,
+        )
+
+        # Send traces to both Hatchet and your own collector
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+        provider = TracerProvider()
+        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint="your-collector:4317")))
+
+        instrumentor = HatchetInstrumentor(
+            config=config,
+            tracer_provider=provider,
+            forward_traces_to_hatchet=True,  # Also sends to Hatchet
+        )
     """
 
     def __init__(
@@ -197,13 +228,57 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         tracer_provider: TracerProvider | None = None,
         meter_provider: MeterProvider | None = None,
         config: ClientConfig | None = None,
+        forward_traces_to_hatchet: bool = False,
     ):
         self.config = config or ClientConfig()
+        self._forward_traces_to_hatchet = forward_traces_to_hatchet
+        self._span_exporter: OTLPSpanExporter | None = None
+        self._hatchet_span_processor: BatchSpanProcessor | None = None
 
-        self.tracer_provider = tracer_provider or get_tracer_provider()
+        # Determine the base tracer provider
+        if tracer_provider is not None:
+            self.tracer_provider = tracer_provider
+        elif forward_traces_to_hatchet:
+            # Create a new provider if none provided and forwarding is enabled
+            self.tracer_provider = SDKTracerProvider()
+        else:
+            self.tracer_provider = get_tracer_provider()
+
+        # Add Hatchet exporter if requested
+        if forward_traces_to_hatchet:
+            self._add_hatchet_exporter()
+
         self.meter_provider = meter_provider or NoOpMeterProvider()
 
         super().__init__()
+
+    def _add_hatchet_exporter(self) -> None:
+        """
+        Adds a Hatchet OTLP exporter to the tracer provider.
+
+        This allows traces to be sent to both Hatchet and any other exporters
+        the user has configured on their tracer provider.
+        """
+        if not isinstance(self.tracer_provider, SDKTracerProvider):
+            logger.warning(
+                "forward_traces_to_hatchet requires an opentelemetry.sdk.trace.TracerProvider. "
+                "The provided tracer_provider does not support adding span processors. "
+                "Traces will not be forwarded to Hatchet."
+            )
+            return
+
+        endpoint = self.config.host_port
+        insecure = self.config.tls_config.strategy == "none"
+        headers = (("authorization", f"Bearer {self.config.token}"),)
+
+        self._span_exporter = OTLPSpanExporter(
+            endpoint=endpoint,
+            headers=headers,
+            insecure=insecure,
+        )
+
+        self._hatchet_span_processor = BatchSpanProcessor(self._span_exporter)
+        self.tracer_provider.add_span_processor(self._hatchet_span_processor)
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return ()
@@ -714,6 +789,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             return await wrapped(workflow_run_configs_with_meta)
 
     def _uninstrument(self, **kwargs: InstrumentKwargs) -> None:
+        # Shutdown the span exporter if we created one
+        if self._span_exporter is not None:
+            self._span_exporter.shutdown()
+            self._span_exporter = None
+
         self.tracer_provider = NoOpTracerProvider()
         self.meter_provider = NoOpMeterProvider()
 
