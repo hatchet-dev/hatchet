@@ -1,5 +1,4 @@
 import { AutocompleteSuggestion, LOG_LEVELS, LOG_LEVEL_COLORS } from './types';
-import { LogLevel } from './types';
 
 const LEVEL_DESCRIPTIONS: Record<string, string> = {
   error: 'Error messages',
