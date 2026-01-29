@@ -50,7 +50,7 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to create webhook")
+		return nil, fmt.Errorf("failed to create webhook: %w", err)
 	}
 
 	transformed := transformers.ToV1Webhook(webhook)

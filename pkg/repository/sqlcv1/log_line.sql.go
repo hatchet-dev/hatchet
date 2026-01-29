@@ -35,21 +35,23 @@ WHERE
     AND ($6::TIMESTAMPTZ IS NULL OR l.created_at < $6::TIMESTAMPTZ)
     AND ($7::v1_log_line_level[] IS NULL OR l.level = ANY($7::v1_log_line_level[]))
 ORDER BY
-    l.created_at ASC
-LIMIT COALESCE($9, 1000)
-OFFSET COALESCE($8, 0)
+    CASE WHEN $8::TEXT = 'DESC' THEN l.created_at END DESC,
+    CASE WHEN $8::TEXT = 'ASC' THEN l.created_at END ASC
+LIMIT COALESCE($10::BIGINT, 1000)
+OFFSET COALESCE($9::BIGINT, 0)
 `
 
 type ListLogLinesParams struct {
-	Tenantid       pgtype.UUID        `json:"tenantid"`
-	Taskid         int64              `json:"taskid"`
-	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
-	Search         pgtype.Text        `json:"search"`
-	Since          pgtype.Timestamptz `json:"since"`
-	Until          pgtype.Timestamptz `json:"until"`
-	Levels         []V1LogLineLevel   `json:"levels"`
-	Offset         interface{}        `json:"offset"`
-	Limit          interface{}        `json:"limit"`
+	Tenantid         pgtype.UUID        `json:"tenantid"`
+	Taskid           int64              `json:"taskid"`
+	Taskinsertedat   pgtype.Timestamptz `json:"taskinsertedat"`
+	Search           pgtype.Text        `json:"search"`
+	Since            pgtype.Timestamptz `json:"since"`
+	Until            pgtype.Timestamptz `json:"until"`
+	Levels           []V1LogLineLevel   `json:"levels"`
+	Orderbydirection string             `json:"orderbydirection"`
+	Offset           pgtype.Int8        `json:"offset"`
+	Limit            pgtype.Int8        `json:"limit"`
 }
 
 func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesParams) ([]*V1LogLine, error) {
@@ -61,6 +63,7 @@ func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesPar
 		arg.Since,
 		arg.Until,
 		arg.Levels,
+		arg.Orderbydirection,
 		arg.Offset,
 		arg.Limit,
 	)

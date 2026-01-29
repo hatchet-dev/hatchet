@@ -46,7 +46,7 @@ type CreateWorkflowVersionOpts struct {
 	OnFailure *CreateStepOpts `json:"onFailureJob,omitempty" validate:"omitempty"`
 
 	// (optional) the workflow concurrency groups
-	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validator:"omitempty,dive"`
+	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validate:"omitempty,dive"`
 
 	// (optional) sticky strategy
 	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
@@ -102,7 +102,7 @@ type CreateStepOpts struct {
 	TriggerConditions []CreateStepMatchConditionOpt `validate:"omitempty,dive"`
 
 	// (optional) the step concurrency options
-	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validator:"omitnil"`
+	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validate:"omitempty,dive"`
 }
 
 type CreateStepMatchConditionOpt struct {

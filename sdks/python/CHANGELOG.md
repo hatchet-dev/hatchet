@@ -5,6 +5,24 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.11] - 2026-01-27
+
+### Changed
+
+- Improves handling of cancellations for tasks to limit how often tasks receive a cancellation but then are marked as succeeded anyways.
+
+## [1.22.10] - 2026-01-26
+
+### Added
+
+- `HATCHET_CLIENT_WORKER_HEALTHCHECK_BIND_ADDRESS` now allows configuring the bind address for the worker healthcheck server (default: `0.0.0.0`)
+
+## [1.22.9] - 2026-01-26
+
+### Added
+
+- Adds missing `unwrap` for `schedule_workflow` in OpenTelemetry instrumentor.
+
 ## [1.22.8] - 2026-01-20
 
 ### Added

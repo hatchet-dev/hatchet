@@ -49,6 +49,7 @@ from hatchet_sdk.runnables.contextvars import (
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
+from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.utils.typing import DataclassInstance
 from hatchet_sdk.worker.action_listener_process import ActionEvent
@@ -86,6 +87,7 @@ class Runner:
         self.slots = slots
         self.tasks: dict[ActionKey, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[ActionKey, Context] = {}  # Store run ids and contexts
+        self.cancellations = BoundedDict[str, bool](maxsize=1000)
         self.action_registry = action_registry or {}
 
         self.event_queue = event_queue
@@ -156,8 +158,9 @@ class Runner:
     ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
             self.cleanup_run_id(action.key)
+            was_cancelled = self.cancellations.pop(action.key, False)
 
-            if task.cancelled():
+            if was_cancelled or task.cancelled():
                 return
 
             try:
@@ -348,6 +351,9 @@ class Runner:
             del self.threads[key]
 
         if key in self.contexts:
+            if self.contexts[key].exit_flag:
+                self.cancellations[key] = True
+
             del self.contexts[key]
 
     @overload
@@ -467,6 +473,7 @@ class Runner:
             # call cancel to signal the context to stop
             if key in self.contexts:
                 self.contexts[key]._set_cancellation_flag()
+                self.cancellations[key] = True
 
             await asyncio.sleep(1)
 

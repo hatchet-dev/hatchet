@@ -28,6 +28,9 @@ type ListLogsOpts struct {
 
 	// (optional) the end time to get logs for
 	Until *time.Time
+
+	// (optional) Order by direction
+	OrderByDirection *string `validate:"omitempty,oneof=ASC DESC"`
 }
 
 type CreateLogLineOpts struct {
@@ -84,9 +87,10 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	queryParams := sqlcv1.ListLogLinesParams{
-		Tenantid:       pgTenantId,
-		Taskid:         task.ID,
-		Taskinsertedat: task.InsertedAt,
+		Tenantid:         pgTenantId,
+		Taskid:           task.ID,
+		Taskinsertedat:   task.InsertedAt,
+		Orderbydirection: "ASC",
 	}
 
 	if opts.Search != nil {
@@ -94,11 +98,17 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 	}
 
 	if opts.Limit != nil {
-		queryParams.Limit = *opts.Limit
+		queryParams.Limit = pgtype.Int8{
+			Int64: int64(*opts.Limit),
+			Valid: true,
+		}
 	}
 
 	if opts.Offset != nil {
-		queryParams.Offset = *opts.Offset
+		queryParams.Offset = pgtype.Int8{
+			Int64: int64(*opts.Offset),
+			Valid: true,
+		}
 	}
 
 	if opts.Since != nil {
@@ -122,6 +132,10 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 		}
 
 		queryParams.Levels = levels
+	}
+
+	if opts.OrderByDirection != nil {
+		queryParams.Orderbydirection = *opts.OrderByDirection
 	}
 
 	logLines, err := r.queries.ListLogLines(ctx, r.pool, queryParams)
