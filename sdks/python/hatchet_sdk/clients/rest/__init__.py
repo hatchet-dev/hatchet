@@ -69,6 +69,8 @@ from hatchet_sdk.clients.rest.models.cancel_event_request import CancelEventRequ
 from hatchet_sdk.clients.rest.models.concurrency_limit_strategy import (
     ConcurrencyLimitStrategy,
 )
+from hatchet_sdk.clients.rest.models.concurrency_scope import ConcurrencyScope
+from hatchet_sdk.clients.rest.models.concurrency_setting import ConcurrencySetting
 from hatchet_sdk.clients.rest.models.concurrency_stat import ConcurrencyStat
 from hatchet_sdk.clients.rest.models.create_api_token_request import (
     CreateAPITokenRequest,
