@@ -387,6 +387,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 			ingestor.WithLocalScheduler(localScheduler),
 			ingestor.WithLocalDispatcher(d),
+			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
+			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
 
 		if err != nil {
@@ -398,6 +400,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithLocalScheduler(localScheduler),
 			admin.WithLocalDispatcher(d),
+			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
+			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service: %w", err)
@@ -409,6 +413,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			adminv1.WithAnalytics(sc.Analytics),
 			adminv1.WithLocalScheduler(localScheduler),
 			adminv1.WithLocalDispatcher(d),
+			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
+			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
 
 		if err != nil {
@@ -792,6 +798,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 			ingestor.WithLocalScheduler(localScheduler),
 			ingestor.WithLocalDispatcher(d),
+			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
+			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
 
 		if err != nil {
@@ -803,6 +811,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithLocalScheduler(localScheduler),
 			admin.WithLocalDispatcher(d),
+			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
+			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
 
 		if err != nil {
@@ -815,6 +825,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			adminv1.WithAnalytics(sc.Analytics),
 			adminv1.WithLocalScheduler(localScheduler),
 			adminv1.WithLocalDispatcher(d),
+			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
+			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
 
 		if err != nil {

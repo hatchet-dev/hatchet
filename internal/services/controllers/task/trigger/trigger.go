@@ -36,8 +36,6 @@ func NewTriggerWriter(mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.L
 
 	if slots > 0 {
 		sem = make(chan struct{}, slots)
-	} else {
-		sem = make(chan struct{})
 	}
 
 	return &TriggerWriter{
@@ -52,15 +50,17 @@ func NewTriggerWriter(mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.L
 
 func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId string, eventIdToOpts map[string]v1.EventTriggerOpts) error {
 	// attempt to acquire a slot in the semaphore
-	select {
-	case tw.semaphore <- struct{}{}:
-		// acquired a slot
-		defer func() {
-			<-tw.semaphore
-		}()
-	default:
-		// no slots available
-		return ErrNoTriggerSlots
+	if tw.semaphore != nil {
+		select {
+		case tw.semaphore <- struct{}{}:
+			// acquired a slot
+			defer func() {
+				<-tw.semaphore
+			}()
+		default:
+			// no slots available
+			return ErrNoTriggerSlots
+		}
 	}
 
 	opts := make([]v1.EventTriggerOpts, 0, len(eventIdToOpts))
@@ -111,15 +111,17 @@ func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId string,
 
 func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*v1.WorkflowNameTriggerOpts) error {
 	// attempt to acquire a slot in the semaphore
-	select {
-	case tw.semaphore <- struct{}{}:
-		// acquired a slot
-		defer func() {
-			<-tw.semaphore
-		}()
-	default:
-		// no slots available
-		return ErrNoTriggerSlots
+	if tw.semaphore != nil {
+		select {
+		case tw.semaphore <- struct{}{}:
+			// acquired a slot
+			defer func() {
+				<-tw.semaphore
+			}()
+		default:
+			// no slots available
+			return ErrNoTriggerSlots
+		}
 	}
 
 	tasks, dags, err := tw.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
