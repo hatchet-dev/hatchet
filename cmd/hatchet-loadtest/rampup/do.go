@@ -23,15 +23,10 @@ type taskTracker struct {
 func do(duration time.Duration, startEventsPerSecond, amount int, increase, delay, wait, maxAcceptableDuration, maxAcceptableSchedule time.Duration, includeDroppedEvents bool, concurrency int) error {
 	l.Debug().Msgf("testing with duration=%s, amount=%d, increase=%d, delay=%s, wait=%s, concurrency=%d", duration, amount, increase, delay, wait, concurrency)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), duration+10*time.Second+wait+5*time.Second)
 	defer cancel()
 
 	after := 10 * time.Second
-
-	go func() {
-		time.Sleep(duration + after + wait + 5*time.Second)
-		cancel()
-	}()
 
 	hook := make(chan time.Duration, 1)
 
