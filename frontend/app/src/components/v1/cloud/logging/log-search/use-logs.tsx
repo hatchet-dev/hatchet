@@ -276,7 +276,12 @@ export function useLogs({
   }, [getLogsQuery.data?.pages, taskRun?.displayName]);
 
   const availableAttempts = useMemo(
-    () => Array(taskRun?.retryCount ?? 1).map((_, index) => index + 1),
+    () =>
+      Array.apply(null, Array((taskRun?.retryCount ?? 0) + 1)).map(
+        function (_, i) {
+          return i + 1;
+        },
+      ),
     [allLogs],
   );
 
