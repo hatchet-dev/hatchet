@@ -1823,6 +1823,8 @@ export interface WorkflowVersion {
   jobs?: Job[];
   workflowConfig?: object;
   v1Concurrency?: ConcurrencySetting[];
+  /** The JSON schema for the workflow input. */
+  inputJsonSchema?: object;
 }
 
 export interface TriggerWorkflowRunRequest {

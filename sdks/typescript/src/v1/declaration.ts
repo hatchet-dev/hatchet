@@ -8,6 +8,7 @@ import {
   V1CreateFilterRequest,
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
+import { z } from 'zod';
 import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
@@ -135,6 +136,13 @@ export type CreateBaseWorkflowOpts = {
   defaultPriority?: Priority;
 
   defaultFilters?: DefaultFilter[];
+
+  /**
+   * (optional) Zod schema for the workflow input.
+   * When provided, a JSON Schema is generated and sent to the Hatchet backend, which
+   * can be used on the dashboard for autocomplete.
+   */
+  inputValidator?: z.ZodType<any>;
 };
 
 export type CreateTaskWorkflowOpts<
@@ -798,7 +806,8 @@ export function CreateTaskWorkflow<
  * Creates a new workflow instance.
  * @template I The input type for the workflow.
  * @template O The return type of the workflow.
- * @param options The options for creating the workflow.
+ * @param options The options for creating the workflow. Optionally include a Zod schema
+ *                via the `input` field to generate a JSON Schema for the backend.
  * @param client Optional Hatchet client instance.
  * @returns A new Workflow instance.
  */

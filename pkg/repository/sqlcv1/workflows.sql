@@ -120,7 +120,8 @@ INSERT INTO "WorkflowVersion" (
     "sticky",
     "kind",
     "defaultPriority",
-    "createWorkflowVersionOpts"
+    "createWorkflowVersionOpts",
+    "inputJsonSchema"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -134,7 +135,8 @@ INSERT INTO "WorkflowVersion" (
     sqlc.narg('sticky')::"StickyStrategy",
     coalesce(sqlc.narg('kind')::"WorkflowKind", 'DAG'),
     sqlc.narg('defaultPriority') :: integer,
-    sqlc.narg('createWorkflowVersionOpts')::jsonb
+    sqlc.narg('createWorkflowVersionOpts')::jsonb,
+    sqlc.narg('inputJsonSchema')::jsonb
 ) RETURNING *;
 
 -- name: CreateJob :one

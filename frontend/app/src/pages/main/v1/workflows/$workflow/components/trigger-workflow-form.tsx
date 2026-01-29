@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
+import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
   Tabs,
   TabsContent,
@@ -20,6 +21,7 @@ import {
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   CronWorkflows,
+  queries,
   ScheduledWorkflows,
   V1WorkflowRunDetails,
   Workflow,
@@ -73,6 +75,13 @@ export function TriggerWorkflowForm({
     () => debounce((value: string) => setDebouncedWorkflowSearch(value), 300),
     [],
   );
+
+  const workflowVersionQuery = useQuery({
+    ...queries.workflows.getVersion(selectedWorkflowId || ''),
+    enabled: !!selectedWorkflowId,
+  });
+  const selectedWorkflow = workflowVersionQuery.data;
+  const isLoadingWorkflow = workflowVersionQuery.isLoading;
 
   const handleSearchChange = useCallback(
     (value: string) => {
@@ -137,20 +146,17 @@ export function TriggerWorkflowForm({
     refetchInterval: 15000,
   });
 
-  const selectedWorkflow = useMemo(
-    () => workflowKeys?.rows?.find((w) => w.metadata.id === selectedWorkflowId),
-    [selectedWorkflowId, workflowKeys],
-  );
+  const jsonSchema = selectedWorkflow?.inputJsonSchema;
 
   const triggerNowMutation = useMutation({
     mutationKey: ['workflow-run:create', selectedWorkflow?.metadata.id],
     mutationFn: async (data: { input: object; addlMeta: object }) => {
-      if (!selectedWorkflow) {
+      if (!selectedWorkflow || !selectedWorkflow.workflow) {
         return;
       }
 
       const res = await api.v1WorkflowRunCreate(tenantId, {
-        workflowName: selectedWorkflow.name,
+        workflowName: selectedWorkflow.workflow.name,
         input: data.input,
         additionalMetadata: data.addlMeta,
       });
@@ -180,13 +186,13 @@ export function TriggerWorkflowForm({
       addlMeta: object;
       scheduledAt: string;
     }) => {
-      if (!selectedWorkflow) {
+      if (!selectedWorkflow || !selectedWorkflow.workflow) {
         return;
       }
 
       const res = await api.scheduledWorkflowRunCreate(
         tenantId,
-        selectedWorkflow?.name,
+        selectedWorkflow.workflow.name,
         {
           input: data.input,
           additionalMetadata: data.addlMeta,
@@ -223,13 +229,13 @@ export function TriggerWorkflowForm({
       cron: string;
       cronName: string;
     }) => {
-      if (!selectedWorkflow) {
+      if (!selectedWorkflow || !selectedWorkflow.workflow) {
         return;
       }
 
       const res = await api.cronWorkflowTriggerCreate(
         tenantId,
-        selectedWorkflow?.name,
+        selectedWorkflow.workflow.name,
         {
           input: data.input,
           additionalMetadata: data.addlMeta,
@@ -336,20 +342,36 @@ export function TriggerWorkflowForm({
               : 'No workflows found'
           }
         />
-        <div className="font-bold">Input</div>
-        <CodeEditor
-          code={input || '{}'}
-          setCode={setInput}
-          language="json"
-          height="180px"
-        />
+        <div className="font-bold">
+          Input
+          {isLoadingWorkflow && (
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              (Loading schema...)
+            </span>
+          )}
+        </div>
+        {isLoadingWorkflow ? (
+          <Skeleton className="h-[180px] w-full" />
+        ) : (
+          <CodeEditor
+            code={input || '{}'}
+            setCode={setInput}
+            language="json"
+            height="180px"
+            jsonSchema={jsonSchema}
+          />
+        )}
         <div className="font-bold">Additional Metadata</div>
-        <CodeEditor
-          code={addlMeta || '{}'}
-          setCode={setAddlMeta}
-          height="90px"
-          language="json"
-        />
+        {isLoadingWorkflow ? (
+          <Skeleton className="h-[90px] w-full" />
+        ) : (
+          <CodeEditor
+            code={addlMeta || '{}'}
+            setCode={setAddlMeta}
+            height="90px"
+            language="json"
+          />
+        )}
         <div>
           <div className="mb-2 font-bold">Timing</div>
           <Tabs
@@ -472,7 +494,8 @@ export function TriggerWorkflowForm({
               triggerNowMutation.isPending ||
               triggerScheduleMutation.isPending ||
               triggerCronMutation.isPending ||
-              !selectedWorkflow
+              !selectedWorkflow ||
+              isLoadingWorkflow
             }
             onClick={handleSubmit}
           >

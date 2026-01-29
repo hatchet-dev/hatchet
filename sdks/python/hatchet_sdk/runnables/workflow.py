@@ -1,4 +1,5 @@
 import asyncio
+import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import cached_property
@@ -202,6 +203,19 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             _concurrency = None
             _concurrency_arr = []
 
+        # Hack to not send a JSON schema if the input type is None/EmptyModel
+        input_type = self.config.input_validator.core_schema.get("cls")
+
+        if input_type is None or input_type is EmptyModel:
+            json_schema = None
+        else:
+            try:
+                json_schema = json.dumps(
+                    self.config.input_validator.json_schema()
+                ).encode("utf-8")
+            except Exception:
+                json_schema = None
+
         return CreateWorkflowVersionRequest(
             name=name,
             description=self.config.description,
@@ -219,6 +233,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             concurrency_arr=_concurrency_arr,
             default_priority=self.config.default_priority,
             default_filters=[f.to_proto() for f in self.config.default_filters],
+            input_json_schema=json_schema,
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:

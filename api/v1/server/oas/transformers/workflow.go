@@ -109,6 +109,16 @@ func ToWorkflowVersion(
 		res.Workflow = ToWorkflowFromSQLC(workflow)
 	}
 
+	if len(version.InputJsonSchema) > 0 {
+		versionMap := make(map[string]interface{})
+
+		err := json.Unmarshal(version.InputJsonSchema, &versionMap)
+
+		if err == nil {
+			res.InputJsonSchema = &versionMap
+		}
+	}
+
 	triggersResp := gen.WorkflowTriggers{}
 
 	if len(crons) > 0 {

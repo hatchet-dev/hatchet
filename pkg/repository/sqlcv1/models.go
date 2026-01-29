@@ -3703,4 +3703,5 @@ type WorkflowVersion struct {
 	Kind                      WorkflowKind       `json:"kind"`
 	DefaultPriority           pgtype.Int4        `json:"defaultPriority"`
 	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
+	InputJsonSchema           []byte             `json:"inputJsonSchema"`
 }
