@@ -141,6 +141,13 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 		queryParams.Orderbydirection = *opts.OrderByDirection
 	}
 
+	if opts.Attempt != nil {
+		queryParams.Attempt = pgtype.Int4{
+			Int32: *opts.Attempt,
+			Valid: true,
+		}
+	}
+
 	logLines, err := r.queries.ListLogLines(ctx, r.pool, queryParams)
 	if err != nil {
 		return nil, err
