@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
@@ -233,6 +234,20 @@ func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId str
 }
 
 func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...*v1.WorkflowNameTriggerOpts) error {
+	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
+
+	for _, opt := range opts {
+		if opt.ShouldSkip {
+			continue
+		}
+
+		optsToSend = append(optsToSend, opt)
+	}
+
+	if len(optsToSend) == 0 {
+		return nil
+	}
+
 	if i.localScheduler != nil {
 		localWorkerIds := map[string]struct{}{}
 
@@ -279,48 +294,45 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...
 		if schedulingErr == nil {
 			return nil
 		}
+	} else if i.tw != nil {
+		triggerErr := i.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
+
+		// if we fail to trigger via gRPC, we fall back to normal ingestion
+		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
+			i.l.Error().Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
+		} else if triggerErr == nil {
+			return nil
+		}
 	}
 
-	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
+	verifyErr := i.repov1.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
 
-	for _, opt := range opts {
-		if opt.ShouldSkip {
-			continue
+	if verifyErr != nil {
+		namesNotFound := &v1.ErrNamesNotFound{}
+
+		if errors.As(verifyErr, &namesNotFound) {
+			return status.Error(
+				codes.InvalidArgument,
+				verifyErr.Error(),
+			)
 		}
 
-		optsToSend = append(optsToSend, opt)
+		return fmt.Errorf("could not verify workflow name opts: %w", verifyErr)
 	}
 
-	if len(optsToSend) > 0 {
-		verifyErr := i.repov1.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
+	msg, err := tasktypes.TriggerTaskMessage(
+		tenantId,
+		optsToSend...,
+	)
 
-		if verifyErr != nil {
-			namesNotFound := &v1.ErrNamesNotFound{}
+	if err != nil {
+		return fmt.Errorf("could not create event task: %w", err)
+	}
 
-			if errors.As(verifyErr, &namesNotFound) {
-				return status.Error(
-					codes.InvalidArgument,
-					verifyErr.Error(),
-				)
-			}
+	err = i.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
-			return fmt.Errorf("could not verify workflow name opts: %w", verifyErr)
-		}
-
-		msg, err := tasktypes.TriggerTaskMessage(
-			tenantId,
-			optsToSend...,
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not create event task: %w", err)
-		}
-
-		err = i.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-
-		if err != nil {
-			return fmt.Errorf("could not add event to task queue: %w", err)
-		}
+	if err != nil {
+		return fmt.Errorf("could not add event to task queue: %w", err)
 	}
 
 	return nil

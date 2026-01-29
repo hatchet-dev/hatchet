@@ -15,7 +15,10 @@ type UserEventTaskPayload struct {
 	EventPriority           *int32  `json:"event_priority,omitempty"`
 	EventScope              *string `json:"event_scope,omitempty"`
 	TriggeringWebhookName   *string `json:"triggering_webhook_name,omitempty"`
-	WasProcessedLocally     bool    `json:"was_processed_locally"`
+
+	// WasProcessedLocally indicates whether the event was written and tasks were triggered on the gRPC server
+	// instead of the controller, so we can skip the triggering logic downstream
+	WasProcessedLocally bool `json:"was_processed_locally"`
 }
 
 func NewInternalEventMessage(tenantId string, timestamp time.Time, events ...v1.InternalTaskEvent) (*msgqueue.Message, error) {

@@ -1902,7 +1902,6 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		eventKeys = append(eventKeys, opt.Key)
 	}
 
-	// we don't run this in a transaction because workflow versions won't change during the course of this operation
 	workflowVersionIdsAndEventKeys, err := r.queries.ListWorkflowsForEvents(ctx, tx, sqlcv1.ListWorkflowsForEventsParams{
 		Eventkeys: eventKeys,
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
@@ -2108,11 +2107,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 		return nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
 	}
 
-	// we don't run this in a transaction because workflow versions won't change during the course of this operation
-	workflowVersionsByNames, err := r.queries.ListWorkflowsByNames(ctx, r.pool, sqlcv1.ListWorkflowsByNamesParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
-		Workflownames: workflowNames,
-	})
+	workflowVersionsByNames, err := r.listWorkflowsByNames(ctx, tx, tenantId, workflowNames)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workflows for names: %w", err)

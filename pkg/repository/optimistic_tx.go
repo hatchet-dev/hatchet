@@ -41,7 +41,7 @@ func (o *OptimisticTx) Commit(ctx context.Context) error {
 	}
 
 	for _, f := range o.postCommit {
-		f()
+		doCallback(f)
 	}
 
 	return err
@@ -49,4 +49,14 @@ func (o *OptimisticTx) Commit(ctx context.Context) error {
 
 func (o *OptimisticTx) Rollback() {
 	o.rollback()
+}
+
+func doCallback(f func()) {
+	go func() {
+		defer func() {
+			recover() // nolint: errcheck
+		}()
+
+		f()
+	}()
 }

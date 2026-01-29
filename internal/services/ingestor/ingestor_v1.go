@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -144,6 +145,32 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 		// if there's no scheduling error, the event was processed locally. Note that we don't return here because
 		// we still need to enqueue the event to ensure downstream processing (triggers, durable events)
 		if schedulingErr == nil {
+			wasProcessedLocally = true
+		}
+	} else if i.tw != nil {
+		// if we have a trigger writer, we attempt to trigger the events via gRPC
+		opts := make(map[string]v1.EventTriggerOpts)
+
+		for _, event := range eventOpts {
+			opts[event.EventExternalId] = v1.EventTriggerOpts{
+				ExternalId:            event.EventExternalId,
+				Key:                   event.EventKey,
+				Data:                  event.EventData,
+				AdditionalMetadata:    event.EventAdditionalMetadata,
+				Priority:              event.EventPriority,
+				Scope:                 event.EventScope,
+				TriggeringWebhookName: event.TriggeringWebhookName,
+			}
+		}
+
+		triggerErr := i.tw.TriggerFromEvents(ctx, tenantId, opts)
+
+		// if we fail to trigger via gRPC, we fall back to normal ingestion
+		if triggerErr != nil {
+			if !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
+				i.l.Error().Err(triggerErr).Msg("could not trigger events via gRPC")
+			}
+		} else {
 			wasProcessedLocally = true
 		}
 	}

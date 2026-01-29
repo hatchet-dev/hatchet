@@ -7,6 +7,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
@@ -37,6 +38,9 @@ type IngestorOpts struct {
 	localScheduler  *scheduler.Scheduler
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
+
+	grpcTriggersEnabled bool
+	grpcTriggerSlots    int
 }
 
 func WithMessageQueueV1(mq msgqueue.MessageQueue) IngestorOptFunc {
@@ -54,6 +58,18 @@ func WithRepositoryV1(r v1.Repository) IngestorOptFunc {
 func WithLogIngestionEnabled(isEnabled bool) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.isLogIngestionEnabled = isEnabled
+	}
+}
+
+func WithGrpcTriggersEnabled(enabled bool) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.grpcTriggersEnabled = enabled
+	}
+}
+
+func WithGrpcTriggerSlots(slots int) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.grpcTriggerSlots = slots
 	}
 }
 
@@ -98,6 +114,8 @@ type IngestorImpl struct {
 	localScheduler  *scheduler.Scheduler
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
+
+	tw *trigger.TriggerWriter
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -122,6 +140,14 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("could not create step run cache: %w", err)
 	}
 
+	var tw *trigger.TriggerWriter
+
+	if opts.grpcTriggersEnabled {
+		pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
+
+		tw = trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots)
+	}
+
 	return &IngestorImpl{
 		steprunTenantLookupCache: stepRunCache,
 		mqv1:                     opts.mqv1,
@@ -131,6 +157,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		l:                        opts.l,
 		localScheduler:           opts.localScheduler,
 		localDispatcher:          opts.localDispatcher,
+		tw:                       tw,
 	}, nil
 }
 

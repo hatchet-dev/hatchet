@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -30,6 +31,8 @@ type AdminServiceImpl struct {
 	localScheduler  *scheduler.Scheduler
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
+
+	tw *trigger.TriggerWriter
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
@@ -43,6 +46,9 @@ type AdminServiceOpts struct {
 	localScheduler  *scheduler.Scheduler
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
+
+	grpcTriggersEnabled bool
+	grpcTriggerSlots    int
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
@@ -97,6 +103,18 @@ func WithLogger(l *zerolog.Logger) AdminServiceOpt {
 	}
 }
 
+func WithGrpcTriggersEnabled(enabled bool) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.grpcTriggersEnabled = enabled
+	}
+}
+
+func WithGrpcTriggerSlots(slots int) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.grpcTriggerSlots = slots
+	}
+}
+
 func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	opts := defaultAdminServiceOpts()
 
@@ -112,6 +130,14 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	var tw *trigger.TriggerWriter
+
+	if opts.grpcTriggersEnabled {
+		pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
+
+		tw = trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, opts.grpcTriggerSlots)
+	}
+
 	return &AdminServiceImpl{
 		repo:            opts.repo,
 		mq:              opts.mq,
@@ -120,5 +146,6 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		localScheduler:  opts.localScheduler,
 		localDispatcher: opts.localDispatcher,
 		l:               opts.l,
+		tw:              tw,
 	}, nil
 }

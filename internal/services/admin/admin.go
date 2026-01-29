@@ -5,6 +5,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	scheduler "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 
@@ -29,6 +30,8 @@ type AdminServiceImpl struct {
 	localScheduler  *scheduler.Scheduler
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
+
+	tw *trigger.TriggerWriter
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
@@ -40,6 +43,9 @@ type AdminServiceOpts struct {
 	localScheduler  *scheduler.Scheduler
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
+
+	grpcTriggersEnabled bool
+	grpcTriggerSlots    int
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
@@ -88,6 +94,18 @@ func WithLogger(l *zerolog.Logger) AdminServiceOpt {
 	}
 }
 
+func WithGrpcTriggersEnabled(enabled bool) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.grpcTriggersEnabled = enabled
+	}
+}
+
+func WithGrpcTriggerSlots(slots int) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.grpcTriggerSlots = slots
+	}
+}
+
 func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	opts := defaultAdminServiceOpts()
 
@@ -103,6 +121,14 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
+	var tw *trigger.TriggerWriter
+
+	if opts.grpcTriggersEnabled {
+		pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
+
+		tw = trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots)
+	}
+
 	return &AdminServiceImpl{
 		repov1:          opts.repov1,
 		mqv1:            opts.mqv1,
@@ -110,5 +136,6 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		localScheduler:  opts.localScheduler,
 		localDispatcher: opts.localDispatcher,
 		l:               opts.l,
+		tw:              tw,
 	}, nil
 }

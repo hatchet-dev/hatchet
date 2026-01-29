@@ -65,8 +65,9 @@ func newSharedRepository(
 	concurrencyStrategyCache := cache.New(5 * time.Minute)
 	payloadStore := NewPayloadStoreRepository(pool, l, queries, payloadStoreOpts)
 
+	// 5-second cache because the workflow version id can change when a new workflow is deployed
 	tenantIdWorkflowNameCache := expirable.NewLRU(10000, func(key string, value *sqlcv1.ListWorkflowsByNamesRow) {}, 5*time.Second)
-	stepsInWorkflowVersionCache := expirable.NewLRU(10000, func(key string, value []*sqlcv1.ListStepsByWorkflowVersionIdsRow) {}, 5*time.Second)
+	stepsInWorkflowVersionCache := expirable.NewLRU(10000, func(key string, value []*sqlcv1.ListStepsByWorkflowVersionIdsRow) {}, 5*time.Minute)
 	stepIdLabelsCache := expirable.NewLRU(10000, func(key string, value []*sqlcv1.GetDesiredLabelsRow) {}, 5*time.Minute)
 
 	celParser := cel.NewCELParser()

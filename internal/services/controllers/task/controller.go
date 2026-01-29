@@ -20,6 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/operation"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -62,6 +63,7 @@ type TasksControllerImpl struct {
 	replayEnabled                         bool
 	analyzeCronInterval                   time.Duration
 	signaler                              *signal.OLAPSignaler
+	tw                                    *trigger.TriggerWriter
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -204,6 +206,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
 	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer)
+	tw := trigger.NewTriggerWriter(opts.mq, opts.repov1, opts.l, pubBuffer, 0)
 
 	t := &TasksControllerImpl{
 		mq:                  opts.mq,
@@ -222,6 +225,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		replayEnabled:       opts.replayEnabled,
 		analyzeCronInterval: opts.analyzeCronInterval,
 		signaler:            signaler,
+		tw:                  tw,
 	}
 
 	jitter := t.opsPoolJitter
@@ -1030,33 +1034,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 		eventIdToOpts[msg.EventExternalId] = opt
 	}
 
-	result, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
-
-	if err != nil {
-		return fmt.Errorf("could not trigger tasks from events: %w", err)
-	}
-
-	eg := &errgroup.Group{}
-
-	eg.Go(func() error {
-		return tc.signaler.SignalEventsCreated(ctx, tenantId, eventIdToOpts, result.EventExternalIdToRuns)
-	})
-
-	eg.Go(func() error {
-		return tc.signaler.SignalCELEvaluationFailures(ctx, tenantId, result.CELEvaluationFailures)
-	})
-
-	eg.Go(func() error {
-		return tc.signaler.SignalTasksCreated(ctx, tenantId, result.Tasks)
-	})
-
-	eg.Go(func() error {
-		return tc.signaler.SignalDAGsCreated(ctx, tenantId, result.Dags)
-	})
-
-	// FIXME: not necessarily justified that this should return an error if we fail to signal. We have already written
-	// these events to the database successfully.
-	return eg.Wait()
+	return tc.tw.TriggerFromEvents(ctx, tenantId, eventIdToOpts)
 }
 
 // handleProcessUserEventMatches is responsible for signaling or creating tasks based on user event matches.
@@ -1078,30 +1056,7 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads)
-	tasks, dags, err := tc.repov1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, msgs)
-
-	if err != nil {
-		if err == v1.ErrResourceExhausted {
-			tc.l.Warn().Str("tenantId", tenantId).Msg("resource exhausted while triggering workflows from names. Not retrying")
-
-			return nil
-		}
-
-		return fmt.Errorf("could not trigger workflows from names: %w", err)
-	}
-
-	eg := &errgroup.Group{}
-
-	eg.Go(func() error {
-		return tc.signaler.SignalTasksCreated(ctx, tenantId, tasks)
-	})
-
-	eg.Go(func() error {
-		return tc.signaler.SignalDAGsCreated(ctx, tenantId, dags)
-	})
-
-	return eg.Wait()
+	return tc.tw.TriggerFromWorkflowNames(ctx, tenantId, msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads))
 }
 
 // processUserEventMatches looks for user event matches
