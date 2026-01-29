@@ -58,8 +58,8 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     AsyncLogSender,
     ContextVarToCopy,
     ContextVarToCopyDict,
-    ContextVarToCopyStr,
     ContextVarToCopyInt,
+    ContextVarToCopyStr,
     copy_context_vars,
 )
 
