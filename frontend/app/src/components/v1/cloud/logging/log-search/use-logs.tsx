@@ -3,6 +3,7 @@ import { ParsedLogQuery } from './types';
 import {
   V1TaskSummary,
   V1LogLineList,
+  V1LogLine,
   V1TaskStatus,
   V1LogLineLevel,
 } from '@/lib/api';
@@ -25,6 +26,10 @@ import {
 } from 'react';
 
 const LOGS_PER_PAGE = 100;
+
+const getLogLineKey = (log: V1LogLine): string => {
+  return `${log.createdAt}-${log.message}`;
+};
 
 export interface LogLine {
   timestamp?: string;
@@ -188,9 +193,19 @@ export function useLogs({
                 return oldData;
               }
               const firstPage = oldData.pages[0];
+              const existingRows = firstPage?.rows || [];
+
+              const existingKeys = new Set(
+                existingRows.map((row) => getLogLineKey(row)),
+              );
+
+              const uniqueNewRows = newRows.filter(
+                (row) => !existingKeys.has(getLogLineKey(row)),
+              );
+
               const updatedFirstPage = {
                 ...firstPage,
-                rows: [...newRows, ...(firstPage?.rows || [])],
+                rows: [...uniqueNewRows, ...existingRows],
               };
               return {
                 ...oldData,
@@ -208,7 +223,6 @@ export function useLogs({
       }
     };
 
-    // Start the polling loop
     pollForNewLogs();
 
     return () => {
@@ -233,16 +247,24 @@ export function useLogs({
       return [];
     }
 
-    return getLogsQuery.data.pages.flatMap(
-      (page) =>
-        page?.rows?.map((row) => ({
-          timestamp: row.createdAt,
-          line: row.message,
-          instance: taskRun?.displayName,
-          level: row.level,
-          metadata: row.metadata as Record<string, unknown> | undefined,
-        })) || [],
-    );
+    const uniqueLogsMap = new Map<string, LogLine>();
+
+    getLogsQuery.data.pages.forEach((page) => {
+      page?.rows?.forEach((row) => {
+        const key = getLogLineKey(row);
+        if (!uniqueLogsMap.has(key)) {
+          uniqueLogsMap.set(key, {
+            timestamp: row.createdAt,
+            line: row.message,
+            instance: taskRun?.displayName,
+            level: row.level,
+            metadata: row.metadata as Record<string, unknown> | undefined,
+          });
+        }
+      });
+    });
+
+    return Array.from(uniqueLogsMap.values());
   }, [getLogsQuery.data?.pages, taskRun?.displayName]);
 
   const fetchOlderLogs = useCallback(() => {
