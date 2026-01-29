@@ -38,6 +38,7 @@ export interface LogLine {
   instance?: string;
   level?: string;
   metadata?: Record<string, unknown>;
+  attempt?: number;
 }
 
 export interface UseLogsOptions {
@@ -55,6 +56,9 @@ export interface UseLogsReturn {
   fetchOlderLogs: () => void;
   setPollingEnabled: (enabled: boolean) => void;
   taskStatus: V1TaskStatus | undefined;
+  availableAttempts: number[];
+  selectedAttempt: number | null;
+  setSelectedAttempt: (attempt: number | null) => void;
 }
 
 export function useLogs({
@@ -68,6 +72,7 @@ export function useLogs({
 
   const [queryString, setQueryString] = useState('');
   const [isPollingEnabled, setPollingEnabled] = useState(true);
+  const [selectedAttempt, setSelectedAttempt] = useState<number | null>(null);
   const parsedQuery = useMemo(() => parseLogQuery(queryString), [queryString]);
 
   const isTaskRunning = taskRun?.status === V1TaskStatus.RUNNING;
@@ -244,7 +249,7 @@ export function useLogs({
     queryClient,
   ]);
 
-  const logs = useMemo((): LogLine[] => {
+  const allLogs = useMemo((): LogLine[] => {
     if (!getLogsQuery.data?.pages) {
       return [];
     }
@@ -261,6 +266,7 @@ export function useLogs({
             instance: taskRun?.displayName,
             level: row.level,
             metadata: row.metadata as Record<string, unknown> | undefined,
+            attempt: row.attempt,
           });
         }
       });
@@ -268,6 +274,18 @@ export function useLogs({
 
     return Array.from(uniqueLogsMap.values());
   }, [getLogsQuery.data?.pages, taskRun?.displayName]);
+
+  const availableAttempts = useMemo(
+    () => Array(taskRun?.retryCount ?? 1).map((_, index) => index + 1),
+    [allLogs],
+  );
+
+  const logs = useMemo((): LogLine[] => {
+    if (selectedAttempt === null) {
+      return allLogs;
+    }
+    return allLogs.filter((log) => log.attempt === selectedAttempt);
+  }, [allLogs, selectedAttempt]);
 
   const fetchOlderLogs = useCallback(() => {
     if (!getLogsQuery.isFetchingNextPage && getLogsQuery.hasNextPage) {
@@ -285,6 +303,9 @@ export function useLogs({
     fetchOlderLogs,
     setPollingEnabled,
     taskStatus: taskRun?.status,
+    availableAttempts,
+    selectedAttempt,
+    setSelectedAttempt,
   };
 }
 
