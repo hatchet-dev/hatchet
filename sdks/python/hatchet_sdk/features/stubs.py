@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, overload
 from hatchet_sdk.context.context import Context
 from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.runnables.workflow import Standalone, Workflow
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
     from hatchet_sdk import Hatchet
@@ -18,6 +19,7 @@ class StubsClient:
         *,
         name: str,
         input_validator: None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Workflow[EmptyModel]: ...
 
     @overload
@@ -26,6 +28,7 @@ class StubsClient:
         *,
         name: str,
         input_validator: type[TWorkflowInput],
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Workflow[TWorkflowInput]: ...
 
     def workflow(
@@ -33,8 +36,13 @@ class StubsClient:
         *,
         name: str,
         input_validator: type[TWorkflowInput] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
-        return self.client.workflow(name=name, input_validator=input_validator)
+        return self.client.workflow(
+            name=name,
+            input_validator=input_validator,
+            default_additional_metadata=default_additional_metadata,
+        )
 
     @overload
     def task(
@@ -43,6 +51,7 @@ class StubsClient:
         name: str,
         input_validator: None = None,
         output_validator: None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Standalone[EmptyModel, EmptyModel]: ...
 
     @overload
@@ -52,6 +61,7 @@ class StubsClient:
         name: str,
         input_validator: None = None,
         output_validator: type[R],
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Standalone[EmptyModel, R]: ...
 
     @overload
@@ -61,6 +71,7 @@ class StubsClient:
         name: str,
         input_validator: type[TWorkflowInput],
         output_validator: None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Standalone[TWorkflowInput, EmptyModel]: ...
 
     @overload
@@ -70,6 +81,7 @@ class StubsClient:
         name: str,
         input_validator: type[TWorkflowInput],
         output_validator: type[R],
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Standalone[TWorkflowInput, R]: ...
 
     def task(
@@ -78,6 +90,7 @@ class StubsClient:
         name: str,
         input_validator: type[TWorkflowInput] | None = None,
         output_validator: type[R] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> (
         Standalone[EmptyModel, R]
         | Standalone[TWorkflowInput, R]
@@ -96,4 +109,8 @@ class StubsClient:
             "return": return_type,
         }
 
-        return self.client.task(name=name, input_validator=input_validator)(mock_func)
+        return self.client.task(
+            name=name,
+            input_validator=input_validator,
+            default_additional_metadata=default_additional_metadata,
+        )(mock_func)
