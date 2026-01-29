@@ -29,6 +29,10 @@ describe('Client', () => {
           enabled: true,
           port: 8002,
         },
+        otel: {
+          excludedAttributes: ['tenant_id', 'workflow_id'],
+          includeTaskNameInSpanName: true,
+        },
       },
       {
         credentials: ChannelCredentials.createInsecure(),
@@ -54,6 +58,10 @@ describe('Client', () => {
         healthcheck: {
           enabled: true,
           port: 8002,
+        },
+        otel: {
+          excludedAttributes: ['tenant_id', 'workflow_id'],
+          includeTaskNameInSpanName: true,
         },
       })
     );
@@ -90,6 +98,10 @@ describe('Client', () => {
           enabled: false,
           port: 8003,
         },
+        otel: {
+          excludedAttributes: ['tenant_id'],
+          includeTaskNameInSpanName: false,
+        },
       },
       {
         config_path: './fixtures/.hatchet.yaml',
@@ -116,6 +128,10 @@ describe('Client', () => {
         healthcheck: {
           enabled: false,
           port: 8003,
+        },
+        otel: {
+          excludedAttributes: ['tenant_id'],
+          includeTaskNameInSpanName: false,
         },
       })
     );

@@ -9,3 +9,7 @@ tls_config:
 healthcheck:
   enabled: true
   port: 8005
+otel:
+  excludedAttributes:
+    - additional_metadata
+  includeTaskNameInSpanName: true
