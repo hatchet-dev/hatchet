@@ -28,7 +28,7 @@ export function LogSearchInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState<number>();
   const [localValue, setLocalValue] = useState(queryString);
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export function LogSearchInput({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') {
-        if (isOpen && suggestions.length > 0) {
+        if (isOpen && suggestions.length > 0 && selectedIndex !== undefined) {
           e.preventDefault();
           handleSelect(selectedIndex);
         } else {
@@ -80,15 +80,24 @@ export function LogSearchInput({
 
       if (e.key === 'Escape') {
         setIsOpen(false);
+        setSelectedIndex(undefined);
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex((i) => (i < suggestions.length - 1 ? i + 1 : 0));
+        setSelectedIndex((i) => {
+          if (i === undefined) return 0;
+          return i < suggestions.length - 1 ? i + 1 : 0;
+        });
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex((i) => (i > 0 ? i - 1 : suggestions.length - 1));
+        setSelectedIndex((i) => {
+          if (i === undefined) return suggestions.length - 1;
+          return i > 0 ? i - 1 : suggestions.length - 1;
+        });
       } else if (e.key === 'Tab') {
-        e.preventDefault();
-        handleSelect(selectedIndex);
+        if (selectedIndex !== undefined) {
+          e.preventDefault();
+          handleSelect(selectedIndex);
+        }
       }
     },
     [isOpen, suggestions.length, selectedIndex, handleSelect, submitSearch],
@@ -107,7 +116,7 @@ export function LogSearchInput({
               onChange={(e) => {
                 setLocalValue(e.target.value);
                 setIsOpen(true);
-                setSelectedIndex(0);
+                setSelectedIndex(undefined);
               }}
               onKeyDown={handleKeyDown}
               onFocus={() => {
@@ -117,6 +126,7 @@ export function LogSearchInput({
                 }
                 if (suggestions.length > 0) {
                   setIsOpen(true);
+                  setSelectedIndex(undefined);
                 }
               }}
               onBlur={() => {
@@ -149,17 +159,25 @@ export function LogSearchInput({
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          <Command>
+          <Command
+            value={
+              selectedIndex !== undefined
+                ? suggestions[selectedIndex]?.value
+                : ''
+            }
+          >
             <CommandList className="max-h-[300px]">
               <CommandEmpty>No suggestions</CommandEmpty>
               <CommandGroup>
                 {suggestions.map((suggestion, index) => (
                   <CommandItem
                     key={suggestion.value}
+                    value={suggestion.value}
                     onSelect={() => handleSelect(index)}
                     className={cn(
                       'flex items-center justify-between',
-                      index === selectedIndex &&
+                      selectedIndex !== undefined &&
+                        index === selectedIndex &&
                         'bg-accent text-accent-foreground',
                     )}
                     onMouseEnter={() => setSelectedIndex(index)}
