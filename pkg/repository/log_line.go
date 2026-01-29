@@ -29,6 +29,9 @@ type ListLogsOpts struct {
 	// (optional) the end time to get logs for
 	Until *time.Time
 
+	// (optional) the attempt number to filter for
+	Attempt *int32
+
 	// (optional) Order by direction
 	OrderByDirection *string `validate:"omitempty,oneof=ASC DESC"`
 }
