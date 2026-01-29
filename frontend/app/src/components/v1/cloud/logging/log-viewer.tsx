@@ -26,7 +26,6 @@ const INSTANCE_COLORS = [
   '\x1b[35m', // Magenta
 ];
 
-// Simple hash function for stable color assignment
 const hashString = (str: string): number => {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -66,6 +65,7 @@ const formatLogLine = (log: LogLine): string => {
 export interface LogViewerProps {
   logs: LogLine[];
   onScrollToBottom?: () => void;
+  onScrollToTop?: () => void;
   onAtTopChange?: (atTop: boolean) => void;
   isLoading?: boolean;
   taskStatus?: V1TaskStatus;
@@ -90,6 +90,7 @@ function getEmptyStateMessage(taskStatus?: V1TaskStatus): string {
 export function LogViewer({
   logs,
   onScrollToBottom,
+  onScrollToTop,
   onAtTopChange,
   isLoading,
   taskStatus,
@@ -103,7 +104,7 @@ export function LogViewer({
       if (!a.timestamp || !b.timestamp) {
         return 0;
       }
-      // Newest first at top (descending order)
+      // descending
       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     });
 
@@ -111,9 +112,7 @@ export function LogViewer({
   }, [logs]);
 
   const isRunning = taskStatus === V1TaskStatus.RUNNING;
-  const isEmpty = logs.length === 0 && !isLoading;
 
-  // Show loading state
   if (isLoading) {
     return (
       <div className="max-h-[25rem] min-h-[25rem] rounded-md relative overflow-hidden bg-[var(--terminal-bg)] flex items-center justify-center">
@@ -122,8 +121,8 @@ export function LogViewer({
     );
   }
 
-  // Show empty state
-  if (isEmpty) {
+  const isEmpty = logs.length === 0;
+  if (isEmpty && taskStatus !== undefined) {
     return (
       <div className="max-h-[25rem] min-h-[25rem] rounded-md relative overflow-hidden bg-[var(--terminal-bg)] flex items-center justify-center">
         <span className="text-sm text-muted-foreground">
@@ -146,6 +145,7 @@ export function LogViewer({
       )}
       <Terminal
         logs={formattedLogs}
+        onScrollToTop={onScrollToTop}
         onScrollToBottom={onScrollToBottom}
         onAtTopChange={onAtTopChange}
         className="max-h-[25rem] min-h-[25rem] rounded-md relative overflow-hidden"
