@@ -241,7 +241,7 @@ export default function OrganizationPage() {
           </TabsContent>
 
           <TabsContent value="billing" className="mt-6">
-            <BillingTab organization={organization} orgId={orgId} />
+            <BillingTab organization={organization} />
           </TabsContent>
         </Tabs>
       </div>

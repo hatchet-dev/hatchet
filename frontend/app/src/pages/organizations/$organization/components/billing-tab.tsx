@@ -20,30 +20,14 @@ import {
 } from '@/components/v1/ui/select';
 import { Separator } from '@/components/v1/ui/separator';
 import { Switch } from '@/components/v1/ui/switch';
-import api, { queries, TenantResource, TenantResourceLimit } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+import { useBilling } from '@/hooks/use-billing';
+import { TenantResource, TenantResourceLimit } from '@/lib/api';
 import {
   Organization,
   SubscriptionPlan,
-  TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
-import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
-import {
-  useQuery,
-  useQueries,
-  useMutation,
-  useQueryClient,
-} from '@tanstack/react-query';
-import { useEffect, useMemo, useState, useCallback } from 'react';
-
-const ALLOWED_PLAN_CODES = [
-  'free',
-  'starter_monthly',
-  'starter_yearly',
-  'growth_monthly',
-  'growth_yearly',
-];
+import { useMemo, useState } from 'react';
 
 const limitedResources: Record<TenantResource, string> = {
   [TenantResource.WORKER]: 'Total Workers',
@@ -91,68 +75,39 @@ const limitDurationMap: Record<string, string> = {
 
 interface BillingTabProps {
   organization: Organization;
-  orgId: string;
 }
 
-export function BillingTab({ organization, orgId }: BillingTabProps) {
-  const queryClient = useQueryClient();
-  const { handleApiError } = useApiError({});
-
-  const [loading, setLoading] = useState<string>();
-  const [showAnnual, setShowAnnual] = useState<boolean>(false);
+export function BillingTab({ organization }: BillingTabProps) {
   const [isChangeConfirmOpen, setChangeConfirmOpen] = useState<
     SubscriptionPlan | undefined
   >(undefined);
-  const [portalLoading, setPortalLoading] = useState(false);
 
-  const billingQuery = useQuery({
-    queryKey: ['organization-billing', orgId],
-    queryFn: async () => {
-      const result = await cloudApi.organizationBillingStateGet(orgId);
-      return result.data;
-    },
-    enabled: !!orgId,
-  });
-
-  const activeTenants = useMemo(
-    () =>
-      (organization.tenants || []).filter(
-        (t) => t.status !== TenantStatusType.ARCHIVED,
-      ),
-    [organization.tenants],
-  );
-
-  const tenantQueries = useQueries({
-    queries: activeTenants.map((tenant) => ({
-      queryKey: ['tenant:get', tenant.id],
-      queryFn: async () => {
-        const result = await api.tenantGet(tenant.id);
-        return result.data;
-      },
-      enabled: !!tenant.id,
-    })),
-  });
-
-  const detailedTenants = useMemo(
-    () =>
-      tenantQueries.filter((query) => query.data).map((query) => query.data),
-    [tenantQueries],
-  );
-
-  const [selectedTenantId, setSelectedTenantId] = useState<string | undefined>(
-    activeTenants[0]?.id,
-  );
-
-  useEffect(() => {
-    if (!selectedTenantId && activeTenants.length > 0) {
-      setSelectedTenantId(activeTenants[0].id);
-    }
-  }, [activeTenants, selectedTenantId]);
-
-  const resourcePolicyQuery = useQuery({
-    ...queries.tenantResourcePolicy.get(selectedTenantId || ''),
-    enabled: !!selectedTenantId,
-  });
+  const {
+    isLoading,
+    isError,
+    changingPlanCode,
+    portalLoading,
+    coupons,
+    currentPlanDetails,
+    formattedEndDate,
+    isDedicatedPlan,
+    upcoming,
+    upcomingPlanName,
+    upcomingStartDate,
+    availablePlans,
+    showAnnual,
+    setShowAnnual,
+    isUpgrade,
+    enterpriseContactUrl,
+    openBillingPortal,
+    changePlan,
+    formatPrice,
+    activeTenants,
+    detailedTenants,
+    selectedTenantId,
+    setSelectedTenantId,
+    resourcePolicyQuery,
+  } = useBilling({ organization });
 
   const resourceLimitColumns = useMemo(
     () => [
@@ -199,128 +154,7 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
     [],
   );
 
-  const active = billingQuery.data?.currentSubscription;
-  const upcoming = billingQuery.data?.upcomingSubscription;
-  const plans = billingQuery.data?.plans;
-  const coupons = billingQuery.data?.coupons;
-
-  const manageClicked = async () => {
-    try {
-      if (portalLoading) {
-        return;
-      }
-      setPortalLoading(true);
-      const link = await cloudApi.organizationBillingPortalLinkGet(orgId);
-      window.open(link.data.url, '_blank');
-    } catch (e) {
-      handleApiError(e as Parameters<typeof handleApiError>[0]);
-    } finally {
-      setPortalLoading(false);
-    }
-  };
-
-  const subscriptionMutation = useMutation({
-    mutationKey: ['organization:subscription:update', orgId],
-    mutationFn: async ({ plan_code }: { plan_code: string }) => {
-      const [plan, period] = plan_code.split('_');
-      setLoading(plan_code);
-      const response = await cloudApi.organizationSubscriptionUpdate(orgId, {
-        plan,
-        period,
-      });
-      return response.data;
-    },
-    onSuccess: async (data) => {
-      if (data && 'checkoutUrl' in data) {
-        window.location.href = data.checkoutUrl;
-        return;
-      }
-
-      await queryClient.invalidateQueries({
-        queryKey: ['organization-billing', orgId],
-      });
-
-      setLoading(undefined);
-    },
-    onError: handleApiError,
-  });
-
-  const activePlanCode = useMemo(() => {
-    if (!active?.plan || active.plan === 'free') {
-      return 'free';
-    }
-    return [active.plan, active.period].filter((x) => !!x).join('_');
-  }, [active]);
-
-  useEffect(() => {
-    return setShowAnnual(active?.period?.includes('yearly') || false);
-  }, [active]);
-
-  const upcomingPlanCode = useMemo(() => {
-    if (!upcoming?.plan) {
-      return null;
-    }
-    return [upcoming.plan, upcoming.period].filter((x) => !!x).join('_');
-  }, [upcoming]);
-
-  const sortedPlans = useMemo(() => {
-    return plans
-      ?.filter(
-        (v) =>
-          ALLOWED_PLAN_CODES.includes(v.planCode) &&
-          (v.planCode === 'free' ||
-            (showAnnual
-              ? v.period?.includes('yearly')
-              : v.period?.includes('monthly'))),
-      )
-      .sort((a, b) => a.amountCents - b.amountCents);
-  }, [plans, showAnnual]);
-
-  const isUpgrade = useCallback(
-    (plan: SubscriptionPlan) => {
-      if (!active) {
-        return true;
-      }
-
-      const activePlan = sortedPlans?.find(
-        (p) => p.planCode === activePlanCode,
-      );
-
-      const activeAmount = activePlan?.amountCents || 0;
-
-      return plan.amountCents > activeAmount;
-    },
-    [active, activePlanCode, sortedPlans],
-  );
-
-  const formattedEndDate = useMemo(() => {
-    if (!active?.endsAt) {
-      return null;
-    }
-    const date = new Date(active.endsAt);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  }, [active?.endsAt]);
-
-  const currentPlanDetails = useMemo(() => {
-    if (!active?.plan) {
-      return null;
-    }
-    return sortedPlans?.find((p) => p.planCode === activePlanCode);
-  }, [active, activePlanCode, sortedPlans]);
-
-  const enterpriseContactUrl = useMemo(() => {
-    const baseUrl = 'https://cal.com/team/hatchet/website-demo';
-    const notes = `Custom pricing request for organization '${organization.name}' (${orgId})`;
-    return `${baseUrl}?notes=${encodeURIComponent(notes)}`;
-  }, [organization.name, orgId]);
-
-  const isDedicatedPlan = active?.plan === 'dedicated';
-
-  if (billingQuery.isLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
         <Spinner />
@@ -328,7 +162,7 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
     );
   }
 
-  if (billingQuery.isError) {
+  if (isError) {
     return (
       <div className="py-8 text-center text-muted-foreground">
         Unable to load billing information.
@@ -354,14 +188,11 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
         }
         submitLabel={'Change Plan'}
         onSubmit={async () => {
-          await subscriptionMutation.mutateAsync({
-            plan_code: isChangeConfirmOpen!.planCode,
-          });
-          setLoading(undefined);
+          await changePlan(isChangeConfirmOpen!);
           setChangeConfirmOpen(undefined);
         }}
         onCancel={() => setChangeConfirmOpen(undefined)}
-        isLoading={!!loading}
+        isLoading={!!changingPlanCode}
       />
       <div className="space-y-6">
         {isDedicatedPlan ? (
@@ -370,7 +201,7 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
               You are on the Dedicated plan
             </p>
             <Button
-              onClick={manageClicked}
+              onClick={openBillingPortal}
               variant="outline"
               disabled={portalLoading}
             >
@@ -390,7 +221,7 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
               </h3>
 
               <Button
-                onClick={manageClicked}
+                onClick={openBillingPortal}
                 variant="outline"
                 disabled={portalLoading}
               >
@@ -411,13 +242,9 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
                           {currentPlanDetails.name}
                         </CardTitle>
                         <div className="text-3xl font-bold mb-2">
-                          {new Intl.NumberFormat('en-US', {
-                            style: 'currency',
-                            currency: 'USD',
-                          }).format(
-                            currentPlanDetails.amountCents /
-                              100 /
-                              (currentPlanDetails.period === 'yearly' ? 12 : 1),
+                          {formatPrice(
+                            currentPlanDetails.amountCents,
+                            currentPlanDetails.period,
                           )}{' '}
                           <span className="text-base font-normal text-muted-foreground">
                             per month
@@ -444,25 +271,10 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
                         <Badge variant="inProgress">Scheduled Change</Badge>
                       </div>
                       <CardTitle className="text-lg mb-1">
-                        Switching to{' '}
-                        {plans?.find(
-                          (p) =>
-                            p.planCode ===
-                            [upcoming.plan, upcoming.period]
-                              .filter((x) => !!x)
-                              .join('_'),
-                        )?.name || upcoming.plan}
+                        Switching to {upcomingPlanName}
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        This change will take effect on{' '}
-                        {new Date(upcoming.startedAt).toLocaleDateString(
-                          'en-US',
-                          {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          },
-                        )}
+                        This change will take effect on {upcomingStartDate}
                       </p>
                     </div>
                   </div>
@@ -509,47 +321,34 @@ export function BillingTab({ organization, orgId }: BillingTabProps) {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {sortedPlans
-                ?.filter(
-                  (plan) =>
-                    plan.planCode !== activePlanCode &&
-                    plan.planCode !== upcomingPlanCode,
-                )
-                .map((plan, i) => (
-                  <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
-                    <CardHeader>
-                      <CardTitle className="tracking-wide text-sm">
-                        {plan.name}
-                      </CardTitle>
-                      <CardDescription className="py-4">
-                        {new Intl.NumberFormat('en-US', {
-                          style: 'currency',
-                          currency: 'USD',
-                        }).format(
-                          plan.amountCents /
-                            100 /
-                            (plan.period === 'yearly' ? 12 : 1),
-                        )}{' '}
-                        per month billed {plan.period}*
-                      </CardDescription>
-                      <CardDescription>
-                        <Button
-                          disabled={loading === plan.planCode}
-                          variant="default"
-                          onClick={() => setChangeConfirmOpen(plan)}
-                        >
-                          {loading === plan.planCode ? (
-                            <Spinner />
-                          ) : isUpgrade(plan) ? (
-                            'Upgrade'
-                          ) : (
-                            'Downgrade'
-                          )}
-                        </Button>
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                ))}
+              {availablePlans?.map((plan, i) => (
+                <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
+                  <CardHeader>
+                    <CardTitle className="tracking-wide text-sm">
+                      {plan.name}
+                    </CardTitle>
+                    <CardDescription className="py-4">
+                      {formatPrice(plan.amountCents, plan.period)} per month
+                      billed {plan.period}*
+                    </CardDescription>
+                    <CardDescription>
+                      <Button
+                        disabled={changingPlanCode === plan.planCode}
+                        variant="default"
+                        onClick={() => setChangeConfirmOpen(plan)}
+                      >
+                        {changingPlanCode === plan.planCode ? (
+                          <Spinner />
+                        ) : isUpgrade(plan) ? (
+                          'Upgrade'
+                        ) : (
+                          'Downgrade'
+                        )}
+                      </Button>
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              ))}
               <Card className="bg-muted/30 gap-4 flex-col flex">
                 <CardHeader>
                   <CardTitle className="tracking-wide text-sm">
