@@ -1,5 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
+-- Patches migration for previously incorrect migration (0.69)
 -- NOTE: the default here is just to backfill previous incorrect cols
 TRUNCATE TABLE "TenantResourceLimitAlert";
 ALTER TABLE "TenantResourceLimitAlert"
