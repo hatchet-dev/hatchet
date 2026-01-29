@@ -5,8 +5,8 @@ import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { TaskRunMiniMap } from '../mini-map';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Waterfall } from '../waterfall';
-import { StepRunLogs } from './step-run-logs';
 import { V1StepRunOutput } from './step-run-output';
+import { TaskRunLogs } from './task-run-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Button } from '@/components/v1/ui/button';
@@ -288,7 +288,7 @@ export const TaskRunDetail = ({
               )}
             </TabsContent>
             <TabsContent value={TabOption.Logs}>
-              <StepRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
+              <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
             </TabsContent>
             <TabsContent value={TabOption.AdditionalMetadata}>
               <CodeHighlighter
