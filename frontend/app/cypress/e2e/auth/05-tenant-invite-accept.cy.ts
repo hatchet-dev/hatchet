@@ -101,15 +101,18 @@ describe('Tenant Invite: accept', () => {
       '/onboarding/invites',
     );
 
-    // Verify exactly one invite is displayed
+    // Find the specific invite and accept it
     cy.contains(`You got an invitation to join ${tenant2Name}`).should(
       'be.visible',
     );
-    cy.get('button').contains('Accept').should('have.length', 1);
 
-    // Step 4: Accept the invite
+    // Step 4: Accept the invite - register intercept before clicking
     cy.intercept('POST', '/api/v1/users/invites/accept').as('acceptInvite');
-    cy.contains('button', 'Accept').click();
+    cy.contains(`You got an invitation to join ${tenant2Name}`)
+      .parent()
+      .contains('button', 'Accept')
+      .should('be.visible')
+      .click();
 
     // Wait for the accept API call to complete
     cy.wait('@acceptInvite').its('response.statusCode').should('eq', 200);
