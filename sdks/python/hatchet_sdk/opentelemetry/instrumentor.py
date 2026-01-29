@@ -228,7 +228,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         enable_hatchet_otel_collector: bool = False,
     ):
         self.config = config or ClientConfig()
-        self.enable_hatchet_otel_collector = enable_hatchet_otel_collector
 
         if tracer_provider is not None:
             self.tracer_provider = tracer_provider
