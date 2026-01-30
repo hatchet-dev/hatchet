@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -66,11 +67,11 @@ RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id,
 `
 
 type AcquireOrExtendOLAPCutoverJobLeaseParams struct {
-	Leaseprocessid pgtype.UUID        `json:"leaseprocessid"`
+	Leaseprocessid uuid.UUID          `json:"leaseprocessid"`
 	Key            pgtype.Date        `json:"key"`
 	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
-	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
-	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
+	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
+	Lastexternalid uuid.UUID          `json:"lastexternalid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 }
 
@@ -155,7 +156,7 @@ type BulkCreateEventTriggersParams struct {
 	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
 	EventID       int64              `json:"event_id"`
 	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
-	FilterID      pgtype.UUID        `json:"filter_id"`
+	FilterID      uuid.UUID          `json:"filter_id"`
 }
 
 const checkLastAutovacuumForPartitionedTables = `-- name: CheckLastAutovacuumForPartitionedTables :many
@@ -226,8 +227,8 @@ SELECT compute_olap_payload_batch_size(
 
 type ComputeOLAPPayloadBatchSizeParams struct {
 	Partitiondate  pgtype.Date        `json:"partitiondate"`
-	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
-	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
+	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
+	Lastexternalid uuid.UUID          `json:"lastexternalid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 	Batchsize      int32              `json:"batchsize"`
 }
@@ -304,12 +305,12 @@ FROM included_events e
 `
 
 type CountEventsParams struct {
-	Tenantid           pgtype.UUID        `json:"tenantid"`
+	Tenantid           uuid.UUID          `json:"tenantid"`
 	Keys               []string           `json:"keys"`
 	Since              pgtype.Timestamptz `json:"since"`
 	Until              pgtype.Timestamptz `json:"until"`
-	WorkflowIds        []pgtype.UUID      `json:"workflowIds"`
-	EventIds           []pgtype.UUID      `json:"eventIds"`
+	WorkflowIds        []uuid.UUID        `json:"workflowIds"`
+	EventIds           []uuid.UUID        `json:"eventIds"`
 	AdditionalMetadata []byte             `json:"additionalMetadata"`
 	Statuses           []string           `json:"statuses"`
 	Scopes             []string           `json:"scopes"`
@@ -357,16 +358,16 @@ func (q *Queries) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context
 }
 
 type CreateDAGsOLAPParams struct {
-	TenantID             pgtype.UUID        `json:"tenant_id"`
+	TenantID             uuid.UUID          `json:"tenant_id"`
 	ID                   int64              `json:"id"`
 	InsertedAt           pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID           pgtype.UUID        `json:"external_id"`
+	ExternalID           uuid.UUID          `json:"external_id"`
 	DisplayName          string             `json:"display_name"`
-	WorkflowID           pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID    pgtype.UUID        `json:"workflow_version_id"`
+	WorkflowID           uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID    uuid.UUID          `json:"workflow_version_id"`
 	Input                []byte             `json:"input"`
 	AdditionalMetadata   []byte             `json:"additional_metadata"`
-	ParentTaskExternalID pgtype.UUID        `json:"parent_task_external_id"`
+	ParentTaskExternalID uuid.UUID          `json:"parent_task_external_id"`
 	TotalTasks           int32              `json:"total_tasks"`
 }
 
@@ -389,9 +390,9 @@ FROM inputs i
 `
 
 type CreateIncomingWebhookValidationFailureLogsParams struct {
-	Tenantid             pgtype.UUID `json:"tenantid"`
-	Incomingwebhooknames []string    `json:"incomingwebhooknames"`
-	Errors               []string    `json:"errors"`
+	Tenantid             uuid.UUID `json:"tenantid"`
+	Incomingwebhooknames []string  `json:"incomingwebhooknames"`
+	Errors               []string  `json:"errors"`
 }
 
 func (q *Queries) CreateIncomingWebhookValidationFailureLogs(ctx context.Context, db DBTX, arg CreateIncomingWebhookValidationFailureLogsParams) error {
@@ -461,17 +462,17 @@ type CreateOLAPPayloadRangeChunksParams struct {
 	Partitiondate  pgtype.Date        `json:"partitiondate"`
 	Windowsize     int32              `json:"windowsize"`
 	Chunksize      int32              `json:"chunksize"`
-	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
-	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
+	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
+	Lastexternalid uuid.UUID          `json:"lastexternalid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 }
 
 type CreateOLAPPayloadRangeChunksRow struct {
-	LowerTenantID   pgtype.UUID        `json:"lower_tenant_id"`
-	LowerExternalID pgtype.UUID        `json:"lower_external_id"`
+	LowerTenantID   uuid.UUID          `json:"lower_tenant_id"`
+	LowerExternalID uuid.UUID          `json:"lower_external_id"`
 	LowerInsertedAt pgtype.Timestamptz `json:"lower_inserted_at"`
-	UpperTenantID   pgtype.UUID        `json:"upper_tenant_id"`
-	UpperExternalID pgtype.UUID        `json:"upper_external_id"`
+	UpperTenantID   uuid.UUID          `json:"upper_tenant_id"`
+	UpperExternalID uuid.UUID          `json:"upper_external_id"`
 	UpperInsertedAt pgtype.Timestamptz `json:"upper_inserted_at"`
 }
 
@@ -510,54 +511,54 @@ func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg
 }
 
 type CreateTaskEventsOLAPParams struct {
-	TenantID               pgtype.UUID          `json:"tenant_id"`
+	TenantID               uuid.UUID            `json:"tenant_id"`
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	EventType              V1EventTypeOlap      `json:"event_type"`
-	WorkflowID             pgtype.UUID          `json:"workflow_id"`
+	WorkflowID             uuid.UUID            `json:"workflow_id"`
 	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	RetryCount             int32                `json:"retry_count"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
-	WorkerID               pgtype.UUID          `json:"worker_id"`
+	WorkerID               uuid.UUID            `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
-	ExternalID             pgtype.UUID          `json:"external_id"`
+	ExternalID             uuid.UUID            `json:"external_id"`
 }
 
 type CreateTaskEventsOLAPTmpParams struct {
-	TenantID       pgtype.UUID          `json:"tenant_id"`
+	TenantID       uuid.UUID            `json:"tenant_id"`
 	TaskID         int64                `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
 	EventType      V1EventTypeOlap      `json:"event_type"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
 	RetryCount     int32                `json:"retry_count"`
-	WorkerID       pgtype.UUID          `json:"worker_id"`
+	WorkerID       uuid.UUID            `json:"worker_id"`
 }
 
 type CreateTasksOLAPParams struct {
-	TenantID             pgtype.UUID          `json:"tenant_id"`
+	TenantID             uuid.UUID            `json:"tenant_id"`
 	ID                   int64                `json:"id"`
 	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
 	Queue                string               `json:"queue"`
 	ActionID             string               `json:"action_id"`
-	StepID               pgtype.UUID          `json:"step_id"`
-	WorkflowID           pgtype.UUID          `json:"workflow_id"`
-	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
-	WorkflowRunID        pgtype.UUID          `json:"workflow_run_id"`
+	StepID               uuid.UUID            `json:"step_id"`
+	WorkflowID           uuid.UUID            `json:"workflow_id"`
+	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
+	WorkflowRunID        uuid.UUID            `json:"workflow_run_id"`
 	ScheduleTimeout      string               `json:"schedule_timeout"`
 	StepTimeout          pgtype.Text          `json:"step_timeout"`
 	Priority             pgtype.Int4          `json:"priority"`
 	Sticky               V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID      pgtype.UUID          `json:"desired_worker_id"`
-	ExternalID           pgtype.UUID          `json:"external_id"`
+	DesiredWorkerID      uuid.UUID            `json:"desired_worker_id"`
+	ExternalID           uuid.UUID            `json:"external_id"`
 	DisplayName          string               `json:"display_name"`
 	Input                []byte               `json:"input"`
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
-	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
+	ParentTaskExternalID uuid.UUID            `json:"parent_task_external_id"`
 }
 
 const createV1PayloadOLAPCutoverTemporaryTable = `-- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
@@ -588,8 +589,8 @@ FROM payloads
 `
 
 type DiffOLAPPayloadSourceAndTargetPartitionsRow struct {
-	TenantID            pgtype.UUID           `json:"tenant_id"`
-	ExternalID          pgtype.UUID           `json:"external_id"`
+	TenantID            uuid.UUID             `json:"tenant_id"`
+	ExternalID          uuid.UUID             `json:"external_id"`
 	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
 	Location            V1PayloadLocationOlap `json:"location"`
 	ExternalLocationKey string                `json:"external_location_key"`
@@ -646,9 +647,9 @@ FROM tenants t,
 `
 
 type FindMinInsertedAtForDAGStatusUpdatesParams struct {
-	Partitionnumber int32         `json:"partitionnumber"`
-	Eventlimit      int32         `json:"eventlimit"`
-	Tenantids       []pgtype.UUID `json:"tenantids"`
+	Partitionnumber int32       `json:"partitionnumber"`
+	Eventlimit      int32       `json:"eventlimit"`
+	Tenantids       []uuid.UUID `json:"tenantids"`
 }
 
 func (q *Queries) FindMinInsertedAtForDAGStatusUpdates(ctx context.Context, db DBTX, arg FindMinInsertedAtForDAGStatusUpdatesParams) (pgtype.Timestamptz, error) {
@@ -679,9 +680,9 @@ FROM tenants t,
 `
 
 type FindMinInsertedAtForTaskStatusUpdatesParams struct {
-	Partitionnumber int32         `json:"partitionnumber"`
-	Eventlimit      int32         `json:"eventlimit"`
-	Tenantids       []pgtype.UUID `json:"tenantids"`
+	Partitionnumber int32       `json:"partitionnumber"`
+	Eventlimit      int32       `json:"eventlimit"`
+	Tenantids       []uuid.UUID `json:"tenantids"`
 }
 
 func (q *Queries) FindMinInsertedAtForTaskStatusUpdates(ctx context.Context, db DBTX, arg FindMinInsertedAtForTaskStatusUpdatesParams) (pgtype.Timestamptz, error) {
@@ -739,15 +740,15 @@ JOIN
 `
 
 type FlattenTasksByExternalIdsParams struct {
-	Externalids []pgtype.UUID `json:"externalids"`
-	Tenantid    pgtype.UUID   `json:"tenantid"`
+	Externalids []uuid.UUID `json:"externalids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
 }
 
 type FlattenTasksByExternalIdsRow struct {
-	TenantID   pgtype.UUID        `json:"tenant_id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
 	ID         int64              `json:"id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID pgtype.UUID        `json:"external_id"`
+	ExternalID uuid.UUID          `json:"external_id"`
 	RetryCount int32              `json:"retry_count"`
 }
 
@@ -798,13 +799,13 @@ GROUP BY lt.external_id
 `
 
 type GetDagDurationsParams struct {
-	Externalids   []pgtype.UUID      `json:"externalids"`
-	Tenantid      pgtype.UUID        `json:"tenantid"`
+	Externalids   []uuid.UUID        `json:"externalids"`
+	Tenantid      uuid.UUID          `json:"tenantid"`
 	Mininsertedat pgtype.Timestamptz `json:"mininsertedat"`
 }
 
 type GetDagDurationsRow struct {
-	ExternalID pgtype.UUID        `json:"external_id"`
+	ExternalID uuid.UUID          `json:"external_id"`
 	StartedAt  pgtype.Timestamptz `json:"started_at"`
 	FinishedAt pgtype.Timestamptz `json:"finished_at"`
 }
@@ -836,7 +837,7 @@ JOIN v1_events_olap e ON (elt.event_id, elt.event_seen_at) = (e.id, e.seen_at)
 WHERE elt.external_id = $1::uuid
 `
 
-func (q *Queries) GetEventByExternalId(ctx context.Context, db DBTX, eventexternalid pgtype.UUID) (*V1EventsOlap, error) {
+func (q *Queries) GetEventByExternalId(ctx context.Context, db DBTX, eventexternalid uuid.UUID) (*V1EventsOlap, error) {
 	row := db.QueryRow(ctx, getEventByExternalId, eventexternalid)
 	var i V1EventsOlap
 	err := row.Scan(
@@ -863,8 +864,8 @@ WHERE
 `
 
 type GetEventByExternalIdUsingTenantIdParams struct {
-	Eventexternalid pgtype.UUID `json:"eventexternalid"`
-	Tenantid        pgtype.UUID `json:"tenantid"`
+	Eventexternalid uuid.UUID `json:"eventexternalid"`
+	Tenantid        uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) GetEventByExternalIdUsingTenantId(ctx context.Context, db DBTX, arg GetEventByExternalIdUsingTenantIdParams) (*V1EventsOlap, error) {
@@ -951,18 +952,18 @@ WHERE
 `
 
 type GetRunsListRecursiveParams struct {
-	Tenantid        pgtype.UUID        `json:"tenantid"`
-	Taskexternalids []pgtype.UUID      `json:"taskexternalids"`
+	Tenantid        uuid.UUID          `json:"tenantid"`
+	Taskexternalids []uuid.UUID        `json:"taskexternalids"`
 	Depth           int32              `json:"depth"`
 	Createdafter    pgtype.Timestamptz `json:"createdafter"`
 }
 
 type GetRunsListRecursiveRow struct {
-	TenantID             pgtype.UUID        `json:"tenant_id"`
+	TenantID             uuid.UUID          `json:"tenant_id"`
 	ID                   int64              `json:"id"`
 	InsertedAt           pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID           pgtype.UUID        `json:"external_id"`
-	ParentTaskExternalID pgtype.UUID        `json:"parent_task_external_id"`
+	ExternalID           uuid.UUID          `json:"external_id"`
+	ParentTaskExternalID uuid.UUID          `json:"parent_task_external_id"`
 	Depth                int32              `json:"depth"`
 }
 
@@ -1052,7 +1053,7 @@ type GetTaskDurationsByTaskIdsParams struct {
 	Taskids          []int64                `json:"taskids"`
 	Taskinsertedats  []pgtype.Timestamptz   `json:"taskinsertedats"`
 	Readablestatuses []V1ReadableStatusOlap `json:"readablestatuses"`
-	Tenantid         pgtype.UUID            `json:"tenantid"`
+	Tenantid         uuid.UUID              `json:"tenantid"`
 }
 
 type GetTaskDurationsByTaskIdsRow struct {
@@ -1104,7 +1105,7 @@ ORDER BY minute_bucket
 
 type GetTaskPointMetricsParams struct {
 	Interval      pgtype.Interval    `json:"interval"`
-	Tenantid      pgtype.UUID        `json:"tenantid"`
+	Tenantid      uuid.UUID          `json:"tenantid"`
 	Createdafter  pgtype.Timestamptz `json:"createdafter"`
 	Createdbefore pgtype.Timestamptz `json:"createdbefore"`
 }
@@ -1195,23 +1196,23 @@ GROUP BY tenant_id
 `
 
 type GetTenantStatusMetricsParams struct {
-	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Tenantid                  uuid.UUID          `json:"tenantid"`
 	Createdafter              pgtype.Timestamptz `json:"createdafter"`
 	CreatedBefore             pgtype.Timestamptz `json:"createdBefore"`
-	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
-	ParentTaskExternalId      pgtype.UUID        `json:"parentTaskExternalId"`
-	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
+	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
+	ParentTaskExternalId      uuid.UUID          `json:"parentTaskExternalId"`
+	TriggeringEventExternalId uuid.UUID          `json:"triggeringEventExternalId"`
 	AdditionalMetaKeys        []string           `json:"additionalMetaKeys"`
 	AdditionalMetaValues      []string           `json:"additionalMetaValues"`
 }
 
 type GetTenantStatusMetricsRow struct {
-	TenantID       pgtype.UUID `json:"tenant_id"`
-	TotalQueued    int64       `json:"total_queued"`
-	TotalRunning   int64       `json:"total_running"`
-	TotalCompleted int64       `json:"total_completed"`
-	TotalCancelled int64       `json:"total_cancelled"`
-	TotalFailed    int64       `json:"total_failed"`
+	TenantID       uuid.UUID `json:"tenant_id"`
+	TotalQueued    int64     `json:"total_queued"`
+	TotalRunning   int64     `json:"total_running"`
+	TotalCompleted int64     `json:"total_completed"`
+	TotalCancelled int64     `json:"total_cancelled"`
+	TotalFailed    int64     `json:"total_failed"`
 }
 
 func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTenantStatusMetricsParams) (*GetTenantStatusMetricsRow, error) {
@@ -1250,9 +1251,9 @@ type GetWorkflowRunIdFromDagIdInsertedAtParams struct {
 	Daginsertedat pgtype.Timestamptz `json:"daginsertedat"`
 }
 
-func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DBTX, arg GetWorkflowRunIdFromDagIdInsertedAtParams) (pgtype.UUID, error) {
+func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DBTX, arg GetWorkflowRunIdFromDagIdInsertedAtParams) (uuid.UUID, error) {
 	row := db.QueryRow(ctx, getWorkflowRunIdFromDagIdInsertedAt, arg.Dagid, arg.Daginsertedat)
-	var external_id pgtype.UUID
+	var external_id uuid.UUID
 	err := row.Scan(&external_id)
 	return external_id, err
 }
@@ -1266,7 +1267,7 @@ WHERE
     AND seen_at > NOW() - INTERVAL '1 day'
 `
 
-func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]string, error) {
+func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]string, error) {
 	rows, err := db.Query(ctx, listEventKeys, tenantid)
 	if err != nil {
 		return nil, err
@@ -1343,12 +1344,12 @@ LIMIT
 `
 
 type ListEventsParams struct {
-	Tenantid           pgtype.UUID        `json:"tenantid"`
+	Tenantid           uuid.UUID          `json:"tenantid"`
 	Keys               []string           `json:"keys"`
 	Since              pgtype.Timestamptz `json:"since"`
 	Until              pgtype.Timestamptz `json:"until"`
-	WorkflowIds        []pgtype.UUID      `json:"workflowIds"`
-	EventIds           []pgtype.UUID      `json:"eventIds"`
+	WorkflowIds        []uuid.UUID        `json:"workflowIds"`
+	EventIds           []uuid.UUID        `json:"eventIds"`
 	AdditionalMetadata []byte             `json:"additionalMetadata"`
 	Statuses           []string           `json:"statuses"`
 	Scopes             []string           `json:"scopes"`
@@ -1549,18 +1550,18 @@ FROM payloads
 
 type ListPaginatedOLAPPayloadsForOffloadParams struct {
 	Partitiondate  pgtype.Date        `json:"partitiondate"`
-	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
-	Lastexternalid pgtype.UUID        `json:"lastexternalid"`
+	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
+	Lastexternalid uuid.UUID          `json:"lastexternalid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
-	Nexttenantid   pgtype.UUID        `json:"nexttenantid"`
-	Nextexternalid pgtype.UUID        `json:"nextexternalid"`
+	Nexttenantid   uuid.UUID          `json:"nexttenantid"`
+	Nextexternalid uuid.UUID          `json:"nextexternalid"`
 	Nextinsertedat pgtype.Timestamptz `json:"nextinsertedat"`
 	Batchsize      int32              `json:"batchsize"`
 }
 
 type ListPaginatedOLAPPayloadsForOffloadRow struct {
-	TenantID            pgtype.UUID           `json:"tenant_id"`
-	ExternalID          pgtype.UUID           `json:"external_id"`
+	TenantID            uuid.UUID             `json:"tenant_id"`
+	ExternalID          uuid.UUID             `json:"external_id"`
 	Location            V1PayloadLocationOlap `json:"location"`
 	ExternalLocationKey string                `json:"external_location_key"`
 	InlineContent       []byte                `json:"inline_content"`
@@ -1652,13 +1653,13 @@ ORDER BY a.time_first_seen DESC, t.event_timestamp DESC
 `
 
 type ListTaskEventsParams struct {
-	Tenantid       pgtype.UUID        `json:"tenantid"`
+	Tenantid       uuid.UUID          `json:"tenantid"`
 	Taskid         int64              `json:"taskid"`
 	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
 }
 
 type ListTaskEventsRow struct {
-	TenantID               pgtype.UUID          `json:"tenant_id"`
+	TenantID               uuid.UUID            `json:"tenant_id"`
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	RetryCount             int32                `json:"retry_count"`
@@ -1671,8 +1672,8 @@ type ListTaskEventsRow struct {
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
-	EventExternalID        pgtype.UUID          `json:"event_external_id"`
-	WorkerID               pgtype.UUID          `json:"worker_id"`
+	EventExternalID        uuid.UUID            `json:"event_external_id"`
+	WorkerID               uuid.UUID            `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
 }
@@ -1772,12 +1773,12 @@ ORDER BY a.time_first_seen DESC, t.event_timestamp DESC
 `
 
 type ListTaskEventsForWorkflowRunParams struct {
-	Workflowrunid pgtype.UUID `json:"workflowrunid"`
-	Tenantid      pgtype.UUID `json:"tenantid"`
+	Workflowrunid uuid.UUID `json:"workflowrunid"`
+	Tenantid      uuid.UUID `json:"tenantid"`
 }
 
 type ListTaskEventsForWorkflowRunRow struct {
-	TenantID               pgtype.UUID          `json:"tenant_id"`
+	TenantID               uuid.UUID            `json:"tenant_id"`
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	RetryCount             int32                `json:"retry_count"`
@@ -1790,12 +1791,12 @@ type ListTaskEventsForWorkflowRunRow struct {
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
-	EventExternalID        pgtype.UUID          `json:"event_external_id"`
-	WorkerID               pgtype.UUID          `json:"worker_id"`
+	EventExternalID        uuid.UUID            `json:"event_external_id"`
+	WorkerID               uuid.UUID            `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
 	DisplayName            string               `json:"display_name"`
-	TaskExternalID         pgtype.UUID          `json:"task_external_id"`
+	TaskExternalID         uuid.UUID            `json:"task_external_id"`
 }
 
 func (q *Queries) ListTaskEventsForWorkflowRun(ctx context.Context, db DBTX, arg ListTaskEventsForWorkflowRunParams) ([]*ListTaskEventsForWorkflowRunRow, error) {
@@ -1857,8 +1858,8 @@ ORDER BY
 `
 
 type ListTasksByDAGIdsParams struct {
-	Dagids   []pgtype.UUID `json:"dagids"`
-	Tenantid pgtype.UUID   `json:"tenantid"`
+	Dagids   []uuid.UUID `json:"dagids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 }
 
 type ListTasksByDAGIdsRow struct {
@@ -1866,7 +1867,7 @@ type ListTasksByDAGIdsRow struct {
 	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	DagExternalID  pgtype.UUID        `json:"dag_external_id"`
+	DagExternalID  uuid.UUID          `json:"dag_external_id"`
 }
 
 func (q *Queries) ListTasksByDAGIds(ctx context.Context, db DBTX, arg ListTasksByDAGIdsParams) ([]*ListTasksByDAGIdsRow, error) {
@@ -1908,12 +1909,12 @@ WHERE
 `
 
 type ListTasksByExternalIdsParams struct {
-	Externalids []pgtype.UUID `json:"externalids"`
-	Tenantid    pgtype.UUID   `json:"tenantid"`
+	Externalids []uuid.UUID `json:"externalids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
 }
 
 type ListTasksByExternalIdsRow struct {
-	TenantID   pgtype.UUID        `json:"tenant_id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
 	TaskID     pgtype.Int8        `json:"task_id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 }
@@ -1953,12 +1954,12 @@ LIMIT 10000
 `
 
 type ListWorkflowRunDisplayNamesParams struct {
-	Externalids []pgtype.UUID `json:"externalids"`
-	Tenantid    pgtype.UUID   `json:"tenantid"`
+	Externalids []uuid.UUID `json:"externalids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
 }
 
 type ListWorkflowRunDisplayNamesRow struct {
-	ExternalID  pgtype.UUID        `json:"external_id"`
+	ExternalID  uuid.UUID          `json:"external_id"`
 	DisplayName string             `json:"display_name"`
 	InsertedAt  pgtype.Timestamptz `json:"inserted_at"`
 }
@@ -2011,16 +2012,16 @@ WHERE
 `
 
 type ListWorkflowRunExternalIdsParams struct {
-	Tenantid             pgtype.UUID        `json:"tenantid"`
+	Tenantid             uuid.UUID          `json:"tenantid"`
 	Since                pgtype.Timestamptz `json:"since"`
 	Until                pgtype.Timestamptz `json:"until"`
 	Statuses             []string           `json:"statuses"`
 	AdditionalMetaKeys   []string           `json:"additionalMetaKeys"`
 	AdditionalMetaValues []string           `json:"additionalMetaValues"`
-	WorkflowIds          []pgtype.UUID      `json:"workflowIds"`
+	WorkflowIds          []uuid.UUID        `json:"workflowIds"`
 }
 
-func (q *Queries) ListWorkflowRunExternalIds(ctx context.Context, db DBTX, arg ListWorkflowRunExternalIdsParams) ([]pgtype.UUID, error) {
+func (q *Queries) ListWorkflowRunExternalIds(ctx context.Context, db DBTX, arg ListWorkflowRunExternalIdsParams) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, listWorkflowRunExternalIds,
 		arg.Tenantid,
 		arg.Since,
@@ -2034,9 +2035,9 @@ func (q *Queries) ListWorkflowRunExternalIds(ctx context.Context, db DBTX, arg L
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var external_id pgtype.UUID
+		var external_id uuid.UUID
 		if err := rows.Scan(&external_id); err != nil {
 			return nil, err
 		}
@@ -2113,9 +2114,9 @@ WHERE
 `
 
 type OffloadPayloadsParams struct {
-	Externalids          []pgtype.UUID `json:"externalids"`
-	Tenantids            []pgtype.UUID `json:"tenantids"`
-	Externallocationkeys []string      `json:"externallocationkeys"`
+	Externalids          []uuid.UUID `json:"externalids"`
+	Tenantids            []uuid.UUID `json:"tenantids"`
+	Externallocationkeys []string    `json:"externallocationkeys"`
 }
 
 func (q *Queries) OffloadPayloads(ctx context.Context, db DBTX, arg OffloadPayloadsParams) error {
@@ -2215,29 +2216,29 @@ type PopulateDAGMetadataParams struct {
 	Includepayloads bool                 `json:"includepayloads"`
 	Ids             []int64              `json:"ids"`
 	Insertedats     []pgtype.Timestamptz `json:"insertedats"`
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 }
 
 type PopulateDAGMetadataRow struct {
 	DagID                 int64                `json:"dag_id"`
 	RunID                 int64                `json:"run_id"`
-	TenantID              pgtype.UUID          `json:"tenant_id"`
+	TenantID              uuid.UUID            `json:"tenant_id"`
 	InsertedAt            pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID            pgtype.UUID          `json:"external_id"`
+	ExternalID            uuid.UUID            `json:"external_id"`
 	ReadableStatus        V1ReadableStatusOlap `json:"readable_status"`
 	Kind                  V1RunKind            `json:"kind"`
-	WorkflowID            pgtype.UUID          `json:"workflow_id"`
+	WorkflowID            uuid.UUID            `json:"workflow_id"`
 	DisplayName           string               `json:"display_name"`
 	Input                 []byte               `json:"input"`
 	AdditionalMetadata    []byte               `json:"additional_metadata"`
-	WorkflowVersionID     pgtype.UUID          `json:"workflow_version_id"`
-	ParentTaskExternalID  pgtype.UUID          `json:"parent_task_external_id"`
+	WorkflowVersionID     uuid.UUID            `json:"workflow_version_id"`
+	ParentTaskExternalID  uuid.UUID            `json:"parent_task_external_id"`
 	CreatedAt             pgtype.Timestamptz   `json:"created_at"`
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	Output                []byte               `json:"output"`
-	OutputEventExternalID pgtype.UUID          `json:"output_event_external_id"`
+	OutputEventExternalID uuid.UUID            `json:"output_event_external_id"`
 	RetryCount            int32                `json:"retry_count"`
 }
 
@@ -2307,18 +2308,18 @@ GROUP BY elt.external_id
 `
 
 type PopulateEventDataParams struct {
-	Eventexternalids []pgtype.UUID `json:"eventexternalids"`
-	Tenantid         pgtype.UUID   `json:"tenantid"`
+	Eventexternalids []uuid.UUID `json:"eventexternalids"`
+	Tenantid         uuid.UUID   `json:"tenantid"`
 }
 
 type PopulateEventDataRow struct {
-	ExternalID     pgtype.UUID `json:"external_id"`
-	QueuedCount    int64       `json:"queued_count"`
-	RunningCount   int64       `json:"running_count"`
-	CompletedCount int64       `json:"completed_count"`
-	CancelledCount int64       `json:"cancelled_count"`
-	FailedCount    int64       `json:"failed_count"`
-	TriggeredRuns  []byte      `json:"triggered_runs"`
+	ExternalID     uuid.UUID `json:"external_id"`
+	QueuedCount    int64     `json:"queued_count"`
+	RunningCount   int64     `json:"running_count"`
+	CompletedCount int64     `json:"completed_count"`
+	CancelledCount int64     `json:"cancelled_count"`
+	FailedCount    int64     `json:"failed_count"`
+	TriggeredRuns  []byte    `json:"triggered_runs"`
 }
 
 func (q *Queries) PopulateEventData(ctx context.Context, db DBTX, arg PopulateEventDataParams) ([]*PopulateEventDataRow, error) {
@@ -2466,42 +2467,42 @@ WHERE
 `
 
 type PopulateSingleTaskRunDataParams struct {
-	Tenantid       pgtype.UUID        `json:"tenantid"`
+	Tenantid       uuid.UUID          `json:"tenantid"`
 	Taskid         int64              `json:"taskid"`
 	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
 	RetryCount     pgtype.Int4        `json:"retry_count"`
 }
 
 type PopulateSingleTaskRunDataRow struct {
-	TenantID              pgtype.UUID          `json:"tenant_id"`
+	TenantID              uuid.UUID            `json:"tenant_id"`
 	ID                    int64                `json:"id"`
 	InsertedAt            pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID            pgtype.UUID          `json:"external_id"`
+	ExternalID            uuid.UUID            `json:"external_id"`
 	Queue                 string               `json:"queue"`
 	ActionID              string               `json:"action_id"`
-	StepID                pgtype.UUID          `json:"step_id"`
-	WorkflowID            pgtype.UUID          `json:"workflow_id"`
-	WorkflowVersionID     pgtype.UUID          `json:"workflow_version_id"`
-	WorkflowRunID         pgtype.UUID          `json:"workflow_run_id"`
+	StepID                uuid.UUID            `json:"step_id"`
+	WorkflowID            uuid.UUID            `json:"workflow_id"`
+	WorkflowVersionID     uuid.UUID            `json:"workflow_version_id"`
+	WorkflowRunID         uuid.UUID            `json:"workflow_run_id"`
 	ScheduleTimeout       string               `json:"schedule_timeout"`
 	StepTimeout           pgtype.Text          `json:"step_timeout"`
 	Priority              pgtype.Int4          `json:"priority"`
 	Sticky                V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID       pgtype.UUID          `json:"desired_worker_id"`
+	DesiredWorkerID       uuid.UUID            `json:"desired_worker_id"`
 	DisplayName           string               `json:"display_name"`
 	Input                 []byte               `json:"input"`
 	AdditionalMetadata    []byte               `json:"additional_metadata"`
 	ReadableStatus        V1ReadableStatusOlap `json:"readable_status"`
 	LatestRetryCount      int32                `json:"latest_retry_count"`
-	LatestWorkerID        pgtype.UUID          `json:"latest_worker_id"`
+	LatestWorkerID        uuid.UUID            `json:"latest_worker_id"`
 	DagID                 pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt         pgtype.Timestamptz   `json:"dag_inserted_at"`
-	ParentTaskExternalID  pgtype.UUID          `json:"parent_task_external_id"`
+	ParentTaskExternalID  uuid.UUID            `json:"parent_task_external_id"`
 	Status                V1ReadableStatusOlap `json:"status"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
 	QueuedAt              pgtype.Timestamptz   `json:"queued_at"`
-	OutputEventExternalID pgtype.UUID          `json:"output_event_external_id"`
+	OutputEventExternalID uuid.UUID            `json:"output_event_external_id"`
 	Output                []byte               `json:"output"`
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	SpawnedChildren       pgtype.Int8          `json:"spawned_children"`
@@ -2731,36 +2732,36 @@ type PopulateTaskRunDataParams struct {
 	Includepayloads bool                 `json:"includepayloads"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 }
 
 type PopulateTaskRunDataRow struct {
-	TenantID              pgtype.UUID          `json:"tenant_id"`
+	TenantID              uuid.UUID            `json:"tenant_id"`
 	ID                    int64                `json:"id"`
 	InsertedAt            pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID            pgtype.UUID          `json:"external_id"`
+	ExternalID            uuid.UUID            `json:"external_id"`
 	Queue                 string               `json:"queue"`
 	ActionID              string               `json:"action_id"`
-	StepID                pgtype.UUID          `json:"step_id"`
-	WorkflowID            pgtype.UUID          `json:"workflow_id"`
-	WorkflowVersionID     pgtype.UUID          `json:"workflow_version_id"`
+	StepID                uuid.UUID            `json:"step_id"`
+	WorkflowID            uuid.UUID            `json:"workflow_id"`
+	WorkflowVersionID     uuid.UUID            `json:"workflow_version_id"`
 	ScheduleTimeout       string               `json:"schedule_timeout"`
 	StepTimeout           pgtype.Text          `json:"step_timeout"`
 	Priority              pgtype.Int4          `json:"priority"`
 	Sticky                V1StickyStrategyOlap `json:"sticky"`
 	DisplayName           string               `json:"display_name"`
 	AdditionalMetadata    []byte               `json:"additional_metadata"`
-	ParentTaskExternalID  pgtype.UUID          `json:"parent_task_external_id"`
+	ParentTaskExternalID  uuid.UUID            `json:"parent_task_external_id"`
 	Input                 []byte               `json:"input"`
 	Status                V1ReadableStatusOlap `json:"status"`
-	WorkflowRunID         pgtype.UUID          `json:"workflow_run_id"`
+	WorkflowRunID         uuid.UUID            `json:"workflow_run_id"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
 	QueuedAt              pgtype.Timestamptz   `json:"queued_at"`
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	RetryCount            int32                `json:"retry_count"`
 	Output                []byte               `json:"output"`
-	OutputEventExternalID pgtype.UUID          `json:"output_event_external_id"`
+	OutputEventExternalID uuid.UUID            `json:"output_event_external_id"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
@@ -2858,10 +2859,10 @@ SET
 `
 
 type PutPayloadsParams struct {
-	Externalids          []pgtype.UUID        `json:"externalids"`
+	Externalids          []uuid.UUID          `json:"externalids"`
 	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
 	Payloads             [][]byte             `json:"payloads"`
-	Tenantids            []pgtype.UUID        `json:"tenantids"`
+	Tenantids            []uuid.UUID          `json:"tenantids"`
 	Locations            []string             `json:"locations"`
 	Externallocationkeys []string             `json:"externallocationkeys"`
 }
@@ -2897,7 +2898,7 @@ JOIN
     lookup_task lt ON lt.tenant_id = d.tenant_id AND lt.dag_id = d.id AND lt.inserted_at = d.inserted_at
 `
 
-func (q *Queries) ReadDAGByExternalID(ctx context.Context, db DBTX, externalid pgtype.UUID) (*V1DagsOlap, error) {
+func (q *Queries) ReadDAGByExternalID(ctx context.Context, db DBTX, externalid uuid.UUID) (*V1DagsOlap, error) {
 	row := db.QueryRow(ctx, readDAGByExternalID, externalid)
 	var i V1DagsOlap
 	err := row.Scan(
@@ -2926,8 +2927,8 @@ WHERE
 `
 
 type ReadPayloadsOLAPParams struct {
-	Tenantid    pgtype.UUID   `json:"tenantid"`
-	Externalids []pgtype.UUID `json:"externalids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+	Externalids []uuid.UUID `json:"externalids"`
 }
 
 func (q *Queries) ReadPayloadsOLAP(ctx context.Context, db DBTX, arg ReadPayloadsOLAPParams) ([]*V1PayloadsOlap, error) {
@@ -2983,36 +2984,36 @@ JOIN
 `
 
 type ReadTaskByExternalIDRow struct {
-	TenantID             pgtype.UUID          `json:"tenant_id"`
+	TenantID             uuid.UUID            `json:"tenant_id"`
 	ID                   int64                `json:"id"`
 	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID           pgtype.UUID          `json:"external_id"`
+	ExternalID           uuid.UUID            `json:"external_id"`
 	Queue                string               `json:"queue"`
 	ActionID             string               `json:"action_id"`
-	StepID               pgtype.UUID          `json:"step_id"`
-	WorkflowID           pgtype.UUID          `json:"workflow_id"`
-	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
-	WorkflowRunID        pgtype.UUID          `json:"workflow_run_id"`
+	StepID               uuid.UUID            `json:"step_id"`
+	WorkflowID           uuid.UUID            `json:"workflow_id"`
+	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
+	WorkflowRunID        uuid.UUID            `json:"workflow_run_id"`
 	ScheduleTimeout      string               `json:"schedule_timeout"`
 	StepTimeout          pgtype.Text          `json:"step_timeout"`
 	Priority             pgtype.Int4          `json:"priority"`
 	Sticky               V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID      pgtype.UUID          `json:"desired_worker_id"`
+	DesiredWorkerID      uuid.UUID            `json:"desired_worker_id"`
 	DisplayName          string               `json:"display_name"`
 	Input                []byte               `json:"input"`
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
 	LatestRetryCount     int32                `json:"latest_retry_count"`
-	LatestWorkerID       pgtype.UUID          `json:"latest_worker_id"`
+	LatestWorkerID       uuid.UUID            `json:"latest_worker_id"`
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
-	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
+	ParentTaskExternalID uuid.UUID            `json:"parent_task_external_id"`
 	Output               []byte               `json:"output"`
-	EventExternalID      pgtype.UUID          `json:"event_external_id"`
+	EventExternalID      uuid.UUID            `json:"event_external_id"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 }
 
-func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid pgtype.UUID) (*ReadTaskByExternalIDRow, error) {
+func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid uuid.UUID) (*ReadTaskByExternalIDRow, error) {
 	row := db.QueryRow(ctx, readTaskByExternalID, externalid)
 	var i ReadTaskByExternalIDRow
 	err := row.Scan(
@@ -3156,17 +3157,17 @@ type ReadWorkflowRunByExternalIdRow struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	TaskID               pgtype.Int8          `json:"task_id"`
 	ID                   int64                `json:"id"`
-	TenantID             pgtype.UUID          `json:"tenant_id"`
+	TenantID             uuid.UUID            `json:"tenant_id"`
 	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID           pgtype.UUID          `json:"external_id"`
+	ExternalID           uuid.UUID            `json:"external_id"`
 	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
 	Kind                 V1RunKind            `json:"kind"`
-	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	WorkflowID           uuid.UUID            `json:"workflow_id"`
 	DisplayName          string               `json:"display_name"`
 	Input                []byte               `json:"input"`
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
-	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
-	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
+	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
+	ParentTaskExternalID uuid.UUID            `json:"parent_task_external_id"`
 	CreatedAt            pgtype.Timestamptz   `json:"created_at"`
 	StartedAt            pgtype.Timestamptz   `json:"started_at"`
 	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
@@ -3174,7 +3175,7 @@ type ReadWorkflowRunByExternalIdRow struct {
 	TaskMetadata         []byte               `json:"task_metadata"`
 }
 
-func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, workflowrunexternalid pgtype.UUID) (*ReadWorkflowRunByExternalIdRow, error) {
+func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, workflowrunexternalid uuid.UUID) (*ReadWorkflowRunByExternalIdRow, error) {
 	row := db.QueryRow(ctx, readWorkflowRunByExternalId, workflowrunexternalid)
 	var i ReadWorkflowRunByExternalIdRow
 	err := row.Scan(
@@ -3217,9 +3218,9 @@ FROM inputs
 `
 
 type StoreCELEvaluationFailuresParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Sources  []string    `json:"sources"`
-	Errors   []string    `json:"errors"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Sources  []string  `json:"sources"`
+	Errors   []string  `json:"errors"`
 }
 
 func (q *Queries) StoreCELEvaluationFailures(ctx context.Context, db DBTX, arg StoreCELEvaluationFailuresParams) error {
@@ -3478,19 +3479,19 @@ FROM
 
 type UpdateDAGStatusesParams struct {
 	Partitionnumber int32              `json:"partitionnumber"`
-	Tenantids       []pgtype.UUID      `json:"tenantids"`
+	Tenantids       []uuid.UUID        `json:"tenantids"`
 	Eventlimit      int32              `json:"eventlimit"`
 	Mininsertedat   pgtype.Timestamptz `json:"mininsertedat"`
 }
 
 type UpdateDAGStatusesRow struct {
 	Count          int64                `json:"count"`
-	TenantID       pgtype.UUID          `json:"tenant_id"`
+	TenantID       uuid.UUID            `json:"tenant_id"`
 	ID             int64                `json:"id"`
 	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
-	ExternalID     pgtype.UUID          `json:"external_id"`
-	WorkflowID     pgtype.UUID          `json:"workflow_id"`
+	ExternalID     uuid.UUID            `json:"external_id"`
+	WorkflowID     uuid.UUID            `json:"workflow_id"`
 }
 
 func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGStatusesParams) ([]*UpdateDAGStatusesRow, error) {
@@ -3755,20 +3756,20 @@ FROM
 
 type UpdateTaskStatusesParams struct {
 	Partitionnumber int32              `json:"partitionnumber"`
-	Tenantids       []pgtype.UUID      `json:"tenantids"`
+	Tenantids       []uuid.UUID        `json:"tenantids"`
 	Eventlimit      int32              `json:"eventlimit"`
 	Mininsertedat   pgtype.Timestamptz `json:"mininsertedat"`
 }
 
 type UpdateTaskStatusesRow struct {
 	Count          int64                `json:"count"`
-	TenantID       pgtype.UUID          `json:"tenant_id"`
+	TenantID       uuid.UUID            `json:"tenant_id"`
 	ID             int64                `json:"id"`
 	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
-	ExternalID     pgtype.UUID          `json:"external_id"`
-	LatestWorkerID pgtype.UUID          `json:"latest_worker_id"`
-	WorkflowID     pgtype.UUID          `json:"workflow_id"`
+	ExternalID     uuid.UUID            `json:"external_id"`
+	LatestWorkerID uuid.UUID            `json:"latest_worker_id"`
+	WorkflowID     uuid.UUID            `json:"workflow_id"`
 	IsDagTask      bool                 `json:"is_dag_task"`
 }
 

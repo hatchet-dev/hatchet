@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -154,9 +155,9 @@ FROM
 `
 
 type CleanupWorkflowConcurrencySlotsAfterInsertParams struct {
-	Concurrencyparentstrategyids []int64       `json:"concurrencyparentstrategyids"`
-	Workflowversionids           []pgtype.UUID `json:"workflowversionids"`
-	Workflowrunids               []pgtype.UUID `json:"workflowrunids"`
+	Concurrencyparentstrategyids []int64     `json:"concurrencyparentstrategyids"`
+	Workflowversionids           []uuid.UUID `json:"workflowversionids"`
+	Workflowrunids               []uuid.UUID `json:"workflowrunids"`
 }
 
 // Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
@@ -191,7 +192,7 @@ WHERE
 `
 
 type DefaultTaskActivityGaugeParams struct {
-	Tenantid    pgtype.UUID        `json:"tenantid"`
+	Tenantid    uuid.UUID          `json:"tenantid"`
 	Activesince pgtype.Timestamptz `json:"activesince"`
 }
 
@@ -237,7 +238,7 @@ type DeleteMatchingSignalEventsParams struct {
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Eventkeys       []string             `json:"eventkeys"`
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 	Eventtype       V1TaskEventType      `json:"eventtype"`
 }
 
@@ -351,7 +352,7 @@ type FailTaskAppFailureParams struct {
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Taskretrycounts []int32              `json:"taskretrycounts"`
 	Isnonretryables []bool               `json:"isnonretryables"`
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 }
 
 type FailTaskAppFailureRow struct {
@@ -449,7 +450,7 @@ type FailTaskInternalFailureParams struct {
 	Taskids            []int64              `json:"taskids"`
 	Taskinsertedats    []pgtype.Timestamptz `json:"taskinsertedats"`
 	Taskretrycounts    []int32              `json:"taskretrycounts"`
-	Tenantid           pgtype.UUID          `json:"tenantid"`
+	Tenantid           uuid.UUID            `json:"tenantid"`
 }
 
 type FailTaskInternalFailureRow struct {
@@ -621,16 +622,16 @@ FROM
 `
 
 type FlattenExternalIdsParams struct {
-	Externalids []pgtype.UUID `json:"externalids"`
-	Tenantid    pgtype.UUID   `json:"tenantid"`
+	Externalids []uuid.UUID `json:"externalids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
 }
 
 type FlattenExternalIdsRow struct {
 	ID                    int64              `json:"id"`
 	InsertedAt            pgtype.Timestamptz `json:"inserted_at"`
 	RetryCount            int32              `json:"retry_count"`
-	ExternalID            pgtype.UUID        `json:"external_id"`
-	WorkflowRunID         pgtype.UUID        `json:"workflow_run_id"`
+	ExternalID            uuid.UUID          `json:"external_id"`
+	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
 	AdditionalMetadata    []byte             `json:"additional_metadata"`
 	DagID                 pgtype.Int8        `json:"dag_id"`
 	DagInsertedAt         pgtype.Timestamptz `json:"dag_inserted_at"`
@@ -638,7 +639,7 @@ type FlattenExternalIdsRow struct {
 	ChildIndex            pgtype.Int8        `json:"child_index"`
 	ChildKey              pgtype.Text        `json:"child_key"`
 	StepReadableID        string             `json:"step_readable_id"`
-	WorkflowRunExternalID pgtype.UUID        `json:"workflow_run_external_id"`
+	WorkflowRunExternalID uuid.UUID          `json:"workflow_run_external_id"`
 }
 
 // Union the tasks from the lookup table with the tasks from the DAGs
@@ -851,7 +852,7 @@ type GetTenantTaskStatsRow struct {
 	Oldest         pgtype.Timestamptz `json:"oldest"`
 }
 
-func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetTenantTaskStatsRow, error) {
+func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*GetTenantTaskStatsRow, error) {
 	rows, err := db.Query(ctx, getTenantTaskStats, tenantid)
 	if err != nil {
 		return nil, err
@@ -901,8 +902,8 @@ WHERE
 `
 
 type ListAllTasksInDagsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Dagids   []int64     `json:"dagids"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Dagids   []int64   `json:"dagids"`
 }
 
 type ListAllTasksInDagsRow struct {
@@ -912,9 +913,9 @@ type ListAllTasksInDagsRow struct {
 	DagID          pgtype.Int8        `json:"dag_id"`
 	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
 	StepReadableID string             `json:"step_readable_id"`
-	StepID         pgtype.UUID        `json:"step_id"`
-	WorkflowID     pgtype.UUID        `json:"workflow_id"`
-	ExternalID     pgtype.UUID        `json:"external_id"`
+	StepID         uuid.UUID          `json:"step_id"`
+	WorkflowID     uuid.UUID          `json:"workflow_id"`
+	ExternalID     uuid.UUID          `json:"external_id"`
 }
 
 func (q *Queries) ListAllTasksInDags(ctx context.Context, db DBTX, arg ListAllTasksInDagsParams) ([]*ListAllTasksInDagsRow, error) {
@@ -971,7 +972,7 @@ WHERE
 `
 
 type ListMatchingSignalEventsParams struct {
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 	Eventtype       V1TaskEventType      `json:"eventtype"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
@@ -1046,16 +1047,16 @@ WHERE
 `
 
 type ListMatchingTaskEventsParams struct {
-	Tenantid        pgtype.UUID   `json:"tenantid"`
-	Taskexternalids []pgtype.UUID `json:"taskexternalids"`
-	Eventtypes      [][]string    `json:"eventtypes"`
+	Tenantid        uuid.UUID   `json:"tenantid"`
+	Taskexternalids []uuid.UUID `json:"taskexternalids"`
+	Eventtypes      [][]string  `json:"eventtypes"`
 }
 
 type ListMatchingTaskEventsRow struct {
-	ExternalID     pgtype.UUID        `json:"external_id"`
+	ExternalID     uuid.UUID          `json:"external_id"`
 	ID             int64              `json:"id"`
 	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
-	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount     int32              `json:"retry_count"`
@@ -1063,7 +1064,7 @@ type ListMatchingTaskEventsRow struct {
 	EventKey       pgtype.Text        `json:"event_key"`
 	CreatedAt      pgtype.Timestamp   `json:"created_at"`
 	Data           []byte             `json:"data"`
-	ExternalID_2   pgtype.UUID        `json:"external_id_2"`
+	ExternalID_2   uuid.UUID          `json:"external_id_2"`
 }
 
 // Lists the task events for the **latest** retry of a task, or task events which intentionally
@@ -1246,17 +1247,17 @@ WHERE
 `
 
 type ListTaskMetasParams struct {
-	TenantID pgtype.UUID `json:"tenant_id"`
-	Ids      []int64     `json:"ids"`
+	TenantID uuid.UUID `json:"tenant_id"`
+	Ids      []int64   `json:"ids"`
 }
 
 type ListTaskMetasRow struct {
 	ID            int64              `json:"id"`
 	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID    pgtype.UUID        `json:"external_id"`
+	ExternalID    uuid.UUID          `json:"external_id"`
 	RetryCount    int32              `json:"retry_count"`
-	WorkflowID    pgtype.UUID        `json:"workflow_id"`
-	WorkflowRunID pgtype.UUID        `json:"workflow_run_id"`
+	WorkflowID    uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID uuid.UUID          `json:"workflow_run_id"`
 }
 
 func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasParams) ([]*ListTaskMetasRow, error) {
@@ -1355,13 +1356,13 @@ ORDER BY
 type ListTaskParentOutputsParams struct {
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 }
 
 type ListTaskParentOutputsRow struct {
 	TaskEventID         int64              `json:"task_event_id"`
 	TaskEventInsertedAt pgtype.Timestamptz `json:"task_event_inserted_at"`
-	WorkflowRunID       pgtype.UUID        `json:"workflow_run_id"`
+	WorkflowRunID       uuid.UUID          `json:"workflow_run_id"`
 	Output              []byte             `json:"output"`
 }
 
@@ -1414,15 +1415,15 @@ WHERE
 `
 
 type ListTaskRunningStatusesParams struct {
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Taskretrycounts []int32              `json:"taskretrycounts"`
 }
 
 type ListTaskRunningStatusesRow struct {
-	ExternalID pgtype.UUID `json:"external_id"`
-	IsRunning  bool        `json:"is_running"`
+	ExternalID uuid.UUID `json:"external_id"`
+	IsRunning  bool      `json:"is_running"`
 }
 
 func (q *Queries) ListTaskRunningStatuses(ctx context.Context, db DBTX, arg ListTaskRunningStatusesParams) ([]*ListTaskRunningStatusesRow, error) {
@@ -1460,8 +1461,8 @@ WHERE
 `
 
 type ListTasksParams struct {
-	TenantID pgtype.UUID `json:"tenant_id"`
-	Ids      []int64     `json:"ids"`
+	TenantID uuid.UUID `json:"tenant_id"`
+	Ids      []int64   `json:"ids"`
 }
 
 func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) ([]*V1Task, error) {
@@ -1643,7 +1644,7 @@ LEFT JOIN
 type ListTasksForReplayParams struct {
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 }
 
 type ListTasksForReplayRow struct {
@@ -1653,19 +1654,19 @@ type ListTasksForReplayRow struct {
 	DagID                pgtype.Int8        `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz `json:"dag_inserted_at"`
 	StepReadableID       string             `json:"step_readable_id"`
-	StepID               pgtype.UUID        `json:"step_id"`
-	WorkflowID           pgtype.UUID        `json:"workflow_id"`
-	ExternalID           pgtype.UUID        `json:"external_id"`
+	StepID               uuid.UUID          `json:"step_id"`
+	WorkflowID           uuid.UUID          `json:"workflow_id"`
+	ExternalID           uuid.UUID          `json:"external_id"`
 	Input                []byte             `json:"input"`
 	AdditionalMetadata   []byte             `json:"additional_metadata"`
-	ParentTaskExternalID pgtype.UUID        `json:"parent_task_external_id"`
+	ParentTaskExternalID uuid.UUID          `json:"parent_task_external_id"`
 	ParentTaskID         pgtype.Int8        `json:"parent_task_id"`
 	ParentTaskInsertedAt pgtype.Timestamptz `json:"parent_task_inserted_at"`
 	StepIndex            int64              `json:"step_index"`
 	ChildIndex           pgtype.Int8        `json:"child_index"`
 	ChildKey             pgtype.Text        `json:"child_key"`
 	JobKind              JobKind            `json:"jobKind"`
-	Parents              []pgtype.UUID      `json:"parents"`
+	Parents              []uuid.UUID        `json:"parents"`
 }
 
 // Lists tasks for replay by recursively selecting all tasks that are children of the input tasks,
@@ -1737,7 +1738,7 @@ JOIN
 `
 
 type ListTasksToReassignParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
@@ -1804,7 +1805,7 @@ JOIN
 `
 
 type ListTasksToTimeoutParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
@@ -1812,14 +1813,14 @@ type ListTasksToTimeoutRow struct {
 	ID                 int64              `json:"id"`
 	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
 	RetryCount         int32              `json:"retry_count"`
-	StepID             pgtype.UUID        `json:"step_id"`
-	ExternalID         pgtype.UUID        `json:"external_id"`
-	WorkflowRunID      pgtype.UUID        `json:"workflow_run_id"`
+	StepID             uuid.UUID          `json:"step_id"`
+	ExternalID         uuid.UUID          `json:"external_id"`
+	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
 	StepTimeout        pgtype.Text        `json:"step_timeout"`
 	AppRetryCount      int32              `json:"app_retry_count"`
 	RetryBackoffFactor pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff    pgtype.Int4        `json:"retry_max_backoff"`
-	WorkerID           pgtype.UUID        `json:"worker_id"`
+	WorkerID           uuid.UUID          `json:"worker_id"`
 }
 
 func (q *Queries) ListTasksToTimeout(ctx context.Context, db DBTX, arg ListTasksToTimeoutParams) ([]*ListTasksToTimeoutRow, error) {
@@ -1867,8 +1868,8 @@ FOR UPDATE SKIP LOCKED
 `
 
 type LockDAGsForReplayParams struct {
-	Dagids   []int64     `json:"dagids"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Dagids   []int64   `json:"dagids"`
+	Tenantid uuid.UUID `json:"tenantid"`
 }
 
 // Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
@@ -1937,7 +1938,7 @@ type LockSignalCreatedEventsParams struct {
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Eventkeys       []string             `json:"eventkeys"`
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 }
 
 type LockSignalCreatedEventsRow struct {
@@ -1990,8 +1991,8 @@ WHERE
 `
 
 type LookupExternalIdsParams struct {
-	Externalids []pgtype.UUID `json:"externalids"`
-	Tenantid    pgtype.UUID   `json:"tenantid"`
+	Externalids []uuid.UUID `json:"externalids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
 }
 
 func (q *Queries) LookupExternalIds(ctx context.Context, db DBTX, arg LookupExternalIdsParams) ([]*V1LookupTable, error) {
@@ -2061,8 +2062,8 @@ RETURNING
 `
 
 type ManualSlotReleaseParams struct {
-	Externalid pgtype.UUID `json:"externalid"`
-	Tenantid   pgtype.UUID `json:"tenantid"`
+	Externalid uuid.UUID `json:"externalid"`
+	Tenantid   uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) ManualSlotRelease(ctx context.Context, db DBTX, arg ManualSlotReleaseParams) (*V1TaskRuntime, error) {
@@ -2115,13 +2116,13 @@ FROM
 `
 
 type PreflightCheckDAGsForReplayParams struct {
-	Dagids   []int64     `json:"dagids"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Dagids   []int64   `json:"dagids"`
+	Tenantid uuid.UUID `json:"tenantid"`
 }
 
 type PreflightCheckDAGsForReplayRow struct {
 	ID         int64              `json:"id"`
-	ExternalID pgtype.UUID        `json:"external_id"`
+	ExternalID uuid.UUID          `json:"external_id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 	StepCount  int64              `json:"step_count"`
 	TaskCount  int64              `json:"task_count"`
@@ -2196,7 +2197,7 @@ WHERE
 `
 
 type PreflightCheckTasksForReplayParams struct {
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 	Mininsertedat   pgtype.Timestamptz   `json:"mininsertedat"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
@@ -2257,7 +2258,7 @@ RETURNING task_id, task_inserted_at, task_retry_count, retry_after, tenant_id
 `
 
 type ProcessRetryQueueItemsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
@@ -2329,8 +2330,8 @@ RETURNING
 
 type RefreshTimeoutByParams struct {
 	IncrementTimeoutBy pgtype.Text `json:"incrementTimeoutBy"`
-	Externalid         pgtype.UUID `json:"externalid"`
-	Tenantid           pgtype.UUID `json:"tenantid"`
+	Externalid         uuid.UUID   `json:"externalid"`
+	Tenantid           uuid.UUID   `json:"tenantid"`
 }
 
 func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTimeoutByParams) (*V1TaskRuntime, error) {

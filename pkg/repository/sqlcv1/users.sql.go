@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -26,7 +27,7 @@ INSERT INTO "User" (
 `
 
 type CreateUserParams struct {
-	ID            pgtype.UUID `json:"id"`
+	ID            uuid.UUID   `json:"id"`
 	Email         string      `json:"email"`
 	EmailVerified pgtype.Bool `json:"emailVerified"`
 	Name          pgtype.Text `json:"name"`
@@ -73,7 +74,7 @@ INSERT INTO "UserOAuth" (
 `
 
 type CreateUserOAuthParams struct {
-	Userid         pgtype.UUID      `json:"userid"`
+	Userid         uuid.UUID        `json:"userid"`
 	Provider       string           `json:"provider"`
 	Provideruserid string           `json:"provideruserid"`
 	Accesstoken    []byte           `json:"accesstoken"`
@@ -116,8 +117,8 @@ INSERT INTO "UserPassword" (
 `
 
 type CreateUserPasswordParams struct {
-	Userid pgtype.UUID `json:"userid"`
-	Hash   string      `json:"hash"`
+	Userid uuid.UUID `json:"userid"`
+	Hash   string    `json:"hash"`
 }
 
 func (q *Queries) CreateUserPassword(ctx context.Context, db DBTX, arg CreateUserPasswordParams) (*UserPassword, error) {
@@ -142,9 +143,9 @@ INSERT INTO "UserSession" (
 `
 
 type CreateUserSessionParams struct {
-	ID        pgtype.UUID      `json:"id"`
+	ID        uuid.UUID        `json:"id"`
 	Expiresat pgtype.Timestamp `json:"expiresat"`
-	UserId    pgtype.UUID      `json:"userId"`
+	UserId    uuid.UUID        `json:"userId"`
 	Data      []byte           `json:"data"`
 }
 
@@ -175,7 +176,7 @@ WHERE
 RETURNING id, "createdAt", "updatedAt", "userId", data, "expiresAt"
 `
 
-func (q *Queries) DeleteUserSession(ctx context.Context, db DBTX, id pgtype.UUID) (*UserSession, error) {
+func (q *Queries) DeleteUserSession(ctx context.Context, db DBTX, id uuid.UUID) (*UserSession, error) {
 	row := db.QueryRow(ctx, deleteUserSession, id)
 	var i UserSession
 	err := row.Scan(
@@ -222,7 +223,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) GetUserByID(ctx context.Context, db DBTX, id pgtype.UUID) (*User, error) {
+func (q *Queries) GetUserByID(ctx context.Context, db DBTX, id uuid.UUID) (*User, error) {
 	row := db.QueryRow(ctx, getUserByID, id)
 	var i User
 	err := row.Scan(
@@ -246,7 +247,7 @@ WHERE
     "userId" = $1::uuid
 `
 
-func (q *Queries) GetUserPassword(ctx context.Context, db DBTX, userid pgtype.UUID) (*UserPassword, error) {
+func (q *Queries) GetUserPassword(ctx context.Context, db DBTX, userid uuid.UUID) (*UserPassword, error) {
 	row := db.QueryRow(ctx, getUserPassword, userid)
 	var i UserPassword
 	err := row.Scan(&i.Hash, &i.UserId)
@@ -262,7 +263,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) GetUserSession(ctx context.Context, db DBTX, id pgtype.UUID) (*UserSession, error) {
+func (q *Queries) GetUserSession(ctx context.Context, db DBTX, id uuid.UUID) (*UserSession, error) {
 	row := db.QueryRow(ctx, getUserSession, id)
 	var i UserSession
 	err := row.Scan(
@@ -285,7 +286,7 @@ WHERE
     "userId" = $1::uuid
 `
 
-func (q *Queries) ListTenantMemberships(ctx context.Context, db DBTX, userid pgtype.UUID) ([]*TenantMember, error) {
+func (q *Queries) ListTenantMemberships(ctx context.Context, db DBTX, userid uuid.UUID) ([]*TenantMember, error) {
 	rows, err := db.Query(ctx, listTenantMemberships, userid)
 	if err != nil {
 		return nil, err
@@ -326,7 +327,7 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", email, "emailVerified", nam
 type UpdateUserParams struct {
 	EmailVerified pgtype.Bool `json:"emailVerified"`
 	Name          pgtype.Text `json:"name"`
-	ID            pgtype.UUID `json:"id"`
+	ID            uuid.UUID   `json:"id"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, db DBTX, arg UpdateUserParams) (*User, error) {
@@ -355,8 +356,8 @@ RETURNING hash, "userId"
 `
 
 type UpdateUserPasswordParams struct {
-	Hash   string      `json:"hash"`
-	Userid pgtype.UUID `json:"userid"`
+	Hash   string    `json:"hash"`
+	Userid uuid.UUID `json:"userid"`
 }
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, db DBTX, arg UpdateUserPasswordParams) (*UserPassword, error) {
@@ -378,9 +379,9 @@ RETURNING id, "createdAt", "updatedAt", "userId", data, "expiresAt"
 `
 
 type UpdateUserSessionParams struct {
-	UserId pgtype.UUID `json:"userId"`
-	Data   []byte      `json:"data"`
-	ID     pgtype.UUID `json:"id"`
+	UserId uuid.UUID `json:"userId"`
+	Data   []byte    `json:"data"`
+	ID     uuid.UUID `json:"id"`
 }
 
 func (q *Queries) UpdateUserSession(ctx context.Context, db DBTX, arg UpdateUserSessionParams) (*UserSession, error) {
@@ -423,7 +424,7 @@ RETURNING id, "createdAt", "updatedAt", "userId", provider, "providerUserId", "e
 `
 
 type UpsertUserOAuthParams struct {
-	Userid         pgtype.UUID      `json:"userid"`
+	Userid         uuid.UUID        `json:"userid"`
 	Provider       string           `json:"provider"`
 	Provideruserid string           `json:"provideruserid"`
 	Accesstoken    []byte           `json:"accesstoken"`

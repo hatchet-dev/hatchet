@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -36,12 +37,12 @@ func (q *Queries) CleanupMatchWithMatchConditions(ctx context.Context, db DBTX, 
 
 type CreateMatchConditionsParams struct {
 	V1MatchID         int64                  `json:"v1_match_id"`
-	TenantID          pgtype.UUID            `json:"tenant_id"`
+	TenantID          uuid.UUID              `json:"tenant_id"`
 	EventType         V1EventType            `json:"event_type"`
 	EventKey          string                 `json:"event_key"`
 	EventResourceHint pgtype.Text            `json:"event_resource_hint"`
 	ReadableDataKey   string                 `json:"readable_data_key"`
-	OrGroupID         pgtype.UUID            `json:"or_group_id"`
+	OrGroupID         uuid.UUID              `json:"or_group_id"`
 	Expression        pgtype.Text            `json:"expression"`
 	Action            V1MatchConditionAction `json:"action"`
 	IsSatisfied       bool                   `json:"is_satisfied"`
@@ -85,11 +86,11 @@ RETURNING
 `
 
 type CreateMatchesForSignalTriggersParams struct {
-	Tenantids             []pgtype.UUID        `json:"tenantids"`
+	Tenantids             []uuid.UUID          `json:"tenantids"`
 	Kinds                 []string             `json:"kinds"`
 	Signaltaskids         []int64              `json:"signaltaskids"`
 	Signaltaskinsertedats []pgtype.Timestamptz `json:"signaltaskinsertedats"`
-	Signalexternalids     []pgtype.UUID        `json:"signalexternalids"`
+	Signalexternalids     []uuid.UUID          `json:"signalexternalids"`
 	Signalkeys            []string             `json:"signalkeys"`
 }
 
@@ -398,21 +399,21 @@ LEFT JOIN
 
 type SaveSatisfiedMatchConditionsRow struct {
 	ID                            int64                  `json:"id"`
-	TenantID                      pgtype.UUID            `json:"tenant_id"`
+	TenantID                      uuid.UUID              `json:"tenant_id"`
 	Kind                          V1MatchKind            `json:"kind"`
 	IsSatisfied                   bool                   `json:"is_satisfied"`
 	ExistingData                  []byte                 `json:"existing_data"`
 	SignalTaskID                  pgtype.Int8            `json:"signal_task_id"`
 	SignalTaskInsertedAt          pgtype.Timestamptz     `json:"signal_task_inserted_at"`
-	SignalExternalID              pgtype.UUID            `json:"signal_external_id"`
+	SignalExternalID              uuid.UUID              `json:"signal_external_id"`
 	SignalKey                     pgtype.Text            `json:"signal_key"`
 	TriggerDagID                  pgtype.Int8            `json:"trigger_dag_id"`
 	TriggerDagInsertedAt          pgtype.Timestamptz     `json:"trigger_dag_inserted_at"`
-	TriggerStepID                 pgtype.UUID            `json:"trigger_step_id"`
+	TriggerStepID                 uuid.UUID              `json:"trigger_step_id"`
 	TriggerStepIndex              pgtype.Int8            `json:"trigger_step_index"`
-	TriggerExternalID             pgtype.UUID            `json:"trigger_external_id"`
-	TriggerWorkflowRunID          pgtype.UUID            `json:"trigger_workflow_run_id"`
-	TriggerParentTaskExternalID   pgtype.UUID            `json:"trigger_parent_task_external_id"`
+	TriggerExternalID             uuid.UUID              `json:"trigger_external_id"`
+	TriggerWorkflowRunID          uuid.UUID              `json:"trigger_workflow_run_id"`
+	TriggerParentTaskExternalID   uuid.UUID              `json:"trigger_parent_task_external_id"`
 	TriggerParentTaskID           pgtype.Int8            `json:"trigger_parent_task_id"`
 	TriggerParentTaskInsertedAt   pgtype.Timestamptz     `json:"trigger_parent_task_inserted_at"`
 	TriggerChildIndex             pgtype.Int8            `json:"trigger_child_index"`

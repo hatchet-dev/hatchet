@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -52,9 +53,9 @@ RETURNING rl."tenantId", rl.key, rl."limitValue", rl.value, rl."window", rl."las
 `
 
 type BulkUpdateRateLimitsParams struct {
-	Keys     []string    `json:"keys"`
-	Units    []int32     `json:"units"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Keys     []string  `json:"keys"`
+	Units    []int32   `json:"units"`
+	Tenantid uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) BulkUpdateRateLimits(ctx context.Context, db DBTX, arg BulkUpdateRateLimitsParams) ([]*RateLimit, error) {
@@ -113,7 +114,7 @@ FROM
 `
 
 type CountRateLimitsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Search   pgtype.Text `json:"search"`
 	Orderby  interface{} `json:"orderby"`
 }
@@ -136,8 +137,8 @@ WHERE
 `
 
 type ListRateLimitsForStepsParams struct {
-	Stepids  []pgtype.UUID `json:"stepids"`
-	Tenantid pgtype.UUID   `json:"tenantid"`
+	Stepids  []uuid.UUID `json:"stepids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 }
 
 func (q *Queries) ListRateLimitsForSteps(ctx context.Context, db DBTX, arg ListRateLimitsForStepsParams) ([]*StepRateLimit, error) {
@@ -207,7 +208,7 @@ LIMIT
 `
 
 type ListRateLimitsForTenantNoMutateParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Search   pgtype.Text `json:"search"`
 	Orderby  interface{} `json:"orderby"`
 	Offset   interface{} `json:"offset"`
@@ -215,7 +216,7 @@ type ListRateLimitsForTenantNoMutateParams struct {
 }
 
 type ListRateLimitsForTenantNoMutateRow struct {
-	TenantId   pgtype.UUID      `json:"tenantId"`
+	TenantId   uuid.UUID        `json:"tenantId"`
 	Key        string           `json:"key"`
 	LimitValue int32            `json:"limitValue"`
 	Value      int32            `json:"value"`
@@ -302,7 +303,7 @@ FROM
 `
 
 type ListRateLimitsForTenantWithMutateRow struct {
-	TenantId     pgtype.UUID      `json:"tenantId"`
+	TenantId     uuid.UUID        `json:"tenantId"`
 	Key          string           `json:"key"`
 	LimitValue   int32            `json:"limitValue"`
 	Value        int32            `json:"value"`
@@ -311,7 +312,7 @@ type ListRateLimitsForTenantWithMutateRow struct {
 	NextRefillAt pgtype.Timestamp `json:"nextRefillAt"`
 }
 
-func (q *Queries) ListRateLimitsForTenantWithMutate(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListRateLimitsForTenantWithMutateRow, error) {
+func (q *Queries) ListRateLimitsForTenantWithMutate(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListRateLimitsForTenantWithMutateRow, error) {
 	rows, err := db.Query(ctx, listRateLimitsForTenantWithMutate, tenantid)
 	if err != nil {
 		return nil, err
@@ -360,7 +361,7 @@ RETURNING "tenantId", key, "limitValue", value, "window", "lastRefill"
 `
 
 type UpsertRateLimitParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Key      string      `json:"key"`
 	Limit    int32       `json:"limit"`
 	Window   pgtype.Text `json:"window"`
@@ -421,10 +422,10 @@ ON CONFLICT ("tenantId", "key") DO UPDATE SET
 `
 
 type UpsertRateLimitsBulkParams struct {
-	Tenantid    pgtype.UUID `json:"tenantid"`
-	Keys        []string    `json:"keys"`
-	Limitvalues []int32     `json:"limitvalues"`
-	Windows     []string    `json:"windows"`
+	Tenantid    uuid.UUID `json:"tenantid"`
+	Keys        []string  `json:"keys"`
+	Limitvalues []int32   `json:"limitvalues"`
+	Windows     []string  `json:"windows"`
 }
 
 func (q *Queries) UpsertRateLimitsBulk(ctx context.Context, db DBTX, arg UpsertRateLimitsBulkParams) error {
