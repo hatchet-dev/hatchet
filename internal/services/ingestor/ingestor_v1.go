@@ -53,7 +53,7 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *sqlcv1.Tenant,
 }
 
 func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId uuid.UUID, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error) {
-	eventId := uuid.New().String()
+	eventId := uuid.New()
 
 	msg, err := eventToTaskV1(
 		tenantId,
@@ -79,7 +79,7 @@ func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId uuid.UUID, 
 	now := time.Now().UTC()
 
 	return &sqlcv1.Event{
-		ID:                 uuid.MustParse(eventId),
+		ID:                 eventId,
 		CreatedAt:          sqlchelpers.TimestampFromTime(now),
 		UpdatedAt:          sqlchelpers.TimestampFromTime(now),
 		Key:                key,
@@ -139,7 +139,7 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *sqlcv1
 	return i.ingestSingleton(ctx, tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata, nil, nil, nil)
 }
 
-func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta []byte, priority *int32, scope *string, triggeringWebhookName *string) (*msgqueue.Message, error) {
+func eventToTaskV1(tenantId, eventExternalId uuid.UUID, key string, data, additionalMeta []byte, priority *int32, scope *string, triggeringWebhookName *string) (*msgqueue.Message, error) {
 	payloadTyped := tasktypes.UserEventTaskPayload{
 		EventExternalId:         eventExternalId,
 		EventKey:                key,
@@ -159,7 +159,7 @@ func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta [
 	)
 }
 
-func createWebhookValidationFailureMsg(tenantId, webhookName, errorText string) (*msgqueue.Message, error) {
+func createWebhookValidationFailureMsg(tenantId uuid.UUID, webhookName, errorText string) (*msgqueue.Message, error) {
 	payloadTyped := tasktypes.FailedWebhookValidationPayload{
 		WebhookName: webhookName,
 		ErrorText:   errorText,
@@ -174,7 +174,7 @@ func createWebhookValidationFailureMsg(tenantId, webhookName, errorText string) 
 	)
 }
 
-func (i *IngestorImpl) ingestWebhookValidationFailure(tenantId, webhookName, errorText string) error {
+func (i *IngestorImpl) ingestWebhookValidationFailure(tenantId uuid.UUID, webhookName, errorText string) error {
 	msg, err := createWebhookValidationFailureMsg(
 		tenantId,
 		webhookName,

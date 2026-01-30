@@ -9,13 +9,13 @@ import (
 )
 
 type UserEventTaskPayload struct {
-	EventExternalId         string  `json:"event_id" validate:"required,uuid"`
-	EventKey                string  `json:"event_key" validate:"required"`
-	EventData               []byte  `json:"event_data" validate:"required"`
-	EventAdditionalMetadata []byte  `json:"event_additional_metadata"`
-	EventPriority           *int32  `json:"event_priority,omitempty"`
-	EventScope              *string `json:"event_scope,omitempty"`
-	TriggeringWebhookName   *string `json:"triggering_webhook_name,omitempty"`
+	EventExternalId         uuid.UUID `json:"event_id" validate:"required"`
+	EventKey                string    `json:"event_key" validate:"required"`
+	EventData               []byte    `json:"event_data" validate:"required"`
+	EventAdditionalMetadata []byte    `json:"event_additional_metadata"`
+	EventPriority           *int32    `json:"event_priority,omitempty"`
+	EventScope              *string   `json:"event_scope,omitempty"`
+	TriggeringWebhookName   *string   `json:"triggering_webhook_name,omitempty"`
 }
 
 func NewInternalEventMessage(tenantId uuid.UUID, timestamp time.Time, events ...v1.InternalTaskEvent) (*msgqueue.Message, error) {

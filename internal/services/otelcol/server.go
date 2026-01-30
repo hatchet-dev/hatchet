@@ -63,7 +63,7 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		}, nil
 	}
 
-	oc.l.Debug().Int("span_count", len(spans)).Str("tenant_id", tenantId).Msg("stored spans")
+	oc.l.Debug().Int("span_count", len(spans)).Str("tenant_id", tenantId.String()).Msg("stored spans")
 
 	return &collectortracev1.ExportTraceServiceResponse{}, nil
 }

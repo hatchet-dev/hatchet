@@ -84,7 +84,7 @@ func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uui
 		params.Units = append(params.Units, int32(v)) // nolint: gosec
 	}
 
-	tenantInt := tenantAdvisoryInt(tenantId.String())
+	tenantInt := tenantAdvisoryInt(tenantId)
 
 	err = r.queries.AdvisoryLock(ctx, tx, tenantInt)
 
@@ -234,9 +234,9 @@ func (r *rateLimitRepository) ListRateLimits(ctx context.Context, tenantId uuid.
 	return res, nil
 }
 
-func tenantAdvisoryInt(tenantID string) int64 {
+func tenantAdvisoryInt(tenantID uuid.UUID) int64 {
 	hasher := fnv.New64a()
-	idBytes := []byte(tenantID)
+	idBytes := []byte(tenantID.String())
 	hasher.Write(idBytes)
 	return int64(hasher.Sum64()) // nolint: gosec
 }

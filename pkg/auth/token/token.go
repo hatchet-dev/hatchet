@@ -89,7 +89,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.
 
 	// write the token to the database
 	_, err = j.tokenRepo.CreateAPIToken(ctx, &v1.CreateAPITokenOpts{
-		ID:        token.TokenId,
+		ID:        uuid.MustParse(token.TokenId),
 		ExpiresAt: token.ExpiresAt,
 		TenantId:  &tenantId,
 		Name:      &name,
@@ -102,7 +102,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.
 	return token, nil
 }
 
-func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) (tenantId uuid.UUID, tokenUUID string, err error) {
+func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) (tenantId string, tokenUUID string, err error) {
 	// Verify the signed token.
 	audience := j.opts.Audience
 
@@ -193,10 +193,12 @@ func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId uuid.UUID, id *string, 
 	} else {
 		tokenId = *id
 	}
+
+	subjectString := subject.String()
 	opts = &jwt.RawJWTOptions{
 		IssuedAt:  &iAt,
 		Audience:  &audience,
-		Subject:   &subject,
+		Subject:   &subjectString,
 		ExpiresAt: &expiresAt,
 		Issuer:    &issuer,
 		CustomClaims: map[string]interface{}{

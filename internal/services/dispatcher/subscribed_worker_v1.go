@@ -197,7 +197,7 @@ func (worker *subscribedWorker) CancelTask(
 
 	if !incSuccess {
 		msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
-			task.TenantID.String(),
+			task.TenantID,
 			tasktypesv1.CreateMonitoringEventPayload{
 				TaskId:         task.ID,
 				RetryCount:     task.RetryCount,
@@ -242,12 +242,12 @@ func (worker *subscribedWorker) CancelTask(
 	return nil
 }
 
-func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
+func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
 	workflowId := task.WorkflowID.String()
 	workflowVersionId := task.WorkflowVersionID.String()
 
 	action := &contracts.AssignedAction{
-		TenantId:          tenantID,
+		TenantId:          tenantID.String(),
 		JobId:             task.StepID.String(), // FIXME
 		JobName:           task.StepReadableID,
 		JobRunId:          task.ExternalID.String(), // FIXME

@@ -98,10 +98,10 @@ func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 
 	defer p.setMu.Unlock()
 
-	tenantMap := make(map[string]bool)
+	tenantMap := make(map[uuid.UUID]bool)
 
 	for _, t := range tenants {
-		tenantId := t.ID.String()
+		tenantId := t.ID
 		tenantMap[tenantId] = true
 		p.getTenantManager(tenantId, true) // nolint: ineffassign
 	}
@@ -112,7 +112,7 @@ func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 	p.tenants.Range(func(key, value interface{}) bool {
 		tenantId := key.(string)
 
-		if _, ok := tenantMap[tenantId]; !ok {
+		if _, ok := tenantMap[uuid.MustParse(tenantId)]; !ok {
 			toCleanup = append(toCleanup, value.(*tenantManager))
 		}
 

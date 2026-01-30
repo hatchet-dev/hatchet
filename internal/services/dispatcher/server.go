@@ -85,7 +85,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	// return the worker id to the worker
 	return &contracts.WorkerRegisterResponse{
-		TenantId:   tenantId,
+		TenantId:   tenantId.String(),
 		WorkerId:   workerId,
 		WorkerName: worker.Name,
 	}, nil
@@ -554,7 +554,7 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 	s.workers.Delete(request.WorkerId)
 
 	return &contracts.WorkerUnsubscribeResponse{
-		TenantId: tenantId,
+		TenantId: tenantId.String(),
 		WorkerId: request.WorkerId,
 	}, nil
 }

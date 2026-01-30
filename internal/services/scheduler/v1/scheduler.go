@@ -241,7 +241,7 @@ func (s *Scheduler) Start() (func() error, error) {
 				}
 
 				go func(results *v1.QueueResults) {
-					err := s.scheduleStepRuns(ctx, results.TenantId.String(), results)
+					err := s.scheduleStepRuns(ctx, results.TenantId, results)
 
 					if err != nil {
 						s.l.Error().Err(err).Msg("could not schedule step runs")
@@ -265,7 +265,7 @@ func (s *Scheduler) Start() (func() error, error) {
 					continue
 				}
 
-				go s.notifyAfterConcurrency(ctx, res.TenantId.String(), res)
+				go s.notifyAfterConcurrency(ctx, res.TenantId, res)
 			}
 		}
 	}()

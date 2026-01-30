@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -30,8 +31,8 @@ func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
 		})
 
 		for _, scheduledWorkflow := range scheduledWorkflows {
-			workflowVersionId := scheduledWorkflow.WorkflowVersionId.String()
-			scheduledWorkflowId := scheduledWorkflow.ID.String()
+			workflowVersionId := scheduledWorkflow.WorkflowVersionId
+			scheduledWorkflowId := scheduledWorkflow.ID
 
 			t.l.Debug().Msgf("ticker: handling scheduled workflow %s for version %s", scheduledWorkflowId, workflowVersionId)
 
@@ -64,9 +65,9 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	t.l.Debug().Msg("ticker: scheduling workflow")
 
 	// parse trigger time
-	tenantId := scheduledWorkflow.TenantId.String()
-	workflowVersionId := scheduledWorkflow.WorkflowVersionId.String()
-	scheduledWorkflowId := scheduledWorkflow.ID.String()
+	tenantId := scheduledWorkflow.TenantId
+	workflowVersionId := scheduledWorkflow.WorkflowVersionId
+	scheduledWorkflowId := scheduledWorkflow.ID
 	triggerAt := scheduledWorkflow.TriggerAt.Time
 
 	key := getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId)
@@ -110,7 +111,7 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	return nil
 }
 
-func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId string, scheduled *sqlcv1.PollScheduledWorkflowsRow) func() {
+func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId uuid.UUID, scheduled *sqlcv1.PollScheduledWorkflowsRow) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -157,6 +158,6 @@ func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, key string) error
 	return nil
 }
 
-func getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId string) string {
-	return fmt.Sprintf("%s-%s", workflowVersionId, scheduledWorkflowId)
+func getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId uuid.UUID) string {
+	return fmt.Sprintf("%s-%s", workflowVersionId.String(), scheduledWorkflowId.String())
 }

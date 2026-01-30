@@ -68,8 +68,8 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCronSchedulesRow) error {
 	t.l.Debug().Msg("ticker: scheduling cron")
 
-	tenantId := cron.TenantId.String()
-	workflowVersionId := cron.WorkflowVersionId.String()
+	tenantId := cron.TenantId
+	workflowVersionId := cron.WorkflowVersionId
 	cronParentId := cron.ParentId.String()
 
 	var additionalMetadata map[string]interface{}
@@ -110,7 +110,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCr
 	return nil
 }
 
-func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32) func() {
+func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId uuid.UUID, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()

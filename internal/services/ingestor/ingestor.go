@@ -103,7 +103,7 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, k
 }
 
 func (i *IngestorImpl) IngestWebhookValidationFailure(ctx context.Context, tenant *sqlcv1.Tenant, webhookName, errorText string) error {
-	return i.ingestWebhookValidationFailure(tenant.ID.String(), webhookName, errorText)
+	return i.ingestWebhookValidationFailure(tenant.ID, webhookName, errorText)
 }
 
 func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error) {

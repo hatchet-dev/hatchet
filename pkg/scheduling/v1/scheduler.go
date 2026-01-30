@@ -410,7 +410,7 @@ func (s *Scheduler) loopSnapshot(ctx context.Context) {
 				continue
 			}
 
-			s.exts.ReportSnapshot(s.tenantId.String(), in)
+			s.exts.ReportSnapshot(s.tenantId, in)
 
 			count++
 		}
@@ -830,7 +830,7 @@ func (s *Scheduler) tryAssign(
 		span.End()
 		close(resultsCh)
 
-		s.exts.PostAssign(s.tenantId.String(), s.getExtensionInput(extensionResults))
+		s.exts.PostAssign(s.tenantId, s.getExtensionInput(extensionResults))
 
 		if sinceStart := time.Since(startTotal); sinceStart > 100*time.Millisecond {
 			s.l.Warn().Dur("duration", sinceStart).Msgf("assigning queue items took longer than 100ms")

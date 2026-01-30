@@ -20,7 +20,7 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 	tenantId := tenant.ID
 
 	// get single task
-	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
+	task, err := i.getSingleTask(ctx, tenantId, uuid.MustParse(req.StepRunId), false)
 
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 	return &contracts.PutStreamEventResponse{}, nil
 }
 
-func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId uuid.UUID, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
+func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
 	return i.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, skipCache)
 }
 
@@ -66,7 +66,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 		return &contracts.PutLogResponse{}, nil
 	}
 
-	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
+	task, err := i.getSingleTask(ctx, tenantId, uuid.MustParse(req.StepRunId), false)
 
 	if err != nil {
 		return nil, err

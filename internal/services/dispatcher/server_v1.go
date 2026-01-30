@@ -544,7 +544,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	// if there's no retry count, we need to read it from the task, so we can't skip the cache
 	skipCache := request.RetryCount == nil
 
-	task, err := s.getSingleTask(ctx, tenant.ID.String(), request.StepRunId, skipCache)
+	task, err := s.getSingleTask(ctx, tenant.ID, uuid.MustParse(request.StepRunId), skipCache)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get task %s: %w", request.StepRunId, err)
@@ -606,7 +606,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 	}
 
 	return &contracts.ActionEventResponse{
-		TenantId: tenantId,
+		TenantId: tenantId.String(),
 		WorkerId: request.WorkerId,
 	}, nil
 }
@@ -640,7 +640,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 	}
 
 	resp := &contracts.ActionEventResponse{
-		TenantId: tenantId,
+		TenantId: tenantId.String(),
 		WorkerId: request.WorkerId,
 	}
 
@@ -699,12 +699,12 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 	}
 
 	return &contracts.ActionEventResponse{
-		TenantId: tenantId,
+		TenantId: tenantId.String(),
 		WorkerId: request.WorkerId,
 	}, nil
 }
 
-func (d *DispatcherImpl) getSingleTask(ctx context.Context, tenantId uuid.UUID, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
+func (d *DispatcherImpl) getSingleTask(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
 	return d.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, skipCache)
 }
 
@@ -761,7 +761,7 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenantId := tenant.ID
 
-	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, request.StepRunId)
+	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, uuid.MustParse(request.StepRunId))
 
 	if err != nil {
 		return nil, err
@@ -833,7 +833,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 			continue
 		}
 
-		if wr.WorkflowRun.TenantID.String() != tenantId {
+		if wr.WorkflowRun.TenantID != tenantId {
 			return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
 		}
 

@@ -12,13 +12,13 @@ import (
 
 type CreateAPITokenOpts struct {
 	// The id of the token
-	ID string `validate:"required,uuid"`
+	ID uuid.UUID `validate:"required"`
 
 	// When the token expires
 	ExpiresAt time.Time
 
 	// (optional) A tenant ID for this API token
-	TenantId *string `validate:"omitempty,uuid"`
+	TenantId *uuid.UUID `validate:"omitempty"`
 
 	// (optional) A name for this API token
 	Name *string `validate:"omitempty,max=255"`
@@ -65,13 +65,13 @@ func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPI
 	}
 
 	createParams := sqlcv1.CreateAPITokenParams{
-		ID:        uuid.MustParse(opts.ID),
+		ID:        opts.ID,
 		Expiresat: sqlchelpers.TimestampFromTime(opts.ExpiresAt),
 		Internal:  sqlchelpers.BoolFromBoolean(opts.Internal),
 	}
 
 	if opts.TenantId != nil {
-		parsedId := uuid.MustParse(*opts.TenantId)
+		parsedId := *opts.TenantId
 		createParams.TenantId = &parsedId
 	}
 

@@ -30,7 +30,7 @@ type SpanData struct {
 }
 
 type CreateSpansOpts struct {
-	TenantID string `validate:"required,uuid"`
+	TenantID uuid.UUID `validate:"required"`
 	Spans    []*SpanData
 }
 

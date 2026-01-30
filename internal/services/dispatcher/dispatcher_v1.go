@@ -216,7 +216,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 						if success {
 							msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
-								task.TenantID.String(),
+								task.TenantID,
 								tasktypesv1.CreateMonitoringEventPayload{
 									TaskId:         task.ID,
 									RetryCount:     task.RetryCount,

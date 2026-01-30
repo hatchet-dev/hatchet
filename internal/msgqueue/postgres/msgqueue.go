@@ -168,7 +168,7 @@ func (p *PostgresMessageQueue) addMessage(ctx context.Context, queue msgqueue.Qu
 		p.l.Error().Err(err).Msgf("error notifying queue %s", queue.Name())
 	}
 
-	if task.TenantID != "" {
+	if task.TenantID != uuid.Nil {
 		return p.addTenantExchangeMessage(ctx, queue, task)
 	}
 

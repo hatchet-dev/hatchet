@@ -213,7 +213,7 @@ type WorkflowRepository interface {
 		[]*sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdRow,
 		error)
 
-	GetWorkflowVersionById(ctx context.Context, tenantId uuid.UUID, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+	GetWorkflowVersionById(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 
 	// DeleteWorkflow deletes a workflow for a given tenant.
 	DeleteWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId string) (*sqlcv1.Workflow, error)
@@ -1150,10 +1150,10 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	return row, crons, events, scheduled, stepConcurrency, nil
 }
 
-func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantId uuid.UUID, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
+func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantId, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
 	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, sqlcv1.GetWorkflowVersionForEngineParams{
 		Tenantid: tenantId,
-		Ids:      []uuid.UUID{uuid.MustParse(workflowId)},
+		Ids:      []uuid.UUID{workflowId},
 	})
 
 	if err != nil {

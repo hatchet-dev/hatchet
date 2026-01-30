@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -322,7 +323,7 @@ func seedDatabase(dc *database.Layer) {
 	log.Printf("Seeding database complete")
 }
 
-func setAPIToken(ctx context.Context, cf *loader.ConfigLoader, tenantID string) {
+func setAPIToken(ctx context.Context, cf *loader.ConfigLoader, tenantID uuid.UUID) {
 	log.Printf("Generating API token for Hatchet server")
 
 	cleanup, server, err := cf.CreateServerFromConfig("testing")

@@ -91,7 +91,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 			IncludePayloads:    false,
 		}
 
-		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, tenant.ID.String(), opts)
+		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, tenant.ID, opts)
 
 		if err != nil {
 			return nil, err
@@ -106,7 +106,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 		externalIds = append(externalIds, runExternalIds...)
 	}
 
-	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, tenant.ID.String(), externalIds)
+	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, tenant.ID, externalIds)
 
 	if err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 	}
 
 	msg, err := msgqueue.NewTenantMessage(
-		tenant.ID.String(),
+		tenant.ID,
 		msgqueue.MsgIDCancelTasks,
 		false,
 		true,
@@ -219,7 +219,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			IncludePayloads:    false,
 		}
 
-		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, tenant.ID.String(), opts)
+		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, tenant.ID, opts)
 
 		if err != nil {
 			return nil, err
@@ -236,7 +236,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 	tasksToReplay := []tasktypes.TaskIdInsertedAtRetryCountWithExternalId{}
 
-	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, tenant.ID.String(), externalIds)
+	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, tenant.ID, externalIds)
 
 	if err != nil {
 		return nil, err
@@ -308,7 +308,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		}
 
 		msg, err := msgqueue.NewTenantMessage(
-			tenant.ID.String(),
+			tenant.ID,
 			msgqueue.MsgIDReplayTasks,
 			false,
 			true,
@@ -555,10 +555,11 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		return nil, err
 	}
 
+	tenantIdString := tenantId.String()
 	a.analytics.Enqueue(
 		"workflow:create",
 		"grpc",
-		&tenantId,
+		&tenantIdString,
 		nil,
 		map[string]interface{}{
 			"workflow_id": currWorkflow.WorkflowVersion.WorkflowId.String(),

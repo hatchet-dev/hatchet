@@ -202,7 +202,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		parentTask, err := i.repov1.Tasks().GetTaskByExternalId(
 			ctx,
 			tenantId,
-			*req.ParentStepRunId,
+			uuid.MustParse(*req.ParentStepRunId),
 			false,
 		)
 
