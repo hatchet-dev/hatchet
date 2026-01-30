@@ -119,7 +119,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 	)
 
 	workerIdToActionIds, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
-		tenant.ID.String(),
+		tenant.ID,
 		workerIds,
 	)
 

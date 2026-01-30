@@ -37,7 +37,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 	}
 
 	workerIdToActions, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
-		worker.Worker.TenantId.String(),
+		worker.Worker.TenantId,
 		[]string{worker.Worker.ID.String()},
 	)
 
@@ -45,7 +45,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 		return nil, err
 	}
 
-	workerWorkflows, err := t.config.V1.Workers().GetWorkerWorkflowsByWorkerId(tenant.ID.String(), worker.Worker.ID.String())
+	workerWorkflows, err := t.config.V1.Workers().GetWorkerWorkflowsByWorkerId(tenant.ID, worker.Worker.ID.String())
 
 	if err != nil {
 		return nil, err

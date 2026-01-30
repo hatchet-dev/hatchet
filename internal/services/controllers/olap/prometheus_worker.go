@@ -13,7 +13,7 @@ import (
 )
 
 type taskPrometheusUpdate struct {
-	tenantId       string
+	tenantId       uuid.UUID
 	taskId         int64
 	taskInsertedAt pgtype.Timestamptz
 	readableStatus sqlcv1.V1ReadableStatusOlap
@@ -22,7 +22,7 @@ type taskPrometheusUpdate struct {
 }
 
 type dagPrometheusUpdate struct {
-	tenantId       string
+	tenantId       uuid.UUID
 	dagExternalId  uuid.UUID
 	dagInsertedAt  pgtype.Timestamptz
 	readableStatus sqlcv1.V1ReadableStatusOlap
@@ -47,7 +47,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 		}
 
 		// Group by tenant
-		tenantToUpdates := make(map[string][]taskPrometheusUpdate)
+		tenantToUpdates := make(map[uuid.UUID][]taskPrometheusUpdate)
 		for _, update := range updates {
 			tenantToUpdates[update.tenantId] = append(tenantToUpdates[update.tenantId], update)
 		}
@@ -97,7 +97,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 					}
 
 					duration := int(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds())
-					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(update.readableStatus)).Observe(float64(duration))
+					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId.String(), workflowName, string(update.readableStatus)).Observe(float64(duration))
 				}
 
 				return nil
@@ -154,7 +154,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 		}
 
 		// Group by tenant
-		tenantToUpdates := make(map[string][]dagPrometheusUpdate)
+		tenantToUpdates := make(map[uuid.UUID][]dagPrometheusUpdate)
 		for _, update := range updates {
 			tenantToUpdates[update.tenantId] = append(tenantToUpdates[update.tenantId], update)
 		}
@@ -201,7 +201,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 					}
 
 					duration := int(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds())
-					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(update.readableStatus)).Observe(float64(duration))
+					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId.String(), workflowName, string(update.readableStatus)).Observe(float64(duration))
 				}
 
 				return nil

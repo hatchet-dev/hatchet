@@ -29,7 +29,7 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 				return
 			}
 
-			tenantIds := make([]string, 0, len(tenants))
+			tenantIds := make([]uuid.UUID, 0, len(tenants))
 
 			for _, tenant := range tenants {
 				tenantId := tenant.ID
@@ -78,7 +78,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 			}
 
 			update := dagPrometheusUpdate{
-				tenantId:       row.TenantId.String(),
+				tenantId:       row.TenantId,
 				dagExternalId:  row.ExternalId,
 				dagInsertedAt:  row.DagInsertedAt,
 				readableStatus: row.ReadableStatus,
@@ -99,7 +99,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 	if len(tenantIdToPayloads) > 0 {
 		for tenantId, payloads := range tenantIdToPayloads {
 			msg, err := msgqueue.NewTenantMessage(
-				tenantId.String(),
+				tenantId,
 				msgqueue.MsgIDWorkflowRunFinished,
 				true,
 				false,
@@ -110,7 +110,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 				return err
 			}
 
-			q := msgqueue.TenantEventConsumerQueue(tenantId.String())
+			q := msgqueue.TenantEventConsumerQueue(tenantId)
 
 			err = o.mq.SendMessage(ctx, q, msg)
 

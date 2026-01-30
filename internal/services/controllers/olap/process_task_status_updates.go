@@ -29,7 +29,7 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 				return
 			}
 
-			tenantIds := make([]string, 0, len(tenants))
+			tenantIds := make([]uuid.UUID, 0, len(tenants))
 
 			for _, tenant := range tenants {
 				tenantId := tenant.ID
@@ -77,7 +77,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 			}
 
 			update := taskPrometheusUpdate{
-				tenantId:       row.TenantId.String(),
+				tenantId:       row.TenantId,
 				taskId:         row.TaskId,
 				taskInsertedAt: row.TaskInsertedAt,
 				readableStatus: row.ReadableStatus,
@@ -99,7 +99,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 	if len(tenantIdToPayloads) > 0 {
 		for tenantId, payloads := range tenantIdToPayloads {
 			msg, err := msgqueue.NewTenantMessage(
-				tenantId.String(),
+				tenantId,
 				msgqueue.MsgIDWorkflowRunFinished,
 				true,
 				false,
@@ -110,7 +110,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 				return err
 			}
 
-			q := msgqueue.TenantEventConsumerQueue(tenantId.String())
+			q := msgqueue.TenantEventConsumerQueue(tenantId)
 
 			err = o.mq.SendMessage(ctx, q, msg)
 

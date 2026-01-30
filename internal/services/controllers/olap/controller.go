@@ -784,7 +784,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		}] = opt.ExternalID
 
 		offloadToExternalOpts = append(offloadToExternalOpts, v1.OffloadToExternalStoreOpts{
-			TenantId:   v1.TenantID(tenantId),
+			TenantId:   tenantId,
 			ExternalID: v1.PayloadExternalId(opt.ExternalID.String()),
 			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
 			Payload:    opt.Output,
