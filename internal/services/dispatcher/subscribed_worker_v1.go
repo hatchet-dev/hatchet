@@ -267,7 +267,7 @@ func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int
 		action.AdditionalMetadata = &metadataStr
 	}
 
-	if task.ParentTaskExternalID != uuid.Nil {
+	if task.ParentTaskExternalID == nil || *task.ParentTaskExternalID != uuid.Nil {
 		parentId := task.ParentTaskExternalID.String()
 		action.ParentWorkflowRunId = &parentId
 	}

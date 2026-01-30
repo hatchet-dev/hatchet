@@ -254,7 +254,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		return err
 	}
 
-	shouldUpdateDispatcherId := worker.DispatcherId == uuid.Nil || worker.DispatcherId.String() != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || *worker.DispatcherId == uuid.Nil || worker.DispatcherId.String() != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {

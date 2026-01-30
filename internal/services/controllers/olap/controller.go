@@ -641,7 +641,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	eventPayloads := make([]string, 0)
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
-	eventExternalIds := make([]uuid.UUID, 0)
+	eventExternalIds := make([]*uuid.UUID, 0)
 
 	for _, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -664,7 +664,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		eventPayloads = append(eventPayloads, msg.EventPayload)
 		eventMessages = append(eventMessages, msg.EventMessage)
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
-		eventExternalIds = append(eventExternalIds, uuid.New())
+		externalId := uuid.New()
+		eventExternalIds = append(eventExternalIds, &externalId)
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -721,10 +722,11 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	opts := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 
 	for i, taskId := range taskIds {
-		var workerId uuid.UUID
+		var workerId *uuid.UUID
 
 		if workerIds[i] != "" {
-			workerId = uuid.MustParse(workerIds[i])
+			parsed := uuid.MustParse(workerIds[i])
+			workerId = &parsed
 		}
 
 		event := sqlcv1.CreateTaskEventsOLAPParams{
@@ -766,7 +768,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	}
 
 	offloadToExternalOpts := make([]v1.OffloadToExternalStoreOpts, 0)
-	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]uuid.UUID)
+	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]*uuid.UUID)
 
 	for _, opt := range opts {
 		// generating a dummy id + inserted at to use for creating the external keys for the task events
