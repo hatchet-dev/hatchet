@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
@@ -69,7 +69,7 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 	return &collectortracev1.ExportTraceServiceResponse{}, nil
 }
 
-func (oc *otelCollectorImpl) convertOTLPToSpanData(resourceSpans []*tracev1.ResourceSpans, tenantID pgtype.UUID) []*repository.SpanData {
+func (oc *otelCollectorImpl) convertOTLPToSpanData(resourceSpans []*tracev1.ResourceSpans, tenantID uuid.UUID) []*repository.SpanData {
 	var spans []*repository.SpanData
 
 	for _, rs := range resourceSpans {

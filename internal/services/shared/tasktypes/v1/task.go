@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -193,8 +194,8 @@ type CancelTasksPayload struct {
 
 type TaskIdInsertedAtRetryCountWithExternalId struct {
 	v1.TaskIdInsertedAtRetryCount `json:"task"`
-	WorkflowRunExternalId         pgtype.UUID `json:"workflow_run_external_id,omitempty"`
-	TaskExternalId                pgtype.UUID `json:"task_external_id,omitempty"`
+	WorkflowRunExternalId         uuid.UUID `json:"workflow_run_external_id,omitempty"`
+	TaskExternalId                uuid.UUID `json:"task_external_id,omitempty"`
 }
 
 type ReplayTasksPayload struct {

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -266,7 +265,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		tasksToReplay = append(tasksToReplay, record)
 	}
 
-	workflowRunIdToTasksToReplay := make(map[pgtype.UUID][]tasktypes.TaskIdInsertedAtRetryCountWithExternalId)
+	workflowRunIdToTasksToReplay := make(map[uuid.UUID][]tasktypes.TaskIdInsertedAtRetryCountWithExternalId)
 	for _, item := range tasksToReplay {
 		workflowRunIdToTasksToReplay[item.WorkflowRunExternalId] = append(
 			workflowRunIdToTasksToReplay[item.WorkflowRunExternalId],

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -13,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames map[pgtype.UUID]string, actionId string) gen.V1TaskSummary {
+func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames map[uuid.UUID]string, actionId string) gen.V1TaskSummary {
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -112,7 +111,7 @@ func ToWorkflowRunMany(
 	tasks []*v1.WorkflowRunData,
 	dagExternalIdToChildren map[uuid.UUID][]gen.V1TaskSummary,
 	taskIdToActionId map[int64]string,
-	workflowIdsToNames map[pgtype.UUID]string,
+	workflowIdsToNames map[uuid.UUID]string,
 	total int, limit, offset int64,
 ) gen.V1TaskSummaryList {
 	toReturn := make([]gen.V1TaskSummary, len(tasks))
@@ -279,7 +278,7 @@ func ToWorkflowRunDisplayNamesList(
 }
 
 func ToWorkflowRunExternalIds(
-	externalIds []pgtype.UUID,
+	externalIds []uuid.UUID,
 ) gen.V1WorkflowRunExternalIdList {
 	result := make([]uuid.UUID, len(externalIds))
 

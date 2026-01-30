@@ -534,8 +534,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 	bulkCreateTriggersParams := make([]v1.EventTriggersFromExternalId, 0)
 
-	tenantIds := make([]pgtype.UUID, 0)
-	externalIds := make([]pgtype.UUID, 0)
+	tenantIds := make([]uuid.UUID, 0)
+	externalIds := make([]uuid.UUID, 0)
 	seenAts := make([]pgtype.Timestamptz, 0)
 	keys := make([]string, 0)
 	payloadstoInsert := make([][]byte, 0)
@@ -546,7 +546,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
 			if payload.MaybeRunId != nil && payload.MaybeRunInsertedAt != nil {
-				var filterId pgtype.UUID
+				var filterId uuid.UUID
 
 				if payload.FilterId != nil {
 					filterId = sqlchelpers.UUIDFromStr(*payload.FilterId)
@@ -635,13 +635,13 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 	retryCounts := make([]int32, 0)
 	workerIds := make([]string, 0)
-	workflowIds := make([]pgtype.UUID, 0)
+	workflowIds := make([]uuid.UUID, 0)
 	eventTypes := make([]sqlcv1.V1EventTypeOlap, 0)
 	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
 	eventPayloads := make([]string, 0)
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
-	eventExternalIds := make([]pgtype.UUID, 0)
+	eventExternalIds := make([]uuid.UUID, 0)
 
 	for _, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -721,7 +721,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	opts := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 
 	for i, taskId := range taskIds {
-		var workerId pgtype.UUID
+		var workerId uuid.UUID
 
 		if workerIds[i] != "" {
 			workerId = sqlchelpers.UUIDFromStr(workerIds[i])
@@ -766,7 +766,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	}
 
 	offloadToExternalOpts := make([]v1.OffloadToExternalStoreOpts, 0)
-	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]pgtype.UUID)
+	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]uuid.UUID)
 
 	for _, opt := range opts {
 		// generating a dummy id + inserted at to use for creating the external keys for the task events
