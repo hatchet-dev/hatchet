@@ -3740,7 +3740,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 			}
 
 			if err := cleanupFn(ctx, tx); err != nil {
-				return err
+				return fmt.Errorf("error cleaning up %s: %w", lockName, err)
 			}
 
 			if err := commit(ctx); err != nil {
