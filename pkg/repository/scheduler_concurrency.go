@@ -260,7 +260,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 		}
 	}
 
-	err = c.upsertQueuesForQueuedTasks(ctx, tx, sqlchelpers.UUIDToStr(tenantId), queued)
+	err = c.upsertQueuesForQueuedTasks(ctx, tx, tenantId, queued)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upsert queues for queued tasks (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -485,7 +485,7 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 		}
 	}
 
-	err = c.upsertQueuesForQueuedTasks(ctx, tx, sqlchelpers.UUIDToStr(tenantId), queued)
+	err = c.upsertQueuesForQueuedTasks(ctx, tx, tenantId, queued)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upsert queues for queued tasks (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -744,7 +744,7 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 		}
 	}
 
-	err = c.upsertQueuesForQueuedTasks(ctx, tx, sqlchelpers.UUIDToStr(tenantId), queued)
+	err = c.upsertQueuesForQueuedTasks(ctx, tx, tenantId, queued)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upsert queues for queued tasks (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -760,7 +760,7 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 	}, nil
 }
 
-func (c *ConcurrencyRepositoryImpl) upsertQueuesForQueuedTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId string, queuedTasks []TaskWithQueue) error {
+func (c *ConcurrencyRepositoryImpl) upsertQueuesForQueuedTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, queuedTasks []TaskWithQueue) error {
 	uniqueQueues := make(map[string]bool, len(queuedTasks))
 	queueList := make([]string, 0, len(queuedTasks))
 	for _, queue := range queuedTasks {
