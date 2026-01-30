@@ -400,6 +400,11 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 		events, err := s.taskEventsToWorkflowRunEvent(tenantId, finalizedWorkflowRuns)
 
+		// Release the reference to finalizedWorkflowRuns so GC can reclaim the large
+		// payload byte slices while we're sending events (which can be slow due to
+		// sendMu serialization). The event data has already been copied to strings.
+		finalizedWorkflowRuns = nil
+
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not convert task events to workflow run events")
 			return err
