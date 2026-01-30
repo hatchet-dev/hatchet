@@ -3796,7 +3796,8 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 	}
 
 	if result.RowsAffected() > 0 {
-		r.l.Warn().Msgf("reactivated %d inactive queues with pending items", result.RowsAffected())
+		// FIXME: this is an error because there is an underlying bug that needs to be fixed
+		r.l.Error().Msgf("reactivated %d inactive queues with pending items", result.RowsAffected())
 	}
 
 	if err := commit(ctx); err != nil {
