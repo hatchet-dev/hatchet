@@ -5,17 +5,16 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (i *IngestorsService) SnsDelete(ctx echo.Context, req gen.SnsDeleteRequestObject) (gen.SnsDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	sns := ctx.Get("sns").(*sqlcv1.SNSIntegration)
 
 	// create the SNS integration
-	err := i.config.V1.SNS().DeleteSNSIntegration(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(sns.ID))
+	err := i.config.V1.SNS().DeleteSNSIntegration(ctx.Request().Context(), tenantId, sns.ID.String())
 
 	if err != nil {
 		return nil, err

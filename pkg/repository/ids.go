@@ -139,7 +139,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	externalIdToLookupRow := make(map[string]*sqlcv1.V1LookupTable)
 
 	for _, task := range gotTasks {
-		externalIdToLookupRow[sqlchelpers.UUIDToStr(task.ExternalID)] = task
+		externalIdToLookupRow[task.ExternalID.String()] = task
 	}
 
 	eventTaskIds := make([]int64, 0, len(gotTasks))
@@ -239,7 +239,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			RetryCount: -1,
 		})
 
-		taskExternalIds = append(taskExternalIds, sqlchelpers.UUIDToStr(lookupRow.ExternalID))
+		taskExternalIds = append(taskExternalIds, lookupRow.ExternalID.String())
 		datas = append(datas, data.Bytes())
 		newEventKeys = append(newEventKeys, getChildSignalEventKey(*opt.ParentExternalId, 0, *opt.ChildIndex, opt.ChildKey))
 	}

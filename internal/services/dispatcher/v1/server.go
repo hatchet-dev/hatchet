@@ -16,13 +16,12 @@ import (
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *contracts.RegisterDurableEventRequest) (*contracts.RegisterDurableEventResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	if _, err := uuid.Parse(req.TaskId); err != nil {
 		d.l.Error().Msgf("task id %s is not a valid uuid", req.TaskId)
@@ -62,7 +61,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 		Conditions:           createConditionOpts,
 		SignalTaskId:         task.ID,
 		SignalTaskInsertedAt: task.InsertedAt,
-		SignalExternalId:     sqlchelpers.UUIDToStr(task.ExternalID),
+		SignalExternalId:     task.ExternalID.String(),
 		SignalKey:            req.SignalKey,
 	})
 
@@ -138,7 +137,7 @@ func (w *durableEventAcks) ackEvent(taskId int64, taskInsertedAt pgtype.Timestam
 
 func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatcher_ListenForDurableEventServer) error {
 	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	acks := &durableEventAcks{
 		acks: make(map[v1.TaskIdInsertedAtSignalKey]string),

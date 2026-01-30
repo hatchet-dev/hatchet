@@ -14,7 +14,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
 type User struct {
@@ -118,7 +117,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 			existingUsers++
 		}
 
-		user.id = sqlchelpers.UUIDToStr(insertedUser.ID)
+		user.id = insertedUser.ID.String()
 		logger.Printf("user %s: name=%q email=%q role=%s user_id=%s", action, user.name, user.email, user.role, user.id)
 	}
 
@@ -149,7 +148,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 			existingTenants++
 		}
 
-		tenant.id = sqlchelpers.UUIDToStr(insertedTenant.ID)
+		tenant.id = insertedTenant.ID.String()
 		logger.Printf("tenant %s: name=%q slug=%q tenant_id=%s", action, tenant.name, tenant.slug, tenant.id)
 	}
 
@@ -166,14 +165,14 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 			member, err := dc.V1.Tenant().GetTenantMemberByUserID(ctx, tenant.id, user.id)
 			if err == nil {
 				if !allowed {
-					if err := dc.V1.Tenant().DeleteTenantMember(ctx, sqlchelpers.UUIDToStr(member.ID)); err != nil {
+					if err := dc.V1.Tenant().DeleteTenantMember(ctx, member.ID.String()); err != nil {
 						return fmt.Errorf(
 							"deleting disallowed tenant member (tenant_slug=%s tenant_id=%s user_email=%s user_id=%s member_id=%s): %w",
 							tenant.slug,
 							tenant.id,
 							user.email,
 							user.id,
-							sqlchelpers.UUIDToStr(member.ID),
+							member.ID.String(),
 							err,
 						)
 					}
@@ -186,7 +185,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 						user.email,
 						user.id,
 						user.role,
-						sqlchelpers.UUIDToStr(member.ID),
+						member.ID.String(),
 					)
 					continue
 				}
@@ -199,7 +198,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 					user.email,
 					user.id,
 					user.role,
-					sqlchelpers.UUIDToStr(member.ID),
+					member.ID.String(),
 				)
 				continue
 			}
@@ -246,7 +245,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 				user.email,
 				user.id,
 				user.role,
-				sqlchelpers.UUIDToStr(createdMember.ID),
+				createdMember.ID.String(),
 			)
 		}
 	}

@@ -28,7 +28,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -651,7 +650,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		if shouldTasksNotify[task.ID] {
 			tasksToSendToDispatcher = append(tasksToSendToDispatcher, tasktypes.SignalTaskCancelledPayload{
 				TaskId:     task.ID,
-				WorkerId:   sqlchelpers.UUIDToStr(task.WorkerID),
+				WorkerId:   task.WorkerID.String(),
 				RetryCount: task.RetryCount,
 			})
 		}
@@ -948,7 +947,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 
 	for _, releasedTask := range releasedTasks {
 		payloads = append(payloads, tasktypes.CandidateFinalizedPayload{
-			WorkflowRunId: sqlchelpers.UUIDToStr(releasedTask.WorkflowRunID),
+			WorkflowRunId: releasedTask.WorkflowRunID.String(),
 		})
 	}
 
@@ -1609,7 +1608,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		taskExternalId := task.ExternalID.String()
 
 		dataBytes := v1.NewCancelledTaskOutputEventFromTask(task).Bytes()
 
@@ -1674,7 +1673,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		taskExternalId := task.ExternalID.String()
 
 		dataBytes := v1.NewFailedTaskOutputEventFromTask(task).Bytes()
 
@@ -1740,7 +1739,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		taskExternalId := task.ExternalID.String()
 
 		dataBytes := v1.NewSkippedTaskOutputEventFromTask(task).Bytes()
 

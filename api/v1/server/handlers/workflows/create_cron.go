@@ -10,13 +10,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request gen.CronWorkflowTriggerCreateRequestObject) (gen.CronWorkflowTriggerCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	if request.Body.CronName == "" {
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("cron name is required")), nil
@@ -60,7 +59,7 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 			Cron:               request.Body.CronExpression,
 			Input:              request.Body.Input,
 			AdditionalMetadata: request.Body.AdditionalMetadata,
-			WorkflowId:         sqlchelpers.UUIDToStr(workflow.ID),
+			WorkflowId:         workflow.ID.String(),
 			Priority:           &priority,
 		},
 	)

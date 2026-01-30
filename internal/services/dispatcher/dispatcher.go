@@ -17,7 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -275,7 +274,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	wg := sync.WaitGroup{}
 
 	// subscribe to a task queue with the dispatcher id
-	dispatcherId := sqlchelpers.UUIDToStr(dispatcher.ID)
+	dispatcherId := dispatcher.ID.String()
 
 	fv1 := func(task *msgqueue.Message) error {
 		wg.Add(1)

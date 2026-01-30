@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -31,8 +30,8 @@ func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
 		})
 
 		for _, scheduledWorkflow := range scheduledWorkflows {
-			workflowVersionId := sqlchelpers.UUIDToStr(scheduledWorkflow.WorkflowVersionId)
-			scheduledWorkflowId := sqlchelpers.UUIDToStr(scheduledWorkflow.ID)
+			workflowVersionId := scheduledWorkflow.WorkflowVersionId.String()
+			scheduledWorkflowId := scheduledWorkflow.ID.String()
 
 			t.l.Debug().Msgf("ticker: handling scheduled workflow %s for version %s", scheduledWorkflowId, workflowVersionId)
 
@@ -65,9 +64,9 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	t.l.Debug().Msg("ticker: scheduling workflow")
 
 	// parse trigger time
-	tenantId := sqlchelpers.UUIDToStr(scheduledWorkflow.TenantId)
-	workflowVersionId := sqlchelpers.UUIDToStr(scheduledWorkflow.WorkflowVersionId)
-	scheduledWorkflowId := sqlchelpers.UUIDToStr(scheduledWorkflow.ID)
+	tenantId := scheduledWorkflow.TenantId.String()
+	workflowVersionId := scheduledWorkflow.WorkflowVersionId.String()
+	scheduledWorkflowId := scheduledWorkflow.ID.String()
 	triggerAt := scheduledWorkflow.TriggerAt.Time
 
 	key := getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId)

@@ -10,13 +10,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.WorkflowVersionGetRequestObject) (gen.WorkflowVersionGetResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	workflow := ctx.Get("workflow").(*sqlcv1.GetWorkflowByIdRow)
 
 	var workflowVersionId string
@@ -26,7 +25,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 	} else {
 		row, err := t.config.V1.Workflows().GetWorkflowById(
 			ctx.Request().Context(),
-			sqlchelpers.UUIDToStr(workflow.Workflow.ID),
+			workflow.Workflow.ID.String(),
 		)
 
 		if err != nil {
@@ -40,7 +39,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 
 		}
 
-		workflowVersionId = sqlchelpers.UUIDToStr(row.WorkflowVersionId)
+		workflowVersionId = row.WorkflowVersionId.String()
 	}
 
 	row, crons, events, scheduleT, stepConcurrency, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), tenantId, workflowVersionId)

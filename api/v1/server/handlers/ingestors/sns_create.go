@@ -7,13 +7,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (i *IngestorsService) SnsCreate(ctx echo.Context, req gen.SnsCreateRequestObject) (gen.SnsCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// validate the request
 	if apiErrors, err := i.config.Validator.ValidateAPI(req.Body); err != nil {

@@ -8,7 +8,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -33,7 +32,7 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 			tenantIds := make([]string, 0, len(tenants))
 
 			for _, tenant := range tenants {
-				tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+				tenantId := tenant.ID.String()
 				tenantIds = append(tenantIds, tenantId)
 			}
 
@@ -62,7 +61,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 
 	for _, row := range rows {
 		tenantIdToPayloads[row.TenantId] = append(tenantIdToPayloads[row.TenantId], tasktypes.NotifyFinalizedPayload{
-			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
+			ExternalId: row.ExternalId.String(),
 			Status:     row.ReadableStatus,
 		})
 
@@ -79,7 +78,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 			}
 
 			update := dagPrometheusUpdate{
-				tenantId:       sqlchelpers.UUIDToStr(row.TenantId),
+				tenantId:       row.TenantId.String(),
 				dagExternalId:  row.ExternalId,
 				dagInsertedAt:  row.DagInsertedAt,
 				readableStatus: row.ReadableStatus,
@@ -91,7 +90,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 				// Successfully sent
 			default:
 				// Channel full, discard with warning
-				o.l.Warn().Msgf("dag prometheus update channel full, discarding update for dag %s", sqlchelpers.UUIDToStr(row.ExternalId))
+				o.l.Warn().Msgf("dag prometheus update channel full, discarding update for dag %s", row.ExternalId.String())
 			}
 		}
 	}

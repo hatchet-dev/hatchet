@@ -665,8 +665,8 @@ func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenan
 	dispatcherIdsToWorkers := make(map[string][]string)
 
 	for _, row := range rows {
-		dispatcherId := sqlchelpers.UUIDToStr(row.DispatcherId)
-		workerId := sqlchelpers.UUIDToStr(row.WorkerId)
+		dispatcherId := row.DispatcherId.String()
+		workerId := row.WorkerId.String()
 
 		if _, ok := dispatcherIdsToWorkers[dispatcherId]; !ok {
 			dispatcherIdsToWorkers[dispatcherId] = make([]string, 0)

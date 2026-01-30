@@ -9,13 +9,12 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *TasksService) V1TaskGetPointMetrics(ctx echo.Context, request gen.V1TaskGetPointMetricsRequestObject) (gen.V1TaskGetPointMetricsResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// 24 hours ago, rounded to the nearest minute
 	lowerBound := time.Now().UTC().Add(-24 * time.Hour).Truncate(30 * time.Minute)

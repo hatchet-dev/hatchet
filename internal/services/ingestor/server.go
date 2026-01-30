@@ -12,7 +12,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -78,7 +77,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEventRequest) (*contracts.Events, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	if len(req.Events) == 0 {
 
@@ -194,8 +193,8 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 }
 
 func toEvent(e *sqlcv1.Event) (*contracts.Event, error) {
-	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
-	eventId := sqlchelpers.UUIDToStr(e.ID)
+	tenantId := e.TenantId.String()
+	eventId := e.ID.String()
 
 	var additionalMeta *string
 

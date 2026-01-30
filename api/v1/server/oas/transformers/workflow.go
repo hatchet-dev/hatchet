@@ -7,7 +7,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -18,12 +17,12 @@ func ToWorkflow(
 
 	res := &gen.Workflow{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(workflow.ID),
+			workflow.ID.String(),
 			workflow.CreatedAt.Time,
 			workflow.UpdatedAt.Time,
 		),
 		Name:     workflow.Name,
-		TenantId: sqlchelpers.UUIDToStr(workflow.TenantId),
+		TenantId: workflow.TenantId.String(),
 	}
 
 	res.IsPaused = &workflow.IsPaused.Bool
@@ -42,11 +41,11 @@ func ToWorkflow(
 func ToWorkflowVersionMeta(version *sqlcv1.WorkflowVersion, workflow *sqlcv1.Workflow) *gen.WorkflowVersionMeta {
 	res := &gen.WorkflowVersionMeta{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(version.ID),
+			version.ID.String(),
 			version.CreatedAt.Time,
 			version.UpdatedAt.Time,
 		),
-		WorkflowId: sqlchelpers.UUIDToStr(version.WorkflowId),
+		WorkflowId: version.WorkflowId.String(),
 		Order:      int32(version.Order), // nolint: gosec
 		Version:    version.Version.String,
 	}
@@ -81,11 +80,11 @@ func ToWorkflowVersion(
 
 	res := &gen.WorkflowVersion{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(version.ID),
+			version.ID.String(),
 			version.CreatedAt.Time,
 			version.UpdatedAt.Time,
 		),
-		// WorkflowId:      sqlchelpers.UUIDToStr(version.WorkflowId),
+		// WorkflowId:      version.WorkflowId.String(),
 		Order:           int32(version.Order), // nolint: gosec
 		Version:         version.Version.String,
 		ScheduleTimeout: &version.ScheduleTimeout,
@@ -127,7 +126,7 @@ func ToWorkflowVersion(
 
 		for _, cron := range crons {
 			cronCp := cron
-			parentId := sqlchelpers.UUIDToStr(cronCp.ParentId)
+			parentId := cronCp.ParentId.String()
 			genCrons = append(genCrons, gen.WorkflowTriggerCronRef{
 				Cron:     &cronCp.Cron,
 				ParentId: &parentId,
@@ -143,7 +142,7 @@ func ToWorkflowVersion(
 		for _, event := range events {
 			eventCp := event
 			if eventCp.ParentId != uuid.Nil {
-				parentId := sqlchelpers.UUIDToStr(eventCp.ParentId)
+				parentId := eventCp.ParentId.String()
 				genEvents = append(genEvents, gen.WorkflowTriggerEventRef{
 					EventKey: &eventCp.EventKey,
 					ParentId: &parentId,
@@ -188,13 +187,13 @@ func ToV1Concurrency(workflowConcurrency *WorkflowConcurrency, taskConcurrencies
 func ToJob(job *sqlcv1.Job, steps []*sqlcv1.GetStepsForJobsRow) *gen.Job {
 	res := &gen.Job{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(job.ID),
+			job.ID.String(),
 			job.CreatedAt.Time,
 			job.UpdatedAt.Time,
 		),
 		Name:        job.Name,
-		TenantId:    sqlchelpers.UUIDToStr(job.TenantId),
-		VersionId:   sqlchelpers.UUIDToStr(job.WorkflowVersionId),
+		TenantId:    job.TenantId.String(),
+		VersionId:   job.WorkflowVersionId.String(),
 		Description: &job.Description.String,
 		Timeout:     &job.Timeout.String,
 	}
@@ -216,13 +215,13 @@ func ToJob(job *sqlcv1.Job, steps []*sqlcv1.GetStepsForJobsRow) *gen.Job {
 func ToStep(step *sqlcv1.Step, parents []uuid.UUID) *gen.Step {
 	res := &gen.Step{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(step.ID),
+			step.ID.String(),
 			step.CreatedAt.Time,
 			step.UpdatedAt.Time,
 		),
 		Action:     step.ActionId,
-		JobId:      sqlchelpers.UUIDToStr(step.JobId),
-		TenantId:   sqlchelpers.UUIDToStr(step.TenantId),
+		JobId:      step.JobId.String(),
+		TenantId:   step.TenantId.String(),
 		ReadableId: step.ReadableId.String,
 		Timeout:    &step.Timeout.String,
 	}
@@ -230,7 +229,7 @@ func ToStep(step *sqlcv1.Step, parents []uuid.UUID) *gen.Step {
 	parentStr := make([]string, 0)
 
 	for i := range parents {
-		parentStr = append(parentStr, sqlchelpers.UUIDToStr(parents[i]))
+		parentStr = append(parentStr, parents[i].String())
 	}
 
 	res.Parents = &parentStr

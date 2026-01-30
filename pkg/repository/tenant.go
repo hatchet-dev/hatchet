@@ -543,7 +543,7 @@ func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId string,
 	workflowMetricsMap := make(map[string]QueueMetric)
 
 	for _, metric := range workflowMetrics {
-		workflowMetricsMap[sqlchelpers.UUIDToStr(metric.WorkflowId)] = QueueMetric{
+		workflowMetricsMap[metric.WorkflowId.String()] = QueueMetric{
 			PendingAssignment: int(metric.PendingAssignmentCount),
 			Pending:           int(metric.PendingCount),
 			Running:           int(metric.RunningCount),

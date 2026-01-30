@@ -499,8 +499,8 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
 	for _, msg := range msgs {
-		if !tc.sample(sqlchelpers.UUIDToStr(msg.WorkflowRunID)) {
-			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.ID, sqlchelpers.UUIDToStr(msg.WorkflowRunID))
+		if !tc.sample(msg.WorkflowRunID.String()) {
+			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.ID, msg.WorkflowRunID.String())
 			continue
 		}
 
@@ -516,8 +516,8 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
 
 	for _, msg := range msgs {
-		if !tc.sample(sqlchelpers.UUIDToStr(msg.ExternalID)) {
-			tc.l.Debug().Msgf("skipping dag %s", sqlchelpers.UUIDToStr(msg.ExternalID))
+		if !tc.sample(msg.ExternalID.String()) {
+			tc.l.Debug().Msgf("skipping dag %s", msg.ExternalID.String())
 			continue
 		}
 
@@ -651,8 +651,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			continue
 		}
 
-		if !tc.sample(sqlchelpers.UUIDToStr(taskMeta.WorkflowRunID)) {
-			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.TaskId, sqlchelpers.UUIDToStr(taskMeta.WorkflowRunID))
+		if !tc.sample(taskMeta.WorkflowRunID.String()) {
+			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.TaskId, taskMeta.WorkflowRunID.String())
 			continue
 		}
 

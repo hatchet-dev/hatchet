@@ -10,7 +10,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -36,7 +35,7 @@ func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.
 
 	err := t.config.V1.WorkflowSchedules().UpdateScheduledWorkflow(
 		dbCtx,
-		sqlchelpers.UUIDToStr(scheduled.TenantId),
+		scheduled.TenantId.String(),
 		request.ScheduledWorkflowRun.String(),
 		request.Body.TriggerAt,
 	)
@@ -46,7 +45,7 @@ func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.
 
 	updated, err := t.config.V1.WorkflowSchedules().GetScheduledWorkflow(
 		dbCtx,
-		sqlchelpers.UUIDToStr(scheduled.TenantId),
+		scheduled.TenantId.String(),
 		request.ScheduledWorkflowRun.String(),
 	)
 	if err != nil {

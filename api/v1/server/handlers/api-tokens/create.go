@@ -8,7 +8,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -16,7 +15,7 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	user := ctx.Get("user").(*sqlcv1.User)
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// validate the request
 	if apiErrors, err := a.config.Validator.ValidateAPI(request.Body); err != nil {
@@ -50,7 +49,7 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 
 	a.config.Analytics.Enqueue(
 		"api-token:create",
-		sqlchelpers.UUIDToStr(user.ID),
+		user.ID.String(),
 		&tenantId,
 		nil,
 		map[string]interface{}{

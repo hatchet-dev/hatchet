@@ -17,14 +17,13 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.WorkerRegisterRequest) (*contracts.WorkerRegisterResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	s.l.Debug().Msgf("Received register request from ID %s with actions %v", request.WorkerName, request.Actions)
 
@@ -74,7 +73,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		return nil, err
 	}
 
-	workerId := sqlchelpers.UUIDToStr(worker.ID)
+	workerId := worker.ID.String()
 
 	if request.Labels != nil {
 		_, err = s.upsertLabels(ctx, worker.ID, request.Labels)
@@ -102,7 +101,7 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 	}
 
 	return &contracts.UpsertWorkerLabelsResponse{
-		TenantId: sqlchelpers.UUIDToStr(tenant.ID),
+		TenantId: tenant.ID.String(),
 		WorkerId: request.WorkerId,
 	}, nil
 }
@@ -128,7 +127,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, r
 	res, err := s.repov1.Workers().UpsertWorkerLabels(ctx, workerId, affinities)
 
 	if err != nil {
-		s.l.Error().Err(err).Msgf("could not upsert worker affinities for worker %s", sqlchelpers.UUIDToStr(workerId))
+		s.l.Error().Err(err).Msgf("could not upsert worker affinities for worker %s", workerId.String())
 		return nil, err
 	}
 
@@ -138,7 +137,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, r
 // Subscribe handles a subscribe request from a client
 func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenServer) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	sessionId := uuid.New().String()
 
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
@@ -152,7 +151,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		return err
 	}
 
-	shouldUpdateDispatcherId := worker.DispatcherId == uuid.Nil || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == uuid.Nil || worker.DispatcherId.String() != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
@@ -241,7 +240,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 // against engine version v0.18.1+
 func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenV2Server) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	sessionId := uuid.New().String()
 
 	ctx := stream.Context()
@@ -255,7 +254,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		return err
 	}
 
-	shouldUpdateDispatcherId := worker.DispatcherId == uuid.Nil || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == uuid.Nil || worker.DispatcherId.String() != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
@@ -346,7 +345,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	defer span.End()
 
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	heartbeatAt := time.Now().UTC()
 
@@ -549,7 +548,7 @@ func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contract
 
 func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.WorkerUnsubscribeRequest) (*contracts.WorkerUnsubscribeResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// remove the worker from the connection pool
 	s.workers.Delete(request.WorkerId)

@@ -138,7 +138,7 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.U
 	workerIdsToLabels := make(map[string][]*sqlcv1.ListManyWorkerLabelsRow, len(labels))
 
 	for _, label := range labels {
-		wId := sqlchelpers.UUIDToStr(label.WorkerId)
+		wId := label.WorkerId.String()
 
 		if _, ok := workerIdsToLabels[wId]; !ok {
 			workerIdsToLabels[wId] = make([]*sqlcv1.ListManyWorkerLabelsRow, 0)
@@ -150,9 +150,9 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.U
 	res := make([]*ListActiveWorkersResult, 0, len(activeWorkers))
 
 	for _, worker := range activeWorkers {
-		wId := sqlchelpers.UUIDToStr(worker.ID)
+		wId := worker.ID.String()
 		res = append(res, &ListActiveWorkersResult{
-			ID:      sqlchelpers.UUIDToStr(worker.ID),
+			ID:      worker.ID.String(),
 			MaxRuns: int(worker.MaxRuns),
 			Labels:  workerIdsToLabels[wId],
 			Name:    worker.Name,

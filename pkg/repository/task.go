@@ -478,7 +478,7 @@ func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX
 	groupedExternalIds := make(map[string][]*sqlcv1.FlattenExternalIdsRow)
 
 	for _, task := range dbTasks {
-		rootExternalId := sqlchelpers.UUIDToStr(task.WorkflowRunExternalID)
+		rootExternalId := task.WorkflowRunExternalID.String()
 
 		groupedExternalIds[rootExternalId] = append(groupedExternalIds[rootExternalId], task)
 	}
@@ -551,7 +551,7 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 		if dag.StepCount != dag.TaskCount {
 			notFinalizedDAGsMap[dag.ID] = true
 		} else {
-			rootId := sqlchelpers.UUIDToStr(dag.ExternalID)
+			rootId := dag.ExternalID.String()
 			finalizedDAGToStepCount[rootId] = dag.StepCount
 		}
 	}
@@ -559,12 +559,12 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 	candidateFinalizedRootExternalIds := make(map[string]bool, 0)
 
 	for _, task := range flattenedTasks {
-		candidateFinalizedRootExternalIds[sqlchelpers.UUIDToStr(task.WorkflowRunExternalID)] = true
+		candidateFinalizedRootExternalIds[task.WorkflowRunExternalID.String()] = true
 	}
 
 	// iterate through tasks one last time
 	for _, task := range flattenedTasks {
-		rootId := sqlchelpers.UUIDToStr(task.WorkflowRunExternalID)
+		rootId := task.WorkflowRunExternalID.String()
 
 		// if root is already non-finalized, skip
 		if !candidateFinalizedRootExternalIds[rootId] {
@@ -894,8 +894,8 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	taskExternalIdsToRootIds := make(map[string]string)
 
 	for _, task := range tasks {
-		taskExternalIds = append(taskExternalIds, sqlchelpers.UUIDToStr(task.ExternalID))
-		taskExternalIdsToRootIds[sqlchelpers.UUIDToStr(task.ExternalID)] = sqlchelpers.UUIDToStr(task.WorkflowRunExternalID)
+		taskExternalIds = append(taskExternalIds, task.ExternalID.String())
+		taskExternalIdsToRootIds[task.ExternalID.String()] = task.WorkflowRunExternalID.String()
 	}
 
 	outputEvents, err := r.listTaskOutputEvents(ctx, tx, tenantId, taskExternalIds)
@@ -1674,7 +1674,7 @@ func (r *sharedRepository) createTasks(
 	stepIdsToConfig := make(map[string]*sqlcv1.ListStepsByIdsRow)
 
 	for _, step := range steps {
-		stepIdsToConfig[sqlchelpers.UUIDToStr(step.ID)] = step
+		stepIdsToConfig[step.ID.String()] = step
 	}
 
 	return r.insertTasks(ctx, tx, tenantId, tasks, stepIdsToConfig)
@@ -2118,7 +2118,7 @@ func (r *sharedRepository) insertTasks(
 		createdTasksWithPayloads := make([]*V1TaskWithPayload, len(createdTasks))
 
 		for i, task := range createdTasks {
-			input := externalIdToInput[sqlchelpers.UUIDToStr(task.ExternalID)]
+			input := externalIdToInput[task.ExternalID.String()]
 			withPayload := V1TaskWithPayload{
 				V1Task:  task,
 				Payload: input,
@@ -2138,17 +2138,17 @@ func (r *sharedRepository) insertTasks(
 			switch createdTask.InitialState {
 			case sqlcv1.V1TaskInitialStateFAILED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(createdTask.ExternalID))
+				eventTaskExternalIds = append(eventTaskExternalIds, createdTask.ExternalID.String())
 				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(createdTask).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeFAILED)
 			case sqlcv1.V1TaskInitialStateCANCELLED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(createdTask.ExternalID))
+				eventTaskExternalIds = append(eventTaskExternalIds, createdTask.ExternalID.String())
 				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(createdTask).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
 			case sqlcv1.V1TaskInitialStateSKIPPED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(createdTask.ExternalID))
+				eventTaskExternalIds = append(eventTaskExternalIds, createdTask.ExternalID.String())
 				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(createdTask).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
 			}
@@ -2234,7 +2234,7 @@ func (r *sharedRepository) replayTasks(
 	stepIdsToConfig := make(map[string]*sqlcv1.ListStepsByIdsRow)
 
 	for _, step := range steps {
-		stepIdsToConfig[sqlchelpers.UUIDToStr(step.ID)] = step
+		stepIdsToConfig[step.ID.String()] = step
 	}
 
 	concurrencyStrats, err := r.getConcurrencyExpressions(ctx, tx, tenantId, stepIdsToConfig)
@@ -2436,7 +2436,7 @@ func (r *sharedRepository) replayTasks(
 
 		replayResWithPayloads := make([]*V1TaskWithPayload, len(replayRes))
 		for i, task := range replayRes {
-			input := externalIdToInput[sqlchelpers.UUIDToStr(task.ExternalID)]
+			input := externalIdToInput[task.ExternalID.String()]
 			withPayload := V1TaskWithPayload{
 				V1Task:  task,
 				Payload: input,
@@ -2455,17 +2455,17 @@ func (r *sharedRepository) replayTasks(
 			switch replayedTask.InitialState {
 			case sqlcv1.V1TaskInitialStateFAILED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(replayedTask.ExternalID))
+				eventTaskExternalIds = append(eventTaskExternalIds, replayedTask.ExternalID.String())
 				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(replayedTask).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeFAILED)
 			case sqlcv1.V1TaskInitialStateCANCELLED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(replayedTask.ExternalID))
+				eventTaskExternalIds = append(eventTaskExternalIds, replayedTask.ExternalID.String())
 				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(replayedTask).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
 			case sqlcv1.V1TaskInitialStateSKIPPED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(replayedTask.ExternalID))
+				eventTaskExternalIds = append(eventTaskExternalIds, replayedTask.ExternalID.String())
 				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(replayedTask).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
 			}
@@ -2503,7 +2503,7 @@ func (r *sharedRepository) getConcurrencyExpressions(
 
 	for _, step := range stepIdsToConfig {
 		if step.ConcurrencyCount > 0 {
-			stepIdsWithExpressions[sqlchelpers.UUIDToStr(step.ID)] = struct{}{}
+			stepIdsWithExpressions[step.ID.String()] = struct{}{}
 		}
 	}
 
@@ -2567,7 +2567,7 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	fetchedByStepId := make(map[string][]*sqlcv1.V1StepConcurrency)
 
 	for _, strat := range strats {
-		stepId := sqlchelpers.UUIDToStr(strat.StepID)
+		stepId := strat.StepID.String()
 		fetchedByStepId[stepId] = append(fetchedByStepId[stepId], strat)
 	}
 
@@ -2596,7 +2596,7 @@ func (r *sharedRepository) getStepExpressions(
 
 	for _, step := range stepIdsToConfig {
 		if step.ExprCount > 0 {
-			stepIdsWithExpressions[sqlchelpers.UUIDToStr(step.ID)] = struct{}{}
+			stepIdsWithExpressions[step.ID.String()] = struct{}{}
 		}
 	}
 
@@ -2619,7 +2619,7 @@ func (r *sharedRepository) getStepExpressions(
 	stepIdToExpressions := make(map[string][]*sqlcv1.StepExpression)
 
 	for _, expression := range expressions {
-		stepId := sqlchelpers.UUIDToStr(expression.StepId)
+		stepId := expression.StepId.String()
 
 		if _, ok := stepIdToExpressions[stepId]; !ok {
 			stepIdToExpressions[stepId] = make([]*sqlcv1.StepExpression, 0)
@@ -2650,7 +2650,7 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 
 	for i, releasedTask := range releasedTasks {
 		datas[i] = outputs[i]
-		externalIds[i] = sqlchelpers.UUIDToStr(releasedTask.ExternalID)
+		externalIds[i] = releasedTask.ExternalID.String()
 		isCurrentRetry[i] = releasedTask.IsCurrentRetry
 	}
 
@@ -2855,8 +2855,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			}
 
 			dagIdsToLockMap[task.DagID.Int64] = struct{}{}
-			subtreeStepIds[task.DagID.Int64][sqlchelpers.UUIDToStr(task.StepID)] = true
-			subtreeExternalIds[sqlchelpers.UUIDToStr(task.ExternalID)] = struct{}{}
+			subtreeStepIds[task.DagID.Int64][task.StepID.String()] = true
+			subtreeExternalIds[task.ExternalID.String()] = struct{}{}
 		}
 
 		if task.InsertedAt.Time.Before(minInsertedAt.Time) {
@@ -2979,7 +2979,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		if task.DagID.Valid && len(task.Parents) > 0 {
 			isParentBeingReplayed := false
 			for _, parent := range task.Parents {
-				if subtreeStepIds[task.DagID.Int64][sqlchelpers.UUIDToStr(parent)] {
+				if subtreeStepIds[task.DagID.Int64][parent.String()] {
 					isParentBeingReplayed = true
 					break
 				}
@@ -3001,7 +3001,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			doesOnFailureHaveOtherSteps := false
 
 			for stepId := range subtreeStepIds[task.DagID.Int64] {
-				if stepId == sqlchelpers.UUIDToStr(task.StepID) {
+				if stepId == task.StepID.String() {
 					continue
 				}
 
@@ -3039,8 +3039,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		replayOpts = append(replayOpts, ReplayTaskOpts{
 			TaskId:             task.ID,
 			InsertedAt:         task.InsertedAt,
-			StepId:             sqlchelpers.UUIDToStr(task.StepID),
-			ExternalId:         sqlchelpers.UUIDToStr(task.ExternalID),
+			StepId:             task.StepID.String(),
+			ExternalId:         task.ExternalID.String(),
 			InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
 			AdditionalMetadata: task.AdditionalMetadata,
 			// NOTE: we require the input to be passed in to the replay method so we can re-evaluate the concurrency keys
@@ -3119,7 +3119,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 				childKey = &task.ChildKey.String
 			}
 
-			parentExternalId := sqlchelpers.UUIDToStr(task.ParentTaskExternalID)
+			parentExternalId := task.ParentTaskExternalID.String()
 			k := getChildSignalEventKey(parentExternalId, task.StepIndex, task.ChildIndex.Int64, childKey)
 
 			signalEventKeys = append(signalEventKeys, k)
@@ -3128,7 +3128,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 
 			eventMatches = append(eventMatches, CreateMatchOpts{
 				Kind:                 sqlcv1.V1MatchKindSIGNAL,
-				Conditions:           getChildWorkflowGroupMatches(sqlchelpers.UUIDToStr(task.ExternalID), task.StepReadableID),
+				Conditions:           getChildWorkflowGroupMatches(task.ExternalID.String(), task.StepReadableID),
 				SignalExternalId:     &parentExternalId,
 				SignalTaskId:         &task.ParentTaskID.Int64,
 				SignalTaskInsertedAt: task.ParentTaskInsertedAt,
@@ -3167,7 +3167,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		}
 
 		for _, match := range additionalMatches {
-			stepId := sqlchelpers.UUIDToStr(match.StepID)
+			stepId := match.StepID.String()
 
 			stepsToAdditionalMatches[stepId] = append(stepsToAdditionalMatches[stepId], match)
 		}
@@ -3177,19 +3177,19 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		allTasks := dagIdsToAllTasks[dagId]
 
 		for _, task := range tasks {
-			taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-			stepId := sqlchelpers.UUIDToStr(task.StepID)
+			taskExternalId := task.ExternalID.String()
+			stepId := task.StepID.String()
 			switch {
 			case task.JobKind == sqlcv1.JobKindONFAILURE:
 				conditions := make([]GroupMatchCondition, 0)
 				groupId := uuid.NewString()
 
 				for _, otherTask := range allTasks {
-					if sqlchelpers.UUIDToStr(otherTask.StepID) == stepId {
+					if otherTask.StepID.String() == stepId {
 						continue
 					}
 
-					otherExternalId := sqlchelpers.UUIDToStr(otherTask.ExternalID)
+					otherExternalId := otherTask.ExternalID.String()
 					readableId := otherTask.StepReadableID
 
 					conditions = append(conditions, getParentOnFailureGroupMatches(groupId, otherExternalId, readableId)...)
@@ -3226,7 +3226,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 					// FIXME: n^2 complexity here, fix it.
 					for _, otherTask := range allTasks {
 						if otherTask.StepID == parent {
-							parentExternalId := sqlchelpers.UUIDToStr(otherTask.ExternalID)
+							parentExternalId := otherTask.ExternalID.String()
 							readableId := otherTask.StepReadableID
 
 							hasUserEventOrSleepMatches := false
@@ -3362,7 +3362,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 	foundMatchKeys := make(map[string]*sqlcv1.ListMatchingTaskEventsRow)
 
 	for _, eventMatch := range matchedEvents {
-		key := fmt.Sprintf("%s:%s", sqlchelpers.UUIDToStr(eventMatch.ExternalID), string(eventMatch.EventType))
+		key := fmt.Sprintf("%s:%s", eventMatch.ExternalID.String(), string(eventMatch.EventType))
 
 		foundMatchKeys[key] = eventMatch
 	}
@@ -3389,7 +3389,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 				if match, ok := foundMatchKeys[key]; ok {
 					cond.Data = match.Data
 
-					taskExternalId := sqlchelpers.UUIDToStr(match.ExternalID)
+					taskExternalId := match.ExternalID.String()
 
 					resCandidateEvents = append(resCandidateEvents, CandidateEventMatch{
 						ID:             uuid.NewString(),
@@ -3428,7 +3428,7 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 	taskExternalIds := make(map[string]*V1TaskWithPayload)
 
 	for _, task := range createdTasks {
-		taskExternalIds[sqlchelpers.UUIDToStr(task.ExternalID)] = task
+		taskExternalIds[task.ExternalID.String()] = task
 	}
 
 	taskIds := make([]int64, 0)
@@ -3559,7 +3559,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	workflowRunIdsToOutputs := make(map[string][]*TaskOutputEvent)
 
 	for retrieveOpts, workflowRunId := range retrieveOptsToWorkflowRunId {
-		wrId := sqlchelpers.UUIDToStr(workflowRunId)
+		wrId := workflowRunId.String()
 		payload, ok := payloads[retrieveOpts]
 
 		if !ok {
@@ -3578,7 +3578,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 
 	for _, task := range tasks {
 		if task.WorkflowRunID != uuid.Nil {
-			wrId := sqlchelpers.UUIDToStr(task.WorkflowRunID)
+			wrId := task.WorkflowRunID.String()
 
 			if events, ok := workflowRunIdsToOutputs[wrId]; ok {
 				resMap[task.ID] = events
@@ -4030,7 +4030,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	externalIdToIsRunning := make(map[string]bool)
 
 	for _, stat := range taskStats {
-		externalIdToIsRunning[sqlchelpers.UUIDToStr(stat.ExternalID)] = stat.IsRunning
+		externalIdToIsRunning[stat.ExternalID.String()] = stat.IsRunning
 	}
 
 	for _, task := range flat {

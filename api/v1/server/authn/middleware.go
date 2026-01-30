@@ -13,7 +13,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -219,7 +218,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	// Verify that the tenant id which exists in the context is the same as the tenant id
 	// in the token.
-	if sqlchelpers.UUIDToStr(queriedTenant.ID) != tenantId {
+	if queriedTenant.ID.String() != tenantId {
 		a.l.Debug().Msgf("tenant id in token does not match tenant id in context")
 
 		return forbidden

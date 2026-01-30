@@ -8,7 +8,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
@@ -16,7 +15,7 @@ import (
 
 func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V1WorkflowRunGetRequestObject) (gen.V1WorkflowRunGetResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 	rawWorkflowRun := ctx.Get("v1-workflow-run").(*v1.V1WorkflowRunPopulator)
 
 	requestContext := ctx.Request().Context()
@@ -73,7 +72,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		stepIdToTaskExternalId[task.StepID] = task.ExternalID
 	}
 
-	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
+	workflowVersionId := uuid.MustParse(workflowRun.WorkflowVersionId.String())
 
 	shape, err := t.config.V1.Workflows().GetWorkflowShape(
 		ctx, workflowVersionId,

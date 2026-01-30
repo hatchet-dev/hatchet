@@ -12,7 +12,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -47,7 +46,7 @@ type Scheduler struct {
 }
 
 func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
-	l := cf.l.With().Str("tenant_id", sqlchelpers.UUIDToStr(tenantId)).Logger()
+	l := cf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
 	return &Scheduler{
 		repo:            cf.repo.Assignment(),
@@ -169,7 +168,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 
 		actionId := workerActionTuple.ActionId.String
-		workerId := sqlchelpers.UUIDToStr(workerActionTuple.WorkerId)
+		workerId := workerActionTuple.WorkerId.String()
 
 		actionsToWorkerIds[actionId] = append(actionsToWorkerIds[actionId], workerId)
 		workerIdsToActions[workerId] = append(workerIdsToActions[workerId], actionId)
@@ -294,7 +293,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	actionsToTotalSlots := make(map[string]int)
 
 	for _, worker := range availableSlots {
-		workerId := sqlchelpers.UUIDToStr(worker.ID)
+		workerId := worker.ID.String()
 		actions := workerIdsToActions[workerId]
 		unackedSlots := workersToUnackedSlots[workerId]
 
@@ -411,7 +410,7 @@ func (s *Scheduler) loopSnapshot(ctx context.Context) {
 				continue
 			}
 
-			s.exts.ReportSnapshot(sqlchelpers.UUIDToStr(s.tenantId), in)
+			s.exts.ReportSnapshot(s.tenantId.String(), in)
 
 			count++
 		}
@@ -582,7 +581,7 @@ func (s *Scheduler) tryAssignBatch(
 			qi,
 			candidateSlots,
 			childRingOffset,
-			stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepID)],
+			stepIdsToLabels[qi.StepID.String()],
 			rlAcks[i],
 			rlNacks[i],
 		)
@@ -831,7 +830,7 @@ func (s *Scheduler) tryAssign(
 		span.End()
 		close(resultsCh)
 
-		s.exts.PostAssign(sqlchelpers.UUIDToStr(s.tenantId), s.getExtensionInput(extensionResults))
+		s.exts.PostAssign(s.tenantId.String(), s.getExtensionInput(extensionResults))
 
 		if sinceStart := time.Since(startTotal); sinceStart > 100*time.Millisecond {
 			s.l.Warn().Dur("duration", sinceStart).Msgf("assigning queue items took longer than 100ms")

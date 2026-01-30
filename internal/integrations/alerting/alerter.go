@@ -11,7 +11,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/hatchet-dev/timediff"
@@ -87,8 +86,8 @@ func (t *TenantAlertManager) getFailedItemsV1(failedRuns []*v1.WorkflowRunData) 
 			break
 		}
 
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ExternalID)
-		tenantId := sqlchelpers.UUIDToStr(workflowRun.TenantID)
+		workflowRunId := workflowRun.ExternalID.String()
+		tenantId := workflowRun.TenantID.String()
 
 		readableId := workflowRun.DisplayName
 

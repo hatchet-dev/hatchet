@@ -19,7 +19,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
@@ -311,7 +310,7 @@ func (b *StreamEventBuffer) sendReadyEvents(stepRunId string) {
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
 	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	s.l.Debug().Msgf("Received subscribe request for tenant: %s", tenantId)
 
@@ -545,7 +544,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	// if there's no retry count, we need to read it from the task, so we can't skip the cache
 	skipCache := request.RetryCount == nil
 
-	task, err := s.getSingleTask(ctx, sqlchelpers.UUIDToStr(tenant.ID), request.StepRunId, skipCache)
+	task, err := s.getSingleTask(ctx, tenant.ID.String(), request.StepRunId, skipCache)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get task %s: %w", request.StepRunId, err)
@@ -571,8 +570,9 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskStarted(ctx, task, retryCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED:
 		// TODO: IMPLEMENT
+		tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 		return &contracts.ActionEventResponse{
-			TenantId: sqlchelpers.UUIDToStr(ctx.Value("tenant").(*sqlcv1.Tenant).ID),
+			TenantId: tenant.ID.String(),
 			WorkerId: request.WorkerId,
 		}, nil
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
@@ -586,7 +586,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 		tenantId,
@@ -613,7 +613,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 
 func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// if request.RetryCount == nil {
 	// 	return nil, fmt.Errorf("retry count is required in v2")
@@ -623,8 +623,8 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		tenantId,
 		task.ID,
 		task.InsertedAt,
-		sqlchelpers.UUIDToStr(task.ExternalID),
-		sqlchelpers.UUIDToStr(task.WorkflowRunID),
+		task.ExternalID.String(),
+		task.WorkflowRunID.String(),
 		retryCount,
 		[]byte(request.EventPayload),
 	)
@@ -668,7 +668,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 
 func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	shouldNotRetry := false
 
@@ -680,8 +680,8 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		tenantId,
 		task.ID,
 		task.InsertedAt,
-		sqlchelpers.UUIDToStr(task.ExternalID),
-		sqlchelpers.UUIDToStr(task.WorkflowRunID),
+		task.ExternalID.String(),
+		task.WorkflowRunID.String(),
 		retryCount,
 		true,
 		request.EventPayload,
@@ -709,7 +709,7 @@ func (d *DispatcherImpl) getSingleTask(ctx context.Context, tenantId, taskExtern
 }
 
 func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	opts := v1.RefreshTimeoutBy{
 		TaskExternalId:     request.StepRunId,
@@ -728,7 +728,7 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 		return nil, err
 	}
 
-	workerId := sqlchelpers.UUIDToStr(taskRuntime.WorkerID)
+	workerId := taskRuntime.WorkerID.String()
 
 	// send to the OLAP repository
 	msg, err := tasktypes.MonitoringEventMessageFromInternal(
@@ -759,7 +759,7 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 }
 
 func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, request.StepRunId)
 
@@ -767,7 +767,7 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenan
 		return nil, err
 	}
 
-	workerId := sqlchelpers.UUIDToStr(releasedSlot.WorkerID)
+	workerId := releasedSlot.WorkerID.String()
 
 	// send to the OLAP repository
 	msg, err := tasktypes.MonitoringEventMessageFromInternal(
@@ -806,7 +806,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsV1(request *contracts.Subscrib
 
 func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunId string, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
@@ -833,7 +833,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 			continue
 		}
 
-		if sqlchelpers.UUIDToStr(wr.WorkflowRun.TenantID) != tenantId {
+		if wr.WorkflowRun.TenantID.String() != tenantId {
 			return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
 		}
 
@@ -986,7 +986,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string, value string, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
@@ -1147,7 +1147,7 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId string, 
 	}
 
 	for _, row := range flattenedRows {
-		workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRunID)
+		workflowRunId := row.WorkflowRunID.String()
 		if _, ok := foundWorkflowRuns[workflowRunId]; ok {
 			continue
 		}
@@ -1181,9 +1181,9 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  sqlchelpers.UUIDToStr(payload.WorkflowRunID),
+				WorkflowRunId:  payload.WorkflowRunID.String(),
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     sqlchelpers.UUIDToStr(payload.ExternalID),
+				ResourceId:     payload.ExternalID.String(),
 				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STARTED,
 				EventTimestamp: timestamppb.New(payload.InsertedAt.Time),
 				RetryCount:     &payload.RetryCount,

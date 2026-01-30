@@ -46,7 +46,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -250,7 +249,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return member, sqlchelpers.UUIDToStr(member.TenantId), nil
+		return member, member.TenantId.String(), nil
 	})
 
 	populatorMW.RegisterGetter("api-token", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -270,7 +269,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", fmt.Errorf("api token has no tenant id")
 		}
 
-		return apiToken, sqlchelpers.UUIDToStr(apiToken.TenantId), nil
+		return apiToken, apiToken.TenantId.String(), nil
 	})
 
 	populatorMW.RegisterGetter("tenant-invite", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -283,7 +282,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return tenantInvite, sqlchelpers.UUIDToStr(tenantInvite.TenantId), nil
+		return tenantInvite, tenantInvite.TenantId.String(), nil
 	})
 
 	populatorMW.RegisterGetter("slack", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -296,7 +295,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return slackWebhook, sqlchelpers.UUIDToStr(slackWebhook.TenantId), nil
+		return slackWebhook, slackWebhook.TenantId.String(), nil
 	})
 
 	populatorMW.RegisterGetter("alert-email-group", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -309,7 +308,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return emailGroup, sqlchelpers.UUIDToStr(emailGroup.TenantId), nil
+		return emailGroup, emailGroup.TenantId.String(), nil
 	})
 
 	populatorMW.RegisterGetter("sns", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -322,7 +321,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return snsIntegration, sqlchelpers.UUIDToStr(snsIntegration.TenantId), nil
+		return snsIntegration, snsIntegration.TenantId.String(), nil
 	})
 
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -332,7 +331,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return workflow, sqlchelpers.UUIDToStr(workflow.Workflow.TenantId), nil
+		return workflow, workflow.Workflow.TenantId.String(), nil
 	})
 
 	populatorMW.RegisterGetter("workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -351,7 +350,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", echo.NewHTTPError(http.StatusNotFound, "scheduled workflow run not found")
 		}
 
-		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
+		return scheduled, scheduled.TenantId.String(), nil
 	})
 
 	populatorMW.RegisterGetter("cron-workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -365,7 +364,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", echo.NewHTTPError(http.StatusNotFound, "cron workflow not found")
 		}
 
-		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
+		return scheduled, scheduled.TenantId.String(), nil
 	})
 
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -398,7 +397,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			Key:                v1Event.Key,
 		}
 
-		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
+		return event, event.TenantId.String(), nil
 	})
 
 	// note: this is a hack to allow for the v0 event getter to use the pk on the v1 event lookup table
@@ -421,7 +420,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			Key:                v1Event.EventKey,
 		}
 
-		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
+		return event, event.TenantId.String(), nil
 	})
 
 	populatorMW.RegisterGetter("worker", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -431,7 +430,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return worker, sqlchelpers.UUIDToStr(worker.Worker.TenantId), nil
+		return worker, worker.Worker.TenantId.String(), nil
 	})
 
 	populatorMW.RegisterGetter("webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -449,7 +448,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid task id")
 		}
 
-		task, err := config.V1.OLAP().ReadTaskRun(ctx, sqlchelpers.UUIDToStr(taskID))
+		task, err := config.V1.OLAP().ReadTaskRun(ctx, taskID.String())
 
 		if err != nil {
 			return nil, "", err
@@ -459,7 +458,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", echo.NewHTTPError(http.StatusNotFound, "task not found")
 		}
 
-		return task, sqlchelpers.UUIDToStr(task.TenantID), nil
+		return task, task.TenantID.String(), nil
 	})
 
 	populatorMW.RegisterGetter("v1-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -475,7 +474,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantID), nil
+		return workflowRun, workflowRun.WorkflowRun.TenantID.String(), nil
 	})
 
 	populatorMW.RegisterGetter("v1-filter", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -489,7 +488,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return filter, sqlchelpers.UUIDToStr(filter.TenantID), nil
+		return filter, filter.TenantID.String(), nil
 	})
 
 	populatorMW.RegisterGetter("v1-event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -503,7 +502,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return event, sqlchelpers.UUIDToStr(event.TenantID), nil
+		return event, event.TenantID.String(), nil
 	})
 
 	populatorMW.RegisterGetter("v1-webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -517,7 +516,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return webhook, sqlchelpers.UUIDToStr(webhook.TenantID), nil
+		return webhook, webhook.TenantID.String(), nil
 	})
 
 	authnMW := authn.NewAuthN(t.config)

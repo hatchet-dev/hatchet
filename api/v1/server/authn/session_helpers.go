@@ -8,7 +8,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/random"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -30,7 +29,7 @@ func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) er
 	}
 
 	session.Values["authenticated"] = true
-	session.Values["user_id"] = sqlchelpers.UUIDToStr(user.ID)
+	session.Values["user_id"] = user.ID.String()
 
 	return session.Save(c.Request(), c.Response())
 }

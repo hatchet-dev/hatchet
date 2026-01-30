@@ -11,7 +11,6 @@ import (
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -35,7 +34,7 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		return &collectortracev1.ExportTraceServiceResponse{}, nil
 	}
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	otelColRepo := oc.repo.OTelCollector()
 	if otelColRepo == nil {

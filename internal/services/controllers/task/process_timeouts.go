@@ -7,7 +7,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -37,7 +36,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 			TaskId:     task.ID,
 			InsertedAt: task.InsertedAt,
 			RetryCount: task.RetryCount,
-			WorkerId:   sqlchelpers.UUIDToStr(task.WorkerID),
+			WorkerId:   task.WorkerID.String(),
 		})
 
 		// send failed tasks to the olap repository

@@ -14,7 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -28,7 +27,7 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	createOpts, err := getCreateWorkflowOpts(req)
 
@@ -63,7 +62,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 
 func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.ScheduleWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	workflow, err := a.repov1.Workflows().GetWorkflowByName(
 		ctx,
@@ -82,7 +81,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		return nil, fmt.Errorf("could not get workflow by name: %w", err)
 	}
 
-	workflowId := sqlchelpers.UUIDToStr(workflow.ID)
+	workflowId := workflow.ID.String()
 
 	currWorkflow, err := a.repov1.Workflows().GetLatestWorkflowVersion(
 		ctx,
@@ -173,7 +172,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 
 func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	if req.Key == "" {
 		return nil, status.Error(
@@ -415,11 +414,11 @@ func getCreateTaskOpts(steps []*contracts.CreateWorkflowStepOpts, scheduleTimeou
 
 func toWorkflowVersion(workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) *contracts.WorkflowVersion {
 	version := &contracts.WorkflowVersion{
-		Id:         sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		Id:         workflowVersion.WorkflowVersion.ID.String(),
 		CreatedAt:  timestamppb.New(workflowVersion.WorkflowVersion.CreatedAt.Time),
 		UpdatedAt:  timestamppb.New(workflowVersion.WorkflowVersion.UpdatedAt.Time),
 		Order:      workflowVersion.WorkflowVersion.Order,
-		WorkflowId: sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId),
+		WorkflowId: workflowVersion.WorkflowVersion.WorkflowId.String(),
 	}
 
 	if workflowVersion.WorkflowVersion.Version.String != "" {
@@ -434,17 +433,17 @@ func toWorkflowVersionLegacy(workflowVersion *sqlcv1.GetWorkflowVersionForEngine
 
 	for i, ref := range scheduledRefs {
 		scheduledWorkflows[i] = &contracts.ScheduledWorkflow{
-			Id:        sqlchelpers.UUIDToStr(ref.ID),
+			Id:        ref.ID.String(),
 			TriggerAt: timestamppb.New(ref.TriggerAt.Time),
 		}
 	}
 
 	version := &contracts.WorkflowVersion{
-		Id:                 sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		Id:                 workflowVersion.WorkflowVersion.ID.String(),
 		CreatedAt:          timestamppb.New(workflowVersion.WorkflowVersion.CreatedAt.Time),
 		UpdatedAt:          timestamppb.New(workflowVersion.WorkflowVersion.UpdatedAt.Time),
 		Order:              workflowVersion.WorkflowVersion.Order,
-		WorkflowId:         sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId),
+		WorkflowId:         workflowVersion.WorkflowVersion.WorkflowId.String(),
 		ScheduledWorkflows: scheduledWorkflows,
 	}
 

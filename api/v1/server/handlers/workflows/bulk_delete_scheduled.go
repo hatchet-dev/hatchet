@@ -12,13 +12,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request gen.WorkflowScheduledBulkDeleteRequestObject) (gen.WorkflowScheduledBulkDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	if request.Body == nil {
 		return gen.WorkflowScheduledBulkDelete400JSONResponse(gen.APIErrors{
@@ -101,7 +100,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 		// Convert list results into ids + pre-fill errors for non-API items.
 		ids = make([]uuid.UUID, 0, len(all))
 		for _, row := range all {
-			idStr := sqlchelpers.UUIDToStr(row.ID)
+			idStr := row.ID.String()
 			idUUID, err := uuid.Parse(idStr)
 			if err != nil {
 				// fall back to skip with generic error (should never happen)

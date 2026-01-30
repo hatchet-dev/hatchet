@@ -9,13 +9,12 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request gen.WorkflowScheduledBulkUpdateRequestObject) (gen.WorkflowScheduledBulkUpdateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	if request.Body == nil {
 		return gen.WorkflowScheduledBulkUpdate400JSONResponse(gen.APIErrors{

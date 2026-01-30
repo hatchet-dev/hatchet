@@ -9,7 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"google.golang.org/grpc/codes"
@@ -17,7 +16,7 @@ import (
 )
 
 func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	// get single task
 	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
@@ -32,7 +31,7 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 		true,
 		false,
 		tasktypes.StreamEventPayload{
-			WorkflowRunId: sqlchelpers.UUIDToStr(task.WorkflowRunID),
+			WorkflowRunId: task.WorkflowRunID.String(),
 			StepRunId:     req.StepRunId,
 			CreatedAt:     req.CreatedAt.AsTime(),
 			Payload:       req.Message,
@@ -60,7 +59,7 @@ func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternal
 }
 
 func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	if !i.isLogIngestionEnabled {
 		return &contracts.PutLogResponse{}, nil

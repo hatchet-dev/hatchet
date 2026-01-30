@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -20,8 +19,8 @@ func ToSlotState(slots []*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, remain
 		var workflowRunId uuid.UUID
 
 		if slot.ExternalID != uuid.Nil {
-			stepRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.ExternalID))
-			workflowRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.ExternalID))
+			stepRunId = uuid.MustParse(slot.ExternalID.String())
+			workflowRunId = uuid.MustParse(slot.ExternalID.String())
 		}
 
 		status := gen.StepRunStatusRUNNING
@@ -62,7 +61,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 
 func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string, workflows *[]*sqlcv1.Workflow) *gen.Worker {
 
-	dispatcherId := uuid.MustParse(sqlchelpers.UUIDToStr(worker.DispatcherId))
+	dispatcherId := uuid.MustParse(worker.DispatcherId.String())
 
 	maxRuns := int(worker.MaxRuns)
 
@@ -84,7 +83,7 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 
 	res := &gen.Worker{
 		Metadata: gen.APIResourceMeta{
-			Id:        sqlchelpers.UUIDToStr(worker.ID),
+			Id:        worker.ID.String(),
 			CreatedAt: worker.CreatedAt.Time,
 			UpdatedAt: worker.UpdatedAt.Time,
 		},
@@ -99,7 +98,7 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 	}
 
 	if worker.WebhookId != uuid.Nil {
-		wid := uuid.MustParse(sqlchelpers.UUIDToStr(worker.WebhookId))
+		wid := uuid.MustParse(worker.WebhookId.String())
 		res.WebhookId = &wid
 	}
 

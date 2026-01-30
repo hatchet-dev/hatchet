@@ -5,13 +5,12 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *TenantService) AlertEmailGroupList(ctx echo.Context, request gen.AlertEmailGroupListRequestObject) (gen.AlertEmailGroupListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	emailGroups, err := t.config.V1.TenantAlertingSettings().ListTenantAlertGroups(ctx.Request().Context(), tenantId)
 

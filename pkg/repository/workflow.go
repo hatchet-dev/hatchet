@@ -397,7 +397,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 	// if the checksum matches the old checksum, we don't need to create a new workflow version
 	if oldWorkflowVersion != nil && oldWorkflowVersion.WorkflowVersion.Checksum == cs {
-		return sqlchelpers.UUIDToStr(oldWorkflowVersion.WorkflowVersion.ID), nil
+		return oldWorkflowVersion.WorkflowVersion.ID.String(), nil
 	}
 
 	optsJson, err := json.Marshal(modifiedOpts)

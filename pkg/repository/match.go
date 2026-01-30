@@ -552,8 +552,8 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 					opt := ReplayTaskOpts{
 						TaskId:             match.TriggerExistingTaskID.Int64,
 						InsertedAt:         match.TriggerExistingTaskInsertedAt,
-						ExternalId:         sqlchelpers.UUIDToStr(match.TriggerExternalID),
-						StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
+						ExternalId:         match.TriggerExternalID.String(),
+						StepId:             match.TriggerStepID.String(),
 						AdditionalMetadata: additionalMetadata,
 						InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
 					}
@@ -571,9 +571,9 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 					replayTaskOpts = append(replayTaskOpts, opt)
 				} else {
 					opt := CreateTaskOpts{
-						ExternalId:         sqlchelpers.UUIDToStr(match.TriggerExternalID),
-						WorkflowRunId:      sqlchelpers.UUIDToStr(match.TriggerWorkflowRunID),
-						StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
+						ExternalId:         match.TriggerExternalID.String(),
+						WorkflowRunId:      match.TriggerWorkflowRunID.String(),
+						StepId:             match.TriggerStepID.String(),
 						StepIndex:          int(match.TriggerStepIndex.Int64),
 						AdditionalMetadata: additionalMetadata,
 						InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
@@ -596,7 +596,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 					}
 
 					if match.TriggerParentTaskExternalID != uuid.Nil {
-						externalId := sqlchelpers.UUIDToStr(match.TriggerParentTaskExternalID)
+						externalId := match.TriggerParentTaskExternalID.String()
 						opt.ParentTaskExternalId = &externalId
 					}
 
@@ -669,7 +669,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 					// signals are durable, meaning they persist between retries, so a retryCount of -1 is used
 					RetryCount: -1,
 				})
-				externalIds = append(externalIds, sqlchelpers.UUIDToStr(match.SignalExternalID))
+				externalIds = append(externalIds, match.SignalExternalID.String())
 				datas = append(datas, match.McAggregatedData)
 				eventKeys = append(eventKeys, match.SignalKey.String)
 			}
@@ -1126,7 +1126,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 	stepIdsToConditions := make(map[string][]*sqlcv1.V1StepMatchCondition)
 
 	for _, condition := range stepMatchConditions {
-		stepId := sqlchelpers.UUIDToStr(condition.StepID)
+		stepId := condition.StepID.String()
 		if _, ok := stepIdsToConditions[stepId]; !ok {
 			stepIdsToConditions[stepId] = make([]*sqlcv1.V1StepMatchCondition, 0)
 		}
@@ -1138,15 +1138,15 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 
 	for _, match := range satisfiedMatches {
 		if match.TriggerStepID != uuid.Nil && match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
-			conditions, ok := stepIdsToConditions[sqlchelpers.UUIDToStr(match.TriggerStepID)]
+			conditions, ok := stepIdsToConditions[match.TriggerStepID.String()]
 
 			if !ok {
 				continue
 			}
 
-			triggerExternalId := sqlchelpers.UUIDToStr(match.TriggerExternalID)
-			triggerWorkflowRunId := sqlchelpers.UUIDToStr(match.TriggerWorkflowRunID)
-			triggerStepId := sqlchelpers.UUIDToStr(match.TriggerStepID)
+			triggerExternalId := match.TriggerExternalID.String()
+			triggerWorkflowRunId := match.TriggerWorkflowRunID.String()
+			triggerStepId := match.TriggerStepID.String()
 			var triggerExistingTaskId *int64
 
 			if match.TriggerExistingTaskID.Valid {
@@ -1181,7 +1181,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 						ctx,
 						tx,
 						tenantId,
-						sqlchelpers.UUIDToStr(condition.OrGroupID),
+						condition.OrGroupID.String(),
 						condition.ReadableDataKey,
 						condition.SleepDuration.String,
 						condition.Action,
@@ -1194,7 +1194,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 					opt.Conditions = append(opt.Conditions, *c)
 				case sqlcv1.V1StepMatchConditionKindUSEREVENT:
 					opt.Conditions = append(opt.Conditions, m.userEventCondition(
-						sqlchelpers.UUIDToStr(condition.OrGroupID),
+						condition.OrGroupID.String(),
 						condition.ReadableDataKey,
 						condition.EventKey.String,
 						condition.Expression.String,

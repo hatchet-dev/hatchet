@@ -40,7 +40,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
@@ -497,7 +496,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 		analyticsEmitter.Enqueue(
 			"user:create",
-			sqlchelpers.UUIDToStr(opts.ID),
+			opts.ID.String(),
 			nil,
 			map[string]interface{}{
 				"email":    opts.Email,
@@ -510,7 +509,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	})
 
 	dc.V1.Tenant().RegisterCreateCallback(func(tenant *sqlcv1.Tenant) error {
-		tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+		tenantId := tenant.ID.String()
 
 		analyticsEmitter.Tenant(tenantId, map[string]interface{}{
 			"name": tenant.Name,

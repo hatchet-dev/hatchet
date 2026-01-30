@@ -14,7 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
@@ -24,7 +23,7 @@ import (
 
 func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	canCreateTR, trLimit, err := a.repov1.TenantLimit().CanCreate(
 		ctx,
@@ -99,7 +98,7 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 
 func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	opts := make([]*v1.WorkflowNameTriggerOpts, len(req.Workflows))
 
@@ -210,7 +209,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 			return nil, fmt.Errorf("could not find parent task: %w", err)
 		}
 
-		parentExternalId := sqlchelpers.UUIDToStr(parentTask.ExternalID)
+		parentExternalId := parentTask.ExternalID.String()
 		childIndex := int64(*req.ChildIndex)
 
 		t.ParentExternalId = &parentExternalId

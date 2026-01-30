@@ -2,13 +2,12 @@ package transformers
 
 import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func ToAPIToken(token *sqlcv1.APIToken) *gen.APIToken {
 	res := &gen.APIToken{
-		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(token.ID), token.CreatedAt.Time, token.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(token.ID.String(), token.CreatedAt.Time, token.UpdatedAt.Time),
 	}
 
 	if token.ExpiresAt.Valid {

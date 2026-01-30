@@ -15,7 +15,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -207,7 +206,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 							if err != nil {
 								multiErr = multierror.Append(
 									multiErr,
-									fmt.Errorf("could not send action for task %s to worker %s (%d / %d): %w", sqlchelpers.UUIDToStr(task.ExternalID), workerId, i+1, len(workers), err),
+									fmt.Errorf("could not send action for task %s to worker %s (%d / %d): %w", task.ExternalID.String(), workerId, i+1, len(workers), err),
 								)
 							} else {
 								success = true
@@ -274,8 +273,8 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 						tenantId,
 						task.ID,
 						task.InsertedAt,
-						sqlchelpers.UUIDToStr(task.ExternalID),
-						sqlchelpers.UUIDToStr(task.WorkflowRunID),
+						task.ExternalID.String(),
+						task.WorkflowRunID.String(),
 						task.RetryCount,
 						false,
 						"Could not send task to worker",

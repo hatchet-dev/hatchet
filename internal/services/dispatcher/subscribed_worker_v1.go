@@ -14,7 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -244,19 +243,19 @@ func (worker *subscribedWorker) CancelTask(
 }
 
 func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
-	workflowId := sqlchelpers.UUIDToStr(task.WorkflowID)
-	workflowVersionId := sqlchelpers.UUIDToStr(task.WorkflowVersionID)
+	workflowId := task.WorkflowID.String()
+	workflowVersionId := task.WorkflowVersionID.String()
 
 	action := &contracts.AssignedAction{
 		TenantId:          tenantID,
-		JobId:             sqlchelpers.UUIDToStr(task.StepID), // FIXME
+		JobId:             task.StepID.String(), // FIXME
 		JobName:           task.StepReadableID,
-		JobRunId:          sqlchelpers.UUIDToStr(task.ExternalID), // FIXME
-		StepId:            sqlchelpers.UUIDToStr(task.StepID),
-		StepRunId:         sqlchelpers.UUIDToStr(task.ExternalID),
+		JobRunId:          task.ExternalID.String(), // FIXME
+		StepId:            task.StepID.String(),
+		StepRunId:         task.ExternalID.String(),
 		ActionId:          task.ActionID,
 		StepName:          task.StepReadableID,
-		WorkflowRunId:     sqlchelpers.UUIDToStr(task.WorkflowRunID),
+		WorkflowRunId:     task.WorkflowRunID.String(),
 		RetryCount:        retryCount,
 		Priority:          task.Priority.Int32,
 		WorkflowId:        &workflowId,
@@ -269,7 +268,7 @@ func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int
 	}
 
 	if task.ParentTaskExternalID != uuid.Nil {
-		parentId := sqlchelpers.UUIDToStr(task.ParentTaskExternalID)
+		parentId := task.ParentTaskExternalID.String()
 		action.ParentWorkflowRunId = &parentId
 	}
 

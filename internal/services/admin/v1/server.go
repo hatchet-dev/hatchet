@@ -19,7 +19,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -92,7 +91,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 			IncludePayloads:    false,
 		}
 
-		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, sqlchelpers.UUIDToStr(tenant.ID), opts)
+		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, tenant.ID.String(), opts)
 
 		if err != nil {
 			return nil, err
@@ -101,13 +100,13 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 		runExternalIds := make([]string, len(runs))
 
 		for i, run := range runs {
-			runExternalIds[i] = sqlchelpers.UUIDToStr(run.ExternalID)
+			runExternalIds[i] = run.ExternalID.String()
 		}
 
 		externalIds = append(externalIds, runExternalIds...)
 	}
 
-	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), externalIds)
+	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, tenant.ID.String(), externalIds)
 
 	if err != nil {
 		return nil, err
@@ -129,7 +128,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 	}
 
 	msg, err := msgqueue.NewTenantMessage(
-		sqlchelpers.UUIDToStr(tenant.ID),
+		tenant.ID.String(),
 		msgqueue.MsgIDCancelTasks,
 		false,
 		true,
@@ -220,7 +219,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			IncludePayloads:    false,
 		}
 
-		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, sqlchelpers.UUIDToStr(tenant.ID), opts)
+		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, tenant.ID.String(), opts)
 
 		if err != nil {
 			return nil, err
@@ -229,7 +228,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		runExternalIds := make([]string, len(runs))
 
 		for i, run := range runs {
-			runExternalIds[i] = sqlchelpers.UUIDToStr(run.ExternalID)
+			runExternalIds[i] = run.ExternalID.String()
 		}
 
 		externalIds = append(externalIds, runExternalIds...)
@@ -237,7 +236,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 	tasksToReplay := []tasktypes.TaskIdInsertedAtRetryCountWithExternalId{}
 
-	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), externalIds)
+	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, tenant.ID.String(), externalIds)
 
 	if err != nil {
 		return nil, err
@@ -309,7 +308,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		}
 
 		msg, err := msgqueue.NewTenantMessage(
-			sqlchelpers.UUIDToStr(tenant.ID),
+			tenant.ID.String(),
 			msgqueue.MsgIDReplayTasks,
 			false,
 			true,
@@ -340,7 +339,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contracts.TriggerWorkflowRunRequest) (*contracts.TriggerWorkflowRunResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	canCreateTR, trLimit, err := a.repo.TenantLimit().CanCreate(
 		ctx,
@@ -391,7 +390,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 
 func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.GetRunDetailsRequest) (*contracts.GetRunDetailsResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	externalId, err := uuid.Parse(req.ExternalId)
 
@@ -528,7 +527,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.CreateWorkflowVersionRequest) (*contracts.CreateWorkflowVersionResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID.String()
 
 	createOpts, err := getCreateWorkflowOpts(req)
 
@@ -562,13 +561,13 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		&tenantId,
 		nil,
 		map[string]interface{}{
-			"workflow_id": sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.WorkflowId),
+			"workflow_id": currWorkflow.WorkflowVersion.WorkflowId.String(),
 		},
 	)
 
 	return &contracts.CreateWorkflowVersionResponse{
-		Id:         sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID),
-		WorkflowId: sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.WorkflowId),
+		Id:         currWorkflow.WorkflowVersion.ID.String(),
+		WorkflowId: currWorkflow.WorkflowVersion.WorkflowId.String(),
 	}, nil
 }
 

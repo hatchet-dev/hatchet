@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
 func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
@@ -26,7 +24,7 @@ func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
 		t.l.Debug().Msgf("ticker: alerting %d expiring tokens", len(expiring_tokens))
 
 		for _, expiring_token := range expiring_tokens {
-			tenantId := sqlchelpers.UUIDToStr(expiring_token.TenantId)
+			tenantId := expiring_token.TenantId.String()
 
 			t.l.Debug().Msgf("ticker: handling expiring token for tenant %s", tenantId)
 
@@ -69,7 +67,7 @@ func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 		t.l.Debug().Msgf("ticker: alerting %d tenant resource limit alerts", len(alerts))
 
 		for _, alert := range alerts {
-			tenantId := sqlchelpers.UUIDToStr(alert.TenantId)
+			tenantId := alert.TenantId.String()
 
 			t.l.Debug().Msgf("ticker: handling tenant resource limit alert for tenant %s", tenantId)
 

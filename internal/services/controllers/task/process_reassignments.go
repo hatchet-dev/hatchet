@@ -9,7 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -39,7 +38,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 		var workerId *string
 
 		if task.WorkerID != uuid.Nil {
-			workerIdStr := sqlchelpers.UUIDToStr(task.WorkerID)
+			workerIdStr := task.WorkerID.String()
 			workerId = &workerIdStr
 		}
 

@@ -371,7 +371,7 @@ func (w *workflowScheduleRepository) ScheduledWorkflowMetaByIds(ctx context.Cont
 
 	out := make(map[string]ScheduledWorkflowMeta, len(scheduledWorkflowIds))
 	for _, row := range rows {
-		idStr := sqlchelpers.UUIDToStr(row.ID)
+		idStr := row.ID.String()
 		out[idStr] = ScheduledWorkflowMeta{
 			Id:              idStr,
 			Method:          row.Method,
@@ -402,7 +402,7 @@ func (w *workflowScheduleRepository) BulkDeleteScheduledWorkflows(ctx context.Co
 
 	deleted := make([]string, 0, len(scheduledWorkflowIds))
 	for _, id := range deletedIds {
-		deleted = append(deleted, sqlchelpers.UUIDToStr(id))
+		deleted = append(deleted, id.String())
 	}
 
 	return deleted, nil
@@ -431,7 +431,7 @@ func (w *workflowScheduleRepository) BulkUpdateScheduledWorkflows(ctx context.Co
 
 	updated := make([]string, 0, len(updates))
 	for _, id := range updatedIds {
-		updated = append(updated, sqlchelpers.UUIDToStr(id))
+		updated = append(updated, id.String())
 	}
 
 	return updated, nil

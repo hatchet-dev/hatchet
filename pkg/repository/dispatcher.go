@@ -88,9 +88,9 @@ func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onSta
 	dispatchersToDelete := make([]uuid.UUID, 0)
 
 	for i, dispatcher := range staleDispatchers {
-		err := onStale(sqlchelpers.UUIDToStr(dispatcher.Dispatcher.ID), func() string {
+		err := onStale(dispatcher.Dispatcher.ID.String(), func() string {
 			// assign tickers in round-robin fashion
-			return sqlchelpers.UUIDToStr(activeDispatchers[i%len(activeDispatchers)].Dispatcher.ID)
+			return activeDispatchers[i%len(activeDispatchers)].Dispatcher.ID.String()
 		})
 
 		if err != nil {

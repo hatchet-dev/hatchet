@@ -8,7 +8,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -42,7 +41,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		output = jsonToMap(task.Output)
 	}
 
-	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowVersionId))
+	workflowVersionId := task.WorkflowVersionId
 
 	var taskId int
 	if task.TaskId != nil {
@@ -51,7 +50,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 
 	var stepId uuid.UUID
 	if task.StepId != nil {
-		stepId = uuid.MustParse(sqlchelpers.UUIDToStr(*task.StepId))
+		stepId = *task.StepId
 	} else {
 		stepId = uuid.Nil
 	}
@@ -69,14 +68,14 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 	attempt := retryCount + 1
 
 	var parentTaskExternalId *uuid.UUID
-	if task.ParentTaskExternalId != nil && task.ParentTaskExternalId != nil && *task.ParentTaskExternalId != uuid.Nil {
-		parentTaskExternalIdValue := uuid.MustParse(sqlchelpers.UUIDToStr(*task.ParentTaskExternalId))
+	if task.ParentTaskExternalId != nil && *task.ParentTaskExternalId != uuid.Nil {
+		parentTaskExternalIdValue := *task.ParentTaskExternalId
 		parentTaskExternalId = &parentTaskExternalIdValue
 	}
 
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
-			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
+			Id:        task.ExternalID.String(),
 			CreatedAt: task.InsertedAt.Time,
 			UpdatedAt: task.InsertedAt.Time,
 		},
@@ -90,17 +89,17 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		AdditionalMetadata:    &additionalMetadata,
 		ErrorMessage:          &task.ErrorMessage,
 		Status:                gen.V1TaskStatus(task.ReadableStatus),
-		TenantId:              uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
-		WorkflowId:            uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
+		TenantId:              uuid.MustParse(task.TenantID.String()),
+		WorkflowId:            uuid.MustParse(task.WorkflowID.String()),
 		WorkflowVersionId:     &workflowVersionId,
-		TaskExternalId:        uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID)),
+		TaskExternalId:        uuid.MustParse(task.ExternalID.String()),
 		TaskId:                taskId,
 		TaskInsertedAt:        task.InsertedAt.Time,
 		Type:                  gen.V1WorkflowTypeDAG,
 		WorkflowName:          workflowName,
 		StepId:                &stepId,
 		ActionId:              &actionId,
-		WorkflowRunExternalId: uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID)),
+		WorkflowRunExternalId: uuid.MustParse(task.ExternalID.String()),
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
 		ParentTaskExternalId:  parentTaskExternalId,
@@ -117,7 +116,7 @@ func ToWorkflowRunMany(
 	toReturn := make([]gen.V1TaskSummary, len(tasks))
 
 	for i, task := range tasks {
-		dagExternalId := uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID))
+		dagExternalId := uuid.MustParse(task.ExternalID.String())
 
 		actionId := ""
 
@@ -153,7 +152,7 @@ func ToWorkflowRunMany(
 }
 
 func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowName *string) gen.V1TaskSummary {
-	workflowVersionID := uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowVersionID))
+	workflowVersionID := uuid.MustParse(task.WorkflowVersionID.String())
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -178,20 +177,20 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 	input := jsonToMap(task.InputPayload)
 	output := jsonToMap(task.OutputPayload)
 
-	stepId := uuid.MustParse(sqlchelpers.UUIDToStr(task.StepID))
+	stepId := uuid.MustParse(task.StepID.String())
 
 	retryCount := int(task.RetryCount)
 	attempt := retryCount + 1
 
 	var parentTaskExternalId *uuid.UUID
 	if task.ParentTaskExternalID != uuid.Nil {
-		parentTaskExternalIdValue := uuid.MustParse(sqlchelpers.UUIDToStr(task.ParentTaskExternalID))
+		parentTaskExternalIdValue := uuid.MustParse(task.ParentTaskExternalID.String())
 		parentTaskExternalId = &parentTaskExternalIdValue
 	}
 
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
-			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
+			Id:        task.ExternalID.String(),
 			CreatedAt: task.InsertedAt.Time,
 			UpdatedAt: task.InsertedAt.Time,
 		},
@@ -205,11 +204,11 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		AdditionalMetadata:    &additionalMetadata,
 		ErrorMessage:          &task.ErrorMessage.String,
 		Status:                gen.V1TaskStatus(task.Status),
-		TenantId:              uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
-		WorkflowId:            uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
+		TenantId:              uuid.MustParse(task.TenantID.String()),
+		WorkflowId:            uuid.MustParse(task.WorkflowID.String()),
 		WorkflowVersionId:     &workflowVersionID,
 		Children:              nil,
-		TaskExternalId:        uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID)),
+		TaskExternalId:        uuid.MustParse(task.ExternalID.String()),
 		TaskId:                int(task.ID),
 		TaskInsertedAt:        task.InsertedAt.Time,
 		Type:                  gen.V1WorkflowTypeTASK,
@@ -218,7 +217,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		ActionId:              &task.ActionID,
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
-		WorkflowRunExternalId: uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowRunID)),
+		WorkflowRunExternalId: uuid.MustParse(task.WorkflowRunID.String()),
 		ParentTaskExternalId:  parentTaskExternalId,
 	}
 }
@@ -258,7 +257,7 @@ func ToWorkflowRunDisplayNamesList(
 		result[i] = gen.V1WorkflowRunDisplayName{
 			DisplayName: record.DisplayName,
 			Metadata: gen.APIResourceMeta{
-				Id:        sqlchelpers.UUIDToStr(record.ExternalID),
+				Id:        record.ExternalID.String(),
 				CreatedAt: record.InsertedAt.Time,
 				UpdatedAt: record.InsertedAt.Time,
 			},

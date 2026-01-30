@@ -84,7 +84,7 @@ func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uui
 		params.Units = append(params.Units, int32(v)) // nolint: gosec
 	}
 
-	tenantInt := tenantAdvisoryInt(sqlchelpers.UUIDToStr(tenantId))
+	tenantInt := tenantAdvisoryInt(tenantId.String())
 
 	err = r.queries.AdvisoryLock(ctx, tx, tenantInt)
 

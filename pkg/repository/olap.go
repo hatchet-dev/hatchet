@@ -835,7 +835,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 	idsInsertedAts := make([]IdInsertedAt, 0, len(tasks))
 
 	for _, row := range tasks {
-		taskIdToDagExternalId[row.TaskID] = uuid.MustParse(sqlchelpers.UUIDToStr(row.DagExternalID))
+		taskIdToDagExternalId[row.TaskID] = uuid.MustParse(row.DagExternalID.String())
 		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:         row.TaskID,
 			InsertedAt: row.TaskInsertedAt,
@@ -1096,7 +1096,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	dagsToPopulated := make(map[string]*sqlcv1.PopulateDAGMetadataRow)
 
 	for _, dag := range populatedDAGs {
-		externalId := sqlchelpers.UUIDToStr(dag.ExternalID)
+		externalId := dag.ExternalID.String()
 
 		dagsToPopulated[externalId] = dag
 		externalIdsForPayloads = append(externalIdsForPayloads, dag.ExternalID)
@@ -1112,7 +1112,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	}
 
 	for _, task := range populatedTasks {
-		externalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		externalId := task.ExternalID.String()
 		tasksToPopulated[externalId] = task
 
 		externalIdsForPayloads = append(externalIdsForPayloads, task.ExternalID)
@@ -1146,7 +1146,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	res := make([]*WorkflowRunData, 0)
 
 	for _, row := range workflowRunIds {
-		externalId := sqlchelpers.UUIDToStr(row.ExternalID)
+		externalId := row.ExternalID.String()
 
 		if row.Kind == sqlcv1.V1RunKindDAG {
 			dag, ok := dagsToPopulated[externalId]
@@ -2021,7 +2021,7 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 	idsInsertedAts := make([]IdInsertedAt, 0, len(runsList))
 
 	for _, row := range runsList {
-		idsToDepth[sqlchelpers.UUIDToStr(row.ExternalID)] = row.Depth
+		idsToDepth[row.ExternalID.String()] = row.Depth
 		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:         row.ID,
 			InsertedAt: row.InsertedAt,
@@ -2101,7 +2101,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		eventId, ok := eventExternalIdToId[trigger.EventExternalId]
 
 		if !ok {
-			return fmt.Errorf("event external id %s not found in events", sqlchelpers.UUIDToStr(trigger.EventExternalId))
+			return fmt.Errorf("event external id %s not found in events", trigger.EventExternalId.String())
 		}
 
 		bulkCreateTriggersParams = append(bulkCreateTriggersParams, sqlcv1.BulkCreateEventTriggersParams{
@@ -2319,7 +2319,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		payload, exists := externalIdToPayload[event.ExternalID]
 
 		if !exists {
-			r.l.Error().Msgf("ListEvents: payload for event %s not found", sqlchelpers.UUIDToStr(event.ExternalID))
+			r.l.Error().Msgf("ListEvents: payload for event %s not found", event.ExternalID.String())
 			payload = event.Payload
 		}
 
@@ -2405,7 +2405,7 @@ func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId strin
 	dagDurations := make(map[string]*sqlcv1.GetDagDurationsRow)
 
 	for _, row := range rows {
-		dagDurations[sqlchelpers.UUIDToStr(row.ExternalID)] = row
+		dagDurations[row.ExternalID.String()] = row
 	}
 
 	return dagDurations, nil
@@ -2586,7 +2586,7 @@ func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId string, e
 	payload, exists := payloads[externalId]
 
 	if !exists {
-		r.l.Debug().Msgf("payload for external ID %s not found", sqlchelpers.UUIDToStr(externalId))
+		r.l.Debug().Msgf("payload for external ID %s not found", externalId.String())
 	}
 
 	return payload, nil

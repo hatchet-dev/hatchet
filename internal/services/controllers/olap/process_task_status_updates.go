@@ -8,7 +8,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -33,7 +32,7 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 			tenantIds := make([]string, 0, len(tenants))
 
 			for _, tenant := range tenants {
-				tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+				tenantId := tenant.ID.String()
 				tenantIds = append(tenantIds, tenantId)
 			}
 
@@ -65,7 +64,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 		}
 
 		tenantIdToPayloads[row.TenantId] = append(tenantIdToPayloads[row.TenantId], tasktypes.NotifyFinalizedPayload{
-			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
+			ExternalId: row.ExternalId.String(),
 			Status:     row.ReadableStatus,
 		})
 	}
@@ -78,7 +77,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 			}
 
 			update := taskPrometheusUpdate{
-				tenantId:       sqlchelpers.UUIDToStr(row.TenantId),
+				tenantId:       row.TenantId.String(),
 				taskId:         row.TaskId,
 				taskInsertedAt: row.TaskInsertedAt,
 				readableStatus: row.ReadableStatus,

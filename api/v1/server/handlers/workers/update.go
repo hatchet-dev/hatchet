@@ -6,7 +6,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -28,8 +27,8 @@ func (t *WorkerService) WorkerUpdate(ctx echo.Context, request gen.WorkerUpdateR
 
 	updatedWorker, err := t.config.V1.Workers().UpdateWorker(
 		ctx.Request().Context(),
-		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		sqlchelpers.UUIDToStr(worker.Worker.ID),
+		worker.Worker.TenantId.String(),
+		worker.Worker.ID.String(),
 		update,
 	)
 

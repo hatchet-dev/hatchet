@@ -10,7 +10,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
 type JWTManager interface {
@@ -174,7 +173,7 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 		return "", "", fmt.Errorf("failed to read subject claim: %v", err)
 	}
 
-	return subject, sqlchelpers.UUIDToStr(dbToken.ID), nil
+	return subject, dbToken.ID.String(), nil
 }
 
 func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId string, id *string, expires *time.Time) (tokenId string, expiresAt time.Time, opts *jwt.RawJWTOptions) {

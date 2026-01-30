@@ -18,7 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/random"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
 func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tests
@@ -106,7 +105,7 @@ func TestRevokeTenantToken(t *testing.T) {
 		}
 
 		assert.Len(t, apiTokens, 1)
-		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), sqlchelpers.UUIDToStr(apiTokens[0].ID))
+		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), apiTokens[0].ID.String())
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -170,7 +169,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 		}
 
 		assert.Len(t, apiTokens, 1)
-		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), sqlchelpers.UUIDToStr(apiTokens[0].ID))
+		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), apiTokens[0].ID.String())
 
 		if err != nil {
 			t.Fatal(err.Error())

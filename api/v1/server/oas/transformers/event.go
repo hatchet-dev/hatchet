@@ -5,7 +5,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -21,7 +20,7 @@ func ToEventList(events []*sqlcv1.Event) []gen.Event {
 
 func ToEvent(event *sqlcv1.Event) gen.Event {
 	return gen.Event{
-		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(event.ID), event.CreatedAt.Time, event.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(event.ID.String(), event.CreatedAt.Time, event.UpdatedAt.Time),
 		Key:      event.Key,
 		TenantId: event.TenantId.String(),
 	}
