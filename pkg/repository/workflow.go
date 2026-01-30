@@ -286,7 +286,6 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 
 	defer rollback()
 
-	pgTenantId := tenantId
 	var workflowId uuid.UUID
 	var oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow
 
@@ -306,7 +305,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 			tx,
 			sqlcv1.CreateWorkflowParams{
 				ID:          workflowId,
-				Tenantid:    pgTenantId,
+				Tenantid:    tenantId,
 				Name:        opts.Name,
 				Description: *opts.Description,
 			},
@@ -330,7 +329,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 
 		// fetch the latest workflow version
 		workflowVersionIds, err := r.queries.GetLatestWorkflowVersionForWorkflows(ctx, tx, sqlcv1.GetLatestWorkflowVersionForWorkflowsParams{
-			Tenantid:    pgTenantId,
+			Tenantid:    tenantId,
 			Workflowids: []uuid.UUID{workflowId},
 		})
 
@@ -343,7 +342,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 		}
 
 		workflowVersions, err := r.queries.GetWorkflowVersionForEngine(ctx, tx, sqlcv1.GetWorkflowVersionForEngineParams{
-			Tenantid: pgTenantId,
+			Tenantid: tenantId,
 			Ids:      []uuid.UUID{workflowVersionIds[0]},
 		})
 
@@ -358,14 +357,14 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 		oldWorkflowVersion = workflowVersions[0]
 	}
 
-	workflowVersionId, err := r.createWorkflowVersionTxs(ctx, tx, pgTenantId, workflowId, opts, oldWorkflowVersion)
+	workflowVersionId, err := r.createWorkflowVersionTxs(ctx, tx, tenantId, workflowId, opts, oldWorkflowVersion)
 
 	if err != nil {
 		return nil, err
 	}
 
 	workflowVersion, err := r.queries.GetWorkflowVersionForEngine(ctx, tx, sqlcv1.GetWorkflowVersionForEngineParams{
-		Tenantid: pgTenantId,
+		Tenantid: tenantId,
 		Ids:      []uuid.UUID{uuid.MustParse(workflowVersionId)},
 	})
 
@@ -1010,18 +1009,12 @@ func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflo
 
 	res := &ListWorkflowsResult{}
 
-	pgTenantId := &uuid.UUID{}
-
-	if err := pgTenantId.Scan(tenantId); err != nil {
-		return nil, err
-	}
-
 	queryParams := sqlcv1.ListWorkflowsParams{
-		Tenantid: *pgTenantId,
+		Tenantid: tenantId,
 	}
 
 	countParams := sqlcv1.CountWorkflowsParams{
-		TenantId: *pgTenantId,
+		TenantId: tenantId,
 	}
 
 	if opts.Offset != nil {

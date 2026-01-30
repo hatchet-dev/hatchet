@@ -130,10 +130,8 @@ func (w *workerRepository) ListWorkers(tenantId uuid.UUID, opts *ListWorkersOpts
 		return nil, err
 	}
 
-	pgTenantId := tenantId
-
 	queryParams := sqlcv1.ListWorkersWithSlotCountParams{
-		Tenantid: pgTenantId,
+		Tenantid: tenantId,
 	}
 
 	if opts.Action != nil {
@@ -336,10 +334,8 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 
 	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
-	pgTenantId := tenantId
-
 	createParams := sqlcv1.CreateWorkerParams{
-		Tenantid:     pgTenantId,
+		Tenantid:     tenantId,
 		Dispatcherid: uuid.MustParse(opts.DispatcherId),
 		Name:         opts.Name,
 	}
@@ -413,7 +409,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	for i, svc := range opts.Services {
 		dbSvc, err := w.queries.UpsertService(ctx, tx, sqlcv1.UpsertServiceParams{
 			Name:     svc,
-			Tenantid: pgTenantId,
+			Tenantid: tenantId,
 		})
 
 		if err != nil {
@@ -437,7 +433,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	for i, action := range opts.Actions {
 		dbAction, err := w.queries.UpsertAction(ctx, tx, sqlcv1.UpsertActionParams{
 			Action:   action,
-			Tenantid: pgTenantId,
+			Tenantid: tenantId,
 		})
 
 		if err != nil {
@@ -483,8 +479,6 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 
 	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
-	pgTenantId := tenantId
-
 	updateParams := sqlcv1.UpdateWorkerParams{
 		ID: uuid.MustParse(workerId),
 	}
@@ -524,7 +518,7 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 		for i, action := range opts.Actions {
 			dbAction, err := w.queries.UpsertAction(ctx, tx, sqlcv1.UpsertActionParams{
 				Action:   action,
-				Tenantid: pgTenantId,
+				Tenantid: tenantId,
 			})
 
 			if err != nil {

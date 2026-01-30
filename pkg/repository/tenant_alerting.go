@@ -183,15 +183,13 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	pgTenantId := tenantId
-
-	settings, err := r.queries.GetTenantAlertingSettings(ctx, tx, pgTenantId)
+	settings, err := r.queries.GetTenantAlertingSettings(ctx, tx, tenantId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	webhooks, err := r.queries.GetSlackWebhooks(ctx, tx, pgTenantId)
+	webhooks, err := r.queries.GetSlackWebhooks(ctx, tx, tenantId)
 
 	if err != nil {
 		return nil, err
@@ -199,7 +197,7 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 
 	groupsForSend := make([]*TenantAlertEmailGroupForSend, 0)
 
-	emailGroups, err := r.queries.GetEmailGroups(ctx, tx, pgTenantId)
+	emailGroups, err := r.queries.GetEmailGroups(ctx, tx, tenantId)
 
 	if err != nil {
 		return nil, err
@@ -214,14 +212,14 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 		})
 	}
 
-	tenant, err := r.queries.GetTenantByID(ctx, tx, pgTenantId)
+	tenant, err := r.queries.GetTenantByID(ctx, tx, tenantId)
 
 	if err != nil {
 		return nil, err
 	}
 
 	if tenant.AlertMemberEmails {
-		emails, err := r.queries.GetMemberEmailGroup(ctx, tx, pgTenantId)
+		emails, err := r.queries.GetMemberEmailGroup(ctx, tx, tenantId)
 
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {

@@ -355,11 +355,6 @@ func ToWorkflowRunDetails(
 
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
 
-	parentTaskExternalId := uuid.UUID{}
-	if workflowRun.ParentTaskExternalId != nil && *workflowRun.ParentTaskExternalId != uuid.Nil {
-		parentTaskExternalId = *workflowRun.ParentTaskExternalId
-	}
-
 	parsedWorkflowRun := gen.V1WorkflowRun{
 		AdditionalMetadata:   &additionalMetadata,
 		CreatedAt:            &workflowRun.CreatedAt.Time,
@@ -367,7 +362,7 @@ func ToWorkflowRunDetails(
 		Duration:             &duration,
 		ErrorMessage:         &workflowRun.ErrorMessage,
 		FinishedAt:           &workflowRun.FinishedAt.Time,
-		ParentTaskExternalId: &parentTaskExternalId,
+		ParentTaskExternalId: workflowRun.ParentTaskExternalId,
 		Metadata: gen.APIResourceMeta{
 			Id:        workflowRun.ExternalID.String(),
 			CreatedAt: workflowRun.InsertedAt.Time,
