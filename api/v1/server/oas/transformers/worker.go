@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -84,16 +82,12 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 		Name:          worker.Name,
 		Type:          gen.WorkerType(worker.Type),
 		Status:        &status,
-		DispatcherId:  &dispatcherId,
+		DispatcherId:  dispatcherId,
 		MaxRuns:       &maxRuns,
 		AvailableRuns: &availableRuns,
 		WebhookUrl:    webhookUrl,
 		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
-	}
-
-	if worker.WebhookId != uuid.Nil {
-		wid := worker.WebhookId
-		res.WebhookId = &wid
+		WebhookId:     worker.WebhookId,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {

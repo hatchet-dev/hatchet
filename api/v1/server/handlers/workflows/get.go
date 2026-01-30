@@ -14,7 +14,7 @@ func (t *WorkflowService) WorkflowGet(ctx echo.Context, request gen.WorkflowGetR
 	tenantId := tenant.ID.String()
 	workflow := ctx.Get("workflow").(*sqlcv1.GetWorkflowByIdRow)
 
-	if workflow == nil || workflow.WorkflowVersionId == uuid.Nil {
+	if workflow == nil || workflow.WorkflowVersionId == nil || *workflow.WorkflowVersionId == uuid.Nil {
 		return gen.WorkflowGet404JSONResponse(gen.APIErrors{}), nil
 	}
 

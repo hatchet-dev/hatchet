@@ -487,7 +487,7 @@ func ToTaskTimings(
 			toReturn[i].FinishedAt = &timing.FinishedAt.Time
 		}
 
-		if timing.ParentTaskExternalID != uuid.Nil {
+		if timing.ParentTaskExternalID != nil && *timing.ParentTaskExternalID != uuid.Nil {
 			parentId := uuid.MustParse(timing.ParentTaskExternalID.String())
 			toReturn[i].ParentTaskExternalId = &parentId
 		}

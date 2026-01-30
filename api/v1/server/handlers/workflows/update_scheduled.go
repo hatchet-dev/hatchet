@@ -26,7 +26,7 @@ func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.
 	}
 
 	// If a scheduled run has already been triggered, it can no longer be rescheduled.
-	if scheduled.WorkflowRunId != uuid.Nil {
+	if scheduled.WorkflowRunId == nil || *scheduled.WorkflowRunId != uuid.Nil {
 		return gen.WorkflowScheduledUpdate400JSONResponse(apierrors.NewAPIErrors("Scheduled run has already been triggered and cannot be rescheduled.")), nil
 	}
 

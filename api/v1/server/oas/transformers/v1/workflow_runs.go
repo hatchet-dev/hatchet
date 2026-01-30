@@ -182,12 +182,6 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 	retryCount := int(task.RetryCount)
 	attempt := retryCount + 1
 
-	var parentTaskExternalId *uuid.UUID
-	if task.ParentTaskExternalID != uuid.Nil {
-		parentTaskExternalIdValue := uuid.MustParse(task.ParentTaskExternalID.String())
-		parentTaskExternalId = &parentTaskExternalIdValue
-	}
-
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        task.ExternalID.String(),
@@ -218,7 +212,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
 		WorkflowRunExternalId: uuid.MustParse(task.WorkflowRunID.String()),
-		ParentTaskExternalId:  parentTaskExternalId,
+		ParentTaskExternalId:  task.ParentTaskExternalID,
 	}
 }
 
