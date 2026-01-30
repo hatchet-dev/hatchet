@@ -32,10 +32,10 @@ type RateLimitsClient struct {
 // NewRateLimitsClient creates a new RateLimitsClient with the provided api client, tenant id, and admin client.
 func NewRateLimitsClient(
 	api *rest.ClientWithResponses,
-	tenantId uuid.UUID,
+	tenantId string,
 	admin v0Client.AdminClient,
 ) *RateLimitsClient {
-	tenantIdUUid := tenantId
+	tenantIdUUid := uuid.MustParse(tenantId)
 
 	return &RateLimitsClient{
 		api:      api,

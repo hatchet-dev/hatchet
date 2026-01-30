@@ -24,10 +24,10 @@ type RunsClient struct {
 // NewRunsClient creates a new client for interacting with workflow runs.
 func NewRunsClient(
 	api *rest.ClientWithResponses,
-	tenantId uuid.UUID,
+	tenantId string,
 	v0Client client.Client,
 ) *RunsClient {
-	tenantIdUUID := tenantId
+	tenantIdUUID := uuid.MustParse(tenantId)
 	logger := v0Client.Logger()
 
 	return &RunsClient{

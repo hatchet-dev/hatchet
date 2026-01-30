@@ -19,9 +19,9 @@ type MetricsClient struct {
 // NewMetricsClient creates a new MetricsClient
 func NewMetricsClient(
 	api *rest.ClientWithResponses,
-	tenantId uuid.UUID,
+	tenantId string,
 ) *MetricsClient {
-	tenantIdUUID := tenantId
+	tenantIdUUID := uuid.MustParse(tenantId)
 	workflows := NewWorkflowsClient(api, tenantId)
 
 	return &MetricsClient{

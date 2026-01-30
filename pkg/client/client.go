@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
@@ -58,7 +57,7 @@ type clientImpl struct {
 	cloudrest  *cloudrest.ClientWithResponses
 
 	// the tenant id
-	tenantId uuid.UUID
+	tenantId string
 
 	namespace string
 
@@ -163,7 +162,7 @@ func WithLogger(l *zerolog.Logger) ClientOpt {
 	}
 }
 
-func WithTenantId(tenantId uuid.UUID) ClientOpt {
+func WithTenantId(tenantId string) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.tenantId = tenantId
 	}

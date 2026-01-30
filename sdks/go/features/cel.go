@@ -18,9 +18,9 @@ type CELClient struct {
 // NewCELClient creates a new CELClient
 func NewCELClient(
 	api *rest.ClientWithResponses,
-	tenantId uuid.UUID,
+	tenantId string,
 ) *CELClient {
-	tenantIdUUID := tenantId
+	tenantIdUUID := uuid.MustParse(tenantId)
 
 	return &CELClient{
 		api:      api,

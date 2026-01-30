@@ -22,9 +22,9 @@ type WorkflowsClient struct {
 // NewWorkflowsClient creates a new WorkflowsClient
 func NewWorkflowsClient(
 	api *rest.ClientWithResponses,
-	tenantId uuid.UUID,
+	tenantId string,
 ) *WorkflowsClient {
-	tenantIdUUID := tenantId
+	tenantIdUUID := uuid.MustParse(tenantId)
 
 	// Create a cache with the specified TTL
 	workflowCache := cache.New(time.Minute * 5)

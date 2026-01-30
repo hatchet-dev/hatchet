@@ -49,9 +49,9 @@ type CronsClient struct {
 // NewCronsClient creates a new CronsClient
 func NewCronsClient(
 	api *rest.ClientWithResponses,
-	tenantId uuid.UUID,
+	tenantId string,
 ) *CronsClient {
-	tenantIdUUID := tenantId
+	tenantIdUUID := uuid.MustParse(tenantId)
 
 	return &CronsClient{
 		api:      api,

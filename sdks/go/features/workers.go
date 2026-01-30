@@ -18,9 +18,9 @@ type WorkersClient struct {
 // NewWorkersClient creates a new WorkersClient
 func NewWorkersClient(
 	api *rest.ClientWithResponses,
-	tenantId uuid.UUID,
+	tenantId string,
 ) *WorkersClient {
-	tenantIdUUID := tenantId
+	tenantIdUUID := uuid.MustParse(tenantId)
 
 	return &WorkersClient{
 		api:      api,
