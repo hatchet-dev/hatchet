@@ -244,6 +244,8 @@ export class Api<
       levels?: V1LogLineLevel[];
       /** The direction to order by */
       order_by_direction?: V1LogLineOrderByDirection;
+      /** The attempt number to filter for */
+      attempt?: number;
     },
     params: RequestParams = {},
   ) =>
