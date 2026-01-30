@@ -366,7 +366,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		iterCtx, iterSpan := telemetry.NewSpan(ctx, "subscribe_to_workflow_runs_v1.iter")
 		defer iterSpan.End()
 
-		bufferSize := 1000
+		bufferSize := s.workflowRunBufferSize
 
 		if len(workflowRunIds) > bufferSize {
 			ringMu.Lock()
