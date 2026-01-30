@@ -34,7 +34,7 @@ func TestTaskOutput_WithMapResult(t *testing.T) {
 	}
 
 	workflowResult := &WorkflowResult{
-		result: taskResults,
+		Result: taskResults,
 	}
 
 	// Create mock task
@@ -80,7 +80,7 @@ func TestTaskOutput_WithJSONStringResult(t *testing.T) {
 	}
 
 	workflowResult := &WorkflowResult{
-		result: taskResults,
+		Result: taskResults,
 	}
 
 	task := &mockTask{name: "json-task"}
@@ -108,7 +108,7 @@ func TestTaskOutput_TaskNotFound(t *testing.T) {
 	}
 
 	workflowResult := &WorkflowResult{
-		result: taskResults,
+		Result: taskResults,
 	}
 
 	// Request a task that doesn't exist
@@ -141,7 +141,7 @@ func TestTaskOutput_SingleTaskWorkflow(t *testing.T) {
 	}
 
 	workflowResult := &WorkflowResult{
-		result: taskResults,
+		Result: taskResults,
 	}
 
 	task := &mockTask{name: "only-task"}
@@ -165,7 +165,7 @@ func TestTaskOutput_SingleTaskWorkflow(t *testing.T) {
 func TestTaskResult_Into_InvalidJSON(t *testing.T) {
 	// Test error handling with invalid data
 	taskResult := &TaskResult{
-		result: make(chan int), // Cannot be marshaled to JSON
+		Result: make(chan int), // Cannot be marshaled to JSON
 	}
 
 	var output TestOutputStruct
@@ -188,7 +188,7 @@ func TestTaskResult_Into_WithPointerToInterface(t *testing.T) {
 
 	var data any = expectedOutput
 	taskResult := &TaskResult{
-		result: &data,
+		Result: &data,
 	}
 
 	var actualOutput TestOutputStruct
