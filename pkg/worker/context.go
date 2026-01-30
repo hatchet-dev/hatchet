@@ -299,7 +299,8 @@ func (h *hatchetContext) WorkflowVersionId() *string {
 }
 
 func (h *hatchetContext) Log(message string) {
-	err := h.c.Event().PutLog(h, h.a.StepRunId, message, nil, &h.a.RetryCount)
+	infoLevel := "INFO"
+	err := h.c.Event().PutLog(h, h.a.StepRunId, message, &infoLevel, &h.a.RetryCount)
 
 	if err != nil {
 		h.l.Err(err).Msg("could not put log")

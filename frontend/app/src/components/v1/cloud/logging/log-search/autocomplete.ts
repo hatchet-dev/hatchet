@@ -1,4 +1,4 @@
-import { AutocompleteSuggestion, LOG_LEVELS } from './types';
+import { AutocompleteSuggestion, LOG_LEVELS, LOG_LEVEL_COLORS } from './types';
 
 const LEVEL_DESCRIPTIONS: Record<string, string> = {
   error: 'Error messages',
@@ -7,6 +7,21 @@ const LEVEL_DESCRIPTIONS: Record<string, string> = {
   debug: 'Debug messages',
 };
 
+const FILTER_KEYS: AutocompleteSuggestion[] = [
+  {
+    type: 'key',
+    label: 'level',
+    value: 'level:',
+    description: 'Filter by log level',
+  },
+  {
+    type: 'key',
+    label: 'attempt',
+    value: 'attempt:',
+    description: 'Filter by attempt number',
+  },
+];
+
 export type AutocompleteMode = 'key' | 'value' | 'none';
 
 export interface AutocompleteState {
@@ -14,7 +29,10 @@ export interface AutocompleteState {
   suggestions: AutocompleteSuggestion[];
 }
 
-export function getAutocomplete(query: string): AutocompleteState {
+export function getAutocomplete(
+  query: string,
+  availableAttempts?: number[],
+): AutocompleteState {
   const trimmed = query.trimEnd();
   const lastWord = trimmed.split(' ').pop() || '';
 
@@ -27,36 +45,35 @@ export function getAutocomplete(query: string): AutocompleteState {
       label: level,
       value: level,
       description: LEVEL_DESCRIPTIONS[level],
+      color: LOG_LEVEL_COLORS[level],
     }));
     return { mode: 'value', suggestions };
   }
 
-  if ('level:'.startsWith(lastWord.toLowerCase()) && lastWord.length > 0) {
-    return {
-      mode: 'key',
-      suggestions: [
-        {
-          type: 'key',
-          label: 'level',
-          value: 'level:',
-          description: 'Filter by log level',
-        },
-      ],
-    };
+  if (lastWord.startsWith('attempt:')) {
+    const partial = lastWord.slice(8);
+    const attempts = availableAttempts ?? [1, 2, 3];
+    const suggestions = attempts
+      .filter((attempt) => String(attempt).startsWith(partial))
+      .map((attempt) => ({
+        type: 'value' as const,
+        label: String(attempt),
+        value: String(attempt),
+        description: `Attempt ${attempt}`,
+      }));
+    return { mode: 'value', suggestions };
+  }
+
+  const matchingKeys = FILTER_KEYS.filter(
+    (key) =>
+      key.value.startsWith(lastWord.toLowerCase()) && lastWord.length > 0,
+  );
+  if (matchingKeys.length > 0) {
+    return { mode: 'key', suggestions: matchingKeys };
   }
 
   if (trimmed === '' || query.endsWith(' ')) {
-    return {
-      mode: 'key',
-      suggestions: [
-        {
-          type: 'key',
-          label: 'level',
-          value: 'level:',
-          description: 'Filter by log level',
-        },
-      ],
-    };
+    return { mode: 'key', suggestions: FILTER_KEYS };
   }
 
   return { mode: 'none', suggestions: [] };
@@ -74,7 +91,10 @@ export function applySuggestion(
     const prefix = lastWord.slice(0, lastWord.indexOf(':') + 1);
     words.push(prefix + suggestion.value);
   } else {
-    if (lastWord && 'level:'.startsWith(lastWord.toLowerCase())) {
+    const isPartialKey = FILTER_KEYS.some((key) =>
+      key.value.startsWith(lastWord.toLowerCase()),
+    );
+    if (lastWord && isPartialKey) {
       words.push(suggestion.value);
     } else {
       words.push(lastWord, suggestion.value);

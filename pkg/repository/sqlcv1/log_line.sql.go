@@ -35,11 +35,12 @@ WHERE
     AND ($5::TIMESTAMPTZ IS NULL OR l.created_at > $5::TIMESTAMPTZ)
     AND ($6::TIMESTAMPTZ IS NULL OR l.created_at < $6::TIMESTAMPTZ)
     AND ($7::v1_log_line_level[] IS NULL OR l.level = ANY($7::v1_log_line_level[]))
+    AND ($8::INTEGER IS NULL OR l.retry_count = ($8::INTEGER - 1))
 ORDER BY
-    CASE WHEN $8::TEXT = 'DESC' THEN l.created_at END DESC,
-    CASE WHEN $8::TEXT = 'ASC' THEN l.created_at END ASC
-LIMIT COALESCE($10::BIGINT, 1000)
-OFFSET COALESCE($9::BIGINT, 0)
+    CASE WHEN $9::TEXT = 'DESC' THEN l.created_at END DESC,
+    CASE WHEN $9::TEXT = 'ASC' THEN l.created_at END ASC
+LIMIT COALESCE($11::BIGINT, 1000)
+OFFSET COALESCE($10::BIGINT, 0)
 `
 
 type ListLogLinesParams struct {
@@ -50,6 +51,7 @@ type ListLogLinesParams struct {
 	Since            pgtype.Timestamptz `json:"since"`
 	Until            pgtype.Timestamptz `json:"until"`
 	Levels           []V1LogLineLevel   `json:"levels"`
+	Attempt          pgtype.Int4        `json:"attempt"`
 	Orderbydirection string             `json:"orderbydirection"`
 	Offset           pgtype.Int8        `json:"offset"`
 	Limit            pgtype.Int8        `json:"limit"`
@@ -64,6 +66,7 @@ func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesPar
 		arg.Since,
 		arg.Until,
 		arg.Levels,
+		arg.Attempt,
 		arg.Orderbydirection,
 		arg.Offset,
 		arg.Limit,
