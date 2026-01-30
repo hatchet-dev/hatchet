@@ -364,8 +364,6 @@ export interface SubscriptionPlan {
   planCode: string;
   /** The name of the plan. */
   name: string;
-  /** The description of the plan. */
-  description: string;
   /** The price of the plan. */
   amountCents: number;
   /** The period of the plan. */
@@ -407,6 +405,61 @@ export interface TenantSubscription {
    */
   endsAt?: string;
 }
+
+export interface OrganizationBillingState {
+  /** The subscription associated with this organization. */
+  currentSubscription: OrganizationSubscription;
+  /** The upcoming subscription associated with this organization. */
+  upcomingSubscription?: OrganizationSubscription;
+  /** A list of plans available for the organization. */
+  plans: SubscriptionPlan[];
+  /** A list of coupons applied to the organization. */
+  coupons?: Coupon[];
+}
+
+export interface OrganizationPaymentMethod {
+  /** The brand of the payment method. */
+  brand: string;
+  /** The last 4 digits of the card. */
+  last4?: string;
+  /** The expiration date of the card. */
+  expiration?: string;
+  /** The description of the payment method. */
+  description?: string;
+}
+
+export type OrganizationPaymentMethodList = OrganizationPaymentMethod[];
+
+export interface OrganizationSubscription {
+  /** The plan code associated with the organization subscription. */
+  plan: string;
+  /** The period associated with the organization subscription. */
+  period?: string;
+  /**
+   * The start date of the organization subscription.
+   * @format date-time
+   */
+  startedAt: string;
+  /**
+   * The end date of the organization subscription.
+   * @format date-time
+   */
+  endsAt?: string;
+}
+
+export interface UpdateOrganizationSubscriptionRequest {
+  /** The code of the plan. */
+  plan: string;
+  /** The period of the plan. */
+  period?: string;
+}
+
+export type UpdateOrganizationSubscriptionResponse =
+  | CheckoutURLResponse
+  | {
+      currentSubscription: OrganizationSubscription;
+      upcomingSubscription?: OrganizationSubscription;
+    };
 
 export interface Coupon {
   /** The name of the coupon. */
