@@ -26,7 +26,7 @@ func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tes
 	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
 		jwtManager := getJWTManager(t, conf)
 
-		tenantId := uuid.New().String()
+		tenantId := uuid.New()
 
 		// create the tenant
 		slugSuffix, err := random.Generate(8)
@@ -55,7 +55,7 @@ func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tes
 		newTenantId, _, err := jwtManager.ValidateTenantToken(context.Background(), token.Token)
 
 		assert.NoError(t, err)
-		assert.Equal(t, tenantId, newTenantId)
+		assert.Equal(t, tenantId.String(), newTenantId)
 
 		return nil
 	})
@@ -67,7 +67,7 @@ func TestRevokeTenantToken(t *testing.T) {
 	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
 		jwtManager := getJWTManager(t, conf)
 
-		tenantId := uuid.New().String()
+		tenantId := uuid.New()
 
 		// create the tenant
 		slugSuffix, err := random.Generate(8)
@@ -131,7 +131,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
 		jwtManager := getJWTManager(t, conf)
 
-		tenantId := uuid.New().String()
+		tenantId := uuid.New()
 
 		// create the tenant
 		slugSuffix, err := random.Generate(8)

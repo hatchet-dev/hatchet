@@ -21,6 +21,8 @@ type testMessagePayload struct {
 	Key string `json:"key"`
 }
 
+var testTenantUUID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
+
 func TestMessageQueueIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -57,7 +59,7 @@ func TestMessageQueueIntegration(t *testing.T) {
 		}
 	}()
 
-	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, map[string]interface{}{"key": "value"})
+	task, err := msgqueue.NewTenantMessage(testTenantUUID, id, false, true, map[string]interface{}{"key": "value"})
 
 	if err != nil {
 		t.Fatalf("error creating task: %v", err)
@@ -77,12 +79,11 @@ func TestMessageQueueIntegration(t *testing.T) {
 	require.NoError(t, err, "subscribing to static queue should not error")
 
 	// Test tenant registration and queue creation
-	tenantId := "test-tenant-v1"
-	err = tq.RegisterTenant(ctx, tenantId)
+	err = tq.RegisterTenant(ctx, testTenantUUID)
 	assert.NoError(t, err, "registering tenant should not error")
 
 	// Assuming there's a mechanism to retrieve a tenant-specific queue, e.g., by tenant ID
-	tenantQueue := msgqueue.TenantEventConsumerQueue(tenantId)
+	tenantQueue := msgqueue.TenantEventConsumerQueue(testTenantUUID)
 
 	if err != nil {
 		t.Fatalf("error creating tenant-specific queue: %v", err)
@@ -167,7 +168,7 @@ func TestBufferedSubMessageQueueIntegration(t *testing.T) {
 		t.Fatalf("error starting buffer: %v", err)
 	}
 
-	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, &testMessagePayload{
+	task, err := msgqueue.NewTenantMessage(testTenantUUID, id, false, true, &testMessagePayload{
 		Key: "value",
 	})
 
@@ -240,7 +241,7 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 
 	pub := msgqueue.NewMQPubBuffer(tq)
 
-	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, &testMessagePayload{
+	task, err := msgqueue.NewTenantMessage(testTenantUUID, id, false, true, &testMessagePayload{
 		Key: "value",
 	})
 
@@ -301,7 +302,7 @@ func TestDeadLetteringSuccess(t *testing.T) {
 		}
 	}()
 
-	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, &testMessagePayload{
+	task, err := msgqueue.NewTenantMessage(testTenantUUID, id, false, true, &testMessagePayload{
 		Key: "value",
 	})
 

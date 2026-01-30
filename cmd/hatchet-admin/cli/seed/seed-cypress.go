@@ -30,7 +30,7 @@ type User struct {
 type Tenant struct {
 	name string
 	slug string
-	id   uuid.UUID
+	id   string
 }
 
 const (
@@ -149,8 +149,8 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 			existingTenants++
 		}
 
-		tenant.id = insertedTenant.ID
-		logger.Printf("tenant %s: name=%q slug=%q tenant_id=%s", action, tenant.name, tenant.slug, tenant.id.String())
+		tenant.id = insertedTenant.ID.String()
+		logger.Printf("tenant %s: name=%q slug=%q tenant_id=%s", action, tenant.name, tenant.slug, tenant.id)
 	}
 
 	var createdMembers, existingMembers int
@@ -162,8 +162,13 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 
 			allowed := userHasTenantSlug(*user, tenant.slug)
 
+			tenantUUID, err := uuid.Parse(tenant.id)
+			if err != nil {
+				return fmt.Errorf("invalid tenant ID %s: %w", tenant.id, err)
+			}
+
 			// Idempotent: check membership first so reruns are clean.
-			member, err := dc.V1.Tenant().GetTenantMemberByUserID(ctx, tenant.id, user.id)
+			member, err := dc.V1.Tenant().GetTenantMemberByUserID(ctx, tenantUUID, user.id)
 			if err == nil {
 				if !allowed {
 					if err := dc.V1.Tenant().DeleteTenantMember(ctx, member.ID.String()); err != nil {
@@ -221,7 +226,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 				continue
 			}
 
-			createdMember, err := dc.V1.Tenant().CreateTenantMember(ctx, tenant.id, &v1.CreateTenantMemberOpts{
+			createdMember, err := dc.V1.Tenant().CreateTenantMember(ctx, tenantUUID, &v1.CreateTenantMemberOpts{
 				Role:   user.role,
 				UserId: user.id,
 			})
