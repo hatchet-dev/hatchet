@@ -110,9 +110,9 @@ func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 
 	// delete tenants that are not in the list
 	p.tenants.Range(func(key, value interface{}) bool {
-		tenantId := key.(string)
+		tenantId := key.(uuid.UUID)
 
-		if _, ok := tenantMap[uuid.MustParse(tenantId)]; !ok {
+		if _, ok := tenantMap[tenantId]; !ok {
 			toCleanup = append(toCleanup, value.(*tenantManager))
 		}
 
