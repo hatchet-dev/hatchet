@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
@@ -93,7 +94,12 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 		tenantId = server.Seed.DefaultTenantID
 	}
 
-	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
+	tenantUUID, err := uuid.Parse(tenantId)
+	if err != nil {
+		return fmt.Errorf("invalid tenant ID: %w", err)
+	}
+
+	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantUUID, tokenName, false, &expiresAt)
 
 	if err != nil {
 		return err

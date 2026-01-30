@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/google/uuid"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/kubernetes"
@@ -260,7 +261,12 @@ func runCreateWorkerToken() error {
 		tenantId = server.Seed.DefaultTenantID
 	}
 
-	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
+	tenantUUID, err := uuid.Parse(tenantId)
+	if err != nil {
+		return fmt.Errorf("invalid tenant ID: %w", err)
+	}
+
+	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantUUID, tokenName, false, &expiresAt)
 
 	if err != nil {
 		return err

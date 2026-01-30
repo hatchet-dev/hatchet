@@ -157,7 +157,11 @@ func startEngine() func() {
 	}
 
 	// set the API token
-	setAPIToken(ctx, cf, dl.Seed.DefaultTenantID)
+	tenantUUID, err := uuid.Parse(dl.Seed.DefaultTenantID)
+	if err != nil {
+		log.Fatalf("failed to parse default tenant ID: %v", err)
+	}
+	setAPIToken(ctx, cf, tenantUUID)
 
 	engineCh := make(chan error)
 

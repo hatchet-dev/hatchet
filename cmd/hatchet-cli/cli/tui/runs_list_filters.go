@@ -403,7 +403,7 @@ type WorkflowOption struct {
 }
 
 // FetchWorkflows fetches available workflows for filtering
-func FetchWorkflows(ctx context.Context, client rest.ClientWithResponsesInterface, tenantID uuid.UUID) ([]WorkflowOption, error) {
+func FetchWorkflows(ctx context.Context, client rest.ClientWithResponsesInterface, tenantID string) ([]WorkflowOption, error) {
 	// Parse tenant ID as UUID
 	tenantUUID, err := uuid.Parse(tenantID)
 	if err != nil {

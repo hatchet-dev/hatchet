@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
@@ -51,8 +52,13 @@ func SeedDatabase(dc *database.Layer) error {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// seed an example tenant
 			// initialize a tenant
+			tenantID, err := uuid.Parse(dc.Seed.DefaultTenantID)
+			if err != nil {
+				return fmt.Errorf("invalid default tenant ID: %w", err)
+			}
+
 			sqlcTenant, err := dc.V1.Tenant().CreateTenant(context.Background(), &v1.CreateTenantOpts{
-				ID:   &dc.Seed.DefaultTenantID,
+				ID:   &tenantID,
 				Name: dc.Seed.DefaultTenantName,
 				Slug: dc.Seed.DefaultTenantSlug,
 			})
@@ -61,7 +67,7 @@ func SeedDatabase(dc *database.Layer) error {
 				return err
 			}
 
-			tenant, err := dc.V1.Tenant().GetTenantByID(context.Background(), sqlcTenant.ID.String())
+			tenant, err := dc.V1.Tenant().GetTenantByID(context.Background(), sqlcTenant.ID)
 
 			if err != nil {
 				return err
@@ -70,7 +76,7 @@ func SeedDatabase(dc *database.Layer) error {
 			fmt.Println("created tenant", tenant.ID.String())
 
 			// add the user to the tenant
-			_, err = dc.V1.Tenant().CreateTenantMember(context.Background(), tenant.ID.String(), &v1.CreateTenantMemberOpts{
+			_, err = dc.V1.Tenant().CreateTenantMember(context.Background(), tenant.ID, &v1.CreateTenantMemberOpts{
 				Role:   "OWNER",
 				UserId: userID,
 			})

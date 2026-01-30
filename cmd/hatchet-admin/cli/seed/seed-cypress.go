@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
@@ -29,7 +30,7 @@ type User struct {
 type Tenant struct {
 	name string
 	slug string
-	id   string
+	id   uuid.UUID
 }
 
 const (
@@ -148,8 +149,8 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 			existingTenants++
 		}
 
-		tenant.id = insertedTenant.ID.String()
-		logger.Printf("tenant %s: name=%q slug=%q tenant_id=%s", action, tenant.name, tenant.slug, tenant.id)
+		tenant.id = insertedTenant.ID
+		logger.Printf("tenant %s: name=%q slug=%q tenant_id=%s", action, tenant.name, tenant.slug, tenant.id.String())
 	}
 
 	var createdMembers, existingMembers int
