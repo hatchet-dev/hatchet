@@ -762,18 +762,18 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 
 func (c *ConcurrencyRepositoryImpl) upsertQueuesForQueuedTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId string, queuedTasks []TaskWithQueue) error {
 	uniqueQueues := make(map[string]bool, len(queuedTasks))
+	queueList := make([]string, 0, len(queuedTasks))
 	for _, queue := range queuedTasks {
 		if _, ok := uniqueQueues[queue.Queue]; ok {
 			continue
 		}
 		uniqueQueues[queue.Queue] = true
+		queueList = append(queueList, queue.Queue)
 	}
 
-	for queue := range uniqueQueues {
-		_, err := c.upsertQueues(ctx, tx, tenantId, []string{queue})
-		if err != nil {
-			return fmt.Errorf("failed to upsert queue: %w", err)
-		}
+	_, err := c.upsertQueues(ctx, tx, tenantId, queueList)
+	if err != nil {
+		return fmt.Errorf("failed to upsert queues: %w", err)
 	}
 
 	return nil
