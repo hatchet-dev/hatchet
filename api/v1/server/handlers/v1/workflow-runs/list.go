@@ -27,10 +27,9 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 			sqlcv1.V1ReadableStatusOlapCOMPLETED,
 			sqlcv1.V1ReadableStatusOlapCANCELLED,
 		}
-		since             = request.Params.Since
-		workflowIds       = []uuid.UUID{}
-		limit       int64 = 50
-		offset      int64
+		since        = request.Params.Since
+		limit  int64 = 50
+		offset int64
 	)
 
 	if request.Params.Statuses != nil {
@@ -50,6 +49,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		offset = *request.Params.Offset
 	}
 
+	workflowIds := make([]uuid.UUID, 0)
 	if request.Params.WorkflowIds != nil {
 		workflowIds = *request.Params.WorkflowIds
 	}

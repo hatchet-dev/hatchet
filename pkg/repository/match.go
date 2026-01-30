@@ -662,7 +662,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		externalIds := make([]string, 0, len(satisfiedMatches))
 
 		for _, match := range satisfiedMatches {
-			if match.SignalTaskID.Valid && match.SignalTaskInsertedAt.Valid {
+			if match.SignalTaskID.Valid && match.SignalTaskInsertedAt.Valid && match.SignalExternalID != nil {
 				taskIds = append(taskIds, TaskIdInsertedAtRetryCount{
 					Id:         match.SignalTaskID.Int64,
 					InsertedAt: match.SignalTaskInsertedAt,

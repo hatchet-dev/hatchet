@@ -654,13 +654,15 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		Tasklimit:                 int32(opts.Limit),
 		Taskoffset:                int32(opts.Offset),
-		TriggeringEventExternalId: uuid.UUID{},
+		TriggeringEventExternalId: opts.TriggeringEventExternalId,
+		WorkerId:                  opts.WorkerId,
 	}
 
 	countParams := sqlcv1.CountTasksParams{
 		Tenantid:                  uuid.MustParse(tenantId),
 		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		TriggeringEventExternalId: uuid.UUID{},
+		TriggeringEventExternalId: opts.TriggeringEventExternalId,
+		WorkerId:                  opts.WorkerId,
 	}
 
 	statuses := make([]string, 0)
@@ -700,25 +702,11 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
 	}
 
-	workerId := opts.WorkerId
-
-	if workerId != nil {
-		params.WorkerId = uuid.MustParse(workerId.String())
-		countParams.WorkerId = uuid.MustParse(workerId.String())
-	}
-
 	for key, value := range opts.AdditionalMetadata {
 		params.Keys = append(params.Keys, key)
 		params.Values = append(params.Values, value.(string))
 		countParams.Keys = append(countParams.Keys, key)
 		countParams.Values = append(countParams.Values, value.(string))
-	}
-
-	triggeringEventExternalId := opts.TriggeringEventExternalId
-
-	if triggeringEventExternalId != nil {
-		params.TriggeringEventExternalId = uuid.MustParse(triggeringEventExternalId.String())
-		countParams.TriggeringEventExternalId = uuid.MustParse(triggeringEventExternalId.String())
 	}
 
 	var (
@@ -984,8 +972,8 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		Listworkflowrunslimit:     int32(opts.Limit),
 		Listworkflowrunsoffset:    int32(opts.Offset),
-		ParentTaskExternalId:      uuid.UUID{},
-		TriggeringEventExternalId: uuid.UUID{},
+		ParentTaskExternalId:      opts.ParentTaskExternalId,
+		TriggeringEventExternalId: opts.TriggeringEventExternalId,
 	}
 
 	countParams := sqlcv1.CountWorkflowRunsParams{
@@ -1035,16 +1023,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		params.Values = append(params.Values, value.(string))
 		countParams.Keys = append(countParams.Keys, key)
 		countParams.Values = append(countParams.Values, value.(string))
-	}
-
-	if opts.ParentTaskExternalId != nil {
-		params.ParentTaskExternalId = *opts.ParentTaskExternalId
-		countParams.ParentTaskExternalId = *opts.ParentTaskExternalId
-	}
-
-	if opts.TriggeringEventExternalId != nil {
-		params.TriggeringEventExternalId = *opts.TriggeringEventExternalId
-		countParams.TriggeringEventExternalId = *opts.TriggeringEventExternalId
 	}
 
 	var (
