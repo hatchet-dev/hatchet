@@ -3,6 +3,7 @@
 package smtp
 
 import (
+	"bytes"
 	"io"
 	"log"
 	"net"
@@ -111,6 +112,13 @@ func (s *mockSession) Data(r io.Reader) error {
 	if err != nil {
 		return err
 	}
+
+	bodyBytes, err := io.ReadAll(msg.Body)
+	if err != nil {
+		return err
+	}
+
+	msg.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	s.capture.mu.Lock()
 	defer s.capture.mu.Unlock()

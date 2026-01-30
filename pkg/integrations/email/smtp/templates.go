@@ -3,7 +3,8 @@ package smtp
 import (
 	"embed"
 	"fmt"
-	"html/template"
+	html "html/template"
+	text "text/template"
 
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 )
@@ -11,29 +12,60 @@ import (
 //go:embed templates/*.html
 var templateFS embed.FS
 
-var templateRegistry = make(map[string]*template.Template)
+var templateRegistry = make(map[string]struct {
+	bodyTmpl    *html.Template
+	subjectTmpl *text.Template
+})
+
+const (
+	subjectTemplateAlias   = "subject"
+	inviteSubjectTemplate  = `{{.InviteSenderName}} invited you to join {{.TenantName}} on Hatchet`
+	defaultSubjectTemplate = `[{{.TenantName}}] {{.Subject}}`
+)
 
 func init() {
-	templates := map[string]string{
-		email.TokenAlertExpiringTemplate: "templates/expiring_token.html",
-		email.UserInviteTemplate:         "templates/user_invite.html",
-		email.OrganizationInviteTemplate: "templates/organization_invite.html",
-		email.ResourceLimitAlertTemplate: "templates/resource_limit_alert.html",
-		email.WorkflowRunsFailedTemplate: "templates/workflow_runs_failed.html",
+	templates := map[string]struct {
+		fileName string
+		subject  string
+	}{
+		email.UserInviteTemplate:         {"templates/user_invite.html", inviteSubjectTemplate},
+		email.OrganizationInviteTemplate: {"templates/organization_invite.html", inviteSubjectTemplate},
+		email.TokenAlertExpiringTemplate: {"templates/expiring_token.html", defaultSubjectTemplate},
+		email.ResourceLimitAlertTemplate: {"templates/resource_limit_alert.html", defaultSubjectTemplate},
+		email.WorkflowRunsFailedTemplate: {"templates/workflow_runs_failed.html", defaultSubjectTemplate},
 	}
 
-	for alias, fileName := range templates {
+	for alias, tmpl := range templates {
 		// We need to ensure that the layout.html is parsed before the HTML template
-		templateRegistry[alias] = template.Must(
-			template.ParseFS(templateFS, "templates/layout.html", fileName),
+		bodyTmpl := html.Must(
+			html.ParseFS(templateFS, "templates/layout.html", tmpl.fileName),
 		)
+
+		subjectTmpl := text.Must(text.New("email-subject").Parse(tmpl.subject))
+
+		templateRegistry[alias] = struct {
+			bodyTmpl    *html.Template
+			subjectTmpl *text.Template
+		}{
+			bodyTmpl:    bodyTmpl,
+			subjectTmpl: subjectTmpl,
+		}
+
 	}
 }
 
-func getTemplate(alias string) (*template.Template, error) {
+func getEmailTemplate(alias string) (*html.Template, error) {
 	tmpl, ok := templateRegistry[alias]
 	if !ok {
 		return nil, fmt.Errorf("template %s does not exist", alias)
 	}
-	return tmpl, nil
+	return tmpl.bodyTmpl, nil
+}
+
+func getSubjectTemplate(alias string) (*text.Template, error) {
+	tmpl, ok := templateRegistry[alias]
+	if !ok {
+		return nil, fmt.Errorf("template %s does not exist", alias)
+	}
+	return tmpl.subjectTmpl, nil
 }

@@ -1,7 +1,9 @@
 package smtp
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -12,10 +14,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 )
 
-var _ email.EmailService = &SMTPService{}
+const defaultSMTPClientPort = 587
 
-const (
-	defaultSMTPClientPort = 587
+var (
+	_ email.EmailService = &SMTPService{}
+
+	errNoSubject = errors.New("subject field of email cannot be empty")
 )
 
 type SMTPService struct {
@@ -64,7 +68,7 @@ func (s *SMTPService) IsValid() bool {
 }
 
 func (s *SMTPService) SendTenantInviteEmail(ctx context.Context, to string, data email.TenantInviteEmailData) error {
-	return s.SendTemplateEmail(ctx, to, email.OrganizationInviteTemplate, data, false)
+	return s.SendTemplateEmail(ctx, to, email.UserInviteTemplate, data, false)
 }
 
 func (s *SMTPService) SendWorkflowRunFailedAlerts(ctx context.Context, emails []string, data email.WorkflowRunsFailedEmailData) error {
@@ -130,12 +134,24 @@ func (s *SMTPService) sendRequest(ctx context.Context, req *email.SendEmailFromT
 		}
 	}
 
-	switch data := req.TemplateModel.(type) {
-	case interface{ GetSubject() string }:
-		msg.Subject(data.GetSubject())
+	subjectTmpl, err := getSubjectTemplate(req.TemplateAlias)
+	if err != nil {
+		return err
 	}
 
-	tmpl, err := getTemplate(req.TemplateAlias)
+	var subject bytes.Buffer
+	err = subjectTmpl.Execute(&subject, req.TemplateModel)
+	if err != nil {
+		return err
+	}
+
+	subj := subject.String()
+	if subj == "" {
+		return errNoSubject
+	}
+	msg.Subject(subj)
+
+	tmpl, err := getEmailTemplate(req.TemplateAlias)
 	if err != nil {
 		return err
 	}
