@@ -65,11 +65,11 @@ type CreatedEventTriggerPayloadSingleton struct {
 	MaybeRunInsertedAt      *time.Time `json:"run_inserted_at"`
 	EventSeenAt             time.Time  `json:"event_seen_at"`
 	EventKey                string     `json:"event_key"`
-	EventExternalId         string     `json:"event_id"`
+	EventExternalId         uuid.UUID  `json:"event_id"`
 	EventPayload            []byte     `json:"event_payload"`
 	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
 	EventScope              *string    `json:"event_scope,omitempty"`
-	FilterId                *string    `json:"filter_id,omitempty"`
+	FilterId                *uuid.UUID `json:"filter_id,omitempty"`
 	TriggeringWebhookName   *string    `json:"triggering_webhook_name,omitempty"`
 }
 

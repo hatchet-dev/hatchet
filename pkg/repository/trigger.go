@@ -19,7 +19,7 @@ import (
 )
 
 type EventTriggerOpts struct {
-	ExternalId string
+	ExternalId uuid.UUID
 
 	Key string
 
@@ -114,20 +114,20 @@ func newTriggerRepository(s *sharedRepository) TriggerRepository {
 type Run struct {
 	Id         int64
 	InsertedAt time.Time
-	FilterId   *string
+	FilterId   *uuid.UUID
 }
 
 type TriggerFromEventsResult struct {
 	Tasks                 []*V1TaskWithPayload
 	Dags                  []*DAGWithData
-	EventExternalIdToRuns map[string][]*Run
+	EventExternalIdToRuns map[uuid.UUID][]*Run
 	CELEvaluationFailures []CELEvaluationFailure
 }
 
 type TriggerDecision struct {
 	ShouldTrigger bool
 	FilterPayload []byte
-	FilterId      *string
+	FilterId      *uuid.UUID
 }
 
 func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filters []*sqlcv1.V1Filter, hasAnyFilters bool, opt EventTriggerOpts) ([]TriggerDecision, []CELEvaluationFailure) {
@@ -169,7 +169,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 			continue
 		}
 
-		filterId := filter.ID.String()
+		filterId := filter.ID
 
 		if filter.Expression == "" {
 			decisions = append(decisions, TriggerDecision{
@@ -212,8 +212,8 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 }
 
 type EventExternalIdFilterId struct {
-	ExternalId string
-	FilterId   *string
+	ExternalId uuid.UUID
+	FilterId   *uuid.UUID
 }
 
 type WorkflowAndScope struct {
@@ -229,7 +229,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}
 
 	eventKeysToOpts := make(map[string][]EventTriggerOpts)
-	eventExternalIdToRuns := make(map[string][]*Run)
+	eventExternalIdToRuns := make(map[uuid.UUID][]*Run)
 
 	eventKeys := make([]string, 0, len(opts))
 	uniqueEventKeys := make(map[string]struct{})
@@ -610,7 +610,7 @@ type TriggeredBy interface {
 
 type TriggeredByEvent struct {
 	l        *zerolog.Logger
-	eventID  string
+	eventID  uuid.UUID
 	eventKey string
 }
 

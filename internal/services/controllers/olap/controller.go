@@ -530,7 +530,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
 
-	seenEventKeysSet := make(map[string]bool)
+	seenEventKeysSet := make(map[uuid.UUID]bool)
 
 	bulkCreateTriggersParams := make([]v1.EventTriggersFromExternalId, 0)
 
@@ -549,13 +549,13 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 				var filterId uuid.UUID
 
 				if payload.FilterId != nil {
-					filterId = uuid.MustParse(*payload.FilterId)
+					filterId = *payload.FilterId
 				}
 
 				bulkCreateTriggersParams = append(bulkCreateTriggersParams, v1.EventTriggersFromExternalId{
 					RunID:           *payload.MaybeRunId,
 					RunInsertedAt:   sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
-					EventExternalId: uuid.MustParse(payload.EventExternalId),
+					EventExternalId: payload.EventExternalId,
 					EventSeenAt:     sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
 					FilterId:        filterId,
 				})
@@ -569,7 +569,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 			seenEventKeysSet[payload.EventExternalId] = true
 			tenantIds = append(tenantIds, tenantId)
-			externalIds = append(externalIds, uuid.MustParse(payload.EventExternalId))
+			externalIds = append(externalIds, payload.EventExternalId)
 			seenAts = append(seenAts, sqlchelpers.TimestamptzFromTime(payload.EventSeenAt))
 			keys = append(keys, payload.EventKey)
 			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)

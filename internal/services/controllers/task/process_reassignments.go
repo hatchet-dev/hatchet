@@ -13,13 +13,14 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-task-reassignments")
 	defer span.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
+	tenantIdUUID := uuid.MustParse(tenantId)
 
-	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskReassignments(ctx, tenantId)
+	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskReassignments(ctx, tenantIdUUID)
 
 	if err != nil {
 		return false, fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
@@ -44,7 +45,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 
 		// send failed tasks to the olap repository
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
+			tenantIdUUID,
 			tasktypes.CreateMonitoringEventPayload{
 				TaskId:         task.ID,
 				RetryCount:     task.RetryCount,
@@ -71,7 +72,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 			// if the task was not retried, we should fail it
 			// send failed tasks to the olap repository
 			olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-				tenantId,
+				tenantIdUUID,
 				tasktypes.CreateMonitoringEventPayload{
 					TaskId:         task.ID,
 					RetryCount:     task.RetryCount,
@@ -97,7 +98,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 		}
 	}
 
-	err = tc.processFailTasksResponse(ctx, tenantId, res)
+	err = tc.processFailTasksResponse(ctx, tenantIdUUID, res)
 
 	if err != nil {
 		return false, fmt.Errorf("could not process fail tasks response: %w", err)

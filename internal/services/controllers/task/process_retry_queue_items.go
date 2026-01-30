@@ -14,13 +14,14 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-retry-queue-items")
 	defer span.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
+	tenantIdUUID := uuid.MustParse(tenantId)
 
-	retryQueueItems, shouldContinue, err := tc.repov1.Tasks().ProcessTaskRetryQueueItems(ctx, tenantId)
+	retryQueueItems, shouldContinue, err := tc.repov1.Tasks().ProcessTaskRetryQueueItems(ctx, tenantIdUUID)
 
 	if err != nil {
 		return false, fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
@@ -41,7 +42,7 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 		}
 
 		olapMsg, innerErr := tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
+			tenantIdUUID,
 			monitoringEvent,
 		)
 

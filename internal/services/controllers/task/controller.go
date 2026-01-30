@@ -469,7 +469,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	// instrumentation
 	for range res.ReleasedTasks {
 		prometheus.SucceededTasks.Inc()
-		prometheus.TenantSucceededTasks.WithLabelValues(tenantId).Inc()
+		prometheus.TenantSucceededTasks.WithLabelValues(tenantId.String()).Inc()
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -574,13 +574,13 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 		// if the task is retried, don't send a message to the trigger queue
 		if _, ok := retriedTaskIds[e.TaskID]; ok {
 			prometheus.RetriedTasks.Inc()
-			prometheus.TenantRetriedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantRetriedTasks.WithLabelValues(tenantId.String()).Inc()
 			continue
 		}
 
 		internalEventsWithoutRetries = append(internalEventsWithoutRetries, e)
 		prometheus.FailedTasks.Inc()
-		prometheus.TenantFailedTasks.WithLabelValues(tenantId).Inc()
+		prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -722,7 +722,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	// instrumentation
 	for range res.ReleasedTasks {
 		prometheus.CancelledTasks.Inc()
-		prometheus.TenantCancelledTasks.WithLabelValues(tenantId).Inc()
+		prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
 	}
 
 	return err
@@ -1002,7 +1002,7 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context, tenantId uuid.UUID, msgs []*tasktypes.UserEventTaskPayload) error {
 	opts := make([]v1.EventTriggerOpts, 0, len(msgs))
-	eventIdToOpts := make(map[string]v1.EventTriggerOpts)
+	eventIdToOpts := make(map[uuid.UUID]v1.EventTriggerOpts)
 
 	for _, msg := range msgs {
 		opt := v1.EventTriggerOpts{
@@ -1131,7 +1131,7 @@ func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, ten
 
 	if err != nil {
 		if err == v1.ErrResourceExhausted {
-			tc.l.Warn().Str("tenantId", tenantId).Msg("resource exhausted while triggering workflows from names. Not retrying")
+			tc.l.Warn().Str("tenantId", tenantId.String()).Msg("resource exhausted while triggering workflows from names. Not retrying")
 
 			return nil
 		}
@@ -1213,13 +1213,14 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	candidateMatches := make([]v1.CandidateEventMatch, 0)
 
 	for _, event := range events {
+		resourceHint := event.TaskExternalID.String()
 		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
-			ID:             uuid.NewString(),
+			ID:             uuid.New(),
 			EventTimestamp: time.Now(),
 			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
 			Key:          string(event.EventType),
 			Data:         event.Data,
-			ResourceHint: &event.TaskExternalID,
+			ResourceHint: &resourceHint,
 		})
 	}
 
@@ -1597,7 +1598,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 		}
 	}()
 
@@ -1608,7 +1609,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := task.ExternalID.String()
+		taskExternalId := task.ExternalID
 
 		dataBytes := v1.NewCancelledTaskOutputEventFromTask(task).Bytes()
 
@@ -1660,9 +1661,9 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.CancelledTasks.Inc()
-			prometheus.TenantCancelledTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
 		}
 	}()
 
@@ -1673,14 +1674,12 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := task.ExternalID.String()
-
 		dataBytes := v1.NewFailedTaskOutputEventFromTask(task).Bytes()
 
 		internalEvents = append(internalEvents, v1.InternalTaskEvent{
 			TenantID:       tenantId,
 			TaskID:         task.ID,
-			TaskExternalID: taskExternalId,
+			TaskExternalID: task.ExternalID,
 			RetryCount:     task.RetryCount,
 			EventType:      sqlcv1.V1TaskEventTypeFAILED,
 			Data:           dataBytes,
@@ -1726,9 +1725,9 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.FailedTasks.Inc()
-			prometheus.TenantFailedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
 		}
 	}()
 
@@ -1739,14 +1738,12 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := task.ExternalID.String()
-
 		dataBytes := v1.NewSkippedTaskOutputEventFromTask(task).Bytes()
 
 		internalEvents = append(internalEvents, v1.InternalTaskEvent{
 			TenantID:       tenantId,
 			TaskID:         task.ID,
-			TaskExternalID: taskExternalId,
+			TaskExternalID: task.ExternalID,
 			RetryCount:     task.RetryCount,
 			EventType:      sqlcv1.V1TaskEventTypeCOMPLETED,
 			Data:           dataBytes,
@@ -1791,9 +1788,9 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.SkippedTasks.Inc()
-			prometheus.TenantSkippedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantSkippedTasks.WithLabelValues(tenantId.String()).Inc()
 		}
 	}()
 

@@ -19,7 +19,7 @@ import (
 
 type CandidateEventMatch struct {
 	// A UUID for the event
-	ID string
+	ID uuid.UUID
 
 	// A timestamp for the event
 	EventTimestamp time.Time
@@ -336,7 +336,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	eventKeysWithoutHints := make([]string, 0, len(events))
 	resourceHints := make([]string, 0, len(events))
 	uniqueEventKeys := make(map[string]struct{})
-	idsToEvents := make(map[string]CandidateEventMatch)
+	idsToEvents := make(map[uuid.UUID]CandidateEventMatch)
 
 	for _, event := range events {
 		idsToEvents[event.ID] = event
@@ -700,7 +700,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	return res, nil
 }
 
-func (m *sharedRepository) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow, eventType sqlcv1.V1EventType) (map[string][]*sqlcv1.ListMatchConditionsForEventRow, error) {
+func (m *sharedRepository) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow, eventType sqlcv1.V1EventType) (map[uuid.UUID][]*sqlcv1.ListMatchConditionsForEventRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "MatchRepositoryImpl.processCELExpressions")
 	defer span.End()
 
@@ -744,7 +744,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 	}
 
 	// map of event ids to matched conditions
-	matches := make(map[string][]*sqlcv1.ListMatchConditionsForEventRow)
+	matches := make(map[uuid.UUID][]*sqlcv1.ListMatchConditionsForEventRow)
 
 	for _, event := range events {
 		inputData := map[string]interface{}{}

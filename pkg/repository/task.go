@@ -235,7 +235,7 @@ type TaskRepository interface {
 	// with the v1 engine, and shouldn't be called from new v1 endpoints.
 	ListTaskParentOutputs(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error)
 
-	DefaultTaskActivityGauge(ctx context.Context, tenantId uuid.UUID) (int, error)
+	DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error)
 
 	ProcessTaskTimeouts(ctx context.Context, tenantId uuid.UUID) (*TimeoutTasksResponse, bool, error)
 
@@ -1160,12 +1160,12 @@ func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId uuid.UU
 
 // DefaultTaskActivityGauge is a heavily cached method that returns the number of queues that have had activity since
 // the task retention period.
-func (r *TaskRepositoryImpl) DefaultTaskActivityGauge(ctx context.Context, tenantId uuid.UUID) (int, error) {
+func (r *TaskRepositoryImpl) DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error) {
 	today := time.Now().UTC()
 	notBefore := today.Add(-1 * r.taskRetentionPeriod)
 
 	res, err := r.queries.DefaultTaskActivityGauge(ctx, r.pool, sqlcv1.DefaultTaskActivityGaugeParams{
-		Tenantid: tenantId,
+		Tenantid: uuid.MustParse(tenantId),
 		Activesince: pgtype.Timestamptz{
 			Time:  notBefore,
 			Valid: true,
@@ -1378,7 +1378,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 		}
 
 		events = append(events, CandidateEventMatch{
-			ID:             uuid.New().String(),
+			ID:             uuid.New(),
 			EventTimestamp: time.Now(),
 			Key:            getDurableSleepEventKey(sleep.ID),
 			Data:           data,
@@ -3397,7 +3397,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 					taskExternalId := match.ExternalID.String()
 
 					resCandidateEvents = append(resCandidateEvents, CandidateEventMatch{
-						ID:             uuid.NewString(),
+						ID:             uuid.New(),
 						EventTimestamp: match.CreatedAt.Time,
 						Key:            string(match.EventType),
 						ResourceHint:   &taskExternalId,
