@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
@@ -55,7 +54,7 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 	}
 
 	cronTrigger, err := t.config.V1.WorkflowSchedules().CreateCronWorkflow(
-		ctx.Request().Context(), uuid.MustParse(tenantId), &v1.CreateCronWorkflowTriggerOpts{
+		ctx.Request().Context(), tenantId, &v1.CreateCronWorkflowTriggerOpts{
 			Name:               request.Body.CronName,
 			Cron:               request.Body.CronExpression,
 			Input:              request.Body.Input,

@@ -3,6 +3,7 @@ package posthog
 import (
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/posthog/posthog-go"
 )
 
@@ -55,10 +56,10 @@ func (p *PosthogAnalytics) Enqueue(event string, userId string, tenantId *string
 	})
 }
 
-func (p *PosthogAnalytics) Tenant(tenantId string, data map[string]interface{}) {
+func (p *PosthogAnalytics) Tenant(tenantId uuid.UUID, data map[string]interface{}) {
 	var _ = (*p.client).Enqueue(posthog.GroupIdentify{
 		Type: "tenant",
-		Key:  tenantId,
+		Key:  tenantId.String(),
 		Properties: map[string]interface{}{
 			"$set": data,
 		},

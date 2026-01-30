@@ -18,9 +18,9 @@ type TenantClient struct {
 // NewTenantCliet creates a new TenantClient
 func NewTenantCliet(
 	api *rest.ClientWithResponses,
-	tenantId string,
+	tenantId uuid.UUID,
 ) *TenantClient {
-	tenantIdUUID := uuid.MustParse(tenantId)
+	tenantIdUUID := tenantId
 
 	return &TenantClient{
 		api:      api,

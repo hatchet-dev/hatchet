@@ -49,7 +49,7 @@ type ListTenantInvitesOpts struct {
 
 type TenantInviteRepository interface {
 	// CreateTenantInvite creates a new tenant invite with the given options
-	CreateTenantInvite(ctx context.Context, tenantId string, opts *CreateTenantInviteOpts) (*sqlcv1.TenantInviteLink, error)
+	CreateTenantInvite(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantInviteOpts) (*sqlcv1.TenantInviteLink, error)
 
 	// GetTenantInvite returns the tenant invite with the given id
 	GetTenantInvite(ctx context.Context, id string) (*sqlcv1.TenantInviteLink, error)
@@ -59,7 +59,7 @@ type TenantInviteRepository interface {
 	ListTenantInvitesByEmail(ctx context.Context, email string) ([]*sqlcv1.ListTenantInvitesByEmailRow, error)
 
 	// ListTenantInvitesByTenantId returns the list of tenant invites for the given tenant id
-	ListTenantInvitesByTenantId(ctx context.Context, tenantId string, opts *ListTenantInvitesOpts) ([]*sqlcv1.TenantInviteLink, error)
+	ListTenantInvitesByTenantId(ctx context.Context, tenantId uuid.UUID, opts *ListTenantInvitesOpts) ([]*sqlcv1.TenantInviteLink, error)
 
 	// UpdateTenantInvite updates the tenant invite with the given id
 	UpdateTenantInvite(ctx context.Context, id string, opts *UpdateTenantInviteOpts) (*sqlcv1.TenantInviteLink, error)
@@ -78,7 +78,7 @@ func newTenantInviteRepository(shared *sharedRepository) TenantInviteRepository 
 	}
 }
 
-func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantId string, opts *CreateTenantInviteOpts) (*sqlcv1.TenantInviteLink, error) {
+func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantInviteOpts) (*sqlcv1.TenantInviteLink, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 		invites, err := r.queries.CountActiveInvites(
 			ctx,
 			tx,
-			uuid.MustParse(tenantId),
+			tenantId,
 		)
 
 		if err != nil {
@@ -113,7 +113,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 		ctx,
 		tx,
 		sqlcv1.GetExistingInviteParams{
-			Tenantid:     uuid.MustParse(tenantId),
+			Tenantid:     tenantId,
 			Inviteeemail: opts.InviteeEmail,
 		},
 	)
@@ -126,7 +126,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 		ctx,
 		tx,
 		sqlcv1.CreateTenantInviteParams{
-			Tenantid:     uuid.MustParse(tenantId),
+			Tenantid:     tenantId,
 			Inviteremail: opts.InviterEmail,
 			Inviteeemail: opts.InviteeEmail,
 			Expires:      sqlchelpers.TimestampFromTime(opts.ExpiresAt),
@@ -161,13 +161,13 @@ func (r *tenantInviteRepository) ListTenantInvitesByEmail(ctx context.Context, e
 	)
 }
 
-func (r *tenantInviteRepository) ListTenantInvitesByTenantId(ctx context.Context, tenantId string, opts *ListTenantInvitesOpts) ([]*sqlcv1.TenantInviteLink, error) {
+func (r *tenantInviteRepository) ListTenantInvitesByTenantId(ctx context.Context, tenantId uuid.UUID, opts *ListTenantInvitesOpts) ([]*sqlcv1.TenantInviteLink, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	params := sqlcv1.ListInvitesByTenantIdParams{
-		Tenantid: uuid.MustParse(tenantId),
+		Tenantid: tenantId,
 	}
 
 	if opts.Status != nil {

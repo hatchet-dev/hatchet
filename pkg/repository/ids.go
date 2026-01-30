@@ -84,7 +84,7 @@ func (c *ChildWorkflowSignalCreatedData) Bytes() []byte {
 
 // GenerateExternalIdsForWorkflow generates external ids and additional looks up child workflows and whether they
 // already exist.
-func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error {
+func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
 	// get child workflow data first
 	optsWithParents := make([]*WorkflowNameTriggerOpts, 0, len(opts))
 
@@ -109,7 +109,7 @@ func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, t
 	return nil
 }
 
-func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error {
+func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
 
 	if err != nil {
@@ -129,7 +129,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 
 	gotTasks, err := s.queries.LookupExternalIds(ctx, tx, sqlcv1.LookupExternalIdsParams{
 		Externalids: externalIds,
-		Tenantid:    uuid.MustParse(tenantId),
+		Tenantid:    tenantId,
 	})
 
 	if err != nil {
@@ -159,7 +159,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	}
 
 	lockedEvents, err := s.queries.LockSignalCreatedEvents(ctx, tx, sqlcv1.LockSignalCreatedEventsParams{
-		Tenantid:        uuid.MustParse(tenantId),
+		Tenantid:        tenantId,
 		Taskids:         eventTaskIds,
 		Taskinsertedats: eventTaskInsertedAts,
 		Eventkeys:       eventKeys,
@@ -176,7 +176,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			Id:         lockedEvent.ID,
 			InsertedAt: lockedEvent.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   uuid.MustParse(tenantId),
+			TenantId:   tenantId,
 		}
 	}
 
@@ -193,7 +193,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			Id:         lockedEvent.ID,
 			InsertedAt: lockedEvent.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   uuid.MustParse(tenantId),
+			TenantId:   tenantId,
 		}]
 
 		if !ok {
@@ -211,7 +211,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	}
 
 	taskIds := make([]TaskIdInsertedAtRetryCount, 0, len(opts))
-	taskExternalIds := make([]string, 0, len(opts))
+	taskExternalIds := make([]uuid.UUID, 0, len(opts))
 	datas := make([][]byte, 0, len(opts))
 	newEventKeys := make([]string, 0, len(opts))
 
@@ -239,7 +239,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			RetryCount: -1,
 		})
 
-		taskExternalIds = append(taskExternalIds, lookupRow.ExternalID.String())
+		taskExternalIds = append(taskExternalIds, lookupRow.ExternalID)
 		datas = append(datas, data.Bytes())
 		newEventKeys = append(newEventKeys, getChildSignalEventKey(*opt.ParentExternalId, 0, *opt.ChildIndex, opt.ChildKey))
 	}

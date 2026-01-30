@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -57,7 +58,7 @@ type EventWithAdditionalMetadata struct {
 type eventClientImpl struct {
 	client eventcontracts.EventsServiceClient
 
-	tenantId string
+	tenantId uuid.UUID
 
 	namespace string
 

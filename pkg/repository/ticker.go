@@ -25,7 +25,7 @@ type ListTickerOpts struct {
 }
 
 type TickerRepository interface {
-	IsTenantAlertActive(ctx context.Context, tenantId string) (bool, time.Time, error)
+	IsTenantAlertActive(ctx context.Context, tenantId uuid.UUID) (bool, time.Time, error)
 
 	// CreateNewTicker creates a new ticker.
 	CreateNewTicker(ctx context.Context, opts *CreateTickerOpts) (*sqlcv1.Ticker, error)
@@ -61,8 +61,8 @@ func newTickerRepository(shared *sharedRepository) TickerRepository {
 	}
 }
 
-func (t *tickerRepository) IsTenantAlertActive(ctx context.Context, tenantId string) (bool, time.Time, error) {
-	res, err := t.queries.IsTenantAlertActive(ctx, t.pool, uuid.MustParse(tenantId))
+func (t *tickerRepository) IsTenantAlertActive(ctx context.Context, tenantId uuid.UUID) (bool, time.Time, error) {
+	res, err := t.queries.IsTenantAlertActive(ctx, t.pool, tenantId)
 
 	if err != nil {
 		return false, time.Now(), err

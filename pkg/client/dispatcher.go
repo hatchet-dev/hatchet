@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -166,7 +167,7 @@ type dispatcherClientImpl struct {
 	client   dispatchercontracts.DispatcherClient
 	clientv1 sharedcontracts.V1DispatcherClient
 
-	tenantId string
+	tenantId uuid.UUID
 
 	l *zerolog.Logger
 
@@ -199,7 +200,7 @@ const (
 type actionListenerImpl struct {
 	client dispatchercontracts.DispatcherClient
 
-	tenantId string
+	tenantId uuid.UUID
 
 	listenClient dispatchercontracts.Dispatcher_ListenClient
 

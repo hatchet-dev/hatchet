@@ -9,7 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func TriggerTaskMessage(tenantId string, payloads ...*v1.WorkflowNameTriggerOpts) (*msgqueue.Message, error) {
+func TriggerTaskMessage(tenantId uuid.UUID, payloads ...*v1.WorkflowNameTriggerOpts) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDTaskTrigger,
@@ -40,7 +40,7 @@ type CompletedTaskPayload struct {
 }
 
 func CompletedTaskMessage(
-	tenantId string,
+	tenantId uuid.UUID,
 	taskId int64,
 	taskInsertedAt pgtype.Timestamptz,
 	taskExternalId string,
@@ -91,7 +91,7 @@ type FailedTaskPayload struct {
 }
 
 func FailedTaskMessage(
-	tenantId string,
+	tenantId uuid.UUID,
 	taskId int64,
 	taskInsertedAt pgtype.Timestamptz,
 	taskExternalId string,
@@ -146,7 +146,7 @@ type CancelledTaskPayload struct {
 }
 
 func CancelledTaskMessage(
-	tenantId string,
+	tenantId uuid.UUID,
 	taskId int64,
 	taskInsertedAt pgtype.Timestamptz,
 	taskExternalId string,

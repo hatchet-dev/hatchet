@@ -14,8 +14,8 @@ type LogsClient struct {
 	tenantId uuid.UUID
 }
 
-func NewLogsClient(api *rest.ClientWithResponses, tenantId string) *LogsClient {
-	return &LogsClient{api: api, tenantId: uuid.MustParse(tenantId)}
+func NewLogsClient(api *rest.ClientWithResponses, tenantId uuid.UUID) *LogsClient {
+	return &LogsClient{api: api, tenantId: tenantId}
 }
 
 func (l *LogsClient) List(ctx context.Context, taskRunId uuid.UUID, opts *rest.V1LogLineListParams) (*rest.V1LogLineList, error) {

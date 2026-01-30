@@ -16,7 +16,7 @@ import (
 func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1WebhookCreateRequestObject) (gen.V1WebhookCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
-	canCreate, _, err := w.config.V1.TenantLimit().CanCreate(ctx.Request().Context(), sqlcv1.LimitResourceINCOMINGWEBHOOK, tenant.ID.String(), 1)
+	canCreate, _, err := w.config.V1.TenantLimit().CanCreate(ctx.Request().Context(), sqlcv1.LimitResourceINCOMINGWEBHOOK, tenant.ID, 1)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to check if webhook can be created: %w", err)
@@ -32,7 +32,7 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 		}, nil
 	}
 
-	params, err := w.constructCreateOpts(tenant.ID.String(), *request.Body)
+	params, err := w.constructCreateOpts(tenant.ID, *request.Body)
 	if err != nil {
 		return gen.V1WebhookCreate400JSONResponse{
 			Errors: []gen.APIError{
@@ -45,7 +45,7 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 
 	webhook, err := w.config.V1.Webhooks().CreateWebhook(
 		ctx.Request().Context(),
-		tenant.ID.String(),
+		tenant.ID,
 		params,
 	)
 
@@ -85,9 +85,9 @@ func extractAuthType(request gen.V1CreateWebhookRequest) (sqlcv1.V1IncomingWebho
 	return authType, nil
 }
 
-func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1CreateWebhookRequest) (v1.CreateWebhookOpts, error) {
+func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.V1CreateWebhookRequest) (v1.CreateWebhookOpts, error) {
 	params := v1.CreateWebhookOpts{
-		Tenantid: uuid.MustParse(tenantId),
+		Tenantid: tenantId,
 	}
 
 	discriminator, err := extractAuthType(request)

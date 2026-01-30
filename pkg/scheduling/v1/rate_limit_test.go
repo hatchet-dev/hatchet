@@ -27,11 +27,11 @@ func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId uuid.
 	return args.Get(0).([]*sqlcv1.ListRateLimitsForTenantWithMutateRow), args.Get(1).(*time.Time), args.Error(2)
 }
 
-func (m *mockRateLimitRepo) UpsertRateLimit(ctx context.Context, tenantId string, key string, opts *v1.UpsertRateLimitOpts) (*sqlcv1.RateLimit, error) {
+func (m *mockRateLimitRepo) UpsertRateLimit(ctx context.Context, tenantId uuid.UUID, key string, opts *v1.UpsertRateLimitOpts) (*sqlcv1.RateLimit, error) {
 	panic("not implemented")
 }
 
-func (m *mockRateLimitRepo) ListRateLimits(ctx context.Context, tenantId string, opts *v1.ListRateLimitOpts) (*v1.ListRateLimitsResult, error) {
+func (m *mockRateLimitRepo) ListRateLimits(ctx context.Context, tenantId uuid.UUID, opts *v1.ListRateLimitOpts) (*v1.ListRateLimitsResult, error) {
 	panic("not implemented")
 }
 

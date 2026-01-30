@@ -245,7 +245,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 		return nil, nil, err
 	}
 
-	_, err = d.releaseTasks(ctx, tx, d.tenantId.String(), tasksToRelease)
+	_, err = d.releaseTasks(ctx, tx, d.tenantId, tasksToRelease)
 
 	if err != nil {
 		return nil, nil, err
@@ -617,7 +617,7 @@ func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId 
 
 	// if we moved items in v1_queue_item, we need to update the active status of the queue, in case we've
 	// been rate limited for longer than a day and the queue has gone inactive
-	saveQueues, err := d.upsertQueues(ctx, tx, tenantId.String(), []string{queueName})
+	saveQueues, err := d.upsertQueues(ctx, tx, tenantId, []string{queueName})
 
 	if err != nil {
 		return nil, err

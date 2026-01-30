@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-func (tc *TasksControllerImpl) processSleeps(ctx context.Context, tenantId string) (bool, error) {
+func (tc *TasksControllerImpl) processSleeps(ctx context.Context, tenantId uuid.UUID) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-sleep")
 	defer span.End()
 

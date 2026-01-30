@@ -9,11 +9,11 @@ import (
 )
 
 type FilterRepository interface {
-	CreateFilter(ctx context.Context, tenantId string, params CreateFilterOpts) (*sqlcv1.V1Filter, error)
-	ListFilters(ctx context.Context, tenantId string, params ListFiltersOpts) ([]*sqlcv1.V1Filter, int64, error)
-	DeleteFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error)
-	GetFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error)
-	UpdateFilter(ctx context.Context, tenantId string, filterId string, opts UpdateFilterOpts) (*sqlcv1.V1Filter, error)
+	CreateFilter(ctx context.Context, tenantId uuid.UUID, params CreateFilterOpts) (*sqlcv1.V1Filter, error)
+	ListFilters(ctx context.Context, tenantId uuid.UUID, params ListFiltersOpts) ([]*sqlcv1.V1Filter, int64, error)
+	DeleteFilter(ctx context.Context, tenantId, filterId uuid.UUID) (*sqlcv1.V1Filter, error)
+	GetFilter(ctx context.Context, tenantId, filterId uuid.UUID) (*sqlcv1.V1Filter, error)
+	UpdateFilter(ctx context.Context, tenantId, filterId uuid.UUID, opts UpdateFilterOpts) (*sqlcv1.V1Filter, error)
 }
 
 type filterRepository struct {
@@ -34,9 +34,9 @@ type CreateFilterOpts struct {
 	IsDeclarative bool      `json:"is_declarative"`
 }
 
-func (r *filterRepository) CreateFilter(ctx context.Context, tenantId string, opts CreateFilterOpts) (*sqlcv1.V1Filter, error) {
+func (r *filterRepository) CreateFilter(ctx context.Context, tenantId uuid.UUID, opts CreateFilterOpts) (*sqlcv1.V1Filter, error) {
 	return r.queries.CreateFilter(ctx, r.pool, sqlcv1.CreateFilterParams{
-		Tenantid:   uuid.MustParse(tenantId),
+		Tenantid:   tenantId,
 		Workflowid: opts.Workflowid,
 		Scope:      opts.Scope,
 		Expression: opts.Expression,
@@ -57,13 +57,13 @@ type UpdateFilterOpts struct {
 	Payload    []byte  `json:"payload"`
 }
 
-func (r *filterRepository) ListFilters(ctx context.Context, tenantId string, opts ListFiltersOpts) ([]*sqlcv1.V1Filter, int64, error) {
+func (r *filterRepository) ListFilters(ctx context.Context, tenantId uuid.UUID, opts ListFiltersOpts) ([]*sqlcv1.V1Filter, int64, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, 0, err
 	}
 
 	filters, err := r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
-		Tenantid:     uuid.MustParse(tenantId),
+		Tenantid:     tenantId,
 		WorkflowIds:  opts.WorkflowIds,
 		Scopes:       opts.Scopes,
 		Filterlimit:  opts.Limit,
@@ -75,7 +75,7 @@ func (r *filterRepository) ListFilters(ctx context.Context, tenantId string, opt
 	}
 
 	filterCount, err := r.queries.CountFilters(ctx, r.pool, sqlcv1.CountFiltersParams{
-		Tenantid:    uuid.MustParse(tenantId),
+		Tenantid:    tenantId,
 		WorkflowIds: opts.WorkflowIds,
 		Scopes:      opts.Scopes,
 	})
@@ -87,28 +87,28 @@ func (r *filterRepository) ListFilters(ctx context.Context, tenantId string, opt
 	return filters, filterCount, nil
 }
 
-func (r *filterRepository) DeleteFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error) {
+func (r *filterRepository) DeleteFilter(ctx context.Context, tenantId, filterId uuid.UUID) (*sqlcv1.V1Filter, error) {
 	return r.queries.DeleteFilter(ctx, r.pool, sqlcv1.DeleteFilterParams{
-		Tenantid: uuid.MustParse(tenantId),
-		ID:       uuid.MustParse(filterId),
+		Tenantid: tenantId,
+		ID:       filterId,
 	})
 }
 
-func (r *filterRepository) GetFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error) {
+func (r *filterRepository) GetFilter(ctx context.Context, tenantId, filterId uuid.UUID) (*sqlcv1.V1Filter, error) {
 	return r.queries.GetFilter(ctx, r.pool, sqlcv1.GetFilterParams{
-		Tenantid: uuid.MustParse(tenantId),
-		ID:       uuid.MustParse(filterId),
+		Tenantid: tenantId,
+		ID:       filterId,
 	})
 }
 
-func (r *filterRepository) UpdateFilter(ctx context.Context, tenantId string, filterId string, opts UpdateFilterOpts) (*sqlcv1.V1Filter, error) {
+func (r *filterRepository) UpdateFilter(ctx context.Context, tenantId, filterId uuid.UUID, opts UpdateFilterOpts) (*sqlcv1.V1Filter, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	params := sqlcv1.UpdateFilterParams{
-		Tenantid: uuid.MustParse(tenantId),
-		ID:       uuid.MustParse(filterId),
+		Tenantid: tenantId,
+		ID:       filterId,
 		Payload:  opts.Payload,
 	}
 

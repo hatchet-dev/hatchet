@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/rs/zerolog"
@@ -351,7 +352,7 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 	}
 }
 
-func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *v1.QueueResults) error {
+func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, res *v1.QueueResults) error {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-runs")
 	defer span.End()
 
@@ -579,7 +580,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 	return outerErr
 }
 
-func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*repov1.AssignedItem) {
+func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assigned ...*repov1.AssignedItem) {
 	for _, a := range assigned {
 		msg, err := tasktypes.FailedTaskMessage(
 			tenantId,
@@ -611,7 +612,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 	}
 }
 
-func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string, res *v1.ConcurrencyResults) {
+func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UUID, res *v1.ConcurrencyResults) {
 	uniqueQueueNames := make(map[string]struct{}, 0)
 
 	for _, task := range res.Queued {
@@ -683,7 +684,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 	}
 }
 
-func taskBulkAssignedTask(tenantId string, workerIdsToTaskIds map[string][]int64) (*msgqueue.Message, error) {
+func taskBulkAssignedTask(tenantId uuid.UUID, workerIdsToTaskIds map[string][]int64) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDTaskAssignedBulk,

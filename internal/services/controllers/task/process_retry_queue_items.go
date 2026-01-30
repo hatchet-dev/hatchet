@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -13,7 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, tenantId string) (bool, error) {
+func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, tenantId uuid.UUID) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-retry-queue-items")
 	defer span.End()
 

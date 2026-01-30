@@ -97,9 +97,9 @@ type WebhooksClient struct {
 // NewWebhooksClient creates a new WebhooksClient
 func NewWebhooksClient(
 	api *rest.ClientWithResponses,
-	tenantId string,
+	tenantId uuid.UUID,
 ) *WebhooksClient {
-	tenantIdUUID := uuid.MustParse(tenantId)
+	tenantIdUUID := tenantId
 
 	return &WebhooksClient{
 		api:      api,

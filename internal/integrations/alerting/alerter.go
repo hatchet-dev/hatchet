@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting/alerttypes"
@@ -27,7 +28,7 @@ func New(repo v1.Repository, e encryption.EncryptionService, serverURL string, e
 	return &TenantAlertManager{repo, e, serverURL, email}
 }
 
-func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId string, failedRuns []*v1.WorkflowRunData) error {
+func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId uuid.UUID, failedRuns []*v1.WorkflowRunData) error {
 	if len(failedRuns) == 0 {
 		return nil
 	}
@@ -103,7 +104,7 @@ func (t *TenantAlertManager) getFailedItemsV1(failedRuns []*v1.WorkflowRunData) 
 	return res
 }
 
-func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId string, token *sqlcv1.PollExpiringTokensRow) error {
+func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId uuid.UUID, token *sqlcv1.PollExpiringTokensRow) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -148,7 +149,7 @@ func (t *TenantAlertManager) sendExpiringTokenAlert(ctx context.Context, tenantA
 	return nil
 }
 
-func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId string, alert *sqlcv1.TenantResourceLimitAlert) error {
+func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId uuid.UUID, alert *sqlcv1.TenantResourceLimitAlert) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

@@ -498,7 +498,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	return nil
 }
 
-func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId string, finalizedWorkflowRuns []*v1.ListFinalizedWorkflowRunsResponse) ([]*contracts.WorkflowRunEvent, error) {
+func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId uuid.UUID, finalizedWorkflowRuns []*v1.ListFinalizedWorkflowRunsResponse) ([]*contracts.WorkflowRunEvent, error) {
 	res := make([]*contracts.WorkflowRunEvent, 0)
 
 	for _, wr := range finalizedWorkflowRuns {
@@ -704,7 +704,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 	}, nil
 }
 
-func (d *DispatcherImpl) getSingleTask(ctx context.Context, tenantId, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
+func (d *DispatcherImpl) getSingleTask(ctx context.Context, tenantId uuid.UUID, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
 	return d.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, skipCache)
 }
 
@@ -887,7 +887,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 		}
 	}()
 
-	f := func(tenantId, msgId string, payloads [][]byte) error {
+	f := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		wg.Add(1)
 		defer wg.Done()
 
@@ -998,7 +998,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 	var mu sync.Mutex     // Mutex to protect activeRunIds
 	var sendMu sync.Mutex // Mutex to protect sending messages
 
-	f := func(tenantId, msgId string, payloads [][]byte) error {
+	f := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		wg.Add(1)
 		defer wg.Done()
 
@@ -1121,7 +1121,7 @@ type listWorkflowRunsResult struct {
 	AdditionalMetadata map[string]interface{}
 }
 
-func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId string, workflowRunIds []string) ([]*listWorkflowRunsResult, error) {
+func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId uuid.UUID, workflowRunIds []string) ([]*listWorkflowRunsResult, error) {
 	// use cache heavily
 	res := make([]*listWorkflowRunsResult, 0)
 	workflowRunIdsToLookup := make([]string, 0)

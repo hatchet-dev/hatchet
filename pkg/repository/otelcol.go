@@ -35,7 +35,7 @@ type CreateSpansOpts struct {
 }
 
 type OTelCollectorRepository interface {
-	CreateSpans(ctx context.Context, tenantId string, opts *CreateSpansOpts) error
+	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
 }
 
 type otelCollectorRepositoryImpl struct {
@@ -48,7 +48,7 @@ func newOTelCollectorRepository(s *sharedRepository) OTelCollectorRepository {
 	}
 }
 
-func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId string, opts *CreateSpansOpts) error {
+func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error {
 	// intentional no-op, intended to be overridden
 	return nil
 }

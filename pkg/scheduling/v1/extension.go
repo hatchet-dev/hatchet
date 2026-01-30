@@ -5,6 +5,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -36,8 +37,8 @@ type SlotCp struct {
 
 type SchedulerExtension interface {
 	SetTenants(tenants []*sqlcv1.Tenant)
-	ReportSnapshot(tenantId string, input *SnapshotInput)
-	PostAssign(tenantId string, input *PostAssignInput)
+	ReportSnapshot(tenantId uuid.UUID, input *SnapshotInput)
+	PostAssign(tenantId uuid.UUID, input *PostAssignInput)
 	Cleanup() error
 }
 
@@ -57,7 +58,7 @@ func (e *Extensions) Add(ext SchedulerExtension) {
 	e.exts = append(e.exts, ext)
 }
 
-func (e *Extensions) ReportSnapshot(tenantId string, input *SnapshotInput) {
+func (e *Extensions) ReportSnapshot(tenantId uuid.UUID, input *SnapshotInput) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
@@ -67,7 +68,7 @@ func (e *Extensions) ReportSnapshot(tenantId string, input *SnapshotInput) {
 	}
 }
 
-func (e *Extensions) PostAssign(tenantId string, input *PostAssignInput) {
+func (e *Extensions) PostAssign(tenantId uuid.UUID, input *PostAssignInput) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 

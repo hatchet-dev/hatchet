@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // TestMsgIdBufferMemoryLeak verifies that the semaphore releaser reuses timers
@@ -16,7 +18,7 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 	defer cancel()
 
 	var processedCount atomic.Int64
-	dst := func(tenantId, msgId string, payloads [][]byte) error {
+	dst := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		processedCount.Add(1)
 		// Simulate some processing time
 		time.Sleep(1 * time.Millisecond)
@@ -98,7 +100,7 @@ func TestSemaphoreReleaserReusesTimer(t *testing.T) {
 	defer cancel()
 
 	var flushCount atomic.Int64
-	dst := func(tenantId, msgId string, payloads [][]byte) error {
+	dst := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		flushCount.Add(1)
 		return nil
 	}
@@ -131,7 +133,7 @@ func TestSemaphoreReleaserReusesTimer(t *testing.T) {
 func TestBufferCleanupOnContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	dst := func(tenantId, msgId string, payloads [][]byte) error {
+	dst := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		return nil
 	}
 
@@ -181,7 +183,7 @@ func TestConcurrentFlushesRateLimited(t *testing.T) {
 	var currentConcurrent atomic.Int32
 	var maxObservedConcurrent atomic.Int32
 
-	dst := func(tenantId, msgId string, payloads [][]byte) error {
+	dst := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		current := currentConcurrent.Add(1)
 		defer currentConcurrent.Add(-1)
 

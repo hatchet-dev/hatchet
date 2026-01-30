@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -153,25 +154,25 @@ func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
 	wg.Wait()
 }
 
-func (p *SchedulingPool) Replenish(ctx context.Context, tenantId string) {
+func (p *SchedulingPool) Replenish(ctx context.Context, tenantId uuid.UUID) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.replenish(ctx)
 	}
 }
 
-func (p *SchedulingPool) NotifyQueues(ctx context.Context, tenantId string, queueNames []string) {
+func (p *SchedulingPool) NotifyQueues(ctx context.Context, tenantId uuid.UUID, queueNames []string) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.queue(ctx, queueNames)
 	}
 }
 
-func (p *SchedulingPool) NotifyConcurrency(ctx context.Context, tenantId string, strategyIds []int64) {
+func (p *SchedulingPool) NotifyConcurrency(ctx context.Context, tenantId uuid.UUID, strategyIds []int64) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.notifyConcurrency(ctx, strategyIds)
 	}
 }
 
-func (p *SchedulingPool) getTenantManager(tenantId string, storeIfNotFound bool) *tenantManager {
+func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bool) *tenantManager {
 	tm, ok := p.tenants.Load(tenantId)
 
 	if !ok {

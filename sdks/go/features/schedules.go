@@ -35,10 +35,10 @@ type SchedulesClient struct {
 // NewSchedulesClient creates a new SchedulesClient
 func NewSchedulesClient(
 	api *rest.ClientWithResponses,
-	tenantId string,
+	tenantId uuid.UUID,
 	namespace *string,
 ) *SchedulesClient {
-	tenantIdUUID := uuid.MustParse(tenantId)
+	tenantIdUUID := tenantId
 
 	return &SchedulesClient{
 		api:       api,

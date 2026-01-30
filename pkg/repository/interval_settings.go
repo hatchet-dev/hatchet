@@ -13,8 +13,8 @@ import (
 
 type IntervalSettingsRepository interface {
 	ReadAllIntervals(ctx context.Context, operationId string) (map[string]time.Duration, error)
-	ReadInterval(ctx context.Context, operationId string, tenantId string) (time.Duration, error)
-	SetInterval(ctx context.Context, operationId string, tenantId string, d time.Duration) (time.Duration, error)
+	ReadInterval(ctx context.Context, operationId string, tenantId uuid.UUID) (time.Duration, error)
+	SetInterval(ctx context.Context, operationId string, tenantId uuid.UUID, d time.Duration) (time.Duration, error)
 }
 
 type NoOpIntervalSettingsRepository struct{}
@@ -27,11 +27,11 @@ func (r *NoOpIntervalSettingsRepository) ReadAllIntervals(ctx context.Context, o
 	return make(map[string]time.Duration), nil
 }
 
-func (r *NoOpIntervalSettingsRepository) ReadInterval(ctx context.Context, operationId string, tenantId string) (time.Duration, error) {
+func (r *NoOpIntervalSettingsRepository) ReadInterval(ctx context.Context, operationId string, tenantId uuid.UUID) (time.Duration, error) {
 	return 0, nil
 }
 
-func (r *NoOpIntervalSettingsRepository) SetInterval(ctx context.Context, operationId string, tenantId string, d time.Duration) (time.Duration, error) {
+func (r *NoOpIntervalSettingsRepository) SetInterval(ctx context.Context, operationId string, tenantId uuid.UUID, d time.Duration) (time.Duration, error) {
 	return d, nil
 }
 
@@ -61,10 +61,10 @@ func (r *intervalSettingsRepository) ReadAllIntervals(ctx context.Context, opera
 	return res, nil
 }
 
-func (r *intervalSettingsRepository) ReadInterval(ctx context.Context, operationId string, tenantId string) (time.Duration, error) {
+func (r *intervalSettingsRepository) ReadInterval(ctx context.Context, operationId string, tenantId uuid.UUID) (time.Duration, error) {
 	interval, err := r.queries.ReadInterval(ctx, r.pool, sqlcv1.ReadIntervalParams{
 		Operationid: operationId,
-		Tenantid:    uuid.MustParse(tenantId),
+		Tenantid:    tenantId,
 	})
 
 	if err != nil {
@@ -80,11 +80,11 @@ func (r *intervalSettingsRepository) ReadInterval(ctx context.Context, operation
 	return res, nil
 }
 
-func (r *intervalSettingsRepository) SetInterval(ctx context.Context, operationId string, tenantId string, d time.Duration) (time.Duration, error) {
+func (r *intervalSettingsRepository) SetInterval(ctx context.Context, operationId string, tenantId uuid.UUID, d time.Duration) (time.Duration, error) {
 	interval, err := r.queries.UpsertInterval(ctx, r.pool, sqlcv1.UpsertIntervalParams{
 		Intervalnanoseconds: int64(d),
 		Operationid:         operationId,
-		Tenantid:            uuid.MustParse(tenantId),
+		Tenantid:            tenantId,
 	})
 
 	if err != nil {

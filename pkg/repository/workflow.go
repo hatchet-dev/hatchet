@@ -194,33 +194,33 @@ type WorkflowMetrics struct {
 }
 
 type WorkflowRepository interface {
-	ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []uuid.UUID) (map[uuid.UUID]string, error)
-	PutWorkflowVersion(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+	ListWorkflowNamesByIds(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (map[uuid.UUID]string, error)
+	PutWorkflowVersion(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 	GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error)
 
 	// ListWorkflows returns all workflows for a given tenant.
-	ListWorkflows(tenantId string, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
+	ListWorkflows(tenantId uuid.UUID, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
 
 	// GetWorkflowById returns a workflow by its name. It will return db.ErrNotFound if the workflow does not exist.
 	GetWorkflowById(ctx context.Context, workflowId string) (*sqlcv1.GetWorkflowByIdRow, error)
 
 	// GetWorkflowVersionById returns a workflow version by its id. It will return db.ErrNotFound if the workflow
 	// version does not exist.
-	GetWorkflowVersionWithTriggers(ctx context.Context, tenantId, workflowVersionId string) (*sqlcv1.GetWorkflowVersionByIdRow,
+	GetWorkflowVersionWithTriggers(ctx context.Context, tenantId uuid.UUID, workflowVersionId string) (*sqlcv1.GetWorkflowVersionByIdRow,
 		[]*sqlcv1.WorkflowTriggerCronRef,
 		[]*sqlcv1.WorkflowTriggerEventRef,
 		[]*sqlcv1.WorkflowTriggerScheduledRef,
 		[]*sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdRow,
 		error)
 
-	GetWorkflowVersionById(ctx context.Context, tenantId, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+	GetWorkflowVersionById(ctx context.Context, tenantId uuid.UUID, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 
 	// DeleteWorkflow deletes a workflow for a given tenant.
-	DeleteWorkflow(ctx context.Context, tenantId, workflowId string) (*sqlcv1.Workflow, error)
+	DeleteWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId string) (*sqlcv1.Workflow, error)
 
-	GetWorkflowByName(ctx context.Context, tenantId, workflowName string) (*sqlcv1.Workflow, error)
+	GetWorkflowByName(ctx context.Context, tenantId uuid.UUID, workflowName string) (*sqlcv1.Workflow, error)
 
-	GetLatestWorkflowVersion(ctx context.Context, tenantId, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+	GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 }
 
 type workflowRepository struct {
@@ -233,7 +233,7 @@ func newWorkflowRepository(shared *sharedRepository) WorkflowRepository {
 	}
 }
 
-func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
+func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-workflow-names-by-ids")
 	defer span.End()
 
@@ -260,7 +260,7 @@ func (e *JobRunHasCycleError) Error() string {
 	return fmt.Sprintf("job %s has a cycle", e.JobName)
 }
 
-func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
+func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -286,13 +286,13 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 
 	defer rollback()
 
-	pgTenantId := uuid.MustParse(tenantId)
+	pgTenantId := tenantId
 	var workflowId uuid.UUID
 	var oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow
 
 	// check whether the workflow exists
 	existingWorkflow, err := r.queries.GetWorkflowByName(ctx, r.pool, sqlcv1.GetWorkflowByNameParams{
-		Tenantid: uuid.MustParse(tenantId),
+		Tenantid: tenantId,
 		Name:     opts.Name,
 	})
 
@@ -1003,7 +1003,7 @@ func (r *workflowRepository) GetWorkflowShape(ctx context.Context, workflowVersi
 	return r.queries.GetWorkflowShape(ctx, r.pool, uuid.MustParse(workflowVersionId.String()))
 }
 
-func (r *workflowRepository) ListWorkflows(tenantId string, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error) {
+func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -1087,7 +1087,7 @@ func (r *workflowRepository) GetWorkflowById(ctx context.Context, workflowId str
 
 }
 
-func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context, tenantId, workflowVersionId string) (
+func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context, tenantId uuid.UUID, workflowVersionId string) (
 	*sqlcv1.GetWorkflowVersionByIdRow,
 	[]*sqlcv1.WorkflowTriggerCronRef,
 	[]*sqlcv1.WorkflowTriggerEventRef,
@@ -1138,7 +1138,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	}
 
 	stepConcurrency, err := r.queries.ListConcurrencyStrategiesByWorkflowVersionId(ctx, r.pool, sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdParams{
-		Tenantid:          uuid.MustParse(tenantId),
+		Tenantid:          tenantId,
 		Workflowversionid: row.WorkflowVersion.ID,
 		Workflowid:        row.Workflow.ID,
 	})
@@ -1150,9 +1150,9 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	return row, crons, events, scheduled, stepConcurrency, nil
 }
 
-func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantId, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
+func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantId uuid.UUID, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
 	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, sqlcv1.GetWorkflowVersionForEngineParams{
-		Tenantid: uuid.MustParse(tenantId),
+		Tenantid: tenantId,
 		Ids:      []uuid.UUID{uuid.MustParse(workflowId)},
 	})
 
@@ -1167,18 +1167,18 @@ func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantI
 	return versions[0], nil
 }
 
-func (r *workflowRepository) DeleteWorkflow(ctx context.Context, tenantId, workflowId string) (*sqlcv1.Workflow, error) {
+func (r *workflowRepository) DeleteWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId string) (*sqlcv1.Workflow, error) {
 	return r.queries.SoftDeleteWorkflow(ctx, r.pool, uuid.MustParse(workflowId))
 }
 
-func (r *workflowRepository) GetWorkflowByName(ctx context.Context, tenantId, workflowName string) (*sqlcv1.Workflow, error) {
+func (r *workflowRepository) GetWorkflowByName(ctx context.Context, tenantId uuid.UUID, workflowName string) (*sqlcv1.Workflow, error) {
 	return r.queries.GetWorkflowByName(ctx, r.pool, sqlcv1.GetWorkflowByNameParams{
-		Tenantid: uuid.MustParse(tenantId),
+		Tenantid: tenantId,
 		Name:     workflowName,
 	})
 }
 
-func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenantId, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
+func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
 	versionId, err := r.queries.GetWorkflowLatestVersion(ctx, r.pool, uuid.MustParse(workflowId))
 
 	if err != nil {
@@ -1186,7 +1186,7 @@ func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenan
 	}
 
 	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, sqlcv1.GetWorkflowVersionForEngineParams{
-		Tenantid: uuid.MustParse(tenantId),
+		Tenantid: tenantId,
 		Ids:      []uuid.UUID{versionId},
 	})
 

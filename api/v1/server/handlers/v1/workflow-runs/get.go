@@ -38,7 +38,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 
 func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 	ctx context.Context,
-	tenantId string,
+	tenantId uuid.UUID,
 	rawWorkflowRun *v1.V1WorkflowRunPopulator,
 ) (*gen.V1WorkflowRunDetails, error) {
 	workflowRun := rawWorkflowRun.WorkflowRun

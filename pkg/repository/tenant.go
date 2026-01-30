@@ -25,7 +25,7 @@ type CreateTenantOpts struct {
 	Slug string `validate:"required,hatchetName"`
 
 	// (optional) the tenant ID
-	ID *string `validate:"omitempty,uuid"`
+	ID *uuid.UUID `validate:"omitempty"`
 
 	// (optional) the tenant data retention period
 	DataRetentionPeriod *string `validate:"omitempty,duration"`
@@ -91,28 +91,28 @@ type TenantRepository interface {
 	CreateTenant(ctx context.Context, opts *CreateTenantOpts) (*sqlcv1.Tenant, error)
 
 	// UpdateTenant updates an existing tenant in the db.
-	UpdateTenant(ctx context.Context, tenantId string, opts *UpdateTenantOpts) (*sqlcv1.Tenant, error)
+	UpdateTenant(ctx context.Context, tenantId uuid.UUID, opts *UpdateTenantOpts) (*sqlcv1.Tenant, error)
 
 	// GetTenantByID returns the tenant with the given id
-	GetTenantByID(ctx context.Context, tenantId string) (*sqlcv1.Tenant, error)
+	GetTenantByID(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.Tenant, error)
 
 	// GetTenantBySlug returns the tenant with the given slug
 	GetTenantBySlug(ctx context.Context, slug string) (*sqlcv1.Tenant, error)
 
 	// CreateTenantMember creates a new member in the tenant
-	CreateTenantMember(ctx context.Context, tenantId string, opts *CreateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error)
+	CreateTenantMember(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error)
 
 	// GetTenantMemberByID returns the tenant member with the given id
 	GetTenantMemberByID(ctx context.Context, memberId string) (*sqlcv1.PopulateTenantMembersRow, error)
 
 	// GetTenantMemberByUserID returns the tenant member with the given user id
-	GetTenantMemberByUserID(ctx context.Context, tenantId string, userId string) (*sqlcv1.PopulateTenantMembersRow, error)
+	GetTenantMemberByUserID(ctx context.Context, tenantId uuid.UUID, userId string) (*sqlcv1.PopulateTenantMembersRow, error)
 
 	// GetTenantMemberByEmail returns the tenant member with the given email
-	GetTenantMemberByEmail(ctx context.Context, tenantId string, email string) (*sqlcv1.PopulateTenantMembersRow, error)
+	GetTenantMemberByEmail(ctx context.Context, tenantId uuid.UUID, email string) (*sqlcv1.PopulateTenantMembersRow, error)
 
 	// ListTenantMembers returns the list of tenant members for the given tenant
-	ListTenantMembers(ctx context.Context, tenantId string) ([]*sqlcv1.PopulateTenantMembersRow, error)
+	ListTenantMembers(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error)
 
 	// UpdateTenantMember updates the tenant member with the given id
 	UpdateTenantMember(ctx context.Context, memberId string, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error)
@@ -121,7 +121,7 @@ type TenantRepository interface {
 	DeleteTenantMember(ctx context.Context, memberId string) error
 
 	// GetQueueMetrics returns the queue metrics for the given tenant
-	GetQueueMetrics(ctx context.Context, tenantId string, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error)
+	GetQueueMetrics(ctx context.Context, tenantId uuid.UUID, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error)
 
 	// ListTenants lists all tenants in the instance
 	ListTenants(ctx context.Context) ([]*sqlcv1.Tenant, error)
@@ -172,7 +172,7 @@ type TenantRepository interface {
 
 	DeleteTenant(ctx context.Context, id string) error
 
-	GetTenantUsageData(ctx context.Context, tenantId string) (*sqlcv1.GetTenantUsageDataRow, error)
+	GetTenantUsageData(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.GetTenantUsageDataRow, error)
 }
 
 type tenantRepository struct {
@@ -204,7 +204,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		return nil, err
 	}
 
-	tenantId := uuid.New().String()
+	tenantId := uuid.New()
 
 	if opts.ID != nil {
 		tenantId = *opts.ID
@@ -252,7 +252,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 	}
 
 	createTenant, err := r.queries.CreateTenant(context.Background(), tx, sqlcv1.CreateTenantParams{
-		ID:                  uuid.MustParse(tenantId),
+		ID:                  tenantId,
 		Slug:                opts.Slug,
 		Name:                opts.Name,
 		DataRetentionPeriod: dataRetentionPeriod,
@@ -268,7 +268,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		return nil, err
 	}
 
-	_, err = r.queries.CreateTenantAlertingSettings(ctx, tx, uuid.MustParse(tenantId))
+	_, err = r.queries.CreateTenantAlertingSettings(ctx, tx, tenantId)
 
 	if err != nil {
 		return nil, err
@@ -285,13 +285,13 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 	return createTenant, nil
 }
 
-func (r *tenantRepository) UpdateTenant(ctx context.Context, id string, opts *UpdateTenantOpts) (*sqlcv1.Tenant, error) {
+func (r *tenantRepository) UpdateTenant(ctx context.Context, id uuid.UUID, opts *UpdateTenantOpts) (*sqlcv1.Tenant, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	params := sqlcv1.UpdateTenantParams{
-		ID: uuid.MustParse(id),
+		ID: id,
 	}
 
 	if opts.Name != nil {
@@ -317,9 +317,9 @@ func (r *tenantRepository) UpdateTenant(ctx context.Context, id string, opts *Up
 	)
 }
 
-func (r *tenantRepository) GetTenantByID(ctx context.Context, id string) (*sqlcv1.Tenant, error) {
-	return cache.MakeCacheable(r.cache, "api"+id, func() (*sqlcv1.Tenant, error) {
-		return r.queries.GetTenantByID(ctx, r.pool, uuid.MustParse(id))
+func (r *tenantRepository) GetTenantByID(ctx context.Context, id uuid.UUID) (*sqlcv1.Tenant, error) {
+	return cache.MakeCacheable(r.cache, "api"+id.String(), func() (*sqlcv1.Tenant, error) {
+		return r.queries.GetTenantByID(ctx, r.pool, id)
 	})
 }
 
@@ -331,7 +331,7 @@ func (r *tenantRepository) GetTenantBySlug(ctx context.Context, slug string) (*s
 	)
 }
 
-func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId string, opts *CreateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error) {
+func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -340,7 +340,7 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId stri
 		ctx,
 		r.pool,
 		sqlcv1.CreateTenantMemberParams{
-			Tenantid: uuid.MustParse(tenantId),
+			Tenantid: tenantId,
 			Userid:   uuid.MustParse(opts.UserId),
 			Role:     sqlcv1.TenantMemberRole(opts.Role),
 		},
@@ -367,12 +367,12 @@ func (r *tenantRepository) GetTenantMemberByID(ctx context.Context, memberId str
 	return r.populateSingleTenantMember(ctx, member.ID)
 }
 
-func (r *tenantRepository) GetTenantMemberByUserID(ctx context.Context, tenantId string, userId string) (*sqlcv1.PopulateTenantMembersRow, error) {
+func (r *tenantRepository) GetTenantMemberByUserID(ctx context.Context, tenantId uuid.UUID, userId string) (*sqlcv1.PopulateTenantMembersRow, error) {
 	member, err := r.queries.GetTenantMemberByUserID(
 		ctx,
 		r.pool,
 		sqlcv1.GetTenantMemberByUserIDParams{
-			Tenantid: uuid.MustParse(tenantId),
+			Tenantid: tenantId,
 			Userid:   uuid.MustParse(userId),
 		},
 	)
@@ -384,11 +384,11 @@ func (r *tenantRepository) GetTenantMemberByUserID(ctx context.Context, tenantId
 	return r.populateSingleTenantMember(ctx, member.ID)
 }
 
-func (r *tenantRepository) ListTenantMembers(ctx context.Context, tenantId string) ([]*sqlcv1.PopulateTenantMembersRow, error) {
+func (r *tenantRepository) ListTenantMembers(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error) {
 	members, err := r.queries.ListTenantMembers(
 		ctx,
 		r.pool,
-		uuid.MustParse(tenantId),
+		tenantId,
 	)
 
 	if err != nil {
@@ -404,12 +404,12 @@ func (r *tenantRepository) ListTenantMembers(ctx context.Context, tenantId strin
 	return r.populateTenantMembers(ctx, ids)
 }
 
-func (r *tenantRepository) GetTenantMemberByEmail(ctx context.Context, tenantId string, email string) (*sqlcv1.PopulateTenantMembersRow, error) {
+func (r *tenantRepository) GetTenantMemberByEmail(ctx context.Context, tenantId uuid.UUID, email string) (*sqlcv1.PopulateTenantMembersRow, error) {
 	member, err := r.queries.GetTenantMemberByEmail(
 		ctx,
 		r.pool,
 		sqlcv1.GetTenantMemberByEmailParams{
-			Tenantid: uuid.MustParse(tenantId),
+			Tenantid: tenantId,
 			Email:    email,
 		},
 	)
@@ -480,17 +480,17 @@ func (r *tenantRepository) DeleteTenantMember(ctx context.Context, memberId stri
 	)
 }
 
-func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId string, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error) {
+func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId uuid.UUID, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	totalParams := sqlcv1.GetTenantTotalQueueMetricsParams{
-		TenantId: uuid.MustParse(tenantId),
+		TenantId: tenantId,
 	}
 
 	workflowParams := sqlcv1.GetTenantWorkflowQueueMetricsParams{
-		TenantId: uuid.MustParse(tenantId),
+		TenantId: tenantId,
 	}
 
 	if opts.AdditionalMetadata != nil {
@@ -798,8 +798,8 @@ func (r *tenantRepository) DeleteTenant(ctx context.Context, id string) error {
 	return r.queries.DeleteTenant(ctx, r.pool, uuid.MustParse(id))
 }
 
-func (r *tenantRepository) GetTenantUsageData(ctx context.Context, tenantId string) (*sqlcv1.GetTenantUsageDataRow, error) {
-	return r.queries.GetTenantUsageData(ctx, r.pool, uuid.MustParse(tenantId))
+func (r *tenantRepository) GetTenantUsageData(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.GetTenantUsageDataRow, error) {
+	return r.queries.GetTenantUsageData(ctx, r.pool, tenantId)
 }
 
 func getPartitionName() pgtype.Text {

@@ -14,7 +14,7 @@ type OLAPPayloadsToOffload struct {
 	Payloads []OLAPPayloadToOffload
 }
 
-func OLAPPayloadOffloadMessage(tenantId string, payloads []OLAPPayloadToOffload) (*msgqueue.Message, error) {
+func OLAPPayloadOffloadMessage(tenantId uuid.UUID, payloads []OLAPPayloadToOffload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDOffloadPayload,

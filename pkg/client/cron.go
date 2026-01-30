@@ -53,7 +53,7 @@ type cronClientImpl struct {
 	namespace string
 }
 
-func NewCronClient(restClient *rest.ClientWithResponses, l *zerolog.Logger, v validator.Validator, tenantId, namespace string) (CronClient, error) {
+func NewCronClient(restClient *rest.ClientWithResponses, l *zerolog.Logger, v validator.Validator, tenantId uuid.UUID, namespace string) (CronClient, error) {
 	tenantIdUUID, err := uuid.Parse(tenantId)
 
 	if err != nil {

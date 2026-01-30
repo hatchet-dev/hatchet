@@ -20,7 +20,7 @@ import (
 
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
-	tenantId string,
+	tenantId uuid.UUID,
 	task *v1.V1TaskWithPayload,
 ) error {
 	if ctx.Err() != nil {
@@ -177,7 +177,7 @@ func (worker *subscribedWorker) sendToWorker(
 
 func (worker *subscribedWorker) CancelTask(
 	ctx context.Context,
-	tenantId string,
+	tenantId uuid.UUID,
 	task *sqlcv1.V1Task,
 	retryCount int32,
 ) error {

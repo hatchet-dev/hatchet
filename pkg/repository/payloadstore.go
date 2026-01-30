@@ -28,7 +28,7 @@ type StorePayloadOpts struct {
 	ExternalId uuid.UUID
 	Type       sqlcv1.V1PayloadType
 	Payload    []byte
-	TenantId   string
+	TenantId   uuid.UUID
 }
 
 type StoreOLAPPayloadOpts struct {
@@ -38,7 +38,7 @@ type StoreOLAPPayloadOpts struct {
 }
 
 type OffloadToExternalStoreOpts struct {
-	TenantId   TenantID
+	TenantId   uuid.UUID
 	ExternalID PayloadExternalId
 	InsertedAt pgtype.Timestamptz
 	Payload    []byte
@@ -53,7 +53,6 @@ type RetrievePayloadOpts struct {
 
 type PayloadLocation string
 type ExternalPayloadLocationKey string
-type TenantID string
 type PayloadExternalId string
 
 type ExternalStore interface {
@@ -164,7 +163,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		payloadIndexMap := make(map[PayloadUniqueKey]int)
 
 		for i, payload := range payloads {
-			tenantId := uuid.MustParse(payload.TenantId)
+			tenantId := payload.TenantId
 			uniqueKey := PayloadUniqueKey{
 				ID:         payload.Id,
 				InsertedAt: payload.InsertedAt,
@@ -180,7 +179,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 			payloadIndexMap[uniqueKey] = i
 
 			externalOpts = append(externalOpts, OffloadToExternalStoreOpts{
-				TenantId:   TenantID(payload.TenantId),
+				TenantId:   payload.TenantId,
 				ExternalID: PayloadExternalId(payload.ExternalId.String()),
 				InsertedAt: payload.InsertedAt,
 				Payload:    payload.Payload,
@@ -193,7 +192,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		}
 
 		for _, payload := range payloads {
-			tenantId := uuid.MustParse(payload.TenantId)
+			tenantId := payload.TenantId
 			uniqueKey := PayloadUniqueKey{
 				ID:         payload.Id,
 				InsertedAt: payload.InsertedAt,
@@ -226,7 +225,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		}
 
 		for _, payload := range payloads {
-			tenantId := uuid.MustParse(payload.TenantId)
+			tenantId := payload.TenantId
 			uniqueKey := PayloadUniqueKey{
 				ID:         payload.Id,
 				InsertedAt: payload.InsertedAt,
@@ -572,7 +571,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 					alreadyExternalPayloadsInner[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
 				} else {
 					offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{
-						TenantId:   TenantID(payload.TenantID.String()),
+						TenantId:   payload.TenantID,
 						ExternalID: externalId,
 						InsertedAt: payload.InsertedAt,
 						Payload:    payload.InlineContent,

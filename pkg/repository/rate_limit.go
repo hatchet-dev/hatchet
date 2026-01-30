@@ -47,9 +47,9 @@ type UpsertRateLimitOpts struct {
 type RateLimitRepository interface {
 	UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error)
 
-	UpsertRateLimit(ctx context.Context, tenantId string, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error)
+	UpsertRateLimit(ctx context.Context, tenantId uuid.UUID, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error)
 
-	ListRateLimits(ctx context.Context, tenantId string, opts *ListRateLimitOpts) (*ListRateLimitsResult, error)
+	ListRateLimits(ctx context.Context, tenantId uuid.UUID, opts *ListRateLimitOpts) (*ListRateLimitsResult, error)
 }
 
 const MAX_TENANT_RATE_LIMITS = 10000
@@ -128,13 +128,13 @@ func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uui
 	return newRls, &nextRefillAt, err
 }
 
-func (r *rateLimitRepository) UpsertRateLimit(ctx context.Context, tenantId string, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error) {
+func (r *rateLimitRepository) UpsertRateLimit(ctx context.Context, tenantId uuid.UUID, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	upsertParams := sqlcv1.UpsertRateLimitParams{
-		Tenantid: uuid.MustParse(tenantId),
+		Tenantid: tenantId,
 		Key:      key,
 		Limit:    int32(opts.Limit), // nolint: gosec
 	}
@@ -152,21 +152,19 @@ func (r *rateLimitRepository) UpsertRateLimit(ctx context.Context, tenantId stri
 	return rateLimit, nil
 }
 
-func (r *rateLimitRepository) ListRateLimits(ctx context.Context, tenantId string, opts *ListRateLimitOpts) (*ListRateLimitsResult, error) {
+func (r *rateLimitRepository) ListRateLimits(ctx context.Context, tenantId uuid.UUID, opts *ListRateLimitOpts) (*ListRateLimitsResult, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	res := &ListRateLimitsResult{}
 
-	pgTenantId := uuid.MustParse(tenantId)
-
 	queryParams := sqlcv1.ListRateLimitsForTenantNoMutateParams{
-		Tenantid: pgTenantId,
+		Tenantid: tenantId,
 	}
 
 	countParams := sqlcv1.CountRateLimitsParams{
-		Tenantid: pgTenantId,
+		Tenantid: tenantId,
 	}
 
 	if opts.Search != nil {

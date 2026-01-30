@@ -20,13 +20,13 @@ type UpsertSlackWebhookOpts struct {
 }
 
 type SlackRepository interface {
-	UpsertSlackWebhook(ctx context.Context, tenantId string, opts *UpsertSlackWebhookOpts) (*sqlcv1.SlackAppWebhook, error)
+	UpsertSlackWebhook(ctx context.Context, tenantId uuid.UUID, opts *UpsertSlackWebhookOpts) (*sqlcv1.SlackAppWebhook, error)
 
-	ListSlackWebhooks(ctx context.Context, tenantId string) ([]*sqlcv1.SlackAppWebhook, error)
+	ListSlackWebhooks(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.SlackAppWebhook, error)
 
 	GetSlackWebhookById(ctx context.Context, id string) (*sqlcv1.SlackAppWebhook, error)
 
-	DeleteSlackWebhook(ctx context.Context, tenantId string, id string) error
+	DeleteSlackWebhook(ctx context.Context, tenantId uuid.UUID, id string) error
 }
 
 type slackRepository struct {
@@ -39,7 +39,7 @@ func newSlackRepository(shared *sharedRepository) SlackRepository {
 	}
 }
 
-func (r *slackRepository) UpsertSlackWebhook(ctx context.Context, tenantId string, opts *UpsertSlackWebhookOpts) (*sqlcv1.SlackAppWebhook, error) {
+func (r *slackRepository) UpsertSlackWebhook(ctx context.Context, tenantId uuid.UUID, opts *UpsertSlackWebhookOpts) (*sqlcv1.SlackAppWebhook, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (r *slackRepository) UpsertSlackWebhook(ctx context.Context, tenantId strin
 		ctx,
 		r.pool,
 		sqlcv1.UpsertSlackWebhookParams{
-			Tenantid:    uuid.MustParse(tenantId),
+			Tenantid:    tenantId,
 			Teamid:      opts.TeamId,
 			Teamname:    opts.TeamName,
 			Channelid:   opts.ChannelId,
@@ -58,11 +58,11 @@ func (r *slackRepository) UpsertSlackWebhook(ctx context.Context, tenantId strin
 	)
 }
 
-func (r *slackRepository) ListSlackWebhooks(ctx context.Context, tenantId string) ([]*sqlcv1.SlackAppWebhook, error) {
+func (r *slackRepository) ListSlackWebhooks(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.SlackAppWebhook, error) {
 	return r.queries.ListSlackWebhooks(
 		ctx,
 		r.pool,
-		uuid.MustParse(tenantId),
+		tenantId,
 	)
 }
 
@@ -74,12 +74,12 @@ func (r *slackRepository) GetSlackWebhookById(ctx context.Context, id string) (*
 	)
 }
 
-func (r *slackRepository) DeleteSlackWebhook(ctx context.Context, tenantId string, id string) error {
+func (r *slackRepository) DeleteSlackWebhook(ctx context.Context, tenantId uuid.UUID, id string) error {
 	return r.queries.DeleteSlackWebhook(
 		ctx,
 		r.pool,
 		sqlcv1.DeleteSlackWebhookParams{
-			Tenantid: uuid.MustParse(tenantId),
+			Tenantid: tenantId,
 			ID:       uuid.MustParse(id),
 		},
 	)

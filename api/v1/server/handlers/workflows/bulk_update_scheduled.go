@@ -44,7 +44,7 @@ func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request 
 			chunkUUIDByStr[u.Id] = u.Id
 		}
 
-		metaById, err := t.config.V1.WorkflowSchedules().ScheduledWorkflowMetaByIds(dbCtx, uuid.MustParse(tenantId), chunkIds)
+		metaById, err := t.config.V1.WorkflowSchedules().ScheduledWorkflowMetaByIds(dbCtx, tenantId, chunkIds)
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +72,7 @@ func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request 
 			})
 		}
 
-		updatedIds, err := t.config.V1.WorkflowSchedules().BulkUpdateScheduledWorkflows(dbCtx, uuid.MustParse(tenantId), toUpdate)
+		updatedIds, err := t.config.V1.WorkflowSchedules().BulkUpdateScheduledWorkflows(dbCtx, tenantId, toUpdate)
 		if err != nil {
 			return nil, err
 		}

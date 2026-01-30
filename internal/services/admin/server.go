@@ -149,7 +149,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	for _, scheduleTime := range scheduleTimes {
 		scheduledRef, err := a.repov1.WorkflowSchedules().CreateScheduledWorkflow(
 			ctx,
-			uuid.MustParse(tenantId),
+			tenantId,
 			&v1.CreateScheduledWorkflowRunForWorkflowOpts{
 				WorkflowId:         uuid.MustParse(workflowId),
 				ScheduledTrigger:   scheduleTime,

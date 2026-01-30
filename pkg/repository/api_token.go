@@ -26,14 +26,14 @@ type CreateAPITokenOpts struct {
 	Internal bool
 }
 
-type APITokenGenerator func(ctx context.Context, tenantId, name string, internal bool, expires *time.Time) (string, error)
+type APITokenGenerator func(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (string, error)
 
 type APITokenRepository interface {
 	CreateAPIToken(ctx context.Context, opts *CreateAPITokenOpts) (*sqlcv1.APIToken, error)
 	GetAPITokenById(ctx context.Context, id string) (*sqlcv1.APIToken, error)
-	ListAPITokensByTenant(ctx context.Context, tenantId string) ([]*sqlcv1.APIToken, error)
+	ListAPITokensByTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.APIToken, error)
 	RevokeAPIToken(ctx context.Context, id string) error
-	DeleteAPIToken(ctx context.Context, tenantId, id string) error
+	DeleteAPIToken(ctx context.Context, tenantId, id uuid.UUID) error
 }
 
 type apiTokenRepository struct {
@@ -55,8 +55,8 @@ func (a *apiTokenRepository) RevokeAPIToken(ctx context.Context, id string) erro
 	return a.queries.RevokeAPIToken(ctx, a.pool, uuid.MustParse(id))
 }
 
-func (a *apiTokenRepository) ListAPITokensByTenant(ctx context.Context, tenantId string) ([]*sqlcv1.APIToken, error) {
-	return a.queries.ListAPITokensByTenant(ctx, a.pool, uuid.MustParse(tenantId))
+func (a *apiTokenRepository) ListAPITokensByTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.APIToken, error) {
+	return a.queries.ListAPITokensByTenant(ctx, a.pool, tenantId)
 }
 
 func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPITokenOpts) (*sqlcv1.APIToken, error) {
@@ -88,7 +88,7 @@ func (a *apiTokenRepository) GetAPITokenById(ctx context.Context, id string) (*s
 	})
 }
 
-func (a *apiTokenRepository) DeleteAPIToken(ctx context.Context, tenantId, id string) error {
+func (a *apiTokenRepository) DeleteAPIToken(ctx context.Context, tenantId, id uuid.UUID) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, a.pool, a.l)
 
 	if err != nil {
@@ -98,8 +98,8 @@ func (a *apiTokenRepository) DeleteAPIToken(ctx context.Context, tenantId, id st
 	defer rollback()
 
 	err = a.queries.DeleteAPIToken(ctx, tx, sqlcv1.DeleteAPITokenParams{
-		Tenantid: uuid.MustParse(tenantId),
-		ID:       uuid.MustParse(id),
+		Tenantid: tenantId,
+		ID:       id,
 	})
 
 	if err != nil {

@@ -17,7 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, scheduledWorkflowId string, scheduled *sqlcv1.PollScheduledWorkflowsRow) error {
+func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId uuid.UUID, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, scheduledWorkflowId string, scheduled *sqlcv1.PollScheduledWorkflowsRow) error {
 	expiresAt := scheduled.TriggerAt.Time.Add(time.Second * 30)
 	err := t.repov1.Idempotency().CreateIdempotencyKey(ctx, tenantId, scheduledWorkflowId, sqlchelpers.TimestamptzFromTime(expiresAt))
 
@@ -62,5 +62,5 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string
 	}
 
 	// delete the scheduled workflow
-	return t.repov1.WorkflowSchedules().DeleteScheduledWorkflow(ctx, uuid.MustParse(tenantId), uuid.MustParse(scheduledWorkflowId))
+	return t.repov1.WorkflowSchedules().DeleteScheduledWorkflow(ctx, tenantId, uuid.MustParse(scheduledWorkflowId))
 }

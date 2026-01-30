@@ -3,6 +3,7 @@ package v1
 import (
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -32,7 +33,7 @@ type WorkerPromLabels struct {
 	Name string
 }
 
-func (p *PrometheusExtension) ReportSnapshot(tenantId string, input *SnapshotInput) {
+func (p *PrometheusExtension) ReportSnapshot(tenantId uuid.UUID, input *SnapshotInput) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -69,7 +70,7 @@ func (p *PrometheusExtension) ReportSnapshot(tenantId string, input *SnapshotInp
 	}
 }
 
-func (p *PrometheusExtension) PostAssign(tenantId string, input *PostAssignInput) {}
+func (p *PrometheusExtension) PostAssign(tenantId uuid.UUID, input *PostAssignInput) {}
 
 func (p *PrometheusExtension) Cleanup() error {
 	p.mu.Lock()

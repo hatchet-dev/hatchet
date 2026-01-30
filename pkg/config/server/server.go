@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
@@ -205,7 +206,7 @@ type ConfigFileRuntime struct {
 
 	// EnforceLimitsFunc is a function that returns whether the server should enforce limits for a tenant
 	// This will take precedence over EnforceLimits if set.
-	EnforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error) `json:"-"`
+	EnforceLimitsFunc func(ctx context.Context, tenantId uuid.UUID) (bool, error) `json:"-"`
 
 	// Default limit values
 	Limits limits.LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`

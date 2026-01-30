@@ -51,7 +51,7 @@ type scheduleClientImpl struct {
 	namespace string
 }
 
-func NewScheduleClient(restClient *rest.ClientWithResponses, l *zerolog.Logger, v validator.Validator, tenantId, namespace string) (ScheduleClient, error) {
+func NewScheduleClient(restClient *rest.ClientWithResponses, l *zerolog.Logger, v validator.Validator, tenantId uuid.UUID, namespace string) (ScheduleClient, error) {
 	tenantIdUUID, err := uuid.Parse(tenantId)
 
 	if err != nil {

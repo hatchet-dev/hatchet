@@ -52,7 +52,7 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *sqlcv1.Tenant,
 	return i.ingestSingleton(ctx, tenantId, key, data, metadata, priority, scope, triggeringWebhookName)
 }
 
-func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error) {
+func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId uuid.UUID, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error) {
 	eventId := uuid.New().String()
 
 	msg, err := eventToTaskV1(
@@ -83,7 +83,7 @@ func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string
 		CreatedAt:          sqlchelpers.TimestampFromTime(now),
 		UpdatedAt:          sqlchelpers.TimestampFromTime(now),
 		Key:                key,
-		TenantId:           uuid.MustParse(tenantId),
+		TenantId:           tenantId,
 		Data:               data,
 		AdditionalMetadata: metadata,
 	}, nil
@@ -194,7 +194,7 @@ func (i *IngestorImpl) ingestWebhookValidationFailure(tenantId, webhookName, err
 	return nil
 }
 
-func (i *IngestorImpl) ingestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {
+func (i *IngestorImpl) ingestCELEvaluationFailure(ctx context.Context, tenantId uuid.UUID, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {
 	msg, err := tasktypes.CELEvaluationFailureMessage(
 		tenantId,
 		[]v1.CELEvaluationFailure{

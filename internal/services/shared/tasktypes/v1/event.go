@@ -3,6 +3,7 @@ package v1
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
@@ -17,7 +18,7 @@ type UserEventTaskPayload struct {
 	TriggeringWebhookName   *string `json:"triggering_webhook_name,omitempty"`
 }
 
-func NewInternalEventMessage(tenantId string, timestamp time.Time, events ...v1.InternalTaskEvent) (*msgqueue.Message, error) {
+func NewInternalEventMessage(tenantId uuid.UUID, timestamp time.Time, events ...v1.InternalTaskEvent) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDInternalEvent,

@@ -92,13 +92,13 @@ type createDAGOpts struct {
 }
 
 type TriggerRepository interface {
-	TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error)
+	TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, opts []EventTriggerOpts) (*TriggerFromEventsResult, error)
 
-	TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error)
+	TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error)
 
-	PopulateExternalIdsForWorkflow(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error
+	PopulateExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 
-	PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error
+	PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 }
 
 type TriggerRepositoryImpl struct {
@@ -221,7 +221,7 @@ type WorkflowAndScope struct {
 	Scope      string
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
+func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
 	pre, post := r.m.Meter(ctx, sqlcv1.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
 	if err := pre(); err != nil {
@@ -250,7 +250,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	// we don't run this in a transaction because workflow versions won't change during the course of this operation
 	workflowVersionIdsAndEventKeys, err := r.queries.ListWorkflowsForEvents(ctx, r.pool, sqlcv1.ListWorkflowsForEventsParams{
 		Eventkeys: eventKeys,
-		Tenantid:  uuid.MustParse(tenantId),
+		Tenantid:  tenantId,
 	})
 
 	if err != nil {
@@ -296,7 +296,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}
 
 	filters, err := r.queries.ListFiltersForEventTriggers(ctx, r.pool, sqlcv1.ListFiltersForEventTriggersParams{
-		Tenantid:    uuid.MustParse(tenantId),
+		Tenantid:    tenantId,
 		Workflowids: workflowIds,
 		Scopes:      scopes,
 	})
@@ -317,7 +317,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}
 
 	filterCounts, err := r.queries.ListFilterCountsForWorkflows(ctx, r.pool, sqlcv1.ListFilterCountsForWorkflowsParams{
-		Tenantid:    uuid.MustParse(tenantId),
+		Tenantid:    tenantId,
 		Workflowids: workflowIdsForFilterCounts,
 	})
 
@@ -443,7 +443,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}, nil
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
+func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
 	workflowNames := make([]string, 0, len(opts))
 	uniqueNames := make(map[string]struct{})
 	namesToOpts := make(map[string][]*WorkflowNameTriggerOpts)
@@ -481,7 +481,7 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 	// we don't run this in a transaction because workflow versions won't change during the course of this operation
 	workflowVersionsByNames, err := r.queries.ListWorkflowsByNames(ctx, r.pool, sqlcv1.ListWorkflowsByNamesParams{
-		Tenantid:      uuid.MustParse(tenantId),
+		Tenantid:      tenantId,
 		Workflownames: workflowNames,
 	})
 
@@ -543,7 +543,7 @@ func (e *ErrNamesNotFound) Error() string {
 	return fmt.Sprintf("workflow names not found: %s", strings.Join(e.Names, ", "))
 }
 
-func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error {
+func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
 	// get a list of workflow names
 	workflowNames := make(map[string]bool)
 
@@ -572,7 +572,7 @@ func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Cont
 
 	// look up the workflow versions for the workflow names
 	workflowVersions, err := r.queries.ListWorkflowsByNames(ctx, r.pool, sqlcv1.ListWorkflowsByNamesParams{
-		Tenantid:      uuid.MustParse(tenantId),
+		Tenantid:      tenantId,
 		Workflownames: workflowNamesToLookup,
 	})
 
@@ -679,7 +679,7 @@ type triggerTuple struct {
 	childKey             *string
 }
 
-func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId string, tuples []triggerTuple) ([]*V1TaskWithPayload, []*DAGWithData, error) {
+func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId uuid.UUID, tuples []triggerTuple) ([]*V1TaskWithPayload, []*DAGWithData, error) {
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[string]struct{})
 
@@ -697,7 +697,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	// get steps for the workflow versions
 	steps, err := r.queries.ListStepsByWorkflowVersionIds(ctx, r.pool, sqlcv1.ListStepsByWorkflowVersionIdsParams{
 		Ids:      workflowVersionIds,
-		Tenantid: uuid.MustParse(tenantId),
+		Tenantid: tenantId,
 	})
 
 	if err != nil {
@@ -751,7 +751,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	if len(stepsWithAdditionalMatchConditions) > 0 {
 		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
 			Stepids:  stepsWithAdditionalMatchConditions,
-			Tenantid: uuid.MustParse(tenantId),
+			Tenantid: tenantId,
 		})
 
 		if err != nil {
@@ -1309,7 +1309,7 @@ type V1TaskEventWithPayload struct {
 	Payload []byte `json:"payload"`
 }
 
-func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts []createDAGOpts) ([]*DAGWithData, error) {
+func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts []createDAGOpts) ([]*DAGWithData, error) {
 	if len(opts) == 0 {
 		return nil, nil
 	}
@@ -1325,7 +1325,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 	unix := time.Now().UnixMilli()
 
 	for _, opt := range opts {
-		tenantIds = append(tenantIds, uuid.MustParse(tenantId))
+		tenantIds = append(tenantIds, tenantId)
 		externalIds = append(externalIds, uuid.MustParse(opt.ExternalId))
 		displayNames = append(displayNames, fmt.Sprintf("%s-%d", opt.WorkflowName, unix))
 		workflowIds = append(workflowIds, uuid.MustParse(opt.WorkflowId))
@@ -1419,7 +1419,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 func (r *TriggerRepositoryImpl) registerChildWorkflows(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
-	tenantId string,
+	tenantId uuid.UUID,
 	tuples []triggerTuple,
 	stepsToExternalIds []map[string]string,
 	workflowVersionToSteps map[string][]*sqlcv1.ListStepsByWorkflowVersionIdsRow,
@@ -1485,7 +1485,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		ctx,
 		tx,
 		sqlcv1.LockSignalCreatedEventsParams{
-			Tenantid:        uuid.MustParse(tenantId),
+			Tenantid:        tenantId,
 			Taskids:         potentialMatchTaskIds,
 			Taskinsertedats: potentialMatchTaskInsertedAts,
 			Eventkeys:       potentialMatchKeys,
@@ -1503,7 +1503,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   uuid.MustParse(tenantId),
+			TenantId:   tenantId,
 		}
 	}
 
@@ -1522,7 +1522,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   uuid.MustParse(tenantId),
+			TenantId:   tenantId,
 		}]
 
 		if !ok {
@@ -1543,7 +1543,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 
 	// get the child external IDs that have already been written
 	existingExternalIds, err := r.queries.LookupExternalIds(ctx, tx, sqlcv1.LookupExternalIdsParams{
-		Tenantid:    uuid.MustParse(tenantId),
+		Tenantid:    tenantId,
 		Externalids: rootExternalIdsToLookup,
 	})
 

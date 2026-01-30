@@ -75,9 +75,9 @@ type UpsertWorkerLabelOpts struct {
 }
 
 type WorkerRepository interface {
-	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
+	ListWorkers(tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
 	GetWorkerById(workerId string) (*sqlcv1.GetWorkerByIdRow, error)
-	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error)
+	ListWorkerState(tenantId uuid.UUID, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error)
 	CountActiveSlotsPerTenant() (map[string]int64, error)
 	CountActiveWorkersPerTenant() (map[string]int64, error)
 	ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error)
@@ -89,30 +89,30 @@ type WorkerRepository interface {
 	GetWorkerWorkflowsByWorkerId(tenantid string, workerId string) ([]*sqlcv1.Workflow, error)
 
 	// ListWorkerLabels returns a list of labels config for a worker
-	ListWorkerLabels(tenantId, workerId string) ([]*sqlcv1.ListWorkerLabelsRow, error)
+	ListWorkerLabels(tenantId uuid.UUID, workerId string) ([]*sqlcv1.ListWorkerLabelsRow, error)
 
 	// CreateNewWorker creates a new worker for a given tenant.
-	CreateNewWorker(ctx context.Context, tenantId string, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
+	CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
 
 	// UpdateWorker updates a worker for a given tenant.
-	UpdateWorker(ctx context.Context, tenantId, workerId string, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error)
+	UpdateWorker(ctx context.Context, tenantId uuid.UUID, workerId string, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error)
 
 	// UpdateWorker updates a worker in the
 	// It will only update the worker if there is no lock on the worker, else it will skip.
-	UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeatAt time.Time) error
+	UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId string, lastHeartbeatAt time.Time) error
 
 	// DeleteWorker removes the worker from the database
-	DeleteWorker(ctx context.Context, tenantId, workerId string) error
+	DeleteWorker(ctx context.Context, tenantId uuid.UUID, workerId string) error
 
-	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*sqlcv1.GetWorkerForEngineRow, error)
+	GetWorkerForEngine(ctx context.Context, tenantId uuid.UUID, workerId string) (*sqlcv1.GetWorkerForEngineRow, error)
 
-	UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error)
+	UpdateWorkerActiveStatus(ctx context.Context, tenantId uuid.UUID, workerId string, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error)
 
 	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 
-	DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error)
+	DeleteOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error)
 
-	GetDispatcherIdsForWorkers(ctx context.Context, tenantId string, workerIds []string) (map[string][]string, error)
+	GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []string) (map[string][]string, error)
 }
 
 type workerRepository struct {
@@ -125,12 +125,12 @@ func newWorkerRepository(shared *sharedRepository) WorkerRepository {
 	}
 }
 
-func (w *workerRepository) ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error) {
+func (w *workerRepository) ListWorkers(tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	pgTenantId := uuid.MustParse(tenantId)
+	pgTenantId := tenantId
 
 	queryParams := sqlcv1.ListWorkersWithSlotCountParams{
 		Tenantid: pgTenantId,
@@ -168,10 +168,10 @@ func (w *workerRepository) GetWorkerById(workerId string) (*sqlcv1.GetWorkerById
 	return w.queries.GetWorkerById(context.Background(), w.pool, uuid.MustParse(workerId))
 }
 
-func (w *workerRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error) {
+func (w *workerRepository) ListWorkerState(tenantId uuid.UUID, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error) {
 	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, sqlcv1.ListSemaphoreSlotsWithStateForWorkerParams{
 		Workerid: uuid.MustParse(workerId),
-		Tenantid: uuid.MustParse(tenantId),
+		Tenantid: tenantId,
 		Limit: pgtype.Int4{
 			Int32: int32(maxRuns), // nolint: gosec
 			Valid: true,
@@ -294,18 +294,18 @@ func (w *workerRepository) GetWorkerWorkflowsByWorkerId(tenantid string, workerI
 	})
 }
 
-func (w *workerRepository) ListWorkerLabels(tenantId, workerId string) ([]*sqlcv1.ListWorkerLabelsRow, error) {
+func (w *workerRepository) ListWorkerLabels(tenantId uuid.UUID, workerId string) ([]*sqlcv1.ListWorkerLabelsRow, error) {
 	return w.queries.ListWorkerLabels(context.Background(), w.pool, uuid.MustParse(workerId))
 }
 
-func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*sqlcv1.GetWorkerForEngineRow, error) {
+func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId uuid.UUID, workerId string) (*sqlcv1.GetWorkerForEngineRow, error) {
 	return w.queries.GetWorkerForEngine(ctx, w.pool, sqlcv1.GetWorkerForEngineParams{
 		ID:       uuid.MustParse(workerId),
-		Tenantid: uuid.MustParse(tenantId),
+		Tenantid: tenantId,
 	})
 }
 
-func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId string, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
+func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
 	preWorker, postWorker := w.m.Meter(ctx, sqlcv1.LimitResourceWORKER, tenantId, 1)
 
 	if err := preWorker(); err != nil {
@@ -336,7 +336,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId string,
 
 	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
-	pgTenantId := uuid.MustParse(tenantId)
+	pgTenantId := tenantId
 
 	createParams := sqlcv1.CreateWorkerParams{
 		Tenantid:     pgTenantId,
@@ -470,7 +470,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId string,
 
 // UpdateWorker updates a worker.
 // It will only update the worker if there is no lock on the worker, else it will skip.
-func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId, workerId string, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error) {
+func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID, workerId string, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -483,7 +483,7 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId, workerId 
 
 	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
-	pgTenantId := uuid.MustParse(tenantId)
+	pgTenantId := tenantId
 
 	updateParams := sqlcv1.UpdateWorkerParams{
 		ID: uuid.MustParse(workerId),
@@ -553,7 +553,7 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId, workerId 
 	return worker, nil
 }
 
-func (w *workerRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeat time.Time) error {
+func (w *workerRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId string, lastHeartbeat time.Time) error {
 	_, err := w.queries.UpdateWorkerHeartbeat(ctx, w.pool, sqlcv1.UpdateWorkerHeartbeatParams{
 		ID:              uuid.MustParse(workerId),
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
@@ -566,13 +566,13 @@ func (w *workerRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, 
 	return nil
 }
 
-func (w *workerRepository) DeleteWorker(ctx context.Context, tenantId, workerId string) error {
+func (w *workerRepository) DeleteWorker(ctx context.Context, tenantId uuid.UUID, workerId string) error {
 	_, err := w.queries.DeleteWorker(ctx, w.pool, uuid.MustParse(workerId))
 
 	return err
 }
 
-func (w *workerRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error) {
+func (w *workerRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId uuid.UUID, workerId string, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error) {
 	worker, err := w.queries.UpdateWorkerActiveStatus(ctx, w.pool, sqlcv1.UpdateWorkerActiveStatusParams{
 		ID:                      uuid.MustParse(workerId),
 		Isactive:                isActive,
@@ -629,9 +629,9 @@ func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid
 	return affinities, nil
 }
 
-func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error) {
+func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error) {
 	hasMore, err := w.queries.DeleteOldWorkers(ctx, w.pool, sqlcv1.DeleteOldWorkersParams{
-		Tenantid:            uuid.MustParse(tenantId),
+		Tenantid:            tenantId,
 		Lastheartbeatbefore: sqlchelpers.TimestampFromTime(lastHeartbeatBefore),
 		Limit:               20,
 	})
@@ -647,7 +647,7 @@ func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId string
 	return hasMore, nil
 }
 
-func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId string, workerIds []string) (map[string][]string, error) {
+func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []string) (map[string][]string, error) {
 	pgWorkerIds := make([]uuid.UUID, len(workerIds))
 
 	for i, workerId := range workerIds {
@@ -655,7 +655,7 @@ func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenan
 	}
 
 	rows, err := w.queries.ListDispatcherIdsForWorkers(ctx, w.pool, sqlcv1.ListDispatcherIdsForWorkersParams{
-		Tenantid:  uuid.MustParse(tenantId),
+		Tenantid:  tenantId,
 		Workerids: sqlchelpers.UniqueSet(pgWorkerIds),
 	})
 

@@ -74,7 +74,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 
 		all := make([]*sqlcv1.ListScheduledWorkflowsRow, 0)
 		for {
-			rows, count, err := t.config.V1.WorkflowSchedules().ListScheduledWorkflows(dbCtx, uuid.MustParse(tenantId), opts)
+			rows, count, err := t.config.V1.WorkflowSchedules().ListScheduledWorkflows(dbCtx, tenantId, opts)
 			if err != nil {
 				return nil, err
 			}
@@ -131,7 +131,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 			chunkUUIDByStr[id] = id
 		}
 
-		deletedIds, err := t.config.V1.WorkflowSchedules().BulkDeleteScheduledWorkflows(dbCtx, uuid.MustParse(tenantId), chunkStr)
+		deletedIds, err := t.config.V1.WorkflowSchedules().BulkDeleteScheduledWorkflows(dbCtx, tenantId, chunkStr)
 		if err != nil {
 			return nil, err
 		}

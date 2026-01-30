@@ -13,7 +13,7 @@ import (
 )
 
 type JWTManager interface {
-	GenerateTenantToken(ctx context.Context, tenantId, name string, internal bool, expires *time.Time) (*Token, error)
+	GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (*Token, error)
 	ValidateTenantToken(ctx context.Context, token string) (string, string, error)
 }
 
@@ -52,7 +52,7 @@ type Token struct {
 	Token     string
 }
 
-func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId, name string, id *string, expires *time.Time) (*Token, error) {
+func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId uuid.UUID, name string, id *string, expires *time.Time) (*Token, error) {
 	// Retrieve the JWT Signer primitive from privateKeysetHandle.
 	signer, err := jwt.NewSigner(j.encryption.GetPrivateJWTHandle())
 
@@ -81,7 +81,7 @@ func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId, name string,
 	}, nil
 }
 
-func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name string, internal bool, expires *time.Time) (*Token, error) {
+func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (*Token, error) {
 	token, err := j.createToken(ctx, tenantId, name, nil, expires)
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name
 	return token, nil
 }
 
-func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) (tenantId string, tokenUUID string, err error) {
+func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) (tenantId uuid.UUID, tokenUUID string, err error) {
 	// Verify the signed token.
 	audience := j.opts.Audience
 
@@ -176,7 +176,7 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	return subject, dbToken.ID.String(), nil
 }
 
-func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId string, id *string, expires *time.Time) (tokenId string, expiresAt time.Time, opts *jwt.RawJWTOptions) {
+func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId uuid.UUID, id *string, expires *time.Time) (tokenId string, expiresAt time.Time, opts *jwt.RawJWTOptions) {
 
 	if expires != nil {
 		expiresAt = *expires

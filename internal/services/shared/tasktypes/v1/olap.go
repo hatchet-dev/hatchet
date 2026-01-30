@@ -16,7 +16,7 @@ type CELEvaluationFailures struct {
 	Failures []v1.CELEvaluationFailure
 }
 
-func CELEvaluationFailureMessage(tenantId string, failures []v1.CELEvaluationFailure) (*msgqueue.Message, error) {
+func CELEvaluationFailureMessage(tenantId uuid.UUID, failures []v1.CELEvaluationFailure) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCELEvaluationFailure,
@@ -32,7 +32,7 @@ type CreatedTaskPayload struct {
 	*v1.V1TaskWithPayload
 }
 
-func CreatedTaskMessage(tenantId string, task *v1.V1TaskWithPayload) (*msgqueue.Message, error) {
+func CreatedTaskMessage(tenantId uuid.UUID, task *v1.V1TaskWithPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCreatedTask,
@@ -48,7 +48,7 @@ type CreatedDAGPayload struct {
 	*v1.DAGWithData
 }
 
-func CreatedDAGMessage(tenantId string, dag *v1.DAGWithData) (*msgqueue.Message, error) {
+func CreatedDAGMessage(tenantId uuid.UUID, dag *v1.DAGWithData) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCreatedDAG,
@@ -77,7 +77,7 @@ type CreatedEventTriggerPayload struct {
 	Payloads []CreatedEventTriggerPayloadSingleton `json:"payloads"`
 }
 
-func CreatedEventTriggerMessage(tenantId string, eventTriggers CreatedEventTriggerPayload) (*msgqueue.Message, error) {
+func CreatedEventTriggerMessage(tenantId uuid.UUID, eventTriggers CreatedEventTriggerPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCreatedEventTrigger,
@@ -101,7 +101,7 @@ type CreateMonitoringEventPayload struct {
 	EventMessage   string    `json:"event_message,omitempty"`
 }
 
-func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
+func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
 	var workerId *string
 
 	if _, err := uuid.Parse(request.WorkerId); err == nil {
@@ -136,7 +136,7 @@ func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryC
 	)
 }
 
-func MonitoringEventMessageFromInternal(tenantId string, payload CreateMonitoringEventPayload) (*msgqueue.Message, error) {
+func MonitoringEventMessageFromInternal(tenantId uuid.UUID, payload CreateMonitoringEventPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCreateMonitoringEvent,

@@ -14,7 +14,7 @@ type WasSuccessfullyClaimed bool
 type IdempotencyKey string
 
 type IdempotencyRepository interface {
-	CreateIdempotencyKey(context context.Context, tenantId, key string, expiresAt pgtype.Timestamptz) error
+	CreateIdempotencyKey(context context.Context, tenantId uuid.UUID, key string, expiresAt pgtype.Timestamptz) error
 	EvictExpiredIdempotencyKeys(context context.Context, tenantId uuid.UUID) error
 }
 
@@ -28,9 +28,9 @@ func newIdempotencyRepository(shared *sharedRepository) IdempotencyRepository {
 	}
 }
 
-func (r *idempotencyRepository) CreateIdempotencyKey(context context.Context, tenantId, key string, expiresAt pgtype.Timestamptz) error {
+func (r *idempotencyRepository) CreateIdempotencyKey(context context.Context, tenantId uuid.UUID, key string, expiresAt pgtype.Timestamptz) error {
 	return r.queries.CreateIdempotencyKey(context, r.pool, sqlcv1.CreateIdempotencyKeyParams{
-		Tenantid:  uuid.MustParse(tenantId),
+		Tenantid:  tenantId,
 		Key:       key,
 		Expiresat: expiresAt,
 	})
@@ -45,7 +45,7 @@ type KeyClaimantPair struct {
 	ClaimedByExternalId uuid.UUID
 }
 
-func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool *pgxpool.Pool, tenantId string, claims []KeyClaimantPair) (map[KeyClaimantPair]WasSuccessfullyClaimed, error) {
+func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool *pgxpool.Pool, tenantId uuid.UUID, claims []KeyClaimantPair) (map[KeyClaimantPair]WasSuccessfullyClaimed, error) {
 	keys := make([]string, len(claims))
 	claimedByExternalIds := make([]uuid.UUID, len(claims))
 
@@ -55,7 +55,7 @@ func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool
 	}
 
 	claimResults, err := queries.ClaimIdempotencyKeys(context, pool, sqlcv1.ClaimIdempotencyKeysParams{
-		Tenantid:             uuid.MustParse(tenantId),
+		Tenantid:             tenantId,
 		Keys:                 keys,
 		Claimedbyexternalids: claimedByExternalIds,
 	})

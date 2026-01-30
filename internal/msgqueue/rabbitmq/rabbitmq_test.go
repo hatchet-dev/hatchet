@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -149,7 +150,7 @@ func TestBufferedSubMessageQueueIntegration(t *testing.T) {
 		}
 	}()
 
-	mqBuffer := msgqueue.NewMQSubBuffer(staticQueue, tq, func(tenantId, msgId string, payloads [][]byte) error {
+	mqBuffer := msgqueue.NewMQSubBuffer(staticQueue, tq, func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		msgs := msgqueue.JSONConvert[testMessagePayload](payloads)
 
 		for _, msg := range msgs {
