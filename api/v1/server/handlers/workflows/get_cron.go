@@ -14,12 +14,11 @@ import (
 
 func (t *WorkflowService) WorkflowCronGet(ctx echo.Context, request gen.WorkflowCronGetRequestObject) (gen.WorkflowCronGetResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
 
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	scheduled, err := t.config.V1.WorkflowSchedules().GetCronWorkflow(dbCtx, tenantId, request.CronWorkflow.String())
+	scheduled, err := t.config.V1.WorkflowSchedules().GetCronWorkflow(dbCtx, tenant.ID, request.CronWorkflow)
 
 	if err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package workflows
 import (
 	"encoding/json"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
@@ -51,11 +52,11 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 		}
 	}
 
-	scheduled, err := t.config.V1.WorkflowSchedules().CreateScheduledWorkflow(ctx.Request().Context(), tenantId, &v1.CreateScheduledWorkflowRunForWorkflowOpts{
+	scheduled, err := t.config.V1.WorkflowSchedules().CreateScheduledWorkflow(ctx.Request().Context(), uuid.MustParse(tenantId), &v1.CreateScheduledWorkflowRunForWorkflowOpts{
 		ScheduledTrigger:   request.Body.TriggerAt,
 		Input:              input,
 		AdditionalMetadata: additionalMetadata,
-		WorkflowId:         workflow.ID.String(),
+		WorkflowId:         workflow.ID,
 		Priority:           &priority,
 	})
 

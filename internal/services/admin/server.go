@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -148,9 +149,9 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	for _, scheduleTime := range scheduleTimes {
 		scheduledRef, err := a.repov1.WorkflowSchedules().CreateScheduledWorkflow(
 			ctx,
-			tenantId,
+			uuid.MustParse(tenantId),
 			&v1.CreateScheduledWorkflowRunForWorkflowOpts{
-				WorkflowId:         workflowId,
+				WorkflowId:         uuid.MustParse(workflowId),
 				ScheduledTrigger:   scheduleTime,
 				Input:              payloadBytes,
 				AdditionalMetadata: additionalMetadata,

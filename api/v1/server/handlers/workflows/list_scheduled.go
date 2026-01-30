@@ -18,7 +18,7 @@ import (
 
 func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.WorkflowScheduledListRequestObject) (gen.WorkflowScheduledListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	limit := 50
 	offset := 0
@@ -26,10 +26,13 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 	orderBy := "triggerAt"
 
 	listOpts := &v1.ListScheduledWorkflowsOpts{
-		Limit:          &limit,
-		Offset:         &offset,
-		OrderBy:        &orderBy,
-		OrderDirection: &orderDirection,
+		Limit:               &limit,
+		Offset:              &offset,
+		OrderBy:             &orderBy,
+		OrderDirection:      &orderDirection,
+		WorkflowId:          request.Params.WorkflowId,
+		ParentWorkflowRunId: request.Params.ParentWorkflowRunId,
+		ParentStepRunId:     request.Params.ParentStepRunId,
 	}
 
 	if request.Params.OrderByField != nil {
@@ -50,11 +53,6 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 	if request.Params.Offset != nil {
 		offset = int(*request.Params.Offset)
 		listOpts.Offset = &offset
-	}
-
-	if request.Params.WorkflowId != nil {
-		workflowIdStr := request.Params.WorkflowId.String()
-		listOpts.WorkflowId = &workflowIdStr
 	}
 
 	if request.Params.Statuses != nil {

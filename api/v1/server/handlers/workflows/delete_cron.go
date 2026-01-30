@@ -18,8 +18,8 @@ func (t *WorkflowService) WorkflowCronDelete(ctx echo.Context, request gen.Workf
 	defer cancel()
 
 	err := t.config.V1.WorkflowSchedules().DeleteCronWorkflow(dbCtx,
-		cron.TenantId.String(),
-		cron.CronId.String(),
+		cron.TenantId,
+		cron.CronId,
 	)
 
 	if err != nil {

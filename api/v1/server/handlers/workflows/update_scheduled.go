@@ -35,8 +35,8 @@ func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.
 
 	err := t.config.V1.WorkflowSchedules().UpdateScheduledWorkflow(
 		dbCtx,
-		scheduled.TenantId.String(),
-		request.ScheduledWorkflowRun.String(),
+		scheduled.TenantId,
+		request.ScheduledWorkflowRun,
 		request.Body.TriggerAt,
 	)
 	if err != nil {
@@ -45,8 +45,8 @@ func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.
 
 	updated, err := t.config.V1.WorkflowSchedules().GetScheduledWorkflow(
 		dbCtx,
-		scheduled.TenantId.String(),
-		request.ScheduledWorkflowRun.String(),
+		scheduled.TenantId,
+		request.ScheduledWorkflowRun,
 	)
 	if err != nil {
 		return nil, err

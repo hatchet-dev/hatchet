@@ -62,5 +62,5 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string
 	}
 
 	// delete the scheduled workflow
-	return t.repov1.WorkflowSchedules().DeleteScheduledWorkflow(ctx, tenantId, scheduledWorkflowId)
+	return t.repov1.WorkflowSchedules().DeleteScheduledWorkflow(ctx, uuid.MustParse(tenantId), uuid.MustParse(scheduledWorkflowId))
 }

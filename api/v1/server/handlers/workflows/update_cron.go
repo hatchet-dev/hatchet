@@ -20,8 +20,8 @@ func (t *WorkflowService) WorkflowCronUpdate(ctx echo.Context, request gen.Workf
 
 	err := t.config.V1.WorkflowSchedules().UpdateCronWorkflow(
 		dbCtx,
-		cron.TenantId.String(),
-		cron.CronId.String(),
+		cron.TenantId,
+		cron.CronId,
 		&v1.UpdateCronOpts{
 			Enabled: request.Body.Enabled,
 		},

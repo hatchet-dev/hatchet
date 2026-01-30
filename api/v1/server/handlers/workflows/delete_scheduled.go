@@ -23,7 +23,7 @@ func (t *WorkflowService) WorkflowScheduledDelete(ctx echo.Context, request gen.
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	err := t.config.V1.WorkflowSchedules().DeleteScheduledWorkflow(dbCtx, scheduled.TenantId.String(), request.ScheduledWorkflowRun.String())
+	err := t.config.V1.WorkflowSchedules().DeleteScheduledWorkflow(dbCtx, scheduled.TenantId, request.ScheduledWorkflowRun)
 
 	if err != nil {
 		return nil, err
