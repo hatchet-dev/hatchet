@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
@@ -37,7 +38,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 	for _, task := range res.ReleasedTasks {
 		var workerId *string
 
-		if task.WorkerID.Valid {
+		if task.WorkerID != uuid.Nil {
 			workerIdStr := sqlchelpers.UUIDToStr(task.WorkerID)
 			workerId = &workerIdStr
 		}

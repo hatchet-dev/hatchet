@@ -106,7 +106,7 @@ func ToWorkflowVersion(
 		res.Sticky = &stickyStrategy
 	}
 
-	if version.WorkflowId.Valid {
+	if version.WorkflowId != uuid.Nil {
 		res.Workflow = ToWorkflowFromSQLC(workflow)
 	}
 
@@ -142,7 +142,7 @@ func ToWorkflowVersion(
 
 		for _, event := range events {
 			eventCp := event
-			if eventCp.ParentId.Valid {
+			if eventCp.ParentId != uuid.Nil {
 				parentId := sqlchelpers.UUIDToStr(eventCp.ParentId)
 				genEvents = append(genEvents, gen.WorkflowTriggerEventRef{
 					EventKey: &eventCp.EventKey,
@@ -244,7 +244,7 @@ func ToStep(step *sqlcv1.Step, parents []uuid.UUID) *gen.Step {
 
 func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 	res := &gen.Workflow{
-		Metadata:    *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
+		Metadata:    *toAPIMetadata(row.ID.String(), row.CreatedAt.Time, row.UpdatedAt.Time),
 		Name:        row.Name,
 		Description: &row.Description.String,
 		IsPaused:    &row.IsPaused.Bool,
@@ -255,9 +255,9 @@ func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 
 func ToWorkflowVersionFromSQLC(row *sqlcv1.WorkflowVersion, workflow *gen.Workflow) *gen.WorkflowVersion {
 	res := &gen.WorkflowVersion{
-		Metadata:   *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
+		Metadata:   *toAPIMetadata(row.ID.String(), row.CreatedAt.Time, row.UpdatedAt.Time),
 		Version:    row.Version.String,
-		WorkflowId: pgUUIDToStr(row.WorkflowId),
+		WorkflowId: row.WorkflowId.String(),
 		Order:      int32(row.Order), // nolint: gosec
 		Workflow:   workflow,
 	}

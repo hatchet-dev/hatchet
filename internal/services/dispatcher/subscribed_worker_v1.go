@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -267,7 +268,7 @@ func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int
 		action.AdditionalMetadata = &metadataStr
 	}
 
-	if task.ParentTaskExternalID.Valid {
+	if task.ParentTaskExternalID != uuid.Nil {
 		parentId := sqlchelpers.UUIDToStr(task.ParentTaskExternalID)
 		action.ParentWorkflowRunId = &parentId
 	}

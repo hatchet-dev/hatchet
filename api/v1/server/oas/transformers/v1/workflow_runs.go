@@ -69,7 +69,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 	attempt := retryCount + 1
 
 	var parentTaskExternalId *uuid.UUID
-	if task.ParentTaskExternalId != nil && task.ParentTaskExternalId.Valid {
+	if task.ParentTaskExternalId != nil && task.ParentTaskExternalId != nil && *task.ParentTaskExternalId != uuid.Nil {
 		parentTaskExternalIdValue := uuid.MustParse(sqlchelpers.UUIDToStr(*task.ParentTaskExternalId))
 		parentTaskExternalId = &parentTaskExternalIdValue
 	}
@@ -184,7 +184,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 	attempt := retryCount + 1
 
 	var parentTaskExternalId *uuid.UUID
-	if task.ParentTaskExternalID.Valid {
+	if task.ParentTaskExternalID != uuid.Nil {
 		parentTaskExternalIdValue := uuid.MustParse(sqlchelpers.UUIDToStr(task.ParentTaskExternalID))
 		parentTaskExternalId = &parentTaskExternalIdValue
 	}

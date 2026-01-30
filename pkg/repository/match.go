@@ -529,7 +529,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		dependentMatches := make([]*sqlcv1.SaveSatisfiedMatchConditionsRow, 0)
 
 		for _, match := range satisfiedMatches {
-			if match.TriggerStepID.Valid && match.TriggerExternalID.Valid {
+			if match.TriggerStepID != uuid.Nil && match.TriggerExternalID != uuid.Nil {
 				if match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
 					dependentMatches = append(dependentMatches, match)
 					continue
@@ -595,7 +595,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						opt.DagInsertedAt = match.TriggerDagInsertedAt
 					}
 
-					if match.TriggerParentTaskExternalID.Valid {
+					if match.TriggerParentTaskExternalID != uuid.Nil {
 						externalId := sqlchelpers.UUIDToStr(match.TriggerParentTaskExternalID)
 						opt.ParentTaskExternalId = &externalId
 					}
@@ -1137,7 +1137,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 	additionalMatches := make([]CreateMatchOpts, 0, len(satisfiedMatches))
 
 	for _, match := range satisfiedMatches {
-		if match.TriggerStepID.Valid && match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
+		if match.TriggerStepID != uuid.Nil && match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
 			conditions, ok := stepIdsToConditions[sqlchelpers.UUIDToStr(match.TriggerStepID)]
 
 			if !ok {

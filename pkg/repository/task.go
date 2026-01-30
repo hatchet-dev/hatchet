@@ -1786,9 +1786,7 @@ func (r *sharedRepository) insertTasks(
 			stickies[i] = string(stepConfig.WorkflowVersionSticky.StickyStrategy)
 		}
 
-		desiredWorkerIds[i] = uuid.UUID{
-			Valid: false,
-		}
+		desiredWorkerIds[i] = uuid.Nil
 
 		if task.DesiredWorkerId != nil {
 			desiredWorkerIds[i] = sqlchelpers.UUIDFromStr(*task.DesiredWorkerId)
@@ -3536,7 +3534,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	retrieveOptToPayload := make(map[RetrievePayloadOpts][]byte)
 
 	for _, outputTask := range res {
-		if !outputTask.WorkflowRunID.Valid {
+		if outputTask.WorkflowRunID == uuid.Nil {
 			continue
 		}
 
@@ -3579,7 +3577,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	}
 
 	for _, task := range tasks {
-		if task.WorkflowRunID.Valid {
+		if task.WorkflowRunID != uuid.Nil {
 			wrId := sqlchelpers.UUIDToStr(task.WorkflowRunID)
 
 			if events, ok := workflowRunIdsToOutputs[wrId]; ok {

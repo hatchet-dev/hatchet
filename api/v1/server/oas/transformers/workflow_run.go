@@ -36,7 +36,7 @@ func ToScheduledWorkflowsFromSQLC(scheduled *sqlcv1.ListScheduledWorkflowsRow) *
 
 	var workflowRunIdPtr *uuid.UUID
 
-	if scheduled.WorkflowRunId.Valid {
+	if scheduled.WorkflowRunId != uuid.Nil {
 		workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(scheduled.WorkflowRunId))
 		workflowRunIdPtr = &workflowRunId
 	}

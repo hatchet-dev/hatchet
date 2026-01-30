@@ -317,7 +317,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 		}
 	case err != nil:
 		return nil, err
-	case !existingWorkflow.ID.Valid:
+	case existingWorkflow.ID == uuid.Nil:
 		return nil, fmt.Errorf("invalid id for workflow %s", opts.Name)
 	default:
 		workflowId = existingWorkflow.ID

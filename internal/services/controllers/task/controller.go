@@ -797,7 +797,7 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 
 	workflowRunIdToTasks := make(map[string][]v1.TaskIdInsertedAtRetryCount)
 	for _, task := range taskIdRetryCounts {
-		if !task.WorkflowRunExternalId.Valid {
+		if task.WorkflowRunExternalId == uuid.Nil {
 			// Use a random uuid to effectively send tasks one at a time
 			randomUuid := uuid.NewString()
 			workflowRunIdToTasks[randomUuid] = append(workflowRunIdToTasks[randomUuid], task.TaskIdInsertedAtRetryCount)

@@ -1159,7 +1159,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 			outputPayload, exists := externalIdToPayload[dag.OutputEventExternalID]
 
 			if !exists {
-				if opts.IncludePayloads && dag.OutputEventExternalID.Valid && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
+				if opts.IncludePayloads && dag.OutputEventExternalID != uuid.Nil && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
 					r.l.Error().Msgf("ListWorkflowRuns-1: dag with external_id %s and inserted_at %s has empty payload, falling back to output", dag.ExternalID, dag.InsertedAt.Time)
 				}
 				outputPayload = dag.Output
@@ -1167,7 +1167,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 			inputPayload, exists := externalIdToPayload[dag.ExternalID]
 			if !exists {
-				if opts.IncludePayloads && dag.ExternalID.Valid {
+				if opts.IncludePayloads && dag.ExternalID != uuid.Nil {
 					r.l.Error().Msgf("ListWorkflowRuns-2: dag with external_id %s and inserted_at %s has empty payload, falling back to input", dag.ExternalID, dag.InsertedAt.Time)
 				}
 				inputPayload = dag.Input
@@ -1211,7 +1211,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 			outputPayload, exists := externalIdToPayload[task.OutputEventExternalID]
 
 			if !exists {
-				if opts.IncludePayloads && task.OutputEventExternalID.Valid && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
+				if opts.IncludePayloads && task.OutputEventExternalID != uuid.Nil && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
 					r.l.Error().Msgf("ListWorkflowRuns-3: task with external_id %s and inserted_at %s has empty payload, falling back to output", task.ExternalID, task.InsertedAt.Time)
 				}
 				outputPayload = task.Output
@@ -1220,7 +1220,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 			inputPayload, exists := externalIdToPayload[task.ExternalID]
 
 			if !exists {
-				if opts.IncludePayloads && task.ExternalID.Valid {
+				if opts.IncludePayloads && task.ExternalID != uuid.Nil {
 					r.l.Error().Msgf("ListWorkflowRuns-4: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
 				}
 				inputPayload = task.Input
@@ -1499,7 +1499,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 			})
 		}
 
-		if event.ExternalID.Valid {
+		if event.ExternalID != uuid.Nil {
 			// randomly jitter the inserted at time by +/- 300ms to make collisions virtually impossible
 			dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
 

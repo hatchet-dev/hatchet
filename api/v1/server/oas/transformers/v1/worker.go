@@ -19,7 +19,7 @@ func ToSlotState(slots []*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, remain
 		var stepRunId uuid.UUID
 		var workflowRunId uuid.UUID
 
-		if slot.ExternalID.Valid {
+		if slot.ExternalID != uuid.Nil {
 			stepRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.ExternalID))
 			workflowRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.ExternalID))
 		}
@@ -98,7 +98,7 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
 	}
 
-	if worker.WebhookId.Valid {
+	if worker.WebhookId != uuid.Nil {
 		wid := uuid.MustParse(sqlchelpers.UUIDToStr(worker.WebhookId))
 		res.WebhookId = &wid
 	}

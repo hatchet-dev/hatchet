@@ -45,7 +45,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 
 	var parentTaskExternalId *uuid.UUID
 
-	if task.ParentTaskExternalID.Valid {
+	if task.ParentTaskExternalID != uuid.Nil {
 		parentTaskExternalIdValue := uuid.MustParse(sqlchelpers.UUIDToStr(task.ParentTaskExternalID))
 		parentTaskExternalId = &parentTaskExternalIdValue
 	}
@@ -154,7 +154,7 @@ func ToTaskRunEventMany(
 	for i, event := range events {
 		var workerId *types.UUID
 
-		if event.WorkerID.Valid {
+		if event.WorkerID != uuid.Nil {
 			workerUUid := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
 			workerId = &workerUUid
 		}
@@ -189,7 +189,7 @@ func ToWorkflowRunTaskRunEventsMany(
 	for i, event := range events {
 		var workerId *uuid.UUID
 
-		if event.WorkerID.Valid {
+		if event.WorkerID != uuid.Nil {
 			workerUUID := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
 			workerId = &workerUUID
 		}
@@ -295,7 +295,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 
 	var parentTaskExternalId *uuid.UUID
 
-	if taskWithData.ParentTaskExternalID.Valid {
+	if taskWithData.ParentTaskExternalID != uuid.Nil {
 		parentTaskUUID, err := uuid.Parse(sqlchelpers.UUIDToStr(taskWithData.ParentTaskExternalID))
 
 		if err == nil {
@@ -357,7 +357,7 @@ func ToWorkflowRunDetails(
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
 
 	parentTaskExternalId := uuid.UUID{}
-	if workflowRun.ParentTaskExternalId != nil && workflowRun.ParentTaskExternalId.Valid {
+	if workflowRun.ParentTaskExternalId != nil && workflowRun.ParentTaskExternalId != nil && *workflowRun.ParentTaskExternalId != uuid.Nil {
 		parentTaskExternalId = uuid.MustParse(sqlchelpers.UUIDToStr(*workflowRun.ParentTaskExternalId))
 	}
 
@@ -408,7 +408,7 @@ func ToWorkflowRunDetails(
 	for i, event := range taskRunEvents {
 		var workerId *uuid.UUID
 
-		if event.WorkerID.Valid {
+		if event.WorkerID != uuid.Nil {
 			workerUUID := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
 			workerId = &workerUUID
 		}
@@ -493,7 +493,7 @@ func ToTaskTimings(
 			toReturn[i].FinishedAt = &timing.FinishedAt.Time
 		}
 
-		if timing.ParentTaskExternalID.Valid {
+		if timing.ParentTaskExternalID != uuid.Nil {
 			parentId := uuid.MustParse(sqlchelpers.UUIDToStr(timing.ParentTaskExternalID))
 			toReturn[i].ParentTaskExternalId = &parentId
 		}

@@ -152,7 +152,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		return err
 	}
 
-	shouldUpdateDispatcherId := !worker.DispatcherId.Valid || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == uuid.Nil || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
@@ -255,7 +255,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		return err
 	}
 
-	shouldUpdateDispatcherId := !worker.DispatcherId.Valid || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == uuid.Nil || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
