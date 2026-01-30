@@ -260,15 +260,9 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 		}
 	}
 
-	// for each queue, call upsert queues
-	for _, queue := range queued {
-		err = c.queries.UpsertQueues(ctx, tx, sqlcv1.UpsertQueuesParams{
-			TenantID: tenantId,
-			Names:    []string{queue.Queue},
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to upsert queue (strategy ID: %d): %w", strategy.ID, err)
-		}
+	err = c.upsertQueuesForQueuedTasks(ctx, tx, sqlchelpers.UUIDToStr(tenantId), queued)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upsert queues for queued tasks (strategy ID: %d): %w", strategy.ID, err)
 	}
 
 	if err = commit(ctx); err != nil {
@@ -489,6 +483,11 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 				})
 			}
 		}
+	}
+
+	err = c.upsertQueuesForQueuedTasks(ctx, tx, sqlchelpers.UUIDToStr(tenantId), queued)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upsert queues for queued tasks (strategy ID: %d): %w", strategy.ID, err)
 	}
 
 	if err = commit(ctx); err != nil {
@@ -745,6 +744,11 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 		}
 	}
 
+	err = c.upsertQueuesForQueuedTasks(ctx, tx, sqlchelpers.UUIDToStr(tenantId), queued)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upsert queues for queued tasks (strategy ID: %d): %w", strategy.ID, err)
+	}
+
 	if err = commit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -754,4 +758,23 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 		Cancelled:                 cancelled,
 		NextConcurrencyStrategies: nextConcurrencyStrategies,
 	}, nil
+}
+
+func (c *ConcurrencyRepositoryImpl) upsertQueuesForQueuedTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId string, queuedTasks []TaskWithQueue) error {
+	uniqueQueues := make(map[string]bool, len(queuedTasks))
+	for _, queue := range queuedTasks {
+		if _, ok := uniqueQueues[queue.Queue]; ok {
+			continue
+		}
+		uniqueQueues[queue.Queue] = true
+	}
+
+	for queue := range uniqueQueues {
+		_, err := c.upsertQueues(ctx, tx, tenantId, []string{queue})
+		if err != nil {
+			return fmt.Errorf("failed to upsert queue: %w", err)
+		}
+	}
+
+	return nil
 }
