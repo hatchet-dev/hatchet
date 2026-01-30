@@ -3789,6 +3789,16 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		shouldContinue = true
 	}
 
+	// Reactivate any inactive queues that still have pending items
+	result, err = r.queries.ReactivateInactiveQueuesWithItems(ctx, tx)
+	if err != nil {
+		return false, fmt.Errorf("error reactivating inactive queues: %v", err)
+	}
+
+	if result.RowsAffected() > 0 {
+		r.l.Warn().Msgf("reactivated %d inactive queues with pending items", result.RowsAffected())
+	}
+
 	if err := commit(ctx); err != nil {
 		return false, fmt.Errorf("error committing transaction: %v", err)
 	}
