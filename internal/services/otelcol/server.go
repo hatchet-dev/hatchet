@@ -112,12 +112,12 @@ func (oc *otelCollectorImpl) extractHatchetCorrelation(attrs []*commonv1.KeyValu
 		switch attr.GetKey() {
 		case AttrHatchetTaskRunID:
 			if strVal := attr.GetValue().GetStringValue(); strVal != "" {
-				uuid := sqlchelpers.UUIDFromStr(strVal)
+				uuid := uuid.MustParse(strVal)
 				spanData.TaskRunExternalID = &uuid
 			}
 		case AttrHatchetWorkflowRunID:
 			if strVal := attr.GetValue().GetStringValue(); strVal != "" {
-				uuid := sqlchelpers.UUIDFromStr(strVal)
+				uuid := uuid.MustParse(strVal)
 				spanData.WorkflowRunID = &uuid
 			}
 		}

@@ -250,7 +250,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	// we don't run this in a transaction because workflow versions won't change during the course of this operation
 	workflowVersionIdsAndEventKeys, err := r.queries.ListWorkflowsForEvents(ctx, r.pool, sqlcv1.ListWorkflowsForEventsParams{
 		Eventkeys: eventKeys,
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:  uuid.MustParse(tenantId),
 	})
 
 	if err != nil {
@@ -296,7 +296,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}
 
 	filters, err := r.queries.ListFiltersForEventTriggers(ctx, r.pool, sqlcv1.ListFiltersForEventTriggersParams{
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:    uuid.MustParse(tenantId),
 		Workflowids: workflowIds,
 		Scopes:      scopes,
 	})
@@ -317,7 +317,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}
 
 	filterCounts, err := r.queries.ListFilterCountsForWorkflows(ctx, r.pool, sqlcv1.ListFilterCountsForWorkflowsParams{
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:    uuid.MustParse(tenantId),
 		Workflowids: workflowIdsForFilterCounts,
 	})
 
@@ -451,7 +451,7 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 	for _, opt := range opts {
 		if opt.IdempotencyKey != nil {
-			idempotencyKeyToExternalIds[*opt.IdempotencyKey] = sqlchelpers.UUIDFromStr(opt.ExternalId)
+			idempotencyKeyToExternalIds[*opt.IdempotencyKey] = uuid.MustParse(opt.ExternalId)
 		}
 
 		namesToOpts[opt.WorkflowName] = append(namesToOpts[opt.WorkflowName], opt)
@@ -481,7 +481,7 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 	// we don't run this in a transaction because workflow versions won't change during the course of this operation
 	workflowVersionsByNames, err := r.queries.ListWorkflowsByNames(ctx, r.pool, sqlcv1.ListWorkflowsByNamesParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:      uuid.MustParse(tenantId),
 		Workflownames: workflowNames,
 	})
 
@@ -503,7 +503,7 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 			if opt.IdempotencyKey != nil {
 				keyClaimantPair := KeyClaimantPair{
 					IdempotencyKey:      *opt.IdempotencyKey,
-					ClaimedByExternalId: sqlchelpers.UUIDFromStr(opt.ExternalId),
+					ClaimedByExternalId: uuid.MustParse(opt.ExternalId),
 				}
 
 				wasSuccessfullyClaimed := keyClaimantPairToWasClaimed[keyClaimantPair]
@@ -572,7 +572,7 @@ func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Cont
 
 	// look up the workflow versions for the workflow names
 	workflowVersions, err := r.queries.ListWorkflowsByNames(ctx, r.pool, sqlcv1.ListWorkflowsByNamesParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:      uuid.MustParse(tenantId),
 		Workflownames: workflowNamesToLookup,
 	})
 
@@ -691,13 +691,13 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	workflowVersionIds := make([]uuid.UUID, 0, len(uniqueWorkflowVersionIds))
 
 	for id := range uniqueWorkflowVersionIds {
-		workflowVersionIds = append(workflowVersionIds, sqlchelpers.UUIDFromStr(id))
+		workflowVersionIds = append(workflowVersionIds, uuid.MustParse(id))
 	}
 
 	// get steps for the workflow versions
 	steps, err := r.queries.ListStepsByWorkflowVersionIds(ctx, r.pool, sqlcv1.ListStepsByWorkflowVersionIdsParams{
 		Ids:      workflowVersionIds,
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 	})
 
 	if err != nil {
@@ -751,7 +751,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	if len(stepsWithAdditionalMatchConditions) > 0 {
 		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
 			Stepids:  stepsWithAdditionalMatchConditions,
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid: uuid.MustParse(tenantId),
 		})
 
 		if err != nil {
@@ -900,7 +900,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				)
 
 				if tuple.parentExternalId != nil {
-					parentTaskExternalId = sqlchelpers.UUIDFromStr(*tuple.parentExternalId)
+					parentTaskExternalId = uuid.MustParse(*tuple.parentExternalId)
 				}
 
 				if tuple.parentTaskId != nil {
@@ -1002,7 +1002,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					)
 
 					if tuple.parentExternalId != nil {
-						parentTaskExternalId = sqlchelpers.UUIDFromStr(*tuple.parentExternalId)
+						parentTaskExternalId = uuid.MustParse(*tuple.parentExternalId)
 					}
 
 					if tuple.parentTaskId != nil {
@@ -1125,7 +1125,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				)
 
 				if tuple.parentExternalId != nil {
-					parentTaskExternalId = sqlchelpers.UUIDFromStr(*tuple.parentExternalId)
+					parentTaskExternalId = uuid.MustParse(*tuple.parentExternalId)
 				}
 
 				if tuple.parentTaskId != nil {
@@ -1322,16 +1322,16 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 	unix := time.Now().UnixMilli()
 
 	for _, opt := range opts {
-		tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(tenantId))
-		externalIds = append(externalIds, sqlchelpers.UUIDFromStr(opt.ExternalId))
+		tenantIds = append(tenantIds, uuid.MustParse(tenantId))
+		externalIds = append(externalIds, uuid.MustParse(opt.ExternalId))
 		displayNames = append(displayNames, fmt.Sprintf("%s-%d", opt.WorkflowName, unix))
-		workflowIds = append(workflowIds, sqlchelpers.UUIDFromStr(opt.WorkflowId))
-		workflowVersionIds = append(workflowVersionIds, sqlchelpers.UUIDFromStr(opt.WorkflowVersionId))
+		workflowIds = append(workflowIds, uuid.MustParse(opt.WorkflowId))
+		workflowVersionIds = append(workflowVersionIds, uuid.MustParse(opt.WorkflowVersionId))
 
 		if opt.ParentTaskExternalID == nil {
 			parentTaskExternalIds = append(parentTaskExternalIds, uuid.UUID{})
 		} else {
-			parentTaskExternalIds = append(parentTaskExternalIds, sqlchelpers.UUIDFromStr(*opt.ParentTaskExternalID))
+			parentTaskExternalIds = append(parentTaskExternalIds, uuid.MustParse(*opt.ParentTaskExternalID))
 		}
 
 		dagIdToOpt[opt.ExternalId] = opt
@@ -1392,7 +1392,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 		parentTaskExternalID := uuid.UUID{}
 
 		if opt.ParentTaskExternalID != nil {
-			parentTaskExternalID = sqlchelpers.UUIDFromStr(*opt.ParentTaskExternalID)
+			parentTaskExternalID = uuid.MustParse(*opt.ParentTaskExternalID)
 		}
 
 		res = append(res, &DAGWithData{
@@ -1482,7 +1482,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		ctx,
 		tx,
 		sqlcv1.LockSignalCreatedEventsParams{
-			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid:        uuid.MustParse(tenantId),
 			Taskids:         potentialMatchTaskIds,
 			Taskinsertedats: potentialMatchTaskInsertedAts,
 			Eventkeys:       potentialMatchKeys,
@@ -1500,7 +1500,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+			TenantId:   uuid.MustParse(tenantId),
 		}
 	}
 
@@ -1519,7 +1519,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+			TenantId:   uuid.MustParse(tenantId),
 		}]
 
 		if !ok {
@@ -1534,13 +1534,13 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		}
 
 		if c.ChildExternalId != "" {
-			rootExternalIdsToLookup = append(rootExternalIdsToLookup, sqlchelpers.UUIDFromStr(c.ChildExternalId))
+			rootExternalIdsToLookup = append(rootExternalIdsToLookup, uuid.MustParse(c.ChildExternalId))
 		}
 	}
 
 	// get the child external IDs that have already been written
 	existingExternalIds, err := r.queries.LookupExternalIds(ctx, tx, sqlcv1.LookupExternalIdsParams{
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:    uuid.MustParse(tenantId),
 		Externalids: rootExternalIdsToLookup,
 	})
 

@@ -29,13 +29,13 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 
 	if request.Params.ParentTaskExternalId != nil {
 		uuidPtr := *request.Params.ParentTaskExternalId
-		uuidVal := sqlchelpers.UUIDFromStr(uuidPtr.String())
+		uuidVal := uuid.MustParse(uuidPtr.String())
 		parentTaskExternalId = &uuidVal
 	}
 
 	var triggeringEventExternalId *uuid.UUID
 	if request.Params.TriggeringEventExternalId != nil {
-		uuidVal := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventExternalId.String())
+		uuidVal := uuid.MustParse(request.Params.TriggeringEventExternalId.String())
 		triggeringEventExternalId = &uuidVal
 	}
 

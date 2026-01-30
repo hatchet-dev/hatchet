@@ -535,7 +535,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 	uniqueStepIds := make([]uuid.UUID, 0, len(stepIdToTasks))
 
 	for stepId := range stepIdToTasks {
-		uniqueStepIds = append(uniqueStepIds, sqlchelpers.UUIDFromStr(stepId))
+		uniqueStepIds = append(uniqueStepIds, uuid.MustParse(stepId))
 	}
 
 	stepRateLimits, err = d.queries.ListRateLimitsForSteps(ctx, d.pool, sqlcv1.ListRateLimitsForStepsParams{

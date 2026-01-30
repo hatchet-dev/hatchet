@@ -88,12 +88,12 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 
 	if request.Params.ParentTaskExternalId != nil {
 		parentTaskExternalId := request.Params.ParentTaskExternalId.String()
-		id := sqlchelpers.UUIDFromStr(parentTaskExternalId)
+		id := uuid.MustParse(parentTaskExternalId)
 		opts.ParentTaskExternalId = &id
 	}
 
 	if request.Params.TriggeringEventExternalId != nil {
-		id := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventExternalId.String())
+		id := uuid.MustParse(request.Params.TriggeringEventExternalId.String())
 		opts.TriggeringEventExternalId = &id
 	}
 
@@ -308,11 +308,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 func (t *V1WorkflowRunsService) V1WorkflowRunDisplayNamesList(ctx echo.Context, request gen.V1WorkflowRunDisplayNamesListRequestObject) (gen.V1WorkflowRunDisplayNamesListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
-	externalIds := make([]uuid.UUID, len(request.Params.ExternalIds))
-
-	for i, id := range request.Params.ExternalIds {
-		externalIds[i] = sqlchelpers.UUIDFromStr(id.String())
-	}
+	externalIds := request.Params.ExternalIds
 
 	displayNames, err := t.config.V1.OLAP().ListWorkflowRunDisplayNames(
 		ctx.Request().Context(),
@@ -395,9 +391,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunExternalIdsList(ctx echo.Context, r
 		return nil, err
 	}
 
-	result := transformers.ToWorkflowRunExternalIds(externalIds)
-
 	return gen.V1WorkflowRunExternalIdsList200JSONResponse(
-		result,
+		externalIds,
 	), nil
 }

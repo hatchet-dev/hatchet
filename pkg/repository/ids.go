@@ -122,14 +122,14 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	spawnKeyToOpt := make(map[string]*WorkflowNameTriggerOpts)
 
 	for i, opt := range opts {
-		externalIds = append(externalIds, sqlchelpers.UUIDFromStr(*opt.ParentExternalId))
+		externalIds = append(externalIds, uuid.MustParse(*opt.ParentExternalId))
 
 		spawnKeyToOpt[opt.childSpawnKey()] = opts[i] // we don't want a copy here, we want the actual pointer as we modify in-place
 	}
 
 	gotTasks, err := s.queries.LookupExternalIds(ctx, tx, sqlcv1.LookupExternalIdsParams{
 		Externalids: externalIds,
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:    uuid.MustParse(tenantId),
 	})
 
 	if err != nil {
@@ -159,7 +159,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	}
 
 	lockedEvents, err := s.queries.LockSignalCreatedEvents(ctx, tx, sqlcv1.LockSignalCreatedEventsParams{
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:        uuid.MustParse(tenantId),
 		Taskids:         eventTaskIds,
 		Taskinsertedats: eventTaskInsertedAts,
 		Eventkeys:       eventKeys,
@@ -176,7 +176,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			Id:         lockedEvent.ID,
 			InsertedAt: lockedEvent.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+			TenantId:   uuid.MustParse(tenantId),
 		}
 	}
 
@@ -193,7 +193,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			Id:         lockedEvent.ID,
 			InsertedAt: lockedEvent.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+			TenantId:   uuid.MustParse(tenantId),
 		}]
 
 		if !ok {

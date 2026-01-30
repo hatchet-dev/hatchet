@@ -252,7 +252,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 	}
 
 	createTenant, err := r.queries.CreateTenant(context.Background(), tx, sqlcv1.CreateTenantParams{
-		ID:                  sqlchelpers.UUIDFromStr(tenantId),
+		ID:                  uuid.MustParse(tenantId),
 		Slug:                opts.Slug,
 		Name:                opts.Name,
 		DataRetentionPeriod: dataRetentionPeriod,
@@ -268,7 +268,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		return nil, err
 	}
 
-	_, err = r.queries.CreateTenantAlertingSettings(ctx, tx, sqlchelpers.UUIDFromStr(tenantId))
+	_, err = r.queries.CreateTenantAlertingSettings(ctx, tx, uuid.MustParse(tenantId))
 
 	if err != nil {
 		return nil, err
@@ -291,7 +291,7 @@ func (r *tenantRepository) UpdateTenant(ctx context.Context, id string, opts *Up
 	}
 
 	params := sqlcv1.UpdateTenantParams{
-		ID: sqlchelpers.UUIDFromStr(id),
+		ID: uuid.MustParse(id),
 	}
 
 	if opts.Name != nil {
@@ -319,7 +319,7 @@ func (r *tenantRepository) UpdateTenant(ctx context.Context, id string, opts *Up
 
 func (r *tenantRepository) GetTenantByID(ctx context.Context, id string) (*sqlcv1.Tenant, error) {
 	return cache.MakeCacheable(r.cache, "api"+id, func() (*sqlcv1.Tenant, error) {
-		return r.queries.GetTenantByID(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+		return r.queries.GetTenantByID(ctx, r.pool, uuid.MustParse(id))
 	})
 }
 
@@ -340,8 +340,8 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId stri
 		ctx,
 		r.pool,
 		sqlcv1.CreateTenantMemberParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-			Userid:   sqlchelpers.UUIDFromStr(opts.UserId),
+			Tenantid: uuid.MustParse(tenantId),
+			Userid:   uuid.MustParse(opts.UserId),
 			Role:     sqlcv1.TenantMemberRole(opts.Role),
 		},
 	)
@@ -357,7 +357,7 @@ func (r *tenantRepository) GetTenantMemberByID(ctx context.Context, memberId str
 	member, err := r.queries.GetTenantMemberByID(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(memberId),
+		uuid.MustParse(memberId),
 	)
 
 	if err != nil {
@@ -372,8 +372,8 @@ func (r *tenantRepository) GetTenantMemberByUserID(ctx context.Context, tenantId
 		ctx,
 		r.pool,
 		sqlcv1.GetTenantMemberByUserIDParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-			Userid:   sqlchelpers.UUIDFromStr(userId),
+			Tenantid: uuid.MustParse(tenantId),
+			Userid:   uuid.MustParse(userId),
 		},
 	)
 
@@ -388,7 +388,7 @@ func (r *tenantRepository) ListTenantMembers(ctx context.Context, tenantId strin
 	members, err := r.queries.ListTenantMembers(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(tenantId),
+		uuid.MustParse(tenantId),
 	)
 
 	if err != nil {
@@ -409,7 +409,7 @@ func (r *tenantRepository) GetTenantMemberByEmail(ctx context.Context, tenantId 
 		ctx,
 		r.pool,
 		sqlcv1.GetTenantMemberByEmailParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid: uuid.MustParse(tenantId),
 			Email:    email,
 		},
 	)
@@ -427,7 +427,7 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId stri
 	}
 
 	params := sqlcv1.UpdateTenantMemberParams{
-		ID: sqlchelpers.UUIDFromStr(memberId),
+		ID: uuid.MustParse(memberId),
 	}
 
 	if opts.Role != nil {
@@ -476,7 +476,7 @@ func (r *tenantRepository) DeleteTenantMember(ctx context.Context, memberId stri
 	return r.queries.DeleteTenantMember(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(memberId),
+		uuid.MustParse(memberId),
 	)
 }
 
@@ -486,11 +486,11 @@ func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId string,
 	}
 
 	totalParams := sqlcv1.GetTenantTotalQueueMetricsParams{
-		TenantId: sqlchelpers.UUIDFromStr(tenantId),
+		TenantId: uuid.MustParse(tenantId),
 	}
 
 	workflowParams := sqlcv1.GetTenantWorkflowQueueMetricsParams{
-		TenantId: sqlchelpers.UUIDFromStr(tenantId),
+		TenantId: uuid.MustParse(tenantId),
 	}
 
 	if opts.AdditionalMetadata != nil {
@@ -507,7 +507,7 @@ func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId string,
 		uuids := make([]uuid.UUID, len(opts.WorkflowIds))
 
 		for i, id := range opts.WorkflowIds {
-			uuids[i] = sqlchelpers.UUIDFromStr(id)
+			uuids[i] = uuid.MustParse(id)
 		}
 
 		workflowParams.WorkflowIds = uuids
@@ -795,11 +795,11 @@ func (r *tenantRepository) RebalanceInactiveSchedulerPartitions(ctx context.Cont
 }
 
 func (r *tenantRepository) DeleteTenant(ctx context.Context, id string) error {
-	return r.queries.DeleteTenant(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+	return r.queries.DeleteTenant(ctx, r.pool, uuid.MustParse(id))
 }
 
 func (r *tenantRepository) GetTenantUsageData(ctx context.Context, tenantId string) (*sqlcv1.GetTenantUsageDataRow, error) {
-	return r.queries.GetTenantUsageData(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
+	return r.queries.GetTenantUsageData(ctx, r.pool, uuid.MustParse(tenantId))
 }
 
 func getPartitionName() pgtype.Text {

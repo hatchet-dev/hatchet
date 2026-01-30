@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"google.golang.org/grpc/codes"
@@ -95,7 +96,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	for retries < 10 {
 		rawWorkflowRun, err = t.config.V1.OLAP().ReadWorkflowRun(
 			ctx.Request().Context(),
-			sqlchelpers.UUIDFromStr(resp.ExternalId),
+			uuid.MustParse(resp.ExternalId),
 		)
 
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {

@@ -164,7 +164,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		payloadIndexMap := make(map[PayloadUniqueKey]int)
 
 		for i, payload := range payloads {
-			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+			tenantId := uuid.MustParse(payload.TenantId)
 			uniqueKey := PayloadUniqueKey{
 				ID:         payload.Id,
 				InsertedAt: payload.InsertedAt,
@@ -193,7 +193,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		}
 
 		for _, payload := range payloads {
-			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+			tenantId := uuid.MustParse(payload.TenantId)
 			uniqueKey := PayloadUniqueKey{
 				ID:         payload.Id,
 				InsertedAt: payload.InsertedAt,
@@ -226,7 +226,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		}
 
 		for _, payload := range payloads {
-			tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+			tenantId := uuid.MustParse(payload.TenantId)
 			uniqueKey := PayloadUniqueKey{
 				ID:         payload.Id,
 				InsertedAt: payload.InsertedAt,
@@ -614,7 +614,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			TenantID:            meta.TenantID,
 			ID:                  meta.ID,
 			InsertedAt:          meta.InsertedAt,
-			ExternalID:          sqlchelpers.UUIDFromStr(string(externalId)),
+			ExternalID:          uuid.MustParse(string(externalId)),
 			Type:                meta.Type,
 			ExternalLocationKey: string(key),
 			Location:            sqlcv1.V1PayloadLocationEXTERNAL,
@@ -749,7 +749,7 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, PaginationParams{
 		// placeholder initial type
 		LastType:       sqlcv1.V1PayloadTypeDAGINPUT,
-		LastTenantID:   sqlchelpers.UUIDFromStr(zeroUuid.String()),
+		LastTenantID:   uuid.MustParse(zeroUuid.String()),
 		LastInsertedAt: sqlchelpers.TimestamptzFromTime(time.Unix(0, 0)),
 		LastID:         0,
 	})
@@ -966,7 +966,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
 	}
 
-	processId := sqlchelpers.UUIDFromStr(uuid.NewString())
+	processId := uuid.MustParse(uuid.NewString())
 
 	for _, partition := range partitions {
 		p.l.Info().Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")

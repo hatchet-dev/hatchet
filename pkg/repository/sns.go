@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -38,7 +38,7 @@ func (r *snsRepository) GetSNSIntegration(ctx context.Context, tenantId, topicAr
 		ctx,
 		r.pool,
 		sqlcv1.GetSNSIntegrationParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid: uuid.MustParse(tenantId),
 			Topicarn: topicArn,
 		},
 	)
@@ -48,7 +48,7 @@ func (r *snsRepository) GetSNSIntegrationById(ctx context.Context, id string) (*
 	return r.queries.GetSNSIntegrationById(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(id),
+		uuid.MustParse(id),
 	)
 }
 
@@ -57,7 +57,7 @@ func (r *snsRepository) CreateSNSIntegration(ctx context.Context, tenantId strin
 		ctx,
 		r.pool,
 		sqlcv1.CreateSNSIntegrationParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid: uuid.MustParse(tenantId),
 			Topicarn: opts.TopicArn,
 		},
 	)
@@ -67,7 +67,7 @@ func (r *snsRepository) ListSNSIntegrations(ctx context.Context, tenantId string
 	return r.queries.ListSNSIntegrations(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(tenantId),
+		uuid.MustParse(tenantId),
 	)
 }
 
@@ -76,8 +76,8 @@ func (r *snsRepository) DeleteSNSIntegration(ctx context.Context, tenantId, id s
 		ctx,
 		r.pool,
 		sqlcv1.DeleteSNSIntegrationParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-			ID:       sqlchelpers.UUIDFromStr(id),
+			Tenantid: uuid.MustParse(tenantId),
+			ID:       uuid.MustParse(id),
 		},
 	)
 }

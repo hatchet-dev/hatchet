@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -61,7 +62,7 @@ func newTickerRepository(shared *sharedRepository) TickerRepository {
 }
 
 func (t *tickerRepository) IsTenantAlertActive(ctx context.Context, tenantId string) (bool, time.Time, error) {
-	res, err := t.queries.IsTenantAlertActive(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
+	res, err := t.queries.IsTenantAlertActive(ctx, t.pool, uuid.MustParse(tenantId))
 
 	if err != nil {
 		return false, time.Now(), err
@@ -75,7 +76,7 @@ func (t *tickerRepository) CreateNewTicker(ctx context.Context, opts *CreateTick
 		return nil, err
 	}
 
-	return t.queries.CreateTicker(ctx, t.pool, sqlchelpers.UUIDFromStr(opts.ID))
+	return t.queries.CreateTicker(ctx, t.pool, uuid.MustParse(opts.ID))
 }
 
 func (t *tickerRepository) UpdateTicker(ctx context.Context, tickerId string, opts *UpdateTickerOpts) (*sqlcv1.Ticker, error) {
@@ -87,7 +88,7 @@ func (t *tickerRepository) UpdateTicker(ctx context.Context, tickerId string, op
 		ctx,
 		t.pool,
 		sqlcv1.UpdateTickerParams{
-			ID:              sqlchelpers.UUIDFromStr(tickerId),
+			ID:              uuid.MustParse(tickerId),
 			LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
 		},
 	)
@@ -119,22 +120,22 @@ func (t *tickerRepository) DeactivateTicker(ctx context.Context, tickerId string
 	_, err := t.queries.DeactivateTicker(
 		ctx,
 		t.pool,
-		sqlchelpers.UUIDFromStr(tickerId),
+		uuid.MustParse(tickerId),
 	)
 
 	return err
 }
 
 func (t *tickerRepository) PollCronSchedules(ctx context.Context, tickerId string) ([]*sqlcv1.PollCronSchedulesRow, error) {
-	return t.queries.PollCronSchedules(ctx, t.pool, sqlchelpers.UUIDFromStr(tickerId))
+	return t.queries.PollCronSchedules(ctx, t.pool, uuid.MustParse(tickerId))
 }
 
 func (t *tickerRepository) PollScheduledWorkflows(ctx context.Context, tickerId string) ([]*sqlcv1.PollScheduledWorkflowsRow, error) {
-	return t.queries.PollScheduledWorkflows(ctx, t.pool, sqlchelpers.UUIDFromStr(tickerId))
+	return t.queries.PollScheduledWorkflows(ctx, t.pool, uuid.MustParse(tickerId))
 }
 
 func (t *tickerRepository) PollTenantAlerts(ctx context.Context, tickerId string) ([]*sqlcv1.PollTenantAlertsRow, error) {
-	return t.queries.PollTenantAlerts(ctx, t.pool, sqlchelpers.UUIDFromStr(tickerId))
+	return t.queries.PollTenantAlerts(ctx, t.pool, uuid.MustParse(tickerId))
 }
 
 func (t *tickerRepository) PollExpiringTokens(ctx context.Context) ([]*sqlcv1.PollExpiringTokensRow, error) {

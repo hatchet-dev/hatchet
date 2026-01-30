@@ -114,7 +114,7 @@ func (r *userRepository) RegisterCreateCallback(callback UnscopedCallback[*UserC
 }
 
 func (r *userRepository) GetUserByID(ctx context.Context, id string) (*sqlcv1.User, error) {
-	return r.queries.GetUserByID(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+	return r.queries.GetUserByID(ctx, r.pool, uuid.MustParse(id))
 }
 
 func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*sqlcv1.User, error) {
@@ -124,7 +124,7 @@ func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*sql
 }
 
 func (r *userRepository) GetUserPassword(ctx context.Context, id string) (*sqlcv1.UserPassword, error) {
-	return r.queries.GetUserPassword(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+	return r.queries.GetUserPassword(ctx, r.pool, uuid.MustParse(id))
 }
 
 func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (*sqlcv1.User, error) {
@@ -135,7 +135,7 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 	userId := uuid.New().String()
 
 	params := sqlcv1.CreateUserParams{
-		ID:    sqlchelpers.UUIDFromStr(userId),
+		ID:    uuid.MustParse(userId),
 		Email: strings.ToLower(opts.Email),
 	}
 
@@ -163,7 +163,7 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 
 	if opts.Password != nil {
 		_, err := r.queries.CreateUserPassword(ctx, tx, sqlcv1.CreateUserPasswordParams{
-			Userid: sqlchelpers.UUIDFromStr(userId),
+			Userid: uuid.MustParse(userId),
 			Hash:   *opts.Password,
 		})
 
@@ -174,7 +174,7 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 
 	if opts.OAuth != nil {
 		createOAuthParams := sqlcv1.CreateUserOAuthParams{
-			Userid:         sqlchelpers.UUIDFromStr(userId),
+			Userid:         uuid.MustParse(userId),
 			Provider:       opts.OAuth.Provider,
 			Provideruserid: opts.OAuth.ProviderUserId,
 			Accesstoken:    opts.OAuth.AccessToken,
@@ -212,7 +212,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *Update
 	}
 
 	params := sqlcv1.UpdateUserParams{
-		ID: sqlchelpers.UUIDFromStr(id),
+		ID: uuid.MustParse(id),
 	}
 
 	if opts.EmailVerified != nil {
@@ -239,7 +239,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *Update
 
 	if opts.Password != nil {
 		_, err := r.queries.UpdateUserPassword(ctx, tx, sqlcv1.UpdateUserPasswordParams{
-			Userid: sqlchelpers.UUIDFromStr(id),
+			Userid: uuid.MustParse(id),
 			Hash:   *opts.Password,
 		})
 
@@ -250,7 +250,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *Update
 
 	if opts.OAuth != nil {
 		createOAuthParams := sqlcv1.UpsertUserOAuthParams{
-			Userid:         sqlchelpers.UUIDFromStr(id),
+			Userid:         uuid.MustParse(id),
 			Provider:       opts.OAuth.Provider,
 			Provideruserid: opts.OAuth.ProviderUserId,
 			Accesstoken:    opts.OAuth.AccessToken,
@@ -276,7 +276,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *Update
 }
 
 func (r *userRepository) ListTenantMemberships(ctx context.Context, userId string) ([]*sqlcv1.PopulateTenantMembersRow, error) {
-	memberships, err := r.queries.ListTenantMemberships(ctx, r.pool, sqlchelpers.UUIDFromStr(userId))
+	memberships, err := r.queries.ListTenantMemberships(ctx, r.pool, uuid.MustParse(userId))
 
 	if err != nil {
 		return nil, err

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 
@@ -36,7 +37,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 	}
 
 	opts := sqlcv1.ListEventsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 		Limit: pgtype.Int8{
 			Int64: limit,
 			Valid: true,

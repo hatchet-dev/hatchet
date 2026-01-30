@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -48,7 +48,7 @@ func (r *slackRepository) UpsertSlackWebhook(ctx context.Context, tenantId strin
 		ctx,
 		r.pool,
 		sqlcv1.UpsertSlackWebhookParams{
-			Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid:    uuid.MustParse(tenantId),
 			Teamid:      opts.TeamId,
 			Teamname:    opts.TeamName,
 			Channelid:   opts.ChannelId,
@@ -62,7 +62,7 @@ func (r *slackRepository) ListSlackWebhooks(ctx context.Context, tenantId string
 	return r.queries.ListSlackWebhooks(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(tenantId),
+		uuid.MustParse(tenantId),
 	)
 }
 
@@ -70,7 +70,7 @@ func (r *slackRepository) GetSlackWebhookById(ctx context.Context, id string) (*
 	return r.queries.GetSlackWebhookById(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(id),
+		uuid.MustParse(id),
 	)
 }
 
@@ -79,8 +79,8 @@ func (r *slackRepository) DeleteSlackWebhook(ctx context.Context, tenantId strin
 		ctx,
 		r.pool,
 		sqlcv1.DeleteSlackWebhookParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-			ID:       sqlchelpers.UUIDFromStr(id),
+			Tenantid: uuid.MustParse(tenantId),
+			ID:       uuid.MustParse(id),
 		},
 	)
 }

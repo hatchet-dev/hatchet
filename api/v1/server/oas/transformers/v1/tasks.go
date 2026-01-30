@@ -387,16 +387,11 @@ func ToWorkflowRunDetails(
 
 	for i, shapeRow := range shape {
 		parentExternalId := uuid.MustParse(sqlchelpers.UUIDToStr(stepIdToTaskExternalId[shapeRow.Parentstepid]))
-		ChildrenStepIds := make([]uuid.UUID, len(shapeRow.Childrenstepids))
 		taskName := shapeRow.Stepname.String
 		stepId := shapeRow.Parentstepid
 
-		for c, child := range shapeRow.Childrenstepids {
-			ChildrenStepIds[c] = uuid.MustParse(sqlchelpers.UUIDToStr(child))
-		}
-
 		shapeRows[i] = gen.WorkflowRunShapeItemForWorkflowRunDetails{
-			ChildrenStepIds: ChildrenStepIds,
+			ChildrenStepIds: shapeRow.Childrenstepids,
 			TaskExternalId:  parentExternalId,
 			TaskName:        taskName,
 			StepId:          uuid.MustParse(sqlchelpers.UUIDToStr(stepId)),

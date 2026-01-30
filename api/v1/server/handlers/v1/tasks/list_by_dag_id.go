@@ -1,7 +1,6 @@
 package tasks
 
 import (
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -13,15 +12,10 @@ func (t *TasksService) V1DagListTasks(ctx echo.Context, request gen.V1DagListTas
 	tenantId := request.Params.Tenant.String()
 	dagIds := request.Params.DagIds
 
-	pguuids := make([]uuid.UUID, 0)
-	for _, dagId := range dagIds {
-		pguuids = append(pguuids, dagId)
-	}
-
 	tasks, taskIdToDagExternalId, err := t.config.V1.OLAP().ListTasksByDAGId(
 		ctx.Request().Context(),
 		tenantId,
-		pguuids,
+		dagIds,
 		false,
 	)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -49,12 +50,12 @@ func (r *userSessionRepository) Create(ctx context.Context, opts *CreateSessionO
 	}
 
 	params := sqlcv1.CreateUserSessionParams{
-		ID:        sqlchelpers.UUIDFromStr(opts.ID),
+		ID:        uuid.MustParse(opts.ID),
 		Expiresat: sqlchelpers.TimestampFromTime(opts.ExpiresAt),
 	}
 
 	if opts.UserId != nil {
-		params.UserId = sqlchelpers.UUIDFromStr(*opts.UserId)
+		params.UserId = uuid.MustParse(*opts.UserId)
 	}
 
 	if opts.Data != nil {
@@ -74,11 +75,11 @@ func (r *userSessionRepository) Update(ctx context.Context, sessionId string, op
 	}
 
 	params := sqlcv1.UpdateUserSessionParams{
-		ID: sqlchelpers.UUIDFromStr(sessionId),
+		ID: uuid.MustParse(sessionId),
 	}
 
 	if opts.UserId != nil {
-		params.UserId = sqlchelpers.UUIDFromStr(*opts.UserId)
+		params.UserId = uuid.MustParse(*opts.UserId)
 	}
 
 	if opts.Data != nil {
@@ -96,7 +97,7 @@ func (r *userSessionRepository) Delete(ctx context.Context, sessionId string) (*
 	return r.queries.DeleteUserSession(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(sessionId),
+		uuid.MustParse(sessionId),
 	)
 }
 
@@ -104,6 +105,6 @@ func (r *userSessionRepository) GetById(ctx context.Context, sessionId string) (
 	return r.queries.GetUserSession(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(sessionId),
+		uuid.MustParse(sessionId),
 	)
 }

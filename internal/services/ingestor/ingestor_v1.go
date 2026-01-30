@@ -79,11 +79,11 @@ func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string
 	now := time.Now().UTC()
 
 	return &sqlcv1.Event{
-		ID:                 sqlchelpers.UUIDFromStr(eventId),
+		ID:                 uuid.MustParse(eventId),
 		CreatedAt:          sqlchelpers.TimestampFromTime(now),
 		UpdatedAt:          sqlchelpers.TimestampFromTime(now),
 		Key:                key,
-		TenantId:           sqlchelpers.UUIDFromStr(tenantId),
+		TenantId:           uuid.MustParse(tenantId),
 		Data:               data,
 		AdditionalMetadata: metadata,
 	}, nil

@@ -815,7 +815,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	foundWorkflowRun := false
 
 	for retries < 10 {
-		wr, err := s.repov1.OLAP().ReadWorkflowRun(ctx, sqlchelpers.UUIDFromStr(workflowRunId))
+		wr, err := s.repov1.OLAP().ReadWorkflowRun(ctx, uuid.MustParse(workflowRunId))
 
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {

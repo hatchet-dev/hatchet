@@ -140,7 +140,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	workerIds := make([]uuid.UUID, 0)
 
 	for workerIdStr := range workers {
-		workerIds = append(workerIds, sqlchelpers.UUIDFromStr(workerIdStr))
+		workerIds = append(workerIds, uuid.MustParse(workerIdStr))
 	}
 
 	start := time.Now()
@@ -254,7 +254,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	workerUUIDs := make([]uuid.UUID, 0, len(uniqueWorkerIds))
 
 	for workerId := range uniqueWorkerIds {
-		workerUUIDs = append(workerUUIDs, sqlchelpers.UUIDFromStr(workerId))
+		workerUUIDs = append(workerUUIDs, uuid.MustParse(workerId))
 	}
 
 	orderedLock(actionsToReplenish)
@@ -671,7 +671,7 @@ func (s *Scheduler) tryAssignSingleton(
 	s.unackedSlots[res.ackId] = assignedSlot
 	s.unackedMu.Unlock()
 
-	res.workerId = sqlchelpers.UUIDFromStr(assignedSlot.getWorkerId())
+	res.workerId = uuid.MustParse(assignedSlot.getWorkerId())
 	res.succeeded = true
 
 	return res, nil

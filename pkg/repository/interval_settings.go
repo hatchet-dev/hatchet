@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -64,7 +64,7 @@ func (r *intervalSettingsRepository) ReadAllIntervals(ctx context.Context, opera
 func (r *intervalSettingsRepository) ReadInterval(ctx context.Context, operationId string, tenantId string) (time.Duration, error) {
 	interval, err := r.queries.ReadInterval(ctx, r.pool, sqlcv1.ReadIntervalParams{
 		Operationid: operationId,
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:    uuid.MustParse(tenantId),
 	})
 
 	if err != nil {
@@ -84,7 +84,7 @@ func (r *intervalSettingsRepository) SetInterval(ctx context.Context, operationI
 	interval, err := r.queries.UpsertInterval(ctx, r.pool, sqlcv1.UpsertIntervalParams{
 		Intervalnanoseconds: int64(d),
 		Operationid:         operationId,
-		Tenantid:            sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:            uuid.MustParse(tenantId),
 	})
 
 	if err != nil {

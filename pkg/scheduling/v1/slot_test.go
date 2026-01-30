@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -29,7 +28,7 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "HARD sticky strategy with desired worker available",
 			qi: &sqlcv1.V1QueueItem{
 				Sticky:          sqlcv1.V1StickyStrategyHARD,
-				DesiredWorkerID: sqlchelpers.UUIDFromStr(stableWorkerId1),
+				DesiredWorkerID: uuid.MustParse(stableWorkerId1),
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: stableWorkerId1}}, []string{}),
@@ -41,7 +40,7 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "HARD sticky strategy without desired worker",
 			qi: &sqlcv1.V1QueueItem{
 				Sticky:          sqlcv1.V1StickyStrategyHARD,
-				DesiredWorkerID: sqlchelpers.UUIDFromStr(uuid.New().String()),
+				DesiredWorkerID: uuid.MustParse(uuid.New().String()),
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: uuid.NewString()}}, []string{}),
@@ -53,7 +52,7 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "SOFT sticky strategy with desired worker available",
 			qi: &sqlcv1.V1QueueItem{
 				Sticky:          sqlcv1.V1StickyStrategySOFT,
-				DesiredWorkerID: sqlchelpers.UUIDFromStr(stableWorkerId1),
+				DesiredWorkerID: uuid.MustParse(stableWorkerId1),
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: (stableWorkerId2)}}, []string{}),

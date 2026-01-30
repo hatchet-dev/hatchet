@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -51,11 +52,11 @@ func newAPITokenRepository(shared *sharedRepository, cacheDuration time.Duration
 }
 
 func (a *apiTokenRepository) RevokeAPIToken(ctx context.Context, id string) error {
-	return a.queries.RevokeAPIToken(ctx, a.pool, sqlchelpers.UUIDFromStr(id))
+	return a.queries.RevokeAPIToken(ctx, a.pool, uuid.MustParse(id))
 }
 
 func (a *apiTokenRepository) ListAPITokensByTenant(ctx context.Context, tenantId string) ([]*sqlcv1.APIToken, error) {
-	return a.queries.ListAPITokensByTenant(ctx, a.pool, sqlchelpers.UUIDFromStr(tenantId))
+	return a.queries.ListAPITokensByTenant(ctx, a.pool, uuid.MustParse(tenantId))
 }
 
 func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPITokenOpts) (*sqlcv1.APIToken, error) {
@@ -64,13 +65,13 @@ func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPI
 	}
 
 	createParams := sqlcv1.CreateAPITokenParams{
-		ID:        sqlchelpers.UUIDFromStr(opts.ID),
+		ID:        uuid.MustParse(opts.ID),
 		Expiresat: sqlchelpers.TimestampFromTime(opts.ExpiresAt),
 		Internal:  sqlchelpers.BoolFromBoolean(opts.Internal),
 	}
 
 	if opts.TenantId != nil {
-		createParams.TenantId = sqlchelpers.UUIDFromStr(*opts.TenantId)
+		createParams.TenantId = uuid.MustParse(*opts.TenantId)
 	}
 
 	if opts.Name != nil {
@@ -82,7 +83,7 @@ func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPI
 
 func (a *apiTokenRepository) GetAPITokenById(ctx context.Context, id string) (*sqlcv1.APIToken, error) {
 	return cache.MakeCacheable[sqlcv1.APIToken](a.c, id, func() (*sqlcv1.APIToken, error) {
-		return a.queries.GetAPITokenById(ctx, a.pool, sqlchelpers.UUIDFromStr(id))
+		return a.queries.GetAPITokenById(ctx, a.pool, uuid.MustParse(id))
 	})
 }
 
@@ -96,8 +97,8 @@ func (a *apiTokenRepository) DeleteAPIToken(ctx context.Context, tenantId, id st
 	defer rollback()
 
 	err = a.queries.DeleteAPIToken(ctx, tx, sqlcv1.DeleteAPITokenParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		ID:       sqlchelpers.UUIDFromStr(id),
+		Tenantid: uuid.MustParse(tenantId),
+		ID:       uuid.MustParse(id),
 	})
 
 	if err != nil {

@@ -134,7 +134,7 @@ func (r *rateLimitRepository) UpsertRateLimit(ctx context.Context, tenantId stri
 	}
 
 	upsertParams := sqlcv1.UpsertRateLimitParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: uuid.MustParse(tenantId),
 		Key:      key,
 		Limit:    int32(opts.Limit), // nolint: gosec
 	}
@@ -159,7 +159,7 @@ func (r *rateLimitRepository) ListRateLimits(ctx context.Context, tenantId strin
 
 	res := &ListRateLimitsResult{}
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgTenantId := uuid.MustParse(tenantId)
 
 	queryParams := sqlcv1.ListRateLimitsForTenantNoMutateParams{
 		Tenantid: pgTenantId,

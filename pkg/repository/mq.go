@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -94,7 +95,7 @@ func (m *messageQueueRepository) BindQueue(ctx context.Context, queue string, du
 	}
 
 	if exclusiveConsumer != nil {
-		params.ExclusiveConsumerId = sqlchelpers.UUIDFromStr(*exclusiveConsumer)
+		params.ExclusiveConsumerId = uuid.MustParse(*exclusiveConsumer)
 	}
 
 	_, err := m.queries.UpsertMessageQueue(ctx, m.pool, params)

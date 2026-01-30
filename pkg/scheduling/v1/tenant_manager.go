@@ -9,7 +9,6 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -48,7 +47,7 @@ type tenantManager struct {
 }
 
 func newTenantManager(cf *sharedConfig, tenantId string, resultsCh chan *QueueResults, concurrencyResultsCh chan *ConcurrencyResults, exts *Extensions) *tenantManager {
-	tenantIdUUID := sqlchelpers.UUIDFromStr(tenantId)
+	tenantIdUUID := uuid.MustParse(tenantId)
 
 	rl := newRateLimiter(cf, tenantIdUUID)
 	s := newScheduler(cf, tenantIdUUID, rl, exts)

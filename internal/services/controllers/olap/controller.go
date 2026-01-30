@@ -549,13 +549,13 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 				var filterId uuid.UUID
 
 				if payload.FilterId != nil {
-					filterId = sqlchelpers.UUIDFromStr(*payload.FilterId)
+					filterId = uuid.MustParse(*payload.FilterId)
 				}
 
 				bulkCreateTriggersParams = append(bulkCreateTriggersParams, v1.EventTriggersFromExternalId{
 					RunID:           *payload.MaybeRunId,
 					RunInsertedAt:   sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
-					EventExternalId: sqlchelpers.UUIDFromStr(payload.EventExternalId),
+					EventExternalId: uuid.MustParse(payload.EventExternalId),
 					EventSeenAt:     sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
 					FilterId:        filterId,
 				})
@@ -568,8 +568,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			}
 
 			seenEventKeysSet[payload.EventExternalId] = true
-			tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(tenantId))
-			externalIds = append(externalIds, sqlchelpers.UUIDFromStr(payload.EventExternalId))
+			tenantIds = append(tenantIds, uuid.MustParse(tenantId))
+			externalIds = append(externalIds, uuid.MustParse(payload.EventExternalId))
 			seenAts = append(seenAts, sqlchelpers.TimestamptzFromTime(payload.EventSeenAt))
 			keys = append(keys, payload.EventKey)
 			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)
@@ -664,7 +664,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		eventPayloads = append(eventPayloads, msg.EventPayload)
 		eventMessages = append(eventMessages, msg.EventMessage)
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
-		eventExternalIds = append(eventExternalIds, sqlchelpers.UUIDFromStr(uuid.New().String()))
+		eventExternalIds = append(eventExternalIds, uuid.New())
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -724,11 +724,11 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		var workerId uuid.UUID
 
 		if workerIds[i] != "" {
-			workerId = sqlchelpers.UUIDFromStr(workerIds[i])
+			workerId = uuid.MustParse(workerIds[i])
 		}
 
 		event := sqlcv1.CreateTaskEventsOLAPParams{
-			TenantID:               sqlchelpers.UUIDFromStr(tenantId),
+			TenantID:               uuid.MustParse(tenantId),
 			TaskID:                 taskId,
 			TaskInsertedAt:         taskInsertedAts[i],
 			WorkflowID:             workflowIds[i],

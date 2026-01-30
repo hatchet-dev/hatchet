@@ -95,7 +95,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contracts.UpsertWorkerLabelsRequest) (*contracts.UpsertWorkerLabelsResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
-	_, err := s.upsertLabels(ctx, sqlchelpers.UUIDFromStr(request.WorkerId), request.Labels)
+	_, err := s.upsertLabels(ctx, uuid.MustParse(request.WorkerId), request.Labels)
 
 	if err != nil {
 		return nil, err
