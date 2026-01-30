@@ -90,9 +90,10 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		}
 	}()
 
+	tenantIdString := tenantId.String()
 	t.config.Analytics.Enqueue("user-invite:create",
 		user.ID.String(),
-		&tenantId,
+		&tenantIdString,
 		nil,
 		map[string]interface{}{
 			"invite_id": invite.ID,

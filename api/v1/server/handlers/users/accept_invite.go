@@ -54,7 +54,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// ensure the user is not already a member of the tenant
-	_, err = u.config.V1.Tenant().GetTenantMemberByEmail(ctx.Request().Context(), invite.TenantId.String(), user.Email)
+	_, err = u.config.V1.Tenant().GetTenantMemberByEmail(ctx.Request().Context(), invite.TenantId, user.Email)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
@@ -75,7 +75,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// add the user to the tenant
-	member, err := u.config.V1.Tenant().CreateTenantMember(ctx.Request().Context(), invite.TenantId.String(), &v1.CreateTenantMemberOpts{
+	member, err := u.config.V1.Tenant().CreateTenantMember(ctx.Request().Context(), invite.TenantId, &v1.CreateTenantMemberOpts{
 		UserId: userId,
 		Role:   string(invite.Role),
 	})
@@ -84,12 +84,13 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 		return nil, err
 	}
 
-	tenantId := invite.TenantId.String()
+	tenantId := invite.TenantId
+	tenantIdString := tenantId.String()
 
 	u.config.Analytics.Enqueue(
 		"user-invite:accept",
 		userId,
-		&tenantId,
+		&tenantIdString,
 		nil,
 		map[string]interface{}{
 			"user_id":   userId,

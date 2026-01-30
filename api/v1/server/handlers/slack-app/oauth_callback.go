@@ -3,6 +3,7 @@ package slackapp
 import (
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/slack-go/slack"
 
@@ -63,7 +64,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 
 	_, err = g.config.V1.Slack().UpsertSlackWebhook(
 		ctx.Request().Context(),
-		tenantId,
+		uuid.MustParse(tenantId),
 		&v1.UpsertSlackWebhookOpts{
 			TeamId:      resp.Team.ID,
 			TeamName:    resp.Team.Name,

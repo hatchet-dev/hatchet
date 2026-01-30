@@ -230,7 +230,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		tenant, err := config.V1.Tenant().GetTenantByID(ctxTimeout, id)
+		tenant, err := config.V1.Tenant().GetTenantByID(ctxTimeout, uuid.MustParse(id))
 
 		if err != nil {
 			return nil, "", err
@@ -382,7 +382,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID.String(), v1Event.ExternalID)
+		payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID, v1Event.ExternalID)
 
 		if err != nil {
 			return nil, "", err
@@ -405,7 +405,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		v1Event, err := t.config.V1.OLAP().GetEventWithPayload(timeoutCtx, id, parentId)
+		v1Event, err := t.config.V1.OLAP().GetEventWithPayload(timeoutCtx, uuid.MustParse(id), uuid.MustParse(parentId))
 
 		if err != nil {
 			return nil, "", err
@@ -480,8 +480,8 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	populatorMW.RegisterGetter("v1-filter", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		filter, err := t.config.V1.Filters().GetFilter(
 			context.Background(),
-			parentId,
-			id,
+			uuid.MustParse(parentId),
+			uuid.MustParse(id),
 		)
 
 		if err != nil {
@@ -494,8 +494,8 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	populatorMW.RegisterGetter("v1-event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		event, err := t.config.V1.OLAP().GetEventWithPayload(
 			context.Background(),
-			id,
-			parentId,
+			uuid.MustParse(id),
+			uuid.MustParse(parentId),
 		)
 
 		if err != nil {
@@ -508,7 +508,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	populatorMW.RegisterGetter("v1-webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		webhook, err := t.config.V1.Webhooks().GetWebhook(
 			context.Background(),
-			parentId,
+			uuid.MustParse(parentId),
 			id,
 		)
 

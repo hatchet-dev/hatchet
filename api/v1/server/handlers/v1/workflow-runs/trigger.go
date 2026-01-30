@@ -115,7 +115,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		return nil, fmt.Errorf("rawWorkflowRun not populated, we are likely seeing high latency in creating tasks")
 	}
 
-	if rawWorkflowRun.WorkflowRun.TenantID.String() != tenantId {
+	if rawWorkflowRun.WorkflowRun.TenantID != tenantId {
 		return nil, fmt.Errorf("tenantId mismatch in the triggered workflow run")
 	}
 

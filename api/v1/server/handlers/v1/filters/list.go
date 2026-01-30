@@ -42,7 +42,7 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 
 	filters, count, err := t.config.V1.Filters().ListFilters(
 		ctx.Request().Context(),
-		tenant.ID.String(),
+		tenant.ID,
 		v1.ListFiltersOpts{
 			WorkflowIds: workflowIdParams,
 			Scopes:      scopeParams,

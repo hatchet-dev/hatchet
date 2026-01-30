@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	client "github.com/hatchet-dev/hatchet/pkg/client/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -38,7 +39,7 @@ func (p *Proxy[in, out]) Do(ctx context.Context, tenant *sqlcv1.Tenant, input *i
 		defer cancel()
 
 		// delete the API token
-		err = p.config.V1.APIToken().DeleteAPIToken(deleteCtx, tenantId, tok.TokenId)
+		err = p.config.V1.APIToken().DeleteAPIToken(deleteCtx, tenantId, uuid.MustParse(tok.TokenId))
 
 		if err != nil {
 			p.config.Logger.Error().Err(err).Msg("failed to delete API token")

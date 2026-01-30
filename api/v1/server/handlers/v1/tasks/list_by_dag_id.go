@@ -9,7 +9,7 @@ import (
 )
 
 func (t *TasksService) V1DagListTasks(ctx echo.Context, request gen.V1DagListTasksRequestObject) (gen.V1DagListTasksResponseObject, error) {
-	tenantId := request.Params.Tenant.String()
+	tenantId := request.Params.Tenant
 	dagIds := request.Params.DagIds
 
 	tasks, taskIdToDagExternalId, err := t.config.V1.OLAP().ListTasksByDAGId(

@@ -36,7 +36,7 @@ func (t *V1FiltersService) V1FilterCreate(ctx echo.Context, request gen.V1Filter
 
 	filter, err := t.config.V1.Filters().CreateFilter(
 		ctx.Request().Context(),
-		tenant.ID.String(),
+		tenant.ID,
 		params,
 	)
 

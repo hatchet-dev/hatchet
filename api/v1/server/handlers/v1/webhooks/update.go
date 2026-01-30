@@ -14,7 +14,7 @@ func (w *V1WebhooksService) V1WebhookUpdate(ctx echo.Context, request gen.V1Webh
 
 	webhook, err := w.config.V1.Webhooks().UpdateWebhook(
 		ctx.Request().Context(),
-		webhook.TenantID.String(),
+		webhook.TenantID,
 		webhook.Name,
 		request.Body.EventKeyExpression,
 	)

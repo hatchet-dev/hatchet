@@ -23,7 +23,7 @@ func (g *SlackAppService) UserUpdateSlackOauthStart(ctx echo.Context, _ gen.User
 
 	sh := authn.NewSessionHelpers(g.config)
 
-	if err := sh.SaveKV(ctx, "tenant", tenantId); err != nil {
+	if err := sh.SaveKV(ctx, "tenant", tenantId.String()); err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
 	}
 

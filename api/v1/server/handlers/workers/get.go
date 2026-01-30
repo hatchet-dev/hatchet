@@ -27,7 +27,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 	}
 
 	slotState, err := t.config.V1.Workers().ListWorkerState(
-		worker.Worker.TenantId.String(),
+		worker.Worker.TenantId,
 		worker.Worker.ID.String(),
 		int(worker.Worker.MaxRuns),
 	)
@@ -66,7 +66,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 	workerResp.Slots = transformersv1.ToSlotState(slotState, slots)
 
 	affinity, err := t.config.V1.Workers().ListWorkerLabels(
-		worker.Worker.TenantId.String(),
+		worker.Worker.TenantId,
 		worker.Worker.ID.String(),
 	)
 

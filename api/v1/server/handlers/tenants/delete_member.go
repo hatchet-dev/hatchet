@@ -21,13 +21,13 @@ func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantM
 		), nil
 	}
 
-	if tenantMember.UserId.String() == memberToDelete.UserId.String() {
+	if tenantMember.UserId == memberToDelete.UserId {
 		return gen.TenantMemberDelete403JSONResponse(
 			apierrors.NewAPIErrors("You cannot delete yourself"),
 		), nil
 	}
 
-	if memberToDelete.TenantId.String() != tenantId {
+	if memberToDelete.TenantId != tenantId {
 		return gen.TenantMemberDelete404JSONResponse(
 			apierrors.NewAPIErrors("Member not found"),
 		), nil
