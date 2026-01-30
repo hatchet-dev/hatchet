@@ -67,9 +67,13 @@ func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool
 	keyToClaimStatus := make(map[KeyClaimantPair]WasSuccessfullyClaimed)
 
 	for _, claimResult := range claimResults {
+		if claimResult.ClaimedByExternalID == nil {
+			continue
+		}
+
 		keyClaimantPair := KeyClaimantPair{
 			IdempotencyKey:      IdempotencyKey(claimResult.Key),
-			ClaimedByExternalId: claimResult.ClaimedByExternalID,
+			ClaimedByExternalId: *claimResult.ClaimedByExternalID,
 		}
 		keyToClaimStatus[keyClaimantPair] = WasSuccessfullyClaimed(claimResult.WasSuccessfullyClaimed)
 	}

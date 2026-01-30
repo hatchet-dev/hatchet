@@ -494,7 +494,8 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId, workerId 
 	}
 
 	if opts.DispatcherId != nil {
-		updateParams.DispatcherId = uuid.MustParse(*opts.DispatcherId)
+		parsed := uuid.MustParse(*opts.DispatcherId)
+		updateParams.DispatcherId = &parsed
 	}
 
 	if opts.IsActive != nil {

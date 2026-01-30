@@ -95,7 +95,8 @@ func (m *messageQueueRepository) BindQueue(ctx context.Context, queue string, du
 	}
 
 	if exclusiveConsumer != nil {
-		params.ExclusiveConsumerId = uuid.MustParse(*exclusiveConsumer)
+		parsedUuid := uuid.MustParse(*exclusiveConsumer)
+		params.ExclusiveConsumerId = &parsedUuid
 	}
 
 	_, err := m.queries.UpsertMessageQueue(ctx, m.pool, params)

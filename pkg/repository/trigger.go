@@ -891,7 +891,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				}
 
 				var (
-					parentTaskExternalId uuid.UUID
+					parentTaskExternalId *uuid.UUID
 					parentTaskId         pgtype.Int8
 					parentTaskInsertedAt pgtype.Timestamptz
 					childIndex           pgtype.Int8
@@ -900,7 +900,8 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				)
 
 				if tuple.parentExternalId != nil {
-					parentTaskExternalId = uuid.MustParse(*tuple.parentExternalId)
+					parsed := uuid.MustParse(*tuple.parentExternalId)
+					parentTaskExternalId = &parsed
 				}
 
 				if tuple.parentTaskId != nil {
@@ -993,7 +994,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					}
 
 					var (
-						parentTaskExternalId uuid.UUID
+						parentTaskExternalId *uuid.UUID
 						parentTaskId         pgtype.Int8
 						parentTaskInsertedAt pgtype.Timestamptz
 						childIndex           pgtype.Int8
@@ -1002,7 +1003,8 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					)
 
 					if tuple.parentExternalId != nil {
-						parentTaskExternalId = uuid.MustParse(*tuple.parentExternalId)
+						parsed := uuid.MustParse(*tuple.parentExternalId)
+						parentTaskExternalId = &parsed
 					}
 
 					if tuple.parentTaskId != nil {
@@ -1116,7 +1118,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				}
 
 				var (
-					parentTaskExternalId uuid.UUID
+					parentTaskExternalId *uuid.UUID
 					parentTaskId         pgtype.Int8
 					parentTaskInsertedAt pgtype.Timestamptz
 					childIndex           pgtype.Int8
@@ -1125,7 +1127,8 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				)
 
 				if tuple.parentExternalId != nil {
-					parentTaskExternalId = uuid.MustParse(*tuple.parentExternalId)
+					parsed := uuid.MustParse(*tuple.parentExternalId)
+					parentTaskExternalId = &parsed
 				}
 
 				if tuple.parentTaskId != nil {

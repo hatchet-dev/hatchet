@@ -71,7 +71,8 @@ func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPI
 	}
 
 	if opts.TenantId != nil {
-		createParams.TenantId = uuid.MustParse(*opts.TenantId)
+		parsedId := uuid.MustParse(*opts.TenantId)
+		createParams.TenantId = &parsedId
 	}
 
 	if opts.Name != nil {

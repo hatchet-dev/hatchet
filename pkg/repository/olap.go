@@ -543,7 +543,7 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 			ErrorMessage:         row.ErrorMessage.String,
 			WorkflowVersionId:    row.WorkflowVersionID,
 			Input:                inputPayload,
-			ParentTaskExternalId: &row.ParentTaskExternalID,
+			ParentTaskExternalId: row.ParentTaskExternalID,
 		},
 		TaskMetadata: taskMetadata,
 	}, nil
@@ -1100,7 +1100,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 		dagsToPopulated[externalId] = dag
 		externalIdsForPayloads = append(externalIdsForPayloads, dag.ExternalID)
-		externalIdsForPayloads = append(externalIdsForPayloads, dag.OutputEventExternalID)
+
+		if dag.OutputEventExternalID != nil && *dag.OutputEventExternalID != uuid.Nil {
+			externalIdsForPayloads = append(externalIdsForPayloads, *dag.OutputEventExternalID)
+		}
 	}
 
 	tasksToPopulated := make(map[string]*sqlcv1.PopulateTaskRunDataRow)
@@ -1156,10 +1159,16 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				continue
 			}
 
-			outputPayload, exists := externalIdToPayload[dag.OutputEventExternalID]
+			outputEventExternalId := uuid.Nil
+
+			if dag.OutputEventExternalID != nil {
+				outputEventExternalId = *dag.OutputEventExternalID
+			}
+
+			outputPayload, exists := externalIdToPayload[outputEventExternalId]
 
 			if !exists {
-				if opts.IncludePayloads && dag.OutputEventExternalID != uuid.Nil && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
+				if opts.IncludePayloads && outputEventExternalId != uuid.Nil && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
 					r.l.Error().Msgf("ListWorkflowRuns-1: dag with external_id %s and inserted_at %s has empty payload, falling back to output", dag.ExternalID, dag.InsertedAt.Time)
 				}
 				outputPayload = dag.Output
@@ -1195,7 +1204,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				TaskInsertedAt:       nil,
 				Output:               outputPayload,
 				Input:                inputPayload,
-				ParentTaskExternalId: &dag.ParentTaskExternalID,
+				ParentTaskExternalId: dag.ParentTaskExternalID,
 				RetryCount:           &retryCount,
 			})
 		} else {
@@ -1350,7 +1359,12 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 	externalIds := make([]uuid.UUID, len(rows))
 
 	for i, row := range rows {
-		externalIds[i] = row.EventExternalID
+		eventExternalId := uuid.Nil
+		if row.EventExternalID != nil {
+			eventExternalId = *row.EventExternalID
+		}
+
+		externalIds[i] = eventExternalId
 	}
 
 	payloads, err := r.ReadPayloads(ctx, tenantId, externalIds...)
@@ -1362,7 +1376,11 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 	taskEventWithPayloads := make([]*TaskEventWithPayloads, 0, len(rows))
 
 	for _, row := range rows {
-		payload, exists := payloads[row.EventExternalID]
+		eventExternalId := uuid.Nil
+		if row.EventExternalID != nil {
+			eventExternalId = *row.EventExternalID
+		}
+		payload, exists := payloads[eventExternalId]
 		if !exists {
 			r.l.Error().Msgf("ListTaskRunEventsByWorkflowRunId: event with external_id %s and task_inserted_at %s has empty payload, falling back to payload", row.EventExternalID, row.TaskInsertedAt.Time)
 			payload = row.Output
@@ -1388,16 +1406,6 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId st
 		}
 	}
 
-	var parentTaskExternalId uuid.UUID
-	if opts.ParentTaskExternalID != nil {
-		parentTaskExternalId = *opts.ParentTaskExternalID
-	}
-
-	var triggeringEventExternalId uuid.UUID
-	if opts.TriggeringEventExternalId != nil {
-		triggeringEventExternalId = *opts.TriggeringEventExternalId
-	}
-
 	var additionalMetaKeys []string
 	var additionalMetaValues []string
 
@@ -1410,8 +1418,8 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId st
 		Tenantid:                  uuid.MustParse(tenantId),
 		Createdafter:              sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		WorkflowIds:               workflowIds,
-		ParentTaskExternalId:      parentTaskExternalId,
-		TriggeringEventExternalId: triggeringEventExternalId,
+		ParentTaskExternalId:      opts.ParentTaskExternalID,
+		TriggeringEventExternalId: opts.TriggeringEventExternalId,
 		AdditionalMetaKeys:        additionalMetaKeys,
 		AdditionalMetaValues:      additionalMetaValues,
 	}
@@ -1499,12 +1507,12 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 			})
 		}
 
-		if event.ExternalID != uuid.Nil {
+		if event.ExternalID != nil && *event.ExternalID != uuid.Nil {
 			// randomly jitter the inserted at time by +/- 300ms to make collisions virtually impossible
 			dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
 
 			payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
-				ExternalId: event.ExternalID,
+				ExternalId: *event.ExternalID,
 				InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
 				Payload:    output,
 			})
@@ -1624,13 +1632,18 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 					eventCount = int(row.Count)
 				}
 
+				latestWorkerId := uuid.Nil
+				if row.LatestWorkerID != nil {
+					latestWorkerId = *row.LatestWorkerID
+				}
+
 				rows = append(rows, UpdateTaskStatusRow{
 					TenantId:       row.TenantID,
 					TaskId:         row.ID,
 					TaskInsertedAt: row.InsertedAt,
 					ReadableStatus: row.ReadableStatus,
 					ExternalId:     row.ExternalID,
-					LatestWorkerId: row.LatestWorkerID,
+					LatestWorkerId: latestWorkerId,
 					WorkflowId:     row.WorkflowID,
 					IsDAGTask:      row.IsDagTask,
 				})
@@ -1847,11 +1860,6 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
 
 	for _, dag := range dags {
-		var parentTaskExternalID = uuid.UUID{}
-		if dag.ParentTaskExternalID != nil {
-			parentTaskExternalID = *dag.ParentTaskExternalID
-		}
-
 		// todo: remove this when we remove dual writes
 		input := dag.Input
 		if !r.payloadStore.OLAPDualWritesEnabled() {
@@ -1867,7 +1875,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 			ExternalID:           dag.ExternalID,
 			DisplayName:          dag.DisplayName,
 			AdditionalMetadata:   dag.AdditionalMetadata,
-			ParentTaskExternalID: parentTaskExternalID,
+			ParentTaskExternalID: dag.ParentTaskExternalID,
 			TotalTasks:           int32(dag.TotalTasks), // nolint: gosec
 			Input:                input,
 		})
@@ -2109,7 +2117,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 			RunInsertedAt: trigger.RunInsertedAt,
 			EventID:       eventId,
 			EventSeenAt:   trigger.EventSeenAt,
-			FilterID:      trigger.FilterId,
+			FilterID:      &trigger.FilterId,
 		})
 	}
 

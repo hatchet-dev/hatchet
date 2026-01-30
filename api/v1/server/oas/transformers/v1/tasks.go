@@ -44,7 +44,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 
 	var parentTaskExternalId *uuid.UUID
 
-	if task.ParentTaskExternalID != uuid.Nil {
+	if task.ParentTaskExternalID != nil && *task.ParentTaskExternalID != uuid.Nil {
 		parentTaskExternalIdValue := uuid.MustParse(task.ParentTaskExternalID.String())
 		parentTaskExternalId = &parentTaskExternalIdValue
 	}
@@ -153,7 +153,7 @@ func ToTaskRunEventMany(
 	for i, event := range events {
 		var workerId *types.UUID
 
-		if event.WorkerID != uuid.Nil {
+		if event.WorkerID != nil && *event.WorkerID != uuid.Nil {
 			workerUUid := uuid.MustParse(event.WorkerID.String())
 			workerId = &workerUUid
 		}
@@ -188,7 +188,7 @@ func ToWorkflowRunTaskRunEventsMany(
 	for i, event := range events {
 		var workerId *uuid.UUID
 
-		if event.WorkerID != uuid.Nil {
+		if event.WorkerID != nil && *event.WorkerID != uuid.Nil {
 			workerUUID := uuid.MustParse(event.WorkerID.String())
 			workerId = &workerUUID
 		}
@@ -294,7 +294,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 
 	var parentTaskExternalId *uuid.UUID
 
-	if taskWithData.ParentTaskExternalID != uuid.Nil {
+	if taskWithData.ParentTaskExternalID != nil && *taskWithData.ParentTaskExternalID != uuid.Nil {
 		parentTaskUUID, err := uuid.Parse(taskWithData.ParentTaskExternalID.String())
 
 		if err == nil {
@@ -402,7 +402,7 @@ func ToWorkflowRunDetails(
 	for i, event := range taskRunEvents {
 		var workerId *uuid.UUID
 
-		if event.WorkerID != uuid.Nil {
+		if event.WorkerID != nil && *event.WorkerID != uuid.Nil {
 			workerUUID := uuid.MustParse(event.WorkerID.String())
 			workerId = &workerUUID
 		}

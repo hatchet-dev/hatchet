@@ -238,7 +238,7 @@ type CreateMatchesForDAGTriggersParams struct {
 	Triggerworkflowrunids         []uuid.UUID          `json:"triggerworkflowrunids"`
 	Triggerexistingtaskids        []pgtype.Int8        `json:"triggerexistingtaskids"`
 	Triggerexistingtaskinsertedat []pgtype.Timestamptz `json:"triggerexistingtaskinsertedat"`
-	TriggerParentTaskExternalIds  []uuid.UUID          `json:"triggerparentTaskExternalIds"`
+	TriggerParentTaskExternalIds  []*uuid.UUID         `json:"triggerparentTaskExternalIds"`
 	TriggerParentTaskIds          []pgtype.Int8        `json:"triggerparentTaskIds"`
 	TriggerParentTaskInsertedAt   []pgtype.Timestamptz `json:"triggerparentTaskInsertedAt"`
 	TriggerChildIndex             []pgtype.Int8        `json:"triggerchildIndex"`

@@ -90,7 +90,7 @@ type CreateMatchOpts struct {
 
 	TriggerExistingTaskInsertedAt pgtype.Timestamptz
 
-	TriggerParentTaskExternalId uuid.UUID
+	TriggerParentTaskExternalId *uuid.UUID
 
 	TriggerParentTaskId pgtype.Int8
 
@@ -529,7 +529,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		dependentMatches := make([]*sqlcv1.SaveSatisfiedMatchConditionsRow, 0)
 
 		for _, match := range satisfiedMatches {
-			if match.TriggerStepID != uuid.Nil && match.TriggerExternalID != uuid.Nil {
+			if match.TriggerStepID != nil && *match.TriggerStepID != uuid.Nil && match.TriggerExternalID != nil && *match.TriggerExternalID != uuid.Nil {
 				if match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
 					dependentMatches = append(dependentMatches, match)
 					continue
@@ -595,7 +595,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						opt.DagInsertedAt = match.TriggerDagInsertedAt
 					}
 
-					if match.TriggerParentTaskExternalID != uuid.Nil {
+					if match.TriggerParentTaskExternalID != nil && *match.TriggerParentTaskExternalID != uuid.Nil {
 						externalId := match.TriggerParentTaskExternalID.String()
 						opt.ParentTaskExternalId = &externalId
 					}
@@ -867,7 +867,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		triggerWorkflowRunIds := make([]uuid.UUID, len(dagMatches))
 		triggerExistingTaskIds := make([]pgtype.Int8, len(dagMatches))
 		triggerExistingTaskInsertedAts := make([]pgtype.Timestamptz, len(dagMatches))
-		triggerParentExternalIds := make([]uuid.UUID, len(dagMatches))
+		triggerParentExternalIds := make([]*uuid.UUID, len(dagMatches))
 		triggerParentTaskIds := make([]pgtype.Int8, len(dagMatches))
 		triggerParentTaskInsertedAts := make([]pgtype.Timestamptz, len(dagMatches))
 		triggerChildIndices := make([]pgtype.Int8, len(dagMatches))
@@ -1104,8 +1104,8 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 	additionalMatchStepIds := make([]uuid.UUID, 0, len(satisfiedMatches))
 
 	for _, match := range satisfiedMatches {
-		if match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
-			additionalMatchStepIds = append(additionalMatchStepIds, match.TriggerStepID)
+		if match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH && match.TriggerStepID != nil {
+			additionalMatchStepIds = append(additionalMatchStepIds, *match.TriggerStepID)
 		}
 	}
 
@@ -1137,7 +1137,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 	additionalMatches := make([]CreateMatchOpts, 0, len(satisfiedMatches))
 
 	for _, match := range satisfiedMatches {
-		if match.TriggerStepID != uuid.Nil && match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
+		if match.TriggerStepID != nil && *match.TriggerStepID != uuid.Nil && match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
 			conditions, ok := stepIdsToConditions[match.TriggerStepID.String()]
 
 			if !ok {

@@ -2763,12 +2763,17 @@ func (r *sharedRepository) createTaskEvents(
 	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))
 
 	for i, taskEvent := range taskEvents {
-		data := externalIdToData[taskEvent.ExternalID]
+		taskEventExternalId := uuid.Nil
+		if taskEvent.ExternalID != nil {
+			taskEventExternalId = *taskEvent.ExternalID
+		}
+
+		data := externalIdToData[taskEventExternalId]
 
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         taskEvent.ID,
 			InsertedAt: taskEvent.InsertedAt,
-			ExternalId: taskEvent.ExternalID,
+			ExternalId: taskEventExternalId,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			Payload:    data,
 			TenantId:   tenantId,
