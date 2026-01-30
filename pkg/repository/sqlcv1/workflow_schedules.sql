@@ -16,10 +16,10 @@ LEFT JOIN "WorkflowRunTriggeredBy" tb ON t."id" = tb."scheduledId"
 LEFT JOIN "WorkflowRun" wr ON tb."parentId" = wr."id"
 WHERE v."deletedAt" IS NULL
 	AND w."tenantId" = @tenantId::uuid
-    AND (@scheduleId::uuid IS NULL OR t."id" = @scheduleId::uuid)
-    AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
-    AND (@parentWorkflowRunId::uuid IS NULL OR t."id" = @parentWorkflowRunId::uuid)
-    AND (@parentStepRunId::uuid IS NULL OR t."parentStepRunId" = @parentStepRunId::uuid)
+    AND (sqlc.narg('scheduleId')::uuid IS NULL OR t."id" = sqlc.narg('scheduleId')::uuid)
+    AND (sqlc.narg('workflowId')::uuid IS NULL OR w."id" = sqlc.narg('workflowId')::uuid)
+    AND (sqlc.narg('parentWorkflowRunId')::uuid IS NULL OR t."id" = sqlc.narg('parentWorkflowRunId')::uuid)
+    AND (sqlc.narg('parentStepRunId')::uuid IS NULL OR t."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid)
     AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
         t."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
     AND (
@@ -50,10 +50,10 @@ LEFT JOIN "WorkflowRunTriggeredBy" tb ON t."id" = tb."scheduledId"
 LEFT JOIN "WorkflowRun" wr ON tb."parentId" = wr."id"
 WHERE v."deletedAt" IS NULL
 	AND w."tenantId" = @tenantId::uuid
-    AND (@scheduleId::uuid IS NULL OR t."id" = @scheduleId::uuid)
-    AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
-    AND (@parentWorkflowRunId::uuid IS NULL OR t."id" = @parentWorkflowRunId::uuid)
-    AND (@parentStepRunId::uuid IS NULL OR t."parentStepRunId" = @parentStepRunId::uuid)
+    AND (sqlc.narg('scheduleId')::uuid IS NULL OR t."id" = sqlc.narg('scheduleId')::uuid)
+    AND (sqlc.narg('workflowId')::uuid IS NULL OR w."id" = sqlc.narg('workflowId')::uuid)
+    AND (sqlc.narg('parentWorkflowRunId')::uuid IS NULL OR t."id" = sqlc.narg('parentWorkflowRunId')::uuid)
+    AND (sqlc.narg('parentStepRunId')::uuid IS NULL OR t."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid)
     AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
         t."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
     AND (

@@ -186,23 +186,23 @@ WHERE v."deletedAt" IS NULL
 `
 
 type CountScheduledWorkflowsParams struct {
-	Tenantid            uuid.UUID `json:"tenantid"`
-	Scheduleid          uuid.UUID `json:"scheduleid"`
-	Workflowid          uuid.UUID `json:"workflowid"`
-	Parentworkflowrunid uuid.UUID `json:"parentworkflowrunid"`
-	Parentsteprunid     uuid.UUID `json:"parentsteprunid"`
-	AdditionalMetadata  []byte    `json:"additionalMetadata"`
-	Statuses            []string  `json:"statuses"`
-	Includescheduled    bool      `json:"includescheduled"`
+	Tenantid            uuid.UUID  `json:"tenantid"`
+	ScheduleId          *uuid.UUID `json:"scheduleId"`
+	WorkflowId          *uuid.UUID `json:"workflowId"`
+	ParentWorkflowRunId *uuid.UUID `json:"parentWorkflowRunId"`
+	ParentStepRunId     *uuid.UUID `json:"parentStepRunId"`
+	AdditionalMetadata  []byte     `json:"additionalMetadata"`
+	Statuses            []string   `json:"statuses"`
+	Includescheduled    bool       `json:"includescheduled"`
 }
 
 func (q *Queries) CountScheduledWorkflows(ctx context.Context, db DBTX, arg CountScheduledWorkflowsParams) (int64, error) {
 	row := db.QueryRow(ctx, countScheduledWorkflows,
 		arg.Tenantid,
-		arg.Scheduleid,
-		arg.Workflowid,
-		arg.Parentworkflowrunid,
-		arg.Parentsteprunid,
+		arg.ScheduleId,
+		arg.WorkflowId,
+		arg.ParentWorkflowRunId,
+		arg.ParentStepRunId,
 		arg.AdditionalMetadata,
 		arg.Statuses,
 		arg.Includescheduled,
@@ -548,10 +548,10 @@ LIMIT
 
 type ListScheduledWorkflowsParams struct {
 	Tenantid            uuid.UUID   `json:"tenantid"`
-	Scheduleid          uuid.UUID   `json:"scheduleid"`
-	Workflowid          uuid.UUID   `json:"workflowid"`
-	Parentworkflowrunid uuid.UUID   `json:"parentworkflowrunid"`
-	Parentsteprunid     uuid.UUID   `json:"parentsteprunid"`
+	ScheduleId          *uuid.UUID  `json:"scheduleId"`
+	WorkflowId          *uuid.UUID  `json:"workflowId"`
+	ParentWorkflowRunId *uuid.UUID  `json:"parentWorkflowRunId"`
+	ParentStepRunId     *uuid.UUID  `json:"parentStepRunId"`
 	AdditionalMetadata  []byte      `json:"additionalMetadata"`
 	Statuses            []string    `json:"statuses"`
 	Includescheduled    bool        `json:"includescheduled"`
@@ -589,10 +589,10 @@ type ListScheduledWorkflowsRow struct {
 func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListScheduledWorkflowsParams) ([]*ListScheduledWorkflowsRow, error) {
 	rows, err := db.Query(ctx, listScheduledWorkflows,
 		arg.Tenantid,
-		arg.Scheduleid,
-		arg.Workflowid,
-		arg.Parentworkflowrunid,
-		arg.Parentsteprunid,
+		arg.ScheduleId,
+		arg.WorkflowId,
+		arg.ParentWorkflowRunId,
+		arg.ParentStepRunId,
 		arg.AdditionalMetadata,
 		arg.Statuses,
 		arg.Includescheduled,
