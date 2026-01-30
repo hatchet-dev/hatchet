@@ -67,3 +67,4 @@ sql:
             go_type:
               import: "github.com/google/uuid"
               type: "UUID"
+              pointer: true

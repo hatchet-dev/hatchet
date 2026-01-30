@@ -839,8 +839,8 @@ type UpdateTasksToAssignedParams struct {
 }
 
 type UpdateTasksToAssignedRow struct {
-	TaskID   int64     `json:"task_id"`
-	WorkerID uuid.UUID `json:"worker_id"`
+	TaskID   int64      `json:"task_id"`
+	WorkerID *uuid.UUID `json:"worker_id"`
 }
 
 func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg UpdateTasksToAssignedParams) ([]*UpdateTasksToAssignedRow, error) {

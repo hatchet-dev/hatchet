@@ -851,10 +851,10 @@ type GetTenantWorkflowQueueMetricsParams struct {
 }
 
 type GetTenantWorkflowQueueMetricsRow struct {
-	WorkflowId             uuid.UUID `json:"workflowId"`
-	PendingAssignmentCount int64     `json:"pendingAssignmentCount"`
-	PendingCount           int64     `json:"pendingCount"`
-	RunningCount           int64     `json:"runningCount"`
+	WorkflowId             *uuid.UUID `json:"workflowId"`
+	PendingAssignmentCount int64      `json:"pendingAssignmentCount"`
+	PendingCount           int64      `json:"pendingCount"`
+	RunningCount           int64      `json:"runningCount"`
 }
 
 func (q *Queries) GetTenantWorkflowQueueMetrics(ctx context.Context, db DBTX, arg GetTenantWorkflowQueueMetricsParams) ([]*GetTenantWorkflowQueueMetricsRow, error) {

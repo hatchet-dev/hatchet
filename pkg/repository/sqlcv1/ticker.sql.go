@@ -289,7 +289,7 @@ RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId"
 type PollCronSchedulesRow struct {
 	ParentId           uuid.UUID                     `json:"parentId"`
 	Cron               string                        `json:"cron"`
-	TickerId           uuid.UUID                     `json:"tickerId"`
+	TickerId           *uuid.UUID                    `json:"tickerId"`
 	Input              []byte                        `json:"input"`
 	Enabled            bool                          `json:"enabled"`
 	AdditionalMetadata []byte                        `json:"additionalMetadata"`
@@ -376,7 +376,7 @@ RETURNING
 type PollExpiringTokensRow struct {
 	ID        uuid.UUID        `json:"id"`
 	Name      pgtype.Text      `json:"name"`
-	TenantId  uuid.UUID        `json:"tenantId"`
+	TenantId  *uuid.UUID       `json:"tenantId"`
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
 }
 
@@ -467,12 +467,12 @@ type PollScheduledWorkflowsRow struct {
 	ID                  uuid.UUID                          `json:"id"`
 	ParentId            uuid.UUID                          `json:"parentId"`
 	TriggerAt           pgtype.Timestamp                   `json:"triggerAt"`
-	TickerId            uuid.UUID                          `json:"tickerId"`
+	TickerId            *uuid.UUID                         `json:"tickerId"`
 	Input               []byte                             `json:"input"`
 	ChildIndex          pgtype.Int4                        `json:"childIndex"`
 	ChildKey            pgtype.Text                        `json:"childKey"`
-	ParentStepRunId     uuid.UUID                          `json:"parentStepRunId"`
-	ParentWorkflowRunId uuid.UUID                          `json:"parentWorkflowRunId"`
+	ParentStepRunId     *uuid.UUID                         `json:"parentStepRunId"`
+	ParentWorkflowRunId *uuid.UUID                         `json:"parentWorkflowRunId"`
 	AdditionalMetadata  []byte                             `json:"additionalMetadata"`
 	CreatedAt           pgtype.Timestamp                   `json:"createdAt"`
 	DeletedAt           pgtype.Timestamp                   `json:"deletedAt"`
@@ -575,7 +575,7 @@ type PollTenantAlertsRow struct {
 	TenantId                        uuid.UUID        `json:"tenantId"`
 	MaxFrequency                    string           `json:"maxFrequency"`
 	LastAlertedAt                   pgtype.Timestamp `json:"lastAlertedAt"`
-	TickerId                        uuid.UUID        `json:"tickerId"`
+	TickerId                        *uuid.UUID       `json:"tickerId"`
 	EnableExpiringTokenAlerts       bool             `json:"enableExpiringTokenAlerts"`
 	EnableWorkflowRunFailureAlerts  bool             `json:"enableWorkflowRunFailureAlerts"`
 	EnableTenantResourceLimitAlerts bool             `json:"enableTenantResourceLimitAlerts"`

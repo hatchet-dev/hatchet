@@ -432,7 +432,7 @@ type ListCronWorkflowsRow struct {
 	TenantId_2          uuid.UUID                     `json:"tenantId_2"`
 	ParentId            uuid.UUID                     `json:"parentId"`
 	Cron                string                        `json:"cron"`
-	TickerId            uuid.UUID                     `json:"tickerId"`
+	TickerId            *uuid.UUID                    `json:"tickerId"`
 	Input               []byte                        `json:"input"`
 	Enabled             bool                          `json:"enabled"`
 	AdditionalMetadata  []byte                        `json:"additionalMetadata"`
@@ -568,12 +568,12 @@ type ListScheduledWorkflowsRow struct {
 	ID                   uuid.UUID                          `json:"id"`
 	ParentId             uuid.UUID                          `json:"parentId"`
 	TriggerAt            pgtype.Timestamp                   `json:"triggerAt"`
-	TickerId             uuid.UUID                          `json:"tickerId"`
+	TickerId             *uuid.UUID                         `json:"tickerId"`
 	Input                []byte                             `json:"input"`
 	ChildIndex           pgtype.Int4                        `json:"childIndex"`
 	ChildKey             pgtype.Text                        `json:"childKey"`
-	ParentStepRunId      uuid.UUID                          `json:"parentStepRunId"`
-	ParentWorkflowRunId  uuid.UUID                          `json:"parentWorkflowRunId"`
+	ParentStepRunId      *uuid.UUID                         `json:"parentStepRunId"`
+	ParentWorkflowRunId  *uuid.UUID                         `json:"parentWorkflowRunId"`
 	AdditionalMetadata   []byte                             `json:"additionalMetadata"`
 	CreatedAt            pgtype.Timestamp                   `json:"createdAt"`
 	DeletedAt            pgtype.Timestamp                   `json:"deletedAt"`
@@ -582,7 +582,7 @@ type ListScheduledWorkflowsRow struct {
 	Priority             int32                              `json:"priority"`
 	WorkflowRunCreatedAt pgtype.Timestamp                   `json:"workflowRunCreatedAt"`
 	WorkflowRunStatus    NullWorkflowRunStatus              `json:"workflowRunStatus"`
-	WorkflowRunId        uuid.UUID                          `json:"workflowRunId"`
+	WorkflowRunId        *uuid.UUID                         `json:"workflowRunId"`
 	WorkflowRunName      pgtype.Text                        `json:"workflowRunName"`
 }
 

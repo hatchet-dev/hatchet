@@ -156,7 +156,7 @@ type BulkCreateEventTriggersParams struct {
 	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
 	EventID       int64              `json:"event_id"`
 	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
-	FilterID      uuid.UUID          `json:"filter_id"`
+	FilterID      *uuid.UUID         `json:"filter_id"`
 }
 
 const checkLastAutovacuumForPartitionedTables = `-- name: CheckLastAutovacuumForPartitionedTables :many
@@ -367,7 +367,7 @@ type CreateDAGsOLAPParams struct {
 	WorkflowVersionID    uuid.UUID          `json:"workflow_version_id"`
 	Input                []byte             `json:"input"`
 	AdditionalMetadata   []byte             `json:"additional_metadata"`
-	ParentTaskExternalID uuid.UUID          `json:"parent_task_external_id"`
+	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
 	TotalTasks           int32              `json:"total_tasks"`
 }
 
@@ -521,10 +521,10 @@ type CreateTaskEventsOLAPParams struct {
 	RetryCount             int32                `json:"retry_count"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
-	WorkerID               uuid.UUID            `json:"worker_id"`
+	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
-	ExternalID             uuid.UUID            `json:"external_id"`
+	ExternalID             *uuid.UUID           `json:"external_id"`
 }
 
 type CreateTaskEventsOLAPTmpParams struct {
@@ -534,7 +534,7 @@ type CreateTaskEventsOLAPTmpParams struct {
 	EventType      V1EventTypeOlap      `json:"event_type"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
 	RetryCount     int32                `json:"retry_count"`
-	WorkerID       uuid.UUID            `json:"worker_id"`
+	WorkerID       *uuid.UUID           `json:"worker_id"`
 }
 
 type CreateTasksOLAPParams struct {
@@ -551,14 +551,14 @@ type CreateTasksOLAPParams struct {
 	StepTimeout          pgtype.Text          `json:"step_timeout"`
 	Priority             pgtype.Int4          `json:"priority"`
 	Sticky               V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID      uuid.UUID            `json:"desired_worker_id"`
+	DesiredWorkerID      *uuid.UUID           `json:"desired_worker_id"`
 	ExternalID           uuid.UUID            `json:"external_id"`
 	DisplayName          string               `json:"display_name"`
 	Input                []byte               `json:"input"`
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
-	ParentTaskExternalID uuid.UUID            `json:"parent_task_external_id"`
+	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 }
 
 const createV1PayloadOLAPCutoverTemporaryTable = `-- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
@@ -963,7 +963,7 @@ type GetRunsListRecursiveRow struct {
 	ID                   int64              `json:"id"`
 	InsertedAt           pgtype.Timestamptz `json:"inserted_at"`
 	ExternalID           uuid.UUID          `json:"external_id"`
-	ParentTaskExternalID uuid.UUID          `json:"parent_task_external_id"`
+	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
 	Depth                int32              `json:"depth"`
 }
 
@@ -1200,8 +1200,8 @@ type GetTenantStatusMetricsParams struct {
 	Createdafter              pgtype.Timestamptz `json:"createdafter"`
 	CreatedBefore             pgtype.Timestamptz `json:"createdBefore"`
 	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	ParentTaskExternalId      uuid.UUID          `json:"parentTaskExternalId"`
-	TriggeringEventExternalId uuid.UUID          `json:"triggeringEventExternalId"`
+	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
+	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
 	AdditionalMetaKeys        []string           `json:"additionalMetaKeys"`
 	AdditionalMetaValues      []string           `json:"additionalMetaValues"`
 }
@@ -1672,8 +1672,8 @@ type ListTaskEventsRow struct {
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
-	EventExternalID        uuid.UUID            `json:"event_external_id"`
-	WorkerID               uuid.UUID            `json:"worker_id"`
+	EventExternalID        *uuid.UUID           `json:"event_external_id"`
+	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
 }
@@ -1791,8 +1791,8 @@ type ListTaskEventsForWorkflowRunRow struct {
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
-	EventExternalID        uuid.UUID            `json:"event_external_id"`
-	WorkerID               uuid.UUID            `json:"worker_id"`
+	EventExternalID        *uuid.UUID           `json:"event_external_id"`
+	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
 	DisplayName            string               `json:"display_name"`
@@ -2232,13 +2232,13 @@ type PopulateDAGMetadataRow struct {
 	Input                 []byte               `json:"input"`
 	AdditionalMetadata    []byte               `json:"additional_metadata"`
 	WorkflowVersionID     uuid.UUID            `json:"workflow_version_id"`
-	ParentTaskExternalID  uuid.UUID            `json:"parent_task_external_id"`
+	ParentTaskExternalID  *uuid.UUID           `json:"parent_task_external_id"`
 	CreatedAt             pgtype.Timestamptz   `json:"created_at"`
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	Output                []byte               `json:"output"`
-	OutputEventExternalID uuid.UUID            `json:"output_event_external_id"`
+	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
 	RetryCount            int32                `json:"retry_count"`
 }
 
@@ -2488,16 +2488,16 @@ type PopulateSingleTaskRunDataRow struct {
 	StepTimeout           pgtype.Text          `json:"step_timeout"`
 	Priority              pgtype.Int4          `json:"priority"`
 	Sticky                V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID       uuid.UUID            `json:"desired_worker_id"`
+	DesiredWorkerID       *uuid.UUID           `json:"desired_worker_id"`
 	DisplayName           string               `json:"display_name"`
 	Input                 []byte               `json:"input"`
 	AdditionalMetadata    []byte               `json:"additional_metadata"`
 	ReadableStatus        V1ReadableStatusOlap `json:"readable_status"`
 	LatestRetryCount      int32                `json:"latest_retry_count"`
-	LatestWorkerID        uuid.UUID            `json:"latest_worker_id"`
+	LatestWorkerID        *uuid.UUID           `json:"latest_worker_id"`
 	DagID                 pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt         pgtype.Timestamptz   `json:"dag_inserted_at"`
-	ParentTaskExternalID  uuid.UUID            `json:"parent_task_external_id"`
+	ParentTaskExternalID  *uuid.UUID           `json:"parent_task_external_id"`
 	Status                V1ReadableStatusOlap `json:"status"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
@@ -2751,7 +2751,7 @@ type PopulateTaskRunDataRow struct {
 	Sticky                V1StickyStrategyOlap `json:"sticky"`
 	DisplayName           string               `json:"display_name"`
 	AdditionalMetadata    []byte               `json:"additional_metadata"`
-	ParentTaskExternalID  uuid.UUID            `json:"parent_task_external_id"`
+	ParentTaskExternalID  *uuid.UUID           `json:"parent_task_external_id"`
 	Input                 []byte               `json:"input"`
 	Status                V1ReadableStatusOlap `json:"status"`
 	WorkflowRunID         uuid.UUID            `json:"workflow_run_id"`
@@ -2998,18 +2998,18 @@ type ReadTaskByExternalIDRow struct {
 	StepTimeout          pgtype.Text          `json:"step_timeout"`
 	Priority             pgtype.Int4          `json:"priority"`
 	Sticky               V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID      uuid.UUID            `json:"desired_worker_id"`
+	DesiredWorkerID      *uuid.UUID           `json:"desired_worker_id"`
 	DisplayName          string               `json:"display_name"`
 	Input                []byte               `json:"input"`
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
 	LatestRetryCount     int32                `json:"latest_retry_count"`
-	LatestWorkerID       uuid.UUID            `json:"latest_worker_id"`
+	LatestWorkerID       *uuid.UUID           `json:"latest_worker_id"`
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
-	ParentTaskExternalID uuid.UUID            `json:"parent_task_external_id"`
+	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	Output               []byte               `json:"output"`
-	EventExternalID      uuid.UUID            `json:"event_external_id"`
+	EventExternalID      *uuid.UUID           `json:"event_external_id"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 }
 
@@ -3167,7 +3167,7 @@ type ReadWorkflowRunByExternalIdRow struct {
 	Input                []byte               `json:"input"`
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
-	ParentTaskExternalID uuid.UUID            `json:"parent_task_external_id"`
+	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	CreatedAt            pgtype.Timestamptz   `json:"created_at"`
 	StartedAt            pgtype.Timestamptz   `json:"started_at"`
 	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
@@ -3768,7 +3768,7 @@ type UpdateTaskStatusesRow struct {
 	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
 	ExternalID     uuid.UUID            `json:"external_id"`
-	LatestWorkerID uuid.UUID            `json:"latest_worker_id"`
+	LatestWorkerID *uuid.UUID           `json:"latest_worker_id"`
 	WorkflowID     uuid.UUID            `json:"workflow_id"`
 	IsDagTask      bool                 `json:"is_dag_task"`
 }

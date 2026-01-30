@@ -34,7 +34,7 @@ INSERT INTO "APIToken" (
 
 type CreateAPITokenParams struct {
 	ID        uuid.UUID        `json:"id"`
-	TenantId  uuid.UUID        `json:"tenantId"`
+	TenantId  *uuid.UUID       `json:"tenantId"`
 	Name      pgtype.Text      `json:"name"`
 	Expiresat pgtype.Timestamp `json:"expiresat"`
 	Internal  pgtype.Bool      `json:"internal"`

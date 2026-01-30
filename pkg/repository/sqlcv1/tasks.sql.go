@@ -1064,7 +1064,7 @@ type ListMatchingTaskEventsRow struct {
 	EventKey       pgtype.Text        `json:"event_key"`
 	CreatedAt      pgtype.Timestamp   `json:"created_at"`
 	Data           []byte             `json:"data"`
-	ExternalID_2   uuid.UUID          `json:"external_id_2"`
+	ExternalID_2   *uuid.UUID         `json:"external_id_2"`
 }
 
 // Lists the task events for the **latest** retry of a task, or task events which intentionally
@@ -1659,7 +1659,7 @@ type ListTasksForReplayRow struct {
 	ExternalID           uuid.UUID          `json:"external_id"`
 	Input                []byte             `json:"input"`
 	AdditionalMetadata   []byte             `json:"additional_metadata"`
-	ParentTaskExternalID uuid.UUID          `json:"parent_task_external_id"`
+	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
 	ParentTaskID         pgtype.Int8        `json:"parent_task_id"`
 	ParentTaskInsertedAt pgtype.Timestamptz `json:"parent_task_inserted_at"`
 	StepIndex            int64              `json:"step_index"`
@@ -1820,7 +1820,7 @@ type ListTasksToTimeoutRow struct {
 	AppRetryCount      int32              `json:"app_retry_count"`
 	RetryBackoffFactor pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff    pgtype.Int4        `json:"retry_max_backoff"`
-	WorkerID           uuid.UUID          `json:"worker_id"`
+	WorkerID           *uuid.UUID         `json:"worker_id"`
 }
 
 func (q *Queries) ListTasksToTimeout(ctx context.Context, db DBTX, arg ListTasksToTimeoutParams) ([]*ListTasksToTimeoutRow, error) {

@@ -145,7 +145,7 @@ INSERT INTO "UserSession" (
 type CreateUserSessionParams struct {
 	ID        uuid.UUID        `json:"id"`
 	Expiresat pgtype.Timestamp `json:"expiresat"`
-	UserId    uuid.UUID        `json:"userId"`
+	UserId    *uuid.UUID       `json:"userId"`
 	Data      []byte           `json:"data"`
 }
 
@@ -379,9 +379,9 @@ RETURNING id, "createdAt", "updatedAt", "userId", data, "expiresAt"
 `
 
 type UpdateUserSessionParams struct {
-	UserId uuid.UUID `json:"userId"`
-	Data   []byte    `json:"data"`
-	ID     uuid.UUID `json:"id"`
+	UserId *uuid.UUID `json:"userId"`
+	Data   []byte     `json:"data"`
+	ID     uuid.UUID  `json:"id"`
 }
 
 func (q *Queries) UpdateUserSession(ctx context.Context, db DBTX, arg UpdateUserSessionParams) (*UserSession, error) {
