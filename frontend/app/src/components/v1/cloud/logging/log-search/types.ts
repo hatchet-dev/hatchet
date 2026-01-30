@@ -11,6 +11,7 @@ export const LOG_LEVEL_COLORS: Record<LogLevel, string> = {
 export interface ParsedLogQuery {
   search?: string;
   level?: LogLevel;
+  attempt?: number;
   raw: string;
   isValid: boolean;
   errors: string[];

@@ -184,7 +184,11 @@ class EventClient(BaseRestClient):
         )
 
     def log(
-        self, message: str, step_run_id: str, level: LogLevel | None = None
+        self,
+        message: str,
+        step_run_id: str,
+        level: LogLevel | None = None,
+        task_retry_count: int | None = None,
     ) -> None:
         if len(message) > 10_000:
             logger.warning("truncating log message to 10,000 characters")
@@ -198,6 +202,7 @@ class EventClient(BaseRestClient):
             createdAt=proto_timestamp_now(),
             message=message,
             level=level.value if level else None,
+            taskRetryCount=task_retry_count,
         )
 
         put_log(request, metadata=get_metadata(self.token))

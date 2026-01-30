@@ -1,5 +1,6 @@
 import { getAutocomplete, applySuggestion } from './autocomplete';
 import { useLogsContext } from './use-logs';
+import { Button } from '@/components/v1/ui/button';
 import {
   Command,
   CommandGroup,
@@ -23,7 +24,7 @@ export function LogSearchInput({
   placeholder?: string;
   className?: string;
 }) {
-  const { queryString, setQueryString } = useLogsContext();
+  const { queryString, setQueryString, availableAttempts } = useLogsContext();
   const inputRef = useRef<HTMLInputElement>(null);
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -34,7 +35,7 @@ export function LogSearchInput({
     setLocalValue(queryString);
   }, [queryString]);
 
-  const { suggestions } = getAutocomplete(localValue);
+  const { suggestions } = getAutocomplete(localValue, availableAttempts);
 
   const submitSearch = useCallback(() => {
     setQueryString(localValue);
@@ -63,8 +64,11 @@ export function LogSearchInput({
       if (suggestion) {
         const newValue = applySuggestion(localValue, suggestion);
         setLocalValue(newValue);
-        setQueryString(newValue);
-        setIsOpen(false);
+        if (suggestion.type === 'value') {
+          setQueryString(newValue);
+          setIsOpen(false);
+        }
+        setSelectedIndex(undefined);
         setTimeout(() => {
           const input = inputRef.current;
           if (input) {
@@ -85,8 +89,8 @@ export function LogSearchInput({
           handleSelect(selectedIndex);
         } else {
           submitSearch();
+          setIsOpen(false);
         }
-        setIsOpen(false);
         return;
       }
 
@@ -237,13 +241,22 @@ export function LogSearchInput({
             )}
           >
             <span className="text-muted-foreground">Available filters:</span>
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-auto px-2 py-0.5 text-xs"
               onClick={() => handleFilterChipClick('level:')}
-              className="inline-flex items-center rounded-md border border-input px-2 py-0.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               Level
-            </button>
+            </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-auto px-2 py-0.5 text-xs"
+              onClick={() => handleFilterChipClick('attempt:')}
+            >
+              Attempt
+            </Button>
           </div>
         </PopoverContent>
       </Popover>

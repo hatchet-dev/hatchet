@@ -41,7 +41,7 @@ type EventClient interface {
 
 	BulkPush(ctx context.Context, payloads []EventWithAdditionalMetadata, options ...BulkPushOpFunc) error
 
-	PutLog(ctx context.Context, stepRunId, msg string) error
+	PutLog(ctx context.Context, stepRunId, msg string, level *string, taskRetryCount *int32) error
 
 	PutStreamEvent(ctx context.Context, stepRunId string, message []byte, options ...StreamEventOption) error
 }
@@ -190,11 +190,13 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 	return nil
 }
 
-func (a *eventClientImpl) PutLog(ctx context.Context, stepRunId, msg string) error {
+func (a *eventClientImpl) PutLog(ctx context.Context, stepRunId, msg string, level *string, taskRetryCount *int32) error {
 	_, err := a.client.PutLog(a.ctx.newContext(ctx), &eventcontracts.PutLogRequest{
-		CreatedAt: timestamppb.Now(),
-		StepRunId: stepRunId,
-		Message:   msg,
+		CreatedAt:      timestamppb.Now(),
+		StepRunId:      stepRunId,
+		Message:        msg,
+		Level:          level,
+		TaskRetryCount: taskRetryCount,
 	})
 
 	return err

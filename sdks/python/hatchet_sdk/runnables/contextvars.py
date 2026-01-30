@@ -17,6 +17,9 @@ ctx_worker_id: ContextVar[str | None] = ContextVar("ctx_worker_id", default=None
 ctx_additional_metadata: ContextVar[JSONSerializableMapping | None] = ContextVar(
     "ctx_additional_metadata", default=None
 )
+ctx_task_retry_count: ContextVar[int | None] = ContextVar(
+    "ctx_task_retry_count", default=0
+)
 
 workflow_spawn_indices = Counter[ActionKey]()
 spawn_index_lock = asyncio.Lock()

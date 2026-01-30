@@ -29,6 +29,9 @@ type ListLogsOpts struct {
 	// (optional) the end time to get logs for
 	Until *time.Time
 
+	// (optional) the attempt number to filter for
+	Attempt *int32
+
 	// (optional) Order by direction
 	OrderByDirection *string `validate:"omitempty,oneof=ASC DESC"`
 }
@@ -136,6 +139,13 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 
 	if opts.OrderByDirection != nil {
 		queryParams.Orderbydirection = *opts.OrderByDirection
+	}
+
+	if opts.Attempt != nil {
+		queryParams.Attempt = pgtype.Int4{
+			Int32: *opts.Attempt,
+			Valid: true,
+		}
 	}
 
 	logLines, err := r.queries.ListLogLines(ctx, r.pool, queryParams)
