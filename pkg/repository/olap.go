@@ -1079,7 +1079,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		dagsToPopulated[externalId] = dag
 		externalIdsForPayloads = append(externalIdsForPayloads, dag.ExternalID)
 
-		if dag.OutputEventExternalID != nil && *dag.OutputEventExternalID != uuid.Nil {
+		if dag.OutputEventExternalID != nil {
 			externalIdsForPayloads = append(externalIdsForPayloads, *dag.OutputEventExternalID)
 		}
 	}
@@ -1485,7 +1485,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 			})
 		}
 
-		if event.ExternalID != nil && *event.ExternalID != uuid.Nil {
+		if event.ExternalID != nil {
 			// randomly jitter the inserted at time by +/- 300ms to make collisions virtually impossible
 			dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
 

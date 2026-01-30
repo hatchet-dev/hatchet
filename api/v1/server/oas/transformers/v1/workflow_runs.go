@@ -68,7 +68,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 	attempt := retryCount + 1
 
 	var parentTaskExternalId *uuid.UUID
-	if task.ParentTaskExternalId != nil && *task.ParentTaskExternalId != uuid.Nil {
+	if task.ParentTaskExternalId != nil {
 		parentTaskExternalIdValue := *task.ParentTaskExternalId
 		parentTaskExternalId = &parentTaskExternalIdValue
 	}

@@ -529,7 +529,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		dependentMatches := make([]*sqlcv1.SaveSatisfiedMatchConditionsRow, 0)
 
 		for _, match := range satisfiedMatches {
-			if match.TriggerStepID != nil && *match.TriggerStepID != uuid.Nil && match.TriggerExternalID != nil && *match.TriggerExternalID != uuid.Nil {
+			if match.TriggerStepID != nil && match.TriggerExternalID != nil {
 				if match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
 					dependentMatches = append(dependentMatches, match)
 					continue
@@ -595,7 +595,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						opt.DagInsertedAt = match.TriggerDagInsertedAt
 					}
 
-					if match.TriggerParentTaskExternalID != nil && *match.TriggerParentTaskExternalID != uuid.Nil {
+					if match.TriggerParentTaskExternalID != nil {
 						externalId := match.TriggerParentTaskExternalID.String()
 						opt.ParentTaskExternalId = &externalId
 					}
@@ -662,14 +662,18 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		externalIds := make([]uuid.UUID, 0, len(satisfiedMatches))
 
 		for _, match := range satisfiedMatches {
-			if match.SignalTaskID.Valid && match.SignalTaskInsertedAt.Valid && match.SignalExternalID != nil {
+			if match.SignalTaskID.Valid && match.SignalTaskInsertedAt.Valid {
 				taskIds = append(taskIds, TaskIdInsertedAtRetryCount{
 					Id:         match.SignalTaskID.Int64,
 					InsertedAt: match.SignalTaskInsertedAt,
 					// signals are durable, meaning they persist between retries, so a retryCount of -1 is used
 					RetryCount: -1,
 				})
-				externalIds = append(externalIds, *match.SignalExternalID)
+				if match.SignalExternalID != nil {
+					externalIds = append(externalIds, *match.SignalExternalID)
+				} else {
+					externalIds = append(externalIds, uuid.Nil)
+				}
 				datas = append(datas, match.McAggregatedData)
 				eventKeys = append(eventKeys, match.SignalKey.String)
 			}
@@ -1137,7 +1141,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 	additionalMatches := make([]CreateMatchOpts, 0, len(satisfiedMatches))
 
 	for _, match := range satisfiedMatches {
-		if match.TriggerStepID != nil && *match.TriggerStepID != uuid.Nil && match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
+		if match.TriggerStepID != nil && match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
 			conditions, ok := stepIdsToConditions[match.TriggerStepID.String()]
 
 			if !ok {
