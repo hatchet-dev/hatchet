@@ -260,6 +260,17 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 		}
 	}
 
+	// for each queue, call upsert queues
+	for _, queue := range queued {
+		err = c.queries.UpsertQueues(ctx, tx, sqlcv1.UpsertQueuesParams{
+			TenantID: tenantId,
+			Names:    []string{queue.Queue},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to upsert queue (strategy ID: %d): %w", strategy.ID, err)
+		}
+	}
+
 	if err = commit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction (strategy ID: %d): %w", strategy.ID, err)
 	}
