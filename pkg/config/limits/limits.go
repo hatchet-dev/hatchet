@@ -31,4 +31,7 @@ type LimitConfigFile struct {
 
 	DefaultIncomingWebhookLimit      int `mapstructure:"defaultIncomingWebhookLimit" json:"defaultIncomingWebhookLimit,omitempty" default:"5"`
 	DefaultIncomingWebhookAlarmLimit int `mapstructure:"defaultIncomingWebhookAlarmLimit" json:"defaultIncomingWebhookALarmLimit,omitempty" default:"4"`
+
+	DefaultTaskRunRateLimit int `mapstructure:"defaultTaskRunRateLimit" json:"defaultTaskRunRateLimit,omitempty" default:"1000"`
+	DefaultEventRateLimit   int `mapstructure:"defaultEventRateLimit" json:"defaultEventRateLimit,omitempty" default:"500"`
 }

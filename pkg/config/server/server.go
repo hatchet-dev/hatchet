@@ -203,6 +203,10 @@ type ConfigFileRuntime struct {
 	// EnforceLimits controls whether the server enforces tenant limits
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
 
+	// EnforceRateLimits enables in-memory sliding window rate limiting for TASK_RUN and EVENT resources.
+	// When true, takes precedence over EnforceLimits for these resources.
+	EnforceRateLimits bool `mapstructure:"enforceRateLimits" json:"enforceRateLimits,omitempty" default:"false"`
+
 	// EnforceLimitsFunc is a function that returns whether the server should enforce limits for a tenant
 	// This will take precedence over EnforceLimits if set.
 	EnforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error) `json:"-"`
@@ -650,6 +654,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
 	_ = v.BindEnv("enableWorkerRetention", "SERVER_ENABLE_WORKER_RETENTION")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
+	_ = v.BindEnv("runtime.enforceRateLimits", "SERVER_ENFORCE_RATE_LIMITS")
 	_ = v.BindEnv("runtime.allowSignup", "SERVER_ALLOW_SIGNUP")
 	_ = v.BindEnv("runtime.allowInvites", "SERVER_ALLOW_INVITES")
 	_ = v.BindEnv("runtime.allowCreateTenant", "SERVER_ALLOW_CREATE_TENANT")
@@ -691,6 +696,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.limits.defaultScheduleAlarmLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT")
 
 	_ = v.BindEnv("runtime.limits.defaultIncomingWebhookLimit", "SERVER_LIMITS_DEFAULT_INCOMING_WEBHOOK_LIMIT")
+
+	// rate limit options (requests per minute)
+	_ = v.BindEnv("runtime.limits.defaultTaskRunRateLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_RATE_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultEventRateLimit", "SERVER_LIMITS_DEFAULT_EVENT_RATE_LIMIT")
 
 	// buffer options
 	_ = v.BindEnv("runtime.waitForFlush", "SERVER_WAIT_FOR_FLUSH")

@@ -183,6 +183,23 @@ func (s *Scheduler) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not start subscribe to dispatcher dead letter queue: %w", err)
 	}
 
+	// We set this for rate limiting implementations that need to know which
+	// tenants are assigned to the current partition
+	if rateLimitRepo, ok := s.repov1.TenantLimit().(repov1.TenantLimitRepositoryWithPartition); ok {
+		rateLimitRepo.SetTenantGetter(func() []string {
+			tenants, err := s.p.ListTenantsForScheduler(context.Background(), sqlcv1.TenantMajorEngineVersionV1)
+			if err != nil {
+				s.l.Error().Err(err).Msg("could not list tenants for rate limiter")
+				return nil
+			}
+			ids := make([]string, len(tenants))
+			for i, t := range tenants {
+				ids[i] = sqlchelpers.UUIDToStr(t.ID)
+			}
+			return ids
+		})
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	wg := sync.WaitGroup{}

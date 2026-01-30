@@ -103,10 +103,11 @@ func NewRepository(
 	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
 	enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error),
+	enforceRateLimits bool,
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, enforceLimitsFunc, cacheDuration)
+	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, enforceLimitsFunc, enforceRateLimits, cacheDuration)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
@@ -135,7 +136,7 @@ func NewRepository(
 		slack:             newSlackRepository(shared),
 		sns:               newSNSRepository(shared),
 		tenantInvite:      newTenantInviteRepository(shared),
-		tenantLimit:       newTenantLimitRepository(shared, tenantLimitConfig, enforceLimits, enforceLimitsFunc, cacheDuration),
+		tenantLimit:       shared.m,
 		tenantAlerting:    newTenantAlertingRepository(shared, cacheDuration),
 		tenant:            newTenantRepository(shared, cacheDuration),
 		user:              newUserRepository(shared),
