@@ -356,7 +356,7 @@ func ToWorkflowRunDetails(
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
 
 	parentTaskExternalId := uuid.UUID{}
-	if workflowRun.ParentTaskExternalId != nil && workflowRun.ParentTaskExternalId != nil && *workflowRun.ParentTaskExternalId != uuid.Nil {
+	if workflowRun.ParentTaskExternalId != nil && *workflowRun.ParentTaskExternalId != uuid.Nil {
 		parentTaskExternalId = *workflowRun.ParentTaskExternalId
 	}
 
