@@ -1482,10 +1482,11 @@ func (ns NullV1PayloadLocationOlap) Value() (driver.Value, error) {
 type V1PayloadType string
 
 const (
-	V1PayloadTypeTASKINPUT     V1PayloadType = "TASK_INPUT"
-	V1PayloadTypeDAGINPUT      V1PayloadType = "DAG_INPUT"
-	V1PayloadTypeTASKOUTPUT    V1PayloadType = "TASK_OUTPUT"
-	V1PayloadTypeTASKEVENTDATA V1PayloadType = "TASK_EVENT_DATA"
+	V1PayloadTypeTASKINPUT      V1PayloadType = "TASK_INPUT"
+	V1PayloadTypeDAGINPUT       V1PayloadType = "DAG_INPUT"
+	V1PayloadTypeTASKOUTPUT     V1PayloadType = "TASK_OUTPUT"
+	V1PayloadTypeTASKEVENTDATA  V1PayloadType = "TASK_EVENT_DATA"
+	V1PayloadTypeUSEREVENTINPUT V1PayloadType = "USER_EVENT_INPUT"
 )
 
 func (e *V1PayloadType) Scan(src interface{}) error {
@@ -3019,11 +3020,36 @@ type V1DurableSleep struct {
 	SleepDuration string             `json:"sleep_duration"`
 }
 
+type V1Event struct {
+	ID                    int64              `json:"id"`
+	SeenAt                pgtype.Timestamptz `json:"seen_at"`
+	TenantID              pgtype.UUID        `json:"tenant_id"`
+	ExternalID            pgtype.UUID        `json:"external_id"`
+	Key                   string             `json:"key"`
+	AdditionalMetadata    []byte             `json:"additional_metadata"`
+	Scope                 pgtype.Text        `json:"scope"`
+	TriggeringWebhookName pgtype.Text        `json:"triggering_webhook_name"`
+}
+
+type V1EventLookupTable struct {
+	TenantID    pgtype.UUID        `json:"tenant_id"`
+	ExternalID  pgtype.UUID        `json:"external_id"`
+	EventID     int64              `json:"event_id"`
+	EventSeenAt pgtype.Timestamptz `json:"event_seen_at"`
+}
+
 type V1EventLookupTableOlap struct {
 	TenantID    pgtype.UUID        `json:"tenant_id"`
 	ExternalID  pgtype.UUID        `json:"external_id"`
 	EventID     int64              `json:"event_id"`
 	EventSeenAt pgtype.Timestamptz `json:"event_seen_at"`
+}
+
+type V1EventToRun struct {
+	RunExternalID pgtype.UUID        `json:"run_external_id"`
+	EventID       int64              `json:"event_id"`
+	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
+	FilterID      pgtype.UUID        `json:"filter_id"`
 }
 
 type V1EventToRunOlap struct {
