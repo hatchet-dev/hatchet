@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -107,7 +108,7 @@ type WorkerRepository interface {
 
 	UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error)
 
-	UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
+	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 
 	DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error)
 
@@ -256,7 +257,7 @@ func (w *workerRepository) CountActiveWorkersPerTenant() (map[string]int64, erro
 }
 
 func (w *workerRepository) GetWorkerActionsByWorkerId(tenantid string, workerIds []string) (map[string][]string, error) {
-	uuidWorkerIds := make([]pgtype.UUID, len(workerIds))
+	uuidWorkerIds := make([]uuid.UUID, len(workerIds))
 	for i, workerId := range workerIds {
 		uuidWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)
 	}
@@ -407,7 +408,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId string,
 		}
 	}
 
-	svcUUIDs := make([]pgtype.UUID, len(opts.Services))
+	svcUUIDs := make([]uuid.UUID, len(opts.Services))
 
 	for i, svc := range opts.Services {
 		dbSvc, err := w.queries.UpsertService(ctx, tx, sqlcv1.UpsertServiceParams{
@@ -431,7 +432,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId string,
 		return nil, fmt.Errorf("could not link services to worker: %w", err)
 	}
 
-	actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
+	actionUUIDs := make([]uuid.UUID, len(opts.Actions))
 
 	for i, action := range opts.Actions {
 		dbAction, err := w.queries.UpsertAction(ctx, tx, sqlcv1.UpsertActionParams{
@@ -517,7 +518,7 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId, workerId 
 	}
 
 	if len(opts.Actions) > 0 {
-		actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
+		actionUUIDs := make([]uuid.UUID, len(opts.Actions))
 
 		for i, action := range opts.Actions {
 			dbAction, err := w.queries.UpsertAction(ctx, tx, sqlcv1.UpsertActionParams{
@@ -584,7 +585,7 @@ func (w *workerRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantI
 	return worker, nil
 }
 
-func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
+func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
 	if len(opts) == 0 {
 		return nil, nil
 	}
@@ -646,7 +647,7 @@ func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId string
 }
 
 func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId string, workerIds []string) (map[string][]string, error) {
-	pgWorkerIds := make([]pgtype.UUID, len(workerIds))
+	pgWorkerIds := make([]uuid.UUID, len(workerIds))
 
 	for i, workerId := range workerIds {
 		pgWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)

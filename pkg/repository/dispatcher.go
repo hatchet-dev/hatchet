@@ -4,8 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -86,7 +85,7 @@ func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onSta
 		return err
 	}
 
-	dispatchersToDelete := make([]pgtype.UUID, 0)
+	dispatchersToDelete := make([]uuid.UUID, 0)
 
 	for i, dispatcher := range staleDispatchers {
 		err := onStale(sqlchelpers.UUIDToStr(dispatcher.Dispatcher.ID), func() string {

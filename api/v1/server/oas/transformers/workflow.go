@@ -3,6 +3,7 @@ package transformers
 import (
 	"encoding/json"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -212,7 +213,7 @@ func ToJob(job *sqlcv1.Job, steps []*sqlcv1.GetStepsForJobsRow) *gen.Job {
 	return res
 }
 
-func ToStep(step *sqlcv1.Step, parents []pgtype.UUID) *gen.Step {
+func ToStep(step *sqlcv1.Step, parents []uuid.UUID) *gen.Step {
 	res := &gen.Step{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(step.ID),

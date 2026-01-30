@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -34,8 +34,8 @@ type UpdateTenantAlertGroupOpts struct {
 }
 
 type TenantAlertEmailGroupForSend struct {
-	TenantId pgtype.UUID `json:"tenantId"`
-	Emails   []string    `validate:"required,dive,email,max=255"`
+	TenantId uuid.UUID `json:"tenantId"`
+	Emails   []string  `validate:"required,dive,email,max=255"`
 }
 
 type GetTenantAlertingSettingsResponse struct {

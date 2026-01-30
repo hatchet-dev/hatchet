@@ -4,12 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func ToEventList(events []*sqlcv1.Event) []gen.Event {
@@ -59,6 +58,6 @@ func ToEventFromSQLCV1(event *v1.EventWithPayload) (*gen.Event, error) {
 	return res, nil
 }
 
-func pgUUIDToStr(uuid pgtype.UUID) string {
+func pgUUIDToStr(uuid uuid.UUID) string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid.Bytes[0:4], uuid.Bytes[4:6], uuid.Bytes[6:8], uuid.Bytes[8:10], uuid.Bytes[10:16])
 }

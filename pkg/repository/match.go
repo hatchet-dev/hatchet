@@ -90,7 +90,7 @@ type CreateMatchOpts struct {
 
 	TriggerExistingTaskInsertedAt pgtype.Timestamptz
 
-	TriggerParentTaskExternalId pgtype.UUID
+	TriggerParentTaskExternalId uuid.UUID
 
 	TriggerParentTaskId pgtype.Int8
 
@@ -856,18 +856,18 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 	// Create DAG trigger matches
 	if len(dagMatches) > 0 {
 		// Prepare data for DAG trigger matches
-		dagTenantIds := make([]pgtype.UUID, len(dagMatches))
+		dagTenantIds := make([]uuid.UUID, len(dagMatches))
 		dagKinds := make([]string, len(dagMatches))
 		dagExistingDatas := make([][]byte, len(dagMatches))
 		triggerDagIds := make([]int64, len(dagMatches))
 		triggerDagInsertedAts := make([]pgtype.Timestamptz, len(dagMatches))
-		triggerStepIds := make([]pgtype.UUID, len(dagMatches))
+		triggerStepIds := make([]uuid.UUID, len(dagMatches))
 		triggerStepIndices := make([]int64, len(dagMatches))
-		triggerExternalIds := make([]pgtype.UUID, len(dagMatches))
-		triggerWorkflowRunIds := make([]pgtype.UUID, len(dagMatches))
+		triggerExternalIds := make([]uuid.UUID, len(dagMatches))
+		triggerWorkflowRunIds := make([]uuid.UUID, len(dagMatches))
 		triggerExistingTaskIds := make([]pgtype.Int8, len(dagMatches))
 		triggerExistingTaskInsertedAts := make([]pgtype.Timestamptz, len(dagMatches))
-		triggerParentExternalIds := make([]pgtype.UUID, len(dagMatches))
+		triggerParentExternalIds := make([]uuid.UUID, len(dagMatches))
 		triggerParentTaskIds := make([]pgtype.Int8, len(dagMatches))
 		triggerParentTaskInsertedAts := make([]pgtype.Timestamptz, len(dagMatches))
 		triggerChildIndices := make([]pgtype.Int8, len(dagMatches))
@@ -899,7 +899,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			if match.TriggerWorkflowRunId != nil {
 				triggerWorkflowRunIds[i] = sqlchelpers.UUIDFromStr(*match.TriggerWorkflowRunId)
 			} else {
-				triggerWorkflowRunIds[i] = pgtype.UUID{}
+				triggerWorkflowRunIds[i] = uuid.UUID{}
 			}
 
 			triggerExistingTaskInsertedAts[i] = match.TriggerExistingTaskInsertedAt
@@ -969,7 +969,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 	// Create signal trigger matches
 	if len(signalMatches) > 0 {
 		// Prepare data for signal trigger matches
-		signalTenantIds := make([]pgtype.UUID, len(signalMatches))
+		signalTenantIds := make([]uuid.UUID, len(signalMatches))
 		signalKinds := make([]string, len(signalMatches))
 		signalTaskIds := make([]int64, len(signalMatches))
 		signalTaskInsertedAts := make([]pgtype.Timestamptz, len(signalMatches))
@@ -1101,7 +1101,7 @@ func getMatchKey(match CreateMatchOpts) string {
 }
 
 func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId string, satisfiedMatches []*sqlcv1.SaveSatisfiedMatchConditionsRow) error { // nolint: unused
-	additionalMatchStepIds := make([]pgtype.UUID, 0, len(satisfiedMatches))
+	additionalMatchStepIds := make([]uuid.UUID, 0, len(satisfiedMatches))
 
 	for _, match := range satisfiedMatches {
 		if match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {

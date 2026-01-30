@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -68,7 +67,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		return nil, err
 	}
 
-	stepIdToTaskExternalId := make(map[pgtype.UUID]pgtype.UUID)
+	stepIdToTaskExternalId := make(map[uuid.UUID]uuid.UUID)
 
 	for _, task := range tasks {
 		stepIdToTaskExternalId[task.StepID] = task.ExternalID

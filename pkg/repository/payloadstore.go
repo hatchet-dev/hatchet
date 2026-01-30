@@ -25,14 +25,14 @@ import (
 type StorePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz
-	ExternalId pgtype.UUID
+	ExternalId uuid.UUID
 	Type       sqlcv1.V1PayloadType
 	Payload    []byte
 	TenantId   string
 }
 
 type StoreOLAPPayloadOpts struct {
-	ExternalId pgtype.UUID
+	ExternalId uuid.UUID
 	InsertedAt pgtype.Timestamptz
 	Payload    []byte
 }
@@ -48,7 +48,7 @@ type RetrievePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz
 	Type       sqlcv1.V1PayloadType
-	TenantId   pgtype.UUID
+	TenantId   uuid.UUID
 }
 
 type PayloadLocation string
@@ -137,7 +137,7 @@ func NewPayloadStoreRepository(
 type PayloadUniqueKey struct {
 	ID         int64
 	InsertedAt pgtype.Timestamptz
-	TenantId   pgtype.UUID
+	TenantId   uuid.UUID
 	Type       sqlcv1.V1PayloadType
 }
 
@@ -147,9 +147,9 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	payloadTypes := make([]string, 0, len(payloads))
 	inlineContents := make([][]byte, 0, len(payloads))
 	offloadAts := make([]pgtype.Timestamptz, 0, len(payloads))
-	tenantIds := make([]pgtype.UUID, 0, len(payloads))
+	tenantIds := make([]uuid.UUID, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
-	externalIds := make([]pgtype.UUID, 0, len(payloads))
+	externalIds := make([]uuid.UUID, 0, len(payloads))
 	externalLocationKeys := make([]string, 0, len(payloads))
 
 	seenPayloadUniqueKeys := make(map[PayloadUniqueKey]struct{})
@@ -300,7 +300,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	taskIds := make([]int64, len(opts))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
 	payloadTypes := make([]string, len(opts))
-	tenantIds := make([]pgtype.UUID, len(opts))
+	tenantIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
 		taskIds[i] = opt.Id
@@ -412,16 +412,16 @@ func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
 }
 
 type BulkCutOverPayload struct {
-	TenantID            pgtype.UUID
+	TenantID            uuid.UUID
 	Id                  int64
 	InsertedAt          pgtype.Timestamptz
-	ExternalId          pgtype.UUID
+	ExternalId          uuid.UUID
 	Type                sqlcv1.V1PayloadType
 	ExternalLocationKey ExternalPayloadLocationKey
 }
 
 type PaginationParams struct {
-	LastTenantID   pgtype.UUID
+	LastTenantID   uuid.UUID
 	LastInsertedAt pgtype.Timestamptz
 	LastID         int64
 	LastType       sqlcv1.V1PayloadType
@@ -438,7 +438,7 @@ type PayloadMetadata struct {
 	InsertedAt pgtype.Timestamptz
 	Type       sqlcv1.V1PayloadType
 	ID         int64
-	TenantID   pgtype.UUID
+	TenantID   uuid.UUID
 }
 
 func (d PartitionDate) String() string {
@@ -482,7 +482,7 @@ func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Conte
 	)
 }
 
-func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverBatchOutcome, error) {
+func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
 	defer span.End()
 
@@ -674,10 +674,10 @@ type CutoverJobRunMetadata struct {
 	ShouldRun      bool
 	Pagination     PaginationParams
 	PartitionDate  PartitionDate
-	LeaseProcessId pgtype.UUID
+	LeaseProcessId uuid.UUID
 }
 
-func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId pgtype.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverJobRunMetadata, error) {
+func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId uuid.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverJobRunMetadata, error) {
 	leaseInterval := 2 * time.Minute
 	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
 
@@ -731,7 +731,7 @@ func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context
 	}, nil
 }
 
-func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate) (*CutoverJobRunMetadata, error) {
+func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate) (*CutoverJobRunMetadata, error) {
 	if p.inlineStoreTTL == nil {
 		return nil, fmt.Errorf("inline store TTL is not set")
 	}
@@ -780,7 +780,7 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 	}, nil
 }
 
-func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context, processId pgtype.UUID, partitionDate PartitionDate) error {
+func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate) error {
 	ctx, span := telemetry.NewSpan(ctx, "payload_store_repository_impl.processSinglePartition")
 	defer span.End()
 

@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
 type SpanData struct {
@@ -22,9 +22,9 @@ type SpanData struct {
 	Links              []byte
 	ResourceAttributes []byte
 
-	TaskRunExternalID *pgtype.UUID // from hatchet.step_run_id attribute
-	WorkflowRunID     *pgtype.UUID // from hatchet.workflow_run_id attribute
-	TenantID          pgtype.UUID  // from auth context
+	TaskRunExternalID *uuid.UUID // from hatchet.step_run_id attribute
+	WorkflowRunID     *uuid.UUID // from hatchet.workflow_run_id attribute
+	TenantID          uuid.UUID  // from auth context
 
 	InstrumentationScope string
 }

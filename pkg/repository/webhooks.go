@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -91,7 +92,7 @@ func (ac *AuthConfig) Validate() error {
 }
 
 type CreateWebhookOpts struct {
-	Tenantid           pgtype.UUID                        `json:"tenantid"`
+	Tenantid           uuid.UUID                          `json:"tenantid"`
 	Sourcename         sqlcv1.V1IncomingWebhookSourceName `json:"sourcename"`
 	Name               string                             `json:"name" validate:"required"`
 	Eventkeyexpression string                             `json:"eventkeyexpression"`

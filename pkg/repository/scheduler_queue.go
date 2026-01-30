@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -30,7 +31,7 @@ type RateLimitResult struct {
 const rateLimitedRequeueAfterThreshold = 2 * time.Second
 
 type AssignedItem struct {
-	WorkerId pgtype.UUID
+	WorkerId uuid.UUID
 
 	QueueItem *sqlcv1.V1QueueItem
 }
@@ -53,14 +54,14 @@ func newQueueFactoryRepository(shared *sharedRepository) *queueFactoryRepository
 	}
 }
 
-func (q *queueFactoryRepository) NewQueue(tenantId pgtype.UUID, queueName string) QueueRepository {
+func (q *queueFactoryRepository) NewQueue(tenantId uuid.UUID, queueName string) QueueRepository {
 	return newQueueRepository(q.sharedRepository, tenantId, queueName)
 }
 
 type queueRepository struct {
 	*sharedRepository
 
-	tenantId  pgtype.UUID
+	tenantId  uuid.UUID
 	queueName string
 
 	gtId   pgtype.Int8
@@ -71,7 +72,7 @@ type queueRepository struct {
 	cachedStepIdHasRateLimit *cache.Cache
 }
 
-func newQueueRepository(shared *sharedRepository, tenantId pgtype.UUID, queueName string) *queueRepository {
+func newQueueRepository(shared *sharedRepository, tenantId uuid.UUID, queueName string) *queueRepository {
 	c := cache.New(5 * time.Minute)
 
 	return &queueRepository{
@@ -258,7 +259,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 
 	taskIds := make([]int64, 0, len(r.Assigned))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
-	workerIds := make([]pgtype.UUID, 0, len(r.Assigned))
+	workerIds := make([]uuid.UUID, 0, len(r.Assigned))
 
 	var minTaskInsertedAt pgtype.Timestamptz
 
@@ -531,7 +532,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 	}
 
 	// get all existing static rate limits for steps to the mapping, mapping back from step ids to step run ids
-	uniqueStepIds := make([]pgtype.UUID, 0, len(stepIdToTasks))
+	uniqueStepIds := make([]uuid.UUID, 0, len(stepIdToTasks))
 
 	for stepId := range stepIdToTasks {
 		uniqueStepIds = append(uniqueStepIds, sqlchelpers.UUIDFromStr(stepId))
@@ -569,7 +570,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 	return taskIdToKeyToUnits, nil
 }
 
-func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error) {
+func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []uuid.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
 	defer span.End()
 
@@ -596,7 +597,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype
 	return stepIdToLabels, nil
 }
 
-func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
+func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
 
 	if err != nil {

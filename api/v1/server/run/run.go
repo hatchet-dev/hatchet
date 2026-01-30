@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -443,7 +444,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		defer cancel()
 
 		// Validate UUID early to avoid panics deeper in the stack.
-		var taskID pgtype.UUID
+		var taskID uuid.UUID
 		if err := taskID.Scan(id); err != nil {
 			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid task id")
 		}
@@ -463,7 +464,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 	populatorMW.RegisterGetter("v1-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		// Validate UUID early to avoid panics deeper in the stack.
-		var workflowRunID pgtype.UUID
+		var workflowRunID uuid.UUID
 		if err := workflowRunID.Scan(id); err != nil {
 			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid workflow run id")
 		}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -143,7 +144,7 @@ type WorkflowScheduleRepository interface {
 	// UpdateCronWorkflow updates a cron workflow
 	UpdateCronWorkflow(ctx context.Context, tenantId, id string, opts *UpdateCronOpts) error
 
-	DeleteInvalidCron(ctx context.Context, id pgtype.UUID) error
+	DeleteInvalidCron(ctx context.Context, id uuid.UUID) error
 }
 
 type workflowScheduleRepository struct {
@@ -355,7 +356,7 @@ func (w *workflowScheduleRepository) ScheduledWorkflowMetaByIds(ctx context.Cont
 		return map[string]ScheduledWorkflowMeta{}, nil
 	}
 
-	ids := make([]pgtype.UUID, 0, len(scheduledWorkflowIds))
+	ids := make([]uuid.UUID, 0, len(scheduledWorkflowIds))
 	for _, id := range scheduledWorkflowIds {
 		ids = append(ids, sqlchelpers.UUIDFromStr(id))
 	}
@@ -386,7 +387,7 @@ func (w *workflowScheduleRepository) BulkDeleteScheduledWorkflows(ctx context.Co
 		return []string{}, nil
 	}
 
-	ids := make([]pgtype.UUID, 0, len(scheduledWorkflowIds))
+	ids := make([]uuid.UUID, 0, len(scheduledWorkflowIds))
 	for _, id := range scheduledWorkflowIds {
 		ids = append(ids, sqlchelpers.UUIDFromStr(id))
 	}
@@ -412,7 +413,7 @@ func (w *workflowScheduleRepository) BulkUpdateScheduledWorkflows(ctx context.Co
 		return []string{}, nil
 	}
 
-	ids := make([]pgtype.UUID, 0, len(updates))
+	ids := make([]uuid.UUID, 0, len(updates))
 	triggerAts := make([]pgtype.Timestamp, 0, len(updates))
 	for _, u := range updates {
 		ids = append(ids, sqlchelpers.UUIDFromStr(u.Id))
@@ -620,6 +621,6 @@ func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, ten
 	return row[0], nil
 }
 
-func (w *workflowScheduleRepository) DeleteInvalidCron(ctx context.Context, id pgtype.UUID) error {
+func (w *workflowScheduleRepository) DeleteInvalidCron(ctx context.Context, id uuid.UUID) error {
 	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, id)
 }

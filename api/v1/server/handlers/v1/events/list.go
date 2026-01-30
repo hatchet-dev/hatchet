@@ -63,13 +63,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 	}
 
 	if request.Params.WorkflowIds != nil {
-		workflowIds := make([]pgtype.UUID, len(*request.Params.WorkflowIds))
-
-		for i, workflowId := range *request.Params.WorkflowIds {
-			workflowIds[i] = sqlchelpers.UUIDFromStr(workflowId.String())
-		}
-
-		opts.WorkflowIds = workflowIds
+		opts.WorkflowIds = *request.Params.WorkflowIds
 	}
 
 	if request.Params.WorkflowRunStatuses != nil {
@@ -81,11 +75,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 	}
 
 	if request.Params.EventIds != nil {
-		eventIds := make([]pgtype.UUID, len(*request.Params.EventIds))
-		for i, eventId := range *request.Params.EventIds {
-			eventIds[i] = sqlchelpers.UUIDFromStr(eventId.String())
-		}
-		opts.EventIds = eventIds
+		opts.EventIds = *request.Params.EventIds
 	}
 
 	if request.Params.Scopes != nil {

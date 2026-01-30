@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -283,7 +282,7 @@ func (r *userRepository) ListTenantMemberships(ctx context.Context, userId strin
 		return nil, err
 	}
 
-	ids := make([]pgtype.UUID, len(memberships))
+	ids := make([]uuid.UUID, len(memberships))
 
 	for i, m := range memberships {
 		ids[i] = m.ID

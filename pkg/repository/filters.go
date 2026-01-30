@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -27,11 +28,11 @@ func newFilterRepository(shared *sharedRepository) FilterRepository {
 }
 
 type CreateFilterOpts struct {
-	Workflowid    pgtype.UUID `json:"workflowid" validate:"required,uuid"`
-	Scope         string      `json:"scope" validate:"required"`
-	Expression    string      `json:"expression" validate:"required"`
-	Payload       []byte      `json:"payload"`
-	IsDeclarative bool        `json:"is_declarative"`
+	Workflowid    uuid.UUID `json:"workflowid" validate:"required,uuid"`
+	Scope         string    `json:"scope" validate:"required"`
+	Expression    string    `json:"expression" validate:"required"`
+	Payload       []byte    `json:"payload"`
+	IsDeclarative bool      `json:"is_declarative"`
 }
 
 func (r *filterRepository) CreateFilter(ctx context.Context, tenantId string, opts CreateFilterOpts) (*sqlcv1.V1Filter, error) {
@@ -45,10 +46,10 @@ func (r *filterRepository) CreateFilter(ctx context.Context, tenantId string, op
 }
 
 type ListFiltersOpts struct {
-	WorkflowIds []pgtype.UUID `json:"workflow_ids"`
-	Scopes      []string      `json:"scopes"`
-	Limit       int64         `json:"limit" validate:"omitnil,min=1"`
-	Offset      int64         `json:"offset" validate:"omitnil,min=0"`
+	WorkflowIds []uuid.UUID `json:"workflow_ids"`
+	Scopes      []string    `json:"scopes"`
+	Limit       int64       `json:"limit" validate:"omitnil,min=1"`
+	Offset      int64       `json:"offset" validate:"omitnil,min=0"`
 }
 
 type UpdateFilterOpts struct {

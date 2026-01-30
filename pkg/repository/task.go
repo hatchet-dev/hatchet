@@ -419,7 +419,7 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 	// lookup the task
 	dbTasks, err := r.queries.FlattenExternalIds(ctx, r.pool, sqlcv1.FlattenExternalIdsParams{
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
-		Externalids: []pgtype.UUID{sqlchelpers.UUIDFromStr(taskExternalId)},
+		Externalids: []uuid.UUID{sqlchelpers.UUIDFromStr(taskExternalId)},
 	})
 
 	if err != nil {
@@ -452,7 +452,7 @@ func (r *TaskRepositoryImpl) FlattenExternalIds(ctx context.Context, tenantId st
 }
 
 func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX, tenantId string, externalIds []string) ([]*sqlcv1.FlattenExternalIdsRow, error) {
-	externalIdsToLookup := make([]pgtype.UUID, 0, len(externalIds))
+	externalIdsToLookup := make([]uuid.UUID, 0, len(externalIds))
 	res := make([]*sqlcv1.FlattenExternalIdsRow, 0, len(externalIds))
 
 	for _, externalId := range externalIds {
@@ -1084,7 +1084,7 @@ func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tena
 }
 
 func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1.DBTX, tenantId string, taskExternalIds []string) ([]*TaskOutputEvent, error) {
-	externalIds := make([]pgtype.UUID, 0)
+	externalIds := make([]uuid.UUID, 0)
 	eventTypes := make([][]string, 0)
 
 	for _, externalId := range taskExternalIds {
@@ -1651,7 +1651,7 @@ func (r *sharedRepository) createTasks(
 ) ([]*V1TaskWithPayload, error) {
 	// list the steps for the tasks
 	uniqueStepIds := make(map[string]struct{})
-	stepIds := make([]pgtype.UUID, 0)
+	stepIds := make([]uuid.UUID, 0)
 	externalIdToPayload := make(map[string][]byte, len(tasks))
 
 	for _, task := range tasks {
@@ -1705,18 +1705,18 @@ func (r *sharedRepository) insertTasks(
 		return nil, fmt.Errorf("failed to get concurrency expressions: %w", err)
 	}
 
-	tenantIds := make([]pgtype.UUID, len(tasks))
+	tenantIds := make([]uuid.UUID, len(tasks))
 	queues := make([]string, len(tasks))
 	actionIds := make([]string, len(tasks))
-	stepIds := make([]pgtype.UUID, len(tasks))
+	stepIds := make([]uuid.UUID, len(tasks))
 	stepReadableIds := make([]string, len(tasks))
-	workflowIds := make([]pgtype.UUID, len(tasks))
+	workflowIds := make([]uuid.UUID, len(tasks))
 	scheduleTimeouts := make([]string, len(tasks))
 	stepTimeouts := make([]string, len(tasks))
 	priorities := make([]int32, len(tasks))
 	stickies := make([]string, len(tasks))
-	desiredWorkerIds := make([]pgtype.UUID, len(tasks))
-	externalIds := make([]pgtype.UUID, len(tasks))
+	desiredWorkerIds := make([]uuid.UUID, len(tasks))
+	externalIds := make([]uuid.UUID, len(tasks))
 	displayNames := make([]string, len(tasks))
 	retryCounts := make([]int32, len(tasks))
 	additionalMetadatas := make([][]byte, len(tasks))
@@ -1727,7 +1727,7 @@ func (r *sharedRepository) insertTasks(
 	parentStrategyIds := make([][]pgtype.Int8, len(tasks))
 	strategyIds := make([][]int64, len(tasks))
 	concurrencyKeys := make([][]string, len(tasks))
-	parentTaskExternalIds := make([]pgtype.UUID, len(tasks))
+	parentTaskExternalIds := make([]uuid.UUID, len(tasks))
 	parentTaskIds := make([]pgtype.Int8, len(tasks))
 	parentTaskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 	childIndices := make([]pgtype.Int8, len(tasks))
@@ -1736,16 +1736,16 @@ func (r *sharedRepository) insertTasks(
 	retryBackoffFactors := make([]pgtype.Float8, len(tasks))
 	retryMaxBackoffs := make([]pgtype.Int4, len(tasks))
 	createExpressionOpts := make(map[string][]createTaskExpressionEvalOpt, 0)
-	workflowVersionIds := make([]pgtype.UUID, len(tasks))
-	workflowRunIds := make([]pgtype.UUID, len(tasks))
+	workflowVersionIds := make([]uuid.UUID, len(tasks))
+	workflowRunIds := make([]uuid.UUID, len(tasks))
 
 	externalIdToInput := make(map[string][]byte, len(tasks))
 
 	unix := time.Now().UnixMilli()
 
 	cleanupParentStrategyIds := make([]int64, 0)
-	cleanupWorkflowVersionIds := make([]pgtype.UUID, 0)
-	cleanupWorkflowRunIds := make([]pgtype.UUID, 0)
+	cleanupWorkflowVersionIds := make([]uuid.UUID, 0)
+	cleanupWorkflowRunIds := make([]uuid.UUID, 0)
 
 	for i, task := range tasks {
 		stepConfig := stepIdsToConfig[task.StepId]
@@ -1786,7 +1786,7 @@ func (r *sharedRepository) insertTasks(
 			stickies[i] = string(stepConfig.WorkflowVersionSticky.StickyStrategy)
 		}
 
-		desiredWorkerIds[i] = pgtype.UUID{
+		desiredWorkerIds[i] = uuid.UUID{
 			Valid: false,
 		}
 
@@ -2022,18 +2022,18 @@ func (r *sharedRepository) insertTasks(
 
 		if !ok {
 			params = sqlcv1.CreateTasksParams{
-				Tenantids:                    make([]pgtype.UUID, 0),
+				Tenantids:                    make([]uuid.UUID, 0),
 				Queues:                       make([]string, 0),
 				Actionids:                    make([]string, 0),
-				Stepids:                      make([]pgtype.UUID, 0),
+				Stepids:                      make([]uuid.UUID, 0),
 				Stepreadableids:              make([]string, 0),
-				Workflowids:                  make([]pgtype.UUID, 0),
+				Workflowids:                  make([]uuid.UUID, 0),
 				Scheduletimeouts:             make([]string, 0),
 				Steptimeouts:                 make([]string, 0),
 				Priorities:                   make([]int32, 0),
 				Stickies:                     make([]string, 0),
-				Desiredworkerids:             make([]pgtype.UUID, 0),
-				Externalids:                  make([]pgtype.UUID, 0),
+				Desiredworkerids:             make([]uuid.UUID, 0),
+				Externalids:                  make([]uuid.UUID, 0),
 				Displaynames:                 make([]string, 0),
 				Retrycounts:                  make([]int32, 0),
 				Additionalmetadatas:          make([][]byte, 0),
@@ -2044,7 +2044,7 @@ func (r *sharedRepository) insertTasks(
 				Concurrencyparentstrategyids: make([][]pgtype.Int8, 0),
 				ConcurrencyStrategyIds:       make([][]int64, 0),
 				ConcurrencyKeys:              make([][]string, 0),
-				ParentTaskExternalIds:        make([]pgtype.UUID, 0),
+				ParentTaskExternalIds:        make([]uuid.UUID, 0),
 				ParentTaskIds:                make([]pgtype.Int8, 0),
 				ParentTaskInsertedAts:        make([]pgtype.Timestamptz, 0),
 				ChildIndex:                   make([]pgtype.Int8, 0),
@@ -2052,8 +2052,8 @@ func (r *sharedRepository) insertTasks(
 				StepIndex:                    make([]int64, 0),
 				RetryBackoffFactor:           make([]pgtype.Float8, 0),
 				RetryMaxBackoff:              make([]pgtype.Int4, 0),
-				WorkflowVersionIds:           make([]pgtype.UUID, 0),
-				WorkflowRunIds:               make([]pgtype.UUID, 0),
+				WorkflowVersionIds:           make([]uuid.UUID, 0),
+				WorkflowRunIds:               make([]uuid.UUID, 0),
 				Inputs:                       make([][]byte, 0),
 			}
 		}
@@ -2215,7 +2215,7 @@ func (r *sharedRepository) replayTasks(
 	}
 
 	uniqueStepIds := make(map[string]struct{})
-	stepIds := make([]pgtype.UUID, 0)
+	stepIds := make([]uuid.UUID, 0)
 
 	for _, task := range tasks {
 		if _, ok := uniqueStepIds[task.StepId]; !ok {
@@ -2541,7 +2541,7 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	stepIdToStrats := make(map[string][]*sqlcv1.V1StepConcurrency, len(stepIdsWithExpressions))
 
 	// Only hit the DB for step IDs that aren't cached.
-	missingStepIds := make([]pgtype.UUID, 0, len(stepIdsWithExpressions))
+	missingStepIds := make([]uuid.UUID, 0, len(stepIdsWithExpressions))
 	missingStepIdStrs := make([]string, 0, len(stepIdsWithExpressions))
 
 	for stepId := range stepIdsWithExpressions {
@@ -2606,7 +2606,7 @@ func (r *sharedRepository) getStepExpressions(
 		return map[string][]*sqlcv1.StepExpression{}, nil
 	}
 
-	stepIds := make([]pgtype.UUID, 0, len(stepIdsWithExpressions))
+	stepIds := make([]uuid.UUID, 0, len(stepIdsWithExpressions))
 
 	for stepId := range stepIdsWithExpressions {
 		stepIds = append(stepIds, sqlchelpers.UUIDFromStr(stepId))
@@ -2703,11 +2703,11 @@ func (r *sharedRepository) createTaskEvents(
 	eventTypesStrs := make([]string, len(tasks))
 	paramDatas := make([][]byte, len(tasks))
 	paramKeys := make([]pgtype.Text, len(tasks))
-	externalIds := make([]pgtype.UUID, len(tasks))
+	externalIds := make([]uuid.UUID, len(tasks))
 
 	internalTaskEvents := make([]InternalTaskEvent, len(tasks))
 
-	externalIdToData := make(map[pgtype.UUID][]byte, len(tasks))
+	externalIdToData := make(map[uuid.UUID][]byte, len(tasks))
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
@@ -3068,7 +3068,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	}
 
 	dagIdsToAllTasks := make(map[int64][]*sqlcv1.ListAllTasksInDagsRow)
-	stepIdsInDAGs := make([]pgtype.UUID, 0)
+	stepIdsInDAGs := make([]uuid.UUID, 0)
 
 	for _, task := range allTasksInDAGs {
 		if _, ok := dagIdsToAllTasks[task.DagID.Int64]; !ok {
@@ -3323,7 +3323,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 	// which is NOT in the subtree of what we're replaying, it represent a group condition where we'd like
 	// to query the task_events table to ensure the event has already occurred. if it has, we can mark the
 	// group condition as satisfied.
-	externalIds := make([]pgtype.UUID, 0)
+	externalIds := make([]uuid.UUID, 0)
 	eventTypes := make([][]string, 0)
 
 	for _, match := range eventMatches {
@@ -3532,7 +3532,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	}
 
 	retrieveOpts := make([]RetrievePayloadOpts, 0, len(res))
-	retrieveOptsToWorkflowRunId := make(map[RetrievePayloadOpts]pgtype.UUID, len(res))
+	retrieveOptsToWorkflowRunId := make(map[RetrievePayloadOpts]uuid.UUID, len(res))
 	retrieveOptToPayload := make(map[RetrievePayloadOpts][]byte)
 
 	for _, outputTask := range res {

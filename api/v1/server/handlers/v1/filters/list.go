@@ -1,13 +1,12 @@
 package filtersv1
 
 import (
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 )
 
@@ -17,12 +16,12 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 	scopes := request.Params.Scopes
 	workflowIds := request.Params.WorkflowIds
 
-	var workflowIdParams []pgtype.UUID
+	var workflowIdParams []uuid.UUID
 	var scopeParams []string
 
 	if workflowIds != nil {
 		for _, id := range *workflowIds {
-			workflowIdParams = append(workflowIdParams, sqlchelpers.UUIDFromStr(id.String()))
+			workflowIdParams = append(workflowIdParams, id)
 		}
 	}
 

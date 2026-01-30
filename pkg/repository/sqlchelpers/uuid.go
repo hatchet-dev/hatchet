@@ -1,28 +1,26 @@
 package sqlchelpers
 
 import (
-	"fmt"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
-func UUIDToStr(uuid pgtype.UUID) string {
-	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid.Bytes[0:4], uuid.Bytes[4:6], uuid.Bytes[6:8], uuid.Bytes[8:10], uuid.Bytes[10:16])
+func UUIDToStr(uuid uuid.UUID) string {
+	return uuid.String()
 }
 
-func UUIDFromStr(uuid string) pgtype.UUID {
-	var pgUUID pgtype.UUID
+func UUIDFromStr(uuidStr string) uuid.UUID {
+	parsedUuid, err := uuid.Parse(uuidStr)
 
-	if err := pgUUID.Scan(uuid); err != nil {
+	if err != nil {
 		panic(err)
 	}
 
-	return pgUUID
+	return parsedUuid
 }
 
-func UniqueSet(uuids []pgtype.UUID) []pgtype.UUID {
+func UniqueSet(uuids []uuid.UUID) []uuid.UUID {
 	seen := make(map[string]struct{})
-	unique := make([]pgtype.UUID, 0, len(uuids))
+	unique := make([]uuid.UUID, 0, len(uuids))
 
 	for _, uuid := range uuids {
 		uuidStr := UUIDToStr(uuid)

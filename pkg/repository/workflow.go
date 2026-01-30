@@ -194,7 +194,7 @@ type WorkflowMetrics struct {
 }
 
 type WorkflowRepository interface {
-	ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []pgtype.UUID) (map[pgtype.UUID]string, error)
+	ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []uuid.UUID) (map[uuid.UUID]string, error)
 	PutWorkflowVersion(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 	GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error)
 
@@ -233,7 +233,7 @@ func newWorkflowRepository(shared *sharedRepository) WorkflowRepository {
 	}
 }
 
-func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []pgtype.UUID) (map[pgtype.UUID]string, error) {
+func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-workflow-names-by-ids")
 	defer span.End()
 
@@ -243,7 +243,7 @@ func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantI
 		return nil, err
 	}
 
-	workflowIdToNameMap := make(map[pgtype.UUID]string)
+	workflowIdToNameMap := make(map[uuid.UUID]string)
 
 	for _, row := range workflowNames {
 		workflowIdToNameMap[row.ID] = row.Name
@@ -287,7 +287,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 	defer rollback()
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-	var workflowId pgtype.UUID
+	var workflowId uuid.UUID
 	var oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow
 
 	// check whether the workflow exists
@@ -331,7 +331,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 		// fetch the latest workflow version
 		workflowVersionIds, err := r.queries.GetLatestWorkflowVersionForWorkflows(ctx, tx, sqlcv1.GetLatestWorkflowVersionForWorkflowsParams{
 			Tenantid:    pgTenantId,
-			Workflowids: []pgtype.UUID{workflowId},
+			Workflowids: []uuid.UUID{workflowId},
 		})
 
 		if err != nil {
@@ -344,7 +344,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 
 		workflowVersions, err := r.queries.GetWorkflowVersionForEngine(ctx, tx, sqlcv1.GetWorkflowVersionForEngineParams{
 			Tenantid: pgTenantId,
-			Ids:      []pgtype.UUID{workflowVersionIds[0]},
+			Ids:      []uuid.UUID{workflowVersionIds[0]},
 		})
 
 		if err != nil {
@@ -366,7 +366,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 
 	workflowVersion, err := r.queries.GetWorkflowVersionForEngine(ctx, tx, sqlcv1.GetWorkflowVersionForEngineParams{
 		Tenantid: pgTenantId,
-		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(workflowVersionId)},
+		Ids:      []uuid.UUID{sqlchelpers.UUIDFromStr(workflowVersionId)},
 	})
 
 	if err != nil {
@@ -386,7 +386,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 	return workflowVersion[0], nil
 }
 
-func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId pgtype.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (string, error) {
+func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (string, error) {
 	workflowVersionId := uuid.New().String()
 
 	cs, modifiedOpts, err := checksumV1(opts)
@@ -555,7 +555,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			priority = sqlchelpers.ToInt(*opts.DefaultPriority)
 		}
 
-		var oldWorkflowVersionId pgtype.UUID
+		var oldWorkflowVersionId uuid.UUID
 		if oldWorkflowVersion != nil {
 			oldWorkflowVersionId = oldWorkflowVersion.WorkflowVersion.ID
 		}
@@ -658,7 +658,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	return workflowVersionId, nil
 }
 
-func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId, workflowVersionId pgtype.UUID, jobKind sqlcv1.JobKind, steps []CreateStepOpts) (string, error) {
+func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId, workflowVersionId uuid.UUID, jobKind sqlcv1.JobKind, steps []CreateStepOpts) (string, error) {
 	if len(steps) == 0 {
 		return "", errors.New("no steps provided")
 	}
@@ -1010,7 +1010,7 @@ func (r *workflowRepository) ListWorkflows(tenantId string, opts *ListWorkflowsO
 
 	res := &ListWorkflowsResult{}
 
-	pgTenantId := &pgtype.UUID{}
+	pgTenantId := &uuid.UUID{}
 
 	if err := pgTenantId.Scan(tenantId); err != nil {
 		return nil, err
@@ -1153,7 +1153,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantId, workflowId string) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
 	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, sqlcv1.GetWorkflowVersionForEngineParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(workflowId)},
+		Ids:      []uuid.UUID{sqlchelpers.UUIDFromStr(workflowId)},
 	})
 
 	if err != nil {
@@ -1187,7 +1187,7 @@ func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenan
 
 	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, sqlcv1.GetWorkflowVersionForEngineParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Ids:      []pgtype.UUID{versionId},
+		Ids:      []uuid.UUID{versionId},
 	})
 
 	if err != nil {

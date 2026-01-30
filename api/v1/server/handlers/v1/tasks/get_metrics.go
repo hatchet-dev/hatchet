@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -26,7 +25,7 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 		workflowIds = *request.Params.WorkflowIds
 	}
 
-	var parentTaskExternalId *pgtype.UUID
+	var parentTaskExternalId *uuid.UUID
 
 	if request.Params.ParentTaskExternalId != nil {
 		uuidPtr := *request.Params.ParentTaskExternalId
@@ -34,7 +33,7 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 		parentTaskExternalId = &uuidVal
 	}
 
-	var triggeringEventExternalId *pgtype.UUID
+	var triggeringEventExternalId *uuid.UUID
 	if request.Params.TriggeringEventExternalId != nil {
 		uuidVal := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventExternalId.String())
 		triggeringEventExternalId = &uuidVal

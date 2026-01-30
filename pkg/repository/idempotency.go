@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -15,7 +16,7 @@ type IdempotencyKey string
 
 type IdempotencyRepository interface {
 	CreateIdempotencyKey(context context.Context, tenantId, key string, expiresAt pgtype.Timestamptz) error
-	EvictExpiredIdempotencyKeys(context context.Context, tenantId pgtype.UUID) error
+	EvictExpiredIdempotencyKeys(context context.Context, tenantId uuid.UUID) error
 }
 
 type idempotencyRepository struct {
@@ -36,18 +37,18 @@ func (r *idempotencyRepository) CreateIdempotencyKey(context context.Context, te
 	})
 }
 
-func (r *idempotencyRepository) EvictExpiredIdempotencyKeys(context context.Context, tenantId pgtype.UUID) error {
+func (r *idempotencyRepository) EvictExpiredIdempotencyKeys(context context.Context, tenantId uuid.UUID) error {
 	return r.queries.CleanUpExpiredIdempotencyKeys(context, r.pool, tenantId)
 }
 
 type KeyClaimantPair struct {
 	IdempotencyKey      IdempotencyKey
-	ClaimedByExternalId pgtype.UUID
+	ClaimedByExternalId uuid.UUID
 }
 
 func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool *pgxpool.Pool, tenantId string, claims []KeyClaimantPair) (map[KeyClaimantPair]WasSuccessfullyClaimed, error) {
 	keys := make([]string, len(claims))
-	claimedByExternalIds := make([]pgtype.UUID, len(claims))
+	claimedByExternalIds := make([]uuid.UUID, len(claims))
 
 	for i, claim := range claims {
 		keys[i] = string(claim.IdempotencyKey)
