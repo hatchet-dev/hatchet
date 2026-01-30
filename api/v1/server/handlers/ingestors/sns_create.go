@@ -12,7 +12,7 @@ import (
 
 func (i *IngestorsService) SnsCreate(ctx echo.Context, req gen.SnsCreateRequestObject) (gen.SnsCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	// validate the request
 	if apiErrors, err := i.config.Validator.ValidateAPI(req.Body); err != nil {

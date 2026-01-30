@@ -509,7 +509,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	})
 
 	dc.V1.Tenant().RegisterCreateCallback(func(tenant *sqlcv1.Tenant) error {
-		tenantId := tenant.ID.String()
+		tenantId := tenant.ID
 
 		analyticsEmitter.Tenant(tenantId, map[string]interface{}{
 			"name": tenant.Name,

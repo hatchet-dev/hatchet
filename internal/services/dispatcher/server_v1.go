@@ -310,7 +310,7 @@ func (b *StreamEventBuffer) sendReadyEvents(stepRunId string) {
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
 	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	s.l.Debug().Msgf("Received subscribe request for tenant: %s", tenantId)
 
@@ -586,7 +586,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 		tenantId,
@@ -613,7 +613,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 
 func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	// if request.RetryCount == nil {
 	// 	return nil, fmt.Errorf("retry count is required in v2")
@@ -668,7 +668,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 
 func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	shouldNotRetry := false
 
@@ -709,7 +709,7 @@ func (d *DispatcherImpl) getSingleTask(ctx context.Context, tenantId uuid.UUID, 
 }
 
 func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	opts := v1.RefreshTimeoutBy{
 		TaskExternalId:     request.StepRunId,
@@ -759,7 +759,7 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 }
 
 func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, request.StepRunId)
 
@@ -806,7 +806,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsV1(request *contracts.Subscrib
 
 func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunId string, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
@@ -986,7 +986,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string, value string, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()

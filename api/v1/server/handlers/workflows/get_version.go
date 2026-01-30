@@ -15,7 +15,7 @@ import (
 
 func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.WorkflowVersionGetRequestObject) (gen.WorkflowVersionGetResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 	workflow := ctx.Get("workflow").(*sqlcv1.GetWorkflowByIdRow)
 
 	var workflowVersionId string

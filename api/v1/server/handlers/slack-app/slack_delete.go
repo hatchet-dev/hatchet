@@ -10,7 +10,7 @@ import (
 
 func (i *SlackAppService) SlackWebhookDelete(ctx echo.Context, req gen.SlackWebhookDeleteRequestObject) (gen.SlackWebhookDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 	slack := ctx.Get("slack").(*sqlcv1.SlackAppWebhook)
 
 	err := i.config.V1.Slack().DeleteSlackWebhook(ctx.Request().Context(), tenantId, slack.ID.String())

@@ -34,7 +34,7 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		return &collectortracev1.ExportTraceServiceResponse{}, nil
 	}
 
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	otelColRepo := oc.repo.OTelCollector()
 	if otelColRepo == nil {

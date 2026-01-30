@@ -17,7 +17,7 @@ import (
 func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantInviteCreateRequestObject) (gen.TenantInviteCreateResponseObject, error) {
 	user := ctx.Get("user").(*sqlcv1.User)
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 	tenantMember := ctx.Get("tenant-member").(*sqlcv1.PopulateTenantMembersRow)
 	if !t.config.Runtime.AllowInvites {
 		t.config.Logger.Warn().Msg("tenant invites are disabled")

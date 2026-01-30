@@ -15,7 +15,7 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	user := ctx.Get("user").(*sqlcv1.User)
 
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	// validate the request
 	if apiErrors, err := a.config.Validator.ValidateAPI(request.Body); err != nil {

@@ -77,7 +77,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEventRequest) (*contracts.Events, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	if len(req.Events) == 0 {
 

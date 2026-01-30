@@ -21,14 +21,15 @@ import (
 
 func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *contracts.RegisterDurableEventRequest) (*contracts.RegisterDurableEventResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
+	taskId, err := uuid.Parse(req.TaskId)
 
-	if _, err := uuid.Parse(req.TaskId); err != nil {
+	if err != nil {
 		d.l.Error().Msgf("task id %s is not a valid uuid", req.TaskId)
 		return nil, status.Error(codes.InvalidArgument, "task id is not a valid uuid")
 	}
 
-	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.TaskId, false)
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskId, false)
 
 	if err != nil {
 		return nil, err
@@ -137,7 +138,7 @@ func (w *durableEventAcks) ackEvent(taskId int64, taskInsertedAt pgtype.Timestam
 
 func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatcher_ListenForDurableEventServer) error {
 	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	acks := &durableEventAcks{
 		acks: make(map[v1.TaskIdInsertedAtSignalKey]string),
@@ -237,13 +238,15 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 				return
 			}
 
-			if _, err = uuid.Parse(req.TaskId); err != nil {
+			taskId, err := uuid.Parse(req.TaskId)
+
+			if err != nil {
 				d.l.Warn().Msgf("task id %s is not a valid uuid", req.TaskId)
 				continue
 			}
 
 			// FIXME: buffer/batch this to make it more efficient
-			task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.TaskId, false)
+			task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskId, false)
 
 			if err != nil {
 				d.l.Error().Err(err).Msg("could not get task by external id")

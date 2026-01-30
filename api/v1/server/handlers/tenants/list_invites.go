@@ -11,7 +11,7 @@ import (
 
 func (t *TenantService) TenantInviteList(ctx echo.Context, request gen.TenantInviteListRequestObject) (gen.TenantInviteListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	tenantInvites, err := t.config.V1.TenantInvite().ListTenantInvitesByTenantId(ctx.Request().Context(), tenantId, &v1.ListTenantInvitesOpts{
 		Expired: v1.BoolPtr(false),

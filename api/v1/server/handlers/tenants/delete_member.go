@@ -11,7 +11,7 @@ import (
 
 func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantMemberDeleteRequestObject) (gen.TenantMemberDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 	tenantMember := ctx.Get("tenant-member").(*sqlcv1.PopulateTenantMembersRow)
 	memberToDelete := ctx.Get("member").(*sqlcv1.PopulateTenantMembersRow)
 

@@ -10,7 +10,7 @@ import (
 
 func (a *APITokenService) ApiTokenList(ctx echo.Context, request gen.ApiTokenListRequestObject) (gen.ApiTokenListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	tokens, err := a.config.V1.APIToken().ListAPITokensByTenant(ctx.Request().Context(), tenantId)
 

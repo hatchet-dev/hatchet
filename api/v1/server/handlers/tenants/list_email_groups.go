@@ -10,7 +10,7 @@ import (
 
 func (t *TenantService) AlertEmailGroupList(ctx echo.Context, request gen.AlertEmailGroupListRequestObject) (gen.AlertEmailGroupListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	emailGroups, err := t.config.V1.TenantAlertingSettings().ListTenantAlertGroups(ctx.Request().Context(), tenantId)
 

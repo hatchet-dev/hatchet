@@ -17,7 +17,7 @@ import (
 )
 
 func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	// get single task
 	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
@@ -60,7 +60,7 @@ func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId uuid.UUID, ta
 }
 
 func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	if !i.isLogIngestionEnabled {
 		return &contracts.PutLogResponse{}, nil

@@ -22,7 +22,7 @@ func NewProxy[in, out any](config *server.ServerConfig, method func(ctx context.
 }
 
 func (p *Proxy[in, out]) Do(ctx context.Context, tenant *sqlcv1.Tenant, input *in) (*out, error) {
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	expiresAt := time.Now().Add(5 * time.Minute).UTC()
 

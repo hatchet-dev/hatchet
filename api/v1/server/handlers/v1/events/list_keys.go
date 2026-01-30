@@ -9,7 +9,7 @@ import (
 
 func (t *V1EventsService) V1EventKeyList(ctx echo.Context, request gen.V1EventKeyListRequestObject) (gen.V1EventKeyListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	eventKeys, err := t.config.V1.OLAP().ListEventKeys(ctx.Request().Context(), tenantId)
 

@@ -16,7 +16,7 @@ import (
 
 func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListRequestObject) (gen.V1EventListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	limit := int64(50)
 	offset := int64(0)

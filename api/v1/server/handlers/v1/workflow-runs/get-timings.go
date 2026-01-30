@@ -17,7 +17,7 @@ import (
 
 func (t *V1WorkflowRunsService) V1WorkflowRunGetTimings(ctx echo.Context, request gen.V1WorkflowRunGetTimingsRequestObject) (gen.V1WorkflowRunGetTimingsResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 	rawWorkflowRun := ctx.Get("v1-workflow-run").(*v1.V1WorkflowRunPopulator)
 
 	workflowRun := rawWorkflowRun.WorkflowRun

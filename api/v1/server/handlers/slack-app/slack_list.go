@@ -10,7 +10,7 @@ import (
 
 func (s *SlackAppService) SlackWebhookList(ctx echo.Context, req gen.SlackWebhookListRequestObject) (gen.SlackWebhookListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	webhooks, err := s.config.V1.Slack().ListSlackWebhooks(ctx.Request().Context(), tenantId)
 

@@ -14,7 +14,7 @@ import (
 
 func (t *TasksService) V1TaskGetPointMetrics(ctx echo.Context, request gen.V1TaskGetPointMetricsRequestObject) (gen.V1TaskGetPointMetricsResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	// 24 hours ago, rounded to the nearest minute
 	lowerBound := time.Now().UTC().Add(-24 * time.Hour).Truncate(30 * time.Minute)

@@ -15,7 +15,7 @@ import (
 
 func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request gen.WorkflowScheduledBulkUpdateRequestObject) (gen.WorkflowScheduledBulkUpdateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	if request.Body == nil {
 		return gen.WorkflowScheduledBulkUpdate400JSONResponse(gen.APIErrors{

@@ -10,7 +10,7 @@ import (
 
 func (t *TenantService) TenantAlertingSettingsGet(ctx echo.Context, request gen.TenantAlertingSettingsGetRequestObject) (gen.TenantAlertingSettingsGetResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	tenantAlerting, err := t.config.V1.TenantAlertingSettings().GetTenantAlertingSettings(ctx.Request().Context(), tenantId)
 

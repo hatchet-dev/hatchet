@@ -30,7 +30,7 @@ func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListReque
 
 func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
 	reqCtx := ctx.Request().Context()
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
@@ -74,7 +74,7 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, re
 
 func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
 	reqCtx := ctx.Request().Context()
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 

@@ -12,7 +12,7 @@ import (
 
 func (t *V1WorkflowRunsService) V1WorkflowRunTaskEventsList(ctx echo.Context, request gen.V1WorkflowRunTaskEventsListRequestObject) (gen.V1WorkflowRunTaskEventsListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 	rawWorkflowRun := ctx.Get("v1-workflow-run").(*v1.V1WorkflowRunPopulator)
 
 	workflowRun := rawWorkflowRun.WorkflowRun

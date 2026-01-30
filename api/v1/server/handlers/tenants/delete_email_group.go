@@ -9,7 +9,7 @@ import (
 
 func (t *TenantService) AlertEmailGroupDelete(ctx echo.Context, request gen.AlertEmailGroupDeleteRequestObject) (gen.AlertEmailGroupDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 	emailGroup := ctx.Get("alert-email-group").(*sqlcv1.TenantAlertEmailGroup)
 
 	// delete the invite

@@ -25,7 +25,7 @@ func (t *TenantAlertManager) sendEmailWorkflowRunAlert(tenant *sqlcv1.Tenant, em
 		subject = fmt.Sprintf("%d Hatchet workflow failed", numFailed)
 	}
 
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	return t.email.SendWorkflowRunFailedAlerts(
 		ctx,
@@ -46,7 +46,7 @@ func (t *TenantAlertManager) sendEmailExpiringTokenAlert(tenant *sqlcv1.Tenant, 
 
 	subject := fmt.Sprintf("Hatchet token expiring %s", payload.ExpiresAtRelativeDate)
 
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	return t.email.SendExpiringTokenEmail(
 		ctx,

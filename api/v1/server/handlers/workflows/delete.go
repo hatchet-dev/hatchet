@@ -9,7 +9,7 @@ import (
 
 func (t *WorkflowService) WorkflowDelete(ctx echo.Context, request gen.WorkflowDeleteRequestObject) (gen.WorkflowDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 	workflow := ctx.Get("workflow").(*sqlcv1.GetWorkflowByIdRow)
 
 	_, err := t.config.V1.Workflows().DeleteWorkflow(ctx.Request().Context(), tenantId, workflow.Workflow.ID.String())

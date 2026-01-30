@@ -9,7 +9,7 @@ import (
 
 func (t *TenantService) TenantGetStepRunQueueMetrics(ctx echo.Context, request gen.TenantGetStepRunQueueMetricsRequestObject) (gen.TenantGetStepRunQueueMetricsResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	stepRunQueueCounts, err := t.config.V1.Tasks().GetQueueCounts(ctx.Request().Context(), tenantId)
 

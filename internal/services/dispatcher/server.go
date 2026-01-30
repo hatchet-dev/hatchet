@@ -23,7 +23,7 @@ import (
 
 func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.WorkerRegisterRequest) (*contracts.WorkerRegisterResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	s.l.Debug().Msgf("Received register request from ID %s with actions %v", request.WorkerName, request.Actions)
 
@@ -137,7 +137,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, r
 // Subscribe handles a subscribe request from a client
 func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenServer) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 	sessionId := uuid.New().String()
 
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
@@ -240,7 +240,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 // against engine version v0.18.1+
 func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenV2Server) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 	sessionId := uuid.New().String()
 
 	ctx := stream.Context()
@@ -345,7 +345,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	defer span.End()
 
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	heartbeatAt := time.Now().UTC()
 
@@ -548,7 +548,7 @@ func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contract
 
 func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.WorkerUnsubscribeRequest) (*contracts.WorkerUnsubscribeResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	// remove the worker from the connection pool
 	s.workers.Delete(request.WorkerId)

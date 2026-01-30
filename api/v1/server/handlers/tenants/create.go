@@ -78,7 +78,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		return nil, err
 	}
 
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	err = t.config.V1.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenantId, nil)
 

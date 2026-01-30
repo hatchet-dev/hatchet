@@ -29,7 +29,7 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *sqlcv1.Tenant,
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	canCreateEvents, eLimit, err := i.repov1.TenantLimit().CanCreate(
 		ctx,
@@ -93,7 +93,7 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *sqlcv1.Ten
 	ctx, span := telemetry.NewSpan(ctx, "bulk-ingest-event")
 	defer span.End()
 
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	count := len(eventOpts)
 
@@ -134,7 +134,7 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *sqlcv1
 	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
 	defer span.End()
 
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	return i.ingestSingleton(ctx, tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata, nil, nil, nil)
 }

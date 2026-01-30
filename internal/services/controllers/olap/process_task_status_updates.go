@@ -32,7 +32,7 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 			tenantIds := make([]string, 0, len(tenants))
 
 			for _, tenant := range tenants {
-				tenantId := tenant.ID.String()
+				tenantId := tenant.ID
 				tenantIds = append(tenantIds, tenantId)
 			}
 

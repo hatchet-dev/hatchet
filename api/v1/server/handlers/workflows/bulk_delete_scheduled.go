@@ -17,7 +17,7 @@ import (
 
 func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request gen.WorkflowScheduledBulkDeleteRequestObject) (gen.WorkflowScheduledBulkDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	if request.Body == nil {
 		return gen.WorkflowScheduledBulkDelete400JSONResponse(gen.APIErrors{

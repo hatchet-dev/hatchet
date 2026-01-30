@@ -10,7 +10,7 @@ import (
 
 func (i *IngestorsService) SnsDelete(ctx echo.Context, req gen.SnsDeleteRequestObject) (gen.SnsDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 	sns := ctx.Get("sns").(*sqlcv1.SNSIntegration)
 
 	// create the SNS integration

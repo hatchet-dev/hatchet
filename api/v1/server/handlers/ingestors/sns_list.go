@@ -10,7 +10,7 @@ import (
 
 func (i *IngestorsService) SnsList(ctx echo.Context, req gen.SnsListRequestObject) (gen.SnsListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	// create the SNS integration
 	snsIntegrations, err := i.config.V1.SNS().ListSNSIntegrations(ctx.Request().Context(), tenantId)

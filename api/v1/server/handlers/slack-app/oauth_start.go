@@ -13,7 +13,7 @@ import (
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
 func (g *SlackAppService) UserUpdateSlackOauthStart(ctx echo.Context, _ gen.UserUpdateSlackOauthStartRequestObject) (gen.UserUpdateSlackOauthStartResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 
 	oauth, ok := g.config.AdditionalOAuthConfigs["slack"]
 
