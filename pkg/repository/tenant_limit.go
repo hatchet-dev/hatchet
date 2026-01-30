@@ -27,6 +27,11 @@ type Limit struct {
 	CustomValueMeter bool
 }
 
+type UpdateLimitOpts struct {
+	Resource sqlcv1.LimitResource
+	Limit    int32
+}
+
 type PlanLimitMap map[string][]Limit
 
 type TenantLimitRepository interface {
@@ -54,6 +59,8 @@ type TenantLimitRepository interface {
 	Meter(ctx context.Context, resource sqlcv1.LimitResource, tenantId string, numberOfResources int32) (precommit func() error, postcommit func())
 
 	SetOnSuccessMeterCallback(cb func(resource sqlcv1.LimitResource, tenantId string, currentUsage int64))
+
+	UpdateLimits(ctx context.Context, tenantId string, opts []UpdateLimitOpts) error
 }
 
 type tenantLimitRepository struct {
@@ -435,6 +442,21 @@ func (t *tenantLimitRepository) Meter(ctx context.Context, resource sqlcv1.Limit
 				t.l.Error().Err(err).Msg("could not meter resource")
 			}
 		}
+}
+
+func (t *tenantLimitRepository) UpdateLimits(ctx context.Context, tenantId string, opts []UpdateLimitOpts) error {
+	for _, opt := range opts {
+		err := t.patchTenantResourceLimit(ctx, tenantId, Limit{
+			Resource: opt.Resource,
+			Limit:    opt.Limit,
+			Alarm:    int32(float64(opt.Limit) * 0.8), // nolint: gosec
+		}, true)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 var ErrResourceExhausted = fmt.Errorf("resource exhausted")
