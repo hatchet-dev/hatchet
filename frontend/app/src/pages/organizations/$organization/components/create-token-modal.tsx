@@ -26,7 +26,10 @@ import { z } from 'zod';
 
 const schema = z.object({
   name: z.string().min(1, 'Token name is required'),
-  duration: z.string(),
+  duration: z.union([
+    z.nativeEnum(ManagementTokenDuration),
+    z.literal('never'),
+  ]),
 });
 
 interface CreateTokenModalProps {
@@ -70,8 +73,8 @@ export function CreateTokenModal({
   }, [reset, onOpenChange]);
 
   const handleTokenCreate = useCallback(
-    (data: { name: string; duration?: string }) => {
-      const duration =
+    (data: z.infer<typeof schema>) => {
+      const duration: ManagementTokenDuration | undefined =
         data.duration === DURATION_NEVER ? undefined : data.duration;
       handleCreateToken(organizationId, data.name, duration, (tokenData) => {
         setCreatedToken(tokenData.token);
