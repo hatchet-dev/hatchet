@@ -142,12 +142,18 @@ export function useOrganizations() {
     mutationFn: async (data: {
       organizationId: string;
       name: string;
-      duration: ManagementTokenDuration;
+      duration?: string;
     }) => {
-      const result = await cloudApi.managementTokenCreate(data.organizationId, {
+      const body: { name: string; duration?: ManagementTokenDuration } = {
         name: data.name,
-        duration: data.duration,
-      });
+      };
+      if (data.duration != null && data.duration !== '') {
+        body.duration = data.duration as ManagementTokenDuration;
+      }
+      const result = await cloudApi.managementTokenCreate(
+        data.organizationId,
+        body,
+      );
       return result.data;
     },
     onError: handleApiError,
@@ -203,7 +209,7 @@ export function useOrganizations() {
     (
       organizationId: string,
       name: string,
-      duration: ManagementTokenDuration,
+      duration: string | undefined,
       onSuccess: (data: CreateManagementTokenResponse) => void,
     ) => {
       createTokenMutation.mutate(

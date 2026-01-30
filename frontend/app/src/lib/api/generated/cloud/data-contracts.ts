@@ -18,10 +18,9 @@ export enum OrganizationInviteStatus {
 }
 
 export enum ManagementTokenDuration {
-  Value30D = "30d",
-  Value60D = "60d",
-  Value90D = "90d",
-  Never = "never",
+  Value30D = "30D",
+  Value60D = "60D",
+  Value90D = "90D",
 }
 
 export enum TenantStatusType {
@@ -726,7 +725,7 @@ export type CreateTenantAPITokenResponse = any;
 export interface CreateManagementTokenRequest {
   /** The name of the management token. */
   name: string;
-  /** @default "30d" */
+  /** @default "30D" */
   duration?: ManagementTokenDuration;
 }
 

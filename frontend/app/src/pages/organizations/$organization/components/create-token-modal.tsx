@@ -26,7 +26,7 @@ import { z } from 'zod';
 
 const schema = z.object({
   name: z.string().min(1, 'Token name is required'),
-  duration: z.nativeEnum(ManagementTokenDuration),
+  duration: z.string(),
 });
 
 interface CreateTokenModalProps {
@@ -44,6 +44,7 @@ export function CreateTokenModal({
   organizationName,
   onSuccess,
 }: CreateTokenModalProps) {
+  const DURATION_NEVER = 'never';
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const { handleCreateToken, createTokenLoading } = useOrganizations();
 
@@ -69,16 +70,13 @@ export function CreateTokenModal({
   }, [reset, onOpenChange]);
 
   const handleTokenCreate = useCallback(
-    (data: { name: string; duration: ManagementTokenDuration }) => {
-      handleCreateToken(
-        organizationId,
-        data.name,
-        data.duration,
-        (tokenData) => {
-          setCreatedToken(tokenData.token);
-          onSuccess();
-        },
-      );
+    (data: { name: string; duration?: string }) => {
+      const duration =
+        data.duration === DURATION_NEVER ? undefined : data.duration;
+      handleCreateToken(organizationId, data.name, duration, (tokenData) => {
+        setCreatedToken(tokenData.token);
+        onSuccess();
+      });
     },
     [organizationId, handleCreateToken, onSuccess],
   );
@@ -98,7 +96,7 @@ export function CreateTokenModal({
     { value: ManagementTokenDuration.Value30D, label: '30 days' },
     { value: ManagementTokenDuration.Value60D, label: '60 days' },
     { value: ManagementTokenDuration.Value90D, label: '90 days' },
-    { value: ManagementTokenDuration.Never, label: 'Never' },
+    { value: DURATION_NEVER, label: 'Do not expire' },
   ];
 
   return (
@@ -189,7 +187,7 @@ export function CreateTokenModal({
               <p className="text-sm text-muted-foreground">
                 How long the token should remain valid.
               </p>
-              {selectedDuration === ManagementTokenDuration.Never && (
+              {selectedDuration === DURATION_NEVER && (
                 <div className="flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
                   <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
                   <span>
