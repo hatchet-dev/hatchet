@@ -473,11 +473,11 @@ type RabbitMQConfigFile struct {
 }
 
 type ConfigFileEmail struct {
-	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required,oneof=postmark smtp" default:"postmark"`
+	Kind string `mapstructure:"kind" json:"kind,omitempty"`
 
-	Postmark EmailConfig `mapstructure:"postmark" json:"postmark,omitempty"`
+	Postmark PostmarkConfigFile `mapstructure:"postmark" json:"postmark,omitempty"`
 
-	SMTP EmailConfig `mapstructure:"smtp" json:"smtp,omitempty"`
+	SMTP SMTPEmailConfig `mapstructure:"smtp" json:"smtp,omitempty"`
 }
 
 type ConfigFileMonitoring struct {
@@ -494,7 +494,16 @@ type ConfigFileMonitoring struct {
 	TLSRootCAFile string `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
 }
 
-type EmailConfig struct {
+type PostmarkConfigFile struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+
+	ServerKey    string `mapstructure:"serverKey" json:"serverKey,omitempty"`
+	FromEmail    string `mapstructure:"fromEmail" json:"fromEmail,omitempty"`
+	FromName     string `mapstructure:"fromName" json:"fromName,omitempty" default:"Hatchet Support"`
+	SupportEmail string `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
+}
+
+type SMTPEmailConfig struct {
 	Enabled      bool   `mapstructure:"enabled" json:"enabled,omitempty"`
 	ServerKey    string `mapstructure:"serverKey" json:"serverKey,omitempty"`
 	ServerAddr   string `mapstructure:"serverAddr" json:"serverAddr,omitempty"`
@@ -502,10 +511,10 @@ type EmailConfig struct {
 	FromName     string `mapstructure:"fromName" json:"fromName,omitempty" default:"Hatchet Support"`
 	SupportEmail string `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
 
-	BasicAuth EmailConfigAuthBasic `mapstructure:"basicAuth" json:"basicAuth,omitempty"`
+	BasicAuth SMTPEmailConfigAuthBasic `mapstructure:"basicAuth" json:"basicAuth,omitempty"`
 }
 
-type EmailConfigAuthBasic struct {
+type SMTPEmailConfigAuthBasic struct {
 	Username string `mapstructure:"username" json:"username,omitempty"`
 	Password string `mapstructure:"password" json:"password,omitempty"`
 }

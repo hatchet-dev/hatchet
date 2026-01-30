@@ -632,6 +632,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create SMTP service: %w", err)
 		}
+	default:
+		return nil, nil, fmt.Errorf("invalid email provider of type %s, must be 'postmark' or 'smtp'", cf.Email.Kind)
 	}
 
 	additionalOAuthConfigs := make(map[string]*oauth2.Config)
