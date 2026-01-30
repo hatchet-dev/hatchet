@@ -138,8 +138,8 @@ WHERE
 
 type CountCronWorkflowsParams struct {
 	Tenantid           uuid.UUID   `json:"tenantid"`
-	Crontriggerid      uuid.UUID   `json:"crontriggerid"`
-	Workflowid         uuid.UUID   `json:"workflowid"`
+	CronTriggerId      *uuid.UUID  `json:"cronTriggerId"`
+	WorkflowId         *uuid.UUID  `json:"workflowId"`
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
 	CronName           pgtype.Text `json:"cronName"`
 	WorkflowName       pgtype.Text `json:"workflowName"`
@@ -149,8 +149,8 @@ type CountCronWorkflowsParams struct {
 func (q *Queries) CountCronWorkflows(ctx context.Context, db DBTX, arg CountCronWorkflowsParams) (int64, error) {
 	row := db.QueryRow(ctx, countCronWorkflows,
 		arg.Tenantid,
-		arg.Crontriggerid,
-		arg.Workflowid,
+		arg.CronTriggerId,
+		arg.WorkflowId,
 		arg.AdditionalMetadata,
 		arg.CronName,
 		arg.WorkflowName,
@@ -407,8 +407,8 @@ LIMIT
 
 type ListCronWorkflowsParams struct {
 	Tenantid           uuid.UUID   `json:"tenantid"`
-	Crontriggerid      uuid.UUID   `json:"crontriggerid"`
-	Workflowid         uuid.UUID   `json:"workflowid"`
+	CronTriggerId      *uuid.UUID  `json:"cronTriggerId"`
+	WorkflowId         *uuid.UUID  `json:"workflowId"`
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
 	CronName           pgtype.Text `json:"cronName"`
 	WorkflowName       pgtype.Text `json:"workflowName"`
@@ -449,8 +449,8 @@ type ListCronWorkflowsRow struct {
 func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWorkflowsParams) ([]*ListCronWorkflowsRow, error) {
 	rows, err := db.Query(ctx, listCronWorkflows,
 		arg.Tenantid,
-		arg.Crontriggerid,
-		arg.Workflowid,
+		arg.CronTriggerId,
+		arg.WorkflowId,
 		arg.AdditionalMetadata,
 		arg.CronName,
 		arg.WorkflowName,

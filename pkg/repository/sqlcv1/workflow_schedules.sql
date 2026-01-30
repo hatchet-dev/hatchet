@@ -194,8 +194,8 @@ JOIN
 WHERE
     t."deletedAt" IS NULL
     AND w."tenantId" = @tenantId::uuid
-    AND (@cronTriggerId::uuid IS NULL OR c."id" = @cronTriggerId::uuid)
-    AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
+    AND (sqlc.narg('cronTriggerId')::uuid IS NULL OR c."id" = sqlc.narg('cronTriggerId')::uuid)
+    AND (sqlc.narg('workflowId')::uuid IS NULL OR w."id" = sqlc.narg('workflowId')::uuid)
     AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
         c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
     AND (sqlc.narg('cronName')::TEXT IS NULL OR c."name" = sqlc.narg('cronName')::TEXT)
@@ -239,8 +239,8 @@ JOIN
 WHERE
     t."deletedAt" IS NULL
     AND w."tenantId" = @tenantId::uuid
-    AND (@cronTriggerId::uuid IS NULL OR c."id" = @cronTriggerId::uuid)
-    AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
+    AND (sqlc.narg('cronTriggerId')::uuid IS NULL OR c."id" = sqlc.narg('cronTriggerId')::uuid)
+    AND (sqlc.narg('workflowId')::uuid IS NULL OR w."id" = sqlc.narg('workflowId')::uuid)
     AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
         c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
     AND (sqlc.narg('cronName')::TEXT IS NULL OR c."name" = sqlc.narg('cronName')::TEXT)
