@@ -4,6 +4,7 @@ export function parseLogQuery(query: string): ParsedLogQuery {
   const errors: string[] = [];
   const textParts: string[] = [];
   let level: LogLevel | undefined;
+  let attempt: number | undefined;
 
   const tokenRegex = /(\S+?):(\S+)|(\S+)/g;
   let match;
@@ -19,6 +20,13 @@ export function parseLogQuery(query: string): ParsedLogQuery {
         } else {
           errors.push(`Invalid log level: "${value}"`);
         }
+      } else if (key.toLowerCase() === 'attempt') {
+        const parsedAttempt = parseInt(value, 10);
+        if (!isNaN(parsedAttempt) && parsedAttempt > 0) {
+          attempt = parsedAttempt;
+        } else {
+          errors.push(`Invalid attempt number: "${value}"`);
+        }
       } else {
         textParts.push(`${key}:${value}`);
       }
@@ -30,6 +38,7 @@ export function parseLogQuery(query: string): ParsedLogQuery {
   return {
     search: textParts.length > 0 ? textParts.join(' ') : undefined,
     level,
+    attempt,
     raw: query,
     isValid: errors.length === 0,
     errors,

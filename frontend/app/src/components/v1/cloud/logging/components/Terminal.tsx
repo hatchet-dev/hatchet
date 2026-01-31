@@ -26,6 +26,11 @@ function Terminal({
 
   const handleLineClick = useCallback(
     (event: React.MouseEvent<HTMLSpanElement>) => {
+      const selection = window.getSelection();
+      if (selection && selection.toString().length > 0) {
+        return;
+      }
+
       const lineElement = (event.target as HTMLElement).closest('.log-line');
       if (lineElement) {
         lineElement.classList.toggle('expanded');

@@ -38,6 +38,7 @@ export interface LogLine {
   instance?: string;
   level?: string;
   metadata?: Record<string, unknown>;
+  attempt?: number;
 }
 
 export interface UseLogsOptions {
@@ -55,6 +56,7 @@ export interface UseLogsReturn {
   fetchOlderLogs: () => void;
   setPollingEnabled: (enabled: boolean) => void;
   taskStatus: V1TaskStatus | undefined;
+  availableAttempts: number[];
 }
 
 export function useLogs({
@@ -86,13 +88,14 @@ export function useLogs({
     taskRun?.metadata.id,
     parsedQuery.level,
     parsedQuery.search,
+    parsedQuery.attempt,
   ]);
 
   const getLogsQuery = useInfiniteQuery<
     V1LogLineList,
     Error,
     InfiniteData<V1LogLineList>,
-    (string | undefined)[],
+    (string | number | undefined)[],
     { since: string | undefined; until: string | undefined }
   >({
     queryKey: [
@@ -101,6 +104,7 @@ export function useLogs({
       taskRun?.metadata.id,
       parsedQuery.level,
       parsedQuery.search,
+      parsedQuery.attempt,
     ],
     queryFn: async ({ pageParam }) => {
       const params: V1LogLineListQuery = {
@@ -110,6 +114,7 @@ export function useLogs({
           levels: [parsedQuery.level.toUpperCase() as V1LogLineLevel],
         }),
         ...(parsedQuery.search && { search: parsedQuery.search }),
+        ...(parsedQuery.attempt && { attempt: parsedQuery.attempt }),
         order_by_direction: V1LogLineOrderByDirection.DESC,
       };
 
@@ -174,6 +179,7 @@ export function useLogs({
             levels: [parsedQuery.level.toUpperCase() as V1LogLineLevel],
           }),
           ...(parsedQuery.search && { search: parsedQuery.search }),
+          ...(parsedQuery.attempt && { attempt: parsedQuery.attempt }),
         };
 
         const response = await api.v1LogLineList(taskRun.metadata.id, params);
@@ -189,6 +195,7 @@ export function useLogs({
               taskRun.metadata.id,
               parsedQuery.level,
               parsedQuery.search,
+              parsedQuery.attempt,
             ],
             (oldData) => {
               if (!oldData) {
@@ -241,6 +248,7 @@ export function useLogs({
     taskRun?.metadata.id,
     parsedQuery.level,
     parsedQuery.search,
+    parsedQuery.attempt,
     queryClient,
   ]);
 
@@ -261,6 +269,7 @@ export function useLogs({
             instance: taskRun?.displayName,
             level: row.level,
             metadata: row.metadata as Record<string, unknown> | undefined,
+            attempt: row.attempt,
           });
         }
       });
@@ -268,6 +277,12 @@ export function useLogs({
 
     return Array.from(uniqueLogsMap.values());
   }, [getLogsQuery.data?.pages, taskRun?.displayName]);
+
+  const availableAttempts = useMemo(
+    () =>
+      Array.from({ length: (taskRun?.retryCount ?? 0) + 1 }, (_, i) => i + 1),
+    [taskRun?.retryCount],
+  );
 
   const fetchOlderLogs = useCallback(() => {
     if (!getLogsQuery.isFetchingNextPage && getLogsQuery.hasNextPage) {
@@ -285,6 +300,7 @@ export function useLogs({
     fetchOlderLogs,
     setPollingEnabled,
     taskStatus: taskRun?.status,
+    availableAttempts,
   };
 }
 
