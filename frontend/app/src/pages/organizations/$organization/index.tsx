@@ -123,7 +123,11 @@ export default function OrganizationPage() {
     }
   };
 
-  const formatExpirationDate = (expiresDate: string) => {
+  const formatExpirationDate = (expiresDate?: string) => {
+    if (!expiresDate) {
+      return 'never';
+    }
+
     try {
       const expires = new Date(expiresDate);
       const now = new Date();
