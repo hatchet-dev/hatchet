@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"log"
 	"time"
 
@@ -47,7 +46,6 @@ func newSharedRepository(
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
-	enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error),
 	cacheDuration time.Duration,
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
@@ -89,7 +87,7 @@ func newSharedRepository(
 		payloadStore:              payloadStore,
 	}
 
-	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, enforceLimitsFunc, cacheDuration)
+	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)
 
 	s.m = tenantLimitRepository
 
