@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
@@ -58,7 +57,7 @@ type clientImpl struct {
 	cloudrest  *cloudrest.ClientWithResponses
 
 	// the tenant id
-	tenantId uuid.UUID
+	tenantId string
 
 	namespace string
 
@@ -75,7 +74,7 @@ type ClientOpt func(*ClientOpts)
 type filesLoaderFunc func() []*types.Workflow
 
 type ClientOpts struct {
-	tenantId    uuid.UUID
+	tenantId    string
 	l           *zerolog.Logger
 	v           validator.Validator
 	tls         *tls.Config
@@ -163,7 +162,7 @@ func WithLogger(l *zerolog.Logger) ClientOpt {
 	}
 }
 
-func WithTenantId(tenantId uuid.UUID) ClientOpt {
+func WithTenantId(tenantId string) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.tenantId = tenantId
 	}
@@ -206,7 +205,7 @@ func InitWorkflows() ClientOpt {
 }
 
 type sharedClientOpts struct {
-	tenantId   uuid.UUID
+	tenantId   string
 	namespace  string
 	l          *zerolog.Logger
 	v          validator.Validator

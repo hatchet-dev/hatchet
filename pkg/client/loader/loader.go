@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 )
@@ -92,7 +91,7 @@ func GetClientConfigFromConfigFile(tokenOverride *string, cf *client.ClientConfi
 		return nil, fmt.Errorf("server URL is required. Set it via the HATCHET_CLIENT_SERVER_URL environment variable")
 	}
 
-	if cf.TenantId == uuid.Nil {
+	if cf.TenantId == "" {
 		cf.TenantId = tokenConf.TenantId
 	}
 

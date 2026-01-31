@@ -6,15 +6,13 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type TokenConf struct {
 	ExpiresAt            time.Time
 	ServerURL            string
 	GrpcBroadcastAddress string
-	TenantId             uuid.UUID
+	TenantId             string
 }
 
 func GetConfFromJWT(token string) (*TokenConf, error) {
@@ -51,7 +49,7 @@ func GetConfFromJWT(token string) (*TokenConf, error) {
 		ExpiresAt:            expiresAt,
 		ServerURL:            serverURL,
 		GrpcBroadcastAddress: grpcBroadcastAddress,
-		TenantId:             uuid.MustParse(tenantId),
+		TenantId:             tenantId,
 	}, nil
 }
 

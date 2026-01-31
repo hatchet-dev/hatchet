@@ -3,7 +3,6 @@ package cli
 import (
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/spf13/viper"
 )
 
@@ -24,7 +23,7 @@ type ProfileFile struct {
 
 // Profile represents a single profile configuration
 type Profile struct {
-	TenantId     uuid.UUID `mapstructure:"tenantId" json:"tenantId"`
+	TenantId     string    `mapstructure:"tenantId" json:"tenantId"`
 	Name         string    `mapstructure:"name" json:"name"`
 	Token        string    `mapstructure:"token" json:"token"`
 	ExpiresAt    time.Time `mapstructure:"expiresAt" json:"expiresAt"`

@@ -60,13 +60,13 @@ type tenantLimitRepository struct {
 	c cache.Cacheable
 	*sharedRepository
 	plans             *PlanLimitMap
-	enforceLimitsFunc func(ctx context.Context, tenantId uuid.UUID) (bool, error)
+	enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error)
 	onSuccessMeterCb  func(resource sqlcv1.LimitResource, tenantId uuid.UUID, currentUsage int64)
 	config            limits.LimitConfigFile
 	enforceLimits     bool
 }
 
-func newTenantLimitRepository(shared *sharedRepository, s limits.LimitConfigFile, enforceLimits bool, enforceLimitsFunc func(ctx context.Context, tenantId uuid.UUID) (bool, error), cacheDuration time.Duration) TenantLimitRepository {
+func newTenantLimitRepository(shared *sharedRepository, s limits.LimitConfigFile, enforceLimits bool, enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error), cacheDuration time.Duration) TenantLimitRepository {
 	return &tenantLimitRepository{
 		sharedRepository:  shared,
 		config:            s,
@@ -230,7 +230,7 @@ func (t *tenantLimitRepository) patchTenantResourceLimit(ctx context.Context, te
 
 func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.TenantResourceLimit, error) {
 	if t.enforceLimitsFunc != nil {
-		enforce, err := t.enforceLimitsFunc(ctx, tenantId)
+		enforce, err := t.enforceLimitsFunc(ctx, tenantId.String())
 		if err != nil {
 			return nil, err
 		}
@@ -274,7 +274,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 
 func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
 	if t.enforceLimitsFunc != nil {
-		enforce, err := t.enforceLimitsFunc(ctx, tenantId)
+		enforce, err := t.enforceLimitsFunc(ctx, tenantId.String())
 		if err != nil {
 			return false, 0, err
 		}
@@ -340,7 +340,7 @@ func calcPercent(value int32, limit int32) int {
 
 func (t *tenantLimitRepository) saveMeter(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (*sqlcv1.TenantResourceLimit, error) {
 	if t.enforceLimitsFunc != nil {
-		enforce, err := t.enforceLimitsFunc(ctx, tenantId)
+		enforce, err := t.enforceLimitsFunc(ctx, tenantId.String())
 		if err != nil {
 			return nil, err
 		}

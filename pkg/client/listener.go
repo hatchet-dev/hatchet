@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -196,7 +195,7 @@ func (l *WorkflowRunsListener) RemoveWorkflowRun(
 	}
 }
 
-func (l *WorkflowRunsListener) retrySend(workflowRunId uuid.UUID) error {
+func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
 	for i := 0; i < DefaultActionListenerRetryCount; i++ {
 		l.clientMu.RLock()
 		client := l.client
@@ -306,9 +305,9 @@ func (l *WorkflowRunsListener) handleWorkflowRun(event *dispatchercontracts.Work
 }
 
 type SubscribeClient interface {
-	On(ctx context.Context, workflowRunId uuid.UUID, handler RunHandler) error
+	On(ctx context.Context, workflowRunId string, handler RunHandler) error
 
-	Stream(ctx context.Context, workflowRunId uuid.UUID, handler StreamHandler) error
+	Stream(ctx context.Context, workflowRunId string, handler StreamHandler) error
 
 	StreamByAdditionalMetadata(ctx context.Context, key string, value string, handler StreamHandler) error
 
@@ -349,7 +348,7 @@ func newSubscribe(conn *grpc.ClientConn, opts *sharedClientOpts) SubscribeClient
 	}
 }
 
-func (r *subscribeClientImpl) On(ctx context.Context, workflowRunId uuid.UUID, handler RunHandler) error {
+func (r *subscribeClientImpl) On(ctx context.Context, workflowRunId string, handler RunHandler) error {
 	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
 		WorkflowRunId: &workflowRunId,
 	}, grpc_retry.Disable())
@@ -379,7 +378,7 @@ func (r *subscribeClientImpl) On(ctx context.Context, workflowRunId uuid.UUID, h
 	}
 }
 
-func (r *subscribeClientImpl) Stream(ctx context.Context, workflowRunId uuid.UUID, handler StreamHandler) error {
+func (r *subscribeClientImpl) Stream(ctx context.Context, workflowRunId string, handler StreamHandler) error {
 	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
 		WorkflowRunId: &workflowRunId,
 	}, grpc_retry.Disable())

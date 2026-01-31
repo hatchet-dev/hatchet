@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
@@ -360,7 +359,7 @@ type ManagedWorkerBuildConfig struct {
 type ManagedWorkerEvent struct {
 	Data            map[string]interface{}   `json:"data"`
 	Id              int                      `json:"id"`
-	ManagedWorkerId uuid.UUID                `json:"managedWorkerId"`
+	ManagedWorkerId string                   `json:"managedWorkerId"`
 	Message         string                   `json:"message"`
 	Status          ManagedWorkerEventStatus `json:"status"`
 	TimeFirstSeen   time.Time                `json:"timeFirstSeen"`

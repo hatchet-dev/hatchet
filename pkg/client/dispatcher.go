@@ -8,7 +8,6 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -28,9 +27,9 @@ type DispatcherClient interface {
 
 	SendGroupKeyActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
-	ReleaseSlot(ctx context.Context, stepRunId uuid.UUID) error
+	ReleaseSlot(ctx context.Context, stepRunId string) error
 
-	RefreshTimeout(ctx context.Context, stepRunId uuid.UUID, incrementTimeoutBy string) error
+	RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error
 
 	UpsertWorkerLabels(ctx context.Context, workerId string, labels map[string]interface{}) error
 
@@ -48,7 +47,7 @@ type GetActionListenerRequest struct {
 	Actions    []string
 	MaxRuns    *int
 	Labels     map[string]interface{}
-	WebhookId  *uuid.UUID
+	WebhookId  *string
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -64,16 +63,16 @@ const (
 
 type Action struct {
 	// the worker id
-	WorkerId uuid.UUID `json:"workerId"`
+	WorkerId string `json:"workerId"`
 
 	// the tenant id
-	TenantId uuid.UUID `json:"tenantId"`
+	TenantId string `json:"tenantId"`
 
 	// the workflow run id
-	WorkflowRunId uuid.UUID `json:"workflowRunId"`
+	WorkflowRunId string `json:"workflowRunId"`
 
 	// the get group key run id
-	GetGroupKeyRunId uuid.UUID `json:"getGroupKeyRunId"`
+	GetGroupKeyRunId string `json:"getGroupKeyRunId"`
 
 	// the job id
 	JobId string `json:"jobId"`
@@ -82,7 +81,7 @@ type Action struct {
 	JobName string `json:"jobName"`
 
 	// the job run id
-	JobRunId uuid.UUID `json:"jobRunId"`
+	JobRunId string `json:"jobRunId"`
 
 	// the step id
 	StepId string `json:"stepId"`
@@ -91,7 +90,7 @@ type Action struct {
 	StepName string `json:"stepName"`
 
 	// the step run id
-	StepRunId uuid.UUID `json:"stepRunId"`
+	StepRunId string `json:"stepRunId"`
 
 	// the action id
 	ActionId string `json:"actionId"`
@@ -115,13 +114,13 @@ type Action struct {
 	ChildKey *string
 
 	// the parent workflow run id
-	ParentWorkflowRunId *uuid.UUID
+	ParentWorkflowRunId *string
 
 	Priority int32 `json:"priority,omitempty"`
 
-	WorkflowId *uuid.UUID `json:"workflowId,omitempty"`
+	WorkflowId *string `json:"workflowId,omitempty"`
 
-	WorkflowVersionId *uuid.UUID `json:"workflowVersionId,omitempty"`
+	WorkflowVersionId *string `json:"workflowVersionId,omitempty"`
 }
 
 type WorkerActionListener interface {
@@ -157,17 +156,17 @@ type ActionEvent struct {
 
 type ActionEventResponse struct {
 	// the tenant id
-	TenantId uuid.UUID
+	TenantId string
 
 	// the id of the worker
-	WorkerId uuid.UUID
+	WorkerId string
 }
 
 type dispatcherClientImpl struct {
 	client   dispatchercontracts.DispatcherClient
 	clientv1 sharedcontracts.V1DispatcherClient
 
-	tenantId uuid.UUID
+	tenantId string
 
 	l *zerolog.Logger
 
@@ -200,7 +199,7 @@ const (
 type actionListenerImpl struct {
 	client dispatchercontracts.DispatcherClient
 
-	tenantId uuid.UUID
+	tenantId string
 
 	listenClient dispatchercontracts.Dispatcher_ListenClient
 
@@ -615,7 +614,7 @@ func (d *dispatcherClientImpl) SendGroupKeyActionEvent(ctx context.Context, in *
 	}, nil
 }
 
-func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId uuid.UUID) error {
+func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string) error {
 	_, err := a.client.ReleaseSlot(a.ctx.newContext(ctx), &dispatchercontracts.ReleaseSlotRequest{
 		StepRunId: stepRunId,
 	})
@@ -627,7 +626,7 @@ func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId uuid.U
 	return nil
 }
 
-func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId uuid.UUID, incrementTimeoutBy string) error {
+func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error {
 	_, err := a.client.RefreshTimeout(a.ctx.newContext(ctx), &dispatchercontracts.RefreshTimeoutRequest{
 		StepRunId:          stepRunId,
 		IncrementTimeoutBy: incrementTimeoutBy,

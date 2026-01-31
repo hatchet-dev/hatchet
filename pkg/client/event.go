@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -44,7 +43,7 @@ type EventClient interface {
 
 	PutLog(ctx context.Context, stepRunId, msg string, level *string, taskRetryCount *int32) error
 
-	PutStreamEvent(ctx context.Context, stepRunId uuid.UUID, message []byte, options ...StreamEventOption) error
+	PutStreamEvent(ctx context.Context, stepRunId string, message []byte, options ...StreamEventOption) error
 }
 
 type EventWithAdditionalMetadata struct {
@@ -58,7 +57,7 @@ type EventWithAdditionalMetadata struct {
 type eventClientImpl struct {
 	client eventcontracts.EventsServiceClient
 
-	tenantId uuid.UUID
+	tenantId string
 
 	namespace string
 
@@ -203,7 +202,7 @@ func (a *eventClientImpl) PutLog(ctx context.Context, stepRunId, msg string, lev
 	return err
 }
 
-func (a *eventClientImpl) PutStreamEvent(ctx context.Context, stepRunId uuid.UUID, message []byte, options ...StreamEventOption) error {
+func (a *eventClientImpl) PutStreamEvent(ctx context.Context, stepRunId string, message []byte, options ...StreamEventOption) error {
 	opts := &streamEventOpts{}
 
 	for _, optionFunc := range options {

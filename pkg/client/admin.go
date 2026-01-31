@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -25,10 +24,10 @@ import (
 
 type ChildWorkflowOpts struct {
 	ParentId           string
-	ParentStepRunId    uuid.UUID
+	ParentStepRunId    string
 	ChildIndex         int
 	ChildKey           *string
-	DesiredWorkerId    *uuid.UUID
+	DesiredWorkerId    *string
 	AdditionalMetadata *map[string]string
 	Priority           *int32
 }
