@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	tokenTenantId string
+	tokenTenantId uuid.UUID
 	tokenName     string
 	expiresIn     time.Duration
 )
@@ -41,9 +41,10 @@ var tokenCreateAPICmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(tokenCmd)
 	tokenCmd.AddCommand(tokenCreateAPICmd)
+	tenantId := tokenTenantId.String()
 
 	tokenCreateAPICmd.PersistentFlags().StringVar(
-		&tokenTenantId,
+		&tenantId,
 		"tenant-id",
 		"",
 		"the tenant ID to associate with the token",
@@ -90,16 +91,11 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 
 	tenantId := tokenTenantId
 
-	if tenantId == "" {
-		tenantId = server.Seed.DefaultTenantID
+	if tenantId == uuid.Nil {
+		tenantId = uuid.MustParse(server.Seed.DefaultTenantID)
 	}
 
-	tenantUUID, err := uuid.Parse(tenantId)
-	if err != nil {
-		return fmt.Errorf("invalid tenant ID: %w", err)
-	}
-
-	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantUUID, tokenName, false, &expiresAt)
+	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
 
 	if err != nil {
 		return err

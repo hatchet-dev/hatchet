@@ -27,15 +27,12 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 	var parentTaskExternalId *uuid.UUID
 
 	if request.Params.ParentTaskExternalId != nil {
-		uuidPtr := *request.Params.ParentTaskExternalId
-		uuidVal := uuid.MustParse(uuidPtr.String())
-		parentTaskExternalId = &uuidVal
+		parentTaskExternalId = request.Params.ParentTaskExternalId
 	}
 
 	var triggeringEventExternalId *uuid.UUID
 	if request.Params.TriggeringEventExternalId != nil {
-		uuidVal := uuid.MustParse(request.Params.TriggeringEventExternalId.String())
-		triggeringEventExternalId = &uuidVal
+		triggeringEventExternalId = request.Params.TriggeringEventExternalId
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})

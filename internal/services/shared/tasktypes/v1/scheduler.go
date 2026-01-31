@@ -83,5 +83,5 @@ func NotifyTaskCreated(tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) (*msgq
 }
 
 type TaskAssignedBulkTaskPayload struct {
-	WorkerIdToTaskIds map[string][]int64 `json:"worker_id_to_task_id" validate:"required"`
+	WorkerIdToTaskIds map[uuid.UUID][]int64 `json:"worker_id_to_task_id" validate:"required"`
 }

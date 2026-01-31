@@ -516,11 +516,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			"slug": tenant.Slug,
 		})
 
-		tenantIdString := tenantId.String()
 		analyticsEmitter.Enqueue(
 			"tenant:create",
 			"system",
-			&tenantIdString,
+			&tenantId,
 			map[string]interface{}{
 				"tenant_created": true,
 			},

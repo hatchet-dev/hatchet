@@ -55,7 +55,7 @@ func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tes
 		newTenantId, _, err := jwtManager.ValidateTenantToken(context.Background(), token.Token)
 
 		assert.NoError(t, err)
-		assert.Equal(t, tenantId.String(), newTenantId)
+		assert.Equal(t, tenantId, newTenantId)
 
 		return nil
 	})

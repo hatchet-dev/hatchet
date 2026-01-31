@@ -38,7 +38,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 			TaskId:     task.ID,
 			InsertedAt: task.InsertedAt,
 			RetryCount: task.RetryCount,
-			WorkerId:   task.WorkerID.String(),
+			WorkerId:   *task.WorkerID,
 		})
 
 		// send failed tasks to the olap repository

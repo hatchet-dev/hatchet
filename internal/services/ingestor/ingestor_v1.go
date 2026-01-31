@@ -18,7 +18,7 @@ import (
 )
 
 type EventResult struct {
-	TenantId           string
+	TenantId           uuid.UUID
 	EventId            string
 	EventKey           string
 	Data               string

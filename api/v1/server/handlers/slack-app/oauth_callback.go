@@ -23,7 +23,13 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 
 	sh := authn.NewSessionHelpers(g.config)
 
-	tenantId, err := sh.GetKey(ctx, "tenant")
+	tenantIdStr, err := sh.GetKey(ctx, "tenant")
+
+	if err != nil {
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. Please try again and make sure cookies are enabled.")
+	}
+
+	tenantId, err := uuid.Parse(tenantIdStr)
 
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. Please try again and make sure cookies are enabled.")
@@ -64,7 +70,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 
 	_, err = g.config.V1.Slack().UpsertSlackWebhook(
 		ctx.Request().Context(),
-		uuid.MustParse(tenantId),
+		tenantId,
 		&v1.UpsertSlackWebhookOpts{
 			TeamId:      resp.Team.ID,
 			TeamName:    resp.Team.Name,

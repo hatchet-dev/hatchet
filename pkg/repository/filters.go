@@ -27,7 +27,7 @@ func newFilterRepository(shared *sharedRepository) FilterRepository {
 }
 
 type CreateFilterOpts struct {
-	Workflowid    uuid.UUID `json:"workflowid" validate:"required,uuid"`
+	Workflowid    uuid.UUID `json:"workflowid" validate:"required"`
 	Scope         string    `json:"scope" validate:"required"`
 	Expression    string    `json:"expression" validate:"required"`
 	Payload       []byte    `json:"payload"`

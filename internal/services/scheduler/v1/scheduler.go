@@ -360,15 +360,15 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 	// bulk assign step runs
 	if len(res.Assigned) > 0 {
-		dispatcherIdToWorkerIdsToStepRuns := make(map[string]map[string][]int64)
+		dispatcherIdToWorkerIdsToStepRuns := make(map[uuid.UUID]map[uuid.UUID][]int64)
 
-		workerIds := make([]string, 0)
+		workerIds := make([]uuid.UUID, 0)
 
 		for _, assigned := range res.Assigned {
-			workerIds = append(workerIds, assigned.WorkerId.String())
+			workerIds = append(workerIds, assigned.WorkerId)
 		}
 
-		var dispatcherIdWorkerIds map[string][]string
+		var dispatcherIdWorkerIds map[uuid.UUID][]uuid.UUID
 
 		dispatcherIdWorkerIds, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
@@ -378,7 +378,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			return fmt.Errorf("could not list dispatcher ids for workers: %w. attempting internal retry", err)
 		}
 
-		workerIdToDispatcherId := make(map[string]string)
+		workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID)
 
 		for dispatcherId, workerIds := range dispatcherIdWorkerIds {
 			for _, workerId := range workerIds {
@@ -389,7 +389,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 		assignedMsgs := make([]*msgqueue.Message, 0)
 
 		for _, bulkAssigned := range res.Assigned {
-			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId.String()]
+			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
 
 			if !ok {
 				s.l.Error().Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
@@ -400,10 +400,10 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			}
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[string][]int64)
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[uuid.UUID][]int64)
 			}
 
-			workerId := bulkAssigned.WorkerId.String()
+			workerId := bulkAssigned.WorkerId
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
@@ -510,8 +510,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				tenantId,
 				schedulingTimedOut.TaskID,
 				schedulingTimedOut.TaskInsertedAt,
-				schedulingTimedOut.ExternalID.String(),
-				schedulingTimedOut.WorkflowRunID.String(),
+				schedulingTimedOut.ExternalID,
+				schedulingTimedOut.WorkflowRunID,
 				schedulingTimedOut.RetryCount,
 				sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
 				"",
@@ -586,8 +586,8 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assig
 			tenantId,
 			a.QueueItem.TaskID,
 			a.QueueItem.TaskInsertedAt,
-			a.QueueItem.ExternalID.String(),
-			a.QueueItem.WorkflowRunID.String(),
+			a.QueueItem.ExternalID,
+			a.QueueItem.WorkflowRunID,
 			a.QueueItem.RetryCount,
 			false,
 			"could not assign step run to worker",
@@ -684,7 +684,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 	}
 }
 
-func taskBulkAssignedTask(tenantId uuid.UUID, workerIdsToTaskIds map[string][]int64) (*msgqueue.Message, error) {
+func taskBulkAssignedTask(tenantId uuid.UUID, workerIdsToTaskIds map[uuid.UUID][]int64) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDTaskAssignedBulk,
@@ -748,8 +748,8 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 			tenantId,
 			task.ID,
 			task.InsertedAt,
-			task.ExternalID.String(),
-			task.WorkflowRunID.String(),
+			task.ExternalID,
+			task.WorkflowRunID,
 			task.RetryCount,
 			false,
 			"Could not send task to worker",
@@ -777,7 +777,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	payloads := msgqueue.JSONConvert[tasktypes.SignalTaskCancelledPayload](msg.Payloads)
 
 	// try to resend the cancellation signal to the impacted worker.
-	workerIds := make([]string, 0)
+	workerIds := make([]uuid.UUID, 0)
 
 	for _, p := range payloads {
 		s.l.Error().Msgf("handling dead-lettered task cancellations for tenant %s, task %d. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, p.TaskId)
@@ -791,7 +791,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
 	}
 
-	workerIdToDispatcherId := make(map[string]string)
+	workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID)
 
 	for dispatcherId, workerIds := range dispatcherIdWorkerIds {
 		for _, workerId := range workerIds {
@@ -799,7 +799,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 		}
 	}
 
-	dispatcherIdsToPayloads := make(map[string][]tasktypes.SignalTaskCancelledPayload)
+	dispatcherIdsToPayloads := make(map[uuid.UUID][]tasktypes.SignalTaskCancelledPayload)
 
 	for _, p := range payloads {
 		// if we no longer have the worker attached to a dispatcher, discard the message

@@ -26,8 +26,14 @@ func (t *V1FiltersService) V1FilterCreate(ctx echo.Context, request gen.V1Filter
 		payload = marshalledPayload
 	}
 
+	workflowId, err := uuid.Parse(request.Body.WorkflowId.String())
+
+	if err != nil {
+		return gen.V1FilterCreate400JSONResponse(apierrors.NewAPIErrors("workflow id is not a valid uuid")), nil
+	}
+
 	params := v1.CreateFilterOpts{
-		Workflowid:    uuid.MustParse(request.Body.WorkflowId.String()),
+		Workflowid:    workflowId,
 		Scope:         request.Body.Scope,
 		Expression:    request.Body.Expression,
 		Payload:       payload,

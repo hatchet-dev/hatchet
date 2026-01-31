@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func getChildSignalEventKey(parentExternalId string, stepIndex, childIndex int64, childKeyArg *string) string {
+func getChildSignalEventKey(parentExternalId uuid.UUID, stepIndex, childIndex int64, childKeyArg *string) string {
 	childKey := fmt.Sprintf("%d", childIndex)
 
 	if childKeyArg != nil {
@@ -25,7 +25,7 @@ func getChildSignalEventKey(parentExternalId string, stepIndex, childIndex int64
 type WorkflowNameTriggerOpts struct {
 	*TriggerTaskData
 
-	ExternalId string
+	ExternalId uuid.UUID
 
 	// (optional) The idempotency key to use for debouncing this task
 	IdempotencyKey *IdempotencyKey
@@ -44,10 +44,10 @@ func (g *WorkflowNameTriggerOpts) childSpawnKey() string {
 
 type ChildWorkflowSignalCreatedData struct {
 	// The external id of the target child task
-	ChildExternalId string `json:"external_id"`
+	ChildExternalId uuid.UUID `json:"external_id"`
 
 	// The external id of the parent task
-	ParentExternalId string `json:"parent_external_id"`
+	ParentExternalId uuid.UUID `json:"parent_external_id"`
 
 	// The index of the child task
 	ChildIndex int64 `json:"child_index"`
@@ -56,7 +56,7 @@ type ChildWorkflowSignalCreatedData struct {
 	ChildKey *string `json:"child_key"`
 }
 
-func newChildWorkflowSignalCreatedData(childExternalId string, opt *WorkflowNameTriggerOpts) *ChildWorkflowSignalCreatedData {
+func newChildWorkflowSignalCreatedData(childExternalId uuid.UUID, opt *WorkflowNameTriggerOpts) *ChildWorkflowSignalCreatedData {
 	return &ChildWorkflowSignalCreatedData{
 		ChildExternalId:  childExternalId,
 		ParentExternalId: *opt.ParentExternalId,
@@ -94,7 +94,7 @@ func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, t
 		if opt.ParentExternalId != nil && opt.ChildIndex != nil {
 			optsWithParents = append(optsWithParents, opt)
 		} else {
-			opt.ExternalId = uuid.NewString()
+			opt.ExternalId = uuid.New()
 		}
 	}
 
@@ -122,7 +122,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	spawnKeyToOpt := make(map[string]*WorkflowNameTriggerOpts)
 
 	for i, opt := range opts {
-		externalIds = append(externalIds, uuid.MustParse(*opt.ParentExternalId))
+		externalIds = append(externalIds, *opt.ParentExternalId)
 
 		spawnKeyToOpt[opt.childSpawnKey()] = opts[i] // we don't want a copy here, we want the actual pointer as we modify in-place
 	}
@@ -136,10 +136,10 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		return err
 	}
 
-	externalIdToLookupRow := make(map[string]*sqlcv1.V1LookupTable)
+	externalIdToLookupRow := make(map[uuid.UUID]*sqlcv1.V1LookupTable)
 
 	for _, task := range gotTasks {
-		externalIdToLookupRow[task.ExternalID.String()] = task
+		externalIdToLookupRow[task.ExternalID] = task
 	}
 
 	eventTaskIds := make([]int64, 0, len(gotTasks))
@@ -228,7 +228,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			continue
 		}
 
-		generatedId := uuid.NewString()
+		generatedId := uuid.New()
 		opt.ExternalId = generatedId
 
 		data := newChildWorkflowSignalCreatedData(generatedId, opt)

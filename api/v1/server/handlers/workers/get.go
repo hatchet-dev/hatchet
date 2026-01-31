@@ -3,6 +3,7 @@ package workers
 import (
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -20,7 +21,7 @@ func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequest
 func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
 	workerV0 := ctx.Get("worker").(*sqlcv1.GetWorkerByIdRow)
 
-	worker, err := t.config.V1.Workers().GetWorkerById(workerV0.Worker.ID.String())
+	worker, err := t.config.V1.Workers().GetWorkerById(workerV0.Worker.ID)
 
 	if err != nil {
 		return nil, err
@@ -28,7 +29,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 
 	slotState, err := t.config.V1.Workers().ListWorkerState(
 		worker.Worker.TenantId,
-		worker.Worker.ID.String(),
+		worker.Worker.ID,
 		int(worker.Worker.MaxRuns),
 	)
 
@@ -38,14 +39,14 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 
 	workerIdToActions, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
 		worker.Worker.TenantId,
-		[]string{worker.Worker.ID.String()},
+		[]uuid.UUID{worker.Worker.ID},
 	)
 
 	if err != nil {
 		return nil, err
 	}
 
-	workerWorkflows, err := t.config.V1.Workers().GetWorkerWorkflowsByWorkerId(tenant.ID, worker.Worker.ID.String())
+	workerWorkflows, err := t.config.V1.Workers().GetWorkerWorkflowsByWorkerId(tenant.ID, worker.Worker.ID)
 
 	if err != nil {
 		return nil, err
@@ -67,7 +68,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 
 	affinity, err := t.config.V1.Workers().ListWorkerLabels(
 		worker.Worker.TenantId,
-		worker.Worker.ID.String(),
+		worker.Worker.ID,
 	)
 
 	if err != nil {

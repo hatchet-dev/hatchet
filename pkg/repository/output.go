@@ -12,13 +12,13 @@ type TaskOutputEvent struct {
 
 	EventType sqlcv1.V1TaskEventType `json:"event_type"`
 
-	TaskExternalId string `json:"task_external_id"`
+	TaskExternalId uuid.UUID `json:"task_external_id"`
 
 	TaskId int64 `json:"task_id"`
 
 	RetryCount int32 `json:"retry_count"`
 
-	WorkerId *string `json:"worker_id"`
+	WorkerId *uuid.UUID `json:"worker_id"`
 
 	Output []byte `json:"output"`
 
@@ -51,8 +51,7 @@ func NewSkippedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
 
 	if task.DesiredWorkerID != nil {
-		workerId := task.DesiredWorkerID.String()
-		e.WorkerId = &workerId
+		e.WorkerId = task.DesiredWorkerID
 	}
 
 	return e
@@ -65,8 +64,7 @@ func NewFailedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent 
 	e.EventType = sqlcv1.V1TaskEventTypeFAILED
 
 	if task.DesiredWorkerID != nil {
-		workerId := task.DesiredWorkerID.String()
-		e.WorkerId = &workerId
+		e.WorkerId = task.DesiredWorkerID
 	}
 
 	return e
@@ -80,7 +78,7 @@ func NewCancelledTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEve
 
 func baseFromTasksRow(task *V1TaskWithPayload) *TaskOutputEvent {
 	return &TaskOutputEvent{
-		TaskExternalId: task.ExternalID.String(),
+		TaskExternalId: task.ExternalID,
 		TaskId:         task.ID,
 		RetryCount:     task.RetryCount,
 		StepReadableID: task.StepReadableID,
@@ -93,8 +91,7 @@ func NewCompletedTaskOutputEvent(row *sqlcv1.ReleaseTasksRow, output []byte) *Ta
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
 
 	if row.WorkerID != uuid.Nil {
-		workerId := row.WorkerID.String()
-		e.WorkerId = &workerId
+		e.WorkerId = &row.WorkerID
 	}
 
 	return e
@@ -116,7 +113,7 @@ func NewCancelledTaskOutputEvent(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 
 func baseFromReleaseTasksRow(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 	return &TaskOutputEvent{
-		TaskExternalId: row.ExternalID.String(),
+		TaskExternalId: row.ExternalID,
 		TaskId:         row.ID,
 		RetryCount:     row.RetryCount,
 		StepReadableID: row.StepReadableID,

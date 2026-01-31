@@ -14,8 +14,8 @@ type PostAssignInput struct {
 }
 
 type SnapshotInput struct {
-	Workers               map[string]*WorkerCp
-	WorkerSlotUtilization map[string]*SlotUtilization
+	Workers               map[uuid.UUID]*WorkerCp
+	WorkerSlotUtilization map[uuid.UUID]*SlotUtilization
 }
 
 type SlotUtilization struct {
@@ -24,14 +24,14 @@ type SlotUtilization struct {
 }
 
 type WorkerCp struct {
-	WorkerId string
+	WorkerId uuid.UUID
 	MaxRuns  int
 	Labels   []*sqlcv1.ListManyWorkerLabelsRow
 	Name     string
 }
 
 type SlotCp struct {
-	WorkerId string
+	WorkerId uuid.UUID
 	Used     bool
 }
 

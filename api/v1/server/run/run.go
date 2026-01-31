@@ -325,7 +325,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflow, err := config.V1.Workflows().GetWorkflowById(context.Background(), id)
+		workflow, err := config.V1.Workflows().GetWorkflowById(context.Background(), uuid.MustParse(id))
 
 		if err != nil {
 			return nil, "", err
@@ -376,7 +376,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		v1Event, err := t.config.V1.OLAP().GetEvent(timeoutCtx, id)
+		v1Event, err := t.config.V1.OLAP().GetEvent(timeoutCtx, uuid.MustParse(id))
 
 		if err != nil {
 			return nil, "", err
@@ -424,7 +424,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("worker", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		worker, err := config.V1.Workers().GetWorkerById(id)
+		worker, err := config.V1.Workers().GetWorkerById(uuid.MustParse(id))
 
 		if err != nil {
 			return nil, "", err
@@ -448,7 +448,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid task id")
 		}
 
-		task, err := config.V1.OLAP().ReadTaskRun(ctx, taskID.String())
+		task, err := config.V1.OLAP().ReadTaskRun(ctx, taskID)
 
 		if err != nil {
 			return nil, "", err

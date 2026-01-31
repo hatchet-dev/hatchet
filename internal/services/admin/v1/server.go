@@ -25,7 +25,15 @@ import (
 func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.CancelTasksRequest) (*contracts.CancelTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
-	externalIds := req.ExternalIds
+	externalIds := make([]uuid.UUID, 0)
+
+	for _, idStr := range req.ExternalIds {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid external id")
+		}
+		externalIds = append(externalIds, id)
+	}
 
 	if len(externalIds) != 0 && req.Filter != nil {
 		return nil, status.Error(codes.InvalidArgument, "cannot provide both external ids and filter")
@@ -57,7 +65,12 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 
 		if len(req.Filter.WorkflowIds) > 0 {
 			for _, id := range req.Filter.WorkflowIds {
-				workflowIds = append(workflowIds, uuid.MustParse(id))
+				parsedId, err := uuid.Parse(id)
+				if err != nil {
+					return nil, status.Error(codes.InvalidArgument, "invalid workflow id")
+				}
+
+				workflowIds = append(workflowIds, parsedId)
 			}
 		}
 
@@ -97,10 +110,10 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 			return nil, err
 		}
 
-		runExternalIds := make([]string, len(runs))
+		runExternalIds := make([]uuid.UUID, len(runs))
 
 		for i, run := range runs {
-			runExternalIds[i] = run.ExternalID.String()
+			runExternalIds[i] = run.ExternalID
 		}
 
 		externalIds = append(externalIds, runExternalIds...)
@@ -145,15 +158,28 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 		return nil, err
 	}
 
+	externalIdsToReturn := make([]string, len(externalIds))
+	for i, id := range externalIds {
+		externalIdsToReturn[i] = id.String()
+	}
+
 	return &contracts.CancelTasksResponse{
-		CancelledTasks: externalIds,
+		CancelledTasks: externalIdsToReturn,
 	}, nil
 }
 
 func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.ReplayTasksRequest) (*contracts.ReplayTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
-	externalIds := req.ExternalIds
+	externalIds := make([]uuid.UUID, 0)
+	for _, idStr := range req.ExternalIds {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid external id")
+		}
+
+		externalIds = append(externalIds, id)
+	}
 
 	if len(externalIds) != 0 && req.Filter != nil {
 		return nil, status.Error(codes.InvalidArgument, "cannot provide both external ids and filter")
@@ -185,7 +211,11 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 		if len(req.Filter.WorkflowIds) > 0 {
 			for _, id := range req.Filter.WorkflowIds {
-				workflowIds = append(workflowIds, uuid.MustParse(id))
+				parsedId, err := uuid.Parse(id)
+				if err != nil {
+					return nil, status.Error(codes.InvalidArgument, "invalid workflow id")
+				}
+				workflowIds = append(workflowIds, parsedId)
 			}
 		}
 
@@ -225,10 +255,10 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			return nil, err
 		}
 
-		runExternalIds := make([]string, len(runs))
+		runExternalIds := make([]uuid.UUID, len(runs))
 
 		for i, run := range runs {
-			runExternalIds[i] = run.ExternalID.String()
+			runExternalIds[i] = run.ExternalID
 		}
 
 		externalIds = append(externalIds, runExternalIds...)
@@ -384,7 +414,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}
 
 	return &contracts.TriggerWorkflowRunResponse{
-		ExternalId: opt.ExternalId,
+		ExternalId: opt.ExternalId.String(),
 	}, nil
 }
 
@@ -398,7 +428,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		return nil, status.Error(codes.InvalidArgument, "invalid external id")
 	}
 
-	details, err := a.repo.Tasks().GetWorkflowRunResultDetails(ctx, tenantId, externalId.String())
+	details, err := a.repo.Tasks().GetWorkflowRunResultDetails(ctx, tenantId, externalId)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get workflow run result details: %w", err)
@@ -426,7 +456,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 			Error:      details.Error,
 			Output:     details.OutputPayload,
 			ReadableId: string(readableId),
-			ExternalId: details.ExternalId,
+			ExternalId: details.ExternalId.String(),
 		}
 	}
 
@@ -555,11 +585,10 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		return nil, err
 	}
 
-	tenantIdString := tenantId.String()
 	a.analytics.Enqueue(
 		"workflow:create",
 		"grpc",
-		&tenantIdString,
+		&tenantId,
 		nil,
 		map[string]interface{}{
 			"workflow_id": currWorkflow.WorkflowVersion.WorkflowId.String(),
@@ -837,13 +866,18 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 						continue
 					}
 
+					orGroupId, err := uuid.Parse(userEventCondition.Base.OrGroupId)
+					if err != nil {
+						return nil, fmt.Errorf("invalid OrGroupId in UserEventCondition for step %s: %w", stepCp.ReadableId, err)
+					}
+
 					eventKey := userEventCondition.UserEventKey
 
 					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
 						MatchConditionKind: "USER_EVENT",
 						ReadableDataKey:    userEventCondition.Base.ReadableDataKey,
 						Action:             userEventCondition.Base.Action.String(),
-						OrGroupId:          userEventCondition.Base.OrGroupId,
+						OrGroupId:          orGroupId,
 						Expression:         userEventCondition.Base.Expression,
 						EventKey:           &eventKey,
 					})
@@ -859,12 +893,16 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					}
 
 					duration := sleepCondition.SleepFor
+					orGroupId, err := uuid.Parse(sleepCondition.Base.OrGroupId)
+					if err != nil {
+						return nil, fmt.Errorf("invalid OrGroupId in SleepCondition for step %s: %w", stepCp.ReadableId, err)
+					}
 
 					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
 						MatchConditionKind: "SLEEP",
 						ReadableDataKey:    sleepCondition.Base.ReadableDataKey,
 						Action:             sleepCondition.Base.Action.String(),
-						OrGroupId:          sleepCondition.Base.OrGroupId,
+						OrGroupId:          orGroupId,
 						SleepDuration:      &duration,
 					})
 				}
@@ -879,13 +917,18 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					}
 
 					parentReadableId := parentOverrideCondition.ParentReadableId
+					orGroupId, err := uuid.Parse(parentOverrideCondition.Base.OrGroupId)
+
+					if err != nil {
+						return nil, fmt.Errorf("invalid OrGroupId in ParentOverrideCondition for step %s: %w", stepCp.ReadableId, err)
+					}
 
 					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
 						MatchConditionKind: "PARENT_OVERRIDE",
 						ReadableDataKey:    parentReadableId,
 						Action:             parentOverrideCondition.Base.Action.String(),
 						Expression:         parentOverrideCondition.Base.Expression,
-						OrGroupId:          parentOverrideCondition.Base.OrGroupId,
+						OrGroupId:          orGroupId,
 						ParentReadableId:   &parentReadableId,
 					})
 				}

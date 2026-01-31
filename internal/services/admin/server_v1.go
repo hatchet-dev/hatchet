@@ -93,7 +93,7 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	grpcmiddleware.TriggerCallback(ctx)
 
 	return &contracts.TriggerWorkflowResponse{
-		WorkflowRunId: opt.ExternalId,
+		WorkflowRunId: opt.ExternalId.String(),
 	}, nil
 }
 
@@ -140,7 +140,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	runIds := make([]string, len(req.Workflows))
 
 	for i, opt := range opts {
-		runIds[i] = opt.ExternalId
+		runIds[i] = opt.ExternalId.String()
 	}
 
 	for i, runId := range runIds {
@@ -182,11 +182,20 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		additionalMeta = *req.AdditionalMetadata
 	}
 
+	var desiredWorkerId *uuid.UUID
+	if req.DesiredWorkerId != nil {
+		workerId, err := uuid.Parse(*req.DesiredWorkerId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "desiredWorkerId must be a valid UUID: %s", err)
+		}
+		desiredWorkerId = &workerId
+	}
+
 	t := &v1.TriggerTaskData{
 		WorkflowName:       req.Name,
 		Data:               []byte(req.Input),
 		AdditionalMetadata: []byte(additionalMeta),
-		DesiredWorkerId:    req.DesiredWorkerId,
+		DesiredWorkerId:    desiredWorkerId,
 		Priority:           req.Priority,
 	}
 
@@ -198,11 +207,17 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	}
 
 	if req.ParentStepRunId != nil {
+		parentStepRunId, err := uuid.Parse(*req.ParentStepRunId)
+
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "parentStepRunId must be a valid UUID: %s", err)
+		}
+
 		// lookup the parent external id
 		parentTask, err := i.repov1.Tasks().GetTaskByExternalId(
 			ctx,
 			tenantId,
-			uuid.MustParse(*req.ParentStepRunId),
+			parentStepRunId,
 			false,
 		)
 
@@ -210,7 +225,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 			return nil, fmt.Errorf("could not find parent task: %w", err)
 		}
 
-		parentExternalId := parentTask.ExternalID.String()
+		parentExternalId := parentTask.ExternalID
 		childIndex := int64(*req.ChildIndex)
 
 		t.ParentExternalId = &parentExternalId

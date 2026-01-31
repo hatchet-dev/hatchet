@@ -63,12 +63,10 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 		return nil, err
 	}
 
-	tenantId := invite.TenantId.String()
-
 	u.config.Analytics.Enqueue(
 		"user-invite:reject",
 		userId,
-		&tenantId,
+		&invite.TenantId,
 		nil,
 		map[string]interface{}{
 			"user_id":   userId,

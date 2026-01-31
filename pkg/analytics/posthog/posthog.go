@@ -37,7 +37,7 @@ func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) 
 	}, nil
 }
 
-func (p *PosthogAnalytics) Enqueue(event string, userId string, tenantId *string, set map[string]interface{}, metadata map[string]interface{}) {
+func (p *PosthogAnalytics) Enqueue(event string, userId string, tenantId *uuid.UUID, set map[string]interface{}, metadata map[string]interface{}) {
 
 	var group posthog.Groups
 

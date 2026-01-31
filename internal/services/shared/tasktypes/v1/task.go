@@ -27,10 +27,10 @@ type CompletedTaskPayload struct {
 	InsertedAt pgtype.Timestamptz
 
 	// (required) the task external id
-	ExternalId string
+	ExternalId uuid.UUID
 
 	// (required) the workflow run id
-	WorkflowRunId string
+	WorkflowRunId uuid.UUID
 
 	// (required) the retry count
 	RetryCount int32
@@ -43,8 +43,8 @@ func CompletedTaskMessage(
 	tenantId uuid.UUID,
 	taskId int64,
 	taskInsertedAt pgtype.Timestamptz,
-	taskExternalId string,
-	workflowRunId string,
+	taskExternalId uuid.UUID,
+	workflowRunId uuid.UUID,
 	retryCount int32,
 	output []byte,
 ) (*msgqueue.Message, error) {
@@ -72,10 +72,10 @@ type FailedTaskPayload struct {
 	InsertedAt pgtype.Timestamptz
 
 	// (required) the task external id
-	ExternalId string
+	ExternalId uuid.UUID
 
 	// (required) the workflow run id
-	WorkflowRunId string
+	WorkflowRunId uuid.UUID
 
 	// (required) the retry count
 	RetryCount int32
@@ -94,8 +94,8 @@ func FailedTaskMessage(
 	tenantId uuid.UUID,
 	taskId int64,
 	taskInsertedAt pgtype.Timestamptz,
-	taskExternalId string,
-	workflowRunId string,
+	taskExternalId uuid.UUID,
+	workflowRunId uuid.UUID,
 	retryCount int32,
 	isAppError bool,
 	errorMsg string,
@@ -127,10 +127,10 @@ type CancelledTaskPayload struct {
 	InsertedAt pgtype.Timestamptz
 
 	// (required) the task external id
-	ExternalId string
+	ExternalId uuid.UUID
 
 	// (required) the workflow run id
-	WorkflowRunId string
+	WorkflowRunId uuid.UUID
 
 	// (required) the retry count
 	RetryCount int32
@@ -149,8 +149,8 @@ func CancelledTaskMessage(
 	tenantId uuid.UUID,
 	taskId int64,
 	taskInsertedAt pgtype.Timestamptz,
-	taskExternalId string,
-	workflowRunId string,
+	taskExternalId uuid.UUID,
+	workflowRunId uuid.UUID,
 	retryCount int32,
 	eventType sqlcv1.V1EventTypeOlap,
 	eventMessage string,
@@ -176,7 +176,7 @@ func CancelledTaskMessage(
 
 type SignalTaskCancelledPayload struct {
 	// (required) the worker id
-	WorkerId string `validate:"required,uuid"`
+	WorkerId uuid.UUID `validate:"required"`
 
 	// (required) the task id
 	TaskId int64 `validate:"required"`
@@ -204,7 +204,7 @@ type ReplayTasksPayload struct {
 
 type NotifyFinalizedPayload struct {
 	// (required) the external id (can either be a workflow run id or single task)
-	ExternalId string `validate:"required"`
+	ExternalId uuid.UUID `validate:"required"`
 
 	// (required) the status of the task
 	Status sqlcv1.V1ReadableStatusOlap
@@ -212,5 +212,5 @@ type NotifyFinalizedPayload struct {
 
 type CandidateFinalizedPayload struct {
 	// (required) the workflow run id (can either be a workflow run id or single task)
-	WorkflowRunId string `validate:"required"`
+	WorkflowRunId uuid.UUID `validate:"required"`
 }

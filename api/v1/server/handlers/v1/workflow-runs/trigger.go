@@ -92,10 +92,16 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	var rawWorkflowRun *v1.V1WorkflowRunPopulator
 	retries := 0
 
+	externalId, err := uuid.Parse(resp.ExternalId)
+
+	if err != nil {
+		return nil, fmt.Errorf("invalid external id returned from trigger workflow run: %w", err)
+	}
+
 	for retries < 10 {
 		rawWorkflowRun, err = t.config.V1.OLAP().ReadWorkflowRun(
 			ctx.Request().Context(),
-			uuid.MustParse(resp.ExternalId),
+			externalId,
 		)
 
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {

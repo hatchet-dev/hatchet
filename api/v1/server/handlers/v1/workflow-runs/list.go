@@ -86,14 +86,11 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	if request.Params.ParentTaskExternalId != nil {
-		parentTaskExternalId := request.Params.ParentTaskExternalId.String()
-		id := uuid.MustParse(parentTaskExternalId)
-		opts.ParentTaskExternalId = &id
+		opts.ParentTaskExternalId = request.Params.ParentTaskExternalId
 	}
 
 	if request.Params.TriggeringEventExternalId != nil {
-		id := uuid.MustParse(request.Params.TriggeringEventExternalId.String())
-		opts.TriggeringEventExternalId = &id
+		opts.TriggeringEventExternalId = request.Params.TriggeringEventExternalId
 	}
 
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(

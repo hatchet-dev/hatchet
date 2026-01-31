@@ -43,7 +43,7 @@ type DispatcherImpl struct {
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 
-	dispatcherId string
+	dispatcherId uuid.UUID
 	workers      *workers
 	a            *hatcheterrors.Wrapped
 }
@@ -58,13 +58,13 @@ func (w *workers) Range(f func(key, value interface{}) bool) {
 	w.innerMap.Range(f)
 }
 
-func (w *workers) Add(workerId, sessionId string, worker *subscribedWorker) {
+func (w *workers) Add(workerId uuid.UUID, sessionId string, worker *subscribedWorker) {
 	actual, _ := w.innerMap.LoadOrStore(workerId, &sync.Map{})
 
 	actual.(*sync.Map).Store(sessionId, worker)
 }
 
-func (w *workers) GetForSession(workerId, sessionId string) (*subscribedWorker, error) {
+func (w *workers) GetForSession(workerId uuid.UUID, sessionId string) (*subscribedWorker, error) {
 	actual, ok := w.innerMap.Load(workerId)
 	if !ok {
 		return nil, ErrWorkerNotFound
@@ -78,7 +78,7 @@ func (w *workers) GetForSession(workerId, sessionId string) (*subscribedWorker, 
 	return worker.(*subscribedWorker), nil
 }
 
-func (w *workers) Get(workerId string) ([]*subscribedWorker, error) {
+func (w *workers) Get(workerId uuid.UUID) ([]*subscribedWorker, error) {
 	actual, ok := w.innerMap.Load(workerId)
 
 	if !ok {
@@ -95,7 +95,7 @@ func (w *workers) Get(workerId string) ([]*subscribedWorker, error) {
 	return workers, nil
 }
 
-func (w *workers) DeleteForSession(workerId, sessionId string) {
+func (w *workers) DeleteForSession(workerId uuid.UUID, sessionId string) {
 	actual, ok := w.innerMap.Load(workerId)
 
 	if !ok {
@@ -105,7 +105,7 @@ func (w *workers) DeleteForSession(workerId, sessionId string) {
 	actual.(*sync.Map).Delete(sessionId)
 }
 
-func (w *workers) Delete(workerId string) {
+func (w *workers) Delete(workerId uuid.UUID) {
 	w.innerMap.Delete(workerId)
 }
 
@@ -116,7 +116,7 @@ type DispatcherOpts struct {
 	l                           *zerolog.Logger
 	dv                          datautils.DataDecoderValidator
 	repov1                      v1.Repository
-	dispatcherId                string
+	dispatcherId                uuid.UUID
 	alerter                     hatcheterrors.Alerter
 	cache                       cache.Cacheable
 	payloadSizeThreshold        int
@@ -130,7 +130,7 @@ func defaultDispatcherOpts() *DispatcherOpts {
 	return &DispatcherOpts{
 		l:                           &logger,
 		dv:                          datautils.NewDataDecoderValidator(),
-		dispatcherId:                uuid.New().String(),
+		dispatcherId:                uuid.New(),
 		alerter:                     alerter,
 		payloadSizeThreshold:        3 * 1024 * 1024,
 		defaultMaxWorkerBacklogSize: 20,
@@ -167,7 +167,7 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) DispatcherOpt {
 	}
 }
 
-func WithDispatcherId(dispatcherId string) DispatcherOpt {
+func WithDispatcherId(dispatcherId uuid.UUID) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.dispatcherId = dispatcherId
 	}
@@ -274,7 +274,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	wg := sync.WaitGroup{}
 
 	// subscribe to a task queue with the dispatcher id
-	dispatcherId := dispatcher.ID.String()
+	dispatcherId := dispatcher.ID
 
 	fv1 := func(task *msgqueue.Message) error {
 		wg.Add(1)

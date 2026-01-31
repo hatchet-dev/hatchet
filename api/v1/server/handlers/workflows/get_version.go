@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
@@ -18,14 +19,14 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 	tenantId := tenant.ID
 	workflow := ctx.Get("workflow").(*sqlcv1.GetWorkflowByIdRow)
 
-	var workflowVersionId string
+	var workflowVersionId uuid.UUID
 
 	if request.Params.Version != nil {
-		workflowVersionId = request.Params.Version.String()
+		workflowVersionId = *request.Params.Version
 	} else {
 		row, err := t.config.V1.Workflows().GetWorkflowById(
 			ctx.Request().Context(),
-			workflow.Workflow.ID.String(),
+			workflow.Workflow.ID,
 		)
 
 		if err != nil {
@@ -39,7 +40,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 
 		}
 
-		workflowVersionId = row.WorkflowVersionId.String()
+		workflowVersionId = *row.WorkflowVersionId
 	}
 
 	row, crons, events, scheduleT, stepConcurrency, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), tenantId, workflowVersionId)

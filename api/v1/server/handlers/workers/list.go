@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -100,13 +101,13 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		telemetry.AttributeKV{Key: "workers.count", Value: len(workers)},
 	)
 
-	workerIdSet := make(map[string]struct{})
+	workerIdSet := make(map[uuid.UUID]struct{})
 
 	for _, worker := range workers {
-		workerIdSet[worker.Worker.ID.String()] = struct{}{}
+		workerIdSet[worker.Worker.ID] = struct{}{}
 	}
 
-	workerIds := make([]string, 0, len(workerIdSet))
+	workerIds := make([]uuid.UUID, 0, len(workerIdSet))
 	for workerId := range workerIdSet {
 		workerIds = append(workerIds, workerId)
 	}

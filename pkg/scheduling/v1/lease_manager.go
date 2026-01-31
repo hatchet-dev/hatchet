@@ -125,7 +125,7 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 
 	for i, activeWorker := range activeWorkers {
 		aw := activeWorker
-		workerIdsStr[i] = activeWorker.ID
+		workerIdsStr[i] = activeWorker.ID.String()
 		activeWorkerIdsToResults[workerIdsStr[i]] = aw
 
 		if lease, ok := currResourceIdsToLease[workerIdsStr[i]]; ok {

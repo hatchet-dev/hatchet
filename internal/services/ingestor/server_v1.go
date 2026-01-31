@@ -19,8 +19,14 @@ import (
 func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
 	tenantId := tenant.ID
 
+	stepRunId, err := uuid.Parse(req.StepRunId)
+
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "step run id is not a valid uuid")
+	}
+
 	// get single task
-	task, err := i.getSingleTask(ctx, tenantId, uuid.MustParse(req.StepRunId), false)
+	task, err := i.getSingleTask(ctx, tenantId, stepRunId, false)
 
 	if err != nil {
 		return nil, err
@@ -32,8 +38,8 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 		true,
 		false,
 		tasktypes.StreamEventPayload{
-			WorkflowRunId: task.WorkflowRunID.String(),
-			StepRunId:     req.StepRunId,
+			WorkflowRunId: task.WorkflowRunID,
+			StepRunId:     stepRunId,
 			CreatedAt:     req.CreatedAt.AsTime(),
 			Payload:       req.Message,
 			EventIndex:    req.EventIndex,
@@ -61,12 +67,17 @@ func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternal
 
 func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenantId := tenant.ID
+	stepRunId, err := uuid.Parse(req.StepRunId)
+
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "step run id is not a valid uuid")
+	}
 
 	if !i.isLogIngestionEnabled {
 		return &contracts.PutLogResponse{}, nil
 	}
 
-	task, err := i.getSingleTask(ctx, tenantId, uuid.MustParse(req.StepRunId), false)
+	task, err := i.getSingleTask(ctx, tenantId, stepRunId, false)
 
 	if err != nil {
 		return nil, err
@@ -103,7 +114,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 	}
 
 	opts := &v1.CreateLogLineOpts{
-		TaskExternalId: task.ExternalID.String(),
+		TaskExternalId: task.ExternalID,
 		TaskId:         task.ID,
 		TaskInsertedAt: task.InsertedAt,
 		CreatedAt:      createdAt,

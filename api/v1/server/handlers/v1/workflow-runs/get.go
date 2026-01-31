@@ -72,17 +72,15 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		stepIdToTaskExternalId[task.StepID] = task.ExternalID
 	}
 
-	workflowVersionId := uuid.MustParse(workflowRun.WorkflowVersionId.String())
-
 	shape, err := t.config.V1.Workflows().GetWorkflowShape(
-		ctx, workflowVersionId,
+		ctx, workflowRun.WorkflowVersionId,
 	)
 
 	if err != nil {
 		return nil, err
 	}
 
-	workflowVersion, _, _, _, _, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx, tenantId, workflowRun.WorkflowVersionId.String())
+	workflowVersion, _, _, _, _, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx, tenantId, workflowRun.WorkflowVersionId)
 
 	if err != nil {
 		return nil, err

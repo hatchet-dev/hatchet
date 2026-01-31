@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
@@ -103,7 +102,7 @@ func NewRepository(
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
-	enforceLimitsFunc func(ctx context.Context, tenantId uuid.UUID) (bool, error),
+	enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error),
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 

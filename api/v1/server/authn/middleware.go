@@ -218,7 +218,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	// Verify that the tenant id which exists in the context is the same as the tenant id
 	// in the token.
-	if queriedTenant.ID.String() != tenantId {
+	if queriedTenant.ID != tenantId {
 		a.l.Debug().Msgf("tenant id in token does not match tenant id in context")
 
 		return forbidden

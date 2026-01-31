@@ -146,7 +146,7 @@ func ToTaskSummaryMany(
 
 func ToTaskRunEventMany(
 	events []*sqlcv1.ListTaskEventsRow,
-	taskExternalId string,
+	taskExternalId uuid.UUID,
 ) gen.V1TaskEventList {
 	toReturn := make([]gen.V1TaskEvent, len(events))
 
@@ -168,7 +168,7 @@ func ToTaskRunEventMany(
 			Message:      event.AdditionalEventMessage.String,
 			Timestamp:    event.EventTimestamp.Time,
 			WorkerId:     workerId,
-			TaskId:       uuid.MustParse(taskExternalId),
+			TaskId:       taskExternalId,
 			RetryCount:   &retryCount,
 			Attempt:      &attempt,
 		}

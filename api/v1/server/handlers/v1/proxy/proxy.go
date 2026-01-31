@@ -34,12 +34,18 @@ func (p *Proxy[in, out]) Do(ctx context.Context, tenant *sqlcv1.Tenant, input *i
 		return nil, err
 	}
 
+	tokenId, err := uuid.Parse(tok.TokenId)
+
+	if err != nil {
+		return nil, err
+	}
+
 	defer func() {
 		deleteCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		// delete the API token
-		err = p.config.V1.APIToken().DeleteAPIToken(deleteCtx, tenantId, uuid.MustParse(tok.TokenId))
+		err = p.config.V1.APIToken().DeleteAPIToken(deleteCtx, tenantId, tokenId)
 
 		if err != nil {
 			p.config.Logger.Error().Err(err).Msg("failed to delete API token")

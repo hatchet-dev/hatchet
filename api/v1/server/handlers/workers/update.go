@@ -28,7 +28,7 @@ func (t *WorkerService) WorkerUpdate(ctx echo.Context, request gen.WorkerUpdateR
 	updatedWorker, err := t.config.V1.Workers().UpdateWorker(
 		ctx.Request().Context(),
 		worker.Worker.TenantId,
-		worker.Worker.ID.String(),
+		worker.Worker.ID,
 		update,
 	)
 

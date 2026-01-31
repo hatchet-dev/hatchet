@@ -20,7 +20,7 @@ func (t *TasksService) V1TaskEventList(ctx echo.Context, request gen.V1TaskEvent
 		return nil, err
 	}
 
-	result := transformers.ToTaskRunEventMany(taskRunEvents, task.ExternalID.String())
+	result := transformers.ToTaskRunEventMany(taskRunEvents, task.ExternalID)
 
 	return gen.V1TaskEventList200JSONResponse(
 		result,
