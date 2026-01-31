@@ -8,6 +8,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/wneessen/go-mail"
 
@@ -68,52 +69,45 @@ func (s *SMTPService) IsValid() bool {
 }
 
 func (s *SMTPService) SendTenantInviteEmail(ctx context.Context, to string, data email.TenantInviteEmailData) error {
-	return s.SendTemplateEmail(ctx, to, email.UserInviteTemplate, data, false)
-}
-
-func (s *SMTPService) SendWorkflowRunFailedAlerts(ctx context.Context, emails []string, data email.WorkflowRunsFailedEmailData) error {
-	return s.SendTemplateEmailBCC(ctx, strings.Join(emails, ","), email.WorkflowRunsFailedTemplate, data, false)
-}
-
-func (s *SMTPService) SendExpiringTokenEmail(ctx context.Context, emails []string, data email.ExpiringTokenEmailData) error {
-	return s.SendTemplateEmailBCC(ctx, strings.Join(emails, ","), email.TokenAlertExpiringTemplate, data, false)
-}
-
-func (s *SMTPService) SendTenantResourceLimitAlert(ctx context.Context, emails []string, data email.ResourceLimitAlertData) error {
-	return s.SendTemplateEmailBCC(ctx, strings.Join(emails, ","), email.ResourceLimitAlertTemplate, data, true)
-}
-
-func (s *SMTPService) SendTemplateEmail(ctx context.Context, to, templateAlias string, templateModelData any, bccSupport bool) error {
-	var bcc string
-
-	if bccSupport {
-		bcc = s.supportEmail
-	}
-
 	return s.sendRequest(ctx, &email.SendEmailFromTemplateRequest{
 		From:          fmt.Sprintf("%s <%s>", s.fromName, s.fromEmail),
 		To:            to,
-		Bcc:           bcc,
-		TemplateAlias: templateAlias,
-		TemplateModel: templateModelData,
+		TemplateAlias: email.UserInviteTemplate,
+		TemplateModel: data,
 	})
 }
 
-func (s *SMTPService) SendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData any, bccSupport bool) error {
-	if bccSupport {
-		bcc = fmt.Sprintf("%s,%s", bcc, s.supportEmail)
-	}
-
+func (s *SMTPService) SendWorkflowRunFailedAlerts(ctx context.Context, emails []string, data email.WorkflowRunsFailedEmailData) error {
 	return s.sendRequest(ctx, &email.SendEmailFromTemplateRequest{
 		From:          fmt.Sprintf("%s <%s>", s.fromName, s.fromEmail),
-		To:            "",
-		Bcc:           bcc,
-		TemplateAlias: templateAlias,
-		TemplateModel: templateModelData,
+		Bcc:           strings.Join(emails, ","),
+		TemplateAlias: email.WorkflowRunsFailedTemplate,
+		TemplateModel: data,
+	})
+}
+
+func (s *SMTPService) SendExpiringTokenEmail(ctx context.Context, emails []string, data email.ExpiringTokenEmailData) error {
+	return s.sendRequest(ctx, &email.SendEmailFromTemplateRequest{
+		From:          fmt.Sprintf("%s <%s>", s.fromName, s.fromEmail),
+		Bcc:           strings.Join(emails, ","),
+		TemplateAlias: email.TokenAlertExpiringTemplate,
+		TemplateModel: data,
+	})
+}
+
+func (s *SMTPService) SendTenantResourceLimitAlert(ctx context.Context, emails []string, data email.ResourceLimitAlertData) error {
+	return s.sendRequest(ctx, &email.SendEmailFromTemplateRequest{
+		From:          fmt.Sprintf("%s <%s>", s.fromName, s.fromEmail),
+		Bcc:           strings.Join(append(emails, s.supportEmail), ","),
+		TemplateAlias: email.ResourceLimitAlertTemplate,
+		TemplateModel: data,
 	})
 }
 
 func (s *SMTPService) sendRequest(ctx context.Context, req *email.SendEmailFromTemplateRequest) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
 	msg := mail.NewMsg()
 
 	if req.From != "" {
