@@ -5,11 +5,13 @@ import { Callout } from "nextra/components";
 Configure email delivery for tenant invites and Hatchet alerts using any standard SMTP provider (Gmail, SendGrid, AWS SES, etc).
 
 ## Prerequisites
+
 - An SMTP provider that supports [PLAIN](https://datatracker.ietf.org/doc/html/rfc4616/) authentication with a username and password.
 
 ## Configuration
 
 Set the following environment variables:
+
 ```bash
 # Enable SMTP
 export SERVER_EMAIL_KIND=smtp
@@ -30,13 +32,15 @@ export SERVER_EMAIL_SMTP_FROM_NAME="Hatchet"                       # (Optional) 
 
 Common configuration values for major providers:
 
-| Provider | Server Address | Username | Password |
-| --- | --- | --- | --- |
-| **[Gmail](https://support.google.com/mail/answer/185833?hl=en)** | `smtp.gmail.com:587` | Your Email | [App Password](https://myaccount.google.com/apppasswords) |
-| **[SendGrid](https://docs.sendgrid.com/for-developers/sending-email/integrating-with-the-smtp-api)** | `smtp.sendgrid.net:587` | `apikey` | Your API Key |
-| **[AWS SES](https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html)** | `email-smtp.us-east-1.amazonaws.com:587` | IAM Username | IAM Secret |
-| **[Outlook](https://support.microsoft.com/en-us/office/pop-imap-and-smtp-settings-8361e398-8af4-4e97-b147-6c6c4ac95353)** | `smtp.office365.com:587` | Your Email | Your Password |
+| Provider                                                                                                                  | Server Address                           | Username     | Password                                                  |
+| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------------ | --------------------------------------------------------- |
+| **[Gmail](https://support.google.com/mail/answer/185833?hl=en)**                                                          | `smtp.gmail.com:587`                     | Your Email   | [App Password](https://myaccount.google.com/apppasswords) |
+| **[SendGrid](https://docs.sendgrid.com/for-developers/sending-email/integrating-with-the-smtp-api)**                      | `smtp.sendgrid.net:587`                  | `apikey`     | Your API Key                                              |
+| **[AWS SES](https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html)**                                             | `email-smtp.us-east-1.amazonaws.com:587` | IAM Username | IAM Secret                                                |
+| **[Outlook](https://support.microsoft.com/en-us/office/pop-imap-and-smtp-settings-8361e398-8af4-4e97-b147-6c6c4ac95353)** | `smtp.office365.com:587`                 | Your Email   | Your Password                                             |
 
 <Callout type="info">
-To request another provider or SMTP authentication protocol, open a feature request on [GitHub](https://github.com/hatchet-dev/hatchet/issues/new?template=feature_request.md).
+  To request another provider or SMTP authentication protocol, open a feature
+  request on
+  [GitHub](https://github.com/hatchet-dev/hatchet/issues/new?template=feature_request.md).
 </Callout>
