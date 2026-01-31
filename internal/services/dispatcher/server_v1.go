@@ -357,7 +357,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		return nil
 	}
 
-	iter := func(workflowRunIds []string) error {
+	iter := func(workflowRunIds []uuid.UUID) error {
 		if len(workflowRunIds) == 0 {
 			return nil
 		}
@@ -1121,7 +1121,7 @@ type listWorkflowRunsResult struct {
 	AdditionalMetadata map[string]interface{}
 }
 
-func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId uuid.UUID, workflowRunIds []string) ([]*listWorkflowRunsResult, error) {
+func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId uuid.UUID, workflowRunIds []uuid.UUID) ([]*listWorkflowRunsResult, error) {
 	// use cache heavily
 	res := make([]*listWorkflowRunsResult, 0)
 	workflowRunIdsToLookup := make([]string, 0)

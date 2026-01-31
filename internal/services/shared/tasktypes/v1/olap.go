@@ -92,7 +92,7 @@ type CreateMonitoringEventPayload struct {
 
 	RetryCount int32 `json:"retry_count"`
 
-	WorkerId *string `json:"worker_id,omitempty"`
+	WorkerId *uuid.UUID `json:"worker_id,omitempty"`
 
 	EventType sqlcv1.V1EventTypeOlap `json:"event_type"`
 
@@ -102,7 +102,7 @@ type CreateMonitoringEventPayload struct {
 }
 
 func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
-	var workerId *string
+	var workerId *uuid.UUID
 
 	if _, err := uuid.Parse(request.WorkerId); err == nil {
 		workerId = &request.WorkerId

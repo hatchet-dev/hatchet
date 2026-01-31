@@ -48,7 +48,7 @@ type GetActionListenerRequest struct {
 	Actions    []string
 	MaxRuns    *int
 	Labels     map[string]interface{}
-	WebhookId  *string
+	WebhookId  *uuid.UUID
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -115,13 +115,13 @@ type Action struct {
 	ChildKey *string
 
 	// the parent workflow run id
-	ParentWorkflowRunId *string
+	ParentWorkflowRunId *uuid.UUID
 
 	Priority int32 `json:"priority,omitempty"`
 
-	WorkflowId *string `json:"workflowId,omitempty"`
+	WorkflowId *uuid.UUID `json:"workflowId,omitempty"`
 
-	WorkflowVersionId *string `json:"workflowVersionId,omitempty"`
+	WorkflowVersionId *uuid.UUID `json:"workflowVersionId,omitempty"`
 }
 
 type WorkerActionListener interface {

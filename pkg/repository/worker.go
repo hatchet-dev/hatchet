@@ -112,7 +112,7 @@ type WorkerRepository interface {
 
 	DeleteOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error)
 
-	GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []string) (map[string][]string, error)
+	GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[string][]string, error)
 }
 
 type workerRepository struct {
@@ -254,7 +254,7 @@ func (w *workerRepository) CountActiveWorkersPerTenant() (map[uuid.UUID]int64, e
 	return tenantToWorkers, nil
 }
 
-func (w *workerRepository) GetWorkerActionsByWorkerId(tenantId uuid.UUID, workerIds []string) (map[string][]string, error) {
+func (w *workerRepository) GetWorkerActionsByWorkerId(tenantId uuid.UUID, workerIds []uuid.UUID) (map[string][]string, error) {
 	uuidWorkerIds := make([]uuid.UUID, len(workerIds))
 	for i, workerId := range workerIds {
 		uuidWorkerIds[i] = uuid.MustParse(workerId)
@@ -641,7 +641,7 @@ func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId uuid.U
 	return hasMore, nil
 }
 
-func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []string) (map[string][]string, error) {
+func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[string][]string, error) {
 	pgWorkerIds := make([]uuid.UUID, len(workerIds))
 
 	for i, workerId := range workerIds {

@@ -1036,7 +1036,7 @@ type StepRun struct {
 	TenantId            uuid.UUID               `json:"tenantId"`
 	TimeoutAt           *time.Time              `json:"timeoutAt,omitempty"`
 	TimeoutAtEpoch      *int                    `json:"timeoutAtEpoch,omitempty"`
-	WorkerId            *string                 `json:"workerId,omitempty"`
+	WorkerId            *uuid.UUID              `json:"workerId,omitempty"`
 }
 
 // StepRunArchive defines model for StepRunArchive.
@@ -1074,10 +1074,10 @@ type StepRunEvent struct {
 	Message       string                  `json:"message"`
 	Reason        StepRunEventReason      `json:"reason"`
 	Severity      StepRunEventSeverity    `json:"severity"`
-	StepRunId     *string                 `json:"stepRunId,omitempty"`
+	StepRunId     *uuid.UUID              `json:"stepRunId,omitempty"`
 	TimeFirstSeen time.Time               `json:"timeFirstSeen"`
 	TimeLastSeen  time.Time               `json:"timeLastSeen"`
-	WorkflowRunId *string                 `json:"workflowRunId,omitempty"`
+	WorkflowRunId *uuid.UUID              `json:"workflowRunId,omitempty"`
 }
 
 // StepRunEventList defines model for StepRunEventList.
@@ -2257,7 +2257,7 @@ type WorkflowRunShape struct {
 	Status             WorkflowRunStatus       `json:"status"`
 	TenantId           uuid.UUID               `json:"tenantId"`
 	TriggeredBy        WorkflowRunTriggeredBy  `json:"triggeredBy"`
-	WorkflowId         *string                 `json:"workflowId,omitempty"`
+	WorkflowId         *uuid.UUID              `json:"workflowId,omitempty"`
 	WorkflowVersion    *WorkflowVersion        `json:"workflowVersion,omitempty"`
 	WorkflowVersionId  uuid.UUID               `json:"workflowVersionId"`
 }
@@ -2285,7 +2285,7 @@ type WorkflowRunTriggeredBy struct {
 	CronSchedule        *string         `json:"cronSchedule,omitempty"`
 	EventId             *string         `json:"eventId,omitempty"`
 	Metadata            APIResourceMeta `json:"metadata"`
-	ParentWorkflowRunId *string         `json:"parentWorkflowRunId,omitempty"`
+	ParentWorkflowRunId *uuid.UUID      `json:"parentWorkflowRunId,omitempty"`
 }
 
 // WorkflowRunsCancelRequest defines model for WorkflowRunsCancelRequest.
@@ -2334,8 +2334,8 @@ type WorkflowTriggers struct {
 	Crons             *[]WorkflowTriggerCronRef  `json:"crons,omitempty"`
 	Events            *[]WorkflowTriggerEventRef `json:"events,omitempty"`
 	Metadata          *APIResourceMeta           `json:"metadata,omitempty"`
-	TenantId          *string                    `json:"tenant_id,omitempty"`
-	WorkflowVersionId *string                    `json:"workflow_version_id,omitempty"`
+	TenantId          *uuid.UUID                 `json:"tenant_id,omitempty"`
+	WorkflowVersionId *uuid.UUID                 `json:"workflow_version_id,omitempty"`
 }
 
 // WorkflowUpdateRequest defines model for WorkflowUpdateRequest.
@@ -2383,9 +2383,9 @@ type WorkflowVersionMeta struct {
 
 // WorkflowWorkersCount defines model for WorkflowWorkersCount.
 type WorkflowWorkersCount struct {
-	FreeSlotCount *int    `json:"freeSlotCount,omitempty"`
-	MaxSlotCount  *int    `json:"maxSlotCount,omitempty"`
-	WorkflowRunId *string `json:"workflowRunId,omitempty"`
+	FreeSlotCount *int       `json:"freeSlotCount,omitempty"`
+	MaxSlotCount  *int       `json:"maxSlotCount,omitempty"`
+	WorkflowRunId *uuid.UUID `json:"workflowRunId,omitempty"`
 }
 
 // V1DagListTasksParams defines parameters for V1DagListTasks.

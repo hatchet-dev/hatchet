@@ -36,7 +36,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 	prometheus.TenantReassignedTasks.WithLabelValues(tenantId).Add(float64(len(res.RetriedTasks)))
 
 	for _, task := range res.ReleasedTasks {
-		var workerId *string
+		var workerId *uuid.UUID
 
 		if task.WorkerID != uuid.Nil {
 			workerIdStr := task.WorkerID.String()

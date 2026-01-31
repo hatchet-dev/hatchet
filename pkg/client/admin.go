@@ -28,7 +28,7 @@ type ChildWorkflowOpts struct {
 	ParentStepRunId    uuid.UUID
 	ChildIndex         int
 	ChildKey           *string
-	DesiredWorkerId    *string
+	DesiredWorkerId    *uuid.UUID
 	AdditionalMetadata *map[string]string
 	Priority           *int32
 }

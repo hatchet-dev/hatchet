@@ -61,7 +61,7 @@ type UpdateTenantMemberOpts struct {
 
 type GetQueueMetricsOpts struct {
 	// (optional) a list of workflow ids to filter by
-	WorkflowIds []string `validate:"omitempty,dive,uuid"`
+	WorkflowIds []uuid.UUID `validate:"omitempty,dive,uuid"`
 
 	// (optional) exact metadata to filter by
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`

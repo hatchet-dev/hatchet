@@ -45,10 +45,10 @@ type TriggerTaskData struct {
 	AdditionalMetadata []byte `json:"additional_metadata"`
 
 	// (optional) the desired worker id
-	DesiredWorkerId *string `json:"desired_worker_id"`
+	DesiredWorkerId *uuid.UUID `json:"desired_worker_id"`
 
 	// (optional) the parent external id
-	ParentExternalId *string `json:"parent_external_id"`
+	ParentExternalId *uuid.UUID `json:"parent_external_id"`
 
 	// (optional) the parent task id
 	ParentTaskId *int64 `json:"parent_task_id"`
@@ -667,12 +667,12 @@ type triggerTuple struct {
 
 	additionalMetadata []byte
 
-	desiredWorkerId *string
+	desiredWorkerId *uuid.UUID
 
 	priority *int32
 
 	// relevant parameters for child workflows
-	parentExternalId     *string
+	parentExternalId     *uuid.UUID
 	parentTaskId         *int64
 	parentTaskInsertedAt *time.Time
 	childIndex           *int64

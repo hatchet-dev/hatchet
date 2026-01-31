@@ -47,7 +47,7 @@ type CreateTaskOpts struct {
 	AdditionalMetadata []byte
 
 	// (optional) the desired worker id
-	DesiredWorkerId *string
+	DesiredWorkerId *uuid.UUID
 
 	// (optional) the DAG id for the task
 	DagId *int64
@@ -59,7 +59,7 @@ type CreateTaskOpts struct {
 	InitialState sqlcv1.V1TaskInitialState
 
 	// (optional) the parent task external id
-	ParentTaskExternalId *string
+	ParentTaskExternalId *uuid.UUID
 
 	// (optional) the parent task id
 	ParentTaskId *int64
@@ -219,7 +219,7 @@ type TaskRepository interface {
 
 	// FlattenExternalIds is a non-cached method to look up all tasks in a workflow run by their external ids.
 	// This is non-cacheable because tasks can be added to a workflow run as it executes.
-	FlattenExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []string) ([]*sqlcv1.FlattenExternalIdsRow, error)
+	FlattenExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error)
 
 	CompleteTasks(ctx context.Context, tenantId uuid.UUID, tasks []CompleteTaskOpts) (*FinalizedTaskResponse, error)
 
@@ -231,7 +231,7 @@ type TaskRepository interface {
 
 	ListTaskMetas(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.ListTaskMetasRow, error)
 
-	ListFinalizedWorkflowRuns(ctx context.Context, tenantId uuid.UUID, rootExternalIds []string) ([]*ListFinalizedWorkflowRunsResponse, error)
+	ListFinalizedWorkflowRuns(ctx context.Context, tenantId uuid.UUID, rootExternalIds []uuid.UUID) ([]*ListFinalizedWorkflowRunsResponse, error)
 
 	// ListTaskParentOutputs is a method to return the output of a task's parent and grandparent tasks. This is for v0 compatibility
 	// with the v1 engine, and shouldn't be called from new v1 endpoints.
@@ -449,11 +449,11 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 	return res, nil
 }
 
-func (r *TaskRepositoryImpl) FlattenExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []string) ([]*sqlcv1.FlattenExternalIdsRow, error) {
+func (r *TaskRepositoryImpl) FlattenExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error) {
 	return r.lookupExternalIds(ctx, r.pool, tenantId, externalIds)
 }
 
-func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, externalIds []string) ([]*sqlcv1.FlattenExternalIdsRow, error) {
+func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error) {
 	externalIdsToLookup := make([]uuid.UUID, 0, len(externalIds))
 	res := make([]*sqlcv1.FlattenExternalIdsRow, 0, len(externalIds))
 
@@ -860,7 +860,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	}, nil
 }
 
-func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tenantId uuid.UUID, rootExternalIds []string) ([]*ListFinalizedWorkflowRunsResponse, error) {
+func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tenantId uuid.UUID, rootExternalIds []uuid.UUID) ([]*ListFinalizedWorkflowRunsResponse, error) {
 	start := time.Now()
 	checkpoint := time.Now()
 
@@ -1085,7 +1085,7 @@ func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tena
 	})
 }
 
-func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, taskExternalIds []string) ([]*TaskOutputEvent, error) {
+func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, taskExternalIds []uuid.UUID) ([]*TaskOutputEvent, error) {
 	externalIds := make([]uuid.UUID, 0)
 	eventTypes := make([][]string, 0)
 

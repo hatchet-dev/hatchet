@@ -18,7 +18,7 @@ type TaskOutputEvent struct {
 
 	RetryCount int32 `json:"retry_count"`
 
-	WorkerId *string `json:"worker_id"`
+	WorkerId *uuid.UUID `json:"worker_id"`
 
 	Output []byte `json:"output"`
 

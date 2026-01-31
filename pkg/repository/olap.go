@@ -243,7 +243,7 @@ type OLAPRepository interface {
 
 	// ListTasksByExternalIds returns a list of tasks based on their external ids or the external id of their parent DAG.
 	// In the case of a DAG, we flatten the result into the list of tasks which belong to that DAG.
-	ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
+	ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
 
 	GetTaskTimings(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
@@ -1914,7 +1914,7 @@ func (r *OLAPRepositoryImpl) ReadDAG(ctx context.Context, dagExternalId uuid.UUI
 	return r.queries.ReadDAGByExternalID(ctx, r.readPool, uuid.MustParse(dagExternalId))
 }
 
-func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
+func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
 	externalUUIDs := make([]uuid.UUID, 0)
 
 	for _, id := range externalIds {

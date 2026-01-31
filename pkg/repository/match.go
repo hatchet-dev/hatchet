@@ -78,9 +78,9 @@ type CreateMatchOpts struct {
 
 	TriggerDAGInsertedAt pgtype.Timestamptz
 
-	TriggerExternalId *string
+	TriggerExternalId *uuid.UUID
 
-	TriggerWorkflowRunId *string
+	TriggerWorkflowRunId *uuid.UUID
 
 	TriggerStepId *string
 
@@ -106,7 +106,7 @@ type CreateMatchOpts struct {
 
 	SignalTaskInsertedAt pgtype.Timestamptz
 
-	SignalExternalId *string
+	SignalExternalId *uuid.UUID
 
 	SignalKey *string
 }
