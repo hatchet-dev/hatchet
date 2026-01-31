@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -16,8 +17,8 @@ import (
 )
 
 type PubSubMessage struct {
-	QueueName string `json:"queue_name"`
-	Payload   []byte `json:"payload"`
+	QueueName string          `json:"queue_name"`
+	Payload   json.RawMessage `json:"payload"`
 }
 
 type MessageQueueRepository interface {
@@ -60,7 +61,19 @@ func (m *messageQueueRepository) Listen(ctx context.Context, name string, f func
 }
 
 func (m *messageQueueRepository) Notify(ctx context.Context, name string, payload string) error {
-	return m.m.notify(ctx, name, payload)
+	wrappedPayload, err := m.m.wrapMessage(name, payload)
+	if err != nil {
+		m.l.Error().Err(err).Msg("error wrapping message")
+		return err
+	}
+
+	// PostgreSQL's pg_notify has an 8000 byte limit
+	// If the wrapped message exceeds this, fall back to database storage
+	if len(wrappedPayload) > 8000 {
+		return m.AddMessage(ctx, name, []byte(payload))
+	}
+
+	return m.m.notify(ctx, wrappedPayload)
 }
 
 func (m *messageQueueRepository) AddMessage(ctx context.Context, queue string, payload []byte) error {
