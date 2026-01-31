@@ -6,16 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const WORKFLOW_RUN_ID = "00000000-0000-0000-0000-000000000001"
+const RESOURCE = "11111111-1111-1111-1111-111111111111"
+
 func genEvent(payload string, hangup bool, eventIndex *int64) *contracts.WorkflowEvent {
 	return &contracts.WorkflowEvent{
-		WorkflowRunId:  "test-run-id",
-		ResourceId:     uuid.NewString(),
+		WorkflowRunId:  WORKFLOW_RUN_ID,
+		ResourceId:     RESOURCE,
 		ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
 		EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM,
 		EventTimestamp: timestamppb.Now(),
