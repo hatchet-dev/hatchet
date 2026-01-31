@@ -14,7 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-retry-queue-items")
 	defer span.End()
 

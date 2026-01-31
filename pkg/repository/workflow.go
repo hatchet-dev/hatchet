@@ -1076,8 +1076,7 @@ func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflo
 }
 
 func (r *workflowRepository) GetWorkflowById(ctx context.Context, workflowId uuid.UUID) (*sqlcv1.GetWorkflowByIdRow, error) {
-	return r.queries.GetWorkflowById(context.Background(), r.pool, uuid.MustParse(workflowId))
-
+	return r.queries.GetWorkflowById(context.Background(), r.pool, workflowId)
 }
 
 func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) (
@@ -1088,12 +1087,10 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	[]*sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdRow,
 	error,
 ) {
-	pgWorkflowVersionId := uuid.MustParse(workflowVersionId)
-
 	row, err := r.queries.GetWorkflowVersionById(
 		ctx,
 		r.pool,
-		pgWorkflowVersionId,
+		workflowVersionId,
 	)
 
 	if err != nil {
@@ -1103,7 +1100,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	crons, err := r.queries.GetWorkflowVersionCronTriggerRefs(
 		ctx,
 		r.pool,
-		pgWorkflowVersionId,
+		workflowVersionId,
 	)
 
 	if err != nil {
@@ -1113,7 +1110,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	events, err := r.queries.GetWorkflowVersionEventTriggerRefs(
 		ctx,
 		r.pool,
-		pgWorkflowVersionId,
+		workflowVersionId,
 	)
 
 	if err != nil {
@@ -1123,7 +1120,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	scheduled, err := r.queries.GetWorkflowVersionScheduleTriggerRefs(
 		ctx,
 		r.pool,
-		pgWorkflowVersionId,
+		workflowVersionId,
 	)
 
 	if err != nil {
@@ -1161,7 +1158,7 @@ func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantI
 }
 
 func (r *workflowRepository) DeleteWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, error) {
-	return r.queries.SoftDeleteWorkflow(ctx, r.pool, uuid.MustParse(workflowId))
+	return r.queries.SoftDeleteWorkflow(ctx, r.pool, workflowId)
 }
 
 func (r *workflowRepository) GetWorkflowByName(ctx context.Context, tenantId uuid.UUID, workflowName string) (*sqlcv1.Workflow, error) {
@@ -1172,7 +1169,7 @@ func (r *workflowRepository) GetWorkflowByName(ctx context.Context, tenantId uui
 }
 
 func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
-	versionId, err := r.queries.GetWorkflowLatestVersion(ctx, r.pool, uuid.MustParse(workflowId))
+	versionId, err := r.queries.GetWorkflowLatestVersion(ctx, r.pool, workflowId)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch latest version: %w", err)

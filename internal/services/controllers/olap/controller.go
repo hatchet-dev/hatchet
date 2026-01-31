@@ -634,7 +634,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 	retryCounts := make([]int32, 0)
-	workerIds := make([]string, 0)
+	workerIds := make([]uuid.UUID, 0)
 	workflowIds := make([]uuid.UUID, 0)
 	eventTypes := make([]sqlcv1.V1EventTypeOlap, 0)
 	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
@@ -670,7 +670,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
 		} else {
-			workerIds = append(workerIds, "")
+			workerIds = append(workerIds, uuid.Nil)
 		}
 
 		switch msg.EventType {
@@ -724,9 +724,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	for i, taskId := range taskIds {
 		var workerId *uuid.UUID
 
-		if workerIds[i] != "" {
-			parsed := uuid.MustParse(workerIds[i])
-			workerId = &parsed
+		if workerIds[i] != uuid.Nil {
+			workerId = &workerIds[i]
 		}
 
 		event := sqlcv1.CreateTaskEventsOLAPParams{
@@ -785,7 +784,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 		offloadToExternalOpts = append(offloadToExternalOpts, v1.OffloadToExternalStoreOpts{
 			TenantId:   tenantId,
-			ExternalID: v1.PayloadExternalId(opt.ExternalID.String()),
+			ExternalID: *opt.ExternalID,
 			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
 			Payload:    opt.Output,
 		})

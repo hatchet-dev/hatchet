@@ -504,14 +504,8 @@ func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId uuid.UU
 	}
 
 	if opts.WorkflowIds != nil {
-		uuids := make([]uuid.UUID, len(opts.WorkflowIds))
-
-		for i, id := range opts.WorkflowIds {
-			uuids[i] = uuid.MustParse(id)
-		}
-
-		workflowParams.WorkflowIds = uuids
-		totalParams.WorkflowIds = uuids
+		workflowParams.WorkflowIds = opts.WorkflowIds
+		totalParams.WorkflowIds = opts.WorkflowIds
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)

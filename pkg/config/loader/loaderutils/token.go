@@ -51,7 +51,7 @@ func GetConfFromJWT(token string) (*TokenConf, error) {
 		ExpiresAt:            expiresAt,
 		ServerURL:            serverURL,
 		GrpcBroadcastAddress: grpcBroadcastAddress,
-		TenantId:             tenantId,
+		TenantId:             uuid.MustParse(tenantId),
 	}, nil
 }
 

@@ -53,7 +53,7 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 		return nil, err
 	}
 
-	workflowVersion, _, _, _, _, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), task.TenantID, taskWithData.WorkflowVersionID.String())
+	workflowVersion, _, _, _, _, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), task.TenantID, taskWithData.WorkflowVersionID)
 
 	if err != nil {
 		return nil, err

@@ -94,7 +94,7 @@ func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, t
 		if opt.ParentExternalId != nil && opt.ChildIndex != nil {
 			optsWithParents = append(optsWithParents, opt)
 		} else {
-			opt.ExternalId = uuid.NewString()
+			opt.ExternalId = uuid.New()
 		}
 	}
 
@@ -122,7 +122,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	spawnKeyToOpt := make(map[string]*WorkflowNameTriggerOpts)
 
 	for i, opt := range opts {
-		externalIds = append(externalIds, uuid.MustParse(*opt.ParentExternalId))
+		externalIds = append(externalIds, *opt.ParentExternalId)
 
 		spawnKeyToOpt[opt.childSpawnKey()] = opts[i] // we don't want a copy here, we want the actual pointer as we modify in-place
 	}
@@ -136,10 +136,10 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		return err
 	}
 
-	externalIdToLookupRow := make(map[string]*sqlcv1.V1LookupTable)
+	externalIdToLookupRow := make(map[uuid.UUID]*sqlcv1.V1LookupTable)
 
 	for _, task := range gotTasks {
-		externalIdToLookupRow[task.ExternalID.String()] = task
+		externalIdToLookupRow[task.ExternalID] = task
 	}
 
 	eventTaskIds := make([]int64, 0, len(gotTasks))
@@ -228,7 +228,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			continue
 		}
 
-		generatedId := uuid.NewString()
+		generatedId := uuid.New()
 		opt.ExternalId = generatedId
 
 		data := newChildWorkflowSignalCreatedData(generatedId, opt)

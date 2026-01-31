@@ -61,7 +61,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 
 	for _, row := range rows {
 		tenantIdToPayloads[row.TenantId] = append(tenantIdToPayloads[row.TenantId], tasktypes.NotifyFinalizedPayload{
-			ExternalId: row.ExternalId.String(),
+			ExternalId: row.ExternalId,
 			Status:     row.ReadableStatus,
 		})
 

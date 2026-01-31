@@ -42,7 +42,7 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId uuid.U
 			Priority:           &scheduled.Priority,
 		},
 		IdempotencyKey: &key,
-		ExternalId:     uuid.NewString(),
+		ExternalId:     uuid.New(),
 		ShouldSkip:     false,
 	}
 

@@ -650,7 +650,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		if shouldTasksNotify[task.ID] {
 			tasksToSendToDispatcher = append(tasksToSendToDispatcher, tasktypes.SignalTaskCancelledPayload{
 				TaskId:     task.ID,
-				WorkerId:   task.WorkerID.String(),
+				WorkerId:   task.WorkerID,
 				RetryCount: task.RetryCount,
 			})
 		}
@@ -855,7 +855,7 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 }
 
 func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Context, tenantId uuid.UUID, releasedTasks []tasktypes.SignalTaskCancelledPayload) error {
-	workerIds := make([]string, 0)
+	workerIds := make([]uuid.UUID, 0)
 
 	for _, task := range releasedTasks {
 		workerIds = append(workerIds, task.WorkerId)
@@ -867,7 +867,7 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
 	}
 
-	workerIdToDispatcherId := make(map[string]string)
+	workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID)
 
 	for dispatcherId, workerIds := range dispatcherIdWorkerIds {
 		for _, workerId := range workerIds {
@@ -876,7 +876,7 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 	}
 
 	// assemble messages
-	dispatcherIdsToPayloads := make(map[string][]tasktypes.SignalTaskCancelledPayload)
+	dispatcherIdsToPayloads := make(map[uuid.UUID][]tasktypes.SignalTaskCancelledPayload)
 
 	for _, task := range releasedTasks {
 		workerId := task.WorkerId
@@ -947,7 +947,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 
 	for _, releasedTask := range releasedTasks {
 		payloads = append(payloads, tasktypes.CandidateFinalizedPayload{
-			WorkflowRunId: releasedTask.WorkflowRunID.String(),
+			WorkflowRunId: releasedTask.WorkflowRunID,
 		})
 	}
 

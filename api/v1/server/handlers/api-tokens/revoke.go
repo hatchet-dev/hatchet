@@ -28,12 +28,10 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 	ctx.Set(constants.ResourceIdKey.String(), apiToken.ID.String())
 	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeApiToken.String())
 
-	tenantId := apiToken.TenantId.String()
-
 	a.config.Analytics.Enqueue(
 		"api-token:revoke",
 		user.ID.String(),
-		&tenantId,
+		apiToken.TenantId,
 		nil,
 		map[string]interface{}{
 			"token_id": apiToken.ID,

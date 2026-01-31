@@ -44,7 +44,7 @@ func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId uuid.UUID, 
 			AdditionalMetadata: additionalMetaBytes,
 			Priority:           priority,
 		},
-		ExternalId: uuid.NewString(),
+		ExternalId: uuid.New(),
 		ShouldSkip: false,
 	}
 

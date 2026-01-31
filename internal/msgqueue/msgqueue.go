@@ -160,8 +160,8 @@ func (d dispatcherQueue) IsExpirable() bool {
 	return true
 }
 
-func QueueTypeFromDispatcherID(d string) dispatcherQueue {
-	return dispatcherQueue(d + "_dispatcher_v1")
+func QueueTypeFromDispatcherID(d uuid.UUID) dispatcherQueue {
+	return dispatcherQueue(d.String() + "_dispatcher_v1")
 }
 
 type consumerQueue string

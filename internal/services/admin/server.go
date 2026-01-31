@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -82,7 +81,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		return nil, fmt.Errorf("could not get workflow by name: %w", err)
 	}
 
-	workflowId := workflow.ID.String()
+	workflowId := workflow.ID
 
 	currWorkflow, err := a.repov1.Workflows().GetLatestWorkflowVersion(
 		ctx,
@@ -151,7 +150,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 			ctx,
 			tenantId,
 			&v1.CreateScheduledWorkflowRunForWorkflowOpts{
-				WorkflowId:         uuid.MustParse(workflowId),
+				WorkflowId:         workflowId,
 				ScheduledTrigger:   scheduleTime,
 				Input:              payloadBytes,
 				AdditionalMetadata: additionalMetadata,

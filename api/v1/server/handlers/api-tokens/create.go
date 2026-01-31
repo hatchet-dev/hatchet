@@ -47,11 +47,10 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 	ctx.Set(constants.ResourceIdKey.String(), token.TokenId)
 	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeApiToken.String())
 
-	tenantIdStr := tenantId.String()
 	a.config.Analytics.Enqueue(
 		"api-token:create",
 		user.ID.String(),
-		&tenantIdStr,
+		&tenantId,
 		nil,
 		map[string]interface{}{
 			"name":       request.Body.Name,

@@ -58,7 +58,7 @@ type CreateExternalSignalConditionOpt struct {
 
 	ReadableDataKey string `validate:"required"`
 
-	OrGroupId string `validate:"required,uuid"`
+	OrGroupId uuid.UUID `validate:"required,uuid"`
 
 	UserEventKey *string
 
@@ -82,7 +82,7 @@ type CreateMatchOpts struct {
 
 	TriggerWorkflowRunId *uuid.UUID
 
-	TriggerStepId *string
+	TriggerStepId *uuid.UUID
 
 	TriggerStepIndex pgtype.Int8
 
@@ -120,7 +120,7 @@ type EventMatchResults struct {
 }
 
 type GroupMatchCondition struct {
-	GroupId string `validate:"required,uuid"`
+	GroupId uuid.UUID `validate:"required"`
 
 	EventType sqlcv1.V1EventType
 
@@ -552,8 +552,8 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 					opt := ReplayTaskOpts{
 						TaskId:             match.TriggerExistingTaskID.Int64,
 						InsertedAt:         match.TriggerExistingTaskInsertedAt,
-						ExternalId:         match.TriggerExternalID.String(),
-						StepId:             match.TriggerStepID.String(),
+						ExternalId:         *match.TriggerExternalID,
+						StepId:             *match.TriggerStepID,
 						AdditionalMetadata: additionalMetadata,
 						InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
 					}
@@ -571,9 +571,9 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 					replayTaskOpts = append(replayTaskOpts, opt)
 				} else {
 					opt := CreateTaskOpts{
-						ExternalId:         match.TriggerExternalID.String(),
-						WorkflowRunId:      match.TriggerWorkflowRunID.String(),
-						StepId:             match.TriggerStepID.String(),
+						ExternalId:         *match.TriggerExternalID,
+						WorkflowRunId:      *match.TriggerWorkflowRunID,
+						StepId:             *match.TriggerStepID,
 						StepIndex:          int(match.TriggerStepIndex.Int64),
 						AdditionalMetadata: additionalMetadata,
 						InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
@@ -596,8 +596,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 					}
 
 					if match.TriggerParentTaskExternalID != nil {
-						externalId := match.TriggerParentTaskExternalID.String()
-						opt.ParentTaskExternalId = &externalId
+						opt.ParentTaskExternalId = match.TriggerParentTaskExternalID
 					}
 
 					if match.TriggerParentTaskID.Valid {
@@ -884,9 +883,9 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			dagExistingDatas[i] = match.ExistingMatchData
 			triggerDagIds[i] = *match.TriggerDAGId
 			triggerDagInsertedAts[i] = match.TriggerDAGInsertedAt
-			triggerStepIds[i] = uuid.MustParse(*match.TriggerStepId)
+			triggerStepIds[i] = *match.TriggerStepId
 			triggerStepIndices[i] = match.TriggerStepIndex.Int64
-			triggerExternalIds[i] = uuid.MustParse(*match.TriggerExternalId)
+			triggerExternalIds[i] = *match.TriggerExternalId
 			triggerParentExternalIds[i] = match.TriggerParentTaskExternalId
 			triggerParentTaskIds[i] = match.TriggerParentTaskId
 			triggerParentTaskInsertedAts[i] = match.TriggerParentTaskInsertedAt
@@ -901,7 +900,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			}
 
 			if match.TriggerWorkflowRunId != nil {
-				triggerWorkflowRunIds[i] = uuid.MustParse(*match.TriggerWorkflowRunId)
+				triggerWorkflowRunIds[i] = *match.TriggerWorkflowRunId
 			} else {
 				triggerWorkflowRunIds[i] = uuid.UUID{}
 			}
@@ -951,8 +950,8 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			key := getDagMatchKey(
 				string(createdMatch.Kind),
 				createdMatch.TriggerDagID.Int64,
-				createdMatch.TriggerExternalID.String(),
-				createdMatch.TriggerStepID.String(),
+				*createdMatch.TriggerExternalID,
+				*createdMatch.TriggerStepID,
 				existingTaskId,
 				createdMatch.TriggerParentTaskID,
 			)
@@ -1042,7 +1041,7 @@ func getConditionParam(tenantId uuid.UUID, createdMatchId int64, condition Group
 		EventType:       condition.EventType,
 		EventKey:        condition.EventKey,
 		ReadableDataKey: condition.ReadableDataKey,
-		OrGroupID:       uuid.MustParse(condition.GroupId),
+		OrGroupID:       condition.GroupId,
 		Expression:      sqlchelpers.TextFromStr(condition.Expression),
 		Action:          condition.Action,
 		IsSatisfied:     false,
@@ -1056,7 +1055,7 @@ func getConditionParam(tenantId uuid.UUID, createdMatchId int64, condition Group
 	return param
 }
 
-func getDagMatchKey(kind string, dagId int64, externalId uuid.UUID, stepId string, existingTaskId *int64, parentTaskId pgtype.Int8) string {
+func getDagMatchKey(kind string, dagId int64, externalId uuid.UUID, stepId uuid.UUID, existingTaskId *int64, parentTaskId pgtype.Int8) string {
 	existingTaskIdStr := ""
 	if existingTaskId != nil {
 		existingTaskIdStr = fmt.Sprintf("%d", *existingTaskId)
@@ -1148,9 +1147,9 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 				continue
 			}
 
-			triggerExternalId := match.TriggerExternalID.String()
-			triggerWorkflowRunId := match.TriggerWorkflowRunID.String()
-			triggerStepId := match.TriggerStepID.String()
+			triggerExternalId := match.TriggerExternalID
+			triggerWorkflowRunId := match.TriggerWorkflowRunID
+			triggerStepId := match.TriggerStepID
 			var triggerExistingTaskId *int64
 
 			if match.TriggerExistingTaskID.Valid {
@@ -1164,9 +1163,9 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 				Conditions:                    make([]GroupMatchCondition, 0),
 				TriggerDAGId:                  &match.TriggerDagID.Int64,
 				TriggerDAGInsertedAt:          match.TriggerDagInsertedAt,
-				TriggerExternalId:             &triggerExternalId,
-				TriggerWorkflowRunId:          &triggerWorkflowRunId,
-				TriggerStepId:                 &triggerStepId,
+				TriggerExternalId:             triggerExternalId,
+				TriggerWorkflowRunId:          triggerWorkflowRunId,
+				TriggerStepId:                 triggerStepId,
 				TriggerStepIndex:              match.TriggerStepIndex,
 				TriggerExistingTaskId:         triggerExistingTaskId,
 				TriggerExistingTaskInsertedAt: match.TriggerExistingTaskInsertedAt,
@@ -1185,7 +1184,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 						ctx,
 						tx,
 						tenantId,
-						condition.OrGroupID.String(),
+						condition.OrGroupID,
 						condition.ReadableDataKey,
 						condition.SleepDuration.String,
 						condition.Action,
@@ -1198,7 +1197,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 					opt.Conditions = append(opt.Conditions, *c)
 				case sqlcv1.V1StepMatchConditionKindUSEREVENT:
 					opt.Conditions = append(opt.Conditions, m.userEventCondition(
-						condition.OrGroupID.String(),
+						condition.OrGroupID,
 						condition.ReadableDataKey,
 						condition.EventKey.String,
 						condition.Expression.String,
@@ -1225,7 +1224,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 	return nil
 }
 
-func (m *sharedRepository) durableSleepCondition(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, orGroupId, readableDataKey, sleepDuration string, action sqlcv1.V1MatchConditionAction) (*GroupMatchCondition, error) {
+func (m *sharedRepository) durableSleepCondition(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, orGroupId uuid.UUID, readableDataKey, sleepDuration string, action sqlcv1.V1MatchConditionAction) (*GroupMatchCondition, error) {
 	// FIXME: make this a proper bulk write
 	sleep, err := m.queries.CreateDurableSleep(ctx, tx, sqlcv1.CreateDurableSleepParams{
 		TenantID:       tenantId,
@@ -1254,7 +1253,7 @@ func (m *sharedRepository) durableSleepCondition(ctx context.Context, tx sqlcv1.
 	}, nil
 }
 
-func (m *sharedRepository) userEventCondition(orGroupId, readableDataKey, eventKey, expression string, action sqlcv1.V1MatchConditionAction) GroupMatchCondition {
+func (m *sharedRepository) userEventCondition(orGroupId uuid.UUID, readableDataKey, eventKey, expression string, action sqlcv1.V1MatchConditionAction) GroupMatchCondition {
 	return GroupMatchCondition{
 		GroupId:         orGroupId,
 		EventType:       sqlcv1.V1EventTypeUSER,

@@ -25,7 +25,15 @@ import (
 func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.CancelTasksRequest) (*contracts.CancelTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
-	externalIds := req.ExternalIds
+	externalIds := make([]uuid.UUID, 0)
+
+	for _, idStr := range req.ExternalIds {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid external id")
+		}
+		externalIds = append(externalIds, id)
+	}
 
 	if len(externalIds) != 0 && req.Filter != nil {
 		return nil, status.Error(codes.InvalidArgument, "cannot provide both external ids and filter")
@@ -97,10 +105,10 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 			return nil, err
 		}
 
-		runExternalIds := make([]string, len(runs))
+		runExternalIds := make([]uuid.UUID, len(runs))
 
 		for i, run := range runs {
-			runExternalIds[i] = run.ExternalID.String()
+			runExternalIds[i] = run.ExternalID
 		}
 
 		externalIds = append(externalIds, runExternalIds...)
@@ -145,15 +153,28 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 		return nil, err
 	}
 
+	externalIdsToReturn := make([]string, len(externalIds))
+	for i, id := range externalIds {
+		externalIdsToReturn[i] = id.String()
+	}
+
 	return &contracts.CancelTasksResponse{
-		CancelledTasks: externalIds,
+		CancelledTasks: externalIdsToReturn,
 	}, nil
 }
 
 func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.ReplayTasksRequest) (*contracts.ReplayTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
-	externalIds := req.ExternalIds
+	externalIds := make([]uuid.UUID, 0)
+	for _, idStr := range req.ExternalIds {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid external id")
+		}
+
+		externalIds = append(externalIds, id)
+	}
 
 	if len(externalIds) != 0 && req.Filter != nil {
 		return nil, status.Error(codes.InvalidArgument, "cannot provide both external ids and filter")
@@ -225,10 +246,10 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			return nil, err
 		}
 
-		runExternalIds := make([]string, len(runs))
+		runExternalIds := make([]uuid.UUID, len(runs))
 
 		for i, run := range runs {
-			runExternalIds[i] = run.ExternalID.String()
+			runExternalIds[i] = run.ExternalID
 		}
 
 		externalIds = append(externalIds, runExternalIds...)
@@ -384,7 +405,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}
 
 	return &contracts.TriggerWorkflowRunResponse{
-		ExternalId: opt.ExternalId,
+		ExternalId: opt.ExternalId.String(),
 	}, nil
 }
 
@@ -398,7 +419,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		return nil, status.Error(codes.InvalidArgument, "invalid external id")
 	}
 
-	details, err := a.repo.Tasks().GetWorkflowRunResultDetails(ctx, tenantId, externalId.String())
+	details, err := a.repo.Tasks().GetWorkflowRunResultDetails(ctx, tenantId, externalId)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get workflow run result details: %w", err)
@@ -426,7 +447,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 			Error:      details.Error,
 			Output:     details.OutputPayload,
 			ReadableId: string(readableId),
-			ExternalId: details.ExternalId,
+			ExternalId: details.ExternalId.String(),
 		}
 	}
 
@@ -555,11 +576,10 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		return nil, err
 	}
 
-	tenantIdString := tenantId.String()
 	a.analytics.Enqueue(
 		"workflow:create",
 		"grpc",
-		&tenantIdString,
+		&tenantId,
 		nil,
 		map[string]interface{}{
 			"workflow_id": currWorkflow.WorkflowVersion.WorkflowId.String(),

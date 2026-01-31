@@ -32,10 +32,10 @@ type timeoutEvent struct {
 }
 
 type StreamEventBuffer struct {
-	stepRunIdToWorkflowEvents map[string][]*contracts.WorkflowEvent
-	stepRunIdToExpectedIndex  map[string]int64
-	stepRunIdToLastSeenTime   map[string]time.Time
-	stepRunIdToCompletionTime map[string]time.Time
+	stepRunIdToWorkflowEvents map[uuid.UUID][]*contracts.WorkflowEvent
+	stepRunIdToExpectedIndex  map[uuid.UUID]int64
+	stepRunIdToLastSeenTime   map[uuid.UUID]time.Time
+	stepRunIdToCompletionTime map[uuid.UUID]time.Time
 	mu                        sync.Mutex
 	timeoutDuration           time.Duration
 	gracePeriod               time.Duration
@@ -49,10 +49,10 @@ func NewStreamEventBuffer(timeout time.Duration) *StreamEventBuffer {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	buffer := &StreamEventBuffer{
-		stepRunIdToWorkflowEvents: make(map[string][]*contracts.WorkflowEvent),
-		stepRunIdToExpectedIndex:  make(map[string]int64),
-		stepRunIdToLastSeenTime:   make(map[string]time.Time),
-		stepRunIdToCompletionTime: make(map[string]time.Time),
+		stepRunIdToWorkflowEvents: make(map[uuid.UUID][]*contracts.WorkflowEvent),
+		stepRunIdToExpectedIndex:  make(map[uuid.UUID]int64),
+		stepRunIdToLastSeenTime:   make(map[uuid.UUID]time.Time),
+		stepRunIdToCompletionTime: make(map[uuid.UUID]time.Time),
 		timeoutDuration:           timeout,
 		gracePeriod:               2 * time.Second, // Wait 2 seconds after completion for late events
 		eventsChan:                make(chan *contracts.WorkflowEvent, 100),
@@ -117,7 +117,7 @@ func (b *StreamEventBuffer) processTimeoutEvents() {
 			case <-timer.C:
 				b.mu.Lock()
 				for _, event := range timeoutEvent.events {
-					stepRunId := event.ResourceId
+					stepRunId := uuid.MustParse(event.ResourceId)
 
 					if bufferedEvents, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists {
 						for _, e := range bufferedEvents {
@@ -180,7 +180,7 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	stepRunId := event.ResourceId
+	stepRunId := uuid.MustParse(event.ResourceId)
 	now := time.Now()
 
 	if event.ResourceType != contracts.ResourceType_RESOURCE_TYPE_STEP_RUN ||
@@ -315,7 +315,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	s.l.Debug().Msgf("Received subscribe request for tenant: %s", tenantId)
 
 	acks := &workflowRunAcks{
-		acks: make(map[string]bool),
+		acks: make(map[uuid.UUID]bool),
 	}
 
 	ctx, cancel := context.WithCancel(server.Context())
@@ -341,7 +341,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		defer sendMu.Unlock()
 
 		// only send if it has not been concurrently sent by another process
-		shouldSend := acks.hasWorkflowRun(e.WorkflowRunId)
+		shouldSend := acks.hasWorkflowRun(uuid.MustParse(e.WorkflowRunId))
 
 		if shouldSend {
 			err := server.Send(e)
@@ -352,7 +352,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			}
 		}
 
-		acks.ackWorkflowRun(e.WorkflowRunId)
+		acks.ackWorkflowRun(uuid.MustParse(e.WorkflowRunId))
 
 		return nil
 	}
@@ -461,7 +461,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 				}
 			}
 
-			acks.addWorkflowRun(req.WorkflowRunId)
+			acks.addWorkflowRun(uuid.MustParse(req.WorkflowRunId))
 		}
 	}()
 
@@ -507,9 +507,9 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId uuid.UUID, finali
 
 		for _, event := range wr.OutputEvents {
 			res := &contracts.StepRunResult{
-				StepRunId:      event.TaskExternalId,
+				StepRunId:      event.TaskExternalId.String(),
 				StepReadableId: event.StepReadableID,
-				JobRunId:       event.TaskExternalId,
+				JobRunId:       event.TaskExternalId.String(),
 			}
 
 			switch event.EventType {
@@ -528,7 +528,7 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId uuid.UUID, finali
 		}
 
 		res = append(res, &contracts.WorkflowRunEvent{
-			WorkflowRunId:  wr.WorkflowRunId,
+			WorkflowRunId:  wr.WorkflowRunId.String(),
 			EventType:      status,
 			EventTimestamp: timestamppb.New(time.Now()),
 			Results:        stepRunResults,
@@ -623,8 +623,8 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		tenantId,
 		task.ID,
 		task.InsertedAt,
-		task.ExternalID.String(),
-		task.WorkflowRunID.String(),
+		task.ExternalID,
+		task.WorkflowRunID,
 		retryCount,
 		[]byte(request.EventPayload),
 	)
@@ -680,8 +680,8 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		tenantId,
 		task.ID,
 		task.InsertedAt,
-		task.ExternalID.String(),
-		task.WorkflowRunID.String(),
+		task.ExternalID,
+		task.WorkflowRunID,
 		retryCount,
 		true,
 		request.EventPayload,
@@ -712,7 +712,7 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 	tenantId := tenant.ID
 
 	opts := v1.RefreshTimeoutBy{
-		TaskExternalId:     request.StepRunId,
+		TaskExternalId:     uuid.MustParse(request.StepRunId),
 		IncrementTimeoutBy: request.IncrementTimeoutBy,
 	}
 
@@ -728,7 +728,7 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 		return nil, err
 	}
 
-	workerId := taskRuntime.WorkerID.String()
+	workerId := taskRuntime.WorkerID
 
 	// send to the OLAP repository
 	msg, err := tasktypes.MonitoringEventMessageFromInternal(
@@ -736,7 +736,7 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 		tasktypes.CreateMonitoringEventPayload{
 			TaskId:         taskRuntime.TaskID,
 			RetryCount:     taskRuntime.RetryCount,
-			WorkerId:       &workerId,
+			WorkerId:       workerId,
 			EventTimestamp: time.Now(),
 			EventType:      sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
 			EventMessage:   fmt.Sprintf("Timeout refreshed by %s", request.IncrementTimeoutBy),
@@ -767,7 +767,7 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenan
 		return nil, err
 	}
 
-	workerId := releasedSlot.WorkerID.String()
+	workerId := releasedSlot.WorkerID
 
 	// send to the OLAP repository
 	msg, err := tasktypes.MonitoringEventMessageFromInternal(
@@ -775,7 +775,7 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenan
 		tasktypes.CreateMonitoringEventPayload{
 			TaskId:         releasedSlot.TaskID,
 			RetryCount:     releasedSlot.RetryCount,
-			WorkerId:       &workerId,
+			WorkerId:       workerId,
 			EventTimestamp: time.Now(),
 			EventType:      sqlcv1.V1EventTypeOlapSLOTRELEASED,
 		},
@@ -796,7 +796,7 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenan
 
 func (s *DispatcherImpl) subscribeToWorkflowEventsV1(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	if request.WorkflowRunId != nil {
-		return s.subscribeToWorkflowEventsByWorkflowRunIdV1(*request.WorkflowRunId, stream)
+		return s.subscribeToWorkflowEventsByWorkflowRunIdV1(uuid.MustParse(*request.WorkflowRunId), stream)
 	} else if request.AdditionalMetaKey != nil && request.AdditionalMetaValue != nil {
 		return s.subscribeToWorkflowEventsByAdditionalMetaV1(*request.AdditionalMetaKey, *request.AdditionalMetaValue, stream)
 	}
@@ -815,7 +815,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	foundWorkflowRun := false
 
 	for retries < 10 {
-		wr, err := s.repov1.OLAP().ReadWorkflowRun(ctx, uuid.MustParse(workflowRunId))
+		wr, err := s.repov1.OLAP().ReadWorkflowRun(ctx, workflowRunId)
 
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -895,15 +895,15 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 			msgId,
 			payloads,
 			func(events []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error) {
-				workflowRunIds := make([]string, 0)
+				workflowRunIds := make([]uuid.UUID, 0)
 				workflowRunIdsToEvents := make(map[string][]*contracts.WorkflowEvent)
 
 				for _, e := range events {
-					if e.WorkflowRunId != workflowRunId {
+					if e.WorkflowRunId != workflowRunId.String() {
 						continue
 					}
 
-					workflowRunIds = append(workflowRunIds, e.WorkflowRunId)
+					workflowRunIds = append(workflowRunIds, uuid.MustParse(e.WorkflowRunId))
 					workflowRunIdsToEvents[e.WorkflowRunId] = append(workflowRunIdsToEvents[e.WorkflowRunId], e)
 				}
 
@@ -913,7 +913,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 					return nil, err
 				}
 
-				workflowRunIdsToRow := make(map[string]*listWorkflowRunsResult)
+				workflowRunIdsToRow := make(map[uuid.UUID]*listWorkflowRunsResult)
 
 				for _, wr := range workflowRuns {
 					workflowRunIdsToRow[wr.WorkflowRunId] = wr
@@ -1006,12 +1006,13 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 			msgId,
 			payloads,
 			func(events []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error) {
-				workflowRunIds := make([]string, 0)
-				workflowRunIdsToEvents := make(map[string][]*contracts.WorkflowEvent)
+				workflowRunIds := make([]uuid.UUID, 0)
+				workflowRunIdsToEvents := make(map[uuid.UUID][]*contracts.WorkflowEvent)
 
 				for _, e := range events {
-					workflowRunIds = append(workflowRunIds, e.WorkflowRunId)
-					workflowRunIdsToEvents[e.WorkflowRunId] = append(workflowRunIdsToEvents[e.WorkflowRunId], e)
+					workflowRunId := uuid.MustParse(e.WorkflowRunId)
+					workflowRunIds = append(workflowRunIds, workflowRunId)
+					workflowRunIdsToEvents[workflowRunId] = append(workflowRunIdsToEvents[workflowRunId], e)
 				}
 
 				workflowRuns, err := s.listWorkflowRuns(ctx, tenantId, workflowRunIds)
@@ -1020,7 +1021,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 					return nil, err
 				}
 
-				workflowRunIdsToRow := make(map[string]*listWorkflowRunsResult)
+				workflowRunIdsToRow := make(map[uuid.UUID]*listWorkflowRunsResult)
 
 				for _, wr := range workflowRuns {
 					workflowRunIdsToRow[wr.WorkflowRunId] = wr
@@ -1124,7 +1125,7 @@ type listWorkflowRunsResult struct {
 func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId uuid.UUID, workflowRunIds []uuid.UUID) ([]*listWorkflowRunsResult, error) {
 	// use cache heavily
 	res := make([]*listWorkflowRunsResult, 0)
-	workflowRunIdsToLookup := make([]string, 0)
+	workflowRunIdsToLookup := make([]uuid.UUID, 0)
 
 	for _, workflowRunId := range workflowRunIds {
 		k := fmt.Sprintf("%s-%s", tenantId, workflowRunId)
@@ -1138,7 +1139,7 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId uuid.UUI
 		workflowRunIdsToLookup = append(workflowRunIdsToLookup, workflowRunId)
 	}
 
-	foundWorkflowRuns := make(map[string]*listWorkflowRunsResult)
+	foundWorkflowRuns := make(map[uuid.UUID]*listWorkflowRunsResult)
 
 	flattenedRows, err := s.repov1.Tasks().FlattenExternalIds(ctx, tenantId, workflowRunIdsToLookup)
 
@@ -1147,7 +1148,7 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId uuid.UUI
 	}
 
 	for _, row := range flattenedRows {
-		workflowRunId := row.WorkflowRunID.String()
+		workflowRunId := row.WorkflowRunID
 		if _, ok := foundWorkflowRuns[workflowRunId]; ok {
 			continue
 		}
@@ -1194,9 +1195,9 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunId,
+				WorkflowRunId:  payload.WorkflowRunId.String(),
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.ExternalId,
+				ResourceId:     payload.ExternalId.String(),
 				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED,
 				EventTimestamp: timestamppb.New(time.Now()),
 				RetryCount:     &payload.RetryCount,
@@ -1208,9 +1209,9 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunId,
+				WorkflowRunId:  payload.WorkflowRunId.String(),
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.ExternalId,
+				ResourceId:     payload.ExternalId.String(),
 				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED,
 				EventTimestamp: timestamppb.New(time.Now()),
 				RetryCount:     &payload.RetryCount,
@@ -1222,9 +1223,9 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunId,
+				WorkflowRunId:  payload.WorkflowRunId.String(),
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.ExternalId,
+				ResourceId:     payload.ExternalId.String(),
 				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED,
 				EventTimestamp: timestamppb.New(time.Now()),
 				RetryCount:     &payload.RetryCount,
@@ -1235,9 +1236,9 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunId,
+				WorkflowRunId:  payload.WorkflowRunId.String(),
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.StepRunId,
+				ResourceId:     payload.StepRunId.String(),
 				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM,
 				EventTimestamp: timestamppb.New(payload.CreatedAt),
 				EventPayload:   string(payload.Payload),
@@ -1260,9 +1261,9 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			}
 
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.ExternalId,
+				WorkflowRunId:  payload.ExternalId.String(),
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN,
-				ResourceId:     payload.ExternalId,
+				ResourceId:     payload.ExternalId.String(),
 				EventType:      eventType,
 				EventTimestamp: timestamppb.New(time.Now()),
 			})
@@ -1296,11 +1297,11 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 	return matches, nil
 }
 
-func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *workflowRunAcks) ([]string, bool) {
+func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *workflowRunAcks) ([]uuid.UUID, bool) {
 	switch msg.ID {
 	case "workflow-run-finished":
 		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](msg.Payloads)
-		res := make([]string, 0)
+		res := make([]uuid.UUID, 0)
 
 		for _, payload := range payloads {
 			if acks.hasWorkflowRun(payload.ExternalId) {
@@ -1315,7 +1316,7 @@ func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *wo
 		return res, true
 	case "workflow-run-finished-candidate":
 		payloads := msgqueue.JSONConvert[tasktypes.CandidateFinalizedPayload](msg.Payloads)
-		res := make([]string, 0)
+		res := make([]uuid.UUID, 0)
 
 		for _, payload := range payloads {
 			if acks.hasWorkflowRun(payload.WorkflowRunId) {

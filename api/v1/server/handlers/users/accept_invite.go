@@ -84,13 +84,10 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 		return nil, err
 	}
 
-	tenantId := invite.TenantId
-	tenantIdString := tenantId.String()
-
 	u.config.Analytics.Enqueue(
 		"user-invite:accept",
 		userId,
-		&tenantIdString,
+		&invite.TenantId,
 		nil,
 		map[string]interface{}{
 			"user_id":   userId,
@@ -101,7 +98,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 
 	ctx.Set("tenant-member", member)
 
-	tenant, err := u.config.V1.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
+	tenant, err := u.config.V1.Tenant().GetTenantByID(ctx.Request().Context(), invite.TenantId)
 	if err != nil {
 		return nil, err
 	}

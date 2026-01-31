@@ -78,7 +78,7 @@ func (w *workers) GetForSession(workerId, sessionId string) (*subscribedWorker, 
 	return worker.(*subscribedWorker), nil
 }
 
-func (w *workers) Get(workerId string) ([]*subscribedWorker, error) {
+func (w *workers) Get(workerId uuid.UUID) ([]*subscribedWorker, error) {
 	actual, ok := w.innerMap.Load(workerId)
 
 	if !ok {
@@ -130,7 +130,7 @@ func defaultDispatcherOpts() *DispatcherOpts {
 	return &DispatcherOpts{
 		l:                           &logger,
 		dv:                          datautils.NewDataDecoderValidator(),
-		dispatcherId:                uuid.New().String(),
+		dispatcherId:                uuid.New(),
 		alerter:                     alerter,
 		payloadSizeThreshold:        3 * 1024 * 1024,
 		defaultMaxWorkerBacklogSize: 20,
@@ -274,7 +274,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	wg := sync.WaitGroup{}
 
 	// subscribe to a task queue with the dispatcher id
-	dispatcherId := dispatcher.ID.String()
+	dispatcherId := dispatcher.ID
 
 	fv1 := func(task *msgqueue.Message) error {
 		wg.Add(1)

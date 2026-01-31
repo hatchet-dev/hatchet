@@ -168,7 +168,7 @@ func ToTaskRunEventMany(
 			Message:      event.AdditionalEventMessage.String,
 			Timestamp:    event.EventTimestamp.Time,
 			WorkerId:     workerId,
-			TaskId:       uuid.MustParse(taskExternalId),
+			TaskId:       taskExternalId,
 			RetryCount:   &retryCount,
 			Attempt:      &attempt,
 		}

@@ -64,7 +64,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 		}
 
 		tenantIdToPayloads[row.TenantId] = append(tenantIdToPayloads[row.TenantId], tasktypes.NotifyFinalizedPayload{
-			ExternalId: row.ExternalId.String(),
+			ExternalId: row.ExternalId,
 			Status:     row.ReadableStatus,
 		})
 	}

@@ -14,7 +14,7 @@ import (
 
 type JWTManager interface {
 	GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (*Token, error)
-	ValidateTenantToken(ctx context.Context, token string) (string, string, error)
+	ValidateTenantToken(ctx context.Context, token string) (uuid.UUID, uuid.UUID, error)
 }
 
 type TokenOpts struct {
@@ -102,7 +102,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.
 	return token, nil
 }
 
-func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) (tenantId uuid.UUID, tokenUUID string, err error) {
+func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) (tenantId uuid.UUID, tokenUUID uuid.UUID, err error) {
 	// Verify the signed token.
 	audience := j.opts.Audience
 
@@ -114,24 +114,24 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	})
 
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create JWT Validator: %v", err)
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to create JWT Validator: %v", err)
 	}
 
 	verifiedJwt, err := j.verifier.VerifyAndDecode(token, validator)
 
 	if err != nil {
-		return "", "", fmt.Errorf("failed to verify and decode JWT: %v", err)
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to verify and decode JWT: %v", err)
 	}
 
 	// Read the token from the database and make sure it's not revoked
 	if hasTokenId := verifiedJwt.HasStringClaim("token_id"); !hasTokenId {
-		return "", "", fmt.Errorf("token does not have token_id claim")
+		return uuid.Nil, uuid.Nil, fmt.Errorf("token does not have token_id claim")
 	}
 
 	tokenId, err := verifiedJwt.StringClaim("token_id")
 
 	if err != nil {
-		return "", "", fmt.Errorf("failed to read token_id claim: %v", err)
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read token_id claim: %v", err)
 	}
 
 	// ensure the current server url matches the token, if present
@@ -139,11 +139,11 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 		serverURL, err := verifiedJwt.StringClaim("server_url")
 
 		if err != nil {
-			return "", "", fmt.Errorf("failed to read server_url claim: %v", err)
+			return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read server_url claim: %v", err)
 		}
 
 		if serverURL != j.opts.ServerURL {
-			return "", "", fmt.Errorf("server_url claim does not match")
+			return uuid.Nil, uuid.Nil, fmt.Errorf("server_url claim does not match")
 		}
 	}
 
@@ -151,29 +151,35 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	dbToken, err := j.tokenRepo.GetAPITokenById(ctx, tokenId)
 
 	if err != nil {
-		return "", "", fmt.Errorf("failed to read token from database: %v", err)
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read token from database: %v", err)
 	}
 
 	if dbToken.Revoked {
-		return "", "", fmt.Errorf("token has been revoked")
+		return uuid.Nil, uuid.Nil, fmt.Errorf("token has been revoked")
 	}
 
 	if expiresAt := dbToken.ExpiresAt.Time; expiresAt.Before(time.Now().UTC()) {
-		return "", "", fmt.Errorf("token has expired")
+		return uuid.Nil, uuid.Nil, fmt.Errorf("token has expired")
 	}
 
 	// ensure the subject of the token matches the tenantId
 	if hasSubject := verifiedJwt.HasSubject(); !hasSubject {
-		return "", "", fmt.Errorf("token does not have subject claim")
+		return uuid.Nil, uuid.Nil, fmt.Errorf("token does not have subject claim")
 	}
 
 	subject, err := verifiedJwt.Subject()
 
 	if err != nil {
-		return "", "", fmt.Errorf("failed to read subject claim: %v", err)
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read subject claim: %v", err)
 	}
 
-	return subject, dbToken.ID.String(), nil
+	parsedSubject, err := uuid.Parse(subject)
+
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to parse subject claim: %v", err)
+	}
+
+	return parsedSubject, dbToken.ID, nil
 }
 
 func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId uuid.UUID, id *string, expires *time.Time) (tokenId string, expiresAt time.Time, opts *jwt.RawJWTOptions) {

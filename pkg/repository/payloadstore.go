@@ -39,7 +39,7 @@ type StoreOLAPPayloadOpts struct {
 
 type OffloadToExternalStoreOpts struct {
 	TenantId   uuid.UUID
-	ExternalID PayloadExternalId
+	ExternalID uuid.UUID
 	InsertedAt pgtype.Timestamptz
 	Payload    []byte
 }
@@ -53,10 +53,9 @@ type RetrievePayloadOpts struct {
 
 type PayloadLocation string
 type ExternalPayloadLocationKey string
-type PayloadExternalId uuid.UUID
 
 type ExternalStore interface {
-	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[PayloadExternalId]ExternalPayloadLocationKey, error)
+	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[uuid.UUID]ExternalPayloadLocationKey, error)
 	Retrieve(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
 }
 
@@ -180,7 +179,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 
 			externalOpts = append(externalOpts, OffloadToExternalStoreOpts{
 				TenantId:   payload.TenantId,
-				ExternalID: PayloadExternalId(payload.ExternalId.String()),
+				ExternalID: payload.ExternalId,
 				InsertedAt: payload.InsertedAt,
 				Payload:    payload.Payload,
 			})
@@ -204,7 +203,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 				continue // Skip if already processed
 			}
 
-			externalKey, exists := retrieveOptsToExternalKey[PayloadExternalId(payload.ExternalId.String())]
+			externalKey, exists := retrieveOptsToExternalKey[payload.ExternalId]
 			if !exists {
 				return fmt.Errorf("external key not found for payload %d", payload.Id)
 			}
@@ -523,8 +522,8 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	mu := sync.Mutex{}
 	eg := errgroup.Group{}
 
-	externalIdToPayloadMetadata := make(map[PayloadExternalId]PayloadMetadata)
-	alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+	externalIdToPayloadMetadata := make(map[uuid.UUID]PayloadMetadata)
+	alreadyExternalPayloads := make(map[uuid.UUID]ExternalPayloadLocationKey)
 	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
 
 	numPayloads := 0
@@ -549,15 +548,15 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 				return fmt.Errorf("failed to list paginated payloads for offload")
 			}
 
-			alreadyExternalPayloadsInner := make(map[PayloadExternalId]ExternalPayloadLocationKey)
-			externalIdToPayloadMetadataInner := make(map[PayloadExternalId]PayloadMetadata)
+			alreadyExternalPayloadsInner := make(map[uuid.UUID]ExternalPayloadLocationKey)
+			externalIdToPayloadMetadataInner := make(map[uuid.UUID]PayloadMetadata)
 			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
 
 			for _, payload := range payloads {
-				externalId := PayloadExternalId(payload.ExternalID.String())
+				externalId := payload.ExternalID
 
-				if externalId == "" {
-					externalId = PayloadExternalId(uuid.NewString())
+				if externalId == uuid.Nil {
+					externalId = uuid.New()
 				}
 
 				externalIdToPayloadMetadataInner[externalId] = PayloadMetadata{
@@ -613,7 +612,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			TenantID:            meta.TenantID,
 			ID:                  meta.ID,
 			InsertedAt:          meta.InsertedAt,
-			ExternalID:          uuid.MustParse(string(externalId)),
+			ExternalID:          externalId,
 			Type:                meta.Type,
 			ExternalLocationKey: string(key),
 			Location:            sqlcv1.V1PayloadLocationEXTERNAL,
@@ -981,7 +980,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 
 type NoOpExternalStore struct{}
 
-func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[PayloadExternalId]ExternalPayloadLocationKey, error) {
+func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[uuid.UUID]ExternalPayloadLocationKey, error) {
 	return nil, fmt.Errorf("external store disabled")
 }
 

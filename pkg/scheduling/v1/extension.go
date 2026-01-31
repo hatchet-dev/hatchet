@@ -14,8 +14,8 @@ type PostAssignInput struct {
 }
 
 type SnapshotInput struct {
-	Workers               map[string]*WorkerCp
-	WorkerSlotUtilization map[string]*SlotUtilization
+	Workers               map[uuid.UUID]*WorkerCp
+	WorkerSlotUtilization map[uuid.UUID]*SlotUtilization
 }
 
 type SlotUtilization struct {

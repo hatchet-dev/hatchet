@@ -8,7 +8,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-func (tc *TasksControllerImpl) evictExpiredIdempotencyKeys(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+func (tc *TasksControllerImpl) evictExpiredIdempotencyKeys(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "evict-expired-idempotency-keys")
 	defer span.End()
 

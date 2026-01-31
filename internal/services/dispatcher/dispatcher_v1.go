@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/sync/errgroup"
 
@@ -273,8 +274,8 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 						tenantId,
 						task.ID,
 						task.InsertedAt,
-						task.ExternalID.String(),
-						task.WorkflowRunID.String(),
+						task.ExternalID,
+						task.WorkflowRunID,
 						task.RetryCount,
 						false,
 						"Could not send task to worker",
@@ -345,7 +346,7 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 	}
 
 	// group by worker id
-	workerIdToTasks := make(map[string][]*sqlcv1.V1Task)
+	workerIdToTasks := make(map[uuid.UUID][]*sqlcv1.V1Task)
 
 	for _, msg := range msgs {
 		if _, ok := workerIdToTasks[msg.WorkerId]; !ok {

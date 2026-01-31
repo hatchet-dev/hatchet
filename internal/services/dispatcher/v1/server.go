@@ -41,7 +41,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 		createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
 			Kind:            v1.CreateExternalSignalConditionKindSLEEP,
 			ReadableDataKey: condition.Base.ReadableDataKey,
-			OrGroupId:       condition.Base.OrGroupId,
+			OrGroupId:       uuid.MustParse(condition.Base.OrGroupId),
 			SleepFor:        &condition.SleepFor,
 		})
 	}
@@ -50,7 +50,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 		createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
 			Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
 			ReadableDataKey: condition.Base.ReadableDataKey,
-			OrGroupId:       condition.Base.OrGroupId,
+			OrGroupId:       uuid.MustParse(condition.Base.OrGroupId),
 			UserEventKey:    &condition.UserEventKey,
 			Expression:      condition.Base.Expression,
 		})
@@ -62,7 +62,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 		Conditions:           createConditionOpts,
 		SignalTaskId:         task.ID,
 		SignalTaskInsertedAt: task.InsertedAt,
-		SignalExternalId:     task.ExternalID.String(),
+		SignalExternalId:     task.ExternalID,
 		SignalKey:            req.SignalKey,
 	})
 
@@ -78,7 +78,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 // map of durable signals to whether the durable signals are finished and have sent a message
 // that the signal is finished
 type durableEventAcks struct {
-	acks map[v1.TaskIdInsertedAtSignalKey]string
+	acks map[v1.TaskIdInsertedAtSignalKey]uuid.UUID
 	mu   sync.RWMutex
 }
 
@@ -100,7 +100,7 @@ func (w *durableEventAcks) getNonAckdEvents() []v1.TaskIdInsertedAtSignalKey {
 	ids := make([]v1.TaskIdInsertedAtSignalKey, 0, len(w.acks))
 
 	for id := range w.acks {
-		if w.acks[id] != "" {
+		if w.acks[id] != uuid.Nil {
 			ids = append(ids, id)
 		}
 	}
@@ -108,7 +108,7 @@ func (w *durableEventAcks) getNonAckdEvents() []v1.TaskIdInsertedAtSignalKey {
 	return ids
 }
 
-func (w *durableEventAcks) getExternalId(taskId int64, taskInsertedAt pgtype.Timestamptz, signalKey string) string {
+func (w *durableEventAcks) getExternalId(taskId int64, taskInsertedAt pgtype.Timestamptz, signalKey string) uuid.UUID {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -141,7 +141,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 	tenantId := tenant.ID
 
 	acks := &durableEventAcks{
-		acks: make(map[v1.TaskIdInsertedAtSignalKey]string),
+		acks: make(map[v1.TaskIdInsertedAtSignalKey]uuid.UUID),
 	}
 
 	ctx, cancel := context.WithCancel(server.Context())
@@ -162,7 +162,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 
 		externalId := acks.getExternalId(e.TaskID, e.TaskInsertedAt, e.EventKey.String)
 
-		if externalId == "" {
+		if externalId == uuid.Nil {
 			d.l.Warn().Msgf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
 			return fmt.Errorf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
 		}
@@ -253,7 +253,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 				continue
 			}
 
-			acks.addEvent(req.TaskId, task.ID, task.InsertedAt, req.SignalKey)
+			acks.addEvent(uuid.MustParse(req.TaskId), task.ID, task.InsertedAt, req.SignalKey)
 		}
 	}()
 

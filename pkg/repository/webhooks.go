@@ -13,8 +13,8 @@ import (
 type WebhookRepository interface {
 	CreateWebhook(ctx context.Context, tenantId uuid.UUID, params CreateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error)
 	ListWebhooks(ctx context.Context, tenantId uuid.UUID, params ListWebhooksOpts) ([]*sqlcv1.V1IncomingWebhook, error)
-	DeleteWebhook(ctx context.Context, tenantId uuid.UUID, webhookId uuid.UUID) (*sqlcv1.V1IncomingWebhook, error)
-	GetWebhook(ctx context.Context, tenantId uuid.UUID, webhookId uuid.UUID) (*sqlcv1.V1IncomingWebhook, error)
+	DeleteWebhook(ctx context.Context, tenantId uuid.UUID, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
+	GetWebhook(ctx context.Context, tenantId uuid.UUID, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
 	CanCreate(ctx context.Context, tenantId uuid.UUID, webhookLimit int32) (bool, error)
 	UpdateWebhook(ctx context.Context, tenantId uuid.UUID, webhookId, newExpression string) (*sqlcv1.V1IncomingWebhook, error)
 }

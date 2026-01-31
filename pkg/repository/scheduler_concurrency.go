@@ -199,8 +199,8 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             r.ExternalID.String(),
-					WorkflowRunId:              r.WorkflowRunID.String(),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case len(r.NextStrategyIds) > 0:
 				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
@@ -242,8 +242,8 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             r.ExternalID.String(),
-					WorkflowRunId:              r.WorkflowRunID.String(),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case len(r.NextStrategyIds) > 0:
 				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
@@ -379,15 +379,15 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "CONCURRENCY_LIMIT",
-					TaskExternalId:             r.ExternalID.String(),
-					WorkflowRunId:              r.WorkflowRunID.String(),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             r.ExternalID.String(),
-					WorkflowRunId:              r.WorkflowRunID.String(),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case len(r.NextStrategyIds) > 0:
 				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
@@ -460,15 +460,15 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "CONCURRENCY_LIMIT",
-					TaskExternalId:             r.ExternalID.String(),
-					WorkflowRunId:              r.WorkflowRunID.String(),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             r.ExternalID.String(),
-					WorkflowRunId:              r.WorkflowRunID.String(),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case len(r.NextStrategyIds) > 0:
 				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
@@ -638,15 +638,15 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "CONCURRENCY_LIMIT",
-					TaskExternalId:             r.ExternalID.String(),
-					WorkflowRunId:              r.WorkflowRunID.String(),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             r.ExternalID.String(),
-					WorkflowRunId:              r.WorkflowRunID.String(),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case len(r.NextStrategyIds) > 0:
 				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
@@ -719,15 +719,15 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "CONCURRENCY_LIMIT",
-					TaskExternalId:             r.ExternalID.String(),
-					WorkflowRunId:              r.WorkflowRunID.String(),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             r.ExternalID.String(),
-					WorkflowRunId:              r.WorkflowRunID.String(),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case len(r.NextStrategyIds) > 0:
 				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])

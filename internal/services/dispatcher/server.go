@@ -139,23 +139,24 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 	sessionId := uuid.New().String()
+	workerId := uuid.MustParse(request.WorkerId)
 
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
 	ctx := stream.Context()
 
-	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, request.WorkerId)
+	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, workerId)
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not get worker %s", request.WorkerId)
 		return err
 	}
 
-	shouldUpdateDispatcherId := worker.DispatcherId == nil || *worker.DispatcherId == uuid.Nil || worker.DispatcherId.String() != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || *worker.DispatcherId == uuid.Nil || *worker.DispatcherId != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
-		_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, request.WorkerId, &v1.UpdateWorkerOpts{
+		_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
 			DispatcherId: &s.dispatcherId,
 		})
 
@@ -171,7 +172,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	fin := make(chan bool)
 
-	s.workers.Add(request.WorkerId, sessionId, newSubscribedWorker(stream, fin, request.WorkerId, 20, s.pubBuffer))
+	s.workers.Add(request.WorkerId, sessionId, newSubscribedWorker(stream, fin, uuid.MustParse(request.WorkerId), 20, s.pubBuffer))
 
 	defer func() {
 		// non-blocking send
@@ -203,7 +204,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
 					s.l.Debug().Msgf("updating worker %s heartbeat", request.WorkerId)
 
-					_, err := s.repov1.Workers().UpdateWorker(ctx, tenantId, request.WorkerId, &v1.UpdateWorkerOpts{
+					_, err := s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
 						LastHeartbeatAt: &now,
 						IsActive:        v1.BoolPtr(true),
 					})
@@ -242,23 +243,29 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 	sessionId := uuid.New().String()
+	workerId, err := uuid.Parse(request.WorkerId)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("invalid worker ID format: %s", request.WorkerId)
+		return status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+	}
 
 	ctx := stream.Context()
 
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
-	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, request.WorkerId)
+	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, workerId)
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not get worker %s", request.WorkerId)
 		return err
 	}
 
-	shouldUpdateDispatcherId := worker.DispatcherId == nil || *worker.DispatcherId == uuid.Nil || worker.DispatcherId.String() != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || *worker.DispatcherId == uuid.Nil || *worker.DispatcherId != s.dispatcherId
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
-		_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, request.WorkerId, &v1.UpdateWorkerOpts{
+		_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
 			DispatcherId: &s.dispatcherId,
 		})
 
@@ -274,7 +281,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	sessionEstablished := time.Now().UTC()
 
-	_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, true, sessionEstablished)
+	_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, true, sessionEstablished)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -293,7 +300,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	fin := make(chan bool)
 
-	s.workers.Add(request.WorkerId, sessionId, newSubscribedWorker(stream, fin, request.WorkerId, s.defaultMaxWorkerBacklogSize, s.pubBuffer))
+	s.workers.Add(request.WorkerId, sessionId, newSubscribedWorker(stream, fin, uuid.MustParse(request.WorkerId), s.defaultMaxWorkerBacklogSize, s.pubBuffer))
 
 	defer func() {
 		// non-blocking send
@@ -311,7 +318,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		case <-fin:
 			s.l.Debug().Msgf("closing stream for worker id: %s", request.WorkerId)
 
-			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
+			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, false, sessionEstablished)
 
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				s.l.Error().Err(err).Msgf("could not update worker %s active status to false due to worker stream closing (session established %s)", request.WorkerId, sessionEstablished.String())
@@ -325,7 +332,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
+			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, false, sessionEstablished)
 
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				s.l.Error().Err(err).Msgf("could not update worker %s active status due to worker disconnecting (session established %s)", request.WorkerId, sessionEstablished.String())
@@ -346,6 +353,12 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	workerId, err := uuid.Parse(req.WorkerId)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("invalid worker ID format: %s", req.WorkerId)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", req.WorkerId)
+	}
 
 	heartbeatAt := time.Now().UTC()
 
@@ -356,7 +369,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		s.l.Warn().Msgf("heartbeat time is greater than expected heartbeat interval")
 	}
 
-	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, req.WorkerId)
+	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, workerId)
 
 	if err != nil {
 		span.RecordError(err)
@@ -375,7 +388,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
 	}
 
-	err = s.repov1.Workers().UpdateWorkerHeartbeat(ctx, tenantId, req.WorkerId, heartbeatAt)
+	err = s.repov1.Workers().UpdateWorkerHeartbeat(ctx, tenantId, workerId, heartbeatAt)
 
 	if err != nil {
 		span.RecordError(err)
@@ -404,22 +417,22 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 // map of workflow run ids to whether the workflow runs are finished and have sent a message
 // that the workflow run is finished
 type workflowRunAcks struct {
-	acks map[string]bool
+	acks map[uuid.UUID]bool
 	mu   sync.RWMutex
 }
 
-func (w *workflowRunAcks) addWorkflowRun(id string) {
+func (w *workflowRunAcks) addWorkflowRun(id uuid.UUID) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	w.acks[id] = false
 }
 
-func (w *workflowRunAcks) getNonAckdWorkflowRuns() []string {
+func (w *workflowRunAcks) getNonAckdWorkflowRuns() []uuid.UUID {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	ids := make([]string, 0, len(w.acks))
+	ids := make([]uuid.UUID, 0, len(w.acks))
 
 	for id := range w.acks {
 		if !w.acks[id] {
@@ -430,14 +443,14 @@ func (w *workflowRunAcks) getNonAckdWorkflowRuns() []string {
 	return ids
 }
 
-func (w *workflowRunAcks) ackWorkflowRun(id string) {
+func (w *workflowRunAcks) ackWorkflowRun(id uuid.UUID) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	delete(w.acks, id)
 }
 
-func (w *workflowRunAcks) hasWorkflowRun(id string) bool {
+func (w *workflowRunAcks) hasWorkflowRun(id uuid.UUID) bool {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 

@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-task-timeout")
 	defer span.End()
 
@@ -38,7 +38,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 			TaskId:     task.ID,
 			InsertedAt: task.InsertedAt,
 			RetryCount: task.RetryCount,
-			WorkerId:   task.WorkerID.String(),
+			WorkerId:   *task.WorkerID,
 		})
 
 		// send failed tasks to the olap repository

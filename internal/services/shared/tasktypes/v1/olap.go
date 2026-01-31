@@ -103,9 +103,10 @@ type CreateMonitoringEventPayload struct {
 
 func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
 	var workerId *uuid.UUID
+	parsedId, err := uuid.Parse(request.WorkerId)
 
-	if _, err := uuid.Parse(request.WorkerId); err == nil {
-		workerId = &request.WorkerId
+	if err == nil {
+		workerId = &parsedId
 	}
 
 	payload := CreateMonitoringEventPayload{

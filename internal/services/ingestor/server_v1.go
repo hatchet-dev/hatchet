@@ -32,8 +32,8 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 		true,
 		false,
 		tasktypes.StreamEventPayload{
-			WorkflowRunId: task.WorkflowRunID.String(),
-			StepRunId:     req.StepRunId,
+			WorkflowRunId: task.WorkflowRunID,
+			StepRunId:     uuid.MustParse(req.StepRunId),
 			CreatedAt:     req.CreatedAt.AsTime(),
 			Payload:       req.Message,
 			EventIndex:    req.EventIndex,
@@ -103,7 +103,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 	}
 
 	opts := &v1.CreateLogLineOpts{
-		TaskExternalId: task.ExternalID.String(),
+		TaskExternalId: task.ExternalID,
 		TaskId:         task.ID,
 		TaskInsertedAt: task.InsertedAt,
 		CreatedAt:      createdAt,

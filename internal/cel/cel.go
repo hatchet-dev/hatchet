@@ -128,7 +128,7 @@ func WithAdditionalMetadata(metadata map[string]interface{}) InputOpts {
 	}
 }
 
-func WithWorkflowRunID(workflowRunID string) InputOpts {
+func WithWorkflowRunID(workflowRunID uuid.UUID) InputOpts {
 	return func(w Input) {
 		w["workflow_run_id"] = workflowRunID
 	}

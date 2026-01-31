@@ -33,7 +33,7 @@ func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() 
 	}
 }
 
-func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId string) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
@@ -42,9 +42,7 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId u
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	tenantIdUUID := uuid.MustParse(tenantId)
-
-	isActive, lastAlerted, err := o.repo.Ticker().IsTenantAlertActive(ctx, tenantIdUUID)
+	isActive, lastAlerted, err := o.repo.Ticker().IsTenantAlertActive(ctx, uuid.MustParse(tenantId))
 
 	if err != nil {
 		return false, fmt.Errorf("could not check if tenant is active: %w", err)
@@ -58,7 +56,7 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId u
 		lastAlerted = time.Now().Add(-24 * time.Hour).UTC()
 	}
 
-	failedRuns, _, err := o.repo.OLAP().ListWorkflowRuns(ctx, tenantIdUUID, v1.ListWorkflowRunOpts{
+	failedRuns, _, err := o.repo.OLAP().ListWorkflowRuns(ctx, uuid.MustParse(tenantId), v1.ListWorkflowRunOpts{
 		Statuses: []sqlcv1.V1ReadableStatusOlap{
 			sqlcv1.V1ReadableStatusOlapFAILED,
 		},
@@ -71,7 +69,7 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId u
 		return false, fmt.Errorf("could not list workflow runs: %w", err)
 	}
 
-	err = o.ta.SendWorkflowRunAlertV1(tenantIdUUID, failedRuns)
+	err = o.ta.SendWorkflowRunAlertV1(uuid.MustParse(tenantId), failedRuns)
 
 	if err != nil {
 		return false, fmt.Errorf("could not send alert: %w", err)

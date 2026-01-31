@@ -10,7 +10,7 @@ import (
 )
 
 type CreateDispatcherOpts struct {
-	ID string `validate:"required,uuid"`
+	ID uuid.UUID `validate:"required"`
 }
 
 type UpdateDispatcherOpts struct {
@@ -44,7 +44,7 @@ func (d *dispatcherRepository) CreateNewDispatcher(ctx context.Context, opts *Cr
 		return nil, err
 	}
 
-	return d.queries.CreateDispatcher(ctx, d.pool, uuid.MustParse(opts.ID))
+	return d.queries.CreateDispatcher(ctx, d.pool, opts.ID)
 }
 
 func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherId uuid.UUID, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error) {
@@ -53,14 +53,13 @@ func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherI
 	}
 
 	return d.queries.UpdateDispatcher(ctx, d.pool, sqlcv1.UpdateDispatcherParams{
-		ID:              uuid.MustParse(dispatcherId),
+		ID:              dispatcherId,
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
 	})
 }
 
 func (d *dispatcherRepository) Delete(ctx context.Context, dispatcherId uuid.UUID) error {
-	_, err := d.queries.DeleteDispatcher(ctx, d.pool, uuid.MustParse(dispatcherId))
-
+	_, err := d.queries.DeleteDispatcher(ctx, d.pool, dispatcherId)
 	return err
 }
 
@@ -88,7 +87,7 @@ func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onSta
 	dispatchersToDelete := make([]uuid.UUID, 0)
 
 	for i, dispatcher := range staleDispatchers {
-		err := onStale(dispatcher.Dispatcher.ID.String(), func() string {
+		err := onStale(dispatcher.Dispatcher.ID, func() string {
 			// assign tickers in round-robin fashion
 			return activeDispatchers[i%len(activeDispatchers)].Dispatcher.ID.String()
 		})

@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
@@ -34,15 +33,13 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 		return nil, forbidden
 	}
 
-	tenantIdStr, tokenUUID, err := a.config.Auth.JWTManager.ValidateTenantToken(ctx, token)
+	tenantId, tokenUUID, err := a.config.Auth.JWTManager.ValidateTenantToken(ctx, token)
 
 	if err != nil {
 		a.l.Debug().Err(err).Msgf("error validating tenant token: %s", err)
 
 		return nil, forbidden
 	}
-
-	tenantId := uuid.MustParse(tenantIdStr)
 
 	ctx = context.WithValue(ctx, "rate_limit_token", tokenUUID)
 

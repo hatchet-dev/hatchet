@@ -257,7 +257,7 @@ type OLAPRepository interface {
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId uuid.UUID, opts []CreateIncomingWebhookFailureLogOpts) error
 	StoreCELEvaluationFailures(ctx context.Context, tenantId uuid.UUID, failures []CELEvaluationFailure) error
-	PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) (map[PayloadExternalId]ExternalPayloadLocationKey, error)
+	PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) (map[uuid.UUID]ExternalPayloadLocationKey, error)
 	ReadPayload(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) ([]byte, error)
 	ReadPayloads(ctx context.Context, tenantId uuid.UUID, externalIds ...uuid.UUID) (map[uuid.UUID][]byte, error)
 
@@ -458,7 +458,7 @@ func StringToReadableStatus(status string) ReadableTaskStatus {
 }
 
 func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId uuid.UUID) (*sqlcv1.V1TasksOlap, error) {
-	row, err := r.queries.ReadTaskByExternalID(ctx, r.readPool, uuid.MustParse(taskExternalId))
+	row, err := r.queries.ReadTaskByExternalID(ctx, r.readPool, taskExternalId)
 
 	if err != nil {
 		return nil, err
@@ -1911,14 +1911,14 @@ func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId u
 }
 
 func (r *OLAPRepositoryImpl) ReadDAG(ctx context.Context, dagExternalId uuid.UUID) (*sqlcv1.V1DagsOlap, error) {
-	return r.queries.ReadDAGByExternalID(ctx, r.readPool, uuid.MustParse(dagExternalId))
+	return r.queries.ReadDAGByExternalID(ctx, r.readPool, dagExternalId)
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
 	externalUUIDs := make([]uuid.UUID, 0)
 
 	for _, id := range externalIds {
-		externalUUIDs = append(externalUUIDs, uuid.MustParse(id))
+		externalUUIDs = append(externalUUIDs, id)
 	}
 
 	return r.queries.FlattenTasksByExternalIds(ctx, r.readPool, sqlcv1.FlattenTasksByExternalIdsParams{
@@ -2127,7 +2127,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 }
 
 func (r *OLAPRepositoryImpl) GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error) {
-	return r.queries.GetEventByExternalId(ctx, r.readPool, uuid.MustParse(externalId))
+	return r.queries.GetEventByExternalId(ctx, r.readPool, externalId)
 }
 
 func (r *OLAPRepositoryImpl) PopulateEventData(ctx context.Context, tenantId uuid.UUID, eventExternalIds []uuid.UUID) (map[uuid.UUID]sqlcv1.PopulateEventDataRow, error) {
@@ -2456,7 +2456,7 @@ type OffloadPayloadOpts struct {
 	ExternalLocationKey string
 }
 
-func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) (map[PayloadExternalId]ExternalPayloadLocationKey, error) {
+func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) (map[uuid.UUID]ExternalPayloadLocationKey, error) {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.PutPayloads")
 	defer span.End()
 
@@ -2480,7 +2480,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 		defer rollback()
 	}
 
-	externalIdToKey := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+	externalIdToKey := make(map[uuid.UUID]ExternalPayloadLocationKey)
 
 	if r.payloadStore.ExternalStoreEnabled() && r.payloadStore.ImmediateOffloadsEnabled() {
 		storeExternalPayloadOpts := make([]OffloadToExternalStoreOpts, len(putPayloadOpts))
@@ -2488,7 +2488,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 		for i, opt := range putPayloadOpts {
 			storeOpts := OffloadToExternalStoreOpts{
 				TenantId:   tenantId,
-				ExternalID: PayloadExternalId(opt.ExternalId.String()),
+				ExternalID: uuid.UUID(opt.ExternalId),
 				InsertedAt: opt.InsertedAt,
 				Payload:    opt.Payload,
 			}
@@ -2511,7 +2511,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	externalKeys := make([]string, 0, len(putPayloadOpts))
 
 	for _, opt := range putPayloadOpts {
-		key, ok := externalIdToKey[PayloadExternalId(opt.ExternalId.String())]
+		key, ok := externalIdToKey[opt.ExternalId]
 
 		externalIds = append(externalIds, opt.ExternalId)
 		insertedAts = append(insertedAts, opt.InsertedAt)
@@ -2894,8 +2894,8 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	mu := sync.Mutex{}
 	eg := errgroup.Group{}
 
-	externalIdToPayload := make(map[PayloadExternalId]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
-	alreadyExternalPayloads := make(map[PayloadExternalId]ExternalPayloadLocationKey)
+	externalIdToPayload := make(map[uuid.UUID]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
+	alreadyExternalPayloads := make(map[uuid.UUID]ExternalPayloadLocationKey)
 	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
 
 	numPayloads := 0
@@ -2918,12 +2918,12 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 				return fmt.Errorf("failed to list paginated payloads for offload")
 			}
 
-			alreadyExternalPayloadsInner := make(map[PayloadExternalId]ExternalPayloadLocationKey)
-			externalIdToPayloadInner := make(map[PayloadExternalId]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
+			alreadyExternalPayloadsInner := make(map[uuid.UUID]ExternalPayloadLocationKey)
+			externalIdToPayloadInner := make(map[uuid.UUID]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
 			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
 
 			for _, payload := range payloads {
-				externalId := PayloadExternalId(payload.ExternalID.String())
+				externalId := uuid.UUID(payload.ExternalID)
 				externalIdToPayloadInner[externalId] = *payload
 
 				if payload.Location != sqlcv1.V1PayloadLocationOlapINLINE {
@@ -2971,7 +2971,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 		payloadsToInsert = append(payloadsToInsert, sqlcv1.CutoverOLAPPayloadToInsert{
 			TenantID:            payload.TenantID,
 			InsertedAt:          payload.InsertedAt,
-			ExternalID:          uuid.MustParse(string(externalId)),
+			ExternalID:          externalId,
 			ExternalLocationKey: string(key),
 			Location:            sqlcv1.V1PayloadLocationOlapEXTERNAL,
 		})

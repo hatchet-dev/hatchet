@@ -31,7 +31,7 @@ type Scheduler struct {
 	replenishMu mutex
 
 	workersMu mutex
-	workers   map[string]*worker
+	workers   map[uuid.UUID]*worker
 
 	assignedCount   int
 	assignedCountMu mutex
@@ -92,7 +92,7 @@ func (s *Scheduler) setWorkers(workers []*v1.ListActiveWorkersResult) {
 	s.workersMu.Lock()
 	defer s.workersMu.Unlock()
 
-	newWorkers := make(map[string]*worker, len(workers))
+	newWorkers := make(map[uuid.UUID]*worker, len(workers))
 
 	for i := range workers {
 		newWorkers[workers[i].ID] = &worker{
@@ -103,7 +103,7 @@ func (s *Scheduler) setWorkers(workers []*v1.ListActiveWorkersResult) {
 	s.workers = newWorkers
 }
 
-func (s *Scheduler) getWorkers() map[string]*worker {
+func (s *Scheduler) getWorkers() map[uuid.UUID]*worker {
 	s.workersMu.Lock()
 	defer s.workersMu.Unlock()
 
@@ -138,8 +138,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	workers := s.getWorkers()
 	workerIds := make([]uuid.UUID, 0)
 
-	for workerIdStr := range workers {
-		workerIds = append(workerIds, uuid.MustParse(workerIdStr))
+	for workerId := range workers {
+		workerIds = append(workerIds, workerId)
 	}
 
 	start := time.Now()
@@ -159,8 +159,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	checkpoint = time.Now()
 
-	actionsToWorkerIds := make(map[string][]string)
-	workerIdsToActions := make(map[string][]string)
+	actionsToWorkerIds := make(map[string][]uuid.UUID)
+	workerIdsToActions := make(map[uuid.UUID][]string)
 
 	for _, workerActionTuple := range workersToActiveActions {
 		if !workerActionTuple.ActionId.Valid {
@@ -168,7 +168,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 
 		actionId := workerActionTuple.ActionId.String
-		workerId := workerActionTuple.WorkerId.String()
+		workerId := workerActionTuple.WorkerId
 
 		actionsToWorkerIds[actionId] = append(actionsToWorkerIds[actionId], workerId)
 		workerIdsToActions[workerId] = append(workerIdsToActions[workerId], actionId)
@@ -240,7 +240,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	checkpoint = time.Now()
 
 	// FUNCTION 2: for each action which should be replenished, load the available slots
-	uniqueWorkerIds := make(map[string]bool)
+	uniqueWorkerIds := make(map[uuid.UUID]bool)
 
 	for actionId := range actionsToReplenish {
 		workerIds := actionsToWorkerIds[actionId]
@@ -253,7 +253,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	workerUUIDs := make([]uuid.UUID, 0, len(uniqueWorkerIds))
 
 	for workerId := range uniqueWorkerIds {
-		workerUUIDs = append(workerUUIDs, uuid.MustParse(workerId))
+		workerUUIDs = append(workerUUIDs, workerId)
 	}
 
 	orderedLock(actionsToReplenish)
@@ -275,7 +275,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	s.l.Debug().Msgf("loading available slots took %s", time.Since(checkpoint))
 
 	// FUNCTION 3: list unacked slots (so they're not counted towards the worker slot count)
-	workersToUnackedSlots := make(map[string][]*slot)
+	workersToUnackedSlots := make(map[uuid.UUID][]*slot)
 
 	for _, unackedSlot := range s.unackedSlots {
 		s := unackedSlot
@@ -293,7 +293,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	actionsToTotalSlots := make(map[string]int)
 
 	for _, worker := range availableSlots {
-		workerId := worker.ID.String()
+		workerId := worker.ID
 		actions := workerIdsToActions[workerId]
 		unackedSlots := workersToUnackedSlots[workerId]
 
@@ -670,7 +670,7 @@ func (s *Scheduler) tryAssignSingleton(
 	s.unackedSlots[res.ackId] = assignedSlot
 	s.unackedMu.Unlock()
 
-	res.workerId = uuid.MustParse(assignedSlot.getWorkerId())
+	res.workerId = assignedSlot.getWorkerId()
 	res.succeeded = true
 
 	return res, nil
@@ -866,7 +866,7 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 	workers := s.getWorkers()
 
 	res := &SnapshotInput{
-		Workers: make(map[string]*WorkerCp),
+		Workers: make(map[uuid.UUID]*WorkerCp),
 	}
 
 	for workerId, worker := range workers {
@@ -888,7 +888,7 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 
 	uniqueSlots := make(map[*slot]bool)
 
-	workerSlotUtilization := make(map[string]*SlotUtilization)
+	workerSlotUtilization := make(map[uuid.UUID]*SlotUtilization)
 
 	for workerId := range workers {
 		workerSlotUtilization[workerId] = &SlotUtilization{

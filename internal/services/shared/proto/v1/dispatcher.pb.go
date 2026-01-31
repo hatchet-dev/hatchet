@@ -7,10 +7,12 @@
 package v1
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
+
+	"github.com/google/uuid"
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -181,9 +183,9 @@ type DurableEvent struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	TaskId    string `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	SignalKey string `protobuf:"bytes,2,opt,name=signal_key,json=signalKey,proto3" json:"signal_key,omitempty"`
-	Data      []byte `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"` // the data for the event
+	TaskId    uuid.UUID `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	SignalKey string    `protobuf:"bytes,2,opt,name=signal_key,json=signalKey,proto3" json:"signal_key,omitempty"`
+	Data      []byte    `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"` // the data for the event
 }
 
 func (x *DurableEvent) Reset() {
@@ -218,11 +220,11 @@ func (*DurableEvent) Descriptor() ([]byte, []int) {
 	return file_v1_dispatcher_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *DurableEvent) GetTaskId() string {
+func (x *DurableEvent) GetTaskId() uuid.UUID {
 	if x != nil {
 		return x.TaskId
 	}
-	return ""
+	return uuid.Nil
 }
 
 func (x *DurableEvent) GetSignalKey() string {

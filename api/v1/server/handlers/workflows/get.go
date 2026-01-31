@@ -18,7 +18,7 @@ func (t *WorkflowService) WorkflowGet(ctx echo.Context, request gen.WorkflowGetR
 		return gen.WorkflowGet404JSONResponse(gen.APIErrors{}), nil
 	}
 
-	version, _, _, _, _, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), tenantId, workflow.WorkflowVersionId.String())
+	version, _, _, _, _, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), tenantId, *workflow.WorkflowVersionId)
 
 	if err != nil {
 		return nil, err
