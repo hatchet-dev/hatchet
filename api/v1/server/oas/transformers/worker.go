@@ -78,7 +78,7 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 	}
 
 	res := &gen.Worker{
-		Metadata:      *toAPIMetadata(worker.ID.String(), worker.CreatedAt.Time, worker.UpdatedAt.Time),
+		Metadata:      *toAPIMetadata(worker.ID, worker.CreatedAt.Time, worker.UpdatedAt.Time),
 		Name:          worker.Name,
 		Type:          gen.WorkerType(worker.Type),
 		Status:        &status,

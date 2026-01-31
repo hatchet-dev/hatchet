@@ -7,7 +7,7 @@ import (
 
 func ToAPIToken(token *sqlcv1.APIToken) *gen.APIToken {
 	res := &gen.APIToken{
-		Metadata: *toAPIMetadata(token.ID.String(), token.CreatedAt.Time, token.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(token.ID, token.CreatedAt.Time, token.UpdatedAt.Time),
 	}
 
 	if token.ExpiresAt.Valid {

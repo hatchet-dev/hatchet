@@ -14,13 +14,13 @@ type CreateSNSIntegrationOpts struct {
 type SNSRepository interface {
 	GetSNSIntegration(ctx context.Context, tenantId uuid.UUID, topicArn string) (*sqlcv1.SNSIntegration, error)
 
-	GetSNSIntegrationById(ctx context.Context, id string) (*sqlcv1.SNSIntegration, error)
+	GetSNSIntegrationById(ctx context.Context, id uuid.UUID) (*sqlcv1.SNSIntegration, error)
 
 	CreateSNSIntegration(ctx context.Context, tenantId uuid.UUID, opts *CreateSNSIntegrationOpts) (*sqlcv1.SNSIntegration, error)
 
 	ListSNSIntegrations(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.SNSIntegration, error)
 
-	DeleteSNSIntegration(ctx context.Context, tenantId uuid.UUID, id string) error
+	DeleteSNSIntegration(ctx context.Context, tenantId uuid.UUID, id uuid.UUID) error
 }
 
 type snsRepository struct {
@@ -44,11 +44,11 @@ func (r *snsRepository) GetSNSIntegration(ctx context.Context, tenantId uuid.UUI
 	)
 }
 
-func (r *snsRepository) GetSNSIntegrationById(ctx context.Context, id string) (*sqlcv1.SNSIntegration, error) {
+func (r *snsRepository) GetSNSIntegrationById(ctx context.Context, id uuid.UUID) (*sqlcv1.SNSIntegration, error) {
 	return r.queries.GetSNSIntegrationById(
 		ctx,
 		r.pool,
-		uuid.MustParse(id),
+		id,
 	)
 }
 
@@ -71,13 +71,13 @@ func (r *snsRepository) ListSNSIntegrations(ctx context.Context, tenantId uuid.U
 	)
 }
 
-func (r *snsRepository) DeleteSNSIntegration(ctx context.Context, tenantId uuid.UUID, id string) error {
+func (r *snsRepository) DeleteSNSIntegration(ctx context.Context, tenantId uuid.UUID, id uuid.UUID) error {
 	return r.queries.DeleteSNSIntegration(
 		ctx,
 		r.pool,
 		sqlcv1.DeleteSNSIntegrationParams{
 			Tenantid: tenantId,
-			ID:       uuid.MustParse(id),
+			ID:       id,
 		},
 	)
 }

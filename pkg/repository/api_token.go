@@ -30,9 +30,9 @@ type APITokenGenerator func(ctx context.Context, tenantId uuid.UUID, name string
 
 type APITokenRepository interface {
 	CreateAPIToken(ctx context.Context, opts *CreateAPITokenOpts) (*sqlcv1.APIToken, error)
-	GetAPITokenById(ctx context.Context, id string) (*sqlcv1.APIToken, error)
+	GetAPITokenById(ctx context.Context, id uuid.UUID) (*sqlcv1.APIToken, error)
 	ListAPITokensByTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.APIToken, error)
-	RevokeAPIToken(ctx context.Context, id string) error
+	RevokeAPIToken(ctx context.Context, id uuid.UUID) error
 	DeleteAPIToken(ctx context.Context, tenantId, id uuid.UUID) error
 }
 
@@ -51,8 +51,8 @@ func newAPITokenRepository(shared *sharedRepository, cacheDuration time.Duration
 	}
 }
 
-func (a *apiTokenRepository) RevokeAPIToken(ctx context.Context, id string) error {
-	return a.queries.RevokeAPIToken(ctx, a.pool, uuid.MustParse(id))
+func (a *apiTokenRepository) RevokeAPIToken(ctx context.Context, id uuid.UUID) error {
+	return a.queries.RevokeAPIToken(ctx, a.pool, id)
 }
 
 func (a *apiTokenRepository) ListAPITokensByTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.APIToken, error) {
@@ -82,9 +82,9 @@ func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPI
 	return a.queries.CreateAPIToken(ctx, a.pool, createParams)
 }
 
-func (a *apiTokenRepository) GetAPITokenById(ctx context.Context, id string) (*sqlcv1.APIToken, error) {
-	return cache.MakeCacheable[sqlcv1.APIToken](a.c, id, func() (*sqlcv1.APIToken, error) {
-		return a.queries.GetAPITokenById(ctx, a.pool, uuid.MustParse(id))
+func (a *apiTokenRepository) GetAPITokenById(ctx context.Context, id uuid.UUID) (*sqlcv1.APIToken, error) {
+	return cache.MakeCacheable[sqlcv1.APIToken](a.c, id.String(), func() (*sqlcv1.APIToken, error) {
+		return a.queries.GetAPITokenById(ctx, a.pool, id)
 	})
 }
 

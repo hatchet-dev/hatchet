@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
@@ -168,7 +169,14 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		return forbidden
 	}
 
-	user, err := a.config.V1.User().GetUserByID(c.Request().Context(), userID)
+	userIdUUID, err := uuid.Parse(userID)
+	if err != nil {
+		a.l.Debug().Err(err).Msg("error parsing user id from session")
+
+		return forbidden
+	}
+
+	user, err := a.config.V1.User().GetUserByID(c.Request().Context(), userIdUUID)
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error getting user by id")
 

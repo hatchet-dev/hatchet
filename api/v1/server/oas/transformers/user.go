@@ -16,7 +16,7 @@ func ToUser(user *sqlcv1.User, hasPassword bool, hashedEmail *string) *gen.User 
 	}
 
 	return &gen.User{
-		Metadata:      *toAPIMetadata(user.ID.String(), user.CreatedAt.Time, user.UpdatedAt.Time),
+		Metadata:      *toAPIMetadata(user.ID, user.CreatedAt.Time, user.UpdatedAt.Time),
 		Email:         types.Email(user.Email),
 		EmailHash:     hashedEmail,
 		EmailVerified: user.EmailVerified,
@@ -33,13 +33,13 @@ func ToTenantMember(tenantMember *sqlcv1.PopulateTenantMembersRow) *gen.TenantMe
 	}
 
 	res := &gen.TenantMember{
-		Metadata: *toAPIMetadata(tenantMember.ID.String(), tenantMember.CreatedAt.Time, tenantMember.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(tenantMember.ID, tenantMember.CreatedAt.Time, tenantMember.UpdatedAt.Time),
 		User: gen.UserTenantPublic{
 			Email: types.Email(tenantMember.Email),
 			Name:  v1.StringPtr(tenantMember.Name.String),
 		},
 		Tenant: &gen.Tenant{
-			Metadata:          *toAPIMetadata(tenantMember.TenantId.String(), tenantMember.TenantCreatedAt.Time, tenantMember.TenantUpdatedAt.Time),
+			Metadata:          *toAPIMetadata(tenantMember.TenantId, tenantMember.TenantCreatedAt.Time, tenantMember.TenantUpdatedAt.Time),
 			Name:              tenantMember.TenantName,
 			Slug:              tenantMember.TenantSlug,
 			AnalyticsOptOut:   &tenantMember.AnalyticsOptOut,

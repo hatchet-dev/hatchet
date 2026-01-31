@@ -19,8 +19,8 @@ func ToSlotState(slots []*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, remain
 		var workflowRunId uuid.UUID
 
 		if slot.ExternalID != uuid.Nil {
-			stepRunId = uuid.MustParse(slot.ExternalID.String())
-			workflowRunId = uuid.MustParse(slot.ExternalID.String())
+			stepRunId = slot.ExternalID
+			workflowRunId = slot.ExternalID
 		}
 
 		status := gen.StepRunStatusRUNNING
@@ -61,7 +61,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 
 func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string, workflows *[]*sqlcv1.Workflow) *gen.Worker {
 
-	dispatcherId := uuid.MustParse(worker.DispatcherId.String())
+	dispatcherId := worker.DispatcherId
 
 	maxRuns := int(worker.MaxRuns)
 
@@ -90,7 +90,7 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 		Name:          worker.Name,
 		Type:          gen.WorkerType(worker.Type),
 		Status:        &status,
-		DispatcherId:  &dispatcherId,
+		DispatcherId:  dispatcherId,
 		MaxRuns:       &maxRuns,
 		AvailableRuns: &availableRuns,
 		WebhookUrl:    webhookUrl,
@@ -106,16 +106,16 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 
 	if workflows != nil {
 		registeredWorkflows := make([]gen.RegisteredWorkflow, 0, len(*workflows))
-		uniqueWorkflowIds := make(map[string]struct{})
+		uniqueWorkflowIds := make(map[uuid.UUID]struct{})
 
 		for _, workflow := range *workflows {
-			if _, ok := uniqueWorkflowIds[workflow.ID.String()]; ok {
+			if _, ok := uniqueWorkflowIds[workflow.ID]; ok {
 				continue
 			}
 
-			uniqueWorkflowIds[workflow.ID.String()] = struct{}{}
+			uniqueWorkflowIds[workflow.ID] = struct{}{}
 			registeredWorkflows = append(registeredWorkflows, gen.RegisteredWorkflow{
-				Id:   uuid.MustParse(workflow.ID.String()),
+				Id:   workflow.ID,
 				Name: workflow.Name,
 			})
 		}

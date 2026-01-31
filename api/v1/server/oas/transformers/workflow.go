@@ -17,7 +17,7 @@ func ToWorkflow(
 
 	res := &gen.Workflow{
 		Metadata: *toAPIMetadata(
-			workflow.ID.String(),
+			workflow.ID,
 			workflow.CreatedAt.Time,
 			workflow.UpdatedAt.Time,
 		),
@@ -41,7 +41,7 @@ func ToWorkflow(
 func ToWorkflowVersionMeta(version *sqlcv1.WorkflowVersion, workflow *sqlcv1.Workflow) *gen.WorkflowVersionMeta {
 	res := &gen.WorkflowVersionMeta{
 		Metadata: *toAPIMetadata(
-			version.ID.String(),
+			version.ID,
 			version.CreatedAt.Time,
 			version.UpdatedAt.Time,
 		),
@@ -80,7 +80,7 @@ func ToWorkflowVersion(
 
 	res := &gen.WorkflowVersion{
 		Metadata: *toAPIMetadata(
-			version.ID.String(),
+			version.ID,
 			version.CreatedAt.Time,
 			version.UpdatedAt.Time,
 		),
@@ -187,7 +187,7 @@ func ToV1Concurrency(workflowConcurrency *WorkflowConcurrency, taskConcurrencies
 func ToJob(job *sqlcv1.Job, steps []*sqlcv1.GetStepsForJobsRow) *gen.Job {
 	res := &gen.Job{
 		Metadata: *toAPIMetadata(
-			job.ID.String(),
+			job.ID,
 			job.CreatedAt.Time,
 			job.UpdatedAt.Time,
 		),
@@ -215,7 +215,7 @@ func ToJob(job *sqlcv1.Job, steps []*sqlcv1.GetStepsForJobsRow) *gen.Job {
 func ToStep(step *sqlcv1.Step, parents []uuid.UUID) *gen.Step {
 	res := &gen.Step{
 		Metadata: *toAPIMetadata(
-			step.ID.String(),
+			step.ID,
 			step.CreatedAt.Time,
 			step.UpdatedAt.Time,
 		),
@@ -243,7 +243,7 @@ func ToStep(step *sqlcv1.Step, parents []uuid.UUID) *gen.Step {
 
 func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 	res := &gen.Workflow{
-		Metadata:    *toAPIMetadata(row.ID.String(), row.CreatedAt.Time, row.UpdatedAt.Time),
+		Metadata:    *toAPIMetadata(row.ID, row.CreatedAt.Time, row.UpdatedAt.Time),
 		Name:        row.Name,
 		Description: &row.Description.String,
 		IsPaused:    &row.IsPaused.Bool,
@@ -254,7 +254,7 @@ func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 
 func ToWorkflowVersionFromSQLC(row *sqlcv1.WorkflowVersion, workflow *gen.Workflow) *gen.WorkflowVersion {
 	res := &gen.WorkflowVersion{
-		Metadata:   *toAPIMetadata(row.ID.String(), row.CreatedAt.Time, row.UpdatedAt.Time),
+		Metadata:   *toAPIMetadata(row.ID, row.CreatedAt.Time, row.UpdatedAt.Time),
 		Version:    row.Version.String,
 		WorkflowId: row.WorkflowId.String(),
 		Order:      int32(row.Order), // nolint: gosec

@@ -344,15 +344,15 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 
 	taskIds := make([]int64, 0, len(queueItems))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(queueItems))
-	stepsWithRateLimits := make(map[string]bool)
-	stepIdToTasks := make(map[string][]int64)
-	taskIdToStepId := make(map[int64]string)
+	stepsWithRateLimits := make(map[uuid.UUID]bool)
+	stepIdToTasks := make(map[uuid.UUID][]int64)
+	taskIdToStepId := make(map[int64]uuid.UUID)
 
 	for _, item := range queueItems {
 		taskIds = append(taskIds, item.TaskID)
 		taskInsertedAts = append(taskInsertedAts, item.TaskInsertedAt)
 
-		stepId := item.StepID.String()
+		stepId := item.StepID
 
 		stepIdToTasks[stepId] = append(stepIdToTasks[stepId], item.TaskID)
 		taskIdToStepId[item.TaskID] = stepId
@@ -361,8 +361,8 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 	// check if we have any rate limits for these step ids
 	skipRateLimiting := true
 
-	for stepIdStr := range stepIdToTasks {
-		if hasRateLimit, ok := d.cachedStepIdHasRateLimit.Get(stepIdStr); !ok || hasRateLimit.(bool) {
+	for stepId := range stepIdToTasks {
+		if hasRateLimit, ok := d.cachedStepIdHasRateLimit.Get(stepId.String()); !ok || hasRateLimit.(bool) {
 			skipRateLimiting = false
 			break
 		}
@@ -535,7 +535,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 	uniqueStepIds := make([]uuid.UUID, 0, len(stepIdToTasks))
 
 	for stepId := range stepIdToTasks {
-		uniqueStepIds = append(uniqueStepIds, uuid.MustParse(stepId))
+		uniqueStepIds = append(uniqueStepIds, stepId)
 	}
 
 	stepRateLimits, err = d.queries.ListRateLimitsForSteps(ctx, d.pool, sqlcv1.ListRateLimitsForStepsParams{
@@ -548,8 +548,8 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 	}
 
 	for _, row := range stepRateLimits {
-		stepsWithRateLimits[row.StepId.String()] = true
-		stepId := row.StepId.String()
+		stepsWithRateLimits[row.StepId] = true
+		stepId := row.StepId
 		tasks := stepIdToTasks[stepId]
 
 		for _, taskId := range tasks {
@@ -564,7 +564,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 	// store all step ids in the cache, so we can skip rate limiting for steps without rate limits
 	for stepId := range stepIdToTasks {
 		hasRateLimit := stepsWithRateLimits[stepId]
-		d.cachedStepIdHasRateLimit.Set(stepId, hasRateLimit)
+		d.cachedStepIdHasRateLimit.Set(stepId.String(), hasRateLimit)
 	}
 
 	return taskIdToKeyToUnits, nil

@@ -16,7 +16,7 @@ func ToTenant(tenant *sqlcv1.Tenant) *gen.Tenant {
 	}
 
 	return &gen.Tenant{
-		Metadata:          *toAPIMetadata(tenant.ID.String(), tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
+		Metadata:          *toAPIMetadata(tenant.ID, tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
 		Name:              tenant.Name,
 		Slug:              tenant.Slug,
 		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
@@ -28,7 +28,7 @@ func ToTenant(tenant *sqlcv1.Tenant) *gen.Tenant {
 
 func ToTenantAlertingSettings(alerting *sqlcv1.TenantAlertingSettings) *gen.TenantAlertingSettings {
 	res := &gen.TenantAlertingSettings{
-		Metadata:                        *toAPIMetadata(alerting.ID.String(), alerting.CreatedAt.Time, alerting.UpdatedAt.Time),
+		Metadata:                        *toAPIMetadata(alerting.ID, alerting.CreatedAt.Time, alerting.UpdatedAt.Time),
 		MaxAlertingFrequency:            alerting.MaxFrequency,
 		EnableExpiringTokenAlerts:       &alerting.EnableExpiringTokenAlerts,
 		EnableWorkflowRunFailureAlerts:  &alerting.EnableWorkflowRunFailureAlerts,
@@ -46,7 +46,7 @@ func ToTenantAlertEmailGroup(group *sqlcv1.TenantAlertEmailGroup) *gen.TenantAle
 	emails := strings.Split(group.Emails, ",")
 
 	return &gen.TenantAlertEmailGroup{
-		Metadata: *toAPIMetadata(group.ID.String(), group.CreatedAt.Time, group.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(group.ID, group.CreatedAt.Time, group.UpdatedAt.Time),
 		Emails:   emails,
 	}
 }
@@ -68,7 +68,7 @@ func ToTenantResourcePolicy(_limits []*sqlcv1.TenantResourceLimit) *gen.TenantRe
 		}
 
 		limits[i] = gen.TenantResourceLimit{
-			Metadata:   *toAPIMetadata(limit.ID.String(), limit.CreatedAt.Time, limit.UpdatedAt.Time),
+			Metadata:   *toAPIMetadata(limit.ID, limit.CreatedAt.Time, limit.UpdatedAt.Time),
 			Resource:   gen.TenantResource(limit.Resource),
 			LimitValue: int(limit.LimitValue),
 			AlarmValue: &alarmValue,

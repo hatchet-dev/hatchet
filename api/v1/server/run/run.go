@@ -230,7 +230,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		tenant, err := config.V1.Tenant().GetTenantByID(ctxTimeout, uuid.MustParse(id))
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
+		}
+
+		tenant, err := config.V1.Tenant().GetTenantByID(ctxTimeout, idUuid)
 
 		if err != nil {
 			return nil, "", err
@@ -325,7 +331,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflow, err := config.V1.Workflows().GetWorkflowById(context.Background(), uuid.MustParse(id))
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid workflow id")
+		}
+
+		workflow, err := config.V1.Workflows().GetWorkflowById(context.Background(), idUuid)
 
 		if err != nil {
 			return nil, "", err
@@ -340,7 +352,17 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("scheduled-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		scheduled, err := config.V1.WorkflowSchedules().GetScheduledWorkflow(context.Background(), uuid.MustParse(parentId), uuid.MustParse(id))
+		idUuid, err := uuid.Parse(id)
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid scheduled workflow run id")
+		}
+
+		parentIdUuid, err := uuid.Parse(parentId)
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
+		}
+
+		scheduled, err := config.V1.WorkflowSchedules().GetScheduledWorkflow(context.Background(), parentIdUuid, idUuid)
 
 		if err != nil {
 			return nil, "", err
@@ -354,7 +376,17 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("cron-workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		scheduled, err := config.V1.WorkflowSchedules().GetCronWorkflow(context.Background(), uuid.MustParse(parentId), uuid.MustParse(id))
+		idUuid, err := uuid.Parse(id)
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid cron workflow id")
+		}
+
+		parentIdUuid, err := uuid.Parse(parentId)
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
+		}
+
+		scheduled, err := config.V1.WorkflowSchedules().GetCronWorkflow(context.Background(), parentIdUuid, idUuid)
 
 		if err != nil {
 			return nil, "", err
@@ -376,7 +408,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		v1Event, err := t.config.V1.OLAP().GetEvent(timeoutCtx, uuid.MustParse(id))
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid event id")
+		}
+
+		v1Event, err := t.config.V1.OLAP().GetEvent(timeoutCtx, idUuid)
 
 		if err != nil {
 			return nil, "", err
@@ -405,7 +443,19 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		v1Event, err := t.config.V1.OLAP().GetEventWithPayload(timeoutCtx, uuid.MustParse(id), uuid.MustParse(parentId))
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid event id")
+		}
+
+		parentIdUuid, err := uuid.Parse(parentId)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
+		}
+
+		v1Event, err := t.config.V1.OLAP().GetEventWithPayload(timeoutCtx, idUuid, parentIdUuid)
 
 		if err != nil {
 			return nil, "", err
@@ -424,7 +474,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("worker", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		worker, err := config.V1.Workers().GetWorkerById(uuid.MustParse(id))
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid worker id")
+		}
+
+		worker, err := config.V1.Workers().GetWorkerById(idUuid)
 
 		if err != nil {
 			return nil, "", err
@@ -478,10 +534,22 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("v1-filter", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid filter id")
+		}
+
+		parentIdUuid, err := uuid.Parse(parentId)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
+		}
+
 		filter, err := t.config.V1.Filters().GetFilter(
 			context.Background(),
-			uuid.MustParse(parentId),
-			uuid.MustParse(id),
+			parentIdUuid,
+			idUuid,
 		)
 
 		if err != nil {
@@ -492,10 +560,22 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("v1-event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid event id")
+		}
+
+		parentIdUuid, err := uuid.Parse(parentId)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
+		}
+
 		event, err := t.config.V1.OLAP().GetEventWithPayload(
 			context.Background(),
-			uuid.MustParse(id),
-			uuid.MustParse(parentId),
+			idUuid,
+			parentIdUuid,
 		)
 
 		if err != nil {
@@ -506,9 +586,15 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("v1-webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		parentIdUuid, err := uuid.Parse(parentId)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
+		}
+
 		webhook, err := t.config.V1.Webhooks().GetWebhook(
 			context.Background(),
-			uuid.MustParse(parentId),
+			parentIdUuid,
 			id,
 		)
 

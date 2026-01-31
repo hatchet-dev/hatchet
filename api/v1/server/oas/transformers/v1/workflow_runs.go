@@ -89,17 +89,17 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		AdditionalMetadata:    &additionalMetadata,
 		ErrorMessage:          &task.ErrorMessage,
 		Status:                gen.V1TaskStatus(task.ReadableStatus),
-		TenantId:              uuid.MustParse(task.TenantID.String()),
-		WorkflowId:            uuid.MustParse(task.WorkflowID.String()),
+		TenantId:              task.TenantID,
+		WorkflowId:            task.WorkflowID,
 		WorkflowVersionId:     &workflowVersionId,
-		TaskExternalId:        uuid.MustParse(task.ExternalID.String()),
+		TaskExternalId:        task.ExternalID,
 		TaskId:                taskId,
 		TaskInsertedAt:        task.InsertedAt.Time,
 		Type:                  gen.V1WorkflowTypeDAG,
 		WorkflowName:          workflowName,
 		StepId:                &stepId,
 		ActionId:              &actionId,
-		WorkflowRunExternalId: uuid.MustParse(task.ExternalID.String()),
+		WorkflowRunExternalId: task.ExternalID,
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
 		ParentTaskExternalId:  parentTaskExternalId,
@@ -116,7 +116,7 @@ func ToWorkflowRunMany(
 	toReturn := make([]gen.V1TaskSummary, len(tasks))
 
 	for i, task := range tasks {
-		dagExternalId := uuid.MustParse(task.ExternalID.String())
+		dagExternalId := task.ExternalID
 
 		actionId := ""
 
@@ -152,7 +152,7 @@ func ToWorkflowRunMany(
 }
 
 func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowName *string) gen.V1TaskSummary {
-	workflowVersionID := uuid.MustParse(task.WorkflowVersionID.String())
+	workflowVersionID := task.WorkflowVersionID
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -177,7 +177,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 	input := jsonToMap(task.InputPayload)
 	output := jsonToMap(task.OutputPayload)
 
-	stepId := uuid.MustParse(task.StepID.String())
+	stepId := task.StepID
 
 	retryCount := int(task.RetryCount)
 	attempt := retryCount + 1
@@ -198,11 +198,11 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		AdditionalMetadata:    &additionalMetadata,
 		ErrorMessage:          &task.ErrorMessage.String,
 		Status:                gen.V1TaskStatus(task.Status),
-		TenantId:              uuid.MustParse(task.TenantID.String()),
-		WorkflowId:            uuid.MustParse(task.WorkflowID.String()),
+		TenantId:              task.TenantID,
+		WorkflowId:            task.WorkflowID,
 		WorkflowVersionId:     &workflowVersionID,
 		Children:              nil,
-		TaskExternalId:        uuid.MustParse(task.ExternalID.String()),
+		TaskExternalId:        task.ExternalID,
 		TaskId:                int(task.ID),
 		TaskInsertedAt:        task.InsertedAt.Time,
 		Type:                  gen.V1WorkflowTypeTASK,
@@ -211,7 +211,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		ActionId:              &task.ActionID,
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
-		WorkflowRunExternalId: uuid.MustParse(task.WorkflowRunID.String()),
+		WorkflowRunExternalId: task.WorkflowRunID,
 		ParentTaskExternalId:  task.ParentTaskExternalID,
 	}
 }

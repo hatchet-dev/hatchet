@@ -747,7 +747,7 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, PaginationParams{
 		// placeholder initial type
 		LastType:       sqlcv1.V1PayloadTypeDAGINPUT,
-		LastTenantID:   uuid.MustParse(zeroUuid.String()),
+		LastTenantID:   zeroUuid,
 		LastInsertedAt: sqlchelpers.TimestamptzFromTime(time.Unix(0, 0)),
 		LastID:         0,
 	})
@@ -964,7 +964,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
 	}
 
-	processId := uuid.MustParse(uuid.NewString())
+	processId := uuid.New()
 
 	for _, partition := range partitions {
 		p.l.Info().Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")

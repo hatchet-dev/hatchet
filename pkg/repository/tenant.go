@@ -51,8 +51,8 @@ type UpdateTenantOpts struct {
 }
 
 type CreateTenantMemberOpts struct {
-	Role   string `validate:"required,oneof=OWNER ADMIN MEMBER"`
-	UserId string `validate:"required,uuid"`
+	Role   string    `validate:"required,oneof=OWNER ADMIN MEMBER"`
+	UserId uuid.UUID `validate:"required"`
 }
 
 type UpdateTenantMemberOpts struct {
@@ -103,10 +103,10 @@ type TenantRepository interface {
 	CreateTenantMember(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error)
 
 	// GetTenantMemberByID returns the tenant member with the given id
-	GetTenantMemberByID(ctx context.Context, memberId string) (*sqlcv1.PopulateTenantMembersRow, error)
+	GetTenantMemberByID(ctx context.Context, memberId uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error)
 
 	// GetTenantMemberByUserID returns the tenant member with the given user id
-	GetTenantMemberByUserID(ctx context.Context, tenantId uuid.UUID, userId string) (*sqlcv1.PopulateTenantMembersRow, error)
+	GetTenantMemberByUserID(ctx context.Context, tenantId uuid.UUID, userId uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error)
 
 	// GetTenantMemberByEmail returns the tenant member with the given email
 	GetTenantMemberByEmail(ctx context.Context, tenantId uuid.UUID, email string) (*sqlcv1.PopulateTenantMembersRow, error)
@@ -115,10 +115,10 @@ type TenantRepository interface {
 	ListTenantMembers(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error)
 
 	// UpdateTenantMember updates the tenant member with the given id
-	UpdateTenantMember(ctx context.Context, memberId string, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error)
+	UpdateTenantMember(ctx context.Context, memberId uuid.UUID, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error)
 
 	// DeleteTenantMember deletes the tenant member with the given id
-	DeleteTenantMember(ctx context.Context, memberId string) error
+	DeleteTenantMember(ctx context.Context, memberId uuid.UUID) error
 
 	// GetQueueMetrics returns the queue metrics for the given tenant
 	GetQueueMetrics(ctx context.Context, tenantId uuid.UUID, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error)
@@ -170,7 +170,7 @@ type TenantRepository interface {
 
 	RebalanceInactiveTenantWorkerPartitions(ctx context.Context) error
 
-	DeleteTenant(ctx context.Context, id string) error
+	DeleteTenant(ctx context.Context, id uuid.UUID) error
 
 	GetTenantUsageData(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.GetTenantUsageDataRow, error)
 }
@@ -341,7 +341,7 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid
 		r.pool,
 		sqlcv1.CreateTenantMemberParams{
 			Tenantid: tenantId,
-			Userid:   uuid.MustParse(opts.UserId),
+			Userid:   opts.UserId,
 			Role:     sqlcv1.TenantMemberRole(opts.Role),
 		},
 	)
@@ -353,11 +353,11 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid
 	return r.populateSingleTenantMember(ctx, createdMember.ID)
 }
 
-func (r *tenantRepository) GetTenantMemberByID(ctx context.Context, memberId string) (*sqlcv1.PopulateTenantMembersRow, error) {
+func (r *tenantRepository) GetTenantMemberByID(ctx context.Context, memberId uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
 	member, err := r.queries.GetTenantMemberByID(
 		ctx,
 		r.pool,
-		uuid.MustParse(memberId),
+		memberId,
 	)
 
 	if err != nil {
@@ -367,13 +367,13 @@ func (r *tenantRepository) GetTenantMemberByID(ctx context.Context, memberId str
 	return r.populateSingleTenantMember(ctx, member.ID)
 }
 
-func (r *tenantRepository) GetTenantMemberByUserID(ctx context.Context, tenantId uuid.UUID, userId string) (*sqlcv1.PopulateTenantMembersRow, error) {
+func (r *tenantRepository) GetTenantMemberByUserID(ctx context.Context, tenantId uuid.UUID, userId uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
 	member, err := r.queries.GetTenantMemberByUserID(
 		ctx,
 		r.pool,
 		sqlcv1.GetTenantMemberByUserIDParams{
 			Tenantid: tenantId,
-			Userid:   uuid.MustParse(userId),
+			Userid:   userId,
 		},
 	)
 
@@ -421,13 +421,13 @@ func (r *tenantRepository) GetTenantMemberByEmail(ctx context.Context, tenantId 
 	return r.populateSingleTenantMember(ctx, member.ID)
 }
 
-func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId string, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error) {
+func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId uuid.UUID, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	params := sqlcv1.UpdateTenantMemberParams{
-		ID: uuid.MustParse(memberId),
+		ID: memberId,
 	}
 
 	if opts.Role != nil {
@@ -472,11 +472,11 @@ func (r *sharedRepository) populateTenantMembers(ctx context.Context, ids []uuid
 	)
 }
 
-func (r *tenantRepository) DeleteTenantMember(ctx context.Context, memberId string) error {
+func (r *tenantRepository) DeleteTenantMember(ctx context.Context, memberId uuid.UUID) error {
 	return r.queries.DeleteTenantMember(
 		ctx,
 		r.pool,
-		uuid.MustParse(memberId),
+		memberId,
 	)
 }
 
@@ -788,8 +788,8 @@ func (r *tenantRepository) RebalanceInactiveSchedulerPartitions(ctx context.Cont
 	return r.queries.RebalanceInactiveSchedulerPartitions(ctx, r.pool)
 }
 
-func (r *tenantRepository) DeleteTenant(ctx context.Context, id string) error {
-	return r.queries.DeleteTenant(ctx, r.pool, uuid.MustParse(id))
+func (r *tenantRepository) DeleteTenant(ctx context.Context, id uuid.UUID) error {
+	return r.queries.DeleteTenant(ctx, r.pool, id)
 }
 
 func (r *tenantRepository) GetTenantUsageData(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.GetTenantUsageDataRow, error) {

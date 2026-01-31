@@ -1174,9 +1174,13 @@ func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId uuid.UU
 func (r *TaskRepositoryImpl) DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error) {
 	today := time.Now().UTC()
 	notBefore := today.Add(-1 * r.taskRetentionPeriod)
+	tenantIdUuid, err := uuid.Parse(tenantId)
+	if err != nil {
+		return 0, err
+	}
 
 	res, err := r.queries.DefaultTaskActivityGauge(ctx, r.pool, sqlcv1.DefaultTaskActivityGaugeParams{
-		Tenantid: uuid.MustParse(tenantId),
+		Tenantid: tenantIdUuid,
 		Activesince: pgtype.Timestamptz{
 			Time:  notBefore,
 			Valid: true,
@@ -2724,7 +2728,7 @@ func (r *sharedRepository) createTaskEvents(
 		retryCounts[i] = task.RetryCount
 		eventTypesStrs[i] = string(eventTypes[i])
 
-		externalId := uuid.MustParse(uuid.NewString())
+		externalId := uuid.New()
 		externalIds[i] = externalId
 
 		// important: if we don't set this to `eventDatas[i]` and instead allow it to be nil optionally
@@ -3347,12 +3351,22 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 
 		for _, groupCondition := range match.Conditions {
 			if groupCondition.EventType == sqlcv1.V1EventTypeINTERNAL && groupCondition.EventResourceHint != nil {
-				externalId := uuid.MustParse(*groupCondition.EventResourceHint)
+				externalId, err := uuid.Parse(*groupCondition.EventResourceHint)
+
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to parse external id from group condition: %w", err)
+				}
 
 				// if the parent task is not in the subtree, we need to query the task_events table
 				// to ensure the event has already occurred
 				if _, ok := subtreeExternalIds[externalId]; !ok {
-					externalIds = append(externalIds, uuid.MustParse(*groupCondition.EventResourceHint))
+					externalIdUuid, err := uuid.Parse(*groupCondition.EventResourceHint)
+
+					if err != nil {
+						return nil, nil, fmt.Errorf("failed to parse external id from group condition: %w", err)
+					}
+
+					externalIds = append(externalIds, externalIdUuid)
 					eventTypes = append(eventTypes, []string{groupCondition.EventKey})
 				}
 			}

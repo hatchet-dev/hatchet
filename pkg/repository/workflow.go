@@ -298,7 +298,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 	switch {
 	case err != nil && errors.Is(err, pgx.ErrNoRows):
 		// create the workflow
-		workflowId = uuid.MustParse(uuid.New().String())
+		workflowId = uuid.New()
 
 		_, err = r.queries.CreateWorkflow(
 			ctx,
@@ -365,7 +365,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 
 	workflowVersion, err := r.queries.GetWorkflowVersionForEngine(ctx, tx, sqlcv1.GetWorkflowVersionForEngineParams{
 		Tenantid: tenantId,
-		Ids:      []uuid.UUID{uuid.MustParse(workflowVersionId)},
+		Ids:      []uuid.UUID{*workflowVersionId},
 	})
 
 	if err != nil {
@@ -385,28 +385,28 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 	return workflowVersion[0], nil
 }
 
-func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (string, error) {
-	workflowVersionId := uuid.New().String()
+func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (*uuid.UUID, error) {
+	workflowVersionId := uuid.New()
 
 	cs, modifiedOpts, err := checksumV1(opts)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// if the checksum matches the old checksum, we don't need to create a new workflow version
 	if oldWorkflowVersion != nil && oldWorkflowVersion.WorkflowVersion.Checksum == cs {
-		return oldWorkflowVersion.WorkflowVersion.ID.String(), nil
+		return &oldWorkflowVersion.WorkflowVersion.ID, nil
 	}
 
 	optsJson, err := json.Marshal(modifiedOpts)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	createParams := sqlcv1.CreateWorkflowVersionParams{
-		ID:                        uuid.MustParse(workflowVersionId),
+		ID:                        workflowVersionId,
 		Checksum:                  cs,
 		Workflowid:                workflowId,
 		CreateWorkflowVersionOpts: optsJson,
@@ -433,13 +433,13 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	_, err = r.createJobTx(ctx, tx, tenantId, workflowId, sqlcWorkflowVersion.ID, sqlcv1.JobKindDEFAULT, opts.Tasks)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// create the onFailure job if exists
@@ -447,16 +447,16 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		jobId, err := r.createJobTx(ctx, tx, tenantId, workflowId, sqlcWorkflowVersion.ID, sqlcv1.JobKindONFAILURE, []CreateStepOpts{*opts.OnFailure})
 
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		_, err = r.queries.LinkOnFailureJob(ctx, tx, sqlcv1.LinkOnFailureJobParams{
 			Workflowversionid: sqlcWorkflowVersion.ID,
-			Jobid:             uuid.MustParse(jobId),
+			Jobid:             *jobId,
 		})
 
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
@@ -495,7 +495,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		)
 
 		if err != nil {
-			return "", fmt.Errorf("could not create concurrency group: %w", err)
+			return nil, fmt.Errorf("could not create concurrency group: %w", err)
 		}
 
 		err = r.queries.UpdateWorkflowConcurrencyWithChildStrategyIds(
@@ -510,25 +510,25 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		)
 
 		if err != nil {
-			return "", fmt.Errorf("could not create concurrency group: %w", err)
+			return nil, fmt.Errorf("could not create concurrency group: %w", err)
 		}
 	}
 
 	// create the workflow triggers
-	workflowTriggersId := uuid.New().String()
+	workflowTriggersId := uuid.New()
 
 	sqlcWorkflowTriggers, err := r.queries.CreateWorkflowTriggers(
 		ctx,
 		tx,
 		sqlcv1.CreateWorkflowTriggersParams{
-			ID:                uuid.MustParse(workflowTriggersId),
+			ID:                workflowTriggersId,
 			Workflowversionid: sqlcWorkflowVersion.ID,
 			Tenantid:          tenantId,
 		},
 	)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	for _, eventTrigger := range opts.EventTriggers {
@@ -542,7 +542,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		)
 
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
@@ -576,7 +576,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		)
 
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 	}
@@ -589,7 +589,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		})
 
 		if err != nil {
-			return "", fmt.Errorf("could not move existing cron triggers to new workflow triggers: %w", err)
+			return nil, fmt.Errorf("could not move existing cron triggers to new workflow triggers: %w", err)
 		}
 
 		// move existing scheduled triggers to the new workflow version
@@ -599,7 +599,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		})
 
 		if err != nil {
-			return "", fmt.Errorf("could not move existing scheduled triggers to new workflow triggers: %w", err)
+			return nil, fmt.Errorf("could not move existing scheduled triggers to new workflow triggers: %w", err)
 		}
 	}
 
@@ -615,7 +615,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 				payload, err = json.Marshal(filter.Payload)
 
 				if err != nil {
-					return "", fmt.Errorf("could not marshal filter payload: %w", err)
+					return nil, fmt.Errorf("could not marshal filter payload: %w", err)
 				}
 			}
 
@@ -634,7 +634,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		)
 
 		if err != nil {
-			return "", fmt.Errorf("could not delete existing declarative filters: %w", err)
+			return nil, fmt.Errorf("could not delete existing declarative filters: %w", err)
 		}
 
 		err = r.queries.BulkInsertDeclarativeFilters(
@@ -650,26 +650,26 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		)
 
 		if err != nil {
-			return "", fmt.Errorf("could not upsert declarative filters: %w", err)
+			return nil, fmt.Errorf("could not upsert declarative filters: %w", err)
 		}
 	}
 
-	return workflowVersionId, nil
+	return &workflowVersionId, nil
 }
 
-func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId, workflowVersionId uuid.UUID, jobKind sqlcv1.JobKind, steps []CreateStepOpts) (string, error) {
+func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId, workflowVersionId uuid.UUID, jobKind sqlcv1.JobKind, steps []CreateStepOpts) (*uuid.UUID, error) {
 	if len(steps) == 0 {
-		return "", errors.New("no steps provided")
+		return nil, errors.New("no steps provided")
 	}
 
 	jobName := steps[0].ReadableId
-	jobId := uuid.New().String()
+	jobId := uuid.New()
 
 	sqlcJob, err := r.queries.CreateJob(
 		ctx,
 		tx,
 		sqlcv1.CreateJobParams{
-			ID:                uuid.MustParse(jobId),
+			ID:                jobId,
 			Tenantid:          tenantId,
 			Workflowversionid: workflowVersionId,
 			Name:              jobName,
@@ -681,11 +681,11 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 	)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	for _, stepOpts := range steps {
-		stepId := uuid.New().String()
+		stepId := uuid.New()
 
 		var (
 			timeout        pgtype.Text
@@ -715,13 +715,13 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 		)
 
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		createStepParams := sqlcv1.CreateStepParams{
-			ID:             uuid.MustParse(stepId),
+			ID:             stepId,
 			Tenantid:       tenantId,
-			Jobid:          uuid.MustParse(jobId),
+			Jobid:          jobId,
 			Actionid:       stepOpts.Action,
 			Timeout:        timeout,
 			Readableid:     stepOpts.ReadableId,
@@ -754,7 +754,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 		)
 
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		if len(stepOpts.DesiredWorkerLabels) > 0 {
@@ -767,7 +767,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				}
 
 				opts := sqlcv1.UpsertDesiredWorkerLabelParams{
-					Stepid: uuid.MustParse(stepId),
+					Stepid: stepId,
 					Key:    key,
 				}
 
@@ -801,7 +801,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				)
 
 				if err != nil {
-					return "", err
+					return nil, err
 				}
 			}
 		}
@@ -811,20 +811,20 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				ctx,
 				tx,
 				sqlcv1.AddStepParentsParams{
-					ID:      uuid.MustParse(stepId),
+					ID:      stepId,
 					Parents: stepOpts.Parents,
 					Jobid:   sqlcJob.ID,
 				},
 			)
 
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 		}
 
 		if len(stepOpts.RateLimits) > 0 {
 			createStepExprParams := sqlcv1.CreateStepExpressionsParams{
-				Stepid: uuid.MustParse(stepId),
+				Stepid: stepId,
 			}
 
 			for _, rateLimit := range stepOpts.RateLimits {
@@ -889,7 +889,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 						ctx,
 						tx,
 						sqlcv1.CreateStepRateLimitParams{
-							Stepid:       uuid.MustParse(stepId),
+							Stepid:       stepId,
 							Ratelimitkey: rateLimit.Key,
 							Units:        rlUnits, // nolint: gosec
 							Tenantid:     tenantId,
@@ -898,7 +898,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					)
 
 					if err != nil {
-						return "", fmt.Errorf("could not create step rate limit: %w", err)
+						return nil, fmt.Errorf("could not create step rate limit: %w", err)
 					}
 				}
 			}
@@ -911,7 +911,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				)
 
 				if err != nil {
-					return "", err
+					return nil, err
 				}
 			}
 		}
@@ -936,7 +936,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					sqlcv1.CreateStepConcurrencyParams{
 						Workflowid:        workflowId,
 						Workflowversionid: workflowVersionId,
-						Stepid:            uuid.MustParse(stepId),
+						Stepid:            stepId,
 						Tenantid:          tenantId,
 						Expression:        concurrency.Expression,
 						Maxconcurrency:    maxRuns,
@@ -945,7 +945,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				)
 
 				if err != nil {
-					return "", err
+					return nil, err
 				}
 			}
 		}
@@ -975,7 +975,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					tx,
 					sqlcv1.CreateStepMatchConditionParams{
 						Tenantid:         tenantId,
-						Stepid:           uuid.MustParse(stepId),
+						Stepid:           stepId,
 						Readabledatakey:  condition.ReadableDataKey,
 						Action:           sqlcv1.V1MatchConditionAction(condition.Action),
 						Orgroupid:        condition.OrGroupId,
@@ -988,18 +988,18 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				)
 
 				if err != nil {
-					return "", err
+					return nil, err
 				}
 			}
 		}
 
 	}
 
-	return jobId, nil
+	return &jobId, nil
 }
 
 func (r *workflowRepository) GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error) {
-	return r.queries.GetWorkflowShape(ctx, r.pool, uuid.MustParse(workflowVersionId.String()))
+	return r.queries.GetWorkflowShape(ctx, r.pool, workflowVersionId)
 }
 
 func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error) {

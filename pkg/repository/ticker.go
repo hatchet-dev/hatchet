@@ -10,7 +10,7 @@ import (
 )
 
 type CreateTickerOpts struct {
-	ID string `validate:"required,uuid"`
+	ID uuid.UUID `validate:"required"`
 }
 
 type UpdateTickerOpts struct {
@@ -31,20 +31,20 @@ type TickerRepository interface {
 	CreateNewTicker(ctx context.Context, opts *CreateTickerOpts) (*sqlcv1.Ticker, error)
 
 	// UpdateTicker updates a ticker.
-	UpdateTicker(ctx context.Context, tickerId string, opts *UpdateTickerOpts) (*sqlcv1.Ticker, error)
+	UpdateTicker(ctx context.Context, tickerId uuid.UUID, opts *UpdateTickerOpts) (*sqlcv1.Ticker, error)
 
 	// ListTickers lists tickers.
 	ListTickers(ctx context.Context, opts *ListTickerOpts) ([]*sqlcv1.Ticker, error)
 
 	// DeactivateTicker deletes a ticker.
-	DeactivateTicker(ctx context.Context, tickerId string) error
+	DeactivateTicker(ctx context.Context, tickerId uuid.UUID) error
 
 	// PollCronSchedules returns all cron schedules which should be managed by the ticker
-	PollCronSchedules(ctx context.Context, tickerId string) ([]*sqlcv1.PollCronSchedulesRow, error)
+	PollCronSchedules(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollCronSchedulesRow, error)
 
-	PollScheduledWorkflows(ctx context.Context, tickerId string) ([]*sqlcv1.PollScheduledWorkflowsRow, error)
+	PollScheduledWorkflows(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollScheduledWorkflowsRow, error)
 
-	PollTenantAlerts(ctx context.Context, tickerId string) ([]*sqlcv1.PollTenantAlertsRow, error)
+	PollTenantAlerts(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollTenantAlertsRow, error)
 
 	PollExpiringTokens(ctx context.Context) ([]*sqlcv1.PollExpiringTokensRow, error)
 
@@ -76,10 +76,10 @@ func (t *tickerRepository) CreateNewTicker(ctx context.Context, opts *CreateTick
 		return nil, err
 	}
 
-	return t.queries.CreateTicker(ctx, t.pool, uuid.MustParse(opts.ID))
+	return t.queries.CreateTicker(ctx, t.pool, opts.ID)
 }
 
-func (t *tickerRepository) UpdateTicker(ctx context.Context, tickerId string, opts *UpdateTickerOpts) (*sqlcv1.Ticker, error) {
+func (t *tickerRepository) UpdateTicker(ctx context.Context, tickerId uuid.UUID, opts *UpdateTickerOpts) (*sqlcv1.Ticker, error) {
 	if err := t.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (t *tickerRepository) UpdateTicker(ctx context.Context, tickerId string, op
 		ctx,
 		t.pool,
 		sqlcv1.UpdateTickerParams{
-			ID:              uuid.MustParse(tickerId),
+			ID:              tickerId,
 			LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
 		},
 	)
@@ -116,26 +116,26 @@ func (t *tickerRepository) ListTickers(ctx context.Context, opts *ListTickerOpts
 	)
 }
 
-func (t *tickerRepository) DeactivateTicker(ctx context.Context, tickerId string) error {
+func (t *tickerRepository) DeactivateTicker(ctx context.Context, tickerId uuid.UUID) error {
 	_, err := t.queries.DeactivateTicker(
 		ctx,
 		t.pool,
-		uuid.MustParse(tickerId),
+		tickerId,
 	)
 
 	return err
 }
 
-func (t *tickerRepository) PollCronSchedules(ctx context.Context, tickerId string) ([]*sqlcv1.PollCronSchedulesRow, error) {
-	return t.queries.PollCronSchedules(ctx, t.pool, uuid.MustParse(tickerId))
+func (t *tickerRepository) PollCronSchedules(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollCronSchedulesRow, error) {
+	return t.queries.PollCronSchedules(ctx, t.pool, tickerId)
 }
 
-func (t *tickerRepository) PollScheduledWorkflows(ctx context.Context, tickerId string) ([]*sqlcv1.PollScheduledWorkflowsRow, error) {
-	return t.queries.PollScheduledWorkflows(ctx, t.pool, uuid.MustParse(tickerId))
+func (t *tickerRepository) PollScheduledWorkflows(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollScheduledWorkflowsRow, error) {
+	return t.queries.PollScheduledWorkflows(ctx, t.pool, tickerId)
 }
 
-func (t *tickerRepository) PollTenantAlerts(ctx context.Context, tickerId string) ([]*sqlcv1.PollTenantAlertsRow, error) {
-	return t.queries.PollTenantAlerts(ctx, t.pool, uuid.MustParse(tickerId))
+func (t *tickerRepository) PollTenantAlerts(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollTenantAlertsRow, error) {
+	return t.queries.PollTenantAlerts(ctx, t.pool, tickerId)
 }
 
 func (t *tickerRepository) PollExpiringTokens(ctx context.Context) ([]*sqlcv1.PollExpiringTokensRow, error) {

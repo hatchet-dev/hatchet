@@ -16,7 +16,7 @@ func ToWebhookWorkerRequest(webhookWorker *sqlcv1.WebhookWorkerRequest) *gen.Web
 func ToWebhookWorker(webhookWorker *sqlcv1.WebhookWorker) *gen.WebhookWorker {
 	return &gen.WebhookWorker{
 		Metadata: *toAPIMetadata(
-			webhookWorker.ID.String(),
+			webhookWorker.ID,
 			webhookWorker.CreatedAt.Time,
 			webhookWorker.UpdatedAt.Time,
 		),
@@ -28,7 +28,7 @@ func ToWebhookWorker(webhookWorker *sqlcv1.WebhookWorker) *gen.WebhookWorker {
 func ToWebhookWorkerCreated(webhookWorker *sqlcv1.WebhookWorker) *gen.WebhookWorkerCreated {
 	return &gen.WebhookWorkerCreated{
 		Metadata: *toAPIMetadata(
-			webhookWorker.ID.String(),
+			webhookWorker.ID,
 			webhookWorker.CreatedAt.Time,
 			webhookWorker.UpdatedAt.Time,
 		),

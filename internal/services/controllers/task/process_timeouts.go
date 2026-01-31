@@ -17,7 +17,11 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 	defer span.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
-	tenantIdUUID := uuid.MustParse(tenantId)
+	tenantIdUUID, err := uuid.Parse(tenantId)
+
+	if err != nil {
+		return false, fmt.Errorf("could not parse tenant id %s: %w", tenantId, err)
+	}
 
 	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskTimeouts(ctx, tenantIdUUID)
 

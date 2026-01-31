@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -33,20 +31,13 @@ func ToScheduledWorkflowsFromSQLC(scheduled *sqlcv1.ListScheduledWorkflowsRow) *
 		workflowRunStatus = &status
 	}
 
-	var workflowRunIdPtr *uuid.UUID
-
-	if scheduled.WorkflowRunId != nil {
-		workflowRunId := uuid.MustParse(scheduled.WorkflowRunId.String())
-		workflowRunIdPtr = &workflowRunId
-	}
-
 	input := make(map[string]interface{})
 	if scheduled.Input != nil {
 		json.Unmarshal(scheduled.Input, &input)
 	}
 
 	res := &gen.ScheduledWorkflows{
-		Metadata:             *toAPIMetadata(scheduled.ID.String(), scheduled.CreatedAt.Time, scheduled.UpdatedAt.Time),
+		Metadata:             *toAPIMetadata(scheduled.ID, scheduled.CreatedAt.Time, scheduled.UpdatedAt.Time),
 		WorkflowVersionId:    scheduled.WorkflowVersionId.String(),
 		WorkflowId:           scheduled.WorkflowId.String(),
 		WorkflowName:         scheduled.Name,
@@ -55,7 +46,7 @@ func ToScheduledWorkflowsFromSQLC(scheduled *sqlcv1.ListScheduledWorkflowsRow) *
 		AdditionalMetadata:   &additionalMetadata,
 		WorkflowRunCreatedAt: &scheduled.WorkflowRunCreatedAt.Time,
 		WorkflowRunStatus:    workflowRunStatus,
-		WorkflowRunId:        workflowRunIdPtr,
+		WorkflowRunId:        scheduled.WorkflowRunId,
 		WorkflowRunName:      &scheduled.WorkflowRunName.String,
 		Method:               gen.ScheduledWorkflowsMethod(scheduled.Method),
 		Priority:             &scheduled.Priority,
@@ -76,7 +67,7 @@ func ToCronWorkflowsFromSQLC(cron *sqlcv1.ListCronWorkflowsRow) *gen.CronWorkflo
 	}
 
 	res := &gen.CronWorkflows{
-		Metadata:           *toAPIMetadata(cron.ID_2.String(), cron.CreatedAt_2.Time, cron.UpdatedAt_2.Time),
+		Metadata:           *toAPIMetadata(cron.ID_2, cron.CreatedAt_2.Time, cron.UpdatedAt_2.Time),
 		WorkflowVersionId:  cron.WorkflowVersionId.String(),
 		WorkflowId:         cron.WorkflowId.String(),
 		WorkflowName:       cron.WorkflowName,

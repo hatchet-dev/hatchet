@@ -245,7 +245,7 @@ type OLAPRepository interface {
 	// In the case of a DAG, we flatten the result into the list of tasks which belong to that DAG.
 	ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
 
-	GetTaskTimings(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
+	GetTaskTimings(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[uuid.UUID]int32, error)
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error)
 	GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error)
@@ -688,7 +688,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		workflowIdParams := make([]uuid.UUID, 0)
 
 		for _, id := range opts.WorkflowIds {
-			workflowIdParams = append(workflowIdParams, uuid.MustParse(id.String()))
+			workflowIdParams = append(workflowIdParams, id)
 		}
 
 		params.WorkflowIds = workflowIdParams
@@ -823,7 +823,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 	idsInsertedAts := make([]IdInsertedAt, 0, len(tasks))
 
 	for _, row := range tasks {
-		taskIdToDagExternalId[row.TaskID] = uuid.MustParse(row.DagExternalID.String())
+		taskIdToDagExternalId[row.TaskID] = row.DagExternalID
 		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:         row.TaskID,
 			InsertedAt: row.TaskInsertedAt,
@@ -1004,7 +1004,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		workflowIdParams := make([]uuid.UUID, 0)
 
 		for _, id := range opts.WorkflowIds {
-			workflowIdParams = append(workflowIdParams, uuid.MustParse(id.String()))
+			workflowIdParams = append(workflowIdParams, id)
 		}
 
 		params.WorkflowIds = workflowIdParams
@@ -1280,7 +1280,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, ten
 		workflowIdParams := make([]uuid.UUID, 0)
 
 		for _, id := range opts.WorkflowIds {
-			workflowIdParams = append(workflowIdParams, uuid.MustParse(id.String()))
+			workflowIdParams = append(workflowIdParams, id)
 		}
 
 		params.WorkflowIds = workflowIdParams
@@ -1380,7 +1380,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 		workflowIds = make([]uuid.UUID, 0)
 
 		for _, id := range opts.WorkflowIds {
-			workflowIds = append(workflowIds, uuid.MustParse(id.String()))
+			workflowIds = append(workflowIds, id)
 		}
 	}
 
@@ -1944,7 +1944,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRunDisplayNames(ctx context.Context, te
 	})
 }
 
-func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error) {
+func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[uuid.UUID]int32, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-task-timings-olap")
 	defer span.End()
 
@@ -1993,11 +1993,11 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId uuid.U
 	}
 
 	// associate each run external id with a depth
-	idsToDepth := make(map[string]int32)
+	idsToDepth := make(map[uuid.UUID]int32)
 	idsInsertedAts := make([]IdInsertedAt, 0, len(runsList))
 
 	for _, row := range runsList {
-		idsToDepth[row.ExternalID.String()] = row.Depth
+		idsToDepth[row.ExternalID] = row.Depth
 		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:         row.ID,
 			InsertedAt: row.InsertedAt,
@@ -3095,8 +3095,8 @@ func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, process
 	var zeroUuid uuid.UUID
 
 	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, OLAPPaginationParams{
-		LastTenantId:   uuid.MustParse(zeroUuid.String()),
-		LastExternalId: uuid.MustParse(zeroUuid.String()),
+		LastTenantId:   zeroUuid,
+		LastExternalId: zeroUuid,
 		LastInsertedAt: sqlchelpers.TimestamptzFromTime(time.Unix(0, 0)),
 		Limit:          externalCutoverBatchSize,
 	})
@@ -3311,7 +3311,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
 	}
 
-	processId := uuid.MustParse(uuid.NewString())
+	processId := uuid.New()
 
 	for _, partition := range partitions {
 		p.l.Info().Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")

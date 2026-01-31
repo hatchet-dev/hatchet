@@ -7,7 +7,7 @@ import (
 
 func ToTenantInviteLink(invite *sqlcv1.TenantInviteLink) *gen.TenantInvite {
 	res := &gen.TenantInvite{
-		Metadata: *toAPIMetadata(invite.ID.String(), invite.CreatedAt.Time, invite.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(invite.ID, invite.CreatedAt.Time, invite.UpdatedAt.Time),
 		Email:    invite.InviteeEmail,
 		Expires:  invite.Expires.Time,
 		Role:     gen.TenantMemberRole(invite.Role),
@@ -19,7 +19,7 @@ func ToTenantInviteLink(invite *sqlcv1.TenantInviteLink) *gen.TenantInvite {
 
 func ToUserTenantInviteLink(invite *sqlcv1.ListTenantInvitesByEmailRow) *gen.TenantInvite {
 	res := &gen.TenantInvite{
-		Metadata:   *toAPIMetadata(invite.ID.String(), invite.CreatedAt.Time, invite.UpdatedAt.Time),
+		Metadata:   *toAPIMetadata(invite.ID, invite.CreatedAt.Time, invite.UpdatedAt.Time),
 		Email:      invite.InviteeEmail,
 		Expires:    invite.Expires.Time,
 		Role:       gen.TenantMemberRole(invite.Role),

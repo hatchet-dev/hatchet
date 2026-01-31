@@ -20,7 +20,7 @@ func ToEventList(events []*sqlcv1.Event) []gen.Event {
 
 func ToEvent(event *sqlcv1.Event) gen.Event {
 	return gen.Event{
-		Metadata: *toAPIMetadata(event.ID.String(), event.CreatedAt.Time, event.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(event.ID, event.CreatedAt.Time, event.UpdatedAt.Time),
 		Key:      event.Key,
 		TenantId: event.TenantId.String(),
 	}
@@ -37,7 +37,7 @@ func ToEventFromSQLCV1(event *v1.EventWithPayload) (*gen.Event, error) {
 	}
 
 	res := &gen.Event{
-		Metadata:           *toAPIMetadata(event.EventExternalID.String(), event.EventSeenAt.Time, event.EventSeenAt.Time),
+		Metadata:           *toAPIMetadata(event.EventExternalID, event.EventSeenAt.Time, event.EventSeenAt.Time),
 		Key:                event.EventKey,
 		TenantId:           event.TenantID.String(),
 		AdditionalMetadata: &metadata,

@@ -59,13 +59,13 @@ type TenantAlertingRepository interface {
 
 	CreateTenantAlertGroup(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error)
 
-	UpdateTenantAlertGroup(ctx context.Context, id string, opts *UpdateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error)
+	UpdateTenantAlertGroup(ctx context.Context, id uuid.UUID, opts *UpdateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error)
 
 	ListTenantAlertGroups(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.TenantAlertEmailGroup, error)
 
-	GetTenantAlertGroupById(ctx context.Context, id string) (*sqlcv1.TenantAlertEmailGroup, error)
+	GetTenantAlertGroupById(ctx context.Context, id uuid.UUID) (*sqlcv1.TenantAlertEmailGroup, error)
 
-	DeleteTenantAlertGroup(ctx context.Context, tenantId uuid.UUID, id string) error
+	DeleteTenantAlertGroup(ctx context.Context, tenantId uuid.UUID, id uuid.UUID) error
 }
 
 type tenantAlertingRepository struct {
@@ -130,7 +130,7 @@ func (r *tenantAlertingRepository) CreateTenantAlertGroup(ctx context.Context, t
 	)
 }
 
-func (r *tenantAlertingRepository) UpdateTenantAlertGroup(ctx context.Context, id string, opts *UpdateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error) {
+func (r *tenantAlertingRepository) UpdateTenantAlertGroup(ctx context.Context, id uuid.UUID, opts *UpdateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (r *tenantAlertingRepository) UpdateTenantAlertGroup(ctx context.Context, i
 		ctx,
 		r.pool,
 		sqlcv1.UpdateTenantAlertGroupParams{
-			ID:     uuid.MustParse(id),
+			ID:     id,
 			Emails: emails,
 		},
 	)
@@ -155,21 +155,21 @@ func (r *tenantAlertingRepository) ListTenantAlertGroups(ctx context.Context, te
 	)
 }
 
-func (r *tenantAlertingRepository) GetTenantAlertGroupById(ctx context.Context, id string) (*sqlcv1.TenantAlertEmailGroup, error) {
+func (r *tenantAlertingRepository) GetTenantAlertGroupById(ctx context.Context, id uuid.UUID) (*sqlcv1.TenantAlertEmailGroup, error) {
 	return r.queries.GetTenantAlertGroupById(
 		ctx,
 		r.pool,
-		uuid.MustParse(id),
+		id,
 	)
 }
 
-func (r *tenantAlertingRepository) DeleteTenantAlertGroup(ctx context.Context, tenantId uuid.UUID, id string) error {
+func (r *tenantAlertingRepository) DeleteTenantAlertGroup(ctx context.Context, tenantId uuid.UUID, id uuid.UUID) error {
 	return r.queries.DeleteTenantAlertGroup(
 		ctx,
 		r.pool,
 		sqlcv1.DeleteTenantAlertGroupParams{
 			Tenantid: tenantId,
-			ID:       uuid.MustParse(id),
+			ID:       id,
 		},
 	)
 }

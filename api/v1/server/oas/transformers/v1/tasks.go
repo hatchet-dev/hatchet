@@ -20,7 +20,7 @@ func jsonToMap(jsonBytes []byte) map[string]interface{} {
 }
 
 func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
-	workflowVersionID := uuid.MustParse(task.WorkflowVersionID.String())
+	workflowVersionID := task.WorkflowVersionID
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -42,15 +42,8 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 		durationPtr = &duration
 	}
 
-	var parentTaskExternalId *uuid.UUID
-
-	if task.ParentTaskExternalID != nil {
-		parentTaskExternalIdValue := uuid.MustParse(task.ParentTaskExternalID.String())
-		parentTaskExternalId = &parentTaskExternalIdValue
-	}
-
-	taskExternalId := uuid.MustParse(task.ExternalID.String())
-	stepId := uuid.MustParse(task.StepID.String())
+	taskExternalId := task.ExternalID
+	stepId := task.StepID
 
 	retryCount := int(task.RetryCount)
 	attempt := retryCount + 1
@@ -70,18 +63,18 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 		AdditionalMetadata:    &additionalMetadata,
 		ErrorMessage:          &task.ErrorMessage.String,
 		Status:                gen.V1TaskStatus(task.Status),
-		TenantId:              uuid.MustParse(task.TenantID.String()),
-		WorkflowId:            uuid.MustParse(task.WorkflowID.String()),
+		TenantId:              task.TenantID,
+		WorkflowId:            task.WorkflowID,
 		TaskId:                int(task.ID),
 		TaskInsertedAt:        task.InsertedAt.Time,
 		TaskExternalId:        taskExternalId,
 		StepId:                &stepId,
 		ActionId:              &task.ActionID,
-		WorkflowRunExternalId: uuid.MustParse(task.WorkflowRunID.String()),
+		WorkflowRunExternalId: task.WorkflowRunID,
 		WorkflowVersionId:     &workflowVersionID,
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
-		ParentTaskExternalId:  parentTaskExternalId,
+		ParentTaskExternalId:  task.ParentTaskExternalID,
 	}
 }
 
@@ -151,13 +144,6 @@ func ToTaskRunEventMany(
 	toReturn := make([]gen.V1TaskEvent, len(events))
 
 	for i, event := range events {
-		var workerId *types.UUID
-
-		if event.WorkerID != nil {
-			workerUUid := uuid.MustParse(event.WorkerID.String())
-			workerId = &workerUUid
-		}
-
 		retryCount := int(event.RetryCount)
 		attempt := retryCount + 1
 
@@ -167,7 +153,7 @@ func ToTaskRunEventMany(
 			EventType:    gen.V1TaskEventType(event.EventType),
 			Message:      event.AdditionalEventMessage.String,
 			Timestamp:    event.EventTimestamp.Time,
-			WorkerId:     workerId,
+			WorkerId:     event.WorkerID,
 			TaskId:       taskExternalId,
 			RetryCount:   &retryCount,
 			Attempt:      &attempt,
@@ -186,16 +172,7 @@ func ToWorkflowRunTaskRunEventsMany(
 	toReturn := make([]gen.V1TaskEvent, len(events))
 
 	for i, event := range events {
-		var workerId *uuid.UUID
-
-		if event.WorkerID != nil {
-			workerUUID := uuid.MustParse(event.WorkerID.String())
-			workerId = &workerUUID
-		}
-
 		output := string(event.OutputPayload)
-		taskExternalId := uuid.MustParse(event.TaskExternalID.String())
-
 		retryCount := int(event.RetryCount)
 		attempt := retryCount + 1
 
@@ -206,9 +183,9 @@ func ToWorkflowRunTaskRunEventsMany(
 			Message:         event.AdditionalEventMessage.String,
 			Output:          &output,
 			TaskDisplayName: &event.DisplayName,
-			TaskId:          taskExternalId,
+			TaskId:          event.TaskExternalID,
 			Timestamp:       event.EventTimestamp.Time,
-			WorkerId:        workerId,
+			WorkerId:        event.WorkerID,
 			RetryCount:      &retryCount,
 			Attempt:         &attempt,
 		}
@@ -251,7 +228,7 @@ func ToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 }
 
 func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, workflowVersion *sqlcv1.GetWorkflowVersionByIdRow) gen.V1TaskSummary {
-	workflowVersionID := uuid.MustParse(taskWithData.WorkflowVersionID.String())
+	workflowVersionID := taskWithData.WorkflowVersionID
 	additionalMetadata := jsonToMap(taskWithData.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -281,7 +258,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 
 	input := jsonToMap(taskWithData.InputPayload)
 
-	stepId := uuid.MustParse(taskWithData.StepID.String())
+	stepId := taskWithData.StepID
 
 	retryCount := int(taskWithData.RetryCount)
 	attempt := retryCount + 1
@@ -318,11 +295,11 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 		Output:                output,
 		Status:                gen.V1TaskStatus(taskWithData.Status),
 		Input:                 input,
-		TenantId:              uuid.MustParse(taskWithData.TenantID.String()),
-		WorkflowId:            uuid.MustParse(taskWithData.WorkflowID.String()),
+		TenantId:              taskWithData.TenantID,
+		WorkflowId:            taskWithData.WorkflowID,
 		ErrorMessage:          &taskWithData.ErrorMessage.String,
-		WorkflowRunExternalId: uuid.MustParse(workflowRunExternalId.String()),
-		TaskExternalId:        uuid.MustParse(taskWithData.ExternalID.String()),
+		WorkflowRunExternalId: workflowRunExternalId,
+		TaskExternalId:        taskWithData.ExternalID,
 		Type:                  gen.V1WorkflowTypeTASK,
 		NumSpawnedChildren:    int(taskWithData.NumSpawnedChildren),
 		StepId:                &stepId,
@@ -370,8 +347,8 @@ func ToWorkflowRunDetails(
 		},
 		StartedAt:         &workflowRun.StartedAt.Time,
 		Status:            gen.V1TaskStatus(workflowRun.ReadableStatus),
-		TenantId:          uuid.MustParse(workflowRun.TenantID.String()),
-		WorkflowId:        uuid.MustParse(workflowRun.WorkflowID.String()),
+		TenantId:          workflowRun.TenantID,
+		WorkflowId:        workflowRun.WorkflowID,
 		WorkflowVersionId: &workflowVersionId,
 		Input:             input,
 		Output:            output,
@@ -380,7 +357,7 @@ func ToWorkflowRunDetails(
 	shapeRows := make([]gen.WorkflowRunShapeItemForWorkflowRunDetails, len(shape))
 
 	for i, shapeRow := range shape {
-		parentExternalId := uuid.MustParse(stepIdToTaskExternalId[shapeRow.Parentstepid].String())
+		parentExternalId := stepIdToTaskExternalId[shapeRow.Parentstepid]
 		taskName := shapeRow.Stepname.String
 		stepId := shapeRow.Parentstepid
 
@@ -388,22 +365,14 @@ func ToWorkflowRunDetails(
 			ChildrenStepIds: shapeRow.Childrenstepids,
 			TaskExternalId:  parentExternalId,
 			TaskName:        taskName,
-			StepId:          uuid.MustParse(stepId.String()),
+			StepId:          stepId,
 		}
 	}
 
 	parsedTaskEvents := make([]gen.V1TaskEvent, len(taskRunEvents))
 
 	for i, event := range taskRunEvents {
-		var workerId *uuid.UUID
-
-		if event.WorkerID != nil {
-			workerUUID := uuid.MustParse(event.WorkerID.String())
-			workerId = &workerUUID
-		}
-
 		output := string(event.OutputPayload)
-
 		retryCount := int(event.RetryCount)
 		attempt := retryCount + 1
 
@@ -415,8 +384,8 @@ func ToWorkflowRunDetails(
 			Output:          &output,
 			TaskDisplayName: &event.DisplayName,
 			Timestamp:       event.EventTimestamp.Time,
-			WorkerId:        workerId,
-			TaskId:          uuid.MustParse(event.TaskExternalID.String()),
+			WorkerId:        event.WorkerID,
+			TaskId:          event.TaskExternalID,
 			RetryCount:      &retryCount,
 			Attempt:         &attempt,
 		}
@@ -441,14 +410,14 @@ func ToWorkflowRunDetails(
 
 func ToTaskTimings(
 	timings []*sqlcv1.PopulateTaskRunDataRow,
-	idsToDepth map[string]int32,
+	idsToDepth map[uuid.UUID]int32,
 ) []gen.V1TaskTiming {
 	toReturn := make([]gen.V1TaskTiming, len(timings))
 
 	for i, timing := range timings {
-		depth := idsToDepth[timing.ExternalID.String()]
+		depth := idsToDepth[timing.ExternalID]
 
-		workflowRunId := uuid.MustParse(timing.WorkflowRunID.String())
+		workflowRunId := timing.WorkflowRunID
 		retryCount := int(timing.RetryCount)
 		attempt := retryCount + 1
 
@@ -458,16 +427,17 @@ func ToTaskTimings(
 				CreatedAt: timing.InsertedAt.Time,
 				UpdatedAt: timing.InsertedAt.Time,
 			},
-			Status:          gen.V1TaskStatus(timing.Status),
-			TaskDisplayName: timing.DisplayName,
-			TaskId:          int(timing.ID),
-			TaskInsertedAt:  timing.InsertedAt.Time,
-			TaskExternalId:  uuid.MustParse(timing.ExternalID.String()),
-			TenantId:        uuid.MustParse(timing.TenantID.String()),
-			Depth:           int(depth),
-			WorkflowRunId:   &workflowRunId,
-			RetryCount:      &retryCount,
-			Attempt:         &attempt,
+			Status:               gen.V1TaskStatus(timing.Status),
+			TaskDisplayName:      timing.DisplayName,
+			TaskId:               int(timing.ID),
+			TaskInsertedAt:       timing.InsertedAt.Time,
+			TaskExternalId:       timing.ExternalID,
+			TenantId:             timing.TenantID,
+			Depth:                int(depth),
+			WorkflowRunId:        &workflowRunId,
+			RetryCount:           &retryCount,
+			Attempt:              &attempt,
+			ParentTaskExternalId: timing.ParentTaskExternalID,
 		}
 
 		if timing.QueuedAt.Valid {
@@ -480,11 +450,6 @@ func ToTaskTimings(
 
 		if timing.FinishedAt.Valid {
 			toReturn[i].FinishedAt = &timing.FinishedAt.Time
-		}
-
-		if timing.ParentTaskExternalID != nil {
-			parentId := uuid.MustParse(timing.ParentTaskExternalID.String())
-			toReturn[i].ParentTaskExternalId = &parentId
 		}
 	}
 

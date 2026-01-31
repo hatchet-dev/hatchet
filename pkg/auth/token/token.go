@@ -47,12 +47,12 @@ func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APIT
 }
 
 type Token struct {
-	TokenId   string
+	TokenId   uuid.UUID
 	ExpiresAt time.Time
 	Token     string
 }
 
-func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId uuid.UUID, name string, id *string, expires *time.Time) (*Token, error) {
+func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId uuid.UUID, name string, id *uuid.UUID, expires *time.Time) (*Token, error) {
 	// Retrieve the JWT Signer primitive from privateKeysetHandle.
 	signer, err := jwt.NewSigner(j.encryption.GetPrivateJWTHandle())
 
@@ -89,7 +89,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.
 
 	// write the token to the database
 	_, err = j.tokenRepo.CreateAPIToken(ctx, &v1.CreateAPITokenOpts{
-		ID:        uuid.MustParse(token.TokenId),
+		ID:        token.TokenId,
 		ExpiresAt: token.ExpiresAt,
 		TenantId:  &tenantId,
 		Name:      &name,
@@ -134,6 +134,12 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read token_id claim: %v", err)
 	}
 
+	tokenIdUuid, err := uuid.Parse(tokenId)
+
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to parse token_id claim: %v", err)
+	}
+
 	// ensure the current server url matches the token, if present
 	if hasServerURL := verifiedJwt.HasStringClaim("server_url"); hasServerURL {
 		serverURL, err := verifiedJwt.StringClaim("server_url")
@@ -148,7 +154,7 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	}
 
 	// read the token from the database
-	dbToken, err := j.tokenRepo.GetAPITokenById(ctx, tokenId)
+	dbToken, err := j.tokenRepo.GetAPITokenById(ctx, tokenIdUuid)
 
 	if err != nil {
 		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read token from database: %v", err)
@@ -182,7 +188,7 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	return parsedSubject, dbToken.ID, nil
 }
 
-func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId uuid.UUID, id *string, expires *time.Time) (tokenId string, expiresAt time.Time, opts *jwt.RawJWTOptions) {
+func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId uuid.UUID, id *uuid.UUID, expires *time.Time) (tokenId uuid.UUID, expiresAt time.Time, opts *jwt.RawJWTOptions) {
 
 	if expires != nil {
 		expiresAt = *expires
@@ -195,7 +201,7 @@ func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId uuid.UUID, id *string, 
 	subject := tenantId
 	issuer := j.opts.Issuer
 	if id == nil {
-		tokenId = uuid.New().String()
+		tokenId = uuid.New()
 	} else {
 		tokenId = *id
 	}
