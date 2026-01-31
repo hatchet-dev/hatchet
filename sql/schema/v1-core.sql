@@ -576,6 +576,8 @@ CREATE TABLE v1_incoming_webhook (
     -- CEL expression that creates an event key
     -- from the payload of the webhook
     event_key_expression TEXT NOT NULL,
+    scope_expression TEXT,
+    static_payload JSONB,
 
     auth_method v1_incoming_webhook_auth_type NOT NULL,
 
@@ -622,6 +624,8 @@ CREATE TABLE v1_incoming_webhook (
         )
     ),
     CHECK (LENGTH(event_key_expression) > 0),
+    -- Optional: prevent empty string but allow NULL
+    CHECK (scope_expression IS NULL OR LENGTH(scope_expression) > 0),
     CHECK (LENGTH(name) > 0)
 );
 
