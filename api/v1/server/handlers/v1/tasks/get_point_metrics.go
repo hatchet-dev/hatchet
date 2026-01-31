@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,7 +57,17 @@ func (t *TasksService) V1TaskGetPointMetrics(ctx echo.Context, request gen.V1Tas
 		workflowIds = *request.Params.WorkflowIds
 	}
 
-	metrics, err := t.config.V1.OLAP().GetTaskPointMetrics(ctx.Request().Context(), tenantId, &lowerBound, &upperBound, bucketInterval, workflowIds)
+	additionalMetadata := make(map[string]string)
+	if request.Params.AdditionalMetadata != nil {
+		for _, v := range *request.Params.AdditionalMetadata {
+			kvPairs := strings.SplitN(v, ":", 2)
+			if len(kvPairs) == 2 {
+				additionalMetadata[kvPairs[0]] = kvPairs[1]
+			}
+		}
+	}
+
+	metrics, err := t.config.V1.OLAP().GetTaskPointMetrics(ctx.Request().Context(), tenantId, &lowerBound, &upperBound, bucketInterval, workflowIds, additionalMetadata)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

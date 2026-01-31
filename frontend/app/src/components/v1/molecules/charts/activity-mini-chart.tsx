@@ -13,6 +13,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis } from 'recharts';
 
 type ActivityMiniChartProps = {
   workflowId: string;
+  additionalMetadata?: Record<string, string>;
 };
 
 const chartConfig: ChartConfig = {
@@ -26,7 +27,10 @@ const chartConfig: ChartConfig = {
   },
 };
 
-export const ActivityMiniChart = ({ workflowId }: ActivityMiniChartProps) => {
+export const ActivityMiniChart = ({
+  workflowId,
+  additionalMetadata,
+}: ActivityMiniChartProps) => {
   const { tenantId } = useTenantDetails();
 
   // Last 4 days - memoized to prevent query key changes on every render
@@ -37,10 +41,19 @@ export const ActivityMiniChart = ({ workflowId }: ActivityMiniChartProps) => {
     return date.toISOString();
   }, []);
 
+  // Convert additionalMetadata object to "key:value" format for the API
+  const additionalMetadataParams = useMemo(() => {
+    if (!additionalMetadata) {
+      return undefined;
+    }
+    return Object.entries(additionalMetadata).map(([k, v]) => `${k}:${v}`);
+  }, [additionalMetadata]);
+
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.pointMetrics(tenantId ?? '', {
       createdAfter: windowStart,
       workflow_ids: [workflowId],
+      additional_metadata: additionalMetadataParams,
     }),
     enabled: !!tenantId,
     staleTime: 5 * 60 * 1000, // 5 minutes
