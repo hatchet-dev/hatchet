@@ -230,7 +230,7 @@ func (l *DurableEventsListener) Close() error {
 func (l *DurableEventsListener) handleEvent(e *contracts.DurableEvent) error {
 	// find all handlers for this workflow run
 	handlers, ok := l.handlers.Load(listenTuple{
-		taskId:    e.TaskId.String(),
+		taskId:    e.TaskId,
 		signalKey: e.SignalKey,
 	})
 
