@@ -170,7 +170,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		// send the task to the client
 		sendMu.Lock()
 		err := server.Send(&contracts.DurableEvent{
-			TaskId:    externalId,
+			TaskId:    externalId.String(),
 			SignalKey: e.EventKey.String,
 			Data:      e.Payload,
 		})
