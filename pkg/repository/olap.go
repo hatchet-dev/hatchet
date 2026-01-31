@@ -234,7 +234,7 @@ type OLAPRepository interface {
 	CreateTasks(ctx context.Context, tenantId string, tasks []*V1TaskWithPayload) error
 	CreateTaskEvents(ctx context.Context, tenantId string, events []sqlcv1.CreateTaskEventsOLAPParams) error
 	CreateDAGs(ctx context.Context, tenantId string, dags []*DAGWithData) error
-	GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
+	GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration, workflowIds []uuid.UUID) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateTaskStatusRow, error)
 	UpdateDAGStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateDAGStatusRow, error)
 	ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error)
@@ -1915,12 +1915,21 @@ func (r *OLAPRepositoryImpl) CreateDAGs(ctx context.Context, tenantId string, da
 	return r.writeDAGBatch(ctx, tenantId, dags)
 }
 
-func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error) {
+func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration, workflowIds []uuid.UUID) ([]*sqlcv1.GetTaskPointMetricsRow, error) {
+	var workflowIdsPg []pgtype.UUID
+	if len(workflowIds) > 0 {
+		workflowIdsPg = make([]pgtype.UUID, len(workflowIds))
+		for i, id := range workflowIds {
+			workflowIdsPg[i] = sqlchelpers.UUIDFromStr(id.String())
+		}
+	}
+
 	rows, err := r.queries.GetTaskPointMetrics(ctx, r.readPool, sqlcv1.GetTaskPointMetricsParams{
 		Interval:      durationToPgInterval(bucketInterval),
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Createdafter:  sqlchelpers.TimestamptzFromTime(*startTimestamp),
 		Createdbefore: sqlchelpers.TimestamptzFromTime(*endTimestamp),
+		WorkflowIds:   workflowIdsPg,
 	})
 
 	if err != nil {

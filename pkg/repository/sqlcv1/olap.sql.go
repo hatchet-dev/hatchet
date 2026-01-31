@@ -1098,6 +1098,7 @@ FROM v1_statuses_olap
 WHERE
     tenant_id = $2::UUID
     AND inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
+    AND ($5::UUID[] IS NULL OR workflow_id = ANY($5::UUID[]))
 GROUP BY minute_bucket
 ORDER BY minute_bucket
 `
@@ -1107,6 +1108,7 @@ type GetTaskPointMetricsParams struct {
 	Tenantid      pgtype.UUID        `json:"tenantid"`
 	Createdafter  pgtype.Timestamptz `json:"createdafter"`
 	Createdbefore pgtype.Timestamptz `json:"createdbefore"`
+	WorkflowIds   []pgtype.UUID      `json:"workflowIds"`
 }
 
 type GetTaskPointMetricsRow struct {
@@ -1121,6 +1123,7 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 		arg.Tenantid,
 		arg.Createdafter,
 		arg.Createdbefore,
+		arg.WorkflowIds,
 	)
 	if err != nil {
 		return nil, err

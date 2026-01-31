@@ -668,6 +668,8 @@ export class Api<
        * @example "2021-01-01T00:00:00Z"
        */
       finishedBefore?: string;
+      /** A list of workflow IDs to filter by */
+      workflow_ids?: string[];
     },
     params: RequestParams = {},
   ) =>

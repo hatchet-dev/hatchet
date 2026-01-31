@@ -1316,6 +1316,7 @@ FROM v1_statuses_olap
 WHERE
     tenant_id = @tenantId::UUID
     AND inserted_at BETWEEN @createdAfter::TIMESTAMPTZ AND @createdBefore::TIMESTAMPTZ
+    AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
 GROUP BY minute_bucket
 ORDER BY minute_bucket;
 
