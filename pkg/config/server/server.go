@@ -473,7 +473,7 @@ type RabbitMQConfigFile struct {
 }
 
 type ConfigFileEmail struct {
-	Kind string `mapstructure:"kind" json:"kind,omitempty"`
+	Kind string `mapstructure:"kind" json:"kind,omitempty" default:"postmark"`
 
 	Postmark PostmarkConfigFile `mapstructure:"postmark" json:"postmark,omitempty"`
 
