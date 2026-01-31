@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -340,8 +339,15 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		sendMu.Lock()
 		defer sendMu.Unlock()
 
+		workflowRunId, err := uuid.Parse(e.WorkflowRunId)
+
+		if err != nil {
+			s.l.Error().Err(err).Msgf("could not parse workflow run id %s", e.WorkflowRunId)
+			return err
+		}
+
 		// only send if it has not been concurrently sent by another process
-		shouldSend := acks.hasWorkflowRun(uuid.MustParse(e.WorkflowRunId))
+		shouldSend := acks.hasWorkflowRun(workflowRunId)
 
 		if shouldSend {
 			err := server.Send(e)
@@ -352,7 +358,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			}
 		}
 
-		acks.ackWorkflowRun(uuid.MustParse(e.WorkflowRunId))
+		acks.ackWorkflowRun(workflowRunId)
 
 		return nil
 	}
@@ -454,14 +460,14 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 				return
 			}
 
-			if !strings.HasPrefix(req.WorkflowRunId, "id-") {
-				if _, parseErr := uuid.Parse(req.WorkflowRunId); parseErr != nil {
-					s.l.Warn().Err(parseErr).Msg("invalid workflow run id")
-					continue
-				}
+			workflowRunId, err := uuid.Parse(req.WorkflowRunId)
+
+			if err != nil {
+				s.l.Warn().Err(err).Msg("invalid workflow run id")
+				continue
 			}
 
-			acks.addWorkflowRun(uuid.MustParse(req.WorkflowRunId))
+			acks.addWorkflowRun(workflowRunId)
 		}
 	}()
 
@@ -543,8 +549,13 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 	// if there's no retry count, we need to read it from the task, so we can't skip the cache
 	skipCache := request.RetryCount == nil
+	stepRunId, err := uuid.Parse(request.StepRunId)
 
-	task, err := s.getSingleTask(ctx, tenant.ID, uuid.MustParse(request.StepRunId), skipCache)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid step run id %s: %v", request.StepRunId, err)
+	}
+
+	task, err := s.getSingleTask(ctx, tenant.ID, stepRunId, skipCache)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get task %s: %w", request.StepRunId, err)
@@ -710,9 +721,13 @@ func (d *DispatcherImpl) getSingleTask(ctx context.Context, tenantId, taskExtern
 
 func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
 	tenantId := tenant.ID
+	taskExternalId, err := uuid.Parse(request.StepRunId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid step run id %s: %v", request.StepRunId, err)
+	}
 
 	opts := v1.RefreshTimeoutBy{
-		TaskExternalId:     uuid.MustParse(request.StepRunId),
+		TaskExternalId:     taskExternalId,
 		IncrementTimeoutBy: request.IncrementTimeoutBy,
 	}
 
@@ -760,8 +775,12 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 
 func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenantId := tenant.ID
+	stepRunId, err := uuid.Parse(request.StepRunId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid step run id %s: %v", request.StepRunId, err)
+	}
 
-	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, uuid.MustParse(request.StepRunId))
+	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return nil, err
@@ -796,7 +815,12 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenan
 
 func (s *DispatcherImpl) subscribeToWorkflowEventsV1(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	if request.WorkflowRunId != nil {
-		return s.subscribeToWorkflowEventsByWorkflowRunIdV1(uuid.MustParse(*request.WorkflowRunId), stream)
+		workflowRunId, err := uuid.Parse(*request.WorkflowRunId)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "invalid workflow run id %s: %v", *request.WorkflowRunId, err)
+		}
+
+		return s.subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunId, stream)
 	} else if request.AdditionalMetaKey != nil && request.AdditionalMetaValue != nil {
 		return s.subscribeToWorkflowEventsByAdditionalMetaV1(*request.AdditionalMetaKey, *request.AdditionalMetaValue, stream)
 	}
@@ -899,11 +923,17 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 				workflowRunIdsToEvents := make(map[string][]*contracts.WorkflowEvent)
 
 				for _, e := range events {
-					if e.WorkflowRunId != workflowRunId.String() {
+					wri, err := uuid.Parse(e.WorkflowRunId)
+
+					if err != nil {
+						return nil, err
+					}
+
+					if wri != workflowRunId {
 						continue
 					}
 
-					workflowRunIds = append(workflowRunIds, uuid.MustParse(e.WorkflowRunId))
+					workflowRunIds = append(workflowRunIds, wri)
 					workflowRunIdsToEvents[e.WorkflowRunId] = append(workflowRunIdsToEvents[e.WorkflowRunId], e)
 				}
 
@@ -1010,7 +1040,12 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 				workflowRunIdsToEvents := make(map[uuid.UUID][]*contracts.WorkflowEvent)
 
 				for _, e := range events {
-					workflowRunId := uuid.MustParse(e.WorkflowRunId)
+					workflowRunId, err := uuid.Parse(e.WorkflowRunId)
+
+					if err != nil {
+						return nil, err
+					}
+
 					workflowRunIds = append(workflowRunIds, workflowRunId)
 					workflowRunIdsToEvents[workflowRunId] = append(workflowRunIdsToEvents[workflowRunId], e)
 				}

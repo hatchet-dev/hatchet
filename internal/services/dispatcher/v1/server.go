@@ -38,19 +38,33 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 	createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
 
 	for _, condition := range req.Conditions.SleepConditions {
+		orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+
+		if err != nil {
+			d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+			return nil, status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
+		}
+
 		createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
 			Kind:            v1.CreateExternalSignalConditionKindSLEEP,
 			ReadableDataKey: condition.Base.ReadableDataKey,
-			OrGroupId:       uuid.MustParse(condition.Base.OrGroupId),
+			OrGroupId:       orGroupId,
 			SleepFor:        &condition.SleepFor,
 		})
 	}
 
 	for _, condition := range req.Conditions.UserEventConditions {
+		orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+
+		if err != nil {
+			d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+			return nil, status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
+		}
+
 		createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
 			Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
 			ReadableDataKey: condition.Base.ReadableDataKey,
-			OrGroupId:       uuid.MustParse(condition.Base.OrGroupId),
+			OrGroupId:       orGroupId,
 			UserEventKey:    &condition.UserEventKey,
 			Expression:      condition.Base.Expression,
 		})
@@ -253,7 +267,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 				continue
 			}
 
-			acks.addEvent(uuid.MustParse(req.TaskId), task.ID, task.InsertedAt, req.SignalKey)
+			acks.addEvent(taskId, task.ID, task.InsertedAt, req.SignalKey)
 		}
 	}()
 

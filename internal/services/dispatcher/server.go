@@ -93,8 +93,13 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contracts.UpsertWorkerLabelsRequest) (*contracts.UpsertWorkerLabelsResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	workerId, err := uuid.Parse(request.WorkerId)
 
-	_, err := s.upsertLabels(ctx, uuid.MustParse(request.WorkerId), request.Labels)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+	}
+
+	_, err = s.upsertLabels(ctx, workerId, request.Labels)
 
 	if err != nil {
 		return nil, err
@@ -139,7 +144,12 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 	sessionId := uuid.New().String()
-	workerId := uuid.MustParse(request.WorkerId)
+	workerId, err := uuid.Parse(request.WorkerId)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("invalid worker ID format: %s", request.WorkerId)
+		return status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+	}
 
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
