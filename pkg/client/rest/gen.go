@@ -446,7 +446,7 @@ type APIToken struct {
 
 // AcceptInviteRequest defines model for AcceptInviteRequest.
 type AcceptInviteRequest struct {
-	Invite string `json:"invite" validate:"required,uuid"`
+	Invite string `json:"invite" validate:"required"`
 }
 
 // BulkCreateEventRequest defines model for BulkCreateEventRequest.
@@ -834,7 +834,7 @@ type RegisteredWorkflow struct {
 
 // RejectInviteRequest defines model for RejectInviteRequest.
 type RejectInviteRequest struct {
-	Invite string `json:"invite" validate:"required,uuid"`
+	Invite string `json:"invite" validate:"required"`
 }
 
 // ReplayEventRequest defines model for ReplayEventRequest.

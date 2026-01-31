@@ -108,14 +108,14 @@ type CreateStepOpts struct {
 }
 
 type CreateStepMatchConditionOpt struct {
-	SleepDuration      *string `validate:"omitempty,duration"`
-	EventKey           *string `validate:"omitempty"`
-	ParentReadableId   *string `validate:"omitempty"`
-	MatchConditionKind string  `validate:"required,oneof=PARENT_OVERRIDE USER_EVENT SLEEP"`
-	ReadableDataKey    string  `validate:"required"`
-	Action             string  `validate:"required,oneof=QUEUE CANCEL SKIP"`
-	OrGroupId          string  `json:"-" validate:"required,uuid"`
-	Expression         string  `validate:"omitempty"`
+	SleepDuration      *string   `validate:"omitempty,duration"`
+	EventKey           *string   `validate:"omitempty"`
+	ParentReadableId   *string   `validate:"omitempty"`
+	MatchConditionKind string    `validate:"required,oneof=PARENT_OVERRIDE USER_EVENT SLEEP"`
+	ReadableDataKey    string    `validate:"required"`
+	Action             string    `validate:"required,oneof=QUEUE CANCEL SKIP"`
+	OrGroupId          uuid.UUID `json:"-" validate:"required"`
+	Expression         string    `validate:"omitempty"`
 	OrGroupIdIndex     int32
 }
 
@@ -978,7 +978,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 						Stepid:           uuid.MustParse(stepId),
 						Readabledatakey:  condition.ReadableDataKey,
 						Action:           sqlcv1.V1MatchConditionAction(condition.Action),
-						Orgroupid:        uuid.MustParse(condition.OrGroupId),
+						Orgroupid:        condition.OrGroupId,
 						Expression:       sqlchelpers.TextFromStr(condition.Expression),
 						Kind:             sqlcv1.V1StepMatchConditionKind(condition.MatchConditionKind),
 						ParentReadableId: parentReadableId,
@@ -1201,13 +1201,13 @@ func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersion
 
 	// Generate a unique index for each or group id in the workflow, and add this to the trigger condition.
 	// We would like to update the workflow version checksum only when the combination of or group ids changes.
-	orGroupIdsToIndex := make(map[string]int32)
+	orGroupIdsToIndex := make(map[uuid.UUID]int32)
 
 	for i, task := range opts.Tasks {
 		for j, condition := range task.TriggerConditions {
-			if condition.OrGroupId == "" {
+			if condition.OrGroupId == uuid.Nil {
 				// generate a new UUID for the or group id
-				condition.OrGroupId = uuid.New().String()
+				condition.OrGroupId = uuid.New()
 			}
 
 			// if the or group id is not in the map, add it

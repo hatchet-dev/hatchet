@@ -29,8 +29,8 @@ func NewInternalEventMessage(tenantId uuid.UUID, timestamp time.Time, events ...
 }
 
 type StreamEventPayload struct {
-	WorkflowRunId uuid.UUID `json:"workflow_run_id" validate:"required,uuid"`
-	StepRunId     uuid.UUID `json:"step_run_id" validate:"required,uuid"`
+	WorkflowRunId uuid.UUID `json:"workflow_run_id" validate:"required"`
+	StepRunId     uuid.UUID `json:"step_run_id" validate:"required"`
 	CreatedAt     time.Time `json:"created_at" validate:"required"`
 	Payload       []byte    `json:"payload"`
 	RetryCount    *int32    `json:"retry_count,omitempty"`

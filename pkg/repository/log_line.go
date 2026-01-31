@@ -38,7 +38,7 @@ type ListLogsOpts struct {
 }
 
 type CreateLogLineOpts struct {
-	TaskExternalId uuid.UUID `validate:"required,uuid"`
+	TaskExternalId uuid.UUID `validate:"required"`
 
 	TaskId int64
 

@@ -176,7 +176,7 @@ func CancelledTaskMessage(
 
 type SignalTaskCancelledPayload struct {
 	// (required) the worker id
-	WorkerId uuid.UUID `validate:"required,uuid"`
+	WorkerId uuid.UUID `validate:"required"`
 
 	// (required) the task id
 	TaskId int64 `validate:"required"`

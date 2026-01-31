@@ -68,7 +68,7 @@ type TriggerTaskData struct {
 
 type createDAGOpts struct {
 	// (required) the external id
-	ExternalId uuid.UUID `validate:"required,uuid"`
+	ExternalId uuid.UUID `validate:"required"`
 
 	// (required) the input bytes to the DAG
 	Input []byte

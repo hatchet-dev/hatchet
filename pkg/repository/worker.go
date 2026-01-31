@@ -25,7 +25,7 @@ type RuntimeInfo struct {
 
 type CreateWorkerOpts struct {
 	// The id of the dispatcher
-	DispatcherId uuid.UUID `validate:"required,uuid"`
+	DispatcherId uuid.UUID `validate:"required"`
 
 	// The maximum number of runs this worker can run at a time
 	MaxRuns *int `validate:"omitempty,gte=1"`
@@ -45,7 +45,7 @@ type CreateWorkerOpts struct {
 
 type UpdateWorkerOpts struct {
 	// The id of the dispatcher
-	DispatcherId *uuid.UUID `validate:"omitempty,uuid"`
+	DispatcherId *uuid.UUID `validate:"omitempty"`
 
 	// When the last worker heartbeat was
 	LastHeartbeatAt *time.Time

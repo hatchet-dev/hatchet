@@ -863,7 +863,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 						MatchConditionKind: "USER_EVENT",
 						ReadableDataKey:    userEventCondition.Base.ReadableDataKey,
 						Action:             userEventCondition.Base.Action.String(),
-						OrGroupId:          userEventCondition.Base.OrGroupId,
+						OrGroupId:          uuid.MustParse(userEventCondition.Base.OrGroupId),
 						Expression:         userEventCondition.Base.Expression,
 						EventKey:           &eventKey,
 					})
@@ -884,7 +884,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 						MatchConditionKind: "SLEEP",
 						ReadableDataKey:    sleepCondition.Base.ReadableDataKey,
 						Action:             sleepCondition.Base.Action.String(),
-						OrGroupId:          sleepCondition.Base.OrGroupId,
+						OrGroupId:          uuid.MustParse(sleepCondition.Base.OrGroupId),
 						SleepDuration:      &duration,
 					})
 				}
@@ -905,7 +905,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 						ReadableDataKey:    parentReadableId,
 						Action:             parentOverrideCondition.Base.Action.String(),
 						Expression:         parentOverrideCondition.Base.Expression,
-						OrGroupId:          parentOverrideCondition.Base.OrGroupId,
+						OrGroupId:          uuid.MustParse(parentOverrideCondition.Base.OrGroupId),
 						ParentReadableId:   &parentReadableId,
 					})
 				}

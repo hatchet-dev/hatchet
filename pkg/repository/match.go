@@ -41,7 +41,7 @@ type ExternalCreateSignalMatchOpts struct {
 
 	SignalTaskInsertedAt pgtype.Timestamptz
 
-	SignalExternalId uuid.UUID `validate:"required,uuid"`
+	SignalExternalId uuid.UUID `validate:"required"`
 
 	SignalKey string `validate:"required"`
 }
@@ -58,7 +58,7 @@ type CreateExternalSignalConditionOpt struct {
 
 	ReadableDataKey string `validate:"required"`
 
-	OrGroupId uuid.UUID `validate:"required,uuid"`
+	OrGroupId uuid.UUID `validate:"required"`
 
 	UserEventKey *string
 
