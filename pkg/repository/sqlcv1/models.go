@@ -2824,17 +2824,16 @@ type TenantMember struct {
 }
 
 type TenantResourceLimit struct {
-	ID               pgtype.UUID      `json:"id"`
-	CreatedAt        pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
-	Resource         LimitResource    `json:"resource"`
-	TenantId         pgtype.UUID      `json:"tenantId"`
-	LimitValue       int32            `json:"limitValue"`
-	AlarmValue       pgtype.Int4      `json:"alarmValue"`
-	Value            int32            `json:"value"`
-	Window           pgtype.Text      `json:"window"`
-	LastRefill       pgtype.Timestamp `json:"lastRefill"`
-	CustomValueMeter bool             `json:"customValueMeter"`
+	ID         pgtype.UUID      `json:"id"`
+	CreatedAt  pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
+	Resource   LimitResource    `json:"resource"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	LimitValue int32            `json:"limitValue"`
+	AlarmValue pgtype.Int4      `json:"alarmValue"`
+	Value      int32            `json:"value"`
+	Window     pgtype.Text      `json:"window"`
+	LastRefill pgtype.Timestamp `json:"lastRefill"`
 }
 
 type TenantResourceLimitAlert struct {
