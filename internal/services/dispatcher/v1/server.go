@@ -82,7 +82,7 @@ type durableEventAcks struct {
 	mu   sync.RWMutex
 }
 
-func (w *durableEventAcks) addEvent(taskExternalId string, taskId int64, taskInsertedAt pgtype.Timestamptz, signalKey string) {
+func (w *durableEventAcks) addEvent(taskExternalId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, signalKey string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 

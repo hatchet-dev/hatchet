@@ -16,12 +16,12 @@ import (
 // and provides robust recovery from temporary connection issues like brief DB downtime
 // or network interruptions without requiring manual intervention.
 type Workflow struct {
-	workflowRunId string
+	workflowRunId uuid.UUID
 	listener      *WorkflowRunsListener
 }
 
 func NewWorkflow(
-	workflowRunId string,
+	workflowRunId uuid.UUID,
 	listener *WorkflowRunsListener,
 ) *Workflow {
 	return &Workflow{

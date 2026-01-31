@@ -270,7 +270,7 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) {
 	b.scheduleTimeoutIfNeeded(stepRunId, now)
 }
 
-func (b *StreamEventBuffer) scheduleTimeoutIfNeeded(stepRunId string, eventTime time.Time) {
+func (b *StreamEventBuffer) scheduleTimeoutIfNeeded(stepRunId uuid.UUID, eventTime time.Time) {
 	if events, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(events) > 0 {
 		timeoutAt := eventTime.Add(b.timeoutDuration)
 
@@ -289,7 +289,7 @@ func (b *StreamEventBuffer) scheduleTimeoutIfNeeded(stepRunId string, eventTime 
 	}
 }
 
-func (b *StreamEventBuffer) sendReadyEvents(stepRunId string) {
+func (b *StreamEventBuffer) sendReadyEvents(stepRunId uuid.UUID) {
 	events := b.stepRunIdToWorkflowEvents[stepRunId]
 	expectedIdx := b.stepRunIdToExpectedIndex[stepRunId]
 
@@ -804,7 +804,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsV1(request *contracts.Subscrib
 	return status.Errorf(codes.InvalidArgument, "either workflow run id or additional meta key-value must be provided")
 }
 
-func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunId string, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
+func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunId uuid.UUID, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -1116,7 +1116,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 }
 
 type listWorkflowRunsResult struct {
-	WorkflowRunId string
+	WorkflowRunId uuid.UUID
 
 	AdditionalMetadata map[string]interface{}
 }

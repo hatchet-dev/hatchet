@@ -25,7 +25,7 @@ type RuntimeInfo struct {
 
 type CreateWorkerOpts struct {
 	// The id of the dispatcher
-	DispatcherId string `validate:"required,uuid"`
+	DispatcherId uuid.UUID `validate:"required,uuid"`
 
 	// The maximum number of runs this worker can run at a time
 	MaxRuns *int `validate:"omitempty,gte=1"`

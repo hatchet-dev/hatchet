@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -27,9 +28,9 @@ type DispatcherClient interface {
 
 	SendGroupKeyActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
-	ReleaseSlot(ctx context.Context, stepRunId string) error
+	ReleaseSlot(ctx context.Context, stepRunId uuid.UUID) error
 
-	RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error
+	RefreshTimeout(ctx context.Context, stepRunId uuid.UUID, incrementTimeoutBy string) error
 
 	UpsertWorkerLabels(ctx context.Context, workerId string, labels map[string]interface{}) error
 
@@ -63,16 +64,16 @@ const (
 
 type Action struct {
 	// the worker id
-	WorkerId string `json:"workerId"`
+	WorkerId uuid.UUID `json:"workerId"`
 
 	// the tenant id
-	TenantId string `json:"tenantId"`
+	TenantId uuid.UUID `json:"tenantId"`
 
 	// the workflow run id
-	WorkflowRunId string `json:"workflowRunId"`
+	WorkflowRunId uuid.UUID `json:"workflowRunId"`
 
 	// the get group key run id
-	GetGroupKeyRunId string `json:"getGroupKeyRunId"`
+	GetGroupKeyRunId uuid.UUID `json:"getGroupKeyRunId"`
 
 	// the job id
 	JobId string `json:"jobId"`
@@ -81,7 +82,7 @@ type Action struct {
 	JobName string `json:"jobName"`
 
 	// the job run id
-	JobRunId string `json:"jobRunId"`
+	JobRunId uuid.UUID `json:"jobRunId"`
 
 	// the step id
 	StepId string `json:"stepId"`
@@ -90,7 +91,7 @@ type Action struct {
 	StepName string `json:"stepName"`
 
 	// the step run id
-	StepRunId string `json:"stepRunId"`
+	StepRunId uuid.UUID `json:"stepRunId"`
 
 	// the action id
 	ActionId string `json:"actionId"`
@@ -156,17 +157,17 @@ type ActionEvent struct {
 
 type ActionEventResponse struct {
 	// the tenant id
-	TenantId string
+	TenantId uuid.UUID
 
 	// the id of the worker
-	WorkerId string
+	WorkerId uuid.UUID
 }
 
 type dispatcherClientImpl struct {
 	client   dispatchercontracts.DispatcherClient
 	clientv1 sharedcontracts.V1DispatcherClient
 
-	tenantId string
+	tenantId uuid.UUID
 
 	l *zerolog.Logger
 
@@ -199,7 +200,7 @@ const (
 type actionListenerImpl struct {
 	client dispatchercontracts.DispatcherClient
 
-	tenantId string
+	tenantId uuid.UUID
 
 	listenClient dispatchercontracts.Dispatcher_ListenClient
 
@@ -614,7 +615,7 @@ func (d *dispatcherClientImpl) SendGroupKeyActionEvent(ctx context.Context, in *
 	}, nil
 }
 
-func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string) error {
+func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId uuid.UUID) error {
 	_, err := a.client.ReleaseSlot(a.ctx.newContext(ctx), &dispatchercontracts.ReleaseSlotRequest{
 		StepRunId: stepRunId,
 	})
@@ -626,7 +627,7 @@ func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string
 	return nil
 }
 
-func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error {
+func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId uuid.UUID, incrementTimeoutBy string) error {
 	_, err := a.client.RefreshTimeout(a.ctx.newContext(ctx), &dispatchercontracts.RefreshTimeoutRequest{
 		StepRunId:          stepRunId,
 		IncrementTimeoutBy: incrementTimeoutBy,

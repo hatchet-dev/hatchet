@@ -102,7 +102,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.
 	return token, nil
 }
 
-func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) (tenantId string, tokenUUID string, err error) {
+func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) (tenantId uuid.UUID, tokenUUID string, err error) {
 	// Verify the signed token.
 	audience := j.opts.Audience
 

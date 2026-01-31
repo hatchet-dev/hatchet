@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func getChildSignalEventKey(parentExternalId string, stepIndex, childIndex int64, childKeyArg *string) string {
+func getChildSignalEventKey(parentExternalId uuid.UUID, stepIndex, childIndex int64, childKeyArg *string) string {
 	childKey := fmt.Sprintf("%d", childIndex)
 
 	if childKeyArg != nil {
@@ -25,7 +25,7 @@ func getChildSignalEventKey(parentExternalId string, stepIndex, childIndex int64
 type WorkflowNameTriggerOpts struct {
 	*TriggerTaskData
 
-	ExternalId string
+	ExternalId uuid.UUID
 
 	// (optional) The idempotency key to use for debouncing this task
 	IdempotencyKey *IdempotencyKey
@@ -44,10 +44,10 @@ func (g *WorkflowNameTriggerOpts) childSpawnKey() string {
 
 type ChildWorkflowSignalCreatedData struct {
 	// The external id of the target child task
-	ChildExternalId string `json:"external_id"`
+	ChildExternalId uuid.UUID `json:"external_id"`
 
 	// The external id of the parent task
-	ParentExternalId string `json:"parent_external_id"`
+	ParentExternalId uuid.UUID `json:"parent_external_id"`
 
 	// The index of the child task
 	ChildIndex int64 `json:"child_index"`
@@ -56,7 +56,7 @@ type ChildWorkflowSignalCreatedData struct {
 	ChildKey *string `json:"child_key"`
 }
 
-func newChildWorkflowSignalCreatedData(childExternalId string, opt *WorkflowNameTriggerOpts) *ChildWorkflowSignalCreatedData {
+func newChildWorkflowSignalCreatedData(childExternalId uuid.UUID, opt *WorkflowNameTriggerOpts) *ChildWorkflowSignalCreatedData {
 	return &ChildWorkflowSignalCreatedData{
 		ChildExternalId:  childExternalId,
 		ParentExternalId: *opt.ParentExternalId,

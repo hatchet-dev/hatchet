@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
@@ -18,7 +19,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 	tenantId := tenant.ID
 	workflow := ctx.Get("workflow").(*sqlcv1.GetWorkflowByIdRow)
 
-	var workflowVersionId string
+	var workflowVersionId uuid.UUID
 
 	if request.Params.Version != nil {
 		workflowVersionId = request.Params.Version.String()

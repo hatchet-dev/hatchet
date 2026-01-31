@@ -26,11 +26,11 @@ import (
 
 type CreateTaskOpts struct {
 	// (required) the external id
-	ExternalId string `validate:"required,uuid"`
+	ExternalId uuid.UUID `validate:"required,uuid"`
 
 	// (required) the workflow run id. note this may be the same as the external id if this is a
 	// single-task workflow, otherwise it represents the external id of the DAG.
-	WorkflowRunId string `validate:"required,uuid"`
+	WorkflowRunId uuid.UUID `validate:"required,uuid"`
 
 	// (required) the step id
 	StepId string `validate:"required,uuid"`
@@ -93,7 +93,7 @@ type ReplayTaskOpts struct {
 	InsertedAt pgtype.Timestamptz
 
 	// (required) the external id
-	ExternalId string
+	ExternalId uuid.UUID
 
 	// (required) the step id
 	StepId string
@@ -199,13 +199,13 @@ type TimeoutTasksResponse struct {
 }
 
 type ListFinalizedWorkflowRunsResponse struct {
-	WorkflowRunId string
+	WorkflowRunId uuid.UUID
 
 	OutputEvents []*TaskOutputEvent
 }
 
 type RefreshTimeoutBy struct {
-	TaskExternalId string `validate:"required,uuid"`
+	TaskExternalId uuid.UUID `validate:"required,uuid"`
 
 	IncrementTimeoutBy string `validate:"required,duration"`
 }
@@ -237,7 +237,7 @@ type TaskRepository interface {
 	// with the v1 engine, and shouldn't be called from new v1 endpoints.
 	ListTaskParentOutputs(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error)
 
-	DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error)
+	DefaultTaskActivityGauge(ctx context.Context, tenantId uuid.UUID) (int, error)
 
 	ProcessTaskTimeouts(ctx context.Context, tenantId uuid.UUID) (*TimeoutTasksResponse, bool, error)
 
@@ -271,7 +271,7 @@ type TaskRepository interface {
 	FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error)
 
 	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
-	GetWorkflowRunResultDetails(ctx context.Context, tenantId uuid.UUID, externalId string) (*WorkflowRunDetails, error)
+	GetWorkflowRunResultDetails(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) (*WorkflowRunDetails, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -1162,7 +1162,7 @@ func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId uuid.UU
 
 // DefaultTaskActivityGauge is a heavily cached method that returns the number of queues that have had activity since
 // the task retention period.
-func (r *TaskRepositoryImpl) DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error) {
+func (r *TaskRepositoryImpl) DefaultTaskActivityGauge(ctx context.Context, tenantId uuid.UUID) (int, error) {
 	today := time.Now().UTC()
 	notBefore := today.Add(-1 * r.taskRetentionPeriod)
 
@@ -4001,7 +4001,7 @@ func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*tim
 type TaskRunDetails struct {
 	Error         *string
 	Status        statusutils.V1RunStatus
-	ExternalId    string
+	ExternalId    uuid.UUID
 	OutputPayload []byte
 }
 
@@ -4013,7 +4013,7 @@ type WorkflowRunDetails struct {
 	AdditionalMetadata  []byte
 }
 
-func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, tenantId uuid.UUID, externalId string) (*WorkflowRunDetails, error) {
+func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) (*WorkflowRunDetails, error) {
 	flat, err := r.FlattenExternalIds(ctx, tenantId, []string{externalId})
 
 	if err != nil {

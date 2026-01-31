@@ -68,7 +68,7 @@ type TriggerTaskData struct {
 
 type createDAGOpts struct {
 	// (required) the external id
-	ExternalId string `validate:"required,uuid"`
+	ExternalId uuid.UUID `validate:"required,uuid"`
 
 	// (required) the input bytes to the DAG
 	Input []byte
@@ -77,10 +77,10 @@ type createDAGOpts struct {
 	TaskIds []string
 
 	// (required) the workflow id for this DAG
-	WorkflowId string
+	WorkflowId uuid.UUID
 
 	// (required) the workflow version id for this DAG
-	WorkflowVersionId string
+	WorkflowVersionId uuid.UUID
 
 	// (required) the name of the workflow
 	WorkflowName string
@@ -653,13 +653,13 @@ func (t *TriggeredByEvent) ToMetadata(additionalMetadata []byte) []byte {
 }
 
 type triggerTuple struct {
-	workflowVersionId string
+	workflowVersionId uuid.UUID
 
-	workflowId string
+	workflowId uuid.UUID
 
 	workflowName string
 
-	externalId string
+	externalId uuid.UUID
 
 	input []byte
 

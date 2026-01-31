@@ -12,7 +12,7 @@ type TaskOutputEvent struct {
 
 	EventType sqlcv1.V1TaskEventType `json:"event_type"`
 
-	TaskExternalId string `json:"task_external_id"`
+	TaskExternalId uuid.UUID `json:"task_external_id"`
 
 	TaskId int64 `json:"task_id"`
 

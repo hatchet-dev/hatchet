@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	tokenTenantId string
+	tokenTenantId uuid.UUID
 	tokenName     string
 	expiresIn     time.Duration
 )

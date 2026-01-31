@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/spf13/viper"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 )
 
 type ClientConfigFile struct {
-	TenantId string `mapstructure:"tenantId" json:"tenantId,omitempty"`
+	TenantId uuid.UUID `mapstructure:"tenantId" json:"tenantId,omitempty"`
 
 	Token string `mapstructure:"token" json:"token,omitempty"`
 
@@ -43,7 +44,7 @@ type ClientTLSConfigFile struct {
 }
 
 type ClientConfig struct {
-	TenantId    string
+	TenantId    uuid.UUID
 	Token       string
 	NoGrpcRetry bool
 

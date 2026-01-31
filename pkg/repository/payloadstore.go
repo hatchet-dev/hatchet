@@ -53,7 +53,7 @@ type RetrievePayloadOpts struct {
 
 type PayloadLocation string
 type ExternalPayloadLocationKey string
-type PayloadExternalId string
+type PayloadExternalId uuid.UUID
 
 type ExternalStore interface {
 	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[PayloadExternalId]ExternalPayloadLocationKey, error)

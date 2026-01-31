@@ -22,11 +22,11 @@ type DispatcherRepository interface {
 	CreateNewDispatcher(ctx context.Context, opts *CreateDispatcherOpts) (*sqlcv1.Dispatcher, error)
 
 	// UpdateDispatcher updates a dispatcher for a given tenant.
-	UpdateDispatcher(ctx context.Context, dispatcherId string, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error)
+	UpdateDispatcher(ctx context.Context, dispatcherId uuid.UUID, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error)
 
-	Delete(ctx context.Context, dispatcherId string) error
+	Delete(ctx context.Context, dispatcherId uuid.UUID) error
 
-	UpdateStaleDispatchers(ctx context.Context, onStale func(dispatcherId string, getValidDispatcherId func() string) error) error
+	UpdateStaleDispatchers(ctx context.Context, onStale func(dispatcherId uuid.UUID, getValidDispatcherId func() string) error) error
 }
 
 type dispatcherRepository struct {
@@ -47,7 +47,7 @@ func (d *dispatcherRepository) CreateNewDispatcher(ctx context.Context, opts *Cr
 	return d.queries.CreateDispatcher(ctx, d.pool, uuid.MustParse(opts.ID))
 }
 
-func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherId string, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error) {
+func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherId uuid.UUID, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error) {
 	if err := d.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -58,13 +58,13 @@ func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherI
 	})
 }
 
-func (d *dispatcherRepository) Delete(ctx context.Context, dispatcherId string) error {
+func (d *dispatcherRepository) Delete(ctx context.Context, dispatcherId uuid.UUID) error {
 	_, err := d.queries.DeleteDispatcher(ctx, d.pool, uuid.MustParse(dispatcherId))
 
 	return err
 }
 
-func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onStale func(dispatcherId string, getValidDispatcherId func() string) error) error {
+func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onStale func(dispatcherId uuid.UUID, getValidDispatcherId func() string) error) error {
 	tx, err := d.pool.Begin(ctx)
 
 	if err != nil {

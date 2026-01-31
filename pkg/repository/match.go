@@ -41,7 +41,7 @@ type ExternalCreateSignalMatchOpts struct {
 
 	SignalTaskInsertedAt pgtype.Timestamptz
 
-	SignalExternalId string `validate:"required,uuid"`
+	SignalExternalId uuid.UUID `validate:"required,uuid"`
 
 	SignalKey string `validate:"required"`
 }
@@ -1056,7 +1056,7 @@ func getConditionParam(tenantId uuid.UUID, createdMatchId int64, condition Group
 	return param
 }
 
-func getDagMatchKey(kind string, dagId int64, externalId string, stepId string, existingTaskId *int64, parentTaskId pgtype.Int8) string {
+func getDagMatchKey(kind string, dagId int64, externalId uuid.UUID, stepId string, existingTaskId *int64, parentTaskId pgtype.Int8) string {
 	existingTaskIdStr := ""
 	if existingTaskId != nil {
 		existingTaskIdStr = fmt.Sprintf("%d", *existingTaskId)

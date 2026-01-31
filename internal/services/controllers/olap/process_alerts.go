@@ -33,7 +33,7 @@ func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() 
 	}
 }
 
-func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId string) (bool, error) {
+func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId uuid.UUID) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 

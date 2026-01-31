@@ -43,7 +43,7 @@ type DispatcherImpl struct {
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 
-	dispatcherId string
+	dispatcherId uuid.UUID
 	workers      *workers
 	a            *hatcheterrors.Wrapped
 }
@@ -116,7 +116,7 @@ type DispatcherOpts struct {
 	l                           *zerolog.Logger
 	dv                          datautils.DataDecoderValidator
 	repov1                      v1.Repository
-	dispatcherId                string
+	dispatcherId                uuid.UUID
 	alerter                     hatcheterrors.Alerter
 	cache                       cache.Cacheable
 	payloadSizeThreshold        int
@@ -167,7 +167,7 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) DispatcherOpt {
 	}
 }
 
-func WithDispatcherId(dispatcherId string) DispatcherOpt {
+func WithDispatcherId(dispatcherId uuid.UUID) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.dispatcherId = dispatcherId
 	}

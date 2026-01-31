@@ -22,9 +22,9 @@ type TaskWithCancelledReason struct {
 
 	CancelledReason string
 
-	TaskExternalId string
+	TaskExternalId uuid.UUID
 
-	WorkflowRunId string
+	WorkflowRunId uuid.UUID
 }
 
 type RunConcurrencyResult struct {

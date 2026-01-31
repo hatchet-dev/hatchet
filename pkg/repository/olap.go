@@ -221,7 +221,7 @@ type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 	SetReadReplicaPool(pool *pgxpool.Pool)
 
-	ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error)
+	ReadTaskRun(ctx context.Context, taskExternalId uuid.UUID) (*sqlcv1.V1TasksOlap, error)
 	ReadWorkflowRun(ctx context.Context, workflowRunExternalId uuid.UUID) (*V1WorkflowRunPopulator, error)
 	ReadTaskRunData(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount *int) (*TaskWithPayloads, uuid.UUID, error)
 
@@ -237,7 +237,7 @@ type OLAPRepository interface {
 	GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error)
 	UpdateDAGStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateDAGStatusRow, error)
-	ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error)
+	ReadDAG(ctx context.Context, dagExternalId uuid.UUID) (*sqlcv1.V1DagsOlap, error)
 	ListTasksByDAGId(ctx context.Context, tenantId uuid.UUID, dagIds []uuid.UUID, includePayloads bool) ([]*TaskWithPayloads, map[int64]uuid.UUID, error)
 	ListTasksByIdAndInsertedAt(ctx context.Context, tenantId uuid.UUID, taskMetadata []TaskMetadata, includePayloads bool) ([]*TaskWithPayloads, error)
 
@@ -248,7 +248,7 @@ type OLAPRepository interface {
 	GetTaskTimings(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error)
-	GetEvent(ctx context.Context, externalId string) (*sqlcv1.V1EventsOlap, error)
+	GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error)
 	GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*EventWithPayload, error)
 	ListEventKeys(ctx context.Context, tenantId uuid.UUID) ([]string, error)
 
@@ -457,7 +457,7 @@ func StringToReadableStatus(status string) ReadableTaskStatus {
 	}
 }
 
-func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error) {
+func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId uuid.UUID) (*sqlcv1.V1TasksOlap, error) {
 	row, err := r.queries.ReadTaskByExternalID(ctx, r.readPool, uuid.MustParse(taskExternalId))
 
 	if err != nil {
@@ -1910,7 +1910,7 @@ func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId u
 	return rows, nil
 }
 
-func (r *OLAPRepositoryImpl) ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error) {
+func (r *OLAPRepositoryImpl) ReadDAG(ctx context.Context, dagExternalId uuid.UUID) (*sqlcv1.V1DagsOlap, error) {
 	return r.queries.ReadDAGByExternalID(ctx, r.readPool, uuid.MustParse(dagExternalId))
 }
 
@@ -2126,7 +2126,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 	return nil
 }
 
-func (r *OLAPRepositoryImpl) GetEvent(ctx context.Context, externalId string) (*sqlcv1.V1EventsOlap, error) {
+func (r *OLAPRepositoryImpl) GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error) {
 	return r.queries.GetEventByExternalId(ctx, r.readPool, uuid.MustParse(externalId))
 }
 

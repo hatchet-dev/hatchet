@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	v0Config "github.com/hatchet-dev/hatchet/pkg/config/client"
@@ -8,7 +9,7 @@ import (
 )
 
 type Config struct {
-	TenantId           string
+	TenantId           uuid.UUID
 	Token              string
 	HostPort           string
 	ServerURL          string

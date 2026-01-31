@@ -13,7 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, tenantId string) (bool, error) {
+func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, tenantId uuid.UUID) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-task-reassignments")
 	defer span.End()
 
