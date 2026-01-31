@@ -7,11 +7,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 )
 
 type ID interface {
-	string | int64
+	string | int64 | uuid.UUID
 }
 
 type OpMethod[T ID] func(ctx context.Context, id T) (bool, error)

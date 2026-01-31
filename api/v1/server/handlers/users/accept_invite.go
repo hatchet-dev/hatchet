@@ -11,13 +11,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInviteAcceptRequestObject) (gen.TenantInviteAcceptResponseObject, error) {
 	user := ctx.Get("user").(*sqlcv1.User)
-	userId := sqlchelpers.UUIDToStr(user.ID)
+	userId := user.ID.String()
 
 	// validate the request
 	if apiErrors, err := u.config.Validator.ValidateAPI(request.Body); err != nil {
@@ -55,7 +54,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// ensure the user is not already a member of the tenant
-	_, err = u.config.V1.Tenant().GetTenantMemberByEmail(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.TenantId), user.Email)
+	_, err = u.config.V1.Tenant().GetTenantMemberByEmail(ctx.Request().Context(), invite.TenantId, user.Email)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
@@ -69,14 +68,14 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// update the invite
-	invite, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.ID), updateOpts)
+	invite, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.ID.String(), updateOpts)
 
 	if err != nil {
 		return nil, err
 	}
 
 	// add the user to the tenant
-	member, err := u.config.V1.Tenant().CreateTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.TenantId), &v1.CreateTenantMemberOpts{
+	member, err := u.config.V1.Tenant().CreateTenantMember(ctx.Request().Context(), invite.TenantId, &v1.CreateTenantMemberOpts{
 		UserId: userId,
 		Role:   string(invite.Role),
 	})
@@ -85,12 +84,10 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 		return nil, err
 	}
 
-	tenantId := sqlchelpers.UUIDToStr(invite.TenantId)
-
 	u.config.Analytics.Enqueue(
 		"user-invite:accept",
 		userId,
-		&tenantId,
+		&invite.TenantId,
 		nil,
 		map[string]interface{}{
 			"user_id":   userId,
@@ -101,7 +98,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 
 	ctx.Set("tenant-member", member)
 
-	tenant, err := u.config.V1.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
+	tenant, err := u.config.V1.Tenant().GetTenantByID(ctx.Request().Context(), invite.TenantId)
 	if err != nil {
 		return nil, err
 	}

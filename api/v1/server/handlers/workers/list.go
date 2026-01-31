@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	transformersv1 "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -31,7 +31,7 @@ func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListReque
 
 func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
 	reqCtx := ctx.Request().Context()
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
@@ -75,7 +75,7 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, re
 
 func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
 	reqCtx := ctx.Request().Context()
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
@@ -101,13 +101,13 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		telemetry.AttributeKV{Key: "workers.count", Value: len(workers)},
 	)
 
-	workerIdSet := make(map[string]struct{})
+	workerIdSet := make(map[uuid.UUID]struct{})
 
 	for _, worker := range workers {
-		workerIdSet[sqlchelpers.UUIDToStr(worker.Worker.ID)] = struct{}{}
+		workerIdSet[worker.Worker.ID] = struct{}{}
 	}
 
-	workerIds := make([]string, 0, len(workerIdSet))
+	workerIds := make([]uuid.UUID, 0, len(workerIdSet))
 	for workerId := range workerIdSet {
 		workerIds = append(workerIds, workerId)
 	}
@@ -120,7 +120,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 	)
 
 	workerIdToActionIds, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
-		sqlchelpers.UUIDToStr(tenant.ID),
+		tenant.ID,
 		workerIds,
 	)
 
@@ -138,7 +138,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 	for i, worker := range workers {
 		workerCp := worker
 		slots := int(worker.RemainingSlots)
-		actions := workerIdToActionIds[sqlchelpers.UUIDToStr(workerCp.Worker.ID)]
+		actions := workerIdToActionIds[workerCp.Worker.ID.String()]
 
 		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp.Worker, &slots, &workerCp.WebhookUrl.String, actions, nil)
 	}

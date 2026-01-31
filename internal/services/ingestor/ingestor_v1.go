@@ -18,7 +18,7 @@ import (
 )
 
 type EventResult struct {
-	TenantId           string
+	TenantId           uuid.UUID
 	EventId            string
 	EventKey           string
 	Data               string
@@ -29,7 +29,7 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *sqlcv1.Tenant,
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	canCreateEvents, eLimit, err := i.repov1.TenantLimit().CanCreate(
 		ctx,
@@ -52,8 +52,8 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *sqlcv1.Tenant,
 	return i.ingestSingleton(ctx, tenantId, key, data, metadata, priority, scope, triggeringWebhookName)
 }
 
-func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error) {
-	eventId := uuid.New().String()
+func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId uuid.UUID, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error) {
+	eventId := uuid.New()
 
 	msg, err := eventToTaskV1(
 		tenantId,
@@ -79,11 +79,11 @@ func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string
 	now := time.Now().UTC()
 
 	return &sqlcv1.Event{
-		ID:                 sqlchelpers.UUIDFromStr(eventId),
+		ID:                 eventId,
 		CreatedAt:          sqlchelpers.TimestampFromTime(now),
 		UpdatedAt:          sqlchelpers.TimestampFromTime(now),
 		Key:                key,
-		TenantId:           sqlchelpers.UUIDFromStr(tenantId),
+		TenantId:           tenantId,
 		Data:               data,
 		AdditionalMetadata: metadata,
 	}, nil
@@ -93,7 +93,7 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *sqlcv1.Ten
 	ctx, span := telemetry.NewSpan(ctx, "bulk-ingest-event")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	count := len(eventOpts)
 
@@ -134,12 +134,12 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *sqlcv1
 	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
 	defer span.End()
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	return i.ingestSingleton(ctx, tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata, nil, nil, nil)
 }
 
-func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta []byte, priority *int32, scope *string, triggeringWebhookName *string) (*msgqueue.Message, error) {
+func eventToTaskV1(tenantId, eventExternalId uuid.UUID, key string, data, additionalMeta []byte, priority *int32, scope *string, triggeringWebhookName *string) (*msgqueue.Message, error) {
 	payloadTyped := tasktypes.UserEventTaskPayload{
 		EventExternalId:         eventExternalId,
 		EventKey:                key,
@@ -159,7 +159,7 @@ func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta [
 	)
 }
 
-func createWebhookValidationFailureMsg(tenantId, webhookName, errorText string) (*msgqueue.Message, error) {
+func createWebhookValidationFailureMsg(tenantId uuid.UUID, webhookName, errorText string) (*msgqueue.Message, error) {
 	payloadTyped := tasktypes.FailedWebhookValidationPayload{
 		WebhookName: webhookName,
 		ErrorText:   errorText,
@@ -174,7 +174,7 @@ func createWebhookValidationFailureMsg(tenantId, webhookName, errorText string) 
 	)
 }
 
-func (i *IngestorImpl) ingestWebhookValidationFailure(tenantId, webhookName, errorText string) error {
+func (i *IngestorImpl) ingestWebhookValidationFailure(tenantId uuid.UUID, webhookName, errorText string) error {
 	msg, err := createWebhookValidationFailureMsg(
 		tenantId,
 		webhookName,
@@ -194,7 +194,7 @@ func (i *IngestorImpl) ingestWebhookValidationFailure(tenantId, webhookName, err
 	return nil
 }
 
-func (i *IngestorImpl) ingestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {
+func (i *IngestorImpl) ingestCELEvaluationFailure(ctx context.Context, tenantId uuid.UUID, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {
 	msg, err := tasktypes.CELEvaluationFailureMessage(
 		tenantId,
 		[]v1.CELEvaluationFailure{

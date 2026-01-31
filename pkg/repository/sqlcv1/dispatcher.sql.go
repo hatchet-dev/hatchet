@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -19,7 +20,7 @@ VALUES
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive"
 `
 
-func (q *Queries) CreateDispatcher(ctx context.Context, db DBTX, id pgtype.UUID) (*Dispatcher, error) {
+func (q *Queries) CreateDispatcher(ctx context.Context, db DBTX, id uuid.UUID) (*Dispatcher, error) {
 	row := db.QueryRow(ctx, createDispatcher, id)
 	var i Dispatcher
 	err := row.Scan(
@@ -41,7 +42,7 @@ WHERE
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive"
 `
 
-func (q *Queries) DeleteDispatcher(ctx context.Context, db DBTX, id pgtype.UUID) (*Dispatcher, error) {
+func (q *Queries) DeleteDispatcher(ctx context.Context, db DBTX, id uuid.UUID) (*Dispatcher, error) {
 	row := db.QueryRow(ctx, deleteDispatcher, id)
 	var i Dispatcher
 	err := row.Scan(
@@ -192,7 +193,7 @@ type SetDispatchersInactiveRow struct {
 	Dispatcher Dispatcher `json:"dispatcher"`
 }
 
-func (q *Queries) SetDispatchersInactive(ctx context.Context, db DBTX, ids []pgtype.UUID) ([]*SetDispatchersInactiveRow, error) {
+func (q *Queries) SetDispatchersInactive(ctx context.Context, db DBTX, ids []uuid.UUID) ([]*SetDispatchersInactiveRow, error) {
 	rows, err := db.Query(ctx, setDispatchersInactive, ids)
 	if err != nil {
 		return nil, err
@@ -231,7 +232,7 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActiv
 
 type UpdateDispatcherParams struct {
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
-	ID              pgtype.UUID      `json:"id"`
+	ID              uuid.UUID        `json:"id"`
 }
 
 func (q *Queries) UpdateDispatcher(ctx context.Context, db DBTX, arg UpdateDispatcherParams) (*Dispatcher, error) {

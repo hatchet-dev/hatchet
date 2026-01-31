@@ -10,13 +10,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request gen.ScheduledWorkflowRunCreateRequestObject) (gen.ScheduledWorkflowRunCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	workflow, err := t.config.V1.Workflows().GetWorkflowByName(ctx.Request().Context(), tenantId, request.Workflow)
 
@@ -56,7 +55,7 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 		ScheduledTrigger:   request.Body.TriggerAt,
 		Input:              input,
 		AdditionalMetadata: additionalMetadata,
-		WorkflowId:         sqlchelpers.UUIDToStr(workflow.ID),
+		WorkflowId:         workflow.ID,
 		Priority:           &priority,
 	})
 

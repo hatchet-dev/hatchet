@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -19,7 +20,7 @@ AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
 AND "isActive" = true
 `
 
-func (q *Queries) CountTenantWorkerSlots(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int32, error) {
+func (q *Queries) CountTenantWorkerSlots(ctx context.Context, db DBTX, tenantid uuid.UUID) (int32, error) {
 	row := db.QueryRow(ctx, countTenantWorkerSlots, tenantid)
 	var count int32
 	err := row.Scan(&count)
@@ -34,7 +35,7 @@ AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
 AND "isActive" = true
 `
 
-func (q *Queries) CountTenantWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int64, error) {
+func (q *Queries) CountTenantWorkers(ctx context.Context, db DBTX, tenantid uuid.UUID) (int64, error) {
 	row := db.QueryRow(ctx, countTenantWorkers, tenantid)
 	var count int64
 	err := row.Scan(&count)
@@ -62,16 +63,16 @@ WHERE "tenantId" = $1::uuid
 `
 
 type GetTenantResourceLimitParams struct {
-	Tenantid pgtype.UUID       `json:"tenantid"`
+	Tenantid uuid.UUID         `json:"tenantid"`
 	Resource NullLimitResource `json:"resource"`
 }
 
 type GetTenantResourceLimitRow struct {
-	ID               pgtype.UUID      `json:"id"`
+	ID               uuid.UUID        `json:"id"`
 	CreatedAt        pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
 	Resource         LimitResource    `json:"resource"`
-	TenantId         pgtype.UUID      `json:"tenantId"`
+	TenantId         uuid.UUID        `json:"tenantId"`
 	LimitValue       int32            `json:"limitValue"`
 	AlarmValue       pgtype.Int4      `json:"alarmValue"`
 	Value            int32            `json:"value"`
@@ -104,7 +105,7 @@ SELECT id, "createdAt", "updatedAt", resource, "tenantId", "limitValue", "alarmV
 WHERE "tenantId" = $1::uuid
 `
 
-func (q *Queries) ListTenantResourceLimits(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*TenantResourceLimit, error) {
+func (q *Queries) ListTenantResourceLimits(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*TenantResourceLimit, error) {
 	rows, err := db.Query(ctx, listTenantResourceLimits, tenantid)
 	if err != nil {
 		return nil, err
@@ -158,7 +159,7 @@ RETURNING id, "createdAt", "updatedAt", resource, "tenantId", "limitValue", "ala
 
 type MeterTenantResourceParams struct {
 	Numresources int32             `json:"numresources"`
-	Tenantid     pgtype.UUID       `json:"tenantid"`
+	Tenantid     uuid.UUID         `json:"tenantid"`
 	Resource     NullLimitResource `json:"resource"`
 }
 
@@ -196,11 +197,11 @@ FROM resolved_limits
 `
 
 type ResolveAllLimitsIfWindowPassedRow struct {
-	ID               pgtype.UUID      `json:"id"`
+	ID               uuid.UUID        `json:"id"`
 	CreatedAt        pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
 	Resource         LimitResource    `json:"resource"`
-	TenantId         pgtype.UUID      `json:"tenantId"`
+	TenantId         uuid.UUID        `json:"tenantId"`
 	LimitValue       int32            `json:"limitValue"`
 	AlarmValue       pgtype.Int4      `json:"alarmValue"`
 	Value            int32            `json:"value"`
@@ -259,7 +260,7 @@ LIMIT 1
 `
 
 type SelectOrInsertTenantResourceLimitParams struct {
-	Tenantid         pgtype.UUID       `json:"tenantid"`
+	Tenantid         uuid.UUID         `json:"tenantid"`
 	Resource         NullLimitResource `json:"resource"`
 	LimitValue       pgtype.Int4       `json:"limitValue"`
 	AlarmValue       pgtype.Int4       `json:"alarmValue"`
@@ -268,11 +269,11 @@ type SelectOrInsertTenantResourceLimitParams struct {
 }
 
 type SelectOrInsertTenantResourceLimitRow struct {
-	ID               pgtype.UUID      `json:"id"`
+	ID               uuid.UUID        `json:"id"`
 	CreatedAt        pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
 	Resource         LimitResource    `json:"resource"`
-	TenantId         pgtype.UUID      `json:"tenantId"`
+	TenantId         uuid.UUID        `json:"tenantId"`
 	LimitValue       int32            `json:"limitValue"`
 	AlarmValue       pgtype.Int4      `json:"alarmValue"`
 	Value            int32            `json:"value"`
@@ -329,7 +330,7 @@ RETURNING id, "createdAt", "updatedAt", resource, "tenantId", "limitValue", "ala
 `
 
 type UpsertTenantResourceLimitParams struct {
-	Tenantid         pgtype.UUID       `json:"tenantid"`
+	Tenantid         uuid.UUID         `json:"tenantid"`
 	Resource         NullLimitResource `json:"resource"`
 	LimitValue       pgtype.Int4       `json:"limitValue"`
 	AlarmValue       pgtype.Int4       `json:"alarmValue"`

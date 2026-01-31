@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -67,16 +68,16 @@ LEFT JOIN claims c ON (i.key = c.key AND i.claimed_by_external_id = c.claimed_by
 `
 
 type ClaimIdempotencyKeysParams struct {
-	Keys                 []string      `json:"keys"`
-	Claimedbyexternalids []pgtype.UUID `json:"claimedbyexternalids"`
-	Tenantid             pgtype.UUID   `json:"tenantid"`
+	Keys                 []string    `json:"keys"`
+	Claimedbyexternalids []uuid.UUID `json:"claimedbyexternalids"`
+	Tenantid             uuid.UUID   `json:"tenantid"`
 }
 
 type ClaimIdempotencyKeysRow struct {
 	Key                    string             `json:"key"`
 	ExpiresAt              pgtype.Timestamptz `json:"expires_at"`
 	WasSuccessfullyClaimed bool               `json:"was_successfully_claimed"`
-	ClaimedByExternalID    pgtype.UUID        `json:"claimed_by_external_id"`
+	ClaimedByExternalID    *uuid.UUID         `json:"claimed_by_external_id"`
 }
 
 func (q *Queries) ClaimIdempotencyKeys(ctx context.Context, db DBTX, arg ClaimIdempotencyKeysParams) ([]*ClaimIdempotencyKeysRow, error) {
@@ -111,7 +112,7 @@ WHERE
     AND expires_at < NOW()
 `
 
-func (q *Queries) CleanUpExpiredIdempotencyKeys(ctx context.Context, db DBTX, tenantid pgtype.UUID) error {
+func (q *Queries) CleanUpExpiredIdempotencyKeys(ctx context.Context, db DBTX, tenantid uuid.UUID) error {
 	_, err := db.Exec(ctx, cleanUpExpiredIdempotencyKeys, tenantid)
 	return err
 }
@@ -130,7 +131,7 @@ VALUES (
 `
 
 type CreateIdempotencyKeyParams struct {
-	Tenantid  pgtype.UUID        `json:"tenantid"`
+	Tenantid  uuid.UUID          `json:"tenantid"`
 	Key       string             `json:"key"`
 	Expiresat pgtype.Timestamptz `json:"expiresat"`
 }

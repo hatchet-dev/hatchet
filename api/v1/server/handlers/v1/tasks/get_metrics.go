@@ -4,11 +4,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/labstack/echo/v4"
@@ -18,7 +16,7 @@ import (
 
 func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1TaskListStatusMetricsRequestObject) (gen.V1TaskListStatusMetricsResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	var workflowIds []uuid.UUID
 
@@ -26,18 +24,15 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 		workflowIds = *request.Params.WorkflowIds
 	}
 
-	var parentTaskExternalId *pgtype.UUID
+	var parentTaskExternalId *uuid.UUID
 
 	if request.Params.ParentTaskExternalId != nil {
-		uuidPtr := *request.Params.ParentTaskExternalId
-		uuidVal := sqlchelpers.UUIDFromStr(uuidPtr.String())
-		parentTaskExternalId = &uuidVal
+		parentTaskExternalId = request.Params.ParentTaskExternalId
 	}
 
-	var triggeringEventExternalId *pgtype.UUID
+	var triggeringEventExternalId *uuid.UUID
 	if request.Params.TriggeringEventExternalId != nil {
-		uuidVal := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventExternalId.String())
-		triggeringEventExternalId = &uuidVal
+		triggeringEventExternalId = request.Params.TriggeringEventExternalId
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})

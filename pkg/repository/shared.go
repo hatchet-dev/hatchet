@@ -16,12 +16,13 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	celgo "github.com/google/cel-go/cel"
+	"github.com/google/uuid"
 )
 
 // implements comparable for the lru cache
 type taskExternalIdTenantIdTuple struct {
-	externalId string
-	tenantId   string
+	externalId uuid.UUID
+	tenantId   uuid.UUID
 }
 
 type sharedRepository struct {

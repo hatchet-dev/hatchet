@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -8,7 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func TriggerTaskMessage(tenantId string, payloads ...*v1.WorkflowNameTriggerOpts) (*msgqueue.Message, error) {
+func TriggerTaskMessage(tenantId uuid.UUID, payloads ...*v1.WorkflowNameTriggerOpts) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDTaskTrigger,
@@ -26,10 +27,10 @@ type CompletedTaskPayload struct {
 	InsertedAt pgtype.Timestamptz
 
 	// (required) the task external id
-	ExternalId string
+	ExternalId uuid.UUID
 
 	// (required) the workflow run id
-	WorkflowRunId string
+	WorkflowRunId uuid.UUID
 
 	// (required) the retry count
 	RetryCount int32
@@ -39,11 +40,11 @@ type CompletedTaskPayload struct {
 }
 
 func CompletedTaskMessage(
-	tenantId string,
+	tenantId uuid.UUID,
 	taskId int64,
 	taskInsertedAt pgtype.Timestamptz,
-	taskExternalId string,
-	workflowRunId string,
+	taskExternalId uuid.UUID,
+	workflowRunId uuid.UUID,
 	retryCount int32,
 	output []byte,
 ) (*msgqueue.Message, error) {
@@ -71,10 +72,10 @@ type FailedTaskPayload struct {
 	InsertedAt pgtype.Timestamptz
 
 	// (required) the task external id
-	ExternalId string
+	ExternalId uuid.UUID
 
 	// (required) the workflow run id
-	WorkflowRunId string
+	WorkflowRunId uuid.UUID
 
 	// (required) the retry count
 	RetryCount int32
@@ -90,11 +91,11 @@ type FailedTaskPayload struct {
 }
 
 func FailedTaskMessage(
-	tenantId string,
+	tenantId uuid.UUID,
 	taskId int64,
 	taskInsertedAt pgtype.Timestamptz,
-	taskExternalId string,
-	workflowRunId string,
+	taskExternalId uuid.UUID,
+	workflowRunId uuid.UUID,
 	retryCount int32,
 	isAppError bool,
 	errorMsg string,
@@ -126,10 +127,10 @@ type CancelledTaskPayload struct {
 	InsertedAt pgtype.Timestamptz
 
 	// (required) the task external id
-	ExternalId string
+	ExternalId uuid.UUID
 
 	// (required) the workflow run id
-	WorkflowRunId string
+	WorkflowRunId uuid.UUID
 
 	// (required) the retry count
 	RetryCount int32
@@ -145,11 +146,11 @@ type CancelledTaskPayload struct {
 }
 
 func CancelledTaskMessage(
-	tenantId string,
+	tenantId uuid.UUID,
 	taskId int64,
 	taskInsertedAt pgtype.Timestamptz,
-	taskExternalId string,
-	workflowRunId string,
+	taskExternalId uuid.UUID,
+	workflowRunId uuid.UUID,
 	retryCount int32,
 	eventType sqlcv1.V1EventTypeOlap,
 	eventMessage string,
@@ -175,7 +176,7 @@ func CancelledTaskMessage(
 
 type SignalTaskCancelledPayload struct {
 	// (required) the worker id
-	WorkerId string `validate:"required,uuid"`
+	WorkerId uuid.UUID `validate:"required"`
 
 	// (required) the task id
 	TaskId int64 `validate:"required"`
@@ -193,8 +194,8 @@ type CancelTasksPayload struct {
 
 type TaskIdInsertedAtRetryCountWithExternalId struct {
 	v1.TaskIdInsertedAtRetryCount `json:"task"`
-	WorkflowRunExternalId         pgtype.UUID `json:"workflow_run_external_id,omitempty"`
-	TaskExternalId                pgtype.UUID `json:"task_external_id,omitempty"`
+	WorkflowRunExternalId         uuid.UUID `json:"workflow_run_external_id,omitempty"`
+	TaskExternalId                uuid.UUID `json:"task_external_id,omitempty"`
 }
 
 type ReplayTasksPayload struct {
@@ -203,7 +204,7 @@ type ReplayTasksPayload struct {
 
 type NotifyFinalizedPayload struct {
 	// (required) the external id (can either be a workflow run id or single task)
-	ExternalId string `validate:"required"`
+	ExternalId uuid.UUID `validate:"required"`
 
 	// (required) the status of the task
 	Status sqlcv1.V1ReadableStatusOlap
@@ -211,5 +212,5 @@ type NotifyFinalizedPayload struct {
 
 type CandidateFinalizedPayload struct {
 	// (required) the workflow run id (can either be a workflow run id or single task)
-	WorkflowRunId string `validate:"required"`
+	WorkflowRunId uuid.UUID `validate:"required"`
 }

@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -32,8 +33,8 @@ INSERT INTO "APIToken" (
 `
 
 type CreateAPITokenParams struct {
-	ID        pgtype.UUID      `json:"id"`
-	TenantId  pgtype.UUID      `json:"tenantId"`
+	ID        uuid.UUID        `json:"id"`
+	TenantId  *uuid.UUID       `json:"tenantId"`
 	Name      pgtype.Text      `json:"name"`
 	Expiresat pgtype.Timestamp `json:"expiresat"`
 	Internal  pgtype.Bool      `json:"internal"`
@@ -71,8 +72,8 @@ WHERE
 `
 
 type DeleteAPITokenParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	ID       pgtype.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
 }
 
 func (q *Queries) DeleteAPIToken(ctx context.Context, db DBTX, arg DeleteAPITokenParams) error {
@@ -89,7 +90,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) GetAPITokenById(ctx context.Context, db DBTX, id pgtype.UUID) (*APIToken, error) {
+func (q *Queries) GetAPITokenById(ctx context.Context, db DBTX, id uuid.UUID) (*APIToken, error) {
 	row := db.QueryRow(ctx, getAPITokenById, id)
 	var i APIToken
 	err := row.Scan(
@@ -117,7 +118,7 @@ WHERE
     AND "internal" = FALSE
 `
 
-func (q *Queries) ListAPITokensByTenant(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*APIToken, error) {
+func (q *Queries) ListAPITokensByTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*APIToken, error) {
 	rows, err := db.Query(ctx, listAPITokensByTenant, tenantid)
 	if err != nil {
 		return nil, err
@@ -157,7 +158,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) RevokeAPIToken(ctx context.Context, db DBTX, id pgtype.UUID) error {
+func (q *Queries) RevokeAPIToken(ctx context.Context, db DBTX, id uuid.UUID) error {
 	_, err := db.Exec(ctx, revokeAPIToken, id)
 	return err
 }

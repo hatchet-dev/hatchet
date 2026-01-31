@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // nolint: staticcheck
@@ -45,7 +47,7 @@ func init() {
 	}
 }
 
-type DstFunc func(tenantId, msgId string, payloads [][]byte) error
+type DstFunc func(tenantId uuid.UUID, msgId string, payloads [][]byte) error
 
 func JSONConvert[T any](payloads [][]byte) []*T {
 	ret := make([]*T, 0)
@@ -203,7 +205,7 @@ type msgWithResultCh struct {
 }
 
 func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
-	if msg.TenantID == "" {
+	if msg.TenantID == uuid.Nil {
 		return nil
 	}
 
@@ -236,12 +238,12 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 	return err
 }
 
-func getKey(tenantId, msgId string) string {
-	return tenantId + msgId
+func getKey(tenantId uuid.UUID, msgId string) string {
+	return tenantId.String() + msgId
 }
 
 type msgIdBuffer struct {
-	tenantId string
+	tenantId uuid.UUID
 	msgId    string
 
 	msgIdBufferCh chan *msgWithResultCh
@@ -259,7 +261,7 @@ type msgIdBuffer struct {
 	flushInterval time.Duration
 }
 
-func newMsgIDBuffer(ctx context.Context, tenantID, msgID string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
+func newMsgIDBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
 	b := &msgIdBuffer{
 		tenantId:              tenantID,
 		msgId:                 msgID,

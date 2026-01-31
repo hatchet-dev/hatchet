@@ -8,7 +8,7 @@ package sqlcv1
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
 const createSNSIntegration = `-- name: CreateSNSIntegration :one
@@ -25,8 +25,8 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "topicArn"
 `
 
 type CreateSNSIntegrationParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Topicarn string      `json:"topicarn"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Topicarn string    `json:"topicarn"`
 }
 
 func (q *Queries) CreateSNSIntegration(ctx context.Context, db DBTX, arg CreateSNSIntegrationParams) (*SNSIntegration, error) {
@@ -51,8 +51,8 @@ WHERE
 `
 
 type DeleteSNSIntegrationParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	ID       pgtype.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
 }
 
 func (q *Queries) DeleteSNSIntegration(ctx context.Context, db DBTX, arg DeleteSNSIntegrationParams) error {
@@ -71,8 +71,8 @@ WHERE
 `
 
 type GetSNSIntegrationParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Topicarn string      `json:"topicarn"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Topicarn string    `json:"topicarn"`
 }
 
 func (q *Queries) GetSNSIntegration(ctx context.Context, db DBTX, arg GetSNSIntegrationParams) (*SNSIntegration, error) {
@@ -97,7 +97,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) GetSNSIntegrationById(ctx context.Context, db DBTX, id pgtype.UUID) (*SNSIntegration, error) {
+func (q *Queries) GetSNSIntegrationById(ctx context.Context, db DBTX, id uuid.UUID) (*SNSIntegration, error) {
 	row := db.QueryRow(ctx, getSNSIntegrationById, id)
 	var i SNSIntegration
 	err := row.Scan(
@@ -119,7 +119,7 @@ WHERE
     "tenantId" = $1::uuid
 `
 
-func (q *Queries) ListSNSIntegrations(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*SNSIntegration, error) {
+func (q *Queries) ListSNSIntegrations(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*SNSIntegration, error) {
 	rows, err := db.Query(ctx, listSNSIntegrations, tenantid)
 	if err != nil {
 		return nil, err

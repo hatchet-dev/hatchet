@@ -16,7 +16,7 @@ type CELEvaluationFailures struct {
 	Failures []v1.CELEvaluationFailure
 }
 
-func CELEvaluationFailureMessage(tenantId string, failures []v1.CELEvaluationFailure) (*msgqueue.Message, error) {
+func CELEvaluationFailureMessage(tenantId uuid.UUID, failures []v1.CELEvaluationFailure) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCELEvaluationFailure,
@@ -32,7 +32,7 @@ type CreatedTaskPayload struct {
 	*v1.V1TaskWithPayload
 }
 
-func CreatedTaskMessage(tenantId string, task *v1.V1TaskWithPayload) (*msgqueue.Message, error) {
+func CreatedTaskMessage(tenantId uuid.UUID, task *v1.V1TaskWithPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCreatedTask,
@@ -48,7 +48,7 @@ type CreatedDAGPayload struct {
 	*v1.DAGWithData
 }
 
-func CreatedDAGMessage(tenantId string, dag *v1.DAGWithData) (*msgqueue.Message, error) {
+func CreatedDAGMessage(tenantId uuid.UUID, dag *v1.DAGWithData) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCreatedDAG,
@@ -65,11 +65,11 @@ type CreatedEventTriggerPayloadSingleton struct {
 	MaybeRunInsertedAt      *time.Time `json:"run_inserted_at"`
 	EventSeenAt             time.Time  `json:"event_seen_at"`
 	EventKey                string     `json:"event_key"`
-	EventExternalId         string     `json:"event_id"`
+	EventExternalId         uuid.UUID  `json:"event_id"`
 	EventPayload            []byte     `json:"event_payload"`
 	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
 	EventScope              *string    `json:"event_scope,omitempty"`
-	FilterId                *string    `json:"filter_id,omitempty"`
+	FilterId                *uuid.UUID `json:"filter_id,omitempty"`
 	TriggeringWebhookName   *string    `json:"triggering_webhook_name,omitempty"`
 }
 
@@ -77,7 +77,7 @@ type CreatedEventTriggerPayload struct {
 	Payloads []CreatedEventTriggerPayloadSingleton `json:"payloads"`
 }
 
-func CreatedEventTriggerMessage(tenantId string, eventTriggers CreatedEventTriggerPayload) (*msgqueue.Message, error) {
+func CreatedEventTriggerMessage(tenantId uuid.UUID, eventTriggers CreatedEventTriggerPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCreatedEventTrigger,
@@ -92,7 +92,7 @@ type CreateMonitoringEventPayload struct {
 
 	RetryCount int32 `json:"retry_count"`
 
-	WorkerId *string `json:"worker_id,omitempty"`
+	WorkerId *uuid.UUID `json:"worker_id,omitempty"`
 
 	EventType sqlcv1.V1EventTypeOlap `json:"event_type"`
 
@@ -101,11 +101,12 @@ type CreateMonitoringEventPayload struct {
 	EventMessage   string    `json:"event_message,omitempty"`
 }
 
-func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
-	var workerId *string
+func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
+	var workerId *uuid.UUID
+	parsedId, err := uuid.Parse(request.WorkerId)
 
-	if _, err := uuid.Parse(request.WorkerId); err == nil {
-		workerId = &request.WorkerId
+	if err == nil {
+		workerId = &parsedId
 	}
 
 	payload := CreateMonitoringEventPayload{
@@ -136,7 +137,7 @@ func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryC
 	)
 }
 
-func MonitoringEventMessageFromInternal(tenantId string, payload CreateMonitoringEventPayload) (*msgqueue.Message, error) {
+func MonitoringEventMessageFromInternal(tenantId uuid.UUID, payload CreateMonitoringEventPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCreateMonitoringEvent,

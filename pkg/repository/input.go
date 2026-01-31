@@ -2,6 +2,8 @@ package repository
 
 import (
 	"encoding/json"
+
+	"github.com/google/uuid"
 )
 
 type TaskInput struct {
@@ -12,7 +14,7 @@ type TaskInput struct {
 	FilterPayload map[string]interface{} `json:"filter_payload"`
 }
 
-func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *string {
+func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *uuid.UUID {
 	if t.TriggerData != nil {
 		for _, stepReadableId := range t.TriggerData.DataKeys() {
 			data := t.TriggerData.DataValueAsTaskOutputEvent(stepReadableId)

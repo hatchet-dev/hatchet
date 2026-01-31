@@ -28,7 +28,7 @@ func (w *V1WebhooksService) V1WebhookList(ctx echo.Context, request gen.V1Webhoo
 
 	webhooks, err := w.config.V1.Webhooks().ListWebhooks(
 		ctx.Request().Context(),
-		tenant.ID.String(),
+		tenant.ID,
 		v1.ListWebhooksOpts{
 			WebhookNames:       webhookNames,
 			WebhookSourceNames: sourceNames,

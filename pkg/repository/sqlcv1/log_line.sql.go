@@ -8,11 +8,12 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type InsertLogLineParams struct {
-	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	Message        string             `json:"message"`
@@ -43,7 +44,7 @@ OFFSET COALESCE($10::BIGINT, 0)
 `
 
 type ListLogLinesParams struct {
-	Tenantid         pgtype.UUID        `json:"tenantid"`
+	Tenantid         uuid.UUID          `json:"tenantid"`
 	Taskid           int64              `json:"taskid"`
 	Taskinsertedat   pgtype.Timestamptz `json:"taskinsertedat"`
 	Search           pgtype.Text        `json:"search"`

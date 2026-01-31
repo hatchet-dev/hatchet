@@ -8,7 +8,7 @@ package sqlcv1
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
 const deleteSlackWebhook = `-- name: DeleteSlackWebhook :exec
@@ -20,8 +20,8 @@ WHERE
 `
 
 type DeleteSlackWebhookParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	ID       pgtype.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
 }
 
 func (q *Queries) DeleteSlackWebhook(ctx context.Context, db DBTX, arg DeleteSlackWebhookParams) error {
@@ -38,7 +38,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) GetSlackWebhookById(ctx context.Context, db DBTX, id pgtype.UUID) (*SlackAppWebhook, error) {
+func (q *Queries) GetSlackWebhookById(ctx context.Context, db DBTX, id uuid.UUID) (*SlackAppWebhook, error) {
 	row := db.QueryRow(ctx, getSlackWebhookById, id)
 	var i SlackAppWebhook
 	err := row.Scan(
@@ -65,7 +65,7 @@ WHERE
     "tenantId" = $1::uuid
 `
 
-func (q *Queries) ListSlackWebhooks(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*SlackAppWebhook, error) {
+func (q *Queries) ListSlackWebhooks(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*SlackAppWebhook, error) {
 	rows, err := db.Query(ctx, listSlackWebhooks, tenantid)
 	if err != nil {
 		return nil, err
@@ -123,12 +123,12 @@ INSERT INTO
 `
 
 type UpsertSlackWebhookParams struct {
-	Tenantid    pgtype.UUID `json:"tenantid"`
-	Teamid      string      `json:"teamid"`
-	Teamname    string      `json:"teamname"`
-	Channelid   string      `json:"channelid"`
-	Channelname string      `json:"channelname"`
-	Webhookurl  []byte      `json:"webhookurl"`
+	Tenantid    uuid.UUID `json:"tenantid"`
+	Teamid      string    `json:"teamid"`
+	Teamname    string    `json:"teamname"`
+	Channelid   string    `json:"channelid"`
+	Channelname string    `json:"channelname"`
+	Webhookurl  []byte    `json:"webhookurl"`
 }
 
 func (q *Queries) UpsertSlackWebhook(ctx context.Context, db DBTX, arg UpsertSlackWebhookParams) (*SlackAppWebhook, error) {

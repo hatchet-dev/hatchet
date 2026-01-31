@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -156,7 +157,11 @@ func startEngine() func() {
 	}
 
 	// set the API token
-	setAPIToken(ctx, cf, dl.Seed.DefaultTenantID)
+	tenantUUID, err := uuid.Parse(dl.Seed.DefaultTenantID)
+	if err != nil {
+		log.Fatalf("failed to parse default tenant ID: %v", err)
+	}
+	setAPIToken(ctx, cf, tenantUUID)
 
 	engineCh := make(chan error)
 
@@ -322,7 +327,7 @@ func seedDatabase(dc *database.Layer) {
 	log.Printf("Seeding database complete")
 }
 
-func setAPIToken(ctx context.Context, cf *loader.ConfigLoader, tenantID string) {
+func setAPIToken(ctx context.Context, cf *loader.ConfigLoader, tenantID uuid.UUID) {
 	log.Printf("Generating API token for Hatchet server")
 
 	cleanup, server, err := cf.CreateServerFromConfig("testing")

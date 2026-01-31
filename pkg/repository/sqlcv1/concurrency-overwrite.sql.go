@@ -3,6 +3,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -99,9 +100,9 @@ FROM
 `
 
 type RunChildGroupRoundRobinParams struct {
-	Tenantid         pgtype.UUID `json:"tenantid"`
-	Parentstrategyid int64       `json:"parentstrategyid"`
-	Strategyid       int64       `json:"strategyid"`
+	Tenantid         uuid.UUID `json:"tenantid"`
+	Parentstrategyid int64     `json:"parentstrategyid"`
+	Strategyid       int64     `json:"strategyid"`
 }
 
 type RunChildGroupRoundRobinRow struct {
@@ -109,11 +110,11 @@ type RunChildGroupRoundRobinRow struct {
 	TaskID                int64              `json:"task_id"`
 	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
 	TaskRetryCount        int32              `json:"task_retry_count"`
-	ExternalID            pgtype.UUID        `json:"external_id"`
-	TenantID              pgtype.UUID        `json:"tenant_id"`
-	WorkflowID            pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID     pgtype.UUID        `json:"workflow_version_id"`
-	WorkflowRunID         pgtype.UUID        `json:"workflow_run_id"`
+	ExternalID            uuid.UUID          `json:"external_id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	WorkflowID            uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
+	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
 	StrategyID            int64              `json:"strategy_id"`
 	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
 	Priority              int32              `json:"priority"`
@@ -353,9 +354,9 @@ FROM
 `
 
 type RunChildCancelInProgressParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Maxruns    int32       `json:"maxruns"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Maxruns    int32     `json:"maxruns"`
 }
 
 type RunChildCancelInProgressRow struct {
@@ -363,11 +364,11 @@ type RunChildCancelInProgressRow struct {
 	TaskID                int64              `json:"task_id"`
 	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
 	TaskRetryCount        int32              `json:"task_retry_count"`
-	ExternalID            pgtype.UUID        `json:"external_id"`
-	TenantID              pgtype.UUID        `json:"tenant_id"`
-	WorkflowID            pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID     pgtype.UUID        `json:"workflow_version_id"`
-	WorkflowRunID         pgtype.UUID        `json:"workflow_run_id"`
+	ExternalID            uuid.UUID          `json:"external_id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	WorkflowID            uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
+	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
 	StrategyID            int64              `json:"strategy_id"`
 	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
 	Priority              int32              `json:"priority"`
@@ -606,9 +607,9 @@ FROM
 `
 
 type RunChildCancelNewestParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Maxruns    int32       `json:"maxruns"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Maxruns    int32     `json:"maxruns"`
 }
 
 type RunChildCancelNewestRow struct {
@@ -616,11 +617,11 @@ type RunChildCancelNewestRow struct {
 	TaskID                int64              `json:"task_id"`
 	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
 	TaskRetryCount        int32              `json:"task_retry_count"`
-	ExternalID            pgtype.UUID        `json:"external_id"`
-	TenantID              pgtype.UUID        `json:"tenant_id"`
-	WorkflowID            pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID     pgtype.UUID        `json:"workflow_version_id"`
-	WorkflowRunID         pgtype.UUID        `json:"workflow_run_id"`
+	ExternalID            uuid.UUID          `json:"external_id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	WorkflowID            uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
+	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
 	StrategyID            int64              `json:"strategy_id"`
 	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
 	Priority              int32              `json:"priority"`

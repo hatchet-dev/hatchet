@@ -27,10 +27,10 @@ import (
 )
 
 func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1WebhookReceiveRequestObject) (gen.V1WebhookReceiveResponseObject, error) {
-	tenantId := request.Tenant.String()
+	tenantId := request.Tenant
 	webhookName := request.V1Webhook
 
-	w.config.Logger.Debug().Str("webhook", webhookName).Str("tenant", tenantId).Str("method", ctx.Request().Method).Str("content_type", ctx.Request().Header.Get("Content-Type")).Msg("received webhook request")
+	w.config.Logger.Debug().Str("webhook", webhookName).Str("tenant", tenantId.String()).Str("method", ctx.Request().Method).Str("content_type", ctx.Request().Header.Get("Content-Type")).Msg("received webhook request")
 
 	tenant, err := w.config.V1.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
 
@@ -56,7 +56,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		}, nil
 	}
 
-	if webhook.TenantID.String() != tenantId {
+	if webhook.TenantID != tenantId {
 		return gen.V1WebhookReceive403JSONResponse{
 			Errors: []gen.APIError{
 				{
@@ -108,7 +108,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			formData, err := url.ParseQuery(string(rawBody))
 			if err != nil {
 				errorMsg := "Failed to parse form data"
-				w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Msg(errorMsg)
+				w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId.String()).Msg(errorMsg)
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
 						{
@@ -137,7 +137,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 							payloadPreview = payloadPreview[:200] + "..."
 						}
 						errorMsg := "Failed to unmarshal payload parameter as JSON"
-						w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Int("payload_length", len(payloadValue)).Str("payload_preview", payloadPreview).Msg(errorMsg)
+						w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId.String()).Int("payload_length", len(payloadValue)).Str("payload_preview", payloadPreview).Msg(errorMsg)
 						return gen.V1WebhookReceive400JSONResponse{
 							Errors: []gen.APIError{
 								{
@@ -179,7 +179,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 					bodyPreview = bodyPreview[:200] + "..."
 				}
 				errorMsg := "Failed to unmarshal request body as JSON"
-				w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Str("content_type", contentType).Int("body_length", len(rawBody)).Str("body_preview", bodyPreview).Msg(errorMsg)
+				w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId.String()).Str("content_type", contentType).Int("body_length", len(rawBody)).Str("body_preview", bodyPreview).Msg(errorMsg)
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
 						{
@@ -221,11 +221,11 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			errorMsg = "Failed to evaluate event key expression"
 		}
 
-		w.config.Logger.Warn().Err(err).Str("webhook", webhookName).Str("tenant", tenantId).Str("event_key_expression", webhook.EventKeyExpression).Msg(errorMsg)
+		w.config.Logger.Warn().Err(err).Str("webhook", webhookName).Str("tenant", tenantId.String()).Str("event_key_expression", webhook.EventKeyExpression).Msg(errorMsg)
 
 		ingestionErr := w.config.Ingestor.IngestCELEvaluationFailure(
 			ctx.Request().Context(),
-			tenant.ID.String(),
+			tenant.ID,
 			err.Error(),
 			sqlcv1.V1CelEvaluationFailureSourceWEBHOOK,
 		)

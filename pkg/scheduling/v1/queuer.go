@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
@@ -17,7 +17,7 @@ import (
 
 type Queuer struct {
 	repo      v1.QueueRepository
-	tenantId  pgtype.UUID
+	tenantId  uuid.UUID
 	queueName string
 
 	l *zerolog.Logger
@@ -47,7 +47,7 @@ type Queuer struct {
 	hasRateLimits bool
 }
 
-func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
+func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
 	defaultLimit := 100
 
 	if conf.singleQueueLimit > 0 {
@@ -185,7 +185,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		rateLimitTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		stepIds := make([]pgtype.UUID, 0, len(qis))
+		stepIds := make([]uuid.UUID, 0, len(qis))
 
 		for _, qi := range qis {
 			stepIds = append(stepIds, qi.StepID)
@@ -379,7 +379,7 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*sqlcv1.V1QueueItem, error)
 }
 
 type QueueResults struct {
-	TenantId pgtype.UUID
+	TenantId uuid.UUID
 	Assigned []*v1.AssignedItem
 
 	Unassigned         []*sqlcv1.V1QueueItem

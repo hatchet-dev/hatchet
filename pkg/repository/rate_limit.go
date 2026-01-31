@@ -7,8 +7,8 @@ import (
 	"hash/fnv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -45,11 +45,11 @@ type UpsertRateLimitOpts struct {
 }
 
 type RateLimitRepository interface {
-	UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error)
+	UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error)
 
-	UpsertRateLimit(ctx context.Context, tenantId string, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error)
+	UpsertRateLimit(ctx context.Context, tenantId uuid.UUID, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error)
 
-	ListRateLimits(ctx context.Context, tenantId string, opts *ListRateLimitOpts) (*ListRateLimitsResult, error)
+	ListRateLimits(ctx context.Context, tenantId uuid.UUID, opts *ListRateLimitOpts) (*ListRateLimitsResult, error)
 }
 
 const MAX_TENANT_RATE_LIMITS = 10000
@@ -64,7 +64,7 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 	}
 }
 
-func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
+func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
@@ -84,7 +84,7 @@ func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgt
 		params.Units = append(params.Units, int32(v)) // nolint: gosec
 	}
 
-	tenantInt := tenantAdvisoryInt(sqlchelpers.UUIDToStr(tenantId))
+	tenantInt := tenantAdvisoryInt(tenantId)
 
 	err = r.queries.AdvisoryLock(ctx, tx, tenantInt)
 
@@ -128,13 +128,13 @@ func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgt
 	return newRls, &nextRefillAt, err
 }
 
-func (r *rateLimitRepository) UpsertRateLimit(ctx context.Context, tenantId string, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error) {
+func (r *rateLimitRepository) UpsertRateLimit(ctx context.Context, tenantId uuid.UUID, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	upsertParams := sqlcv1.UpsertRateLimitParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: tenantId,
 		Key:      key,
 		Limit:    int32(opts.Limit), // nolint: gosec
 	}
@@ -152,21 +152,19 @@ func (r *rateLimitRepository) UpsertRateLimit(ctx context.Context, tenantId stri
 	return rateLimit, nil
 }
 
-func (r *rateLimitRepository) ListRateLimits(ctx context.Context, tenantId string, opts *ListRateLimitOpts) (*ListRateLimitsResult, error) {
+func (r *rateLimitRepository) ListRateLimits(ctx context.Context, tenantId uuid.UUID, opts *ListRateLimitOpts) (*ListRateLimitsResult, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	res := &ListRateLimitsResult{}
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
 	queryParams := sqlcv1.ListRateLimitsForTenantNoMutateParams{
-		Tenantid: pgTenantId,
+		Tenantid: tenantId,
 	}
 
 	countParams := sqlcv1.CountRateLimitsParams{
-		Tenantid: pgTenantId,
+		Tenantid: tenantId,
 	}
 
 	if opts.Search != nil {
@@ -236,9 +234,9 @@ func (r *rateLimitRepository) ListRateLimits(ctx context.Context, tenantId strin
 	return res, nil
 }
 
-func tenantAdvisoryInt(tenantID string) int64 {
+func tenantAdvisoryInt(tenantID uuid.UUID) int64 {
 	hasher := fnv.New64a()
-	idBytes := []byte(tenantID)
+	idBytes := []byte(tenantID.String())
 	hasher.Write(idBytes)
 	return int64(hasher.Sum64()) // nolint: gosec
 }

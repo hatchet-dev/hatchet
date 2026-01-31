@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -65,10 +66,10 @@ RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id,
 `
 
 type AcquireOrExtendCutoverJobLeaseParams struct {
-	Leaseprocessid pgtype.UUID        `json:"leaseprocessid"`
+	Leaseprocessid uuid.UUID          `json:"leaseprocessid"`
 	Key            pgtype.Date        `json:"key"`
 	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
-	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 	Lastid         int64              `json:"lastid"`
 	Lasttype       V1PayloadType      `json:"lasttype"`
@@ -130,7 +131,7 @@ SELECT compute_payload_batch_size(
 
 type ComputePayloadBatchSizeParams struct {
 	Partitiondate  pgtype.Date        `json:"partitiondate"`
-	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 	Lastid         int64              `json:"lastid"`
 	Lasttype       V1PayloadType      `json:"lasttype"`
@@ -182,18 +183,18 @@ type CreatePayloadRangeChunksParams struct {
 	Partitiondate  pgtype.Date        `json:"partitiondate"`
 	Windowsize     int32              `json:"windowsize"`
 	Chunksize      int32              `json:"chunksize"`
-	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 	Lastid         int64              `json:"lastid"`
 	Lasttype       V1PayloadType      `json:"lasttype"`
 }
 
 type CreatePayloadRangeChunksRow struct {
-	LowerTenantID   pgtype.UUID        `json:"lower_tenant_id"`
+	LowerTenantID   uuid.UUID          `json:"lower_tenant_id"`
 	LowerID         int64              `json:"lower_id"`
 	LowerInsertedAt pgtype.Timestamptz `json:"lower_inserted_at"`
 	LowerType       V1PayloadType      `json:"lower_type"`
-	UpperTenantID   pgtype.UUID        `json:"upper_tenant_id"`
+	UpperTenantID   uuid.UUID          `json:"upper_tenant_id"`
 	UpperID         int64              `json:"upper_id"`
 	UpperInsertedAt pgtype.Timestamptz `json:"upper_inserted_at"`
 	UpperType       V1PayloadType      `json:"upper_type"`
@@ -266,10 +267,10 @@ FROM payloads
 `
 
 type DiffPayloadSourceAndTargetPartitionsRow struct {
-	TenantID            pgtype.UUID        `json:"tenant_id"`
+	TenantID            uuid.UUID          `json:"tenant_id"`
 	ID                  int64              `json:"id"`
 	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID          pgtype.UUID        `json:"external_id"`
+	ExternalID          uuid.UUID          `json:"external_id"`
 	Type                V1PayloadType      `json:"type"`
 	Location            V1PayloadLocation  `json:"location"`
 	ExternalLocationKey string             `json:"external_location_key"`
@@ -339,11 +340,11 @@ FROM payloads
 
 type ListPaginatedPayloadsForOffloadParams struct {
 	Partitiondate  pgtype.Date        `json:"partitiondate"`
-	Lasttenantid   pgtype.UUID        `json:"lasttenantid"`
+	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
 	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 	Lastid         int64              `json:"lastid"`
 	Lasttype       V1PayloadType      `json:"lasttype"`
-	Nexttenantid   pgtype.UUID        `json:"nexttenantid"`
+	Nexttenantid   uuid.UUID          `json:"nexttenantid"`
 	Nextinsertedat pgtype.Timestamptz `json:"nextinsertedat"`
 	Nextid         int64              `json:"nextid"`
 	Nexttype       V1PayloadType      `json:"nexttype"`
@@ -351,10 +352,10 @@ type ListPaginatedPayloadsForOffloadParams struct {
 }
 
 type ListPaginatedPayloadsForOffloadRow struct {
-	TenantID            pgtype.UUID        `json:"tenant_id"`
+	TenantID            uuid.UUID          `json:"tenant_id"`
 	ID                  int64              `json:"id"`
 	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID          pgtype.UUID        `json:"external_id"`
+	ExternalID          uuid.UUID          `json:"external_id"`
 	Type                V1PayloadType      `json:"type"`
 	Location            V1PayloadLocation  `json:"location"`
 	ExternalLocationKey string             `json:"external_location_key"`
@@ -434,7 +435,7 @@ WHERE (tenant_id, id, inserted_at, type) IN (
 type ReadPayloadsParams struct {
 	Ids         []int64              `json:"ids"`
 	Insertedats []pgtype.Timestamptz `json:"insertedats"`
-	Tenantids   []pgtype.UUID        `json:"tenantids"`
+	Tenantids   []uuid.UUID          `json:"tenantids"`
 	Types       []string             `json:"types"`
 }
 
@@ -528,12 +529,12 @@ DO UPDATE SET
 type WritePayloadsParams struct {
 	Ids                  []int64              `json:"ids"`
 	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
-	Externalids          []pgtype.UUID        `json:"externalids"`
+	Externalids          []uuid.UUID          `json:"externalids"`
 	Types                []string             `json:"types"`
 	Locations            []string             `json:"locations"`
 	Externallocationkeys []string             `json:"externallocationkeys"`
 	Inlinecontents       [][]byte             `json:"inlinecontents"`
-	Tenantids            []pgtype.UUID        `json:"tenantids"`
+	Tenantids            []uuid.UUID          `json:"tenantids"`
 }
 
 func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsParams) error {

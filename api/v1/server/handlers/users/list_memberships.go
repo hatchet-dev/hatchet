@@ -5,13 +5,12 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *UserService) TenantMembershipsList(ctx echo.Context, request gen.TenantMembershipsListRequestObject) (gen.TenantMembershipsListResponseObject, error) {
 	user := ctx.Get("user").(*sqlcv1.User)
-	userId := sqlchelpers.UUIDToStr(user.ID)
+	userId := user.ID.String()
 
 	memberships, err := t.config.V1.User().ListTenantMemberships(ctx.Request().Context(), userId)
 

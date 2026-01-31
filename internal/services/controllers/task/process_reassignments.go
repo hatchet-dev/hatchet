@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -18,8 +18,9 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 	defer span.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
+	tenantIdUUID := uuid.MustParse(tenantId)
 
-	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskReassignments(ctx, tenantId)
+	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskReassignments(ctx, tenantIdUUID)
 
 	if err != nil {
 		return false, fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
@@ -35,16 +36,15 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 	prometheus.TenantReassignedTasks.WithLabelValues(tenantId).Add(float64(len(res.RetriedTasks)))
 
 	for _, task := range res.ReleasedTasks {
-		var workerId *string
+		var workerId *uuid.UUID
 
-		if task.WorkerID.Valid {
-			workerIdStr := sqlchelpers.UUIDToStr(task.WorkerID)
-			workerId = &workerIdStr
+		if task.WorkerID != uuid.Nil {
+			workerId = &task.WorkerID
 		}
 
 		// send failed tasks to the olap repository
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
+			tenantIdUUID,
 			tasktypes.CreateMonitoringEventPayload{
 				TaskId:         task.ID,
 				RetryCount:     task.RetryCount,
@@ -71,7 +71,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 			// if the task was not retried, we should fail it
 			// send failed tasks to the olap repository
 			olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-				tenantId,
+				tenantIdUUID,
 				tasktypes.CreateMonitoringEventPayload{
 					TaskId:         task.ID,
 					RetryCount:     task.RetryCount,
@@ -97,7 +97,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 		}
 	}
 
-	err = tc.processFailTasksResponse(ctx, tenantId, res)
+	err = tc.processFailTasksResponse(ctx, tenantIdUUID, res)
 
 	if err != nil {
 		return false, fmt.Errorf("could not process fail tasks response: %w", err)

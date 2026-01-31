@@ -7,7 +7,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/rs/zerolog"
@@ -114,7 +113,7 @@ func (p *OperationPool) setTenants(tenants []*sqlcv1.Tenant) {
 	tenantMap := make(map[string]bool)
 
 	for _, t := range tenants {
-		tenantMap[sqlchelpers.UUIDToStr(t.ID)] = true
+		tenantMap[t.ID.String()] = true
 	}
 
 	// init ops for new tenants

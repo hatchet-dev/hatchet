@@ -7,7 +7,11 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
+
+var testTenantID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 
 // TestMsgIdBufferMemoryLeak verifies that the semaphore releaser reuses timers
 // and doesn't create unbounded goroutines or memory leaks
@@ -16,7 +20,7 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 	defer cancel()
 
 	var processedCount atomic.Int64
-	dst := func(tenantId, msgId string, payloads [][]byte) error {
+	dst := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		processedCount.Add(1)
 		// Simulate some processing time
 		time.Sleep(1 * time.Millisecond)
@@ -24,7 +28,7 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 	}
 
 	// Create a buffer
-	buf := newMsgIDBuffer(ctx, "test-tenant", "test-msg", dst, 10*time.Millisecond, 100, 10, false)
+	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 10*time.Millisecond, 100, 10, false)
 
 	// Force GC and get baseline
 	runtime.GC()
@@ -41,7 +45,7 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			msg := &msgWithResultCh{
-				msg:    &Message{TenantID: "test", ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
+				msg:    &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
 				result: make(chan error, 1),
 			}
 			select {
@@ -98,17 +102,17 @@ func TestSemaphoreReleaserReusesTimer(t *testing.T) {
 	defer cancel()
 
 	var flushCount atomic.Int64
-	dst := func(tenantId, msgId string, payloads [][]byte) error {
+	dst := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		flushCount.Add(1)
 		return nil
 	}
 
-	buf := newMsgIDBuffer(ctx, "test-tenant", "test-msg", dst, 5*time.Millisecond, 10, 3, false)
+	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 5*time.Millisecond, 10, 3, false)
 
 	// Trigger multiple rapid flushes
 	for i := 0; i < 20; i++ {
 		msg := &msgWithResultCh{
-			msg:    &Message{TenantID: "test", ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
+			msg:    &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
 			result: make(chan error, 1),
 		}
 		buf.msgIdBufferCh <- msg
@@ -131,11 +135,11 @@ func TestSemaphoreReleaserReusesTimer(t *testing.T) {
 func TestBufferCleanupOnContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	dst := func(tenantId, msgId string, payloads [][]byte) error {
+	dst := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		return nil
 	}
 
-	buf := newMsgIDBuffer(ctx, "test-tenant", "test-msg", dst, 10*time.Millisecond, 100, 10, false)
+	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 10*time.Millisecond, 100, 10, false)
 
 	// Get baseline goroutine count
 	runtime.GC()
@@ -145,7 +149,7 @@ func TestBufferCleanupOnContextCancel(t *testing.T) {
 	// Send some messages
 	for i := 0; i < 10; i++ {
 		msg := &msgWithResultCh{
-			msg:    &Message{TenantID: "test", ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
+			msg:    &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
 			result: make(chan error, 1),
 		}
 		buf.msgIdBufferCh <- msg
@@ -181,7 +185,7 @@ func TestConcurrentFlushesRateLimited(t *testing.T) {
 	var currentConcurrent atomic.Int32
 	var maxObservedConcurrent atomic.Int32
 
-	dst := func(tenantId, msgId string, payloads [][]byte) error {
+	dst := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		current := currentConcurrent.Add(1)
 		defer currentConcurrent.Add(-1)
 
@@ -198,12 +202,12 @@ func TestConcurrentFlushesRateLimited(t *testing.T) {
 		return nil
 	}
 
-	buf := newMsgIDBuffer(ctx, "test-tenant", "test-msg", dst, 5*time.Millisecond, 100, maxConcurrency, false)
+	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 5*time.Millisecond, 100, maxConcurrency, false)
 
 	// Send many messages rapidly
 	for i := 0; i < 50; i++ {
 		msg := &msgWithResultCh{
-			msg:    &Message{TenantID: "test", ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
+			msg:    &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
 			result: make(chan error, 1),
 		}
 		buf.msgIdBufferCh <- msg

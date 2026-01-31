@@ -13,8 +13,8 @@ func (t *V1FiltersService) V1FilterDelete(ctx echo.Context, request gen.V1Filter
 
 	filter, err := t.config.V1.Filters().DeleteFilter(
 		ctx.Request().Context(),
-		filter.TenantID.String(),
-		filter.ID.String(),
+		filter.TenantID,
+		filter.ID,
 	)
 
 	if err != nil {

@@ -6,13 +6,14 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 )
 
 func (p *PostgresMessageQueue) addTenantExchangeMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
 	tenantId := msg.TenantID
 
-	if tenantId == "" {
+	if tenantId == uuid.Nil {
 		return nil
 	}
 

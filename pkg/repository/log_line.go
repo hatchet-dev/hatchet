@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -37,7 +38,7 @@ type ListLogsOpts struct {
 }
 
 type CreateLogLineOpts struct {
-	TaskExternalId string `validate:"required,uuid"`
+	TaskExternalId uuid.UUID `validate:"required"`
 
 	TaskId int64
 
@@ -60,9 +61,9 @@ type CreateLogLineOpts struct {
 }
 
 type LogLineRepository interface {
-	ListLogLines(ctx context.Context, tenantId, taskExternalId string, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error)
+	ListLogLines(ctx context.Context, tenantId, taskExternalId uuid.UUID, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error)
 
-	PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) error
+	PutLog(ctx context.Context, tenantId uuid.UUID, opts *CreateLogLineOpts) error
 }
 
 type logLineRepositoryImpl struct {
@@ -75,7 +76,7 @@ func newLogLineRepository(s *sharedRepository) LogLineRepository {
 	}
 }
 
-func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, taskExternalId string, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error) {
+func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, taskExternalId uuid.UUID, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -87,10 +88,8 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 		return nil, err
 	}
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
 	queryParams := sqlcv1.ListLogLinesParams{
-		Tenantid:         pgTenantId,
+		Tenantid:         tenantId,
 		Taskid:           task.ID,
 		Taskinsertedat:   task.InsertedAt,
 		Orderbydirection: "ASC",
@@ -156,7 +155,7 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 	return logLines, nil
 }
 
-func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) error {
+func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId uuid.UUID, opts *CreateLogLineOpts) error {
 	if err := r.v.Validate(opts); err != nil {
 		return err
 	}
@@ -174,7 +173,7 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId string, opt
 		r.pool,
 		[]sqlcv1.InsertLogLineParams{
 			{
-				TenantID:       sqlchelpers.UUIDFromStr(tenantId),
+				TenantID:       tenantId,
 				TaskID:         opts.TaskId,
 				TaskInsertedAt: opts.TaskInsertedAt,
 				Message:        opts.Message,

@@ -3,6 +3,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -37,7 +38,7 @@ WHERE
 `
 
 type ListMatchConditionsForEventWithHintParams struct {
-	Tenantid           pgtype.UUID `json:"tenantid"`
+	Tenantid           uuid.UUID   `json:"tenantid"`
 	Eventtype          V1EventType `json:"eventtype"`
 	Eventkeys          []string    `json:"eventkeys"`
 	Eventresourcehints []string    `json:"eventresourcehints"`
@@ -118,7 +119,7 @@ WHERE
 `
 
 type ListMatchConditionsForEventWithoutHintParams struct {
-	Tenantid  pgtype.UUID `json:"tenantid"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
 	Eventtype V1EventType `json:"eventtype"`
 	Eventkeys []string    `json:"eventkeys"`
 }
@@ -226,18 +227,18 @@ RETURNING
 `
 
 type CreateMatchesForDAGTriggersParams struct {
-	Tenantids                     []pgtype.UUID        `json:"tenantids"`
+	Tenantids                     []uuid.UUID          `json:"tenantids"`
 	Kinds                         []string             `json:"kinds"`
 	ExistingDatas                 [][]byte             `json:"existingDatas"`
 	Triggerdagids                 []int64              `json:"triggerdagids"`
 	Triggerdaginsertedats         []pgtype.Timestamptz `json:"triggerdaginsertedats"`
-	Triggerstepids                []pgtype.UUID        `json:"triggerstepids"`
+	Triggerstepids                []uuid.UUID          `json:"triggerstepids"`
 	Triggerstepindex              []int64              `json:"triggerstepindex"`
-	Triggerexternalids            []pgtype.UUID        `json:"triggerexternalids"`
-	Triggerworkflowrunids         []pgtype.UUID        `json:"triggerworkflowrunids"`
+	Triggerexternalids            []uuid.UUID          `json:"triggerexternalids"`
+	Triggerworkflowrunids         []uuid.UUID          `json:"triggerworkflowrunids"`
 	Triggerexistingtaskids        []pgtype.Int8        `json:"triggerexistingtaskids"`
 	Triggerexistingtaskinsertedat []pgtype.Timestamptz `json:"triggerexistingtaskinsertedat"`
-	TriggerParentTaskExternalIds  []pgtype.UUID        `json:"triggerparentTaskExternalIds"`
+	TriggerParentTaskExternalIds  []*uuid.UUID         `json:"triggerparentTaskExternalIds"`
 	TriggerParentTaskIds          []pgtype.Int8        `json:"triggerparentTaskIds"`
 	TriggerParentTaskInsertedAt   []pgtype.Timestamptz `json:"triggerparentTaskInsertedAt"`
 	TriggerChildIndex             []pgtype.Int8        `json:"triggerchildIndex"`

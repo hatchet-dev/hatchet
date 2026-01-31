@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -67,11 +68,16 @@ func Prepare(t *testing.T) {
 	}
 
 	// check if tenant exists
-	_, err = server.V1.Tenant().GetTenantByID(context.Background(), tenantId)
+	tenantUUID, err := uuid.Parse(tenantId)
+	if err != nil {
+		t.Fatalf("invalid tenant ID: %v", err)
+	}
+
+	_, err = server.V1.Tenant().GetTenantByID(context.Background(), tenantUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			_, err = server.V1.Tenant().CreateTenant(context.Background(), &v1.CreateTenantOpts{
-				ID:   &tenantId,
+				ID:   &tenantUUID,
 				Name: "test-tenant",
 				Slug: "test-tenant",
 			})
@@ -83,7 +89,7 @@ func Prepare(t *testing.T) {
 		}
 	}
 
-	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "default", false, nil)
+	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantUUID, "default", false, nil)
 	if err != nil {
 		t.Fatalf("could not generate default token: %v", err)
 	}

@@ -10,7 +10,6 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -69,9 +68,9 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCronSchedulesRow) error {
 	t.l.Debug().Msg("ticker: scheduling cron")
 
-	tenantId := sqlchelpers.UUIDToStr(cron.TenantId)
-	workflowVersionId := sqlchelpers.UUIDToStr(cron.WorkflowVersionId)
-	cronParentId := sqlchelpers.UUIDToStr(cron.ParentId)
+	tenantId := cron.TenantId
+	workflowVersionId := cron.WorkflowVersionId
+	cronParentId := cron.ParentId.String()
 
 	var additionalMetadata map[string]interface{}
 
@@ -111,7 +110,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCr
 	return nil
 }
 
-func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32) func() {
+func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId uuid.UUID, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -161,7 +160,7 @@ func (t *TickerImpl) handleCancelCron(ctx context.Context, key string) error {
 }
 
 func getCronKey(cron *sqlcv1.PollCronSchedulesRow) string {
-	workflowVersionId := sqlchelpers.UUIDToStr(cron.WorkflowVersionId)
+	workflowVersionId := cron.WorkflowVersionId.String()
 
 	switch cron.Method {
 	case sqlcv1.WorkflowTriggerCronRefMethodsAPI:

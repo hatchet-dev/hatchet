@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -204,22 +205,22 @@ func (m *MetricsRecorder) RecordYesterdayRunCount(ctx context.Context, status st
 }
 
 // RecordActiveSlots records the number of active worker slots
-func (m *MetricsRecorder) RecordActiveSlots(ctx context.Context, tenantId string, count int64) {
+func (m *MetricsRecorder) RecordActiveSlots(ctx context.Context, tenantId uuid.UUID, count int64) {
 	m.activeSlotsGauge.Record(ctx, count,
-		metric.WithAttributes(attribute.String("tenant_id", tenantId)))
+		metric.WithAttributes(attribute.String("tenant_id", tenantId.String())))
 }
 
 // RecordActiveWorkers records the number of active workers
-func (m *MetricsRecorder) RecordActiveWorkers(ctx context.Context, tenantId string, count int64) {
+func (m *MetricsRecorder) RecordActiveWorkers(ctx context.Context, tenantId uuid.UUID, count int64) {
 	m.activeWorkersGauge.Record(ctx, count,
-		metric.WithAttributes(attribute.String("tenant_id", tenantId)))
+		metric.WithAttributes(attribute.String("tenant_id", tenantId.String())))
 }
 
 // RecordActiveSDKs records the number of active SDKs
-func (m *MetricsRecorder) RecordActiveSDKs(ctx context.Context, tenantId string, sdk SDKInfo, count int64) {
+func (m *MetricsRecorder) RecordActiveSDKs(ctx context.Context, tenantId uuid.UUID, sdk SDKInfo, count int64) {
 	m.activeSDKsGauge.Record(ctx, count,
 		metric.WithAttributes(
-			attribute.String("tenant_id", tenantId),
+			attribute.String("tenant_id", tenantId.String()),
 			attribute.String("sdk_language", sdk.Language),
 			attribute.String("sdk_version", sdk.SdkVersion),
 			attribute.String("sdk_os", sdk.OperatingSystem),

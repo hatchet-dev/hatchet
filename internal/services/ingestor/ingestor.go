@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -19,7 +20,7 @@ type Ingestor interface {
 	IngestWebhookValidationFailure(ctx context.Context, tenant *sqlcv1.Tenant, webhookName, errorText string) error
 	BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenant *sqlcv1.Tenant, replayedEvent *sqlcv1.Event) (*sqlcv1.Event, error)
-	IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error
+	IngestCELEvaluationFailure(ctx context.Context, tenantId uuid.UUID, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error
 }
 
 type IngestorOptFunc func(*IngestorOpts)
@@ -102,7 +103,7 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, k
 }
 
 func (i *IngestorImpl) IngestWebhookValidationFailure(ctx context.Context, tenant *sqlcv1.Tenant, webhookName, errorText string) error {
-	return i.ingestWebhookValidationFailure(tenant.ID.String(), webhookName, errorText)
+	return i.ingestWebhookValidationFailure(tenant.ID, webhookName, errorText)
 }
 
 func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error) {
@@ -113,7 +114,7 @@ func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenant *sqlcv1.T
 	return i.ingestReplayedEventV1(ctx, tenant, replayedEvent)
 }
 
-func (i *IngestorImpl) IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {
+func (i *IngestorImpl) IngestCELEvaluationFailure(ctx context.Context, tenantId uuid.UUID, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {
 	return i.ingestCELEvaluationFailure(
 		ctx,
 		tenantId,

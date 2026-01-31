@@ -2,7 +2,6 @@ package transformers
 
 import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -17,7 +16,7 @@ func ToWebhookWorkerRequest(webhookWorker *sqlcv1.WebhookWorkerRequest) *gen.Web
 func ToWebhookWorker(webhookWorker *sqlcv1.WebhookWorker) *gen.WebhookWorker {
 	return &gen.WebhookWorker{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(webhookWorker.ID),
+			webhookWorker.ID,
 			webhookWorker.CreatedAt.Time,
 			webhookWorker.UpdatedAt.Time,
 		),
@@ -29,7 +28,7 @@ func ToWebhookWorker(webhookWorker *sqlcv1.WebhookWorker) *gen.WebhookWorker {
 func ToWebhookWorkerCreated(webhookWorker *sqlcv1.WebhookWorker) *gen.WebhookWorkerCreated {
 	return &gen.WebhookWorkerCreated{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(webhookWorker.ID),
+			webhookWorker.ID,
 			webhookWorker.CreatedAt.Time,
 			webhookWorker.UpdatedAt.Time,
 		),

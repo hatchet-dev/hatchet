@@ -28,8 +28,8 @@ func (t *V1FiltersService) V1FilterUpdate(ctx echo.Context, request gen.V1Filter
 
 	filter, err := t.config.V1.Filters().UpdateFilter(
 		ctx.Request().Context(),
-		tenant.ID.String(),
-		filter.ID.String(),
+		tenant.ID,
+		filter.ID,
 		v1.UpdateFilterOpts{
 			Scope:      request.Body.Scope,
 			Expression: request.Body.Expression,

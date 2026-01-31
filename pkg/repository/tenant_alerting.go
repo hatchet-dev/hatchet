@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -34,8 +34,8 @@ type UpdateTenantAlertGroupOpts struct {
 }
 
 type TenantAlertEmailGroupForSend struct {
-	TenantId pgtype.UUID `json:"tenantId"`
-	Emails   []string    `validate:"required,dive,email,max=255"`
+	TenantId uuid.UUID `json:"tenantId"`
+	Emails   []string  `validate:"required,dive,email,max=255"`
 }
 
 type GetTenantAlertingSettingsResponse struct {
@@ -49,23 +49,23 @@ type GetTenantAlertingSettingsResponse struct {
 }
 
 type TenantAlertingRepository interface {
-	UpsertTenantAlertingSettings(ctx context.Context, tenantId string, opts *UpsertTenantAlertingSettingsOpts) (*sqlcv1.TenantAlertingSettings, error)
+	UpsertTenantAlertingSettings(ctx context.Context, tenantId uuid.UUID, opts *UpsertTenantAlertingSettingsOpts) (*sqlcv1.TenantAlertingSettings, error)
 
-	GetTenantAlertingSettings(ctx context.Context, tenantId string) (*GetTenantAlertingSettingsResponse, error)
+	GetTenantAlertingSettings(ctx context.Context, tenantId uuid.UUID) (*GetTenantAlertingSettingsResponse, error)
 
-	GetTenantResourceLimitState(ctx context.Context, tenantId string, resource string) (*sqlcv1.GetTenantResourceLimitRow, error)
+	GetTenantResourceLimitState(ctx context.Context, tenantId uuid.UUID, resource string) (*sqlcv1.GetTenantResourceLimitRow, error)
 
-	UpdateTenantAlertingSettings(ctx context.Context, tenantId string, opts *UpdateTenantAlertingSettingsOpts) error
+	UpdateTenantAlertingSettings(ctx context.Context, tenantId uuid.UUID, opts *UpdateTenantAlertingSettingsOpts) error
 
-	CreateTenantAlertGroup(ctx context.Context, tenantId string, opts *CreateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error)
+	CreateTenantAlertGroup(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error)
 
-	UpdateTenantAlertGroup(ctx context.Context, id string, opts *UpdateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error)
+	UpdateTenantAlertGroup(ctx context.Context, id uuid.UUID, opts *UpdateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error)
 
-	ListTenantAlertGroups(ctx context.Context, tenantId string) ([]*sqlcv1.TenantAlertEmailGroup, error)
+	ListTenantAlertGroups(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.TenantAlertEmailGroup, error)
 
-	GetTenantAlertGroupById(ctx context.Context, id string) (*sqlcv1.TenantAlertEmailGroup, error)
+	GetTenantAlertGroupById(ctx context.Context, id uuid.UUID) (*sqlcv1.TenantAlertEmailGroup, error)
 
-	DeleteTenantAlertGroup(ctx context.Context, tenantId string, id string) error
+	DeleteTenantAlertGroup(ctx context.Context, tenantId uuid.UUID, id uuid.UUID) error
 }
 
 type tenantAlertingRepository struct {
@@ -81,13 +81,13 @@ func newTenantAlertingRepository(shared *sharedRepository, cacheDuration time.Du
 	}
 }
 
-func (r *tenantAlertingRepository) UpsertTenantAlertingSettings(ctx context.Context, tenantId string, opts *UpsertTenantAlertingSettingsOpts) (*sqlcv1.TenantAlertingSettings, error) {
+func (r *tenantAlertingRepository) UpsertTenantAlertingSettings(ctx context.Context, tenantId uuid.UUID, opts *UpsertTenantAlertingSettingsOpts) (*sqlcv1.TenantAlertingSettings, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	params := sqlcv1.UpsertTenantAlertingSettingsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: tenantId,
 	}
 
 	if opts.MaxFrequency != nil {
@@ -113,7 +113,7 @@ func (r *tenantAlertingRepository) UpsertTenantAlertingSettings(ctx context.Cont
 	)
 }
 
-func (r *tenantAlertingRepository) CreateTenantAlertGroup(ctx context.Context, tenantId string, opts *CreateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error) {
+func (r *tenantAlertingRepository) CreateTenantAlertGroup(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -124,13 +124,13 @@ func (r *tenantAlertingRepository) CreateTenantAlertGroup(ctx context.Context, t
 		ctx,
 		r.pool,
 		sqlcv1.CreateTenantAlertGroupParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid: tenantId,
 			Emails:   emails,
 		},
 	)
 }
 
-func (r *tenantAlertingRepository) UpdateTenantAlertGroup(ctx context.Context, id string, opts *UpdateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error) {
+func (r *tenantAlertingRepository) UpdateTenantAlertGroup(ctx context.Context, id uuid.UUID, opts *UpdateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -141,40 +141,40 @@ func (r *tenantAlertingRepository) UpdateTenantAlertGroup(ctx context.Context, i
 		ctx,
 		r.pool,
 		sqlcv1.UpdateTenantAlertGroupParams{
-			ID:     sqlchelpers.UUIDFromStr(id),
+			ID:     id,
 			Emails: emails,
 		},
 	)
 }
 
-func (r *tenantAlertingRepository) ListTenantAlertGroups(ctx context.Context, tenantId string) ([]*sqlcv1.TenantAlertEmailGroup, error) {
+func (r *tenantAlertingRepository) ListTenantAlertGroups(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.TenantAlertEmailGroup, error) {
 	return r.queries.ListTenantAlertGroups(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(tenantId),
+		tenantId,
 	)
 }
 
-func (r *tenantAlertingRepository) GetTenantAlertGroupById(ctx context.Context, id string) (*sqlcv1.TenantAlertEmailGroup, error) {
+func (r *tenantAlertingRepository) GetTenantAlertGroupById(ctx context.Context, id uuid.UUID) (*sqlcv1.TenantAlertEmailGroup, error) {
 	return r.queries.GetTenantAlertGroupById(
 		ctx,
 		r.pool,
-		sqlchelpers.UUIDFromStr(id),
+		id,
 	)
 }
 
-func (r *tenantAlertingRepository) DeleteTenantAlertGroup(ctx context.Context, tenantId string, id string) error {
+func (r *tenantAlertingRepository) DeleteTenantAlertGroup(ctx context.Context, tenantId uuid.UUID, id uuid.UUID) error {
 	return r.queries.DeleteTenantAlertGroup(
 		ctx,
 		r.pool,
 		sqlcv1.DeleteTenantAlertGroupParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-			ID:       sqlchelpers.UUIDFromStr(id),
+			Tenantid: tenantId,
+			ID:       id,
 		},
 	)
 }
 
-func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context, tenantId string) (*GetTenantAlertingSettingsResponse, error) {
+func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context, tenantId uuid.UUID) (*GetTenantAlertingSettingsResponse, error) {
 	tx, err := r.pool.Begin(ctx)
 
 	if err != nil {
@@ -183,15 +183,13 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
-	settings, err := r.queries.GetTenantAlertingSettings(ctx, tx, pgTenantId)
+	settings, err := r.queries.GetTenantAlertingSettings(ctx, tx, tenantId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	webhooks, err := r.queries.GetSlackWebhooks(ctx, tx, pgTenantId)
+	webhooks, err := r.queries.GetSlackWebhooks(ctx, tx, tenantId)
 
 	if err != nil {
 		return nil, err
@@ -199,7 +197,7 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 
 	groupsForSend := make([]*TenantAlertEmailGroupForSend, 0)
 
-	emailGroups, err := r.queries.GetEmailGroups(ctx, tx, pgTenantId)
+	emailGroups, err := r.queries.GetEmailGroups(ctx, tx, tenantId)
 
 	if err != nil {
 		return nil, err
@@ -214,14 +212,14 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 		})
 	}
 
-	tenant, err := r.queries.GetTenantByID(ctx, tx, pgTenantId)
+	tenant, err := r.queries.GetTenantByID(ctx, tx, tenantId)
 
 	if err != nil {
 		return nil, err
 	}
 
 	if tenant.AlertMemberEmails {
-		emails, err := r.queries.GetMemberEmailGroup(ctx, tx, pgTenantId)
+		emails, err := r.queries.GetMemberEmailGroup(ctx, tx, tenantId)
 
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -251,13 +249,13 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 	}, nil
 }
 
-func (r *tenantAlertingRepository) UpdateTenantAlertingSettings(ctx context.Context, tenantId string, opts *UpdateTenantAlertingSettingsOpts) error {
+func (r *tenantAlertingRepository) UpdateTenantAlertingSettings(ctx context.Context, tenantId uuid.UUID, opts *UpdateTenantAlertingSettingsOpts) error {
 	if err := r.v.Validate(opts); err != nil {
 		return err
 	}
 
 	updateParams := sqlcv1.UpdateTenantAlertingSettingsParams{
-		TenantId: sqlchelpers.UUIDFromStr(tenantId),
+		TenantId: tenantId,
 	}
 
 	if opts.LastAlertedAt != nil {
@@ -273,9 +271,9 @@ func (r *tenantAlertingRepository) UpdateTenantAlertingSettings(ctx context.Cont
 	return err
 }
 
-func (r *tenantAlertingRepository) GetTenantResourceLimitState(ctx context.Context, tenantId string, resource string) (*sqlcv1.GetTenantResourceLimitRow, error) {
+func (r *tenantAlertingRepository) GetTenantResourceLimitState(ctx context.Context, tenantId uuid.UUID, resource string) (*sqlcv1.GetTenantResourceLimitRow, error) {
 	return r.queries.GetTenantResourceLimit(ctx, r.pool, sqlcv1.GetTenantResourceLimitParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: tenantId,
 		Resource: sqlcv1.NullLimitResource{
 			LimitResource: sqlcv1.LimitResource(resource),
 			Valid:         true,

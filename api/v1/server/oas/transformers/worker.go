@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -59,7 +57,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 
 func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string) *gen.Worker {
 
-	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
+	dispatcherId := worker.DispatcherId
 
 	maxRuns := int(worker.MaxRuns)
 
@@ -80,20 +78,16 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 	}
 
 	res := &gen.Worker{
-		Metadata:      *toAPIMetadata(pgUUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),
+		Metadata:      *toAPIMetadata(worker.ID, worker.CreatedAt.Time, worker.UpdatedAt.Time),
 		Name:          worker.Name,
 		Type:          gen.WorkerType(worker.Type),
 		Status:        &status,
-		DispatcherId:  &dispatcherId,
+		DispatcherId:  dispatcherId,
 		MaxRuns:       &maxRuns,
 		AvailableRuns: &availableRuns,
 		WebhookUrl:    webhookUrl,
 		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
-	}
-
-	if worker.WebhookId.Valid {
-		wid := uuid.MustParse(pgUUIDToStr(worker.WebhookId))
-		res.WebhookId = &wid
+		WebhookId:     worker.WebhookId,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {
