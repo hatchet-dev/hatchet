@@ -207,11 +207,17 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	}
 
 	if req.ParentStepRunId != nil {
+		parentStepRunId, err := uuid.Parse(*req.ParentStepRunId)
+
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "parentStepRunId must be a valid UUID: %s", err)
+		}
+
 		// lookup the parent external id
 		parentTask, err := i.repov1.Tasks().GetTaskByExternalId(
 			ctx,
 			tenantId,
-			uuid.MustParse(*req.ParentStepRunId),
+			parentStepRunId,
 			false,
 		)
 

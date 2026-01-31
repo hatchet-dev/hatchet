@@ -65,7 +65,12 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 
 		if len(req.Filter.WorkflowIds) > 0 {
 			for _, id := range req.Filter.WorkflowIds {
-				workflowIds = append(workflowIds, uuid.MustParse(id))
+				parsedId, err := uuid.Parse(id)
+				if err != nil {
+					return nil, status.Error(codes.InvalidArgument, "invalid workflow id")
+				}
+
+				workflowIds = append(workflowIds, parsedId)
 			}
 		}
 
@@ -206,7 +211,11 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 		if len(req.Filter.WorkflowIds) > 0 {
 			for _, id := range req.Filter.WorkflowIds {
-				workflowIds = append(workflowIds, uuid.MustParse(id))
+				parsedId, err := uuid.Parse(id)
+				if err != nil {
+					return nil, status.Error(codes.InvalidArgument, "invalid workflow id")
+				}
+				workflowIds = append(workflowIds, parsedId)
 			}
 		}
 
@@ -857,13 +866,18 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 						continue
 					}
 
+					orGroupId, err := uuid.Parse(userEventCondition.Base.OrGroupId)
+					if err != nil {
+						return nil, fmt.Errorf("invalid OrGroupId in UserEventCondition for step %s: %w", stepCp.ReadableId, err)
+					}
+
 					eventKey := userEventCondition.UserEventKey
 
 					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
 						MatchConditionKind: "USER_EVENT",
 						ReadableDataKey:    userEventCondition.Base.ReadableDataKey,
 						Action:             userEventCondition.Base.Action.String(),
-						OrGroupId:          uuid.MustParse(userEventCondition.Base.OrGroupId),
+						OrGroupId:          orGroupId,
 						Expression:         userEventCondition.Base.Expression,
 						EventKey:           &eventKey,
 					})
@@ -879,12 +893,16 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					}
 
 					duration := sleepCondition.SleepFor
+					orGroupId, err := uuid.Parse(sleepCondition.Base.OrGroupId)
+					if err != nil {
+						return nil, fmt.Errorf("invalid OrGroupId in SleepCondition for step %s: %w", stepCp.ReadableId, err)
+					}
 
 					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
 						MatchConditionKind: "SLEEP",
 						ReadableDataKey:    sleepCondition.Base.ReadableDataKey,
 						Action:             sleepCondition.Base.Action.String(),
-						OrGroupId:          uuid.MustParse(sleepCondition.Base.OrGroupId),
+						OrGroupId:          orGroupId,
 						SleepDuration:      &duration,
 					})
 				}
@@ -899,13 +917,18 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					}
 
 					parentReadableId := parentOverrideCondition.ParentReadableId
+					orGroupId, err := uuid.Parse(parentOverrideCondition.Base.OrGroupId)
+
+					if err != nil {
+						return nil, fmt.Errorf("invalid OrGroupId in ParentOverrideCondition for step %s: %w", stepCp.ReadableId, err)
+					}
 
 					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
 						MatchConditionKind: "PARENT_OVERRIDE",
 						ReadableDataKey:    parentReadableId,
 						Action:             parentOverrideCondition.Base.Action.String(),
 						Expression:         parentOverrideCondition.Base.Expression,
-						OrGroupId:          uuid.MustParse(parentOverrideCondition.Base.OrGroupId),
+						OrGroupId:          orGroupId,
 						ParentReadableId:   &parentReadableId,
 					})
 				}
