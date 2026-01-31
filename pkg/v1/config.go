@@ -32,7 +32,7 @@ func mapConfigToCF(opts Config) *v0Config.ClientConfigFile {
 
 	// Apply provided config to the internal configuration
 	// Zero values won't override server defaults
-	cf.TenantId = opts.TenantId
+	cf.TenantId = opts.TenantId.String()
 	cf.Token = opts.Token
 	cf.HostPort = opts.HostPort
 	cf.ServerURL = opts.ServerURL

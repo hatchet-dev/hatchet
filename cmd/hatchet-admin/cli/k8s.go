@@ -257,16 +257,11 @@ func runCreateWorkerToken() error {
 
 	tenantId := tokenTenantId
 
-	if tenantId == "" {
-		tenantId = server.Seed.DefaultTenantID
+	if tenantId == uuid.Nil {
+		tenantId = uuid.MustParse(server.Seed.DefaultTenantID)
 	}
 
-	tenantUUID, err := uuid.Parse(tenantId)
-	if err != nil {
-		return fmt.Errorf("invalid tenant ID: %w", err)
-	}
-
-	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantUUID, tokenName, false, &expiresAt)
+	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
 
 	if err != nil {
 		return err
