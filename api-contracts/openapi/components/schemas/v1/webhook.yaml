@@ -14,6 +14,12 @@ V1Webhook:
     eventKeyExpression:
       type: string
       description: The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+    scopeExpression:
+      type: string
+      description: The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+    staticPayload:
+      type: object
+      description: The static payload to use for the webhook. This is used to send a static payload with the webhook.
     authType:
       $ref: "#/V1WebhookAuthType"
       description: The type of authentication to use for the webhook
@@ -128,6 +134,12 @@ V1CreateWebhookRequestBase:
     eventKeyExpression:
       type: string
       description: The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+    scopeExpression:
+      type: string
+      description: The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+    staticPayload:
+      type: object
+      description: The static payload to use for the webhook. This is used to send a static payload with the webhook.
   required:
     - name
     - sourceName
@@ -193,5 +205,11 @@ V1UpdateWebhookRequest:
     eventKeyExpression:
       type: string
       description: The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+    scopeExpression:
+      type: string
+      description: The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+    staticPayload:
+      type: object
+      description: The static payload to use for the webhook. This is used to send a static payload with the webhook.
   required:
     - eventKeyExpression

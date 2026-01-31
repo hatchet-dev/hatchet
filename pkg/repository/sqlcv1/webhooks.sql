@@ -74,7 +74,7 @@ WHERE
     tenant_id = @tenantId::UUID
 ;
 
--- name: UpdateWebhook :one
+-- name: UpdateWebhookExpression :one
 UPDATE v1_incoming_webhook
 SET
     event_key_expression = COALESCE(sqlc.narg('eventKeyExpression')::TEXT, event_key_expression),
