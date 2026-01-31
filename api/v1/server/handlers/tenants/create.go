@@ -1,7 +1,6 @@
 package tenants
 
 import (
-	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -80,12 +79,6 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	err = t.config.V1.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenantId, nil)
-
-	if err != nil {
-		return nil, err
-	}
 
 	// add the user as an owner of the tenant
 	_, err = t.config.V1.Tenant().CreateTenantMember(ctx.Request().Context(), tenantId, &v1.CreateTenantMemberOpts{
