@@ -58,13 +58,13 @@ func (w *workers) Range(f func(key, value interface{}) bool) {
 	w.innerMap.Range(f)
 }
 
-func (w *workers) Add(workerId, sessionId string, worker *subscribedWorker) {
+func (w *workers) Add(workerId uuid.UUID, sessionId string, worker *subscribedWorker) {
 	actual, _ := w.innerMap.LoadOrStore(workerId, &sync.Map{})
 
 	actual.(*sync.Map).Store(sessionId, worker)
 }
 
-func (w *workers) GetForSession(workerId, sessionId string) (*subscribedWorker, error) {
+func (w *workers) GetForSession(workerId uuid.UUID, sessionId string) (*subscribedWorker, error) {
 	actual, ok := w.innerMap.Load(workerId)
 	if !ok {
 		return nil, ErrWorkerNotFound
@@ -95,7 +95,7 @@ func (w *workers) Get(workerId uuid.UUID) ([]*subscribedWorker, error) {
 	return workers, nil
 }
 
-func (w *workers) DeleteForSession(workerId, sessionId string) {
+func (w *workers) DeleteForSession(workerId uuid.UUID, sessionId string) {
 	actual, ok := w.innerMap.Load(workerId)
 
 	if !ok {
@@ -105,7 +105,7 @@ func (w *workers) DeleteForSession(workerId, sessionId string) {
 	actual.(*sync.Map).Delete(sessionId)
 }
 
-func (w *workers) Delete(workerId string) {
+func (w *workers) Delete(workerId uuid.UUID) {
 	w.innerMap.Delete(workerId)
 }
 

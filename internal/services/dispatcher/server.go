@@ -172,7 +172,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	fin := make(chan bool)
 
-	s.workers.Add(request.WorkerId, sessionId, newSubscribedWorker(stream, fin, uuid.MustParse(request.WorkerId), 20, s.pubBuffer))
+	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, 20, s.pubBuffer))
 
 	defer func() {
 		// non-blocking send
@@ -181,7 +181,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		default:
 		}
 
-		s.workers.DeleteForSession(request.WorkerId, sessionId)
+		s.workers.DeleteForSession(workerId, sessionId)
 	}()
 
 	// update the worker with a last heartbeat time every 5 seconds as long as the worker is connected
@@ -300,7 +300,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	fin := make(chan bool)
 
-	s.workers.Add(request.WorkerId, sessionId, newSubscribedWorker(stream, fin, uuid.MustParse(request.WorkerId), s.defaultMaxWorkerBacklogSize, s.pubBuffer))
+	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerBacklogSize, s.pubBuffer))
 
 	defer func() {
 		// non-blocking send
@@ -309,7 +309,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		default:
 		}
 
-		s.workers.DeleteForSession(request.WorkerId, sessionId)
+		s.workers.DeleteForSession(workerId, sessionId)
 	}()
 
 	// Keep the connection alive for sending messages
@@ -563,8 +563,13 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
+	workerId, err := uuid.Parse(request.WorkerId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+	}
+
 	// remove the worker from the connection pool
-	s.workers.Delete(request.WorkerId)
+	s.workers.Delete(workerId)
 
 	return &contracts.WorkerUnsubscribeResponse{
 		TenantId: tenantId.String(),
