@@ -2,8 +2,10 @@ package ticker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -33,12 +36,36 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string
 
 	key := v1.IdempotencyKey(scheduledWorkflowId)
 
+	// Parse existing additional metadata and merge with trigger metadata
+	var additionalMetadata map[string]interface{}
+	if len(scheduled.AdditionalMetadata) > 0 {
+		if err := json.Unmarshal(scheduled.AdditionalMetadata, &additionalMetadata); err != nil {
+			additionalMetadata = make(map[string]interface{})
+		}
+	} else {
+		additionalMetadata = make(map[string]interface{})
+	}
+
+	// Add trigger metadata
+	triggerMetadata := map[string]interface{}{
+		constants.TriggeredByKey.String(): "schedule",
+		constants.ScheduledAtKey.String(): scheduled.TriggerAt.Time.Format(time.RFC3339),
+	}
+
+	// Copy trigger metadata into additionalMetadata (trigger metadata takes precedence)
+	maps.Copy(additionalMetadata, triggerMetadata)
+
+	additionalMetaBytes, err := json.Marshal(additionalMetadata)
+	if err != nil {
+		return fmt.Errorf("could not marshal additional metadata: %w", err)
+	}
+
 	// send workflow run to task controller
 	opt := &v1.WorkflowNameTriggerOpts{
 		TriggerTaskData: &v1.TriggerTaskData{
 			WorkflowName:       workflowVersion.WorkflowName,
 			Data:               scheduled.Input,
-			AdditionalMetadata: scheduled.AdditionalMetadata,
+			AdditionalMetadata: additionalMetaBytes,
 			Priority:           &scheduled.Priority,
 		},
 		IdempotencyKey: &key,
