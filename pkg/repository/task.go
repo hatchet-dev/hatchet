@@ -892,17 +892,17 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	durVerify := time.Since(checkpoint)
 	checkpoint = time.Now()
 
-	finalizedRootIdsSet := make(map[string]bool)
+	finalizedRootIdsSet := make(map[uuid.UUID]bool)
 	for _, rootId := range finalizedRootIds {
 		finalizedRootIdsSet[rootId] = true
 	}
 
-	taskExternalIds := make([]string, 0, len(tasks))
-	taskExternalIdsToRootIds := make(map[string]string)
+	taskExternalIds := make([]uuid.UUID, 0, len(tasks))
+	taskExternalIdsToRootIds := make(map[uuid.UUID]uuid.UUID)
 
 	for _, task := range tasks {
-		rootId := sqlchelpers.UUIDToStr(task.WorkflowRunExternalID)
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		rootId := task.WorkflowRunExternalID
+		taskExternalId := task.ExternalID
 
 		if finalizedRootIdsSet[rootId] {
 			taskExternalIds = append(taskExternalIds, taskExternalId)
