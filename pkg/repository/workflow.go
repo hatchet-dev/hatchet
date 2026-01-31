@@ -46,7 +46,7 @@ type CreateWorkflowVersionOpts struct {
 	OnFailure *CreateStepOpts `json:"onFailureJob,omitempty" validate:"omitempty"`
 
 	// (optional) the workflow concurrency groups
-	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validator:"omitempty,dive"`
+	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validate:"omitempty,dive"`
 
 	// (optional) sticky strategy
 	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
@@ -54,6 +54,8 @@ type CreateWorkflowVersionOpts struct {
 	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
 
 	DefaultFilters []types.DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
+
+	InputJsonSchema []byte `json:"inputJsonSchema,omitempty"`
 }
 
 type CreateConcurrencyOpts struct {
@@ -102,7 +104,7 @@ type CreateStepOpts struct {
 	TriggerConditions []CreateStepMatchConditionOpt `validate:"omitempty,dive"`
 
 	// (optional) the step concurrency options
-	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validator:"omitnil"`
+	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validate:"omitempty,dive"`
 }
 
 type CreateStepMatchConditionOpt struct {
@@ -409,6 +411,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		Checksum:                  cs,
 		Workflowid:                workflowId,
 		CreateWorkflowVersionOpts: optsJson,
+		InputJsonSchema:           opts.InputJsonSchema,
 	}
 
 	if opts.Sticky != nil {

@@ -30,11 +30,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
@@ -46,6 +48,7 @@ type Server struct {
 	admincontracts.UnimplementedWorkflowServiceServer
 	v1contracts.UnimplementedAdminServiceServer
 	v1contracts.UnimplementedV1DispatcherServer
+	collectortracev1.UnimplementedTraceServiceServer
 
 	l           *zerolog.Logger
 	a           errors.Alerter
@@ -53,32 +56,34 @@ type Server struct {
 	port        int
 	bindAddress string
 
-	config       *server.ServerConfig
-	ingestor     ingestor.Ingestor
-	dispatcher   dispatcher.Dispatcher
-	dispatcherv1 dispatcherv1.DispatcherService
-	admin        admin.AdminService
-	adminv1      adminv1.AdminService
-	tls          *tls.Config
-	insecure     bool
+	config        *server.ServerConfig
+	ingestor      ingestor.Ingestor
+	dispatcher    dispatcher.Dispatcher
+	dispatcherv1  dispatcherv1.DispatcherService
+	admin         admin.AdminService
+	adminv1       adminv1.AdminService
+	otelCollector otelcol.OTelCollector
+	tls           *tls.Config
+	insecure      bool
 }
 
 type ServerOpt func(*ServerOpts)
 
 type ServerOpts struct {
-	config       *server.ServerConfig
-	l            *zerolog.Logger
-	a            errors.Alerter
-	analytics    analytics.Analytics
-	port         int
-	bindAddress  string
-	ingestor     ingestor.Ingestor
-	dispatcher   dispatcher.Dispatcher
-	dispatcherv1 dispatcherv1.DispatcherService
-	admin        admin.AdminService
-	adminv1      adminv1.AdminService
-	tls          *tls.Config
-	insecure     bool
+	config        *server.ServerConfig
+	l             *zerolog.Logger
+	a             errors.Alerter
+	analytics     analytics.Analytics
+	port          int
+	bindAddress   string
+	ingestor      ingestor.Ingestor
+	dispatcher    dispatcher.Dispatcher
+	dispatcherv1  dispatcherv1.DispatcherService
+	admin         admin.AdminService
+	adminv1       adminv1.AdminService
+	otelCollector otelcol.OTelCollector
+	tls           *tls.Config
+	insecure      bool
 }
 
 func defaultServerOpts() *ServerOpts {
@@ -173,6 +178,12 @@ func WithAdminV1(a adminv1.AdminService) ServerOpt {
 	}
 }
 
+func WithOTelCollector(oc otelcol.OTelCollector) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.otelCollector = oc
+	}
+}
+
 func NewServer(fs ...ServerOpt) (*Server, error) {
 	opts := defaultServerOpts()
 
@@ -192,19 +203,20 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 	opts.l = &newLogger
 
 	return &Server{
-		l:            opts.l,
-		a:            opts.a,
-		analytics:    opts.analytics,
-		config:       opts.config,
-		port:         opts.port,
-		bindAddress:  opts.bindAddress,
-		ingestor:     opts.ingestor,
-		dispatcher:   opts.dispatcher,
-		dispatcherv1: opts.dispatcherv1,
-		admin:        opts.admin,
-		adminv1:      opts.adminv1,
-		tls:          opts.tls,
-		insecure:     opts.insecure,
+		l:             opts.l,
+		a:             opts.a,
+		analytics:     opts.analytics,
+		config:        opts.config,
+		port:          opts.port,
+		bindAddress:   opts.bindAddress,
+		ingestor:      opts.ingestor,
+		dispatcher:    opts.dispatcher,
+		dispatcherv1:  opts.dispatcherv1,
+		admin:         opts.admin,
+		adminv1:       opts.adminv1,
+		otelCollector: opts.otelCollector,
+		tls:           opts.tls,
+		insecure:      opts.insecure,
 	}, nil
 }
 
@@ -339,6 +351,11 @@ func (s *Server) startGRPC() (func() error, error) {
 
 	if s.adminv1 != nil {
 		v1contracts.RegisterAdminServiceServer(grpcServer, s.adminv1)
+	}
+
+	if s.otelCollector != nil {
+		// Register as the standard OTLP TraceService for OTEL SDK compatibility
+		collectortracev1.RegisterTraceServiceServer(grpcServer, s.otelCollector)
 	}
 
 	go func() {

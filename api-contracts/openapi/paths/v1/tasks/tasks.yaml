@@ -497,6 +497,12 @@ listLogs:
         required: false
         schema:
           $ref: "../../../components/schemas/_index.yaml#/V1LogLineOrderByDirection"
+      - description: The attempt number to filter for
+        in: query
+        name: attempt
+        required: false
+        schema:
+          type: integer
     responses:
       "200":
         content:
