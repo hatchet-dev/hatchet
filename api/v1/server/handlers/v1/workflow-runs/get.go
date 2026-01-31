@@ -72,10 +72,8 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		stepIdToTaskExternalId[task.StepID] = task.ExternalID
 	}
 
-	workflowVersionId := uuid.MustParse(workflowRun.WorkflowVersionId.String())
-
 	shape, err := t.config.V1.Workflows().GetWorkflowShape(
-		ctx, workflowVersionId,
+		ctx, workflowRun.WorkflowVersionId,
 	)
 
 	if err != nil {
