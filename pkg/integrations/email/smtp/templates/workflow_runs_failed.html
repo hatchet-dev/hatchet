@@ -1,0 +1,29 @@
+{{ define "content" }}
+Hi there,
+<br>
+<br>
+We are reaching out to let you know that {{.Summary}}:
+<br>
+<br>
+<table class="attributes" width="100%" cellpadding="0" cellspacing="0">
+  <tr>
+    <td class="attributes_content">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        {{range .Items}}
+        <tr>
+          <td class="attributes_item"><a href="{{.Link}}">{{.WorkflowRunReadableId}}</a> failed {{.RelativeDate}}</td>
+        </tr>
+        {{end}}
+      </table>
+    </td>
+  </tr>
+</table>
+<br>
+If you'd like to change your notification settings, you can do so <a href="{{.SettingsLink}}">here.</a>
+<br>
+<br>
+Best,
+<br>
+<br>
+The Hatchet Team
+{{end}}

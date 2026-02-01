@@ -14,6 +14,8 @@ require (
 	github.com/creasty/defaults v1.8.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0
+	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
+	github.com/emersion/go-smtp v0.24.0
 	github.com/fatih/color v1.18.0
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/go-co-op/gocron/v2 v2.19.1
@@ -44,6 +46,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.40.0
 	github.com/tink-crypto/tink-go v0.0.0-20230613075026-d6de17e3f164
 	github.com/tink-crypto/tink-go-gcpkms v0.0.0-20230602082706-31d0d09ccc8d
+	github.com/wneessen/go-mail v0.7.2
 	go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.64.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.64.0
 	go.opentelemetry.io/otel v1.39.0
