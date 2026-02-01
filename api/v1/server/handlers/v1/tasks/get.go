@@ -62,7 +62,7 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 
 	// Get concurrency status for QUEUED tasks
 	var concurrencyStatus []*repository.ConcurrencySlotStatus
-	if string(taskWithData.Status) == string(gen.V1TaskStatusQUEUED) {
+	if taskWithData.Status == sqlcv1.V1ReadableStatusOlapQUEUED {
 		concurrencyStatus, err = t.config.V1.Tasks().GetConcurrencySlotStatus(
 			ctx.Request().Context(),
 			task.TenantID.String(),

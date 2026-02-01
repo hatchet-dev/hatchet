@@ -781,7 +781,10 @@ FROM
 
 -- name: GetConcurrencySlotStatus :many
 -- Returns the current concurrency queue status for a task including other tasks in the same queue
-WITH task_slots AS (
+WITH tenant_slots AS (
+    SELECT * FROM v1_concurrency_slot WHERE tenant_id = @tenantId::uuid
+),
+task_slots AS (
     SELECT
         cs.strategy_id,
         cs.key,
@@ -789,12 +792,11 @@ WITH task_slots AS (
         cs.is_filled,
         sc.expression,
         sc.max_concurrency
-    FROM v1_concurrency_slot cs
+    FROM tenant_slots cs
     JOIN v1_step_concurrency sc ON sc.id = cs.strategy_id
     WHERE
         cs.task_id = @taskId::bigint
         AND cs.task_inserted_at = @taskInsertedAt::timestamptz
-        AND cs.tenant_id = @tenantId::uuid
 ),
 -- Subquery to get pending tasks with display names (ordered by queue position)
 pending_tasks AS (
@@ -805,7 +807,7 @@ pending_tasks AS (
         t.display_name,
         ROW_NUMBER() OVER (PARTITION BY ts.strategy_id, ts.key ORDER BY cs2.sort_id) as queue_pos
     FROM task_slots ts
-    JOIN v1_concurrency_slot cs2 ON cs2.strategy_id = ts.strategy_id AND cs2.key = ts.key AND cs2.is_filled = FALSE
+    JOIN tenant_slots cs2 ON cs2.strategy_id = ts.strategy_id AND cs2.key = ts.key AND cs2.is_filled = FALSE
     JOIN v1_task t ON t.id = cs2.task_id AND t.inserted_at = cs2.task_inserted_at
 ),
 -- Subquery to get running tasks with display names
@@ -816,7 +818,7 @@ running_tasks AS (
         cs2.external_id,
         t.display_name
     FROM task_slots ts
-    JOIN v1_concurrency_slot cs2 ON cs2.strategy_id = ts.strategy_id AND cs2.key = ts.key AND cs2.is_filled = TRUE
+    JOIN tenant_slots cs2 ON cs2.strategy_id = ts.strategy_id AND cs2.key = ts.key AND cs2.is_filled = TRUE
     JOIN v1_task t ON t.id = cs2.task_id AND t.inserted_at = cs2.task_inserted_at
 )
 SELECT
@@ -827,7 +829,7 @@ SELECT
     -- Queue position: count of unfilled slots with smaller sort_id
     (
         SELECT COUNT(*)
-        FROM v1_concurrency_slot cs2
+        FROM tenant_slots cs2
         WHERE cs2.strategy_id = ts.strategy_id
           AND cs2.key = ts.key
           AND cs2.is_filled = FALSE
@@ -836,7 +838,7 @@ SELECT
     -- Pending count: total unfilled slots
     (
         SELECT COUNT(*)
-        FROM v1_concurrency_slot cs2
+        FROM tenant_slots cs2
         WHERE cs2.strategy_id = ts.strategy_id
           AND cs2.key = ts.key
           AND cs2.is_filled = FALSE
@@ -844,31 +846,31 @@ SELECT
     -- Running count: filled slots
     (
         SELECT COUNT(*)
-        FROM v1_concurrency_slot cs2
+        FROM tenant_slots cs2
         WHERE cs2.strategy_id = ts.strategy_id
           AND cs2.key = ts.key
           AND cs2.is_filled = TRUE
     )::int AS running_count,
     -- Pending task external IDs (ordered by queue position, limited to 10)
     (
-        SELECT COALESCE(array_agg(pt.external_id ORDER BY pt.queue_pos), ARRAY[]::uuid[])
+        SELECT array_agg(pt.external_id ORDER BY pt.queue_pos)::uuid[]
         FROM pending_tasks pt
         WHERE pt.strategy_id = ts.strategy_id AND pt.key = ts.key AND pt.queue_pos <= 10
     ) AS pending_task_external_ids,
     -- Pending task display names (ordered by queue position, limited to 10)
     (
-        SELECT COALESCE(array_agg(pt.display_name ORDER BY pt.queue_pos), ARRAY[]::text[])
+        SELECT array_agg(pt.display_name ORDER BY pt.queue_pos)::text[]
         FROM pending_tasks pt
         WHERE pt.strategy_id = ts.strategy_id AND pt.key = ts.key AND pt.queue_pos <= 10
     ) AS pending_task_display_names,
     -- Running task external IDs (limited to 10)
     (
-        SELECT COALESCE(array_agg(rt.external_id), ARRAY[]::uuid[])
+        SELECT array_agg(rt.external_id)::uuid[]
         FROM (SELECT * FROM running_tasks rt2 WHERE rt2.strategy_id = ts.strategy_id AND rt2.key = ts.key LIMIT 10) rt
     ) AS running_task_external_ids,
     -- Running task display names (limited to 10)
     (
-        SELECT COALESCE(array_agg(rt.display_name), ARRAY[]::text[])
+        SELECT array_agg(rt.display_name)::text[]
         FROM (SELECT * FROM running_tasks rt2 WHERE rt2.strategy_id = ts.strategy_id AND rt2.key = ts.key LIMIT 10) rt
     ) AS running_task_display_names
 FROM task_slots ts;

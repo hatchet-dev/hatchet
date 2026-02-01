@@ -4205,66 +4205,27 @@ func (r *TaskRepositoryImpl) GetConcurrencySlotStatus(ctx context.Context, tenan
 			QueuePosition:           row.QueuePosition,
 			PendingCount:            row.PendingCount,
 			RunningCount:            row.RunningCount,
-			PendingTaskExternalIds:  uuidArrayToStrings(row.PendingTaskExternalIds),
-			PendingTaskDisplayNames: stringArrayToStrings(row.PendingTaskDisplayNames),
-			RunningTaskExternalIds:  uuidArrayToStrings(row.RunningTaskExternalIds),
-			RunningTaskDisplayNames: stringArrayToStrings(row.RunningTaskDisplayNames),
+			PendingTaskExternalIds:  pgtypeUUIDsToStrings(row.PendingTaskExternalIds),
+			PendingTaskDisplayNames: row.PendingTaskDisplayNames,
+			RunningTaskExternalIds:  pgtypeUUIDsToStrings(row.RunningTaskExternalIds),
+			RunningTaskDisplayNames: row.RunningTaskDisplayNames,
 		})
 	}
 
 	return result, nil
 }
 
-// uuidArrayToStrings converts a postgres UUID array (returned as interface{}) to []string
-func uuidArrayToStrings(arr interface{}) []string {
-	if arr == nil {
+// pgtypeUUIDsToStrings converts a slice of pgtype.UUID to a slice of strings.
+// Returns an empty slice if the input is nil.
+func pgtypeUUIDsToStrings(uuids []pgtype.UUID) []string {
+	if uuids == nil {
 		return []string{}
 	}
-
-	// pgx returns UUID arrays as [][16]byte
-	if uuidArr, ok := arr.([][16]byte); ok {
-		result := make([]string, 0, len(uuidArr))
-		for _, u := range uuidArr {
-			result = append(result, uuid.UUID(u).String())
+	result := make([]string, 0, len(uuids))
+	for _, u := range uuids {
+		if u.Valid {
+			result = append(result, sqlchelpers.UUIDToStr(u))
 		}
-		return result
 	}
-
-	// Try as []interface{} with [16]byte elements
-	if iArr, ok := arr.([]interface{}); ok {
-		result := make([]string, 0, len(iArr))
-		for _, item := range iArr {
-			if uBytes, ok := item.([16]byte); ok {
-				result = append(result, uuid.UUID(uBytes).String())
-			}
-		}
-		return result
-	}
-
-	return []string{}
-}
-
-// stringArrayToStrings converts a postgres text array (returned as interface{}) to []string
-func stringArrayToStrings(arr interface{}) []string {
-	if arr == nil {
-		return []string{}
-	}
-
-	// pgx returns text arrays as []string
-	if strArr, ok := arr.([]string); ok {
-		return strArr
-	}
-
-	// Try as []interface{} with string elements
-	if iArr, ok := arr.([]interface{}); ok {
-		result := make([]string, 0, len(iArr))
-		for _, item := range iArr {
-			if str, ok := item.(string); ok {
-				result = append(result, str)
-			}
-		}
-		return result
-	}
-
-	return []string{}
+	return result
 }
