@@ -1322,8 +1322,8 @@ WHERE
         sqlc.narg('additionalMetaKeys')::text[] IS NULL
         OR sqlc.narg('additionalMetaValues')::text[] IS NULL
         OR EXISTS (
-            SELECT 1 FROM v1_runs_olap r 
-            WHERE r.external_id = s.external_id 
+            SELECT 1 FROM v1_runs_olap r
+            WHERE r.external_id = s.external_id
             AND r.inserted_at = s.inserted_at
             AND EXISTS (
                 SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
