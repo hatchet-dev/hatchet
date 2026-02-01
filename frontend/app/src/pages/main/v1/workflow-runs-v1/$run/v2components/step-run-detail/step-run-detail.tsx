@@ -479,7 +479,7 @@ function ConcurrencyQueueStatus({
       <div className="mt-2 space-y-2">
         {concurrencyStatus.slots.map((slot, index) => (
           <div
-            key={index}
+            key={`${slot.key}-${slot.queuePosition}-${slot.maxRuns ?? 'unlimited'}`}
             className="flex flex-col gap-1 rounded bg-background/50 p-2 text-sm"
           >
             <div className="flex items-center gap-2">
