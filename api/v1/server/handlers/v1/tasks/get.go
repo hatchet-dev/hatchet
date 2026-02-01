@@ -4,6 +4,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	repository "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
@@ -59,7 +60,22 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 		return nil, err
 	}
 
-	result := transformers.ToTask(taskWithData, workflowRunExternalId, workflowVersion)
+	// Get concurrency status for QUEUED tasks
+	var concurrencyStatus []*repository.ConcurrencySlotStatus
+	if string(taskWithData.Status) == string(gen.V1TaskStatusQUEUED) {
+		concurrencyStatus, err = t.config.V1.Tasks().GetConcurrencySlotStatus(
+			ctx.Request().Context(),
+			task.TenantID.String(),
+			task.ID,
+			task.InsertedAt.Time,
+		)
+		if err != nil {
+			// Log but don't fail the request
+			t.config.Logger.Err(err).Msg("failed to get concurrency slot status")
+		}
+	}
+
+	result := transformers.ToTask(taskWithData, workflowRunExternalId, workflowVersion, concurrencyStatus)
 
 	return gen.V1TaskGet200JSONResponse(
 		result,

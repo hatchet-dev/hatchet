@@ -415,6 +415,37 @@ export interface V1TaskSummary {
    * @format uuid
    */
   parentTaskExternalId?: string;
+  /** Real-time concurrency queue status (only present for QUEUED tasks with concurrency keys) */
+  concurrencyStatus?: V1ConcurrencyStatus;
+}
+
+export interface V1ConcurrencySlotStatus {
+  /** The concurrency key value */
+  key: string;
+  /** The CEL expression used to compute the key */
+  expression?: string;
+  /** Maximum concurrent runs allowed for this key */
+  maxRuns?: number;
+  /** Position in queue (0 = first in line, next to run) */
+  queuePosition: number;
+  /** Total number of tasks waiting in this queue */
+  pendingCount: number;
+  /** Number of tasks currently running with this key */
+  runningCount: number;
+  /** External IDs of tasks waiting in the queue (limited to 10) */
+  pendingTaskExternalIds?: string[];
+  /** Display names of tasks waiting in the queue (limited to 10, same order as pendingTaskExternalIds) */
+  pendingTaskDisplayNames?: string[];
+  /** External IDs of tasks currently running with this key (limited to 10) */
+  runningTaskExternalIds?: string[];
+  /** Display names of tasks currently running with this key (limited to 10, same order as runningTaskExternalIds) */
+  runningTaskDisplayNames?: string[];
+}
+
+/** Real-time concurrency queue status for a task */
+export interface V1ConcurrencyStatus {
+  /** Status for each concurrency slot the task is waiting in */
+  slots?: V1ConcurrencySlotStatus[];
 }
 
 export interface APIError {

@@ -1421,6 +1421,45 @@ type V1CancelledTasks struct {
 	Ids *[]openapi_types.UUID `json:"ids,omitempty"`
 }
 
+// V1ConcurrencySlotStatus defines model for V1ConcurrencySlotStatus.
+type V1ConcurrencySlotStatus struct {
+	// Expression The CEL expression used to compute the key
+	Expression *string `json:"expression,omitempty"`
+
+	// Key The concurrency key value
+	Key string `json:"key"`
+
+	// MaxRuns Maximum concurrent runs allowed for this key
+	MaxRuns *int `json:"maxRuns,omitempty"`
+
+	// PendingCount Total number of tasks waiting in this queue
+	PendingCount int `json:"pendingCount"`
+
+	// PendingTaskDisplayNames Display names of tasks waiting in the queue (limited to 10, same order as pendingTaskExternalIds)
+	PendingTaskDisplayNames *[]string `json:"pendingTaskDisplayNames,omitempty"`
+
+	// PendingTaskExternalIds External IDs of tasks waiting in the queue (limited to 10)
+	PendingTaskExternalIds *[]openapi_types.UUID `json:"pendingTaskExternalIds,omitempty"`
+
+	// QueuePosition Position in queue (0 = first in line, next to run)
+	QueuePosition int `json:"queuePosition"`
+
+	// RunningCount Number of tasks currently running with this key
+	RunningCount int `json:"runningCount"`
+
+	// RunningTaskDisplayNames Display names of tasks currently running with this key (limited to 10, same order as runningTaskExternalIds)
+	RunningTaskDisplayNames *[]string `json:"runningTaskDisplayNames,omitempty"`
+
+	// RunningTaskExternalIds External IDs of tasks currently running with this key (limited to 10)
+	RunningTaskExternalIds *[]openapi_types.UUID `json:"runningTaskExternalIds,omitempty"`
+}
+
+// V1ConcurrencyStatus Real-time concurrency queue status for a task
+type V1ConcurrencyStatus struct {
+	// Slots Status for each concurrency slot the task is waiting in
+	Slots *[]V1ConcurrencySlotStatus `json:"slots,omitempty"`
+}
+
 // V1CreateFilterRequest defines model for V1CreateFilterRequest.
 type V1CreateFilterRequest struct {
 	// Expression The expression for the filter
@@ -1719,6 +1758,9 @@ type V1TaskSummary struct {
 
 	// Children The list of children tasks
 	Children *[]V1TaskSummary `json:"children,omitempty"`
+
+	// ConcurrencyStatus Real-time concurrency queue status for a task
+	ConcurrencyStatus *V1ConcurrencyStatus `json:"concurrencyStatus,omitempty"`
 
 	// CreatedAt The timestamp the task was created.
 	CreatedAt time.Time `json:"createdAt"`

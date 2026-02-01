@@ -9,9 +9,15 @@ import { V1StepRunOutput } from './step-run-output';
 import { TaskRunLogs } from './task-run-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
+import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Loading } from '@/components/v1/ui/loading';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/v1/ui/popover';
 import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
@@ -21,14 +27,25 @@ import {
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
+import {
+  V1ConcurrencyStatus,
+  V1TaskStatus,
+  V1TaskSummary,
+  queries,
+} from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { FullscreenIcon } from 'lucide-react';
+import {
+  ClockIcon,
+  ExternalLinkIcon,
+  FullscreenIcon,
+  LayersIcon,
+  PlayIcon,
+} from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 export enum TabOption {
@@ -199,6 +216,9 @@ export const TaskRunDetail = ({
       <div className="flex flex-row items-center gap-2">
         <V1StepRunSummary taskRunId={taskRunId} />
       </div>
+      {taskRun.status === V1TaskStatus.QUEUED && taskRun.concurrencyStatus && (
+        <ConcurrencyQueueStatus concurrencyStatus={taskRun.concurrencyStatus} />
+      )}
       <Tabs defaultValue="overview" className="flex h-full flex-col">
         <TabsList layout="underlined" className="mb-4">
           <TabsTrigger variant="underlined" value="overview">
@@ -436,5 +456,137 @@ function TriggeringParentWorkflowRunSection({
         {parentWorkflowRun.displayName} ➶
       </Link>
     </div>
+  );
+}
+
+function ConcurrencyQueueStatus({
+  concurrencyStatus,
+}: {
+  concurrencyStatus: V1ConcurrencyStatus;
+}) {
+  const { tenantId } = useCurrentTenantId();
+
+  if (!concurrencyStatus.slots || concurrencyStatus.slots.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-muted/30 p-3">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <ClockIcon className="h-4 w-4 text-yellow-500" />
+        Waiting for concurrency slot
+      </div>
+      <div className="mt-2 space-y-2">
+        {concurrencyStatus.slots.map((slot, index) => (
+          <div
+            key={index}
+            className="flex flex-col gap-1 rounded bg-background/50 p-2 text-sm"
+          >
+            <div className="flex items-center gap-2">
+              <LayersIcon className="h-3 w-3 text-muted-foreground" />
+              <span className="font-mono text-xs text-muted-foreground">
+                {slot.key}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <Badge variant="outline" className="font-mono">
+                #{slot.queuePosition + 1} in queue
+              </Badge>
+              <ConcurrencyRunsPopover
+                label={`${slot.pendingCount} waiting`}
+                taskIds={slot.pendingTaskExternalIds || []}
+                displayNames={slot.pendingTaskDisplayNames}
+                tenantId={tenantId}
+                type="pending"
+              />
+              <ConcurrencyRunsPopover
+                label={`${slot.runningCount}${slot.maxRuns ? `/${slot.maxRuns}` : ''} running`}
+                taskIds={slot.runningTaskExternalIds || []}
+                displayNames={slot.runningTaskDisplayNames}
+                tenantId={tenantId}
+                type="running"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ConcurrencyRunsPopover({
+  label,
+  taskIds,
+  displayNames,
+  tenantId,
+  type,
+}: {
+  label: string;
+  taskIds: string[];
+  displayNames?: string[];
+  tenantId: string;
+  type: 'pending' | 'running';
+}) {
+  if (!taskIds || taskIds.length === 0) {
+    return <span className="text-muted-foreground">{label}</span>;
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="link"
+          size="xs"
+          className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
+        >
+          {label}
+          <ExternalLinkIcon className="ml-1 h-3 w-3" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-2" align="start">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 pb-1 text-xs font-medium text-muted-foreground">
+            {type === 'running' ? (
+              <PlayIcon className="h-3 w-3 text-green-500" />
+            ) : (
+              <ClockIcon className="h-3 w-3 text-yellow-500" />
+            )}
+            {type === 'running' ? 'Running Tasks' : 'Queued Tasks'}
+          </div>
+          <Separator />
+          <div className="max-h-48 space-y-1 overflow-y-auto pt-1">
+            {taskIds.map((taskId, index) => {
+              const displayName = displayNames?.[index];
+              return (
+                <Link
+                  key={taskId}
+                  to={appRoutes.tenantRunRoute.to}
+                  params={{ tenant: tenantId, run: taskId }}
+                  className="flex items-center gap-2 rounded p-1 text-xs hover:bg-muted"
+                >
+                  {type === 'pending' && (
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 px-1 py-0 text-[10px] font-mono"
+                    >
+                      #{index + 1}
+                    </Badge>
+                  )}
+                  <span className="min-w-0 flex-1 truncate">
+                    {displayName || `${taskId.slice(0, 8)}...`}
+                  </span>
+                  <ExternalLinkIcon className="h-3 w-3 shrink-0" />
+                </Link>
+              );
+            })}
+            {taskIds.length >= 10 && (
+              <div className="pt-1 text-xs text-muted-foreground">
+                (showing first 10)
+              </div>
+            )}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

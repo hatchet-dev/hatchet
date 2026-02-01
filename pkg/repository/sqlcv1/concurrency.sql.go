@@ -108,6 +108,153 @@ func (q *Queries) CheckStrategyActive(ctx context.Context, db DBTX, arg CheckStr
 	return isActive, err
 }
 
+const getConcurrencySlotStatus = `-- name: GetConcurrencySlotStatus :many
+WITH task_slots AS (
+    SELECT
+        cs.strategy_id,
+        cs.key,
+        cs.sort_id,
+        cs.is_filled,
+        sc.expression,
+        sc.max_concurrency
+    FROM v1_concurrency_slot cs
+    JOIN v1_step_concurrency sc ON sc.id = cs.strategy_id
+    WHERE
+        cs.task_id = $1::bigint
+        AND cs.task_inserted_at = $2::timestamptz
+        AND cs.tenant_id = $3::uuid
+),
+pending_tasks AS (
+    SELECT
+        ts.strategy_id,
+        ts.key,
+        cs2.external_id,
+        t.display_name,
+        ROW_NUMBER() OVER (PARTITION BY ts.strategy_id, ts.key ORDER BY cs2.sort_id) as queue_pos
+    FROM task_slots ts
+    JOIN v1_concurrency_slot cs2 ON cs2.strategy_id = ts.strategy_id AND cs2.key = ts.key AND cs2.is_filled = FALSE
+    JOIN v1_task t ON t.id = cs2.task_id AND t.inserted_at = cs2.task_inserted_at
+),
+running_tasks AS (
+    SELECT
+        ts.strategy_id,
+        ts.key,
+        cs2.external_id,
+        t.display_name
+    FROM task_slots ts
+    JOIN v1_concurrency_slot cs2 ON cs2.strategy_id = ts.strategy_id AND cs2.key = ts.key AND cs2.is_filled = TRUE
+    JOIN v1_task t ON t.id = cs2.task_id AND t.inserted_at = cs2.task_inserted_at
+)
+SELECT
+    ts.key,
+    ts.expression,
+    ts.max_concurrency,
+    ts.is_filled,
+    -- Queue position: count of unfilled slots with smaller sort_id
+    (
+        SELECT COUNT(*)
+        FROM v1_concurrency_slot cs2
+        WHERE cs2.strategy_id = ts.strategy_id
+          AND cs2.key = ts.key
+          AND cs2.is_filled = FALSE
+          AND cs2.sort_id < ts.sort_id
+    )::int AS queue_position,
+    -- Pending count: total unfilled slots
+    (
+        SELECT COUNT(*)
+        FROM v1_concurrency_slot cs2
+        WHERE cs2.strategy_id = ts.strategy_id
+          AND cs2.key = ts.key
+          AND cs2.is_filled = FALSE
+    )::int AS pending_count,
+    -- Running count: filled slots
+    (
+        SELECT COUNT(*)
+        FROM v1_concurrency_slot cs2
+        WHERE cs2.strategy_id = ts.strategy_id
+          AND cs2.key = ts.key
+          AND cs2.is_filled = TRUE
+    )::int AS running_count,
+    -- Pending task external IDs (ordered by queue position, limited to 10)
+    (
+        SELECT COALESCE(array_agg(pt.external_id ORDER BY pt.queue_pos), ARRAY[]::uuid[])
+        FROM pending_tasks pt
+        WHERE pt.strategy_id = ts.strategy_id AND pt.key = ts.key AND pt.queue_pos <= 10
+    ) AS pending_task_external_ids,
+    -- Pending task display names (ordered by queue position, limited to 10)
+    (
+        SELECT COALESCE(array_agg(pt.display_name ORDER BY pt.queue_pos), ARRAY[]::text[])
+        FROM pending_tasks pt
+        WHERE pt.strategy_id = ts.strategy_id AND pt.key = ts.key AND pt.queue_pos <= 10
+    ) AS pending_task_display_names,
+    -- Running task external IDs (limited to 10)
+    (
+        SELECT COALESCE(array_agg(rt.external_id), ARRAY[]::uuid[])
+        FROM (SELECT strategy_id, key, external_id, display_name FROM running_tasks rt2 WHERE rt2.strategy_id = ts.strategy_id AND rt2.key = ts.key LIMIT 10) rt
+    ) AS running_task_external_ids,
+    -- Running task display names (limited to 10)
+    (
+        SELECT COALESCE(array_agg(rt.display_name), ARRAY[]::text[])
+        FROM (SELECT strategy_id, key, external_id, display_name FROM running_tasks rt2 WHERE rt2.strategy_id = ts.strategy_id AND rt2.key = ts.key LIMIT 10) rt
+    ) AS running_task_display_names
+FROM task_slots ts
+`
+
+type GetConcurrencySlotStatusParams struct {
+	Taskid         int64              `json:"taskid"`
+	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
+	Tenantid       pgtype.UUID        `json:"tenantid"`
+}
+
+type GetConcurrencySlotStatusRow struct {
+	Key                     string      `json:"key"`
+	Expression              string      `json:"expression"`
+	MaxConcurrency          int32       `json:"max_concurrency"`
+	IsFilled                bool        `json:"is_filled"`
+	QueuePosition           int32       `json:"queue_position"`
+	PendingCount            int32       `json:"pending_count"`
+	RunningCount            int32       `json:"running_count"`
+	PendingTaskExternalIds  interface{} `json:"pending_task_external_ids"`
+	PendingTaskDisplayNames interface{} `json:"pending_task_display_names"`
+	RunningTaskExternalIds  interface{} `json:"running_task_external_ids"`
+	RunningTaskDisplayNames interface{} `json:"running_task_display_names"`
+}
+
+// Returns the current concurrency queue status for a task including other tasks in the same queue
+// Subquery to get pending tasks with display names (ordered by queue position)
+// Subquery to get running tasks with display names
+func (q *Queries) GetConcurrencySlotStatus(ctx context.Context, db DBTX, arg GetConcurrencySlotStatusParams) ([]*GetConcurrencySlotStatusRow, error) {
+	rows, err := db.Query(ctx, getConcurrencySlotStatus, arg.Taskid, arg.Taskinsertedat, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetConcurrencySlotStatusRow
+	for rows.Next() {
+		var i GetConcurrencySlotStatusRow
+		if err := rows.Scan(
+			&i.Key,
+			&i.Expression,
+			&i.MaxConcurrency,
+			&i.IsFilled,
+			&i.QueuePosition,
+			&i.PendingCount,
+			&i.RunningCount,
+			&i.PendingTaskExternalIds,
+			&i.PendingTaskDisplayNames,
+			&i.RunningTaskExternalIds,
+			&i.RunningTaskDisplayNames,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkflowConcurrencyQueueCounts = `-- name: GetWorkflowConcurrencyQueueCounts :many
 SELECT
     w."name" AS "workflowName",

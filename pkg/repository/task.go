@@ -210,6 +210,21 @@ type RefreshTimeoutBy struct {
 	IncrementTimeoutBy string `validate:"required,duration"`
 }
 
+// ConcurrencySlotStatus represents the real-time status of a task in a concurrency queue
+type ConcurrencySlotStatus struct {
+	Key                     string
+	Expression              string
+	PendingTaskExternalIds  []string
+	PendingTaskDisplayNames []string
+	RunningTaskExternalIds  []string
+	RunningTaskDisplayNames []string
+	MaxConcurrency          int32
+	QueuePosition           int32
+	PendingCount            int32
+	RunningCount            int32
+	IsFilled                bool
+}
+
 type TaskRepository interface {
 	EnsureTablePartitionsExist(ctx context.Context) (bool, error)
 	UpdateTablePartitions(ctx context.Context) error
@@ -272,6 +287,9 @@ type TaskRepository interface {
 
 	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
 	GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunDetails, error)
+
+	// GetConcurrencySlotStatus returns the current concurrency queue status for a task
+	GetConcurrencySlotStatus(ctx context.Context, tenantId string, taskId int64, taskInsertedAt time.Time) ([]*ConcurrencySlotStatus, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -4161,4 +4179,92 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		ReadableIdToDetails: taskRunDetails,
 		AdditionalMetadata:  additionalMeta,
 	}, nil
+}
+
+func (r *TaskRepositoryImpl) GetConcurrencySlotStatus(ctx context.Context, tenantId string, taskId int64, taskInsertedAt time.Time) ([]*ConcurrencySlotStatus, error) {
+	rows, err := r.queries.GetConcurrencySlotStatus(ctx, r.pool, sqlcv1.GetConcurrencySlotStatusParams{
+		Taskid: taskId,
+		Taskinsertedat: pgtype.Timestamptz{
+			Time:  taskInsertedAt,
+			Valid: true,
+		},
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get concurrency slot status: %w", err)
+	}
+
+	result := make([]*ConcurrencySlotStatus, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &ConcurrencySlotStatus{
+			Key:                     row.Key,
+			Expression:              row.Expression,
+			MaxConcurrency:          row.MaxConcurrency,
+			IsFilled:                row.IsFilled,
+			QueuePosition:           row.QueuePosition,
+			PendingCount:            row.PendingCount,
+			RunningCount:            row.RunningCount,
+			PendingTaskExternalIds:  uuidArrayToStrings(row.PendingTaskExternalIds),
+			PendingTaskDisplayNames: stringArrayToStrings(row.PendingTaskDisplayNames),
+			RunningTaskExternalIds:  uuidArrayToStrings(row.RunningTaskExternalIds),
+			RunningTaskDisplayNames: stringArrayToStrings(row.RunningTaskDisplayNames),
+		})
+	}
+
+	return result, nil
+}
+
+// uuidArrayToStrings converts a postgres UUID array (returned as interface{}) to []string
+func uuidArrayToStrings(arr interface{}) []string {
+	if arr == nil {
+		return []string{}
+	}
+
+	// pgx returns UUID arrays as [][16]byte
+	if uuidArr, ok := arr.([][16]byte); ok {
+		result := make([]string, 0, len(uuidArr))
+		for _, u := range uuidArr {
+			result = append(result, uuid.UUID(u).String())
+		}
+		return result
+	}
+
+	// Try as []interface{} with [16]byte elements
+	if iArr, ok := arr.([]interface{}); ok {
+		result := make([]string, 0, len(iArr))
+		for _, item := range iArr {
+			if uBytes, ok := item.([16]byte); ok {
+				result = append(result, uuid.UUID(uBytes).String())
+			}
+		}
+		return result
+	}
+
+	return []string{}
+}
+
+// stringArrayToStrings converts a postgres text array (returned as interface{}) to []string
+func stringArrayToStrings(arr interface{}) []string {
+	if arr == nil {
+		return []string{}
+	}
+
+	// pgx returns text arrays as []string
+	if strArr, ok := arr.([]string); ok {
+		return strArr
+	}
+
+	// Try as []interface{} with string elements
+	if iArr, ok := arr.([]interface{}); ok {
+		result := make([]string, 0, len(iArr))
+		for _, item := range iArr {
+			if str, ok := item.(string); ok {
+				result = append(result, str)
+			}
+		}
+		return result
+	}
+
+	return []string{}
 }
