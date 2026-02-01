@@ -30,6 +30,8 @@ def wait_for_worker_health(healthcheck_port: int) -> bool:
             if resp.status_code == 200:
                 return True
 
+            time.sleep(1)
+
         except Exception:
             time.sleep(1)
 
