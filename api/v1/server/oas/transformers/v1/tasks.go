@@ -252,7 +252,7 @@ func ToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 	return toReturn
 }
 
-func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID, workflowVersion *sqlcv1.GetWorkflowVersionByIdRow) gen.V1TaskSummary {
+func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID, workflowVersion *sqlcv1.GetWorkflowVersionByIdRow, concurrencyStatus []*v1.ConcurrencySlotStatus) gen.V1TaskSummary {
 	workflowVersionID := uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.WorkflowVersionID))
 	additionalMetadata := jsonToMap(taskWithData.AdditionalMetadata)
 
@@ -304,6 +304,53 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID
 		}
 	}
 
+	// Transform concurrency status if present
+	var concurrencyStatusPtr *gen.V1ConcurrencyStatus
+	if len(concurrencyStatus) > 0 {
+		slots := make([]gen.V1ConcurrencySlotStatus, 0, len(concurrencyStatus))
+		for _, slot := range concurrencyStatus {
+			maxRuns := int(slot.MaxConcurrency)
+
+			// Convert string slices to UUID slices
+			pendingIds := make([]types.UUID, 0, len(slot.PendingTaskExternalIds))
+			for _, id := range slot.PendingTaskExternalIds {
+				if parsed, err := uuid.Parse(id); err == nil {
+					pendingIds = append(pendingIds, parsed)
+				}
+			}
+
+			runningIds := make([]types.UUID, 0, len(slot.RunningTaskExternalIds))
+			for _, id := range slot.RunningTaskExternalIds {
+				if parsed, err := uuid.Parse(id); err == nil {
+					runningIds = append(runningIds, parsed)
+				}
+			}
+
+			// Copy display name slices
+			pendingDisplayNames := make([]string, len(slot.PendingTaskDisplayNames))
+			copy(pendingDisplayNames, slot.PendingTaskDisplayNames)
+
+			runningDisplayNames := make([]string, len(slot.RunningTaskDisplayNames))
+			copy(runningDisplayNames, slot.RunningTaskDisplayNames)
+
+			slots = append(slots, gen.V1ConcurrencySlotStatus{
+				Key:                     slot.Key,
+				Expression:              &slot.Expression,
+				MaxRuns:                 &maxRuns,
+				QueuePosition:           int(slot.QueuePosition),
+				PendingCount:            int(slot.PendingCount),
+				RunningCount:            int(slot.RunningCount),
+				PendingTaskExternalIds:  &pendingIds,
+				PendingTaskDisplayNames: &pendingDisplayNames,
+				RunningTaskExternalIds:  &runningIds,
+				RunningTaskDisplayNames: &runningDisplayNames,
+			})
+		}
+		concurrencyStatusPtr = &gen.V1ConcurrencyStatus{
+			Slots: &slots,
+		}
+	}
+
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(taskWithData.ExternalID),
@@ -334,6 +381,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId pgtype.UUID
 		Attempt:               &attempt,
 		WorkflowConfig:        &workflowConfig,
 		ParentTaskExternalId:  parentTaskExternalId,
+		ConcurrencyStatus:     concurrencyStatusPtr,
 	}
 }
 

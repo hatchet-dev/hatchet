@@ -115,6 +115,9 @@ V1TaskSummary:
       type: string
       description: The external ID of the parent task.
       format: uuid
+    concurrencyStatus:
+      $ref: "#/V1ConcurrencyStatus"
+      description: Real-time concurrency queue status (only present for QUEUED tasks with concurrency keys)
   required:
     - metadata
     - createdAt
@@ -466,3 +469,62 @@ V1TaskTimingList:
   required:
     - pagination
     - rows
+
+V1ConcurrencyStatus:
+  type: object
+  description: Real-time concurrency queue status for a task
+  properties:
+    slots:
+      type: array
+      items:
+        $ref: "#/V1ConcurrencySlotStatus"
+      description: Status for each concurrency slot the task is waiting in
+
+V1ConcurrencySlotStatus:
+  type: object
+  properties:
+    key:
+      type: string
+      description: The concurrency key value
+    expression:
+      type: string
+      description: The CEL expression used to compute the key
+    maxRuns:
+      type: integer
+      description: Maximum concurrent runs allowed for this key
+    queuePosition:
+      type: integer
+      description: Position in queue (0 = first in line, next to run)
+    pendingCount:
+      type: integer
+      description: Total number of tasks waiting in this queue
+    runningCount:
+      type: integer
+      description: Number of tasks currently running with this key
+    pendingTaskExternalIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: External IDs of tasks waiting in the queue (limited to 10)
+    pendingTaskDisplayNames:
+      type: array
+      items:
+        type: string
+      description: Display names of tasks waiting in the queue (limited to 10, same order as pendingTaskExternalIds)
+    runningTaskExternalIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: External IDs of tasks currently running with this key (limited to 10)
+    runningTaskDisplayNames:
+      type: array
+      items:
+        type: string
+      description: Display names of tasks currently running with this key (limited to 10, same order as runningTaskExternalIds)
+  required:
+    - key
+    - queuePosition
+    - pendingCount
+    - runningCount

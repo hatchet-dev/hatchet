@@ -19,6 +19,9 @@ type ConcurrencyResults struct {
 	*v1.RunConcurrencyResult
 
 	TenantId pgtype.UUID
+
+	// StrategyExpression is the CEL expression used to compute concurrency keys
+	StrategyExpression string
 }
 
 type ConcurrencyManager struct {
@@ -149,6 +152,7 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 		c.resultsCh <- &ConcurrencyResults{
 			RunConcurrencyResult: results,
 			TenantId:             c.tenantId,
+			StrategyExpression:   c.strategy.Expression,
 		}
 
 		span.End()

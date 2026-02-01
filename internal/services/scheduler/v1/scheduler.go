@@ -514,7 +514,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				sqlchelpers.UUIDToStr(schedulingTimedOut.WorkflowRunID),
 				schedulingTimedOut.RetryCount,
 				sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
-				"",
+				"Scheduling timed out while waiting for an available worker",
 				false,
 			)
 
@@ -649,6 +649,11 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 
 		if cancelled.CancelledReason == "SCHEDULING_TIMED_OUT" {
 			eventType = sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT
+			if res.StrategyExpression != "" {
+				eventMessage = fmt.Sprintf("Scheduling timed out while waiting for concurrency key: %s", res.StrategyExpression)
+			} else {
+				eventMessage = "Scheduling timed out while waiting for a concurrency slot"
+			}
 			shouldNotify = false
 		} else {
 			eventMessage = "Cancelled due to concurrency strategy"
