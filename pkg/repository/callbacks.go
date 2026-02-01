@@ -26,16 +26,15 @@ func (c TenantScopedCallback[T]) Do(l *zerolog.Logger, tenantId string, v T) {
 type UnscopedCallback[T any] func(T) error
 
 func (c UnscopedCallback[T]) Do(l *zerolog.Logger, v T) {
-	// wrap in panic recover to avoid panics in the callback
-	defer func() {
-		if r := recover(); r != nil {
-			if l != nil {
-				l.Error().Interface("panic", r).Msg("panic in callback")
-			}
-		}
-	}()
-
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				if l != nil {
+					l.Error().Interface("panic", r).Msg("panic in callback")
+				}
+			}
+		}()
+
 		err := c(v)
 
 		if err != nil {
