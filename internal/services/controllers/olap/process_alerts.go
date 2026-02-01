@@ -3,6 +3,7 @@ package olap
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -13,6 +14,12 @@ import (
 
 func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() {
 	return func() {
+
+		migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
+		if migrationDisabled {
+			return
+		}
+
 		o.l.Debug().Msgf("partition: processing tenant alerts")
 
 		// list all tenants

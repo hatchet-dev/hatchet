@@ -131,6 +131,11 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 }
 
 func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {
+	isMigrationController := sc.HasService("migration-controller")
+	if isMigrationController {
+		return runMigrationController(ctx, sc)
+	}
+
 	isV1 := sc.HasService("all") || sc.HasService("scheduler") || sc.HasService("controllers") || sc.HasService("grpc-api")
 
 	if isV1 {
@@ -138,6 +143,84 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	}
 
 	return runV0Config(ctx, sc)
+}
+
+func runMigrationController(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {
+	var l = sc.Logger
+
+	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
+		ServiceName:   sc.OpenTelemetry.ServiceName,
+		CollectorURL:  sc.OpenTelemetry.CollectorURL,
+		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
+		Insecure:      sc.OpenTelemetry.Insecure,
+		CollectorAuth: sc.OpenTelemetry.CollectorAuth,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not initialize tracer: %w", err)
+	}
+
+	teardown := []Teardown{
+		{
+			Name: "tracer",
+			Fn: func() error {
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				return shutdown(shutdownCtx)
+			},
+		},
+	}
+
+	// Partition is required by the OLAP controller, since it uses controller partitions to
+	// determine which tenants to process.
+	p, err := partition.NewPartition(l, sc.V1.Tenant())
+	if err != nil {
+		return nil, fmt.Errorf("could not create partitioner: %w", err)
+	}
+
+	teardown = append(teardown, Teardown{
+		Name: "partitioner",
+		Fn:   p.Shutdown,
+	})
+
+	sizeLimits := v1.StatusUpdateBatchSizeLimits{
+		Task: int32(sc.OLAPStatusUpdates.TaskBatchSizeLimit),
+		DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),
+	}
+
+	olapController, err := olap.New(
+		olap.WithAlerter(sc.Alerter),
+		olap.WithMessageQueue(sc.MessageQueueV1),
+		olap.WithRepository(sc.V1),
+		olap.WithLogger(sc.Logger),
+		olap.WithPartition(p),
+		olap.WithTenantAlertManager(sc.TenantAlerter),
+		olap.WithSamplingConfig(sc.Sampling),
+		olap.WithOperationsConfig(sc.Operations),
+		// Explicitly keep prometheus workers disabled for this entrypoint.
+		olap.WithPrometheusMetricsEnabled(false),
+		olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
+		olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create olap controller: %w", err)
+	}
+
+	cleanupOlap, err := olapController.Start()
+	if err != nil {
+		return nil, fmt.Errorf("could not start olap controller: %w", err)
+	}
+
+	teardown = append(teardown, Teardown{
+		Name: "olap controller",
+		Fn:   cleanupOlap,
+	})
+
+	l.Debug().Msg("migration engine has started (olap controller only)")
+
+	<-ctx.Done()
+
+	return teardown, nil
 }
 
 func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {

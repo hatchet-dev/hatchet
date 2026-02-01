@@ -404,6 +404,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 			var cleanupv1 func() error
 
+			standbyWritesEnabled := cf.OLAP.StandbyWritesEnabled
+
 			cleanupv1, mqv1, err = rabbitmq.New(
 				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 				rabbitmq.WithLogger(&l),
@@ -424,6 +426,45 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 			cleanup1 = func() error {
 				return cleanupv1()
+			}
+
+			if standbyWritesEnabled {
+				standbyURL := strings.TrimSpace(cf.MessageQueue.RabbitMQ.StandbyURL)
+				if standbyURL == "" {
+					return nil, nil, fmt.Errorf("SERVER_MSGQUEUE_RABBITMQ_STANDBY_URL is required when SERVER_OLAP_STANDBY_WRITES_ENABLED is set")
+				}
+
+				var cleanupStandbyFn func() error
+				var mqv1Standby msgqueue.MessageQueue
+
+				cleanupStandbyFn, mqv1Standby, err = rabbitmq.New(
+					rabbitmq.WithURL(standbyURL),
+					rabbitmq.WithLogger(&l),
+					rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
+					rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
+					rabbitmq.WithInitQueues(msgqueue.OLAP_QUEUE),
+					rabbitmq.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
+					rabbitmq.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
+					rabbitmq.WithGzipCompression(
+						cf.MessageQueue.RabbitMQ.CompressionEnabled,
+						cf.MessageQueue.RabbitMQ.CompressionThreshold,
+					),
+					rabbitmq.WithMessageRejection(cf.MessageQueue.RabbitMQ.EnableMessageRejection, cf.MessageQueue.RabbitMQ.MaxDeathCount),
+				)
+
+				if err != nil {
+					return nil, nil, fmt.Errorf("could not init standby rabbitmq: %w", err)
+				}
+
+				prevCleanup := cleanup1
+				cleanup1 = func() error {
+					if err := prevCleanup(); err != nil {
+						return err
+					}
+					return cleanupStandbyFn()
+				}
+
+				mqv1 = msgqueue.NewOLAPTeeMessageQueue(mqv1, mqv1Standby)
 			}
 		}
 
@@ -674,6 +715,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
+
 		return nil
 	}
 

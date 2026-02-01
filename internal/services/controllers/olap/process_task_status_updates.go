@@ -2,6 +2,8 @@ package olap
 
 import (
 	"context"
+	"math/rand"
+	"os"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -11,6 +13,33 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+func (o *OLAPControllerImpl) listAllTenantsShuffled(ctx context.Context, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error) {
+	tenants, err := o.repo.Tenant().ListTenants(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]*sqlcv1.Tenant, 0, len(tenants))
+
+	for _, t := range tenants {
+		if t == nil {
+			continue
+		}
+
+		if t.Version != majorVersion {
+			continue
+		}
+
+		filtered = append(filtered, t)
+	}
+
+	// shuffle to avoid always processing tenants in the same order
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng.Shuffle(len(filtered), func(i, j int) { filtered[i], filtered[j] = filtered[j], filtered[i] })
+
+	return filtered, nil
+}
 
 func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 	return func() {
@@ -22,8 +51,14 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 		for shouldContinue {
 			o.l.Debug().Msgf("partition: running status updates for tasks")
 
-			// list all tenants
-			tenants, err := o.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV1)
+			var tenants []*sqlcv1.Tenant
+			var err error
+
+			if os.Getenv("MIGRATION_DISABLE_EXTRA") == "true" {
+				tenants, err = o.listAllTenantsShuffled(ctx, sqlcv1.TenantMajorEngineVersionV1)
+			} else {
+				tenants, err = o.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV1)
+			}
 
 			if err != nil {
 				o.l.Error().Err(err).Msg("could not list tenants")
@@ -46,11 +81,15 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 				return
 			}
 
-			err = o.notifyTasksUpdated(ctx, rows)
+			migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
 
-			if err != nil {
-				o.l.Error().Err(err).Msg("failed to notify updated task statuses")
-				return
+			if !migrationDisabled {
+				err = o.notifyTasksUpdated(ctx, rows)
+
+				if err != nil {
+					o.l.Error().Err(err).Msg("failed to notify updated task statuses")
+					return
+				}
 			}
 		}
 	}

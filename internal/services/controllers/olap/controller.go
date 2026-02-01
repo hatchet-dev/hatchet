@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -237,12 +238,15 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	// Default timeout
 	timeout := 15 * time.Second
 
-	o.processTenantAlertOperations = queueutils.NewOperationPool(
-		opts.l,
-		timeout,
-		"process tenant alerts",
-		o.processTenantAlerts,
-	).WithJitter(jitter)
+	migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
+	if !migrationDisabled {
+		o.processTenantAlertOperations = queueutils.NewOperationPool(
+			opts.l,
+			timeout,
+			"process tenant alerts",
+			o.processTenantAlerts,
+		).WithJitter(jitter)
+	}
 
 	return o, nil
 }
@@ -253,7 +257,12 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		return nil, err
 	}
-	heavyReadMQ.SetQOS(2000)
+
+	migrationDisabled := os.Getenv("MIGRATION_DISABLE_EXTRA") == "true"
+
+	if !migrationDisabled {
+		heavyReadMQ.SetQOS(2000)
+	}
 
 	o.s.Start()
 
@@ -261,6 +270,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 
 	wg := sync.WaitGroup{}
 
+	// if the environment variable is set, disable the table partition on startup
 	startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelStartupPartition()
 
@@ -272,7 +282,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Start prometheus workers if metrics are enabled
-	if o.prometheusMetricsEnabled {
+	if o.prometheusMetricsEnabled && !migrationDisabled {
 		o.taskPrometheusWorkerCtx, o.taskPrometheusWorkerCancel = context.WithCancel(context.Background())
 		wg.Add(1)
 		go func() {
@@ -864,6 +874,7 @@ func (oc *OLAPControllerImpl) processPayloadExternalCutovers(ctx context.Context
 		ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.processPayloadExternalCutovers")
 		defer span.End()
 
+		// CHECKME: same key double write?
 		oc.l.Debug().Msgf("payload external cutover: processing external cutover payloads")
 
 		p := oc.repo.Payloads()
