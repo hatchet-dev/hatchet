@@ -1,6 +1,8 @@
 package transformers
 
 import (
+	"encoding/json"
+
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -11,7 +13,7 @@ func ToV1Webhook(webhook *sqlcv1.V1IncomingWebhook) gen.V1Webhook {
 	// Intentionally empty uuid
 	var id uuid.UUID
 
-	return gen.V1Webhook{
+	result := gen.V1Webhook{
 		AuthType: gen.V1WebhookAuthType(webhook.AuthMethod),
 		Metadata: gen.APIResourceMeta{
 			CreatedAt: webhook.InsertedAt.Time,
@@ -23,6 +25,19 @@ func ToV1Webhook(webhook *sqlcv1.V1IncomingWebhook) gen.V1Webhook {
 		Name:               webhook.Name,
 		SourceName:         gen.V1WebhookSourceName(webhook.SourceName),
 	}
+
+	if webhook.ScopeExpression.Valid {
+		result.ScopeExpression = &webhook.ScopeExpression.String
+	}
+
+	if len(webhook.StaticPayload) > 0 {
+		var staticPayload map[string]interface{}
+		if err := json.Unmarshal(webhook.StaticPayload, &staticPayload); err == nil {
+			result.StaticPayload = &staticPayload
+		}
+	}
+
+	return result
 }
 
 func ToV1WebhookList(webhooks []*sqlcv1.V1IncomingWebhook) gen.V1WebhookList {

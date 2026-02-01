@@ -243,6 +243,51 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		}, nil
 	}
 
+	var scope *string
+	if webhook.ScopeExpression.Valid && webhook.ScopeExpression.String != "" {
+		scopeValue, scopeErr := w.celParser.EvaluateIncomingWebhookExpression(webhook.ScopeExpression.String, cel.NewInput(
+			cel.WithInput(payloadMap),
+			cel.WithHeaders(headerMap),
+		))
+
+		if scopeErr != nil {
+			w.config.Logger.Warn().Err(scopeErr).Str("webhook", webhookName).Str("tenant", tenantId).Str("scope_expression", webhook.ScopeExpression.String).Msg("Failed to evaluate scope expression")
+
+			ingestionErr := w.config.Ingestor.IngestCELEvaluationFailure(
+				ctx.Request().Context(),
+				tenant.ID.String(),
+				scopeErr.Error(),
+				sqlcv1.V1CelEvaluationFailureSourceWEBHOOK,
+			)
+
+			if ingestionErr != nil {
+				return nil, fmt.Errorf("failed to ingest CEL evaluation failure: %w", ingestionErr)
+			}
+
+			return gen.V1WebhookReceive400JSONResponse{
+				Errors: []gen.APIError{
+					{
+						Description: "Failed to evaluate scope expression",
+					},
+				},
+			}, nil
+		}
+
+		scope = &scopeValue
+	}
+
+	if len(webhook.StaticPayload) > 0 {
+		var staticPayloadMap map[string]interface{}
+		if unmarshalErr := json.Unmarshal(webhook.StaticPayload, &staticPayloadMap); unmarshalErr != nil {
+			w.config.Logger.Warn().Err(unmarshalErr).Str("webhook", webhookName).Str("tenant", tenantId).Msg("Failed to unmarshal static payload")
+		} else {
+			// static payload takes precedence over payload map
+			for key, value := range staticPayloadMap {
+				payloadMap[key] = value
+			}
+		}
+	}
+
 	payload, err := json.Marshal(payloadMap)
 	if err != nil {
 		return gen.V1WebhookReceive400JSONResponse{
@@ -261,7 +306,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		payload,
 		nil,
 		nil,
-		nil,
+		scope,
 		&webhook.Name,
 	)
 
