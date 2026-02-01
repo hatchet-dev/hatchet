@@ -300,6 +300,25 @@ getTaskPointMetrics:
         schema:
           type: string
           format: date-time
+      - description: A list of workflow IDs to filter by
+        in: query
+        name: workflow_ids
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      - description: Additional metadata k-v pairs to filter by
+        in: query
+        name: additional_metadata
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
     responses:
       "200":
         content:

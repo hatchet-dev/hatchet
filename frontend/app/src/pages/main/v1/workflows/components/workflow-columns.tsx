@@ -1,3 +1,4 @@
+import { ActivityMiniChart } from '@/components/v1/molecules/charts/activity-mini-chart';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
@@ -10,6 +11,7 @@ import { ColumnDef } from '@tanstack/react-table';
 export const WorkflowColumn = {
   status: 'Status',
   name: 'Name',
+  activity: 'Activity',
   createdAt: 'Created at',
 } as const;
 
@@ -17,6 +19,7 @@ type WorkflowColumnKeys = keyof typeof WorkflowColumn;
 
 const statusKey: WorkflowColumnKeys = 'status';
 export const nameKey: WorkflowColumnKeys = 'name';
+const activityKey: WorkflowColumnKeys = 'activity';
 const createdAtKey: WorkflowColumnKeys = 'createdAt';
 
 export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
@@ -79,6 +82,19 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
         </div>
       );
     },
+    enableSorting: false,
+    enableHiding: true,
+  },
+  {
+    accessorKey: activityKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={WorkflowColumn.activity} />
+    ),
+    cell: ({ row }) => (
+      <div className="flex flex-row items-center">
+        <ActivityMiniChart workflowId={row.original.metadata.id} />
+      </div>
+    ),
     enableSorting: false,
     enableHiding: true,
   },

@@ -51,6 +51,8 @@ const GetWorkflowChart = () => {
     ...queries.v1TaskRuns.pointMetrics(tenantId, {
       createdAfter: apiFilters.since,
       finishedBefore: apiFilters.until,
+      workflow_ids: apiFilters.workflowIds,
+      additional_metadata: apiFilters.additionalMetadata,
     }),
     placeholderData: (prev) => prev,
     refetchInterval,

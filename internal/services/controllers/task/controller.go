@@ -2,9 +2,11 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
@@ -24,6 +26,7 @@ import (
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -1555,15 +1558,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?
 	for _, task := range tasks {
-		msg := ""
-
-		if len(task.ConcurrencyKeys) > 0 {
-			msg = "concurrency keys evaluated as:"
-
-			for _, key := range task.ConcurrencyKeys {
-				msg += fmt.Sprintf(" %s", key)
-			}
-		}
+		msg := tc.buildEventMessage(task)
 
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
@@ -1603,6 +1598,46 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 	}()
 
 	return nil
+}
+
+// buildEventMessage builds a descriptive event message from task metadata.
+// It includes trigger source information (cron/schedule) and concurrency keys.
+func (tc *TasksControllerImpl) buildEventMessage(task *v1.V1TaskWithPayload) string {
+	var parts []string
+
+	// Check for trigger source in additional metadata
+	if len(task.AdditionalMetadata) > 0 {
+		var metadata map[string]interface{}
+		if err := json.Unmarshal(task.AdditionalMetadata, &metadata); err == nil {
+			if triggeredBy, ok := metadata[constants.TriggeredByKey.String()]; ok {
+				switch triggeredBy {
+				case "cron":
+					cronExpr, hasExpr := metadata[constants.CronExpressionKey.String()]
+					cronName, hasName := metadata[constants.CronNameKey.String()]
+					if hasName && hasExpr {
+						parts = append(parts, fmt.Sprintf("Triggered by cron '%s' (%s)", cronName, cronExpr))
+					} else if hasExpr {
+						parts = append(parts, fmt.Sprintf("Triggered by cron (%s)", cronExpr))
+					} else {
+						parts = append(parts, "Triggered by cron")
+					}
+				case "schedule":
+					if scheduledAt, ok := metadata[constants.ScheduledAtKey.String()]; ok {
+						parts = append(parts, fmt.Sprintf("Triggered by schedule (scheduled for %s)", scheduledAt))
+					} else {
+						parts = append(parts, "Triggered by schedule")
+					}
+				}
+			}
+		}
+	}
+
+	// Add concurrency keys message
+	if len(task.ConcurrencyKeys) > 0 {
+		parts = append(parts, fmt.Sprintf("Concurrency keys: %s", strings.Join(task.ConcurrencyKeys, " ")))
+	}
+
+	return strings.Join(parts, ". ")
 }
 
 func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {

@@ -4,13 +4,13 @@ import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 
 export const useMetrics = ({
-  workflow,
+  workflowIds,
   parentTaskExternalId,
   additionalMetadata,
   createdAfter,
   showQueueMetrics,
 }: {
-  workflow: string | undefined;
+  workflowIds: string[] | undefined;
   parentTaskExternalId: string | undefined;
   additionalMetadata?: string[] | undefined;
   createdAfter?: string;
@@ -31,7 +31,7 @@ export const useMetrics = ({
         createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
       parent_task_external_id: parentTaskExternalId,
-      workflow_ids: workflow ? [workflow] : [],
+      workflow_ids: workflowIds || [],
       additional_metadata: additionalMetadata,
     }),
     placeholderData: (prev) => prev,
