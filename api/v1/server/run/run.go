@@ -249,7 +249,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		member, err := config.V1.Tenant().GetTenantMemberByID(ctxTimeout, id)
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant member id")
+		}
+
+		member, err := config.V1.Tenant().GetTenantMemberByID(ctxTimeout, idUuid)
 
 		if err != nil {
 			return nil, "", err
@@ -262,7 +268,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		apiToken, err := config.V1.APIToken().GetAPITokenById(ctxTimeout, id)
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid api token id")
+		}
+
+		apiToken, err := config.V1.APIToken().GetAPITokenById(ctxTimeout, idUuid)
 
 		if err != nil {
 			return nil, "", err
@@ -282,7 +294,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		tenantInvite, err := config.V1.TenantInvite().GetTenantInvite(timeoutCtx, id)
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant invite id")
+		}
+
+		tenantInvite, err := config.V1.TenantInvite().GetTenantInvite(timeoutCtx, idUuid)
 
 		if err != nil {
 			return nil, "", err
@@ -295,7 +313,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		slackWebhook, err := config.V1.Slack().GetSlackWebhookById(timeoutCtx, id)
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid slack integration id")
+		}
+
+		slackWebhook, err := config.V1.Slack().GetSlackWebhookById(timeoutCtx, idUuid)
 
 		if err != nil {
 			return nil, "", err
@@ -308,7 +332,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		emailGroup, err := config.V1.TenantAlertingSettings().GetTenantAlertGroupById(timeoutCtx, id)
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid alert email group id")
+		}
+
+		emailGroup, err := config.V1.TenantAlertingSettings().GetTenantAlertGroupById(timeoutCtx, idUuid)
 
 		if err != nil {
 			return nil, "", err
@@ -321,7 +351,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		snsIntegration, err := config.V1.SNS().GetSNSIntegrationById(timeoutCtx, id)
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid sns integration id")
+		}
+
+		snsIntegration, err := config.V1.SNS().GetSNSIntegrationById(timeoutCtx, idUuid)
 
 		if err != nil {
 			return nil, "", err
