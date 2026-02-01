@@ -44,7 +44,7 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 	}
 
 	// Users cannot change their own role
-	if tenantMember.UserId.String() == memberToUpdate.UserId.String() {
+	if tenantMember.UserId == memberToUpdate.UserId {
 		return gen.TenantMemberUpdate400JSONResponse(
 			apierrors.NewAPIErrors("you cannot change your own role"),
 		), nil
@@ -54,7 +54,7 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 		Role: v1.StringPtr(string(request.Body.Role)),
 	}
 
-	updatedMember, err := t.config.V1.Tenant().UpdateTenantMember(ctx.Request().Context(), memberToUpdate.ID.String(), updateOpts)
+	updatedMember, err := t.config.V1.Tenant().UpdateTenantMember(ctx.Request().Context(), memberToUpdate.ID, updateOpts)
 
 	if err != nil {
 		return nil, err

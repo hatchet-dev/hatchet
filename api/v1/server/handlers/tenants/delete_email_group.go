@@ -13,7 +13,7 @@ func (t *TenantService) AlertEmailGroupDelete(ctx echo.Context, request gen.Aler
 	emailGroup := ctx.Get("alert-email-group").(*sqlcv1.TenantAlertEmailGroup)
 
 	// delete the invite
-	err := t.config.V1.TenantAlertingSettings().DeleteTenantAlertGroup(ctx.Request().Context(), tenantId, emailGroup.ID.String())
+	err := t.config.V1.TenantAlertingSettings().DeleteTenantAlertGroup(ctx.Request().Context(), tenantId, emailGroup.ID)
 
 	if err != nil {
 		return nil, err

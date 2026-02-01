@@ -33,7 +33,7 @@ func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantM
 		), nil
 	}
 
-	err := t.config.V1.Tenant().DeleteTenantMember(ctx.Request().Context(), memberToDelete.ID.String())
+	err := t.config.V1.Tenant().DeleteTenantMember(ctx.Request().Context(), memberToDelete.ID)
 
 	if err != nil {
 		return nil, err

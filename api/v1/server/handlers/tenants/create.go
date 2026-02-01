@@ -88,7 +88,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 
 	// add the user as an owner of the tenant
 	_, err = t.config.V1.Tenant().CreateTenantMember(ctx.Request().Context(), tenantId, &v1.CreateTenantMemberOpts{
-		UserId: user.ID.String(),
+		UserId: user.ID,
 		Role:   "OWNER",
 	})
 

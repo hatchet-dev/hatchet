@@ -19,7 +19,7 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 		), nil
 	}
 
-	err := a.config.V1.APIToken().RevokeAPIToken(ctx.Request().Context(), apiToken.ID.String())
+	err := a.config.V1.APIToken().RevokeAPIToken(ctx.Request().Context(), apiToken.ID)
 
 	if err != nil {
 		return nil, err

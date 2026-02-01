@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
@@ -16,7 +17,7 @@ import (
 
 func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInviteAcceptRequestObject) (gen.TenantInviteAcceptResponseObject, error) {
 	user := ctx.Get("user").(*sqlcv1.User)
-	userId := user.ID.String()
+	userId := user.ID
 
 	// validate the request
 	if apiErrors, err := u.config.Validator.ValidateAPI(request.Body); err != nil {
@@ -25,9 +26,15 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 		return gen.TenantInviteAccept400JSONResponse(*apiErrors), nil
 	}
 
-	inviteId := request.Body.Invite
+	inviteIdStr := request.Body.Invite
 
-	if inviteId == "" {
+	if inviteIdStr == "" {
+		return nil, errors.New("invalid invite id")
+	}
+
+	inviteId, err := uuid.Parse(inviteIdStr)
+
+	if err != nil {
 		return nil, errors.New("invalid invite id")
 	}
 
@@ -68,7 +75,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// update the invite
-	invite, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.ID.String(), updateOpts)
+	invite, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.ID, updateOpts)
 
 	if err != nil {
 		return nil, err
@@ -86,12 +93,12 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 
 	u.config.Analytics.Enqueue(
 		"user-invite:accept",
-		userId,
+		userId.String(),
 		&invite.TenantId,
 		nil,
 		map[string]interface{}{
-			"user_id":   userId,
-			"invite_id": inviteId,
+			"user_id":   userId.String(),
+			"invite_id": inviteId.String(),
 			"role":      invite.Role,
 		},
 	)

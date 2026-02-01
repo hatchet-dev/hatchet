@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
@@ -23,9 +24,15 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 		return gen.TenantInviteReject400JSONResponse(*apiErrors), nil
 	}
 
-	inviteId := request.Body.Invite
+	inviteIdStr := request.Body.Invite
 
-	if inviteId == "" {
+	if inviteIdStr == "" {
+		return nil, errors.New("invalid invite id")
+	}
+
+	inviteId, err := uuid.Parse(inviteIdStr)
+
+	if err != nil {
 		return nil, errors.New("invalid invite id")
 	}
 
@@ -57,7 +64,7 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 	}
 
 	// update the invite
-	invite, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.ID.String(), updateOpts)
+	invite, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.ID, updateOpts)
 
 	if err != nil {
 		return nil, err

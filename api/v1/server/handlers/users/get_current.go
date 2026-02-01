@@ -16,7 +16,7 @@ import (
 
 func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurrentRequestObject) (gen.UserGetCurrentResponseObject, error) {
 	user := ctx.Get("user").(*sqlcv1.User)
-	userId := user.ID.String()
+	userId := user.ID
 
 	var hasPass bool
 
@@ -44,7 +44,7 @@ func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurren
 
 	u.config.Analytics.Enqueue(
 		"user:current",
-		userId,
+		userId.String(),
 		nil,
 		map[string]interface{}{
 			"email": user.Email,

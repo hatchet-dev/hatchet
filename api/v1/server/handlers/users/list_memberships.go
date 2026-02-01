@@ -10,7 +10,7 @@ import (
 
 func (t *UserService) TenantMembershipsList(ctx echo.Context, request gen.TenantMembershipsListRequestObject) (gen.TenantMembershipsListResponseObject, error) {
 	user := ctx.Get("user").(*sqlcv1.User)
-	userId := user.ID.String()
+	userId := user.ID
 
 	memberships, err := t.config.V1.User().ListTenantMemberships(ctx.Request().Context(), userId)
 

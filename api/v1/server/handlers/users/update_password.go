@@ -34,7 +34,7 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 		return gen.UserUpdatePassword400JSONResponse(*apiErrors), nil
 	}
 
-	userId := existingUser.ID.String()
+	userId := existingUser.ID
 
 	userPass, err := u.config.V1.User().GetUserPassword(ctx.Request().Context(), userId)
 

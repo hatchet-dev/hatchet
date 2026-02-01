@@ -98,7 +98,7 @@ func (u *UserService) upsertGoogleUserFromToken(ctx context.Context, config *ser
 
 	switch err {
 	case nil:
-		user, err = u.config.V1.User().UpdateUser(ctx, user.ID.String(), &v1.UpdateUserOpts{
+		user, err = u.config.V1.User().UpdateUser(ctx, user.ID, &v1.UpdateUserOpts{
 			EmailVerified: v1.BoolPtr(gInfo.EmailVerified),
 			Name:          v1.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,

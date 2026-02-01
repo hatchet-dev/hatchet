@@ -46,7 +46,7 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
-	userPass, err := u.config.V1.User().GetUserPassword(ctx.Request().Context(), existingUser.ID.String())
+	userPass, err := u.config.V1.User().GetUserPassword(ctx.Request().Context(), existingUser.ID)
 
 	if err != nil {
 		u.config.Logger.Err(err).Msg("failed to get user password")

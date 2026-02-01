@@ -24,7 +24,7 @@ func (t *TenantService) AlertEmailGroupUpdate(ctx echo.Context, request gen.Aler
 		Emails: request.Body.Emails,
 	}
 
-	emailGroup, err := t.config.V1.TenantAlertingSettings().UpdateTenantAlertGroup(ctx.Request().Context(), emailGroup.ID.String(), updateOpts)
+	emailGroup, err := t.config.V1.TenantAlertingSettings().UpdateTenantAlertGroup(ctx.Request().Context(), emailGroup.ID, updateOpts)
 
 	if err != nil {
 		return nil, err
