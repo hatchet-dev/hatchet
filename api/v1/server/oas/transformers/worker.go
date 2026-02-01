@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -26,10 +27,9 @@ func ToWorkerLabels(labels []*sqlcv1.ListWorkerLabelsRow) *[]gen.WorkerLabel {
 			value = nil
 		}
 
-		id := fmt.Sprintf("%d", labels[i].ID)
-
 		resp[i] = gen.WorkerLabel{
-			Metadata: *toAPIMetadata(id, labels[i].CreatedAt.Time, labels[i].UpdatedAt.Time),
+			// fixme: `id` needs to be a uuid
+			Metadata: *toAPIMetadata(uuid.Nil, labels[i].CreatedAt.Time, labels[i].UpdatedAt.Time),
 			Key:      labels[i].Key,
 			Value:    value,
 		}
