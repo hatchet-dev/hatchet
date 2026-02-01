@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
@@ -890,12 +892,29 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	durVerify := time.Since(checkpoint)
 	checkpoint = time.Now()
 
+	finalizedRootIdsSet := make(map[string]bool)
+	for _, rootId := range finalizedRootIds {
+		finalizedRootIdsSet[rootId] = true
+	}
+
 	taskExternalIds := make([]string, 0, len(tasks))
 	taskExternalIdsToRootIds := make(map[string]string)
 
 	for _, task := range tasks {
-		taskExternalIds = append(taskExternalIds, sqlchelpers.UUIDToStr(task.ExternalID))
-		taskExternalIdsToRootIds[sqlchelpers.UUIDToStr(task.ExternalID)] = sqlchelpers.UUIDToStr(task.WorkflowRunExternalID)
+		rootId := sqlchelpers.UUIDToStr(task.WorkflowRunExternalID)
+		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+
+		if finalizedRootIdsSet[rootId] {
+			taskExternalIds = append(taskExternalIds, taskExternalId)
+			taskExternalIdsToRootIds[taskExternalId] = rootId
+		}
+	}
+
+	if len(taskExternalIds) == 0 {
+		if err := commit(ctx); err != nil {
+			return nil, err
+		}
+		return []*ListFinalizedWorkflowRunsResponse{}, nil
 	}
 
 	outputEvents, err := r.listTaskOutputEvents(ctx, tx, tenantId, taskExternalIds)
@@ -925,14 +944,8 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 		taskExternalIdsHasOutputEvent[outputEvent.TaskExternalId] = true
 	}
 
-	finalizedRootIdsMap := make(map[string]bool)
-
-	for _, rootId := range finalizedRootIds {
-		finalizedRootIdsMap[rootId] = true
-	}
-
 	// if tasks that we read originally don't have a TaskOutputEvent, they're not finalized, so set their root
-	// ids in finalizedRootIdsMap to false
+	// ids in finalizedRootIdsSet to false (safety check for race conditions)
 	for _, taskExternalId := range taskExternalIds {
 		if !taskExternalIdsHasOutputEvent[taskExternalId] {
 			rootId, ok := taskExternalIdsToRootIds[taskExternalId]
@@ -942,7 +955,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 				continue
 			}
 
-			finalizedRootIdsMap[rootId] = false
+			finalizedRootIdsSet[rootId] = false
 		}
 	}
 
@@ -950,7 +963,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	eventsForFinalizedRootIds := make(map[string][]*TaskOutputEvent)
 
 	for _, rootId := range finalizedRootIds {
-		if !finalizedRootIdsMap[rootId] {
+		if !finalizedRootIdsSet[rootId] {
 			continue
 		}
 
@@ -3712,85 +3725,143 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 
 func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 	const timeout = 1000 * 60 // 1 minute timeout
-	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool, r.l, timeout)
-
-	if err != nil {
-		return false, fmt.Errorf("error beginning transaction: %v", err)
-	}
-
-	defer rollback()
-
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("cleanup-tables"))
-
-	if err != nil {
-		return false, fmt.Errorf("error acquiring advisory lock: %v", err)
-	}
-
-	if !acquired {
-		return false, nil
-	}
-
 	const batchSize = 1000
-	shouldContinue := false
 
-	result, err := r.queries.CleanupV1QueueItem(ctx, tx, batchSize)
-	if err != nil {
-		return false, fmt.Errorf("error cleaning up v1_queue_item: %v", err)
+	var (
+		mu             sync.Mutex
+		shouldContinue bool
+	)
+	eg, ctx := errgroup.WithContext(ctx)
+
+	// Helper to run a cleanup operation with its own transaction and advisory lock
+	runCleanup := func(lockName string, cleanupFn func(ctx context.Context, tx sqlcv1.DBTX) error) func() error {
+		return func() error {
+			tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool, r.l, timeout)
+			if err != nil {
+				return fmt.Errorf("error beginning transaction for %s: %v", lockName, err)
+			}
+			defer rollback()
+
+			acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash(lockName))
+			if err != nil {
+				return fmt.Errorf("error acquiring advisory lock for %s: %v", lockName, err)
+			}
+			if !acquired {
+				return nil
+			}
+
+			if err := cleanupFn(ctx, tx); err != nil {
+				return fmt.Errorf("error cleaning up %s: %w", lockName, err)
+			}
+
+			if err := commit(ctx); err != nil {
+				return fmt.Errorf("error committing transaction for %s: %v", lockName, err)
+			}
+
+			return nil
+		}
 	}
 
-	if result.RowsAffected() == batchSize {
-		shouldContinue = true
-	}
+	// CleanupV1QueueItem
+	eg.Go(runCleanup("cleanup-v1-queue-item", func(ctx context.Context, tx sqlcv1.DBTX) error {
+		result, err := r.queries.CleanupV1QueueItem(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_queue_item: %v", err)
+		}
+		if result.RowsAffected() == batchSize {
+			mu.Lock()
+			shouldContinue = true
+			mu.Unlock()
+		}
+		return nil
+	}))
 
-	result, err = r.queries.CleanupV1RetryQueueItem(ctx, tx, batchSize)
-	if err != nil {
-		return false, fmt.Errorf("error cleaning up v1_retry_queue_item: %v", err)
-	}
+	// CleanupV1RetryQueueItem
+	eg.Go(runCleanup("cleanup-v1-retry-queue-item", func(ctx context.Context, tx sqlcv1.DBTX) error {
+		result, err := r.queries.CleanupV1RetryQueueItem(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_retry_queue_item: %v", err)
+		}
+		if result.RowsAffected() == batchSize {
+			mu.Lock()
+			shouldContinue = true
+			mu.Unlock()
+		}
+		return nil
+	}))
 
-	if result.RowsAffected() == batchSize {
-		shouldContinue = true
-	}
+	// CleanupV1RateLimitedQueueItem
+	eg.Go(runCleanup("cleanup-v1-rate-limited-queue-item", func(ctx context.Context, tx sqlcv1.DBTX) error {
+		result, err := r.queries.CleanupV1RateLimitedQueueItem(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_rate_limited_queue_items: %v", err)
+		}
+		if result.RowsAffected() == batchSize {
+			mu.Lock()
+			shouldContinue = true
+			mu.Unlock()
+		}
+		return nil
+	}))
 
-	result, err = r.queries.CleanupV1RateLimitedQueueItem(ctx, tx, batchSize)
-	if err != nil {
-		return false, fmt.Errorf("error cleaning up v1_rate_limited_queue_items: %v", err)
-	}
+	// CleanupMatchWithMatchConditions
+	eg.Go(runCleanup("cleanup-v1-match", func(ctx context.Context, tx sqlcv1.DBTX) error {
+		today := time.Now().UTC()
+		removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
-	if result.RowsAffected() == batchSize {
-		shouldContinue = true
-	}
+		err := r.queries.CleanupMatchWithMatchConditions(ctx, tx, pgtype.Date{
+			Time:  removeBefore,
+			Valid: true,
+		})
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_match and v1_match_condition: %v", err)
+		}
+		return nil
+	}))
 
-	today := time.Now().UTC()
-	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
+	// CleanupV1TaskRuntime
+	eg.Go(runCleanup("cleanup-v1-task-runtime", func(ctx context.Context, tx sqlcv1.DBTX) error {
+		result, err := r.queries.CleanupV1TaskRuntime(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_task_runtime: %v", err)
+		}
+		if result.RowsAffected() == batchSize {
+			mu.Lock()
+			shouldContinue = true
+			mu.Unlock()
+		}
+		return nil
+	}))
 
-	err = r.queries.CleanupMatchWithMatchConditions(ctx, tx, pgtype.Date{
-		Time:  removeBefore,
-		Valid: true,
-	})
-	if err != nil {
-		return false, fmt.Errorf("error cleaning up v1_match and v1_match_condition: %v", err)
-	}
+	// CleanupV1ConcurrencySlot
+	eg.Go(runCleanup("cleanup-v1-concurrency-slot", func(ctx context.Context, tx sqlcv1.DBTX) error {
+		result, err := r.queries.CleanupV1ConcurrencySlot(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_concurrency_slot: %v", err)
+		}
+		if result.RowsAffected() == batchSize {
+			mu.Lock()
+			shouldContinue = true
+			mu.Unlock()
+		}
+		return nil
+	}))
 
-	result, err = r.queries.CleanupV1TaskRuntime(ctx, tx, batchSize)
-	if err != nil {
-		return false, fmt.Errorf("error cleaning up v1_task_runtime: %v", err)
-	}
+	// ReactivateInactiveQueuesWithItems
+	eg.Go(runCleanup("cleanup-reactivate-queues", func(ctx context.Context, tx sqlcv1.DBTX) error {
+		result, err := r.queries.ReactivateInactiveQueuesWithItems(ctx, tx)
+		if err != nil {
+			return fmt.Errorf("error reactivating inactive queues: %v", err)
+		}
+		if result.RowsAffected() > 0 {
+			// FIXME: this is an error because there is an underlying bug that needs to be fixed
+			r.l.Error().Msgf("reactivated %d inactive queues with pending items", result.RowsAffected())
+		}
+		return nil
+	}))
 
-	if result.RowsAffected() == batchSize {
-		shouldContinue = true
-	}
-
-	result, err = r.queries.CleanupV1ConcurrencySlot(ctx, tx, batchSize)
-	if err != nil {
-		return false, fmt.Errorf("error cleaning up v1_concurrency_slot: %v", err)
-	}
-
-	if result.RowsAffected() == batchSize {
-		shouldContinue = true
-	}
-
-	if err := commit(ctx); err != nil {
-		return false, fmt.Errorf("error committing transaction: %v", err)
+	if err := eg.Wait(); err != nil {
+		return false, err
 	}
 
 	return shouldContinue, nil

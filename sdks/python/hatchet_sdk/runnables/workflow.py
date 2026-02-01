@@ -1,4 +1,5 @@
 import asyncio
+import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import cached_property
@@ -202,6 +203,19 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             _concurrency = None
             _concurrency_arr = []
 
+        # Hack to not send a JSON schema if the input type is None/EmptyModel
+        input_type = self.config.input_validator.core_schema.get("cls")
+
+        if input_type is None or input_type is EmptyModel:
+            json_schema = None
+        else:
+            try:
+                json_schema = json.dumps(
+                    self.config.input_validator.json_schema()
+                ).encode("utf-8")
+            except Exception:
+                json_schema = None
+
         return CreateWorkflowVersionRequest(
             name=name,
             description=self.config.description,
@@ -219,6 +233,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             concurrency_arr=_concurrency_arr,
             default_priority=self.config.default_priority,
             default_filters=[f.to_proto() for f in self.config.default_filters],
+            input_json_schema=json_schema,
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
@@ -228,6 +243,24 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 ctx.workflow_input, context=HATCHET_PYDANTIC_SENTINEL
             ),
         )
+
+    def _combine_additional_metadata(
+        self, additional_metadata_from_trigger: JSONSerializableMapping
+    ) -> JSONSerializableMapping:
+        return {
+            **self.config.default_additional_metadata,
+            **additional_metadata_from_trigger,
+        }
+
+    def _create_options_with_combined_additional_meta(
+        self, options: TriggerWorkflowOptions
+    ) -> TriggerWorkflowOptions:
+        options_copy = options.model_copy()
+        options_copy.additional_metadata = self._combine_additional_metadata(
+            options.additional_metadata
+        )
+
+        return options_copy
 
     @property
     def input_validator(self) -> type[TWorkflowInput]:
@@ -270,7 +303,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return WorkflowRunTriggerConfig(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
-            options=options,
+            options=self._create_options_with_combined_additional_meta(options),
             key=key,
         )
 
@@ -605,7 +638,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         return self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
-            options=options,
+            options=self._create_options_with_combined_additional_meta(options),
         )
 
     def run(
@@ -627,7 +660,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ref = self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
-            options=options,
+            options=self._create_options_with_combined_additional_meta(options),
         )
 
         return ref.result()
@@ -650,7 +683,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
-            options=options,
+            options=self._create_options_with_combined_additional_meta(options),
         )
 
     async def aio_run(
@@ -671,7 +704,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
-            options=options,
+            options=self._create_options_with_combined_additional_meta(options),
         )
 
         return await ref.aio_result()

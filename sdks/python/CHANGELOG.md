@@ -5,6 +5,28 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.14] - 2026-01-31
+
+### Changed
+
+- Allows `None` to be sent from `send_step_action_event` to help limit an internal error on the engine.
+
+## [1.22.13] - 2026-01-29
+
+### Added
+
+- Sends the `task_retry_count` when sending logs to the engine to enable filtering on the frontend.
+
+## [1.22.12] - 2026-01-28
+
+### Added
+
+- Adds a `default_additional_metadata` to the `hatchet.workflow`, `hatchet.task`, and `hatchet.durable_task` methods, which allows you to declaratively provide additional metadata that will be attached to each run of the workflow or task by default.
+
+### Internal Only
+
+- Sends a JSON schema to the engine on workflow registration in order to power autocomplete for triggering workflows from the dashboard.
+
 ## [1.22.11] - 2026-01-27
 
 ### Changed

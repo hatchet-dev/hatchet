@@ -93,7 +93,7 @@ class DispatcherClient:
         self,
         action: Action,
         event_type: StepActionEventType,
-        payload: str,
+        payload: str | None,
         should_not_retry: bool,
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None:
         try:
@@ -116,7 +116,7 @@ class DispatcherClient:
         self,
         action: Action,
         event_type: StepActionEventType,
-        payload: str,
+        payload: str | None,
         should_not_retry: bool,
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse]:
         if not self.aio_client:

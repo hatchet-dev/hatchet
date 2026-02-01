@@ -94,6 +94,7 @@ message CreateWorkflowVersionRequest {
     optional int32 default_priority = 11; // (optional) the default priority for the workflow
     repeated Concurrency concurrency_arr = 12; // (optional) the workflow concurrency options
     repeated DefaultFilter default_filters = 13; // (optional) the default filters for the workflow
+    optional bytes input_json_schema = 14; // (optional) the JSON schema for the workflow input
 }
 
 

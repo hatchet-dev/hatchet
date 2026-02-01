@@ -127,6 +127,9 @@ WorkflowVersion:
       type: array
       items:
         $ref: "#/ConcurrencySetting"
+    inputJsonSchema:
+      type: object
+      description: The JSON schema for the workflow input.
   required:
     - metadata
     - version

@@ -23,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -355,6 +356,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
+			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 		)
 
 		if err != nil {
@@ -405,6 +407,15 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
+		oc, err := otelcol.NewOTelCollector(
+			otelcol.WithRepository(sc.V1),
+			otelcol.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create otel collector: %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
@@ -412,6 +423,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpc.WithDispatcherV1(dv1),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
+			grpc.WithOTelCollector(oc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -711,6 +723,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
+			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 		)
 
 		if err != nil {
@@ -763,6 +776,15 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
+		oc, err := otelcol.NewOTelCollector(
+			otelcol.WithRepository(sc.V1),
+			otelcol.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create otel collector: %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
@@ -770,6 +792,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpc.WithDispatcherV1(dv1),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
+			grpc.WithOTelCollector(oc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
