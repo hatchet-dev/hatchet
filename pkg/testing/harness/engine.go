@@ -79,6 +79,7 @@ func RunTestWithEngine(m *testing.M) {
 			goleak.IgnoreTopFunction("github.com/rabbitmq/amqp091-go.(*consumers).buffer"),
 			goleak.IgnoreTopFunction("google.golang.org/grpc/internal/transport.(*http2Server).keepalive"),
 			goleak.IgnoreTopFunction("github.com/hashicorp/golang-lru/v2/expirable.NewLRU[...].func1"),
+			goleak.IgnoreAnyFunction("github.com/hashicorp/golang-lru/v2/expirable.(*LRU[...]).deleteExpired"),
 		); err != nil {
 			fmt.Fprintf(os.Stderr, "goleak: Errors on successful test run: %v\n", err)
 			exitCode = 1
@@ -122,6 +123,7 @@ func startEngine() func() {
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL", "error")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT", "console")
 	os.Setenv("SERVER_DEFAULT_ENGINE_VERSION", "V1")
+	os.Setenv("SERVER_ENABLE_DURABLE_USER_EVENT_LOG", "true")
 
 	var cleanupRabbitMQ func() error
 	if rabbitmqEnabled {
