@@ -354,7 +354,7 @@ type CreateWorkflowVersionOpts struct {
 	ScheduleTimeout   *string                  `protobuf:"bytes,9,opt,name=scheduleTimeout,proto3,oneof" json:"scheduleTimeout,omitempty"`     // (optional) the timeout for the schedule
 	CronInput         *string                  `protobuf:"bytes,10,opt,name=cronInput,proto3,oneof" json:"cronInput,omitempty"`                // (optional) the input for the cron trigger
 	OnFailureJob      *CreateWorkflowJobOpts   `protobuf:"bytes,11,opt,name=onFailureJob,proto3,oneof" json:"onFailureJob,omitempty"`          // (optional) the job to run on failure
-	Sticky            *StickyStrategy          `protobuf:"varint,12,opt,name=sticky,proto3,enum=StickyStrategy,oneof" json:"sticky,omitempty"` // (optional) the sticky strategy for assigning steps to workers
+	Sticky            *StickyStrategy          `protobuf:"varint,12,opt,name=sticky,proto3,enum=StickyStrategy,oneof" json:"sticky,omitempty"` // (optional) the sticky strategy for assigning tasks to workers
 	Kind              *WorkflowKind            `protobuf:"varint,13,opt,name=kind,proto3,enum=WorkflowKind,oneof" json:"kind,omitempty"`       // (optional) the kind of workflow
 	DefaultPriority   *int32                   `protobuf:"varint,14,opt,name=defaultPriority,proto3,oneof" json:"defaultPriority,omitempty"`   // (optional) the priority of the workflow
 }
@@ -568,7 +568,7 @@ type CreateWorkflowJobOpts struct {
 
 	Name        string                    `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`               // (required) the job name
 	Description string                    `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"` // (optional) the job description
-	Steps       []*CreateWorkflowStepOpts `protobuf:"bytes,4,rep,name=steps,proto3" json:"steps,omitempty"`             // (required) the job steps
+	Steps       []*CreateWorkflowStepOpts `protobuf:"bytes,4,rep,name=steps,proto3" json:"steps,omitempty"`             // (required) the job tasks
 }
 
 func (x *CreateWorkflowJobOpts) Reset() {
@@ -715,23 +715,23 @@ func (x *DesiredWorkerLabels) GetWeight() int32 {
 	return 0
 }
 
-// CreateWorkflowStepOpts represents options to create a workflow step.
+// CreateWorkflowStepOpts represents options to create a workflow task.
 type CreateWorkflowStepOpts struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	ReadableId        string                          `protobuf:"bytes,1,opt,name=readableId,proto3" json:"readableId,omitempty"`                                                                                             // (required) the step name
-	Action            string                          `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`                                                                                                     // (required) the step action id
-	Timeout           string                          `protobuf:"bytes,3,opt,name=timeout,proto3" json:"timeout,omitempty"`                                                                                                   // (optional) the step timeout
-	Inputs            string                          `protobuf:"bytes,4,opt,name=inputs,proto3" json:"inputs,omitempty"`                                                                                                     // (optional) the step inputs, assuming string representation of JSON
-	Parents           []string                        `protobuf:"bytes,5,rep,name=parents,proto3" json:"parents,omitempty"`                                                                                                   // (optional) the step parents. if none are passed in, this is a root step
-	UserData          string                          `protobuf:"bytes,6,opt,name=userData,proto3" json:"userData,omitempty"`                                                                                                 // (optional) the custom step user data, assuming string representation of JSON
-	Retries           int32                           `protobuf:"varint,7,opt,name=retries,proto3" json:"retries,omitempty"`                                                                                                  // (optional) the number of retries for the step, default 0
-	RateLimits        []*CreateStepRateLimit          `protobuf:"bytes,8,rep,name=rateLimits,proto3" json:"rateLimits,omitempty"`                                                                                             // (optional) the rate limits for the step
-	WorkerLabels      map[string]*DesiredWorkerLabels `protobuf:"bytes,9,rep,name=workerLabels,proto3" json:"workerLabels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // (optional) the desired worker affinity state for the step
-	BackoffFactor     *float32                        `protobuf:"fixed32,10,opt,name=backoffFactor,proto3,oneof" json:"backoffFactor,omitempty"`                                                                              // (optional) the retry backoff factor for the step
-	BackoffMaxSeconds *int32                          `protobuf:"varint,11,opt,name=backoffMaxSeconds,proto3,oneof" json:"backoffMaxSeconds,omitempty"`                                                                       // (optional) the maximum backoff time for the step
+	ReadableId        string                          `protobuf:"bytes,1,opt,name=readableId,proto3" json:"readableId,omitempty"`                                                                                             // (required) the task name
+	Action            string                          `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`                                                                                                     // (required) the task action id
+	Timeout           string                          `protobuf:"bytes,3,opt,name=timeout,proto3" json:"timeout,omitempty"`                                                                                                   // (optional) the task timeout
+	Inputs            string                          `protobuf:"bytes,4,opt,name=inputs,proto3" json:"inputs,omitempty"`                                                                                                     // (optional) the task inputs, assuming string representation of JSON
+	Parents           []string                        `protobuf:"bytes,5,rep,name=parents,proto3" json:"parents,omitempty"`                                                                                                   // (optional) the task parents. if none are passed in, this is a root task
+	UserData          string                          `protobuf:"bytes,6,opt,name=userData,proto3" json:"userData,omitempty"`                                                                                                 // (optional) the custom task user data, assuming string representation of JSON
+	Retries           int32                           `protobuf:"varint,7,opt,name=retries,proto3" json:"retries,omitempty"`                                                                                                  // (optional) the number of retries for the task, default 0
+	RateLimits        []*CreateStepRateLimit          `protobuf:"bytes,8,rep,name=rateLimits,proto3" json:"rateLimits,omitempty"`                                                                                             // (optional) the rate limits for the task
+	WorkerLabels      map[string]*DesiredWorkerLabels `protobuf:"bytes,9,rep,name=workerLabels,proto3" json:"workerLabels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // (optional) the desired worker affinity state for the task
+	BackoffFactor     *float32                        `protobuf:"fixed32,10,opt,name=backoffFactor,proto3,oneof" json:"backoffFactor,omitempty"`                                                                              // (optional) the retry backoff factor for the task
+	BackoffMaxSeconds *int32                          `protobuf:"varint,11,opt,name=backoffMaxSeconds,proto3,oneof" json:"backoffMaxSeconds,omitempty"`                                                                       // (optional) the maximum backoff time for the task
 }
 
 func (x *CreateWorkflowStepOpts) Reset() {
@@ -849,7 +849,7 @@ type CreateStepRateLimit struct {
 	unknownFields protoimpl.UnknownFields
 
 	Key             string             `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`                                         // (required) the key for the rate limit
-	Units           *int32             `protobuf:"varint,2,opt,name=units,proto3,oneof" json:"units,omitempty"`                              // (optional) the number of units this step consumes
+	Units           *int32             `protobuf:"varint,2,opt,name=units,proto3,oneof" json:"units,omitempty"`                              // (optional) the number of units this task consumes
 	KeyExpr         *string            `protobuf:"bytes,3,opt,name=keyExpr,proto3,oneof" json:"keyExpr,omitempty"`                           // (optional) a CEL expression for determining the rate limit key
 	UnitsExpr       *string            `protobuf:"bytes,4,opt,name=unitsExpr,proto3,oneof" json:"unitsExpr,omitempty"`                       // (optional) a CEL expression for determining the number of units consumed
 	LimitValuesExpr *string            `protobuf:"bytes,5,opt,name=limitValuesExpr,proto3,oneof" json:"limitValuesExpr,omitempty"`           // (optional) a CEL expression for determining the total amount of rate limit units
@@ -1472,7 +1472,7 @@ type TriggerWorkflowRequest struct {
 	// (optional) desired worker id for the workflow run,
 	// requires the workflow definition to have a sticky strategy
 	DesiredWorkerId *string `protobuf:"bytes,8,opt,name=desiredWorkerId,proto3,oneof" json:"desiredWorkerId,omitempty"`
-	// (optional) override for the priority of the workflow steps, will set all steps to this priority
+	// (optional) override for the priority of the workflow tasks, will set all tasks to this priority
 	Priority *int32 `protobuf:"varint,9,opt,name=priority,proto3,oneof" json:"priority,omitempty"`
 }
 

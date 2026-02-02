@@ -1184,7 +1184,7 @@ type GroupKeyActionEvent struct {
 	// the action id
 	ActionId       string                 `protobuf:"bytes,4,opt,name=actionId,proto3" json:"actionId,omitempty"`
 	EventTimestamp *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=eventTimestamp,proto3" json:"eventTimestamp,omitempty"`
-	// the step event type
+	// the task event type
 	EventType GroupKeyActionEventType `protobuf:"varint,6,opt,name=eventType,proto3,enum=GroupKeyActionEventType" json:"eventType,omitempty"`
 	// the event payload
 	EventPayload string `protobuf:"bytes,7,opt,name=eventPayload,proto3" json:"eventPayload,omitempty"`
@@ -1289,7 +1289,7 @@ type StepActionEvent struct {
 	// the action id
 	ActionId       string                 `protobuf:"bytes,6,opt,name=actionId,proto3" json:"actionId,omitempty"`
 	EventTimestamp *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=eventTimestamp,proto3" json:"eventTimestamp,omitempty"`
-	// the step event type
+	// the task event type
 	EventType StepActionEventType `protobuf:"varint,8,opt,name=eventType,proto3,enum=StepActionEventType" json:"eventType,omitempty"`
 	// the event payload
 	EventPayload string `protobuf:"bytes,9,opt,name=eventPayload,proto3" json:"eventPayload,omitempty"`
@@ -1595,9 +1595,9 @@ type WorkflowEvent struct {
 	// whether this is the last event for the workflow run - server
 	// will hang up the connection but clients might want to case
 	Hangup bool `protobuf:"varint,7,opt,name=hangup,proto3" json:"hangup,omitempty"`
-	// (optional) the max number of retries this step can handle
+	// (optional) the max number of retries this task can handle
 	StepRetries *int32 `protobuf:"varint,8,opt,name=stepRetries,proto3,oneof" json:"stepRetries,omitempty"`
-	// (optional) the retry count of this step
+	// (optional) the retry count of this task
 	RetryCount *int32 `protobuf:"varint,9,opt,name=retryCount,proto3,oneof" json:"retryCount,omitempty"`
 	EventIndex *int64 `protobuf:"varint,10,opt,name=eventIndex,proto3,oneof" json:"eventIndex,omitempty"`
 }
@@ -1860,7 +1860,7 @@ type OverridesData struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// the step run id
+	// the task run id
 	StepRunId string `protobuf:"bytes,1,opt,name=stepRunId,proto3" json:"stepRunId,omitempty"`
 	// the path of the data to set
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
@@ -2068,7 +2068,7 @@ type RefreshTimeoutRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// the id of the step run to release
+	// the id of the task run to release
 	StepRunId          string `protobuf:"bytes,1,opt,name=stepRunId,proto3" json:"stepRunId,omitempty"`
 	IncrementTimeoutBy string `protobuf:"bytes,2,opt,name=incrementTimeoutBy,proto3" json:"incrementTimeoutBy,omitempty"`
 }
@@ -2171,7 +2171,7 @@ type ReleaseSlotRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// the id of the step run to release
+	// the id of the task run to release
 	StepRunId string `protobuf:"bytes,1,opt,name=stepRunId,proto3" json:"stepRunId,omitempty"`
 }
 
