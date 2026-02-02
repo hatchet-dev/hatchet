@@ -423,7 +423,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloads [][]byte) (err error) {
+func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId string, payloads [][]byte) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoverErr := recoveryutils.RecoverWithAlert(tc.l, tc.a, r)
@@ -454,7 +454,7 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 	return fmt.Errorf("unknown message id: %s", msgId)
 }
 
-func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	offloads := make([]v1.OffloadPayloadOpts, 0)
 
 	msgs := msgqueue.JSONConvert[v1.OLAPPayloadsToOffload](payloads)
@@ -473,7 +473,7 @@ func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId
 	return tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloads)
 }
 
-func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	failures := make([]v1.CELEvaluationFailure, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CELEvaluationFailures](payloads)
@@ -493,14 +493,14 @@ func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, te
 }
 
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository
-func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	createTaskOpts := make([]*v1.V1TaskWithPayload, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
 	for _, msg := range msgs {
-		if !tc.sample(sqlchelpers.UUIDToStr(msg.WorkflowRunID)) {
-			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.ID, sqlchelpers.UUIDToStr(msg.WorkflowRunID))
+		if !tc.sample(msg.WorkflowRunID.String()) {
+			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.ID, msg.WorkflowRunID.String())
 			continue
 		}
 
@@ -511,13 +511,13 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 }
 
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository
-func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	createDAGOpts := make([]*v1.DAGWithData, 0)
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
 
 	for _, msg := range msgs {
-		if !tc.sample(sqlchelpers.UUIDToStr(msg.ExternalID)) {
-			tc.l.Debug().Msgf("skipping dag %s", sqlchelpers.UUIDToStr(msg.ExternalID))
+		if !tc.sample(msg.ExternalID.String()) {
+			tc.l.Debug().Msgf("skipping dag %s", msg.ExternalID.String())
 			continue
 		}
 
@@ -527,15 +527,15 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 	return tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
 }
 
-func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
 
-	seenEventKeysSet := make(map[string]bool)
+	seenEventKeysSet := make(map[uuid.UUID]bool)
 
 	bulkCreateTriggersParams := make([]v1.EventTriggersFromExternalId, 0)
 
-	tenantIds := make([]pgtype.UUID, 0)
-	externalIds := make([]pgtype.UUID, 0)
+	tenantIds := make([]uuid.UUID, 0)
+	externalIds := make([]uuid.UUID, 0)
 	seenAts := make([]pgtype.Timestamptz, 0)
 	keys := make([]string, 0)
 	payloadstoInsert := make([][]byte, 0)
@@ -546,16 +546,16 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
 			if payload.MaybeRunId != nil && payload.MaybeRunInsertedAt != nil {
-				var filterId pgtype.UUID
+				var filterId uuid.UUID
 
 				if payload.FilterId != nil {
-					filterId = sqlchelpers.UUIDFromStr(*payload.FilterId)
+					filterId = *payload.FilterId
 				}
 
 				bulkCreateTriggersParams = append(bulkCreateTriggersParams, v1.EventTriggersFromExternalId{
 					RunID:           *payload.MaybeRunId,
 					RunInsertedAt:   sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
-					EventExternalId: sqlchelpers.UUIDFromStr(payload.EventExternalId),
+					EventExternalId: payload.EventExternalId,
 					EventSeenAt:     sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
 					FilterId:        filterId,
 				})
@@ -568,8 +568,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			}
 
 			seenEventKeysSet[payload.EventExternalId] = true
-			tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(tenantId))
-			externalIds = append(externalIds, sqlchelpers.UUIDFromStr(payload.EventExternalId))
+			tenantIds = append(tenantIds, tenantId)
+			externalIds = append(externalIds, payload.EventExternalId)
 			seenAts = append(seenAts, sqlchelpers.TimestamptzFromTime(payload.EventSeenAt))
 			keys = append(keys, payload.EventKey)
 			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)
@@ -610,7 +610,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 }
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository
-func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.CreateMonitoringEventPayload](payloads)
 
 	taskIdsToLookup := make([]int64, len(msgs))
@@ -634,14 +634,14 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 	retryCounts := make([]int32, 0)
-	workerIds := make([]string, 0)
-	workflowIds := make([]pgtype.UUID, 0)
+	workerIds := make([]uuid.UUID, 0)
+	workflowIds := make([]uuid.UUID, 0)
 	eventTypes := make([]sqlcv1.V1EventTypeOlap, 0)
 	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
 	eventPayloads := make([]string, 0)
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
-	eventExternalIds := make([]pgtype.UUID, 0)
+	eventExternalIds := make([]*uuid.UUID, 0)
 
 	for _, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -651,8 +651,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			continue
 		}
 
-		if !tc.sample(sqlchelpers.UUIDToStr(taskMeta.WorkflowRunID)) {
-			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.TaskId, sqlchelpers.UUIDToStr(taskMeta.WorkflowRunID))
+		if !tc.sample(taskMeta.WorkflowRunID.String()) {
+			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.TaskId, taskMeta.WorkflowRunID.String())
 			continue
 		}
 
@@ -664,12 +664,13 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		eventPayloads = append(eventPayloads, msg.EventPayload)
 		eventMessages = append(eventMessages, msg.EventMessage)
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
-		eventExternalIds = append(eventExternalIds, sqlchelpers.UUIDFromStr(uuid.New().String()))
+		externalId := uuid.New()
+		eventExternalIds = append(eventExternalIds, &externalId)
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
 		} else {
-			workerIds = append(workerIds, "")
+			workerIds = append(workerIds, uuid.Nil)
 		}
 
 		switch msg.EventType {
@@ -721,14 +722,14 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	opts := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 
 	for i, taskId := range taskIds {
-		var workerId pgtype.UUID
+		var workerId *uuid.UUID
 
-		if workerIds[i] != "" {
-			workerId = sqlchelpers.UUIDFromStr(workerIds[i])
+		if workerIds[i] != uuid.Nil {
+			workerId = &workerIds[i]
 		}
 
 		event := sqlcv1.CreateTaskEventsOLAPParams{
-			TenantID:               sqlchelpers.UUIDFromStr(tenantId),
+			TenantID:               tenantId,
 			TaskID:                 taskId,
 			TaskInsertedAt:         taskInsertedAts[i],
 			WorkflowID:             workflowIds[i],
@@ -766,7 +767,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	}
 
 	offloadToExternalOpts := make([]v1.OffloadToExternalStoreOpts, 0)
-	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]pgtype.UUID)
+	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]*uuid.UUID)
 
 	for _, opt := range opts {
 		// generating a dummy id + inserted at to use for creating the external keys for the task events
@@ -782,8 +783,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		}] = opt.ExternalID
 
 		offloadToExternalOpts = append(offloadToExternalOpts, v1.OffloadToExternalStoreOpts{
-			TenantId:   v1.TenantID(tenantId),
-			ExternalID: v1.PayloadExternalId(opt.ExternalID.String()),
+			TenantId:   tenantId,
+			ExternalID: *opt.ExternalID,
 			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
 			Payload:    opt.Output,
 		})
@@ -822,7 +823,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	return nil
 }
 
-func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	createFailedWebhookValidationOpts := make([]v1.CreateIncomingWebhookFailureLogOpts, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.FailedWebhookValidationPayload](payloads)

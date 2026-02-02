@@ -28,7 +28,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -401,7 +400,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloads [][]byte) (err error) {
+func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId string, payloads [][]byte) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoverErr := recoveryutils.RecoverWithAlert(tc.l, tc.a, r)
@@ -434,7 +433,7 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 	return fmt.Errorf("unknown message id: %s", msgId)
 }
 
-func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCompleted")
 	defer span.End()
 
@@ -470,7 +469,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	// instrumentation
 	for range res.ReleasedTasks {
 		prometheus.SucceededTasks.Inc()
-		prometheus.TenantSucceededTasks.WithLabelValues(tenantId).Inc()
+		prometheus.TenantSucceededTasks.WithLabelValues(tenantId.String()).Inc()
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -478,7 +477,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	return tc.sendInternalEvents(ctx, tenantId, res.InternalEvents)
 }
 
-func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskFailed")
 	defer span.End()
 
@@ -557,7 +556,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 	return nil
 }
 
-func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, tenantId string, res *v1.FailTasksResponse) error {
+func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, tenantId uuid.UUID, res *v1.FailTasksResponse) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.processFailTasksResponse")
 	defer span.End()
 
@@ -575,13 +574,13 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 		// if the task is retried, don't send a message to the trigger queue
 		if _, ok := retriedTaskIds[e.TaskID]; ok {
 			prometheus.RetriedTasks.Inc()
-			prometheus.TenantRetriedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantRetriedTasks.WithLabelValues(tenantId.String()).Inc()
 			continue
 		}
 
 		internalEventsWithoutRetries = append(internalEventsWithoutRetries, e)
 		prometheus.FailedTasks.Inc()
-		prometheus.TenantFailedTasks.WithLabelValues(tenantId).Inc()
+		prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -615,7 +614,7 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 	return outerErr
 }
 
-func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCancelled")
 	defer span.End()
 
@@ -651,7 +650,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		if shouldTasksNotify[task.ID] {
 			tasksToSendToDispatcher = append(tasksToSendToDispatcher, tasktypes.SignalTaskCancelledPayload{
 				TaskId:     task.ID,
-				WorkerId:   sqlchelpers.UUIDToStr(task.WorkerID),
+				WorkerId:   task.WorkerID,
 				RetryCount: task.RetryCount,
 			})
 		}
@@ -723,13 +722,13 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	// instrumentation
 	for range res.ReleasedTasks {
 		prometheus.CancelledTasks.Inc()
-		prometheus.TenantCancelledTasks.WithLabelValues(tenantId).Inc()
+		prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
 	}
 
 	return err
 }
 
-func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
 	// problem that we don't have a clean way to solve (yet)
 	msgs := msgqueue.JSONConvert[tasktypes.CancelTasksPayload](payloads)
@@ -770,7 +769,7 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId s
 	})
 }
 
-func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	if !tc.replayEnabled {
 		tc.l.Debug().Msg("replay is disabled, skipping handleReplayTasks")
 		return nil
@@ -797,7 +796,7 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 
 	workflowRunIdToTasks := make(map[string][]v1.TaskIdInsertedAtRetryCount)
 	for _, task := range taskIdRetryCounts {
-		if !task.WorkflowRunExternalId.Valid {
+		if task.WorkflowRunExternalId == uuid.Nil {
 			// Use a random uuid to effectively send tasks one at a time
 			randomUuid := uuid.NewString()
 			workflowRunIdToTasks[randomUuid] = append(workflowRunIdToTasks[randomUuid], task.TaskIdInsertedAtRetryCount)
@@ -855,8 +854,8 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Context, tenantId string, releasedTasks []tasktypes.SignalTaskCancelledPayload) error {
-	workerIds := make([]string, 0)
+func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Context, tenantId uuid.UUID, releasedTasks []tasktypes.SignalTaskCancelledPayload) error {
+	workerIds := make([]uuid.UUID, 0)
 
 	for _, task := range releasedTasks {
 		workerIds = append(workerIds, task.WorkerId)
@@ -868,7 +867,7 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
 	}
 
-	workerIdToDispatcherId := make(map[string]string)
+	workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID)
 
 	for dispatcherId, workerIds := range dispatcherIdWorkerIds {
 		for _, workerId := range workerIds {
@@ -877,7 +876,7 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 	}
 
 	// assemble messages
-	dispatcherIdsToPayloads := make(map[string][]tasktypes.SignalTaskCancelledPayload)
+	dispatcherIdsToPayloads := make(map[uuid.UUID][]tasktypes.SignalTaskCancelledPayload)
 
 	for _, task := range releasedTasks {
 		workerId := task.WorkerId
@@ -914,7 +913,7 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 	return nil
 }
 
-func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, tenantId string, releasedTasks []*sqlcv1.ReleaseTasksRow) {
+func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, tenantId uuid.UUID, releasedTasks []*sqlcv1.ReleaseTasksRow) {
 	if len(releasedTasks) == 0 {
 		return
 	}
@@ -948,7 +947,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 
 	for _, releasedTask := range releasedTasks {
 		payloads = append(payloads, tasktypes.CandidateFinalizedPayload{
-			WorkflowRunId: sqlchelpers.UUIDToStr(releasedTask.WorkflowRunID),
+			WorkflowRunId: releasedTask.WorkflowRunID,
 		})
 	}
 
@@ -978,7 +977,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 }
 
 // handleProcessUserEvents is responsible for inserting tasks into the database based on event triggers.
-func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleProcessUserEvents")
 	defer span.End()
 
@@ -1001,9 +1000,9 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
-func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context, tenantId string, msgs []*tasktypes.UserEventTaskPayload) error {
+func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context, tenantId uuid.UUID, msgs []*tasktypes.UserEventTaskPayload) error {
 	opts := make([]v1.EventTriggerOpts, 0, len(msgs))
-	eventIdToOpts := make(map[string]v1.EventTriggerOpts)
+	eventIdToOpts := make(map[uuid.UUID]v1.EventTriggerOpts)
 
 	for _, msg := range msgs {
 		opt := v1.EventTriggerOpts{
@@ -1109,12 +1108,12 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 }
 
 // handleProcessUserEventMatches is responsible for signaling or creating tasks based on user event matches.
-func (tc *TasksControllerImpl) handleProcessUserEventMatches(ctx context.Context, tenantId string, payloads []*tasktypes.UserEventTaskPayload) error {
+func (tc *TasksControllerImpl) handleProcessUserEventMatches(ctx context.Context, tenantId uuid.UUID, payloads []*tasktypes.UserEventTaskPayload) error {
 	return tc.processUserEventMatches(ctx, tenantId, payloads)
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
-func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleProcessInternalEvents")
 	defer span.End()
 
@@ -1126,13 +1125,13 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
-func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads)
 	tasks, dags, err := tc.repov1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, msgs)
 
 	if err != nil {
 		if err == v1.ErrResourceExhausted {
-			tc.l.Warn().Str("tenantId", tenantId).Msg("resource exhausted while triggering workflows from names. Not retrying")
+			tc.l.Warn().Str("tenantId", tenantId.String()).Msg("resource exhausted while triggering workflows from names. Not retrying")
 
 			return nil
 		}
@@ -1153,7 +1152,7 @@ func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, ten
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId string, events []v1.InternalTaskEvent) error {
+func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId uuid.UUID, events []v1.InternalTaskEvent) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.sendInternalEvents")
 	defer span.End()
 
@@ -1180,7 +1179,7 @@ func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId 
 }
 
 // processUserEventMatches looks for user event matches
-func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tenantId string, events []*tasktypes.UserEventTaskPayload) error {
+func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tenantId uuid.UUID, events []*tasktypes.UserEventTaskPayload) error {
 	candidateMatches := make([]v1.CandidateEventMatch, 0)
 
 	for _, event := range events {
@@ -1210,17 +1209,18 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 	return nil
 }
 
-func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenantId string, events []*v1.InternalTaskEvent) error {
+func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenantId uuid.UUID, events []*v1.InternalTaskEvent) error {
 	candidateMatches := make([]v1.CandidateEventMatch, 0)
 
 	for _, event := range events {
+		resourceHint := event.TaskExternalID.String()
 		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
-			ID:             uuid.NewString(),
+			ID:             uuid.New(),
 			EventTimestamp: time.Now(),
 			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
 			Key:          string(event.EventType),
 			Data:         event.Data,
-			ResourceHint: &event.TaskExternalID,
+			ResourceHint: &resourceHint,
 		})
 	}
 
@@ -1249,7 +1249,7 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalDAGsCreated(ctx context.Context, tenantId string, dags []*v1.DAGWithData) error {
+func (tc *TasksControllerImpl) signalDAGsCreated(ctx context.Context, tenantId uuid.UUID, dags []*v1.DAGWithData) error {
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?
 	for _, dag := range dags {
@@ -1277,7 +1277,7 @@ func (tc *TasksControllerImpl) signalDAGsCreated(ctx context.Context, tenantId s
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	// group tasks by initial states
 	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
 	failedTasks := make([]*v1.V1TaskWithPayload, 0)
@@ -1369,7 +1369,7 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	if !tc.replayEnabled {
 		tc.l.Debug().Msg("replay is disabled, skipping signalTasksReplayedFromMatch")
 		return nil
@@ -1447,7 +1447,7 @@ func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context,
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	// group tasks by initial states
 	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
 	failedTasks := make([]*v1.V1TaskWithPayload, 0)
@@ -1520,7 +1520,7 @@ func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId 
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	// get all unique queues and notify them
 	queues := make(map[string]struct{})
 
@@ -1598,18 +1598,18 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 		}
 	}()
 
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		taskExternalId := task.ExternalID
 
 		dataBytes := v1.NewCancelledTaskOutputEventFromTask(task).Bytes()
 
@@ -1661,27 +1661,25 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.CancelledTasks.Inc()
-			prometheus.TenantCancelledTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
 		}
 	}()
 
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-
 		dataBytes := v1.NewFailedTaskOutputEventFromTask(task).Bytes()
 
 		internalEvents = append(internalEvents, v1.InternalTaskEvent{
 			TenantID:       tenantId,
 			TaskID:         task.ID,
-			TaskExternalID: taskExternalId,
+			TaskExternalID: task.ExternalID,
 			RetryCount:     task.RetryCount,
 			EventType:      sqlcv1.V1TaskEventTypeFAILED,
 			Data:           dataBytes,
@@ -1727,27 +1725,25 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.FailedTasks.Inc()
-			prometheus.TenantFailedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
 		}
 	}()
 
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-
 		dataBytes := v1.NewSkippedTaskOutputEventFromTask(task).Bytes()
 
 		internalEvents = append(internalEvents, v1.InternalTaskEvent{
 			TenantID:       tenantId,
 			TaskID:         task.ID,
-			TaskExternalID: taskExternalId,
+			TaskExternalID: task.ExternalID,
 			RetryCount:     task.RetryCount,
 			EventType:      sqlcv1.V1TaskEventTypeCOMPLETED,
 			Data:           dataBytes,
@@ -1792,16 +1788,16 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.SkippedTasks.Inc()
-			prometheus.TenantSkippedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantSkippedTasks.WithLabelValues(tenantId.String()).Inc()
 		}
 	}()
 
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId string, tasks []v1.TaskIdInsertedAtRetryCount) error {
+func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId uuid.UUID, tasks []v1.TaskIdInsertedAtRetryCount) error {
 	if !tc.replayEnabled {
 		tc.l.Debug().Msg("replay is disabled, skipping signalTasksReplayed")
 		return nil
@@ -1844,7 +1840,7 @@ func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId
 	return nil
 }
 
-func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId string, task v1.RetriedTask) error {
+func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.UUID, task v1.RetriedTask) error {
 	taskId := task.Id
 
 	retryMsg := fmt.Sprintf("This is retry number %d.", task.AppRetryCount)

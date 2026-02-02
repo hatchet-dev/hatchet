@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -28,7 +29,7 @@ func NewSharedTenantReader(mq MessageQueue) *SharedTenantReader {
 	}
 }
 
-func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func() error, error) {
+func (s *SharedTenantReader) Subscribe(tenantId uuid.UUID, postAck AckHook) (func() error, error) {
 	tenant, _ := s.tenants.LoadOrStore(tenantId, &sharedTenantSub{
 		fs: &sync.Map{},
 	})
@@ -111,7 +112,7 @@ func NewSharedBufferedTenantReader(mq MessageQueue) *SharedBufferedTenantReader 
 	}
 }
 
-func (s *SharedBufferedTenantReader) Subscribe(tenantId string, f DstFunc) (func() error, error) {
+func (s *SharedBufferedTenantReader) Subscribe(tenantId uuid.UUID, f DstFunc) (func() error, error) {
 	tenant, _ := s.tenants.LoadOrStore(tenantId, &sharedTenantSub{
 		fs: &sync.Map{},
 	})
@@ -138,7 +139,7 @@ func (s *SharedBufferedTenantReader) Subscribe(tenantId string, f DstFunc) (func
 			return nil, err
 		}
 
-		subBuffer := NewMQSubBuffer(q, s.mq, func(tenantId, msgId string, payloads [][]byte) error {
+		subBuffer := NewMQSubBuffer(q, s.mq, func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 			var innerErr error
 
 			t.fs.Range(func(key, value interface{}) bool {

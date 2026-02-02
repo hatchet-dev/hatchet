@@ -9,18 +9,18 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
-	tenantId string,
+	tenantId uuid.UUID,
 	task *v1.V1TaskWithPayload,
 ) error {
 	if ctx.Err() != nil {
@@ -177,7 +177,7 @@ func (worker *subscribedWorker) sendToWorker(
 
 func (worker *subscribedWorker) CancelTask(
 	ctx context.Context,
-	tenantId string,
+	tenantId uuid.UUID,
 	task *sqlcv1.V1Task,
 	retryCount int32,
 ) error {
@@ -197,7 +197,7 @@ func (worker *subscribedWorker) CancelTask(
 
 	if !incSuccess {
 		msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
-			task.TenantID.String(),
+			task.TenantID,
 			tasktypesv1.CreateMonitoringEventPayload{
 				TaskId:         task.ID,
 				RetryCount:     task.RetryCount,
@@ -242,20 +242,20 @@ func (worker *subscribedWorker) CancelTask(
 	return nil
 }
 
-func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
-	workflowId := sqlchelpers.UUIDToStr(task.WorkflowID)
-	workflowVersionId := sqlchelpers.UUIDToStr(task.WorkflowVersionID)
+func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
+	workflowId := task.WorkflowID.String()
+	workflowVersionId := task.WorkflowVersionID.String()
 
 	action := &contracts.AssignedAction{
-		TenantId:          tenantID,
-		JobId:             sqlchelpers.UUIDToStr(task.StepID), // FIXME
+		TenantId:          tenantID.String(),
+		JobId:             task.StepID.String(), // FIXME
 		JobName:           task.StepReadableID,
-		JobRunId:          sqlchelpers.UUIDToStr(task.ExternalID), // FIXME
-		TaskId:            sqlchelpers.UUIDToStr(task.StepID),
-		TaskRunId:         sqlchelpers.UUIDToStr(task.ExternalID),
+		JobRunId:          task.ExternalID.String(), // FIXME
+		TaskId:            task.StepID.String(),
+		TaskRunId:         task.ExternalID.String(),
 		ActionId:          task.ActionID,
 		StepName:          task.StepReadableID,
-		WorkflowRunId:     sqlchelpers.UUIDToStr(task.WorkflowRunID),
+		WorkflowRunId:     task.WorkflowRunID.String(),
 		RetryCount:        retryCount,
 		Priority:          task.Priority.Int32,
 		WorkflowId:        &workflowId,
@@ -267,8 +267,8 @@ func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int
 		action.AdditionalMetadata = &metadataStr
 	}
 
-	if task.ParentTaskExternalID.Valid {
-		parentId := sqlchelpers.UUIDToStr(task.ParentTaskExternalID)
+	if task.ParentTaskExternalID == nil || *task.ParentTaskExternalID != uuid.Nil {
+		parentId := task.ParentTaskExternalID.String()
 		action.ParentWorkflowRunId = &parentId
 	}
 
