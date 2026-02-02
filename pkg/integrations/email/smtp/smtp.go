@@ -104,6 +104,35 @@ func (s *SMTPService) SendTenantResourceLimitAlert(ctx context.Context, emails [
 	})
 }
 
+func (s *SMTPService) SendTemplateEmail(ctx context.Context, to, templateAlias string, templateModelData interface{}, bccSupport bool) error {
+	var bcc string
+
+	if bccSupport {
+		bcc = s.supportEmail
+	}
+
+	return s.sendRequest(ctx, &email.SendEmailFromTemplateRequest{
+		From:          fmt.Sprintf("%s <%s>", s.fromName, s.fromEmail),
+		To:            to,
+		Bcc:           bcc,
+		TemplateAlias: templateAlias,
+		TemplateModel: templateModelData,
+	})
+}
+
+func (s *SMTPService) SendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData interface{}, bccSupport bool) error {
+	if bccSupport {
+		bcc = fmt.Sprintf("%s,%s", bcc, s.supportEmail)
+	}
+
+	return s.sendRequest(ctx, &email.SendEmailFromTemplateRequest{
+		From:          fmt.Sprintf("%s <%s>", s.fromName, s.fromEmail),
+		Bcc:           bcc,
+		TemplateAlias: templateAlias,
+		TemplateModel: templateModelData,
+	})
+}
+
 func (s *SMTPService) sendRequest(ctx context.Context, req *email.SendEmailFromTemplateRequest) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
