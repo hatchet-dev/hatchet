@@ -142,6 +142,7 @@ from hatchet_sdk.conditions import (
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
+from hatchet_sdk.contracts.compat import apply_proto_aliases as _apply_proto_aliases
 from hatchet_sdk.contracts.workflows_pb2 import (
     CreateWorkflowVersionOpts,
     RateLimitDuration,
