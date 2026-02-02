@@ -28,12 +28,7 @@ func NewPostmarkClient(serverKey, fromEmail, fromName, supportEmail string) *Pos
 		Timeout: time.Minute,
 	}
 
-	return &PostmarkClient{
-		serverKey: serverKey,
-		fromEmail: fromEmail,
-		fromName:  fromName, supportEmail: supportEmail,
-		httpClient: httpClient,
-	}
+	return &PostmarkClient{serverKey, fromEmail, fromName, supportEmail, httpClient}
 }
 
 const (
@@ -47,48 +42,58 @@ func (c *PostmarkClient) IsValid() bool {
 }
 
 func (c *PostmarkClient) SendTenantInviteEmail(ctx context.Context, to string, data email.TenantInviteEmailData) error {
-	return c.sendRequest(ctx, &email.SendEmailFromTemplateRequest{
-		From:          fmt.Sprintf("%s <%s>", c.fromName, c.fromEmail),
-		To:            to,
-		TemplateAlias: email.UserInviteTemplate,
-		TemplateModel: data,
-	})
+	return c.SendTemplateEmail(ctx, to, email.UserInviteTemplate, data, false)
 }
 
 func (c *PostmarkClient) SendWorkflowRunFailedAlerts(ctx context.Context, emails []string, data email.WorkflowRunsFailedEmailData) error {
-	return c.sendRequest(ctx, &email.SendEmailFromTemplateRequest{
-		From:          fmt.Sprintf("%s <%s>", c.fromName, c.fromEmail),
-		Bcc:           strings.Join(emails, ","),
-		TemplateAlias: email.WorkflowRunsFailedTemplate,
-		TemplateModel: data,
-	})
+	return c.SendTemplateEmailBCC(ctx, strings.Join(emails, ","), email.WorkflowRunsFailedTemplate, data, false)
 }
 
 func (c *PostmarkClient) SendExpiringTokenEmail(ctx context.Context, emails []string, data email.ExpiringTokenEmailData) error {
-	return c.sendRequest(ctx, &email.SendEmailFromTemplateRequest{
-		From:          fmt.Sprintf("%s <%s>", c.fromName, c.fromEmail),
-		Bcc:           strings.Join(emails, ","),
-		TemplateAlias: email.TokenAlertExpiringTemplate,
-		TemplateModel: data,
-	})
+	return c.SendTemplateEmailBCC(ctx, strings.Join(emails, ","), email.TokenAlertExpiringTemplate, data, false)
 }
 
 func (c *PostmarkClient) SendTenantResourceLimitAlert(ctx context.Context, emails []string, data email.ResourceLimitAlertData) error {
-	return c.sendRequest(ctx, &email.SendEmailFromTemplateRequest{
+	return c.SendTemplateEmailBCC(ctx, strings.Join(emails, ","), email.ResourceLimitAlertTemplate, data, true)
+}
+
+func (c *PostmarkClient) SendTemplateEmail(ctx context.Context, to, templateAlias string, templateModelData interface{}, bccSupport bool) error {
+	var bcc string
+
+	if bccSupport {
+		bcc = c.supportEmail
+	}
+
+	return c.sendPostmarkEmail(ctx, &email.SendEmailFromTemplateRequest{
 		From:          fmt.Sprintf("%s <%s>", c.fromName, c.fromEmail),
-		Bcc:           strings.Join(append(emails, c.supportEmail), ","),
-		TemplateAlias: email.ResourceLimitAlertTemplate,
-		TemplateModel: data,
+		To:            to,
+		Bcc:           bcc,
+		TemplateAlias: templateAlias,
+		TemplateModel: templateModelData,
 	})
 }
 
-func (c *PostmarkClient) sendRequest(ctx context.Context, data *email.SendEmailFromTemplateRequest) error {
+func (c *PostmarkClient) SendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData interface{}, bccSupport bool) error {
+
+	if bccSupport {
+		bcc = fmt.Sprintf("%s,%s", bcc, c.supportEmail)
+	}
+
+	return c.sendPostmarkEmail(ctx, &email.SendEmailFromTemplateRequest{
+		From:          fmt.Sprintf("%s <%s>", c.fromName, c.fromEmail),
+		Bcc:           bcc,
+		TemplateAlias: templateAlias,
+		TemplateModel: templateModelData,
+	})
+}
+
+func (c *PostmarkClient) sendPostmarkEmail(ctx context.Context, data *email.SendEmailFromTemplateRequest) error {
 	reqURL, err := url.Parse(postmarkAPIURL)
 	if err != nil {
 		return nil
 	}
 
-	reqURL.Path = postmarkAPIURL
+	reqURL.Path = postmarkEmailPath
 
 	strData, err := json.Marshal(data)
 	if err != nil {
