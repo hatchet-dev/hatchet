@@ -5,6 +5,13 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.15] - 2026-02-02
+
+### Changed
+
+- Fixes a bug to allow `ContextVars` to be used in lifespans
+- Improves worker shutdown + cleanup logic to avoid leaking semaphores in the action listener process.
+
 ## [1.22.14] - 2026-01-31
 
 ### Changed
