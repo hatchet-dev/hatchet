@@ -37,6 +37,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/postmark"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email/smtp"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
@@ -603,13 +604,35 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	var emailSvc email.EmailService = &email.NoOpService{}
 
-	if cf.Email.Postmark.Enabled {
+	switch strings.ToLower(cf.Email.Kind) {
+	case "postmark":
+		if !cf.Email.Postmark.Enabled {
+			break
+		}
 		emailSvc = postmark.NewPostmarkClient(
 			cf.Email.Postmark.ServerKey,
 			cf.Email.Postmark.FromEmail,
 			cf.Email.Postmark.FromName,
 			cf.Email.Postmark.SupportEmail,
 		)
+
+	case "smtp":
+		if !cf.Email.SMTP.Enabled {
+			break
+		}
+		emailSvc, err = smtp.NewSMTPService(
+			cf.Email.SMTP.ServerAddr,
+			cf.Email.SMTP.BasicAuth.Username,
+			cf.Email.SMTP.BasicAuth.Password,
+			cf.Email.SMTP.FromEmail,
+			cf.Email.SMTP.FromName,
+			cf.Email.SMTP.SupportEmail,
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create SMTP service: %w", err)
+		}
+	default:
+		return nil, nil, fmt.Errorf("invalid email provider of type %s, must be 'postmark' or 'smtp'", cf.Email.Kind)
 	}
 
 	additionalOAuthConfigs := make(map[string]*oauth2.Config)

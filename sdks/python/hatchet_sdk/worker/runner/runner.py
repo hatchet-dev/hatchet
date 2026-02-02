@@ -415,7 +415,7 @@ class Runner:
                 ActionEvent(
                     action=action,
                     type=STEP_EVENT_TYPE_STARTED,
-                    payload="",
+                    payload=None,
                     should_not_retry=False,
                 )
             )
@@ -503,9 +503,9 @@ class Runner:
         finally:
             self.cleanup_run_id(key)
 
-    def serialize_output(self, output: Any) -> str:
+    def serialize_output(self, output: Any) -> str | None:
         if not output:
-            return ""
+            return None
 
         if isinstance(output, BaseModel):
             try:
@@ -527,7 +527,7 @@ class Runner:
             )
 
         if output is None:
-            return ""
+            return None
 
         try:
             serialized_output = json.dumps(output, default=str)

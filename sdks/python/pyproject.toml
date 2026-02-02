@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.22.13"
+version = "1.22.14"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 authors = [
   "Alexander Belanger <alexander@hatchet.run>",
@@ -16,7 +16,7 @@ license = "MIT"
 python = "^3.10"
 grpcio = "^1.76.0"
 grpcio-tools = "^1.76.0"
-protobuf = "^6.30.0"
+protobuf = "^6.30.2"
 pydantic = "^2.6.3"
 python-dateutil = "^2.9.0.post0"
 aiohttp = "^3.10.5"
