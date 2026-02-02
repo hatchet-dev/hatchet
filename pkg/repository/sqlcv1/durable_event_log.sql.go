@@ -16,7 +16,6 @@ INSERT INTO v1_durable_event_log (
     tenant_id,
     task_id,
     task_inserted_at,
-    retry_count,
     event_type,
     key,
     data
@@ -24,19 +23,18 @@ INSERT INTO v1_durable_event_log (
     $1::uuid,
     $2::bigint,
     $3::timestamptz,
-    $4::integer,
+    $4::text,
     $5::text,
-    $6::text,
-    $7::jsonb
+    $6::jsonb
 )
-RETURNING id, tenant_id, task_id, task_inserted_at, retry_count, event_type, key, data, created_at
+ON CONFLICT (task_id, task_inserted_at, key) DO NOTHING
+RETURNING id, tenant_id, task_id, task_inserted_at, event_type, key, data, created_at
 `
 
 type CreateDurableEventLogParams struct {
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount     int32              `json:"retry_count"`
 	EventType      string             `json:"event_type"`
 	Key            string             `json:"key"`
 	Data           []byte             `json:"data"`
@@ -47,7 +45,6 @@ func (q *Queries) CreateDurableEventLog(ctx context.Context, db DBTX, arg Create
 		arg.TenantID,
 		arg.TaskID,
 		arg.TaskInsertedAt,
-		arg.RetryCount,
 		arg.EventType,
 		arg.Key,
 		arg.Data,
@@ -58,7 +55,6 @@ func (q *Queries) CreateDurableEventLog(ctx context.Context, db DBTX, arg Create
 		&i.TenantID,
 		&i.TaskID,
 		&i.TaskInsertedAt,
-		&i.RetryCount,
 		&i.EventType,
 		&i.Key,
 		&i.Data,
@@ -68,14 +64,13 @@ func (q *Queries) CreateDurableEventLog(ctx context.Context, db DBTX, arg Create
 }
 
 const getDurableEventLog = `-- name: GetDurableEventLog :one
-SELECT id, tenant_id, task_id, task_inserted_at, retry_count, event_type, key, data, created_at
+SELECT id, tenant_id, task_id, task_inserted_at, event_type, key, data, created_at
 FROM v1_durable_event_log
 WHERE
     tenant_id = $1::uuid
     AND task_id = $2::bigint
     AND task_inserted_at = $3::timestamptz
-    AND retry_count = $4::integer
-    AND key = $5::text
+    AND key = $4::text
 LIMIT 1
 `
 
@@ -83,7 +78,6 @@ type GetDurableEventLogParams struct {
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount     int32              `json:"retry_count"`
 	Key            string             `json:"key"`
 }
 
@@ -92,7 +86,6 @@ func (q *Queries) GetDurableEventLog(ctx context.Context, db DBTX, arg GetDurabl
 		arg.TenantID,
 		arg.TaskID,
 		arg.TaskInsertedAt,
-		arg.RetryCount,
 		arg.Key,
 	)
 	var i V1DurableEventLog
@@ -101,7 +94,6 @@ func (q *Queries) GetDurableEventLog(ctx context.Context, db DBTX, arg GetDurabl
 		&i.TenantID,
 		&i.TaskID,
 		&i.TaskInsertedAt,
-		&i.RetryCount,
 		&i.EventType,
 		&i.Key,
 		&i.Data,

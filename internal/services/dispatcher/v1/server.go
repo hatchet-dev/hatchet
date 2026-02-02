@@ -301,7 +301,7 @@ func (d *DispatcherServiceImpl) GetDurableEventLog(ctx context.Context, req *con
 		return nil, err
 	}
 
-	row, err := d.repo.Tasks().GetDurableEventLog(ctx, tenantId, task.ID, task.InsertedAt, task.RetryCount, req.Key)
+	row, err := d.repo.Tasks().GetDurableEventLog(ctx, tenantId, task.ID, task.InsertedAt, req.Key)
 	if err != nil {
 		return &contracts.GetDurableEventLogResponse{Found: false}, nil
 	}
@@ -325,7 +325,7 @@ func (d *DispatcherServiceImpl) CreateDurableEventLog(ctx context.Context, req *
 		return nil, err
 	}
 
-	_, err = d.repo.Tasks().CreateDurableEventLog(ctx, tenantId, task.ID, task.InsertedAt, task.RetryCount, "MEMO", req.Key, req.Data)
+	_, err = d.repo.Tasks().CreateDurableEventLog(ctx, tenantId, task.ID, task.InsertedAt, "MEMO", req.Key, req.Data)
 	if err != nil {
 		return nil, err
 	}

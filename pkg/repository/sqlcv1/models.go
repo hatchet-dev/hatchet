@@ -3017,7 +3017,6 @@ type V1DurableEventLog struct {
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount     int32              `json:"retry_count"`
 	EventType      string             `json:"event_type"`
 	Key            string             `json:"key"`
 	Data           []byte             `json:"data"`
