@@ -214,7 +214,7 @@ func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId uuid.UUID, id *uuid.UUI
 		ExpiresAt: &expiresAt,
 		Issuer:    &issuer,
 		CustomClaims: map[string]interface{}{
-			"token_id":               tokenId,
+			"token_id":               tokenId.String(),
 			"server_url":             j.opts.ServerURL,
 			"grpc_broadcast_address": j.opts.GRPCBroadcastAddress,
 		},
