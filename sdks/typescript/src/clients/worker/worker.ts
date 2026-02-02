@@ -364,7 +364,11 @@ export class V0Worker {
         if (message.includes('Cancelled')) {
           this.logger.debug(`Task run ${action.stepRunId} was cancelled`);
         } else {
-          this.logger.error(`Could not wait for task run ${action.stepRunId} to finish: `, e);
+          this.logger.error(
+            `Could not wait for task run ${action.stepRunId} to finish. ` +
+              `See https://docs.hatchet.run/home/cancellation for best practices on handling cancellation: `,
+            e
+          );
         }
       }
     } catch (e: any) {
