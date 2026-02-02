@@ -3421,4 +3421,4 @@ v0-sdk = []
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "2dc3e2efca5bef51e4c82f7ae4f09c2d29b1af578774d3e3caeb8176278ec749"
+content-hash = "381451b747aa3aa747e32793fb88c958f440ab871682e4f9be505dc052ce2f92"

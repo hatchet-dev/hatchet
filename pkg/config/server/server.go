@@ -300,6 +300,9 @@ type ConfigFileRuntime struct {
 	// EnableDurableUserEventLog controls whether we enable the durable event log for user events. By default, we don't persist user events
 	// to the core database, we only use them to trigger workflows. Enabling this will persist them to the core database.
 	EnableDurableUserEventLog bool `mapstructure:"enableDurableUserEventLog" json:"enableDurableUserEventLog,omitempty" default:"false"`
+
+	// WorkflowRunBufferSize is the buffer size for workflow run event batching in the dispatcher
+	WorkflowRunBufferSize int `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -489,7 +492,11 @@ type RabbitMQConfigFile struct {
 }
 
 type ConfigFileEmail struct {
+	Kind string `mapstructure:"kind" json:"kind,omitempty" default:"postmark"`
+
 	Postmark PostmarkConfigFile `mapstructure:"postmark" json:"postmark,omitempty"`
+
+	SMTP SMTPEmailConfig `mapstructure:"smtp" json:"smtp,omitempty"`
 }
 
 type ConfigFileMonitoring struct {
@@ -515,6 +522,20 @@ type PostmarkConfigFile struct {
 	SupportEmail string `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
 }
 
+type SMTPEmailConfig struct {
+	BasicAuth    SMTPEmailConfigAuthBasic `mapstructure:"basicAuth" json:"basicAuth,omitempty"`
+	ServerKey    string                   `mapstructure:"serverKey" json:"serverKey,omitempty"`
+	ServerAddr   string                   `mapstructure:"serverAddr" json:"serverAddr,omitempty"`
+	FromEmail    string                   `mapstructure:"fromEmail" json:"fromEmail,omitempty"`
+	FromName     string                   `mapstructure:"fromName" json:"fromName,omitempty" default:"Hatchet Support"`
+	SupportEmail string                   `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
+	Enabled      bool                     `mapstructure:"enabled" json:"enabled,omitempty"`
+}
+
+type SMTPEmailConfigAuthBasic struct {
+	Username string `mapstructure:"username" json:"username,omitempty"`
+	Password string `mapstructure:"password" json:"password,omitempty"`
+}
 type CustomAuthenticator interface {
 	// Authenticate is called to authenticate for endpoints that support the customAuth security scheme
 	Authenticate(c echo.Context) error
@@ -847,11 +868,24 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("tenantAlerting.slack.scopes", "SERVER_TENANT_ALERTING_SLACK_SCOPES")
 
 	// email options
+	_ = v.BindEnv("email.kind", "SERVER_EMAIL_KIND")
+
+	// postmark options
 	_ = v.BindEnv("email.postmark.enabled", "SERVER_EMAIL_POSTMARK_ENABLED")
 	_ = v.BindEnv("email.postmark.serverKey", "SERVER_EMAIL_POSTMARK_SERVER_KEY")
 	_ = v.BindEnv("email.postmark.fromEmail", "SERVER_EMAIL_POSTMARK_FROM_EMAIL")
 	_ = v.BindEnv("email.postmark.fromName", "SERVER_EMAIL_POSTMARK_FROM_NAME")
 	_ = v.BindEnv("email.postmark.supportEmail", "SERVER_EMAIL_POSTMARK_SUPPORT_EMAIL")
+
+	// smtp options
+	_ = v.BindEnv("email.smtp.enabled", "SERVER_EMAIL_SMTP_ENABLED")
+	_ = v.BindEnv("email.smtp.serverAddr", "SERVER_EMAIL_SMTP_SERVER_ADDR")
+	_ = v.BindEnv("email.smtp.fromEmail", "SERVER_EMAIL_SMTP_FROM_EMAIL")
+	_ = v.BindEnv("email.smtp.fromName", "SERVER_EMAIL_SMTP_FROM_NAME")
+	_ = v.BindEnv("email.smtp.supportEmail", "SERVER_EMAIL_SMTP_SUPPORT_EMAIL")
+	// allow basic auth credentials to be set
+	_ = v.BindEnv("email.smtp.basicAuth.username", "SERVER_EMAIL_SMTP_AUTH_USERNAME")
+	_ = v.BindEnv("email.smtp.basicAuth.password", "SERVER_EMAIL_SMTP_AUTH_PASSWORD")
 
 	// monitoring options
 	_ = v.BindEnv("runtime.monitoring.enabled", "SERVER_MONITORING_ENABLED")
@@ -873,6 +907,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("taskOperationLimits.reassignLimit", "SERVER_TASK_OPERATION_LIMITS_REASSIGN_LIMIT")
 	_ = v.BindEnv("taskOperationLimits.retryQueueLimit", "SERVER_TASK_OPERATION_LIMITS_RETRY_QUEUE_LIMIT")
 	_ = v.BindEnv("taskOperationLimits.durableSleepLimit", "SERVER_TASK_OPERATION_LIMITS_DURABLE_SLEEP_LIMIT")
+
+	// dispatcher options
+	_ = v.BindEnv("runtime.workflowRunBufferSize", "SERVER_WORKFLOW_RUN_BUFFER_SIZE")
 
 	// payload store options
 	_ = v.BindEnv("payloadStore.enablePayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES")

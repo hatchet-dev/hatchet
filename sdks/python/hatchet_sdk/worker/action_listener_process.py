@@ -34,6 +34,7 @@ from hatchet_sdk.runnables.action import Action, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_step_run_id,
+    ctx_task_retry_count,
     ctx_worker_id,
     ctx_workflow_run_id,
 )
@@ -54,7 +55,7 @@ class HealthStatus(str, Enum):
 class ActionEvent:
     action: Action
     type: Any  # TODO type
-    payload: str
+    payload: str | None
     should_not_retry: bool
 
 
@@ -440,6 +441,7 @@ class WorkerActionListenerProcess:
                 ctx_workflow_run_id.set(action.workflow_run_id)
                 ctx_worker_id.set(action.worker_id)
                 ctx_action_key.set(action.key)
+                ctx_task_retry_count.set(action.retry_count)
 
                 # Process the action here
                 match action.action_type:
@@ -448,7 +450,7 @@ class WorkerActionListenerProcess:
                             ActionEvent(
                                 action=action,
                                 type=STEP_EVENT_TYPE_STARTED,  # TODO ack type
-                                payload="",
+                                payload=None,
                                 should_not_retry=False,
                             )
                         )

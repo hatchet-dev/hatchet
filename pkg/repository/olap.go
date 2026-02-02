@@ -2567,7 +2567,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error putting payloads: %v", err)
+		return nil, fmt.Errorf("error putting payloads: %w", err)
 	}
 
 	if localTx {

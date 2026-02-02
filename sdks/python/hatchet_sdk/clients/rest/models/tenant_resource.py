@@ -31,7 +31,6 @@ class TenantResource(str, Enum):
     WORKER = "WORKER"
     WORKER_SLOT = "WORKER_SLOT"
     EVENT = "EVENT"
-    WORKFLOW_RUN = "WORKFLOW_RUN"
     TASK_RUN = "TASK_RUN"
     CRON = "CRON"
     SCHEDULE = "SCHEDULE"

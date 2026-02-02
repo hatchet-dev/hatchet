@@ -10,6 +10,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	metricscontroller "github.com/hatchet-dev/hatchet/internal/services/controllers/metrics"
@@ -21,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
 	"github.com/hatchet-dev/hatchet/internal/services/health"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
+	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
@@ -30,7 +33,6 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
-	"github.com/rs/zerolog"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -359,6 +361,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
+			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 		)
 
 		if err != nil {
@@ -424,6 +427,15 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
+		oc, err := otelcol.NewOTelCollector(
+			otelcol.WithRepository(sc.V1),
+			otelcol.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create otel collector: %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
@@ -431,6 +443,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpc.WithDispatcherV1(dv1),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
+			grpc.WithOTelCollector(oc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -785,6 +798,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
+			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 		)
 
 		if err != nil {
@@ -852,6 +866,15 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
+		oc, err := otelcol.NewOTelCollector(
+			otelcol.WithRepository(sc.V1),
+			otelcol.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create otel collector: %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
@@ -859,6 +882,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpc.WithDispatcherV1(dv1),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
+			grpc.WithOTelCollector(oc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),

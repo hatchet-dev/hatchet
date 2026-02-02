@@ -2348,11 +2348,14 @@ type WorkflowVersion struct {
 	Concurrency *WorkflowConcurrency `json:"concurrency,omitempty"`
 
 	// DefaultPriority The default priority of the workflow.
-	DefaultPriority *int32          `json:"defaultPriority,omitempty"`
-	Jobs            *[]Job          `json:"jobs,omitempty"`
-	Metadata        APIResourceMeta `json:"metadata"`
-	Order           int32           `json:"order"`
-	ScheduleTimeout *string         `json:"scheduleTimeout,omitempty"`
+	DefaultPriority *int32 `json:"defaultPriority,omitempty"`
+
+	// InputJsonSchema The JSON schema for the workflow input.
+	InputJsonSchema *map[string]interface{} `json:"inputJsonSchema,omitempty"`
+	Jobs            *[]Job                  `json:"jobs,omitempty"`
+	Metadata        APIResourceMeta         `json:"metadata"`
+	Order           int32                   `json:"order"`
+	ScheduleTimeout *string                 `json:"scheduleTimeout,omitempty"`
 
 	// Sticky The sticky strategy of the workflow.
 	Sticky        *string               `json:"sticky,omitempty"`
@@ -2418,6 +2421,9 @@ type V1LogLineListParams struct {
 
 	// OrderByDirection The direction to order by
 	OrderByDirection *V1LogLineOrderByDirection `form:"order_by_direction,omitempty" json:"order_by_direction,omitempty"`
+
+	// Attempt The attempt number to filter for
+	Attempt *int `form:"attempt,omitempty" json:"attempt,omitempty"`
 }
 
 // V1TaskEventListParams defines parameters for V1TaskEventList.
@@ -6388,6 +6394,22 @@ func NewV1LogLineListRequest(server string, task openapi_types.UUID, params *V1L
 		if params.OrderByDirection != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "order_by_direction", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Attempt != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "attempt", runtime.ParamLocationQuery, *params.Attempt); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

@@ -712,6 +712,34 @@ func (q *Queries) MoveRateLimitedQueueItems(ctx context.Context, db DBTX, arg Mo
 	return items, nil
 }
 
+const reactivateInactiveQueuesWithItems = `-- name: ReactivateInactiveQueuesWithItems :execresult
+WITH inactive_queues_with_items AS (
+    SELECT q.tenant_id, q.name
+    FROM v1_queue q
+    WHERE q.last_active <= NOW() - INTERVAL '1 day'
+      AND EXISTS (
+        SELECT 1
+        FROM v1_queue_item qi
+        WHERE qi.tenant_id = q.tenant_id
+          AND qi.queue = q.name
+        LIMIT 1
+      )
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE v1_queue q
+SET last_active = NOW()
+FROM inactive_queues_with_items i
+WHERE q.tenant_id = i.tenant_id
+  AND q.name = i.name
+`
+
+// Reactivates queues that have been marked inactive (last_active > 1 day ago)
+// but still have pending items in v1_queue_item. This is a fallback mechanism
+// to ensure queues don't get stuck inactive while they have work to do.
+func (q *Queries) ReactivateInactiveQueuesWithItems(ctx context.Context, db DBTX) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, reactivateInactiveQueuesWithItems)
+}
+
 const requeueRateLimitedQueueItems = `-- name: RequeueRateLimitedQueueItems :many
 WITH ready_items AS (
     SELECT

@@ -760,6 +760,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		Sticky:          sticky,
 		DefaultPriority: req.DefaultPriority,
 		DefaultFilters:  defaultFilters,
+		InputJsonSchema: req.InputJsonSchema,
 	}, nil
 }
 

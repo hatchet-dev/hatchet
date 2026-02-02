@@ -805,7 +805,7 @@ CREATE OR REPLACE FUNCTION cleanup_workflow_concurrency_slots(
     p_workflow_run_id UUID
 ) RETURNS VOID AS $$
 DECLARE
-    v_sort_id INTEGER;
+    v_sort_id BIGINT;
 BEGIN
     -- Get the sort_id for the specific workflow concurrency slot
     SELECT sort_id INTO v_sort_id

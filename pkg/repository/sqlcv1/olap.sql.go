@@ -1089,18 +1089,17 @@ const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
 SELECT
     DATE_BIN(
         COALESCE($1::INTERVAL, '1 minute'),
-        task_inserted_at,
+        inserted_at,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS bucket_2,
+    ) :: TIMESTAMPTZ AS minute_bucket,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
     COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM
-    v1_task_events_olap
+FROM v1_statuses_olap
 WHERE
     tenant_id = $2::UUID
-    AND task_inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
-GROUP BY bucket_2
-ORDER BY bucket_2
+    AND inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
+GROUP BY minute_bucket
+ORDER BY minute_bucket
 `
 
 type GetTaskPointMetricsParams struct {
@@ -1111,7 +1110,7 @@ type GetTaskPointMetricsParams struct {
 }
 
 type GetTaskPointMetricsRow struct {
-	Bucket2        pgtype.Timestamptz `json:"bucket_2"`
+	MinuteBucket   pgtype.Timestamptz `json:"minute_bucket"`
 	CompletedCount int64              `json:"completed_count"`
 	FailedCount    int64              `json:"failed_count"`
 }
@@ -1130,7 +1129,7 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 	var items []*GetTaskPointMetricsRow
 	for rows.Next() {
 		var i GetTaskPointMetricsRow
-		if err := rows.Scan(&i.Bucket2, &i.CompletedCount, &i.FailedCount); err != nil {
+		if err := rows.Scan(&i.MinuteBucket, &i.CompletedCount, &i.FailedCount); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -3387,7 +3386,7 @@ WITH tenants AS (
         (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
 ), dags_to_update AS (
     -- DAGs that need updating and don't already exist in target partition
-    SELECT
+    SELECT DISTINCT ON (dns.tenant_id, dns.id, dns.inserted_at)
         dns.tenant_id,
         dns.id,
         dns.inserted_at,
@@ -3401,6 +3400,8 @@ WITH tenants AS (
             FROM already_in_target_partition ap
             WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (dns.tenant_id, dns.id, dns.inserted_at)
         )
+    ORDER BY
+        dns.tenant_id, dns.id, dns.inserted_at, dns.old_readable_status
 ), updated_dags AS (
     UPDATE
         v1_dags_olap d
@@ -3584,8 +3585,8 @@ WITH tenants AS (
         worker_id IS NOT NULL
     GROUP BY
         tenant_id, task_id, task_inserted_at, retry_count
-), locked_tasks AS (
-    SELECT
+), distinct_tasks_to_lock AS (
+    SELECT DISTINCT ON (t.tenant_id, t.id, t.inserted_at)
         t.tenant_id,
         t.id,
         t.inserted_at,
@@ -3597,9 +3598,18 @@ WITH tenants AS (
     JOIN
         updatable_events e ON
             (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
-    WHERE t.inserted_at >= $4::TIMESTAMPTZ
+    WHERE
+        t.inserted_at >= $4::TIMESTAMPTZ
     ORDER BY
-        t.inserted_at, t.id
+        t.tenant_id, t.id, t.inserted_at, t.readable_status
+), locked_tasks AS (
+    SELECT
+        dt.tenant_id, dt.id, dt.inserted_at, dt.readable_status, dt.retry_count, dt.max_readable_status
+    FROM
+        v1_tasks_olap t
+    JOIN
+        distinct_tasks_to_lock dt ON
+            (dt.inserted_at, dt.id) = (t.inserted_at, t.id)
     FOR UPDATE
 ), already_in_target_partition AS (
     -- Check if rows already exist in the target partition (with the new readable_status)

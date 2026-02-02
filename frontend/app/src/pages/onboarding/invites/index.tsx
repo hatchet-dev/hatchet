@@ -88,6 +88,9 @@ export default function Invites() {
       await queryClient.invalidateQueries({
         queryKey: queries.user.listTenantMemberships.queryKey,
       });
+      await queryClient.invalidateQueries({
+        queryKey: ['pending-invites'],
+      });
 
       const memberships = await queryClient.fetchQuery(
         queries.user.listTenantMemberships,
@@ -101,6 +104,10 @@ export default function Invites() {
         setTenant(membership.tenant);
         capture('onboarding_tenant_invite_accepted', {
           tenant_id: tenantId,
+        });
+        navigate({
+          to: appRoutes.tenantOverviewRoute.to,
+          params: { tenant: tenantId },
         });
       } else {
         throw new Error('Tenant not found after accepting invite');
@@ -116,6 +123,9 @@ export default function Invites() {
       return data.invite;
     },
     onSuccess: async (inviteId: string) => {
+      await queryClient.invalidateQueries({
+        queryKey: ['pending-invites'],
+      });
       capture('onboarding_tenant_invite_rejected', {
         invite_id: inviteId,
       });
@@ -201,7 +211,10 @@ export default function Invites() {
                             inviteId: invite.metadata.id,
                           },
                           {
-                            onSuccess: () => {
+                            onSuccess: async () => {
+                              await queryClient.invalidateQueries({
+                                queryKey: ['pending-invites'],
+                              });
                               capture('onboarding_org_invite_rejected', {
                                 invite_id: invite.metadata.id,
                               });
@@ -221,7 +234,10 @@ export default function Invites() {
                             inviteId: invite.metadata.id,
                           },
                           {
-                            onSuccess: () => {
+                            onSuccess: async () => {
+                              await queryClient.invalidateQueries({
+                                queryKey: ['pending-invites'],
+                              });
                               capture('onboarding_org_invite_accepted', {
                                 invite_id: invite.metadata.id,
                               });
