@@ -550,10 +550,10 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	// if there's no retry count, we need to read it from the task, so we can't skip the cache
 	skipCache := request.RetryCount == nil
 
-	task, err := s.getSingleTask(ctx, sqlchelpers.UUIDToStr(tenant.ID), request.StepRunId, skipCache)
+	task, err := s.getSingleTask(ctx, sqlchelpers.UUIDToStr(tenant.ID), request.TaskRunId, skipCache)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not get task %s: %w", request.StepRunId, err)
+		return nil, fmt.Errorf("could not get task %s: %w", request.TaskRunId, err)
 	}
 
 	retryCount := task.RetryCount
@@ -586,7 +586,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskFailed(ctx, task, retryCount, request)
 	}
 
-	return nil, status.Errorf(codes.InvalidArgument, "invalid step run id %s", request.StepRunId)
+	return nil, status.Errorf(codes.InvalidArgument, "invalid task run id %s", request.TaskRunId)
 }
 
 func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
@@ -1242,7 +1242,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
 				WorkflowRunId:  payload.WorkflowRunId,
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.StepRunId,
+				ResourceId:     payload.TaskRunId,
 				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM,
 				EventTimestamp: timestamppb.New(payload.CreatedAt),
 				EventPayload:   string(payload.Payload),

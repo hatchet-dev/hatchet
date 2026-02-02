@@ -24,7 +24,7 @@ import (
 
 type ChildWorkflowOpts struct {
 	ParentId           string
-	ParentStepRunId    string
+	ParentTaskRunId    string
 	ChildIndex         int
 	ChildKey           *string
 	DesiredWorkerId    *string
@@ -345,7 +345,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		Name:               workflowName,
 		Input:              string(inputBytes),
 		ParentId:           &opts.ParentId,
-		ParentStepRunId:    &opts.ParentStepRunId,
+		ParentTaskRunId:    &opts.ParentTaskRunId,
 		ChildIndex:         &childIndex,
 		ChildKey:           opts.ChildKey,
 		DesiredWorkerId:    opts.DesiredWorkerId,
@@ -407,7 +407,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 			Name:               workflowName,
 			Input:              string(inputBytes),
 			ParentId:           &workflow.Opts.ParentId,
-			ParentStepRunId:    &workflow.Opts.ParentStepRunId,
+			ParentTaskRunId:    &workflow.Opts.ParentTaskRunId,
 			ChildIndex:         &childIndex,
 			ChildKey:           workflow.Opts.ChildKey,
 			DesiredWorkerId:    workflow.Opts.DesiredWorkerId,

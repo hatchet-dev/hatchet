@@ -66,8 +66,8 @@ message WorkerRegisterRequest {
     // (optional) the services for this worker
     repeated string services = 3;
 
-    // (optional) the max number of runs this worker can handle
-    optional int32 maxRuns = 4;
+    // (optional) the number of slots this worker can handle
+    optional int32 slots = 4;
 
     // (optional) worker labels (i.e. state or other metadata)
     map<string, WorkerLabels> labels = 5;
@@ -133,11 +133,11 @@ message AssignedAction {
     // the job run id
     string jobRunId = 6;
 
-    // the step id
-    string stepId = 7;
+    // the task id
+    string taskId = 7;
 
-    // the step run id
-    string stepRunId = 8;
+    // the task run id
+    string taskRunId = 8;
 
     // the action id
     string actionId = 9;
@@ -148,23 +148,23 @@ message AssignedAction {
     // the action payload
     string actionPayload = 11;
 
-    // the step name
+    // the task name
     string stepName = 12;
 
     // the count number of the retry attempt
     int32 retryCount = 13;
 
     // (optional) additional metadata set on the workflow
-    optional string additional_metadata = 14;
+    optional string additionalMetadata = 14;
 
     // (optional) the child workflow index (if this is a child workflow)
-    optional int32 child_workflow_index = 15;
+    optional int32 childWorkflowIndex = 15;
 
     // (optional) the child workflow key (if this is a child workflow)
-    optional string child_workflow_key = 16;
+    optional string childWorkflowKey = 16;
 
     // (optional) the parent workflow run id (if this is a child workflow)
-    optional string parent_workflow_run_id = 17;
+    optional string parentWorkflowRunId = 17;
 
     // (optional) the priority of the run
     int32 priority = 18;
@@ -215,7 +215,7 @@ message GroupKeyActionEvent {
 
     google.protobuf.Timestamp eventTimestamp = 5;
 
-    // the step event type
+    // the task event type
     GroupKeyActionEventType eventType = 6;
 
     // the event payload
@@ -240,18 +240,18 @@ message StepActionEvent {
     // the job run id
     string jobRunId = 3;
 
-    // the id of the step
-    string stepId = 4;
+    // the id of the task
+    string taskId = 4;
 
-    // the step run id
-    string stepRunId = 5;
+    // the task run id
+    string taskRunId = 5;
 
     // the action id
     string actionId = 6;
 
     google.protobuf.Timestamp eventTimestamp = 7;
 
-    // the step event type
+    // the task event type
     StepActionEventType eventType = 8;
 
     // the event payload
@@ -323,10 +323,10 @@ message WorkflowEvent {
     // will hang up the connection but clients might want to case
     bool hangup = 7;
 
-    // (optional) the max number of retries this step can handle
+    // (optional) the max number of retries this task can handle
     optional int32 stepRetries = 8;
 
-    // (optional) the retry count of this step
+    // (optional) the retry count of this task
     optional int32 retryCount = 9;
 
     optional int64 eventIndex = 10;
@@ -360,7 +360,7 @@ message StepRunResult {
 }
 
 message OverridesData {
-    // the step run id
+    // the task run id
     string stepRunId = 1;
 
     // the path of the data to set
@@ -386,7 +386,7 @@ message HeartbeatRequest {
 message HeartbeatResponse {}
 
 message RefreshTimeoutRequest {
-    // the id of the step run to release
+    // the id of the task run to release
     string stepRunId = 1;
 
     string incrementTimeoutBy = 2;
@@ -397,7 +397,7 @@ message RefreshTimeoutResponse {
 
 }
 message ReleaseSlotRequest {
-    // the id of the step run to release
+    // the id of the task run to release
     string stepRunId = 1;
 }
 

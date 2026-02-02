@@ -173,7 +173,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	span.SetAttributes(
 		attribute.String("admin_service.new_trigger_opt.workflow_name", req.Name),
 		attribute.Int("admin_service.new_trigger_opt.payload_size", len(req.Input)),
-		attribute.Bool("admin_service.new_trigger_opt.is_child_workflow", req.ParentStepRunId != nil),
+		attribute.Bool("admin_service.new_trigger_opt.is_child_workflow", req.ParentTaskRunId != nil),
 	)
 
 	additionalMeta := ""
@@ -197,12 +197,12 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		t.Priority = req.Priority
 	}
 
-	if req.ParentStepRunId != nil {
+	if req.ParentTaskRunId != nil {
 		// lookup the parent external id
 		parentTask, err := i.repov1.Tasks().GetTaskByExternalId(
 			ctx,
 			tenantId,
-			*req.ParentStepRunId,
+			*req.ParentTaskRunId,
 			false,
 		)
 

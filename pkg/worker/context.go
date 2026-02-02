@@ -407,7 +407,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		input,
 		&client.ChildWorkflowOpts{
 			ParentId:           h.WorkflowRunId(),
-			ParentStepRunId:    h.StepRunId(),
+			ParentTaskRunId:    h.StepRunId(),
 			ChildIndex:         childIndex,
 			ChildKey:           opts.Key,
 			DesiredWorkerId:    desiredWorker,
@@ -467,7 +467,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 			Input:        c.Input,
 			Opts: &client.ChildWorkflowOpts{
 				ParentId:           h.WorkflowRunId(),
-				ParentStepRunId:    h.StepRunId(),
+				ParentTaskRunId:    h.StepRunId(),
 				ChildIndex:         childIndex,
 				ChildKey:           c.Key,
 				DesiredWorkerId:    desiredWorker,

@@ -16,8 +16,8 @@ service V1Dispatcher {
 
 
 message RegisterDurableEventRequest {
-    string task_id = 1; // external uuid for the task run
-    string signal_key = 2; // the signal key for the event
+    string taskId = 1; // external uuid for the task run
+    string signalKey = 2; // the signal key for the event
     DurableEventListenerConditions conditions = 3; // the task conditions for creating the task
 }
 
@@ -25,12 +25,12 @@ message RegisterDurableEventResponse {
 }
 
 message ListenForDurableEventRequest {
-    string task_id = 1; // single listener per worker
-    string signal_key = 2; // the match id for the listener
+    string taskId = 1; // single listener per worker
+    string signalKey = 2; // the match id for the listener
 }
 
 message DurableEvent {
-    string task_id = 1;
-    string signal_key = 2;
+    string taskId = 1;
+    string signalKey = 2;
     bytes data = 3; // the data for the event
 }

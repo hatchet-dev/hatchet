@@ -33,17 +33,17 @@ message CreateWorkflowVersionOpts {
     string name = 1; // (required) the workflow name
     string description = 2; // (optional) the workflow description
     string version = 3; // (required) the workflow version
-    repeated string event_triggers = 4; // (optional) event triggers for the workflow
-    repeated string cron_triggers = 5; // (optional) cron triggers for the workflow
-    repeated google.protobuf.Timestamp scheduled_triggers = 6; // (optional) scheduled triggers for the workflow
+    repeated string eventTriggers = 4; // (optional) event triggers for the workflow
+    repeated string cronTriggers = 5; // (optional) cron triggers for the workflow
+    repeated google.protobuf.Timestamp scheduledTriggers = 6; // (optional) scheduled triggers for the workflow
     repeated CreateWorkflowJobOpts jobs = 7; // (required) the workflow jobs
     WorkflowConcurrencyOpts concurrency = 8; // (optional) the workflow concurrency options
-    optional string schedule_timeout = 9; // (optional) the timeout for the schedule
-    optional string cron_input = 10; // (optional) the input for the cron trigger
-    optional CreateWorkflowJobOpts on_failure_job = 11; // (optional) the job to run on failure
-    optional StickyStrategy sticky = 12; // (optional) the sticky strategy for assigning steps to workers
+    optional string scheduleTimeout = 9; // (optional) the timeout for the schedule
+    optional string cronInput = 10; // (optional) the input for the cron trigger
+    optional CreateWorkflowJobOpts onFailureJob = 11; // (optional) the job to run on failure
+    optional StickyStrategy sticky = 12; // (optional) the sticky strategy for assigning tasks to workers
     optional WorkflowKind kind = 13; // (optional) the kind of workflow
-    optional int32 default_priority = 14; // (optional) the priority of the workflow
+    optional int32 defaultPriority = 14; // (optional) the priority of the workflow
 }
 
 
@@ -57,8 +57,8 @@ enum ConcurrencyLimitStrategy {
 
 message WorkflowConcurrencyOpts {
     optional string action = 1; // (optional) the action id for getting the concurrency group
-    optional int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
-    optional ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+    optional int32 maxRuns = 2; // (optional) the maximum number of concurrent workflow runs, default 1
+    optional ConcurrencyLimitStrategy limitStrategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
     optional string expression = 4; // (optional) the expression to use for concurrency
 }
 
@@ -67,7 +67,7 @@ message CreateWorkflowJobOpts {
     string name = 1; // (required) the job name
     string description = 2; // (optional) the job description
     reserved 3; // (deprecated) timeout
-    repeated CreateWorkflowStepOpts steps = 4; // (required) the job steps
+    repeated CreateWorkflowStepOpts steps = 4; // (required) the job tasks
 }
 
 enum WorkerLabelComparator {
@@ -105,27 +105,27 @@ message DesiredWorkerLabels {
     optional int32 weight = 5;
 }
 
-// CreateWorkflowStepOpts represents options to create a workflow step.
+// CreateWorkflowStepOpts represents options to create a workflow task.
 message CreateWorkflowStepOpts {
-    string readable_id = 1; // (required) the step name
-    string action = 2; // (required) the step action id
-    string timeout = 3; // (optional) the step timeout
-    string inputs = 4; // (optional) the step inputs, assuming string representation of JSON
-    repeated string parents = 5; // (optional) the step parents. if none are passed in, this is a root step
-    string user_data = 6; // (optional) the custom step user data, assuming string representation of JSON
-    int32 retries = 7; // (optional) the number of retries for the step, default 0
-    repeated CreateStepRateLimit rate_limits = 8; // (optional) the rate limits for the step
-    map<string, DesiredWorkerLabels> worker_labels = 9; // (optional) the desired worker affinity state for the step
-    optional float backoff_factor = 10; // (optional) the retry backoff factor for the step
-    optional int32 backoff_max_seconds = 11; // (optional) the maximum backoff time for the step
+    string readableId = 1; // (required) the task name
+    string action = 2; // (required) the task action id
+    string timeout = 3; // (optional) the task timeout
+    string inputs = 4; // (optional) the task inputs, assuming string representation of JSON
+    repeated string parents = 5; // (optional) the task parents. if none are passed in, this is a root task
+    string userData = 6; // (optional) the custom task user data, assuming string representation of JSON
+    int32 retries = 7; // (optional) the number of retries for the task, default 0
+    repeated CreateStepRateLimit rateLimits = 8; // (optional) the rate limits for the task
+    map<string, DesiredWorkerLabels> workerLabels = 9; // (optional) the desired worker affinity state for the task
+    optional float backoffFactor = 10; // (optional) the retry backoff factor for the task
+    optional int32 backoffMaxSeconds = 11; // (optional) the maximum backoff time for the task
 }
 
 message CreateStepRateLimit {
     string key = 1; // (required) the key for the rate limit
-    optional int32 units = 2; // (optional) the number of units this step consumes
-    optional string key_expr = 3; // (optional) a CEL expression for determining the rate limit key
-    optional string units_expr = 4; // (optional) a CEL expression for determining the number of units consumed
-    optional string limit_values_expr = 5; // (optional) a CEL expression for determining the total amount of rate limit units
+    optional int32 units = 2; // (optional) the number of units this task consumes
+    optional string keyExpr = 3; // (optional) a CEL expression for determining the rate limit key
+    optional string unitsExpr = 4; // (optional) a CEL expression for determining the number of units consumed
+    optional string limitValuesExpr = 5; // (optional) a CEL expression for determining the total amount of rate limit units
     optional RateLimitDuration duration = 6; // (optional) the default rate limit window to use for dynamic rate limits
 }
 
@@ -141,21 +141,21 @@ message ScheduleWorkflowRequest {
     string input = 3;
 
     // (optional) the parent workflow run id
-    optional string parent_id = 4;
+    optional string parentId = 4;
 
-    // (optional) the parent step run id
-    optional string parent_step_run_id = 5;
+    // (optional) the parent task run id
+    optional string parentTaskRunId = 5;
 
     // (optional) the index of the child workflow. if this is set, matches on the index or the
     // child key will be a no-op, even if the schedule has changed.
-    optional int32 child_index = 6;
+    optional int32 childIndex = 6;
 
     // (optional) the key for the child. if this is set, matches on the index or the
     // child key will be a no-op, even if the schedule has changed.
-    optional string child_key = 7;
+    optional string childKey = 7;
 
     // (optional) the additional metadata for the workflow
-    optional string additional_metadata = 8;
+    optional string additionalMetadata = 8;
 
     // (optional) the priority of the workflow
     optional int32 priority = 9;
@@ -164,30 +164,30 @@ message ScheduleWorkflowRequest {
 // ScheduledWorkflow represents a scheduled workflow.
 message ScheduledWorkflow {
     string id = 1;
-    google.protobuf.Timestamp trigger_at = 2;
+    google.protobuf.Timestamp triggerAt = 2;
 }
 
 // WorkflowVersion represents the WorkflowVersion model.
 message WorkflowVersion {
     string id = 1;
-    google.protobuf.Timestamp created_at = 2;
-    google.protobuf.Timestamp updated_at = 3;
+    google.protobuf.Timestamp createdAt = 2;
+    google.protobuf.Timestamp updatedAt = 3;
     string version = 5;
     int64 order = 6;
-    string workflow_id = 7;
-    repeated ScheduledWorkflow scheduled_workflows = 8;
+    string workflowId = 7;
+    repeated ScheduledWorkflow scheduledWorkflows = 8;
 }
 
 
 // WorkflowTriggerEventRef represents the WorkflowTriggerEventRef model.
 message WorkflowTriggerEventRef {
-    string parent_id = 1;
-    string event_key = 2;
+    string parentId = 1;
+    string eventKey = 2;
 }
 
 // WorkflowTriggerCronRef represents the WorkflowTriggerCronRef model.
 message WorkflowTriggerCronRef {
-    string parent_id = 1;
+    string parentId = 1;
     string cron = 2;
 }
 
@@ -196,7 +196,7 @@ message BulkTriggerWorkflowRequest {
 }
 
 message BulkTriggerWorkflowResponse {
-    repeated string workflow_run_ids = 1;
+    repeated string workflowRunIds = 1;
 }
 
 message TriggerWorkflowRequest {
@@ -206,34 +206,34 @@ message TriggerWorkflowRequest {
     string input = 2;
 
     // (optional) the parent workflow run id
-    optional string parent_id = 3;
+    optional string parentId = 3;
 
-    // (optional) the parent step run id
-    optional string parent_step_run_id = 4;
+    // (optional) the parent task run id
+    optional string parentTaskRunId = 4;
 
     // (optional) the index of the child workflow. if this is set, matches on the index or the
-    // child key will return an existing workflow run if the parent id, parent step run id, and
+    // child key will return an existing workflow run if the parent id, parent task run id, and
     // child index/key match an existing workflow run.
-    optional int32 child_index = 5;
+    optional int32 childIndex = 5;
 
     // (optional) the key for the child. if this is set, matches on the index or the
-    // child key will return an existing workflow run if the parent id, parent step run id, and
+    // child key will return an existing workflow run if the parent id, parent task run id, and
     // child index/key match an existing workflow run.
-    optional string child_key = 6;
+    optional string childKey = 6;
 
     // (optional) additional metadata for the workflow
-    optional string additional_metadata = 7;
+    optional string additionalMetadata = 7;
 
     // (optional) desired worker id for the workflow run,
     // requires the workflow definition to have a sticky strategy
-    optional string desired_worker_id = 8;
+    optional string desiredWorkerId = 8;
 
-    // (optional) override for the priority of the workflow steps, will set all steps to this priority
+    // (optional) override for the priority of the workflow tasks, will set all tasks to this priority
     optional int32 priority = 9;
 }
 
 message TriggerWorkflowResponse {
-    string workflow_run_id = 1;
+    string workflowRunId = 1;
 }
 
 enum RateLimitDuration {

@@ -20,7 +20,7 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// get single task
-	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
+	task, err := i.getSingleTask(ctx, tenantId, req.TaskRunId, false)
 
 	if err != nil {
 		return nil, err
@@ -33,7 +33,7 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 		false,
 		tasktypes.StreamEventPayload{
 			WorkflowRunId: sqlchelpers.UUIDToStr(task.WorkflowRunID),
-			StepRunId:     req.StepRunId,
+			TaskRunId:     req.TaskRunId,
 			CreatedAt:     req.CreatedAt.AsTime(),
 			Payload:       req.Message,
 			EventIndex:    req.EventIndex,
@@ -66,7 +66,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 		return &contracts.PutLogResponse{}, nil
 	}
 
-	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
+	task, err := i.getSingleTask(ctx, tenantId, req.TaskRunId, false)
 
 	if err != nil {
 		return nil, err

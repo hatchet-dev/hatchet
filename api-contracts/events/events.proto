@@ -45,8 +45,8 @@ message Events {
 }
 
 message PutLogRequest {
-    // the step run id for the request
-    string stepRunId = 1;
+    // the task run id for the request
+    string taskRunId = 1;
 
     // when the log line was created
     google.protobuf.Timestamp createdAt = 2;
@@ -67,8 +67,8 @@ message PutLogRequest {
 message PutLogResponse {}
 
 message PutStreamEventRequest {
-    // the step run id for the request
-    string stepRunId = 1;
+    // the task run id for the request
+    string taskRunId = 1;
 
     // when the stream event was created
     google.protobuf.Timestamp createdAt = 2;

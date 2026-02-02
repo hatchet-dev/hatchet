@@ -30,27 +30,27 @@ message TasksFilter {
     repeated string statuses = 1;
     google.protobuf.Timestamp since = 2;
     optional google.protobuf.Timestamp until = 3;
-    repeated string workflow_ids = 4;
-    repeated string additional_metadata = 5;
+    repeated string workflowIds = 4;
+    repeated string additionalMetadata = 5;
 }
 
 message CancelTasksResponse {
-    repeated string cancelled_tasks = 1;
+    repeated string cancelledTasks = 1;
 }
 
 message ReplayTasksResponse {
-    repeated string replayed_tasks = 1;
+    repeated string replayedTasks = 1;
 }
 
 message TriggerWorkflowRunRequest {
-    string workflow_name = 1;
+    string workflowName = 1;
     bytes input = 2;
-    bytes additional_metadata = 3;
+    bytes additionalMetadata = 3;
     optional int32 priority = 4;
 }
 
 message TriggerWorkflowRunResponse {
-    string external_id = 1;
+    string externalId = 1;
 }
 
 enum StickyStrategy {
@@ -82,19 +82,19 @@ message CreateWorkflowVersionRequest {
     string name = 1; // (required) the workflow name
     string description = 2; // (optional) the workflow description
     string version = 3; // (optional) the workflow version
-    repeated string event_triggers = 4; // (optional) event triggers for the workflow
-    repeated string cron_triggers = 5; // (optional) cron triggers for the workflow
+    repeated string eventTriggers = 4; // (optional) event triggers for the workflow
+    repeated string cronTriggers = 5; // (optional) cron triggers for the workflow
     repeated CreateTaskOpts tasks = 6; // (required) the workflow jobs
 
-    // Deprecated: use concurrency_arr instead
+    // Deprecated: use concurrencyArr instead
     Concurrency concurrency = 7; // (optional) the workflow concurrency options
-    optional string cron_input = 8; // (optional) the input for the cron trigger
-    optional CreateTaskOpts on_failure_task = 9; // (optional) the job to run on failure
-    optional StickyStrategy sticky = 10; // (optional) the sticky strategy for assigning steps to workers
-    optional int32 default_priority = 11; // (optional) the default priority for the workflow
-    repeated Concurrency concurrency_arr = 12; // (optional) the workflow concurrency options
-    repeated DefaultFilter default_filters = 13; // (optional) the default filters for the workflow
-    optional bytes input_json_schema = 14; // (optional) the JSON schema for the workflow input
+    optional string cronInput = 8; // (optional) the input for the cron trigger
+    optional CreateTaskOpts onFailureTask = 9; // (optional) the job to run on failure
+    optional StickyStrategy sticky = 10; // (optional) the sticky strategy for assigning tasks to workers
+    optional int32 defaultPriority = 11; // (optional) the default priority for the workflow
+    repeated Concurrency concurrencyArr = 12; // (optional) the workflow concurrency options
+    repeated DefaultFilter defaultFilters = 13; // (optional) the default filters for the workflow
+    optional bytes inputJsonSchema = 14; // (optional) the JSON schema for the workflow input
 }
 
 
@@ -114,8 +114,8 @@ enum ConcurrencyLimitStrategy {
 
 message Concurrency {
     string expression = 1; // (required) the expression to use for concurrency
-    optional int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
-    optional ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+    optional int32 maxRuns = 2; // (optional) the maximum number of concurrent workflow runs, default 1
+    optional ConcurrencyLimitStrategy limitStrategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
 }
 
 enum WorkerLabelComparator {
@@ -155,52 +155,52 @@ message DesiredWorkerLabels {
 
 // CreateTaskOpts represents options to create a task.
 message CreateTaskOpts {
-    string readable_id = 1; // (required) the task name
+    string readableId = 1; // (required) the task name
     string action = 2; // (required) the task action id
     string timeout = 3; // (optional) the task timeout
     string inputs = 4; // (optional) the task inputs, assuming string representation of JSON
     repeated string parents = 5; // (optional) the task parents. if none are passed in, this is a root task
-    int32 retries = 6; // (optional) the number of retries for the step, default 0
-    repeated CreateTaskRateLimit rate_limits = 7; // (optional) the rate limits for the step
-    map<string, DesiredWorkerLabels> worker_labels = 8; // (optional) the desired worker affinity state for the step
-    optional float backoff_factor = 9; // (optional) the retry backoff factor for the step
-    optional int32 backoff_max_seconds = 10; // (optional) the maximum backoff time for the step
+    int32 retries = 6; // (optional) the number of retries for the task, default 0
+    repeated CreateTaskRateLimit rateLimits = 7; // (optional) the rate limits for the task
+    map<string, DesiredWorkerLabels> workerLabels = 8; // (optional) the desired worker affinity state for the task
+    optional float backoffFactor = 9; // (optional) the retry backoff factor for the task
+    optional int32 backoffMaxSeconds = 10; // (optional) the maximum backoff time for the task
     repeated Concurrency concurrency = 11; // (optional) the task concurrency options
     optional TaskConditions conditions = 12; // (optional) the task conditions for creating the task
-    optional string schedule_timeout = 13; // (optional) the timeout for the schedule
+    optional string scheduleTimeout = 13; // (optional) the timeout for the schedule
 }
 
 message CreateTaskRateLimit {
     string key = 1; // (required) the key for the rate limit
-    optional int32 units = 2; // (optional) the number of units this step consumes
-    optional string key_expr = 3; // (optional) a CEL expression for determining the rate limit key
-    optional string units_expr = 4; // (optional) a CEL expression for determining the number of units consumed
-    optional string limit_values_expr = 5; // (optional) a CEL expression for determining the total amount of rate limit units
+    optional int32 units = 2; // (optional) the number of units this task consumes
+    optional string keyExpr = 3; // (optional) a CEL expression for determining the rate limit key
+    optional string unitsExpr = 4; // (optional) a CEL expression for determining the number of units consumed
+    optional string limitValuesExpr = 5; // (optional) a CEL expression for determining the total amount of rate limit units
     optional RateLimitDuration duration = 6; // (optional) the default rate limit window to use for dynamic rate limits
 }
 
 // CreateWorkflowVersionResponse represents the response after creating a workflow version.
 message CreateWorkflowVersionResponse {
     string id = 1;
-    string workflow_id = 2;
+    string workflowId = 2;
 }
 
 message GetRunDetailsRequest {
-    string external_id = 1; // (required) the external id (uuid) of the workflow run
+    string externalId = 1; // (required) the external id (uuid) of the workflow run
 }
 
 message TaskRunDetail {
-    string external_id = 1; // the external id (uuid) of the task run
+    string externalId = 1; // the external id (uuid) of the task run
     RunStatus status = 2; // the status of the task run
     optional string error = 3; // (optional) error message from the task run, if any
     optional bytes output = 4; // (optional) the output payload for the task run
-    string readable_id = 5; // the readable id of the task
+    string readableId = 5; // the readable id of the task
 }
 
 message GetRunDetailsResponse {
     bytes input = 1; // the input payload for the workflow run
     RunStatus status = 2; // the status of the workflow run
-    map<string, TaskRunDetail> task_runs = 3; // map of task run external ids to their details
+    map<string, TaskRunDetail> taskRuns = 3; // map of task run external ids to their details
     bool done = 4; // indicates if the workflow run is done
-    bytes additional_metadata = 5; // (optional) additional metadata for the workflow run
+    bytes additionalMetadata = 5; // (optional) additional metadata for the workflow run
 }
