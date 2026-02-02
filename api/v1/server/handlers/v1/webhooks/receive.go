@@ -197,6 +197,18 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 
 	headerMap := make(map[string]string)
 
+	if len(webhook.StaticPayload) > 0 {
+		var staticPayloadMap map[string]interface{}
+		if unmarshalErr := json.Unmarshal(webhook.StaticPayload, &staticPayloadMap); unmarshalErr != nil {
+			w.config.Logger.Warn().Err(unmarshalErr).Str("webhook", webhookName).Str("tenant", tenantId).Msg("Failed to unmarshal static payload")
+		} else {
+			// static payload takes precedence over payload map when there is a collision
+			for key, value := range staticPayloadMap {
+				payloadMap[key] = value
+			}
+		}
+	}
+
 	for k, v := range ctx.Request().Header {
 		if len(v) > 0 {
 			headerMap[strings.ToLower(k)] = v[0]
@@ -274,18 +286,6 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		}
 
 		scope = &scopeValue
-	}
-
-	if len(webhook.StaticPayload) > 0 {
-		var staticPayloadMap map[string]interface{}
-		if unmarshalErr := json.Unmarshal(webhook.StaticPayload, &staticPayloadMap); unmarshalErr != nil {
-			w.config.Logger.Warn().Err(unmarshalErr).Str("webhook", webhookName).Str("tenant", tenantId).Msg("Failed to unmarshal static payload")
-		} else {
-			// static payload takes precedence over payload map
-			for key, value := range staticPayloadMap {
-				payloadMap[key] = value
-			}
-		}
 	}
 
 	payload, err := json.Marshal(payloadMap)

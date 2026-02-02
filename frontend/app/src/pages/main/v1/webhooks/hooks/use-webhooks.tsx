@@ -85,6 +85,8 @@ export const webhookFormSchema = z.object({
   sourceName: z.nativeEnum(V1WebhookSourceName),
   name: z.string().min(1, 'Name expression is required'),
   eventKeyExpression: z.string().min(1, 'Event key expression is required'),
+  scopeExpression: z.string().optional(),
+  staticPayload: z.string().optional(),
   authType: z.nativeEnum(V1WebhookAuthType),
   username: z.string().optional(),
   password: z.string().optional(),
@@ -97,3 +99,11 @@ export const webhookFormSchema = z.object({
 });
 
 export type WebhookFormData = z.infer<typeof webhookFormSchema>;
+
+export const webhookUpdateFormSchema = z.object({
+  eventKeyExpression: z.string().min(1, 'Event key expression is required'),
+  scopeExpression: z.string().optional(),
+  staticPayload: z.string().optional(),
+});
+
+export type WebhookUpdateFormData = z.infer<typeof webhookUpdateFormSchema>;
