@@ -544,11 +544,4 @@ def worker_action_listener_process(
         while not process.killing:  # noqa: ASYNC110
             await asyncio.sleep(0.1)
 
-    try:
-        asyncio.run(run())
-    finally:
-        try:
-            action_queue.close()
-            event_queue.close()
-        except Exception:
-            pass
+    asyncio.run(run())
