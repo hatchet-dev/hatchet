@@ -14,7 +14,7 @@ import (
 
 func SeedDatabase(dc *database.Layer) error {
 	shouldSeedUser := dc.Seed.AdminEmail != "" && dc.Seed.AdminPassword != ""
-	var userID string
+	var userID uuid.UUID
 
 	if shouldSeedUser {
 		// seed an example user
@@ -43,7 +43,7 @@ func SeedDatabase(dc *database.Layer) error {
 			}
 		}
 
-		userID = user.ID.String()
+		userID = user.ID
 	}
 
 	_, err := dc.V1.Tenant().GetTenantBySlug(context.Background(), dc.Seed.DefaultTenantSlug)

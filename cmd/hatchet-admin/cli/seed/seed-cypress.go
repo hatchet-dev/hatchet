@@ -23,7 +23,7 @@ type User struct {
 	email       string
 	password    string
 	role        string
-	id          string
+	id          uuid.UUID
 	tenantSlugs []string
 }
 
@@ -118,7 +118,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 			existingUsers++
 		}
 
-		user.id = insertedUser.ID.String()
+		user.id = insertedUser.ID
 		logger.Printf("user %s: name=%q email=%q role=%s user_id=%s", action, user.name, user.email, user.role, user.id)
 	}
 
@@ -171,7 +171,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 			member, err := dc.V1.Tenant().GetTenantMemberByUserID(ctx, tenantUUID, user.id)
 			if err == nil {
 				if !allowed {
-					if err := dc.V1.Tenant().DeleteTenantMember(ctx, member.ID.String()); err != nil {
+					if err := dc.V1.Tenant().DeleteTenantMember(ctx, member.ID); err != nil {
 						return fmt.Errorf(
 							"deleting disallowed tenant member (tenant_slug=%s tenant_id=%s user_email=%s user_id=%s member_id=%s): %w",
 							tenant.slug,
@@ -287,11 +287,11 @@ func userHasTenantSlug(u User, tenantSlug string) bool {
 }
 
 type cypressSeededUser struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
-	UserID   string `json:"userId"`
+	Name     string    `json:"name"`
+	Email    string    `json:"email"`
+	Password string    `json:"password"`
+	Role     string    `json:"role"`
+	UserID   uuid.UUID `json:"userId"`
 }
 
 type cypressEnvUser struct {
