@@ -11,7 +11,7 @@ CREATE TABLE v1_durable_event_log (
     data JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (task_id, task_inserted_at, key)
-) PARTITION BY RANGE(task_inserted_at);
+);
 
 CREATE UNIQUE INDEX v1_durable_event_log_lookup_idx ON v1_durable_event_log (
     tenant_id ASC,

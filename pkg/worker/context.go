@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -815,6 +816,8 @@ func (d *durableHatchetContext) Memo(fn func() (interface{}, error), deps []inte
 	})
 
 	if err == nil && resp.Found {
+		log.Printf("memo found for key: %s", key)
+
 		var result interface{}
 		if unmarshalErr := json.Unmarshal(resp.Data, &result); unmarshalErr != nil {
 			return nil, fmt.Errorf("failed to unmarshal cached memo result: %w", unmarshalErr)
