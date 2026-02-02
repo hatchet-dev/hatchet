@@ -6,7 +6,7 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -34,7 +34,7 @@ jobs:
         run: npm run lint:check
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
       - name: Clone repository
         uses: actions/checkout@v6

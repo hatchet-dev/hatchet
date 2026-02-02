@@ -48,7 +48,7 @@ jobs:
   #         TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
   push-hatchet-server:
     name: Push latest
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     # needs: load
     steps:
       - name: Get tag name
