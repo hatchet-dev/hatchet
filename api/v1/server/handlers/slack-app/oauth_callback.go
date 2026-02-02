@@ -3,7 +3,6 @@ package slackapp
 import (
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/slack-go/slack"
 
@@ -23,13 +22,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 
 	sh := authn.NewSessionHelpers(g.config)
 
-	tenantIdStr, err := sh.GetKey(ctx, "tenant")
-
-	if err != nil {
-		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. Please try again and make sure cookies are enabled.")
-	}
-
-	tenantId, err := uuid.Parse(tenantIdStr)
+	tenantId, err := sh.GetKeyUuid(ctx, "tenant")
 
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. Please try again and make sure cookies are enabled.")
@@ -70,7 +63,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 
 	_, err = g.config.V1.Slack().UpsertSlackWebhook(
 		ctx.Request().Context(),
-		tenantId,
+		*tenantId,
 		&v1.UpsertSlackWebhookOpts{
 			TeamId:      resp.Team.ID,
 			TeamName:    resp.Team.Name,

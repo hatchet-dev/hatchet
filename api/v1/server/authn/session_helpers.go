@@ -3,6 +3,7 @@ package authn
 import (
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo/v4"
 
@@ -91,6 +92,25 @@ func (s *SessionHelpers) GetKey(
 	}
 
 	return vStr, nil
+}
+
+func (s *SessionHelpers) GetKeyUuid(
+	c echo.Context,
+	k string,
+) (*uuid.UUID, error) {
+	vStr, err := s.GetKey(c, k)
+
+	if err != nil {
+		return nil, err
+	}
+
+	vUuid, err := uuid.Parse(vStr)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &vUuid, nil
 }
 
 func (s *SessionHelpers) RemoveKey(
