@@ -498,5 +498,13 @@ class Worker:
 
         await self._close()
 
+        if self._lifespan_cleanup_complete is not None:
+            try:
+                await asyncio.wait_for(
+                    self._lifespan_cleanup_complete.wait(), timeout=5.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("lifespan cleanup timed out during forceful shutdown")
+
         logger.info("👋")
         sys.exit(1)
