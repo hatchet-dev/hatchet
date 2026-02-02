@@ -12,7 +12,7 @@ permissions:
 jobs:
   release-cli:
     name: Release CLI with GoReleaser
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
       - name: Get tag name
         id: tag_name

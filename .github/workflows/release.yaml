@@ -9,7 +9,7 @@ on:
 name: Release
 jobs:
   load:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     timeout-minutes: 30
     strategy:
       matrix:
@@ -49,7 +49,7 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
   push-hatchet-server:
     name: Push latest
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
       - name: Get tag name
         id: tag_name

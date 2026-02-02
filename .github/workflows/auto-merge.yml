@@ -4,7 +4,7 @@ on: pull_request_target
 
 jobs:
   auto-merge:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     if: ${{ github.actor == 'dependabot[bot]' }}
     permissions:
       pull-requests: write
