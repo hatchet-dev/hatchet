@@ -115,7 +115,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
 
   const { suggestions } = getAutocomplete(localValue, autocompleteContext);
 
-  // Auto-select first suggestion when suggestions change (e.g., from keys to values)
+  // Reset selection when suggestions change (e.g., from keys to values after selecting a key)
   useEffect(() => {
     const suggestionsChanged =
       prevSuggestionsRef.current.length !== suggestions.length ||
@@ -124,12 +124,8 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
       );
 
     if (suggestionsChanged) {
-      // Auto-select first suggestion if any exist, otherwise clear selection
-      setSelectedIndex(suggestions.length > 0 ? 0 : undefined);
-
-      // Don't automatically open dropdown - let explicit user actions control it
-      // (typing, focus, space key, etc.)
-
+      // Reset selection - user must explicitly navigate with arrows
+      setSelectedIndex(undefined);
       prevSuggestionsRef.current = suggestions;
     }
   }, [suggestions]);
@@ -216,21 +212,9 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        // If input is empty or just whitespace, always submit (don't apply suggestions)
-        const isEmpty = localValue.trim() === '';
-        if (isEmpty) {
-          submitSearch();
-          setIsOpen(false);
-        } else if (
-          isOpen &&
-          suggestions.length > 0 &&
-          selectedIndex !== undefined
-        ) {
-          handleSelect(selectedIndex);
-        } else {
-          submitSearch();
-          setIsOpen(false);
-        }
+        // Enter always submits search
+        submitSearch();
+        setIsOpen(false);
         return;
       }
 
@@ -261,20 +245,15 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
           return i > 0 ? i - 1 : suggestions.length - 1;
         });
       } else if (e.key === 'Tab') {
-        if (selectedIndex !== undefined) {
-          e.preventDefault();
-          handleSelect(selectedIndex);
+        e.preventDefault();
+        // Tab autocompletes - apply the selected suggestion or first one if none selected
+        const indexToApply = selectedIndex !== undefined ? selectedIndex : 0;
+        if (suggestions[indexToApply]) {
+          handleSelect(indexToApply);
         }
       }
     },
-    [
-      isOpen,
-      suggestions.length,
-      selectedIndex,
-      handleSelect,
-      submitSearch,
-      localValue,
-    ],
+    [isOpen, suggestions, selectedIndex, handleSelect, submitSearch],
   );
 
   const defaultRenderSuggestion = useCallback(
@@ -447,8 +426,11 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
                   </Button>
                 ))}
               </div>
-              <div className="text-muted-foreground">
-                Or type any text to search without filters
+              <div className="text-muted-foreground space-y-1">
+                <div>
+                  Arrow keys to navigate, tab to autocomplete. Type any text for
+                  full-text search.
+                </div>
               </div>
             </div>
           )}
