@@ -132,18 +132,18 @@ class CreateWorkflowJobOpts(_message.Message):
     def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., steps: _Optional[_Iterable[_Union[CreateWorkflowStepOpts, _Mapping]]] = ...) -> None: ...
 
 class DesiredWorkerLabels(_message.Message):
-    __slots__ = ("strValue", "intValue", "required", "comparator", "weight")
-    STRVALUE_FIELD_NUMBER: _ClassVar[int]
-    INTVALUE_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("str_value", "int_value", "required", "comparator", "weight")
+    STR_VALUE_FIELD_NUMBER: _ClassVar[int]
+    INT_VALUE_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_FIELD_NUMBER: _ClassVar[int]
     COMPARATOR_FIELD_NUMBER: _ClassVar[int]
     WEIGHT_FIELD_NUMBER: _ClassVar[int]
-    strValue: str
-    intValue: int
+    str_value: str
+    int_value: int
     required: bool
     comparator: WorkerLabelComparator
     weight: int
-    def __init__(self, strValue: _Optional[str] = ..., intValue: _Optional[int] = ..., required: bool = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
+    def __init__(self, str_value: _Optional[str] = ..., int_value: _Optional[int] = ..., required: bool = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
 
 class CreateWorkflowStepOpts(_message.Message):
     __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "user_data", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds")
@@ -199,12 +199,12 @@ class ListWorkflowsRequest(_message.Message):
     def __init__(self) -> None: ...
 
 class ScheduleWorkflowRequest(_message.Message):
-    __slots__ = ("name", "schedules", "input", "parent_id", "parent_step_run_id", "child_index", "child_key", "additional_metadata", "priority")
+    __slots__ = ("name", "schedules", "input", "parent_id", "parent_task_run_id", "child_index", "child_key", "additional_metadata", "priority")
     NAME_FIELD_NUMBER: _ClassVar[int]
     SCHEDULES_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
     PARENT_ID_FIELD_NUMBER: _ClassVar[int]
-    PARENT_STEP_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    PARENT_TASK_RUN_ID_FIELD_NUMBER: _ClassVar[int]
     CHILD_INDEX_FIELD_NUMBER: _ClassVar[int]
     CHILD_KEY_FIELD_NUMBER: _ClassVar[int]
     ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
@@ -213,12 +213,12 @@ class ScheduleWorkflowRequest(_message.Message):
     schedules: _containers.RepeatedCompositeFieldContainer[_timestamp_pb2.Timestamp]
     input: str
     parent_id: str
-    parent_step_run_id: str
+    parent_task_run_id: str
     child_index: int
     child_key: str
     additional_metadata: str
     priority: int
-    def __init__(self, name: _Optional[str] = ..., schedules: _Optional[_Iterable[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]]] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_step_run_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
+    def __init__(self, name: _Optional[str] = ..., schedules: _Optional[_Iterable[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]]] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
 
 class ScheduledWorkflow(_message.Message):
     __slots__ = ("id", "trigger_at")
@@ -275,11 +275,11 @@ class BulkTriggerWorkflowResponse(_message.Message):
     def __init__(self, workflow_run_ids: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class TriggerWorkflowRequest(_message.Message):
-    __slots__ = ("name", "input", "parent_id", "parent_step_run_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority")
+    __slots__ = ("name", "input", "parent_id", "parent_task_run_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority")
     NAME_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
     PARENT_ID_FIELD_NUMBER: _ClassVar[int]
-    PARENT_STEP_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    PARENT_TASK_RUN_ID_FIELD_NUMBER: _ClassVar[int]
     CHILD_INDEX_FIELD_NUMBER: _ClassVar[int]
     CHILD_KEY_FIELD_NUMBER: _ClassVar[int]
     ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
@@ -288,13 +288,13 @@ class TriggerWorkflowRequest(_message.Message):
     name: str
     input: str
     parent_id: str
-    parent_step_run_id: str
+    parent_task_run_id: str
     child_index: int
     child_key: str
     additional_metadata: str
     desired_worker_id: str
     priority: int
-    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_step_run_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
+    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
 
 class TriggerWorkflowResponse(_message.Message):
     __slots__ = ("workflow_run_id",)

@@ -121,8 +121,8 @@ class ComputedTaskParameters(BaseModel):
 def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels:
     value = d.value
     return DesiredWorkerLabels(
-        strValue=value if not isinstance(value, int) else None,
-        intValue=value if isinstance(value, int) else None,
+        str_value=value if not isinstance(value, int) else None,
+        int_value=value if isinstance(value, int) else None,
         required=d.required,
         weight=d.weight,
         comparator=d.comparator,  # type: ignore[arg-type]

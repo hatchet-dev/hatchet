@@ -119,8 +119,8 @@ class EventClient(BaseRestClient):
         request = PushEventRequest(
             key=namespaced_event_key,
             payload=payload_str,
-            eventTimestamp=proto_timestamp_now(),
-            additionalMetadata=meta_bytes,
+            event_timestamp=proto_timestamp_now(),
+            additional_metadata=meta_bytes,
             priority=options.priority,
             scope=options.scope,
         )
@@ -153,8 +153,8 @@ class EventClient(BaseRestClient):
         return PushEventRequest(
             key=event_key,
             payload=serialized_payload,
-            eventTimestamp=proto_timestamp_now(),
-            additionalMetadata=meta_str,
+            event_timestamp=proto_timestamp_now(),
+            additional_metadata=meta_str,
             priority=event.priority,
             scope=event.scope,
         )
@@ -198,11 +198,11 @@ class EventClient(BaseRestClient):
             self.events_service_client.PutLog, self.client_config.tenacity
         )
         request = PutLogRequest(
-            stepRunId=step_run_id,
-            createdAt=proto_timestamp_now(),
+            task_run_id=step_run_id,
+            created_at=proto_timestamp_now(),
             message=message,
             level=level.value if level else None,
-            taskRetryCount=task_retry_count,
+            task_retry_count=task_retry_count,
         )
 
         put_log(request, metadata=get_metadata(self.token))
@@ -219,10 +219,10 @@ class EventClient(BaseRestClient):
             raise ValueError("Invalid data type. Expected str, bytes, or file.")
 
         request = PutStreamEventRequest(
-            stepRunId=step_run_id,
-            createdAt=proto_timestamp_now(),
+            task_run_id=step_run_id,
+            created_at=proto_timestamp_now(),
             message=data_bytes,
-            eventIndex=index,
+            event_index=index,
         )
 
         try:

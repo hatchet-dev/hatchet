@@ -77,20 +77,20 @@ LESS_THAN: WorkerLabelComparator
 LESS_THAN_OR_EQUAL: WorkerLabelComparator
 
 class CancelTasksRequest(_message.Message):
-    __slots__ = ("externalIds", "filter")
-    EXTERNALIDS_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("external_ids", "filter")
+    EXTERNAL_IDS_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
-    externalIds: _containers.RepeatedScalarFieldContainer[str]
+    external_ids: _containers.RepeatedScalarFieldContainer[str]
     filter: TasksFilter
-    def __init__(self, externalIds: _Optional[_Iterable[str]] = ..., filter: _Optional[_Union[TasksFilter, _Mapping]] = ...) -> None: ...
+    def __init__(self, external_ids: _Optional[_Iterable[str]] = ..., filter: _Optional[_Union[TasksFilter, _Mapping]] = ...) -> None: ...
 
 class ReplayTasksRequest(_message.Message):
-    __slots__ = ("externalIds", "filter")
-    EXTERNALIDS_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("external_ids", "filter")
+    EXTERNAL_IDS_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
-    externalIds: _containers.RepeatedScalarFieldContainer[str]
+    external_ids: _containers.RepeatedScalarFieldContainer[str]
     filter: TasksFilter
-    def __init__(self, externalIds: _Optional[_Iterable[str]] = ..., filter: _Optional[_Union[TasksFilter, _Mapping]] = ...) -> None: ...
+    def __init__(self, external_ids: _Optional[_Iterable[str]] = ..., filter: _Optional[_Union[TasksFilter, _Mapping]] = ...) -> None: ...
 
 class TasksFilter(_message.Message):
     __slots__ = ("statuses", "since", "until", "workflow_ids", "additional_metadata")
@@ -189,18 +189,18 @@ class Concurrency(_message.Message):
     def __init__(self, expression: _Optional[str] = ..., max_runs: _Optional[int] = ..., limit_strategy: _Optional[_Union[ConcurrencyLimitStrategy, str]] = ...) -> None: ...
 
 class DesiredWorkerLabels(_message.Message):
-    __slots__ = ("strValue", "intValue", "required", "comparator", "weight")
-    STRVALUE_FIELD_NUMBER: _ClassVar[int]
-    INTVALUE_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("str_value", "int_value", "required", "comparator", "weight")
+    STR_VALUE_FIELD_NUMBER: _ClassVar[int]
+    INT_VALUE_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_FIELD_NUMBER: _ClassVar[int]
     COMPARATOR_FIELD_NUMBER: _ClassVar[int]
     WEIGHT_FIELD_NUMBER: _ClassVar[int]
-    strValue: str
-    intValue: int
+    str_value: str
+    int_value: int
     required: bool
     comparator: WorkerLabelComparator
     weight: int
-    def __init__(self, strValue: _Optional[str] = ..., intValue: _Optional[int] = ..., required: bool = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
+    def __init__(self, str_value: _Optional[str] = ..., int_value: _Optional[int] = ..., required: bool = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
 
 class CreateTaskOpts(_message.Message):
     __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds", "concurrency", "conditions", "schedule_timeout")
