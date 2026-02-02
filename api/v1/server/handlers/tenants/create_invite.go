@@ -95,7 +95,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		&tenantId,
 		nil,
 		map[string]interface{}{
-			"invite_id": invite.ID,
+			"invite_id": invite.ID.String(),
 			"role":      request.Body.Role,
 		},
 	)

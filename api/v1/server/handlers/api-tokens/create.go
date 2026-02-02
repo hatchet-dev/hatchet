@@ -55,7 +55,7 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 		map[string]interface{}{
 			"name":       request.Body.Name,
 			"expires_at": expiresAt,
-			"token_id":   token.TokenId,
+			"token_id":   token.TokenId.String(),
 		},
 	)
 

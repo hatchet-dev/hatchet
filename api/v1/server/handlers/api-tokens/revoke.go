@@ -34,7 +34,7 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 		apiToken.TenantId,
 		nil,
 		map[string]interface{}{
-			"token_id": apiToken.ID,
+			"token_id": apiToken.ID.String(),
 		},
 	)
 	return gen.ApiTokenUpdateRevoke204Response{}, nil
