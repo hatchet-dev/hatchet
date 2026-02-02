@@ -105,7 +105,7 @@ func TestRevokeTenantToken(t *testing.T) {
 		}
 
 		assert.Len(t, apiTokens, 1)
-		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), apiTokens[0].ID.String())
+		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), apiTokens[0].ID)
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -169,7 +169,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 		}
 
 		assert.Len(t, apiTokens, 1)
-		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), apiTokens[0].ID.String())
+		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), apiTokens[0].ID)
 
 		if err != nil {
 			t.Fatal(err.Error())
