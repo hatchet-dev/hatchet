@@ -188,10 +188,10 @@ RETURNING
 `
 
 type CreateEventToRunsParams struct {
-	Runexternalids []pgtype.UUID        `json:"runexternalids"`
+	Runexternalids []uuid.UUID          `json:"runexternalids"`
 	Eventids       []int64              `json:"eventids"`
 	Eventseenats   []pgtype.Timestamptz `json:"eventseenats"`
-	Filterids      []pgtype.UUID        `json:"filterids"`
+	Filterids      []uuid.UUID          `json:"filterids"`
 }
 
 func (q *Queries) CreateEventToRuns(ctx context.Context, db DBTX, arg CreateEventToRunsParams) ([]*V1EventToRun, error) {

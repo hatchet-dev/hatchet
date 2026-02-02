@@ -3024,8 +3024,8 @@ type V1DurableSleep struct {
 type V1Event struct {
 	ID                    int64              `json:"id"`
 	SeenAt                pgtype.Timestamptz `json:"seen_at"`
-	TenantID              pgtype.UUID        `json:"tenant_id"`
-	ExternalID            pgtype.UUID        `json:"external_id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	ExternalID            uuid.UUID          `json:"external_id"`
 	Key                   string             `json:"key"`
 	AdditionalMetadata    []byte             `json:"additional_metadata"`
 	Scope                 pgtype.Text        `json:"scope"`
@@ -3033,8 +3033,8 @@ type V1Event struct {
 }
 
 type V1EventLookupTable struct {
-	TenantID    pgtype.UUID        `json:"tenant_id"`
-	ExternalID  pgtype.UUID        `json:"external_id"`
+	TenantID    uuid.UUID          `json:"tenant_id"`
+	ExternalID  uuid.UUID          `json:"external_id"`
 	EventID     int64              `json:"event_id"`
 	EventSeenAt pgtype.Timestamptz `json:"event_seen_at"`
 }
@@ -3047,10 +3047,10 @@ type V1EventLookupTableOlap struct {
 }
 
 type V1EventToRun struct {
-	RunExternalID pgtype.UUID        `json:"run_external_id"`
+	RunExternalID uuid.UUID          `json:"run_external_id"`
 	EventID       int64              `json:"event_id"`
 	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
-	FilterID      pgtype.UUID        `json:"filter_id"`
+	FilterID      *uuid.UUID         `json:"filter_id"`
 }
 
 type V1EventToRunOlap struct {

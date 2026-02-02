@@ -531,7 +531,7 @@ WHERE
 `
 
 type ListQueueItemsForTasksParams struct {
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Retrycounts     []int32              `json:"retrycounts"`
