@@ -1318,15 +1318,33 @@ ORDER BY r.inserted_at DESC, r.run_id DESC;
 SELECT
     DATE_BIN(
         COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
-        inserted_at,
+        s.inserted_at,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
     ) :: TIMESTAMPTZ AS minute_bucket,
-    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_statuses_olap
+    COUNT(*) FILTER (WHERE s.readable_status = 'COMPLETED') AS completed_count,
+    COUNT(*) FILTER (WHERE s.readable_status = 'FAILED') AS failed_count
+FROM v1_statuses_olap s
 WHERE
-    tenant_id = @tenantId::UUID
-    AND inserted_at BETWEEN @createdAfter::TIMESTAMPTZ AND @createdBefore::TIMESTAMPTZ
+    s.tenant_id = @tenantId::UUID
+    AND s.inserted_at BETWEEN @createdAfter::TIMESTAMPTZ AND @createdBefore::TIMESTAMPTZ
+    AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR s.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
+    AND (
+        -- TODO: check query performance
+        sqlc.narg('additionalMetaKeys')::text[] IS NULL
+        OR sqlc.narg('additionalMetaValues')::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM v1_runs_olap r
+            WHERE r.external_id = s.external_id
+            AND r.inserted_at = s.inserted_at
+            AND EXISTS (
+                SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest(sqlc.narg('additionalMetaKeys')::text[]) AS k,
+                        unnest(sqlc.narg('additionalMetaValues')::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+    )
 GROUP BY minute_bucket
 ORDER BY minute_bucket;
 

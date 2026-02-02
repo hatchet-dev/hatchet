@@ -2,8 +2,10 @@ package tasks
 
 import (
 	"errors"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
@@ -50,7 +52,22 @@ func (t *TasksService) V1TaskGetPointMetrics(ctx echo.Context, request gen.V1Tas
 		lowerBound = lowerBound.Truncate(24 * time.Hour)
 	}
 
-	metrics, err := t.config.V1.OLAP().GetTaskPointMetrics(ctx.Request().Context(), tenantId, &lowerBound, &upperBound, bucketInterval)
+	var workflowIds []uuid.UUID
+	if request.Params.WorkflowIds != nil {
+		workflowIds = *request.Params.WorkflowIds
+	}
+
+	additionalMetadata := make(map[string]string)
+	if request.Params.AdditionalMetadata != nil {
+		for _, v := range *request.Params.AdditionalMetadata {
+			kvPairs := strings.SplitN(v, ":", 2)
+			if len(kvPairs) == 2 {
+				additionalMetadata[kvPairs[0]] = kvPairs[1]
+			}
+		}
+	}
+
+	metrics, err := t.config.V1.OLAP().GetTaskPointMetrics(ctx.Request().Context(), tenantId, &lowerBound, &upperBound, bucketInterval, workflowIds, additionalMetadata)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

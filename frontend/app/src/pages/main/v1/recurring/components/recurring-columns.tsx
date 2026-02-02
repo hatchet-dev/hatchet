@@ -1,4 +1,5 @@
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
+import { ActivityMiniChart } from '@/components/v1/molecules/charts/activity-mini-chart';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -17,6 +18,7 @@ export const CronColumn = {
   timezone: 'Timezone',
   name: 'Name',
   workflow: 'Workflow',
+  activity: 'Activity',
   metadata: 'Metadata',
   createdAt: 'Created At',
   actions: 'Actions',
@@ -31,6 +33,7 @@ const descriptionKey: CronColumnKeys = 'description';
 const timezoneKey: CronColumnKeys = 'timezone';
 const nameKey: CronColumnKeys = 'name';
 export const workflowKey: CronColumnKeys = 'workflow';
+const activityKey: CronColumnKeys = 'activity';
 export const metadataKey: CronColumnKeys = 'metadata';
 const createdAtKey: CronColumnKeys = 'createdAt';
 const actionsKey: CronColumnKeys = 'actions';
@@ -54,40 +57,23 @@ export const columns = ({
 }): ColumnDef<CronWorkflows>[] => {
   return [
     {
-      accessorKey: expressionKey,
+      accessorKey: enabledKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={CronColumn.expression} />
+        <DataTableColumnHeader column={column} title={CronColumn.enabled} />
       ),
       cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4 whitespace-nowrap">
-          {row.original.cron}
+        <div>
+          {isUpdatePending && updatingCronId === row.original.metadata.id ? (
+            <Spinner />
+          ) : row.original.enabled ? (
+            <Check className="size-4 text-emerald-500" />
+          ) : (
+            <X className="size-4 text-red-500" />
+          )}
         </div>
       ),
       enableSorting: false,
-    },
-    {
-      accessorKey: descriptionKey,
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={CronColumn.description} />
-      ),
-      cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4">
-          Runs {formatCron(row.original.cron)}
-        </div>
-      ),
-      enableSorting: false,
-    },
-    {
-      accessorKey: timezoneKey,
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={CronColumn.timezone} />
-      ),
-      cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4">
-          {extractCronTz(row.original.cron)}
-        </div>
-      ),
-      enableSorting: false,
+      enableHiding: false,
     },
     {
       accessorKey: nameKey,
@@ -123,6 +109,42 @@ export const columns = ({
       ),
       enableSorting: false,
       enableHiding: true,
+    },
+    {
+      accessorKey: expressionKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={CronColumn.expression} />
+      ),
+      cell: ({ row }) => (
+        <div className="flex flex-row items-center gap-4 whitespace-nowrap">
+          {row.original.cron}
+        </div>
+      ),
+      enableSorting: false,
+    },
+    {
+      accessorKey: descriptionKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={CronColumn.description} />
+      ),
+      cell: ({ row }) => (
+        <div className="flex flex-row items-center gap-4">
+          Runs {formatCron(row.original.cron)}
+        </div>
+      ),
+      enableSorting: false,
+    },
+    {
+      accessorKey: timezoneKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={CronColumn.timezone} />
+      ),
+      cell: ({ row }) => (
+        <div className="flex flex-row items-center gap-4">
+          {extractCronTz(row.original.cron)}
+        </div>
+      ),
+      enableSorting: false,
     },
     {
       accessorKey: metadataKey,
@@ -164,21 +186,24 @@ export const columns = ({
       enableHiding: true,
     },
     {
-      accessorKey: enabledKey,
+      accessorKey: activityKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={CronColumn.enabled} />
+        <DataTableColumnHeader column={column} title={CronColumn.activity} />
       ),
       cell: ({ row }) => (
-        <div>
-          {isUpdatePending && updatingCronId === row.original.metadata.id ? (
-            <Spinner />
-          ) : row.original.enabled ? (
-            <Check className="size-4 text-emerald-500" />
-          ) : (
-            <X className="size-4 text-red-500" />
-          )}
+        <div className="flex flex-row items-center">
+          <ActivityMiniChart
+            workflowId={row.original.workflowId}
+            additionalMetadata={
+              row.original.name
+                ? { hatchet__cron_name: row.original.name }
+                : undefined
+            }
+          />
         </div>
       ),
+      enableSorting: false,
+      enableHiding: true,
     },
     {
       accessorKey: actionsKey,

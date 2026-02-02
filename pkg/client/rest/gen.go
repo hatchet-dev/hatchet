@@ -2511,6 +2511,12 @@ type V1TaskGetPointMetricsParams struct {
 
 	// FinishedBefore The time before the task was completed
 	FinishedBefore *time.Time `form:"finishedBefore,omitempty" json:"finishedBefore,omitempty"`
+
+	// WorkflowIds A list of workflow IDs to filter by
+	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
+
+	// AdditionalMetadata Additional metadata k-v pairs to filter by
+	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
 }
 
 // V1WebhookListParams defines parameters for V1WebhookList.
@@ -7295,6 +7301,38 @@ func NewV1TaskGetPointMetricsRequest(server string, tenant openapi_types.UUID, p
 		if params.FinishedBefore != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "finishedBefore", runtime.ParamLocationQuery, *params.FinishedBefore); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

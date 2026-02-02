@@ -1089,24 +1089,44 @@ const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
 SELECT
     DATE_BIN(
         COALESCE($1::INTERVAL, '1 minute'),
-        inserted_at,
+        s.inserted_at,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
     ) :: TIMESTAMPTZ AS minute_bucket,
-    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_statuses_olap
+    COUNT(*) FILTER (WHERE s.readable_status = 'COMPLETED') AS completed_count,
+    COUNT(*) FILTER (WHERE s.readable_status = 'FAILED') AS failed_count
+FROM v1_statuses_olap s
 WHERE
-    tenant_id = $2::UUID
-    AND inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
+    s.tenant_id = $2::UUID
+    AND s.inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
+    AND ($5::UUID[] IS NULL OR s.workflow_id = ANY($5::UUID[]))
+    AND (
+        $6::text[] IS NULL
+        OR $7::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM v1_runs_olap r
+            WHERE r.external_id = s.external_id
+            AND r.inserted_at = s.inserted_at
+            AND EXISTS (
+                SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($6::text[]) AS k,
+                        unnest($7::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+    )
 GROUP BY minute_bucket
 ORDER BY minute_bucket
 `
 
 type GetTaskPointMetricsParams struct {
-	Interval      pgtype.Interval    `json:"interval"`
-	Tenantid      pgtype.UUID        `json:"tenantid"`
-	Createdafter  pgtype.Timestamptz `json:"createdafter"`
-	Createdbefore pgtype.Timestamptz `json:"createdbefore"`
+	Interval             pgtype.Interval    `json:"interval"`
+	Tenantid             pgtype.UUID        `json:"tenantid"`
+	Createdafter         pgtype.Timestamptz `json:"createdafter"`
+	Createdbefore        pgtype.Timestamptz `json:"createdbefore"`
+	WorkflowIds          []pgtype.UUID      `json:"workflowIds"`
+	AdditionalMetaKeys   []string           `json:"additionalMetaKeys"`
+	AdditionalMetaValues []string           `json:"additionalMetaValues"`
 }
 
 type GetTaskPointMetricsRow struct {
@@ -1121,6 +1141,9 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 		arg.Tenantid,
 		arg.Createdafter,
 		arg.Createdbefore,
+		arg.WorkflowIds,
+		arg.AdditionalMetaKeys,
+		arg.AdditionalMetaValues,
 	)
 	if err != nil {
 		return nil, err

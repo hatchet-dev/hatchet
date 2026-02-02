@@ -126,7 +126,9 @@ export const RunsProvider = ({
     filterActions: filters,
   });
 
-  const workflow = workflowId || (filters.apiFilters.workflowIds ?? [])[0];
+  const workflowIds = workflowId
+    ? [workflowId]
+    : filters.apiFilters.workflowIds;
   const flattenDAGs = filters.apiFilters.flattenDAGs;
 
   const {
@@ -149,8 +151,7 @@ export const RunsProvider = ({
     statuses: filters.apiFilters.statuses,
     additionalMetadata: filters.apiFilters.additionalMetadata,
     workerId,
-    workflowIds:
-      filters.apiFilters.workflowIds || (workflow ? [workflow] : undefined),
+    workflowIds: workflowIds,
     parentTaskExternalId,
     triggeringEventExternalId,
     onlyTasks: !!workerId || flattenDAGs,
@@ -178,7 +179,7 @@ export const RunsProvider = ({
     isStatusCountsRefetching,
     isQueueMetricsLoading,
   } = useMetrics({
-    workflow,
+    workflowIds,
     parentTaskExternalId,
     createdAfter: filters.apiFilters.since,
     additionalMetadata: filters.apiFilters.additionalMetadata,
