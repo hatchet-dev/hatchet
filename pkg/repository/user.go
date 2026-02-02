@@ -88,6 +88,10 @@ func BoolPtr(b bool) *bool {
 	return &b
 }
 
+func Int32Ptr(i int32) *int32 {
+	return &i
+}
+
 func VerifyPassword(hashedPW, candidate string) (bool, error) {
 	err := bcrypt.CompareHashAndPassword([]byte(hashedPW), []byte(candidate))
 

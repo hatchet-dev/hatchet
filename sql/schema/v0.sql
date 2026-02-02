@@ -691,6 +691,7 @@ CREATE TABLE "TenantResourceLimit" (
     "value" INTEGER NOT NULL DEFAULT 0,
     "window" TEXT,
     "lastRefill" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "customValueMeter" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "TenantResourceLimit_pkey" PRIMARY KEY ("id")
 );

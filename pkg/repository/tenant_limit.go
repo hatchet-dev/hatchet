@@ -19,10 +19,11 @@ type TenantLimitConfig struct {
 }
 
 type Limit struct {
-	Resource sqlcv1.LimitResource
-	Limit    int32
-	Alarm    int32
-	Window   *time.Duration
+	Resource         sqlcv1.LimitResource
+	Limit            int32
+	Alarm            *int32
+	Window           *time.Duration
+	CustomValueMeter bool
 }
 
 type TenantLimitRepository interface {
@@ -72,31 +73,36 @@ func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Conte
 func (t *tenantLimitRepository) defaultLimits() []Limit {
 	return []Limit{
 		{
-			Resource: sqlcv1.LimitResourceTASKRUN,
-			Limit:    int32(t.config.DefaultTaskRunLimit),      // nolint: gosec
-			Alarm:    int32(t.config.DefaultTaskRunAlarmLimit), // nolint: gosec
-			Window:   &t.config.DefaultTaskRunWindow,
+			Resource:         sqlcv1.LimitResourceTASKRUN,
+			Limit:            t.config.DefaultTaskRunLimit,                // nolint: gosec
+			Alarm:            Int32Ptr(t.config.DefaultTaskRunAlarmLimit), // nolint: gosec
+			Window:           &t.config.DefaultTaskRunWindow,
+			CustomValueMeter: false,
 		},
 		{
-			Resource: sqlcv1.LimitResourceEVENT,
-			Limit:    int32(t.config.DefaultEventLimit),      // nolint: gosec
-			Alarm:    int32(t.config.DefaultEventAlarmLimit), // nolint: gosec
-			Window:   &t.config.DefaultEventWindow,
+			Resource:         sqlcv1.LimitResourceEVENT,
+			Limit:            t.config.DefaultEventLimit,                // nolint: gosec
+			Alarm:            Int32Ptr(t.config.DefaultEventAlarmLimit), // nolint: gosec
+			Window:           &t.config.DefaultEventWindow,
+			CustomValueMeter: false,
 		},
 		{
-			Resource: sqlcv1.LimitResourceWORKER,
-			Limit:    int32(t.config.DefaultWorkerLimit),      // nolint: gosec
-			Alarm:    int32(t.config.DefaultWorkerAlarmLimit), // nolint: gosec
+			Resource:         sqlcv1.LimitResourceWORKER,
+			Limit:            t.config.DefaultWorkerLimit,                // nolint: gosec
+			Alarm:            Int32Ptr(t.config.DefaultWorkerAlarmLimit), // nolint: gosec
+			CustomValueMeter: true,
 		},
 		{
-			Resource: sqlcv1.LimitResourceWORKERSLOT,
-			Limit:    int32(t.config.DefaultWorkerSlotLimit),      // nolint: gosec
-			Alarm:    int32(t.config.DefaultWorkerSlotAlarmLimit), // nolint: gosec
+			Resource:         sqlcv1.LimitResourceWORKERSLOT,
+			Limit:            t.config.DefaultWorkerSlotLimit,                // nolint: gosec
+			Alarm:            Int32Ptr(t.config.DefaultWorkerSlotAlarmLimit), // nolint: gosec
+			CustomValueMeter: true,
 		},
 		{
-			Resource: sqlcv1.LimitResourceINCOMINGWEBHOOK,
-			Limit:    int32(t.config.DefaultIncomingWebhookLimit),      // nolint: gosec
-			Alarm:    int32(t.config.DefaultIncomingWebhookAlarmLimit), // nolint: gosec
+			Resource:         sqlcv1.LimitResourceINCOMINGWEBHOOK,
+			Limit:            t.config.DefaultIncomingWebhookLimit,                // nolint: gosec
+			Alarm:            Int32Ptr(t.config.DefaultIncomingWebhookAlarmLimit), // nolint: gosec
+			CustomValueMeter: true,
 		},
 	}
 }
@@ -319,11 +325,13 @@ func (t *tenantLimitRepository) UpdateLimits(ctx context.Context, tenantId strin
 	limitValues := make([]int32, len(limits))
 	alarmValues := make([]int32, len(limits))
 	windows := make([]string, len(limits))
+	customValueMeters := make([]bool, len(limits))
 
 	for i, limit := range limits {
 		resources[i] = string(limit.Resource)
 		limitValues[i] = limit.Limit
 		alarmValues[i] = int32(float64(limit.Limit) * 0.8) // nolint: gosec
+		customValueMeters[i] = limit.CustomValueMeter
 
 		if limit.Window != nil {
 			windows[i] = limit.Window.String()
@@ -331,11 +339,12 @@ func (t *tenantLimitRepository) UpdateLimits(ctx context.Context, tenantId strin
 	}
 
 	return t.queries.UpsertTenantResourceLimits(ctx, t.pool, sqlcv1.UpsertTenantResourceLimitsParams{
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
-		Resources:   resources,
-		Limitvalues: limitValues,
-		Alarmvalues: alarmValues,
-		Windows:     windows,
+		Tenantid:          sqlchelpers.UUIDFromStr(tenantId),
+		Resources:         resources,
+		Limitvalues:       limitValues,
+		Alarmvalues:       alarmValues,
+		Windows:           windows,
+		Customvaluemeters: customValueMeters,
 	})
 }
 
