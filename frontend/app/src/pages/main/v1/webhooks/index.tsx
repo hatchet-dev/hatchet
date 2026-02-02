@@ -69,10 +69,7 @@ export default function Webhooks() {
           const text = webhook.eventKeyExpression || '';
           const truncated = text.length > 25 ? `${text.slice(0, 25)}...` : text;
           return (
-            <code
-              className="rounded bg-muted px-2 py-1 text-xs"
-              title={text}
-            >
+            <code className="rounded bg-muted px-2 py-1 text-xs" title={text}>
               {truncated}
             </code>
           );
@@ -87,10 +84,7 @@ export default function Webhooks() {
           const text = webhook.scopeExpression;
           const truncated = text.length > 25 ? `${text.slice(0, 25)}...` : text;
           return (
-            <code
-              className="rounded bg-muted px-2 py-1 text-xs"
-              title={text}
-            >
+            <code className="rounded bg-muted px-2 py-1 text-xs" title={text}>
               {truncated}
             </code>
           );
@@ -760,7 +754,10 @@ export const EditWebhookModal = ({
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="edit-eventKeyExpression" className="text-sm font-medium">
+            <Label
+              htmlFor="edit-eventKeyExpression"
+              className="text-sm font-medium"
+            >
               Event Key Expression <span className="text-red-500">*</span>
             </Label>
             <Input
@@ -780,7 +777,10 @@ export const EditWebhookModal = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-scopeExpression" className="text-sm font-medium">
+            <Label
+              htmlFor="edit-scopeExpression"
+              className="text-sm font-medium"
+            >
               Scope Expression{' '}
               <span className="text-muted-foreground">(optional)</span>
             </Label>

@@ -1,5 +1,5 @@
-import { EditWebhookModal } from '../index';
 import { useWebhooks } from '../hooks/use-webhooks';
+import { EditWebhookModal } from '../index';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
