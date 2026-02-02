@@ -12,6 +12,7 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
     StepRunEventType,
     WorkflowRunEventType,
 )
+from hatchet_sdk.contracts.compat import apply_proto_aliases as _apply_proto_aliases
 
 # import models into sdk package
 from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
@@ -172,6 +173,8 @@ from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 from hatchet_sdk.workflow_run import WorkflowRunRef
+
+_apply_proto_aliases()
 
 __all__ = [
     "APIError",

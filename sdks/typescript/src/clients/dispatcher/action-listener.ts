@@ -23,7 +23,12 @@ enum ListenStrategy {
   LISTEN_STRATEGY_V2 = 2,
 }
 
-export interface Action extends AssignedAction {}
+export interface Action extends AssignedAction {
+  /** @deprecated use taskRunId */
+  stepRunId: string;
+  /** @deprecated use taskId */
+  stepId: string;
+}
 
 export type ActionKey = string;
 
@@ -84,6 +89,8 @@ export class ActionListener {
           for await (const assignedAction of listenClient) {
             const action: Action = {
               ...assignedAction,
+              stepRunId: assignedAction.taskRunId,
+              stepId: assignedAction.taskId,
             };
 
             yield action;
