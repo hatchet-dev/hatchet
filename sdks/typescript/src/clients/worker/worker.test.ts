@@ -1,6 +1,6 @@
 import { LegacyHatchetClient } from '@clients/hatchet-client';
 import { StepActionEventType, ActionType, AssignedAction } from '@hatchet/protoc/dispatcher';
-import { ActionListener } from '@clients/dispatcher/action-listener';
+import { Action, ActionListener } from '@clients/dispatcher/action-listener';
 import { never } from 'zod';
 import sleep from '@util/sleep';
 import { ChannelCredentials } from 'nice-grpc';
@@ -8,7 +8,7 @@ import { V0Worker } from './worker';
 
 type AssignActionMock = AssignedAction | Error;
 
-const mockStart: AssignedAction = {
+const mockStart: Action = {
   tenantId: 'TENANT_ID',
   jobId: 'job1',
   jobName: 'Job One',
@@ -25,7 +25,7 @@ const mockStart: AssignedAction = {
   priority: 1,
 };
 
-const mockCancel: AssignedAction = {
+const mockCancel: Action = {
   ...mockStart,
   actionType: ActionType.CANCEL_STEP_RUN,
 };

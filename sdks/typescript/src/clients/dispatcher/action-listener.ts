@@ -23,12 +23,12 @@ enum ListenStrategy {
   LISTEN_STRATEGY_V2 = 2,
 }
 
-export interface Action extends AssignedAction {
+export type Action = AssignedAction & {
   /** @deprecated use taskRunId */
-  stepRunId: string;
+  stepRunId?: string;
   /** @deprecated use taskId */
-  stepId: string;
-}
+  stepId?: string;
+};
 
 export type ActionKey = string;
 
