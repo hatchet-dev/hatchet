@@ -270,8 +270,11 @@ type TaskRepository interface {
 
 	FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error)
 
-	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
 	GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunDetails, error)
+
+	GetDurableEventLog(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount int32, key string) (*sqlcv1.V1DurableEventLog, error)
+
+	CreateDurableEventLog(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount int32, eventType string, key string, data []byte) (*sqlcv1.V1DurableEventLog, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -4161,4 +4164,26 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		ReadableIdToDetails: taskRunDetails,
 		AdditionalMetadata:  additionalMeta,
 	}, nil
+}
+
+func (r *TaskRepositoryImpl) GetDurableEventLog(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount int32, key string) (*sqlcv1.V1DurableEventLog, error) {
+	return r.queries.GetDurableEventLog(ctx, r.pool, sqlcv1.GetDurableEventLogParams{
+		TenantID:       sqlchelpers.UUIDFromStr(tenantId),
+		TaskID:         taskId,
+		TaskInsertedAt: taskInsertedAt,
+		RetryCount:     retryCount,
+		Key:            key,
+	})
+}
+
+func (r *TaskRepositoryImpl) CreateDurableEventLog(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount int32, eventType string, key string, data []byte) (*sqlcv1.V1DurableEventLog, error) {
+	return r.queries.CreateDurableEventLog(ctx, r.pool, sqlcv1.CreateDurableEventLogParams{
+		TenantID:       sqlchelpers.UUIDFromStr(tenantId),
+		TaskID:         taskId,
+		TaskInsertedAt: taskInsertedAt,
+		RetryCount:     retryCount,
+		EventType:      eventType,
+		Key:            key,
+		Data:           data,
+	})
 }

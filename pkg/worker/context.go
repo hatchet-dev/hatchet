@@ -2,6 +2,8 @@ package worker
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -711,6 +713,9 @@ type DurableHatchetContext interface {
 	// Conditions are "global" meaning they will wait in real time regardless of transient failures
 	// like worker restarts.
 	WaitFor(conditions condition.Condition) (*WaitResult, error)
+
+	// Memo memoizes the result of a potentially expensive but fast function call.
+	Memo(fn func() (interface{}, error), deps []interface{}) (interface{}, error)
 }
 
 // durableHatchetContext implements the DurableHatchetContext interface.
@@ -801,8 +806,55 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 	return newWaitResult(data)
 }
 
-func (h *durableHatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {
-	return h.client().Subscribe().ListenForDurableEvents(context.Background())
+func (d *durableHatchetContext) Memo(fn func() (interface{}, error), deps []interface{}) (interface{}, error) {
+	key := computeMemoKey(d.StepName(), deps)
+
+	resp, err := d.client().Dispatcher().GetDurableEventLog(d, &v1.GetDurableEventLogRequest{
+		ExternalId: d.WorkflowRunId(),
+		Key:        key,
+	})
+
+	if err == nil && resp.Found {
+		var result interface{}
+		if unmarshalErr := json.Unmarshal(resp.Data, &result); unmarshalErr != nil {
+			return nil, fmt.Errorf("failed to unmarshal cached memo result: %w", unmarshalErr)
+		}
+		return result, nil
+	}
+
+	result, err := fn()
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal memo result: %w", err)
+	}
+
+	_, err = d.client().Dispatcher().CreateDurableEventLog(d, &v1.CreateDurableEventLogRequest{
+		ExternalId: d.WorkflowRunId(),
+		Key:        key,
+		Data:       data,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to persist memo result: %w", err)
+	}
+
+	return result, nil
+}
+
+func computeMemoKey(stepName string, deps []interface{}) string {
+	h := sha256.New()
+	h.Write([]byte(stepName))
+	depsJSON, _ := json.Marshal(deps)
+	h.Write(depsJSON)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (d *durableHatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {
+	return d.client().Subscribe().ListenForDurableEvents(context.Background())
 }
 
 // NewDurableHatchetContext creates a DurableHatchetContext from a HatchetContext.

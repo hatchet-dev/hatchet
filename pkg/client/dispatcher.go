@@ -34,6 +34,10 @@ type DispatcherClient interface {
 	UpsertWorkerLabels(ctx context.Context, workerId string, labels map[string]interface{}) error
 
 	RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error)
+
+	GetDurableEventLog(ctx context.Context, req *sharedcontracts.GetDurableEventLogRequest) (*sharedcontracts.GetDurableEventLogResponse, error)
+
+	CreateDurableEventLog(ctx context.Context, req *sharedcontracts.CreateDurableEventLogRequest) (*sharedcontracts.CreateDurableEventLogResponse, error)
 }
 
 const (
@@ -683,6 +687,14 @@ func mapLabels(req map[string]interface{}) map[string]*dispatchercontracts.Worke
 	return labels
 }
 
-func (a *dispatcherClientImpl) RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error) {
-	return a.clientv1.RegisterDurableEvent(a.ctx.newContext(ctx), req)
+func (d *dispatcherClientImpl) RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error) {
+	return d.clientv1.RegisterDurableEvent(d.ctx.newContext(ctx), req)
+}
+
+func (d *dispatcherClientImpl) GetDurableEventLog(ctx context.Context, req *sharedcontracts.GetDurableEventLogRequest) (*sharedcontracts.GetDurableEventLogResponse, error) {
+	return d.clientv1.GetDurableEventLog(d.ctx.newContext(ctx), req)
+}
+
+func (d *dispatcherClientImpl) CreateDurableEventLog(ctx context.Context, req *sharedcontracts.CreateDurableEventLogRequest) (*sharedcontracts.CreateDurableEventLogResponse, error) {
+	return d.clientv1.CreateDurableEventLog(d.ctx.newContext(ctx), req)
 }

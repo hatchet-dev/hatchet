@@ -8,6 +8,7 @@ sql:
       - concurrency.sql
       - dags.sql
       - dispatcher.sql
+      - durable_event_log.sql
       - health.sql
       - tasks.sql
       - queue.sql

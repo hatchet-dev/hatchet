@@ -24,6 +24,8 @@ const _ = grpc.SupportPackageIsVersion7
 type V1DispatcherClient interface {
 	RegisterDurableEvent(ctx context.Context, in *RegisterDurableEventRequest, opts ...grpc.CallOption) (*RegisterDurableEventResponse, error)
 	ListenForDurableEvent(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_ListenForDurableEventClient, error)
+	GetDurableEventLog(ctx context.Context, in *GetDurableEventLogRequest, opts ...grpc.CallOption) (*GetDurableEventLogResponse, error)
+	CreateDurableEventLog(ctx context.Context, in *CreateDurableEventLogRequest, opts ...grpc.CallOption) (*CreateDurableEventLogResponse, error)
 }
 
 type v1DispatcherClient struct {
@@ -74,12 +76,32 @@ func (x *v1DispatcherListenForDurableEventClient) Recv() (*DurableEvent, error) 
 	return m, nil
 }
 
+func (c *v1DispatcherClient) GetDurableEventLog(ctx context.Context, in *GetDurableEventLogRequest, opts ...grpc.CallOption) (*GetDurableEventLogResponse, error) {
+	out := new(GetDurableEventLogResponse)
+	err := c.cc.Invoke(ctx, "/v1.V1Dispatcher/GetDurableEventLog", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *v1DispatcherClient) CreateDurableEventLog(ctx context.Context, in *CreateDurableEventLogRequest, opts ...grpc.CallOption) (*CreateDurableEventLogResponse, error) {
+	out := new(CreateDurableEventLogResponse)
+	err := c.cc.Invoke(ctx, "/v1.V1Dispatcher/CreateDurableEventLog", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // V1DispatcherServer is the server API for V1Dispatcher service.
 // All implementations must embed UnimplementedV1DispatcherServer
 // for forward compatibility
 type V1DispatcherServer interface {
 	RegisterDurableEvent(context.Context, *RegisterDurableEventRequest) (*RegisterDurableEventResponse, error)
 	ListenForDurableEvent(V1Dispatcher_ListenForDurableEventServer) error
+	GetDurableEventLog(context.Context, *GetDurableEventLogRequest) (*GetDurableEventLogResponse, error)
+	CreateDurableEventLog(context.Context, *CreateDurableEventLogRequest) (*CreateDurableEventLogResponse, error)
 	mustEmbedUnimplementedV1DispatcherServer()
 }
 
@@ -92,6 +114,12 @@ func (UnimplementedV1DispatcherServer) RegisterDurableEvent(context.Context, *Re
 }
 func (UnimplementedV1DispatcherServer) ListenForDurableEvent(V1Dispatcher_ListenForDurableEventServer) error {
 	return status.Errorf(codes.Unimplemented, "method ListenForDurableEvent not implemented")
+}
+func (UnimplementedV1DispatcherServer) GetDurableEventLog(context.Context, *GetDurableEventLogRequest) (*GetDurableEventLogResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDurableEventLog not implemented")
+}
+func (UnimplementedV1DispatcherServer) CreateDurableEventLog(context.Context, *CreateDurableEventLogRequest) (*CreateDurableEventLogResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateDurableEventLog not implemented")
 }
 func (UnimplementedV1DispatcherServer) mustEmbedUnimplementedV1DispatcherServer() {}
 
@@ -150,6 +178,42 @@ func (x *v1DispatcherListenForDurableEventServer) Recv() (*ListenForDurableEvent
 	return m, nil
 }
 
+func _V1Dispatcher_GetDurableEventLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDurableEventLogRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(V1DispatcherServer).GetDurableEventLog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.V1Dispatcher/GetDurableEventLog",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(V1DispatcherServer).GetDurableEventLog(ctx, req.(*GetDurableEventLogRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _V1Dispatcher_CreateDurableEventLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateDurableEventLogRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(V1DispatcherServer).CreateDurableEventLog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.V1Dispatcher/CreateDurableEventLog",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(V1DispatcherServer).CreateDurableEventLog(ctx, req.(*CreateDurableEventLogRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // V1Dispatcher_ServiceDesc is the grpc.ServiceDesc for V1Dispatcher service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -160,6 +224,14 @@ var V1Dispatcher_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RegisterDurableEvent",
 			Handler:    _V1Dispatcher_RegisterDurableEvent_Handler,
+		},
+		{
+			MethodName: "GetDurableEventLog",
+			Handler:    _V1Dispatcher_GetDurableEventLog_Handler,
+		},
+		{
+			MethodName: "CreateDurableEventLog",
+			Handler:    _V1Dispatcher_CreateDurableEventLog_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

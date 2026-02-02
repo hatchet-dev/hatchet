@@ -1640,6 +1640,27 @@ CREATE TABLE v1_durable_sleep (
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
 
+CREATE TABLE v1_durable_event_log (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    event_type TEXT NOT NULL,
+    key TEXT NOT NULL,
+    data JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (task_id, task_inserted_at, key)
+) PARTITION BY RANGE(task_inserted_at);
+
+CREATE UNIQUE INDEX v1_durable_event_log_lookup_idx ON v1_durable_event_log (
+    tenant_id ASC,
+    task_id ASC,
+    task_inserted_at ASC,
+    retry_count ASC,
+    key ASC
+);
+
 CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA');
 
 -- IMPORTANT: Keep these values in sync with `v1_payload_type_olap` in the OLAP db

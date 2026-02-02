@@ -3012,6 +3012,18 @@ type V1DagsOlap struct {
 	TotalTasks           int32                `json:"total_tasks"`
 }
 
+type V1DurableEventLog struct {
+	ID             pgtype.Int8        `json:"id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	EventType      string             `json:"event_type"`
+	Key            string             `json:"key"`
+	Data           []byte             `json:"data"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type V1DurableSleep struct {
 	ID            int64              `json:"id"`
 	TenantID      pgtype.UUID        `json:"tenant_id"`

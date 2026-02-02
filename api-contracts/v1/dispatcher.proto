@@ -11,6 +11,10 @@ service V1Dispatcher {
 
     rpc ListenForDurableEvent(stream ListenForDurableEventRequest) returns (stream DurableEvent) {}
 
+    rpc GetDurableEventLog(GetDurableEventLogRequest) returns (GetDurableEventLogResponse) {}
+
+    rpc CreateDurableEventLog(CreateDurableEventLogRequest) returns (CreateDurableEventLogResponse) {}
+
 }
 
 
@@ -33,4 +37,23 @@ message DurableEvent {
     string task_id = 1;
     string signal_key = 2;
     bytes data = 3; // the data for the event
+}
+
+message GetDurableEventLogRequest {
+    string external_id = 1;
+    string key = 2;
+}
+
+message GetDurableEventLogResponse {
+    bool found = 1;
+    bytes data = 2;
+}
+
+message CreateDurableEventLogRequest {
+    string external_id = 1;
+    string key = 2;
+    bytes data = 3;
+}
+
+message CreateDurableEventLogResponse {
 }
