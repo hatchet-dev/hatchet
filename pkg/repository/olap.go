@@ -245,7 +245,7 @@ type OLAPRepository interface {
 	// In the case of a DAG, we flatten the result into the list of tasks which belong to that DAG.
 	ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
 
-	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
+	GetTaskTimings(ctx context.Context, tenantId, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[uuid.UUID]int32, error)
 
 	// Events queries
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, triggers []EventTriggersFromExternalId) error

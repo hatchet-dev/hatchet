@@ -37,8 +37,8 @@ type sharedRepository struct {
 	concurrencyStrategyCache *cache.Cache
 
 	tenantIdWorkflowNameCache   *expirable.LRU[string, *sqlcv1.ListWorkflowsByNamesRow]
-	stepsInWorkflowVersionCache *expirable.LRU[string, []*sqlcv1.ListStepsByWorkflowVersionIdsRow]
-	stepIdLabelsCache           *expirable.LRU[string, []*sqlcv1.GetDesiredLabelsRow]
+	stepsInWorkflowVersionCache *expirable.LRU[uuid.UUID, []*sqlcv1.ListStepsByWorkflowVersionIdsRow]
+	stepIdLabelsCache           *expirable.LRU[uuid.UUID, []*sqlcv1.GetDesiredLabelsRow]
 
 	celParser       *cel.CELParser
 	env             *celgo.Env
@@ -68,8 +68,8 @@ func newSharedRepository(
 
 	// 5-second cache because the workflow version id can change when a new workflow is deployed
 	tenantIdWorkflowNameCache := expirable.NewLRU(10000, func(key string, value *sqlcv1.ListWorkflowsByNamesRow) {}, 5*time.Second)
-	stepsInWorkflowVersionCache := expirable.NewLRU(10000, func(key string, value []*sqlcv1.ListStepsByWorkflowVersionIdsRow) {}, 5*time.Minute)
-	stepIdLabelsCache := expirable.NewLRU(10000, func(key string, value []*sqlcv1.GetDesiredLabelsRow) {}, 5*time.Minute)
+	stepsInWorkflowVersionCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.ListStepsByWorkflowVersionIdsRow) {}, 5*time.Minute)
+	stepIdLabelsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.GetDesiredLabelsRow) {}, 5*time.Minute)
 
 	celParser := cel.NewCELParser()
 

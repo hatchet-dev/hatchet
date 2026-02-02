@@ -44,7 +44,7 @@ type KeyClaimantPair struct {
 	ClaimedByExternalId uuid.UUID
 }
 
-func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, tx sqlcv1.DBTX, tenantId string, claims []KeyClaimantPair) (map[KeyClaimantPair]WasSuccessfullyClaimed, error) {
+func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, tx sqlcv1.DBTX, tenantId uuid.UUID, claims []KeyClaimantPair) (map[KeyClaimantPair]WasSuccessfullyClaimed, error) {
 	keys := make([]string, len(claims))
 	claimedByExternalIds := make([]uuid.UUID, len(claims))
 
@@ -54,7 +54,7 @@ func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, tx s
 	}
 
 	claimResults, err := queries.ClaimIdempotencyKeys(context, tx, sqlcv1.ClaimIdempotencyKeysParams{
-		Tenantid:             sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:             tenantId,
 		Keys:                 keys,
 		Claimedbyexternalids: claimedByExternalIds,
 	})

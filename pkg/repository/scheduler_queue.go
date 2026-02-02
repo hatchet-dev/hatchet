@@ -264,7 +264,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	if !isOptimistic {
 		// we don't want to waste a query if we're scheduling optimistically; this only happens on insert so there's
 		// nothing to release
-		_, err = d.releaseTasks(ctx, tx, sqlchelpers.UUIDToStr(tenantId), tasksToRelease)
+		_, err = d.releaseTasks(ctx, tx, tenantId, tasksToRelease)
 
 		if err != nil {
 			return nil, nil, err
@@ -587,18 +587,18 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	return taskIdToKeyToUnits, nil
 }
 
-func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error) {
+func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
 	defer span.End()
 
 	stepIdsToLookup := make([]uuid.UUID, 0, len(stepIds))
-	stepIdToLabels := make(map[string][]*sqlcv1.GetDesiredLabelsRow)
+	stepIdToLabels := make(map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow)
 
 	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
 
 	for _, stepId := range uniqueStepIds {
-		if value, found := d.stepIdLabelsCache.Get(sqlchelpers.UUIDToStr(stepId)); found {
-			stepIdToLabels[sqlchelpers.UUIDToStr(stepId)] = value
+		if value, found := d.stepIdLabelsCache.Get(stepId); found {
+			stepIdToLabels[stepId] = value
 		} else {
 			stepIdsToLookup = append(stepIdsToLookup, stepId)
 		}
@@ -623,7 +623,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	}
 
 	for _, label := range labels {
-		stepId := label.StepId.String()
+		stepId := label.StepId
 
 		if _, ok := stepIdToLabels[stepId]; !ok {
 			stepIdToLabels[stepId] = make([]*sqlcv1.GetDesiredLabelsRow, 0)

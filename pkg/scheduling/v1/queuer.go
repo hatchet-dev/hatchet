@@ -11,7 +11,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -575,7 +574,7 @@ func (q *Queuer) runOptimisticQueue(
 	ctx context.Context,
 	tx *v1.OptimisticTx,
 	qis []*sqlcv1.V1QueueItem,
-	localWorkerIds map[string]struct{},
+	localWorkerIds map[uuid.UUID]struct{},
 ) ([]*v1.AssignedItem, []*QueueResults, error) {
 	rls, err := q.repo.GetTaskRateLimits(ctx, tx, qis)
 
@@ -619,7 +618,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 	ctx context.Context,
 	r *assignResults,
 	tx *v1.OptimisticTx,
-	localWorkerIds map[string]struct{},
+	localWorkerIds map[uuid.UUID]struct{},
 ) ([]*v1.AssignedItem, *QueueResults, error) {
 	begin := time.Now()
 
@@ -726,7 +725,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 	succeededLocal := make([]*v1.AssignedItem, 0, len(succeeded))
 
 	for _, assignedItem := range succeeded {
-		workerId := sqlchelpers.UUIDToStr(assignedItem.WorkerId)
+		workerId := assignedItem.WorkerId
 
 		if _, ok := localWorkerIds[workerId]; ok {
 			assignedItem.IsAssignedLocally = true

@@ -26,7 +26,7 @@ func (tc *TasksControllerImpl) processSleeps(ctx context.Context, tenantId strin
 	}
 
 	if len(matchResult.CreatedTasks) > 0 {
-		err = tc.signaler.SignalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
+		err = tc.signaler.SignalTasksCreated(ctx, tenantIdUUID, matchResult.CreatedTasks)
 
 		if err != nil {
 			return false, fmt.Errorf("could not signal created tasks: %w", err)

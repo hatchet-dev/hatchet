@@ -35,7 +35,7 @@ type QueueRepository interface {
 
 	GetTaskRateLimits(ctx context.Context, tx *OptimisticTx, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error)
 	RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error)
-	GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error)
+	GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error)
 	Cleanup()
 }
 
@@ -47,9 +47,9 @@ type AssignmentRepository interface {
 type OptimisticSchedulingRepository interface {
 	StartTx(ctx context.Context) (*OptimisticTx, error)
 
-	TriggerFromEvents(ctx context.Context, tx *OptimisticTx, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1QueueItem, *TriggerFromEventsResult, error)
+	TriggerFromEvents(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []EventTriggerOpts) ([]*sqlcv1.V1QueueItem, *TriggerFromEventsResult, error)
 
-	TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, error)
+	TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, error)
 
 	MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
 }

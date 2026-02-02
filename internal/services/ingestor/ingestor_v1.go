@@ -72,15 +72,15 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *sqlcv1.Tenant,
 func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts ...tasktypes.UserEventTaskPayload) ([]*sqlcv1.Event, error) {
 	res := make([]*sqlcv1.Event, 0, len(eventOpts))
 	now := time.Now().UTC()
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	for _, event := range eventOpts {
 		e := &sqlcv1.Event{
-			ID:                 sqlchelpers.UUIDFromStr(event.EventExternalId),
+			ID:                 event.EventExternalId,
 			CreatedAt:          sqlchelpers.TimestampFromTime(now),
 			UpdatedAt:          sqlchelpers.TimestampFromTime(now),
 			Key:                event.EventKey,
-			TenantId:           sqlchelpers.UUIDFromStr(tenantId),
+			TenantId:           tenantId,
 			Data:               event.EventData,
 			AdditionalMetadata: event.EventAdditionalMetadata,
 		}
@@ -91,7 +91,7 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 	wasProcessedLocally := false
 
 	if i.localScheduler != nil {
-		localWorkerIds := map[string]struct{}{}
+		localWorkerIds := map[uuid.UUID]struct{}{}
 
 		if i.localDispatcher != nil {
 			localWorkerIds = i.localDispatcher.GetLocalWorkerIds()
@@ -149,7 +149,7 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 		}
 	} else if i.tw != nil {
 		// if we have a trigger writer, we attempt to trigger the events via gRPC
-		opts := make(map[string]v1.EventTriggerOpts)
+		opts := make(map[uuid.UUID]v1.EventTriggerOpts)
 
 		for _, event := range eventOpts {
 			opts[event.EventExternalId] = v1.EventTriggerOpts{
@@ -266,8 +266,8 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *sqlcv1
 	return events[0], nil
 }
 
-func eventToPayload(tenantId, key string, data, additionalMeta []byte, priority *int32, scope *string, triggeringWebhookName *string) tasktypes.UserEventTaskPayload {
-	eventId := uuid.New().String()
+func eventToPayload(tenantId uuid.UUID, key string, data, additionalMeta []byte, priority *int32, scope *string, triggeringWebhookName *string) tasktypes.UserEventTaskPayload {
+	eventId := uuid.New()
 
 	return tasktypes.UserEventTaskPayload{
 		EventExternalId:         eventId,

@@ -264,7 +264,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 	}
 
 	if i.localScheduler != nil {
-		localWorkerIds := map[string]struct{}{}
+		localWorkerIds := map[uuid.UUID]struct{}{}
 
 		if i.localDispatcher != nil {
 			localWorkerIds = i.localDispatcher.GetLocalWorkerIds()

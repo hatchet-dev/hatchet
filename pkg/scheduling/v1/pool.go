@@ -206,7 +206,7 @@ func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bo
 var ErrTenantNotFound = fmt.Errorf("tenant not found in pool")
 var ErrNoOptimisticSlots = fmt.Errorf("no optimistic slots for scheduling")
 
-func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId string, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[string]struct{}) (map[string][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
+func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
 	if !p.optimisticSchedulingEnabled {
 		return nil, nil, nil, ErrNoOptimisticSlots
 	}
@@ -232,7 +232,7 @@ func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId s
 	return tm.runOptimisticScheduling(ctx, opts, localWorkerIds)
 }
 
-func (p *SchedulingPool) RunOptimisticSchedulingFromEvents(ctx context.Context, tenantId string, opts []v1.EventTriggerOpts, localWorkerIds map[string]struct{}) (map[string][]*AssignedItemWithTask, *v1.TriggerFromEventsResult, error) {
+func (p *SchedulingPool) RunOptimisticSchedulingFromEvents(ctx context.Context, tenantId uuid.UUID, opts []v1.EventTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, *v1.TriggerFromEventsResult, error) {
 	if !p.optimisticSchedulingEnabled {
 		return nil, nil, ErrNoOptimisticSlots
 	}

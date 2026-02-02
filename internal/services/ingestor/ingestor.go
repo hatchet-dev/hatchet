@@ -26,7 +26,7 @@ type Ingestor interface {
 	IngestWebhookValidationFailure(ctx context.Context, tenant *sqlcv1.Tenant, webhookName, errorText string) error
 	BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenant *sqlcv1.Tenant, replayedEvent *sqlcv1.Event) (*sqlcv1.Event, error)
-	IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error
+	IngestCELEvaluationFailure(ctx context.Context, tenantId uuid.UUID, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error
 	Cleanup() error
 }
 

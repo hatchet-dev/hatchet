@@ -1054,7 +1054,7 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
-func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	return tc.tw.TriggerFromWorkflowNames(ctx, tenantId, msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads))
 }
 
@@ -1129,7 +1129,7 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	return nil
 }
 
-func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId string, task v1.RetriedTask) error {
+func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.UUID, task v1.RetriedTask) error {
 	taskId := task.Id
 
 	retryMsg := fmt.Sprintf("This is retry number %d.", task.AppRetryCount)
