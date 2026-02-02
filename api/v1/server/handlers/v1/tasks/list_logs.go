@@ -65,7 +65,7 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 	}
 
 	if request.Params.Attempt != nil {
-		attemptInt32 := int32(*request.Params.Attempt)
+		attemptInt32 := int32(*request.Params.Attempt) // nolint: gosec
 		attempt = &attemptInt32
 	}
 

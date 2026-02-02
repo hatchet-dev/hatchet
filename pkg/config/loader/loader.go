@@ -301,6 +301,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		scf.Runtime.Limits,
 		scf.Runtime.EnforceLimits,
 		scf.Runtime.EnforceLimitsFunc,
+		scf.Runtime.EnableDurableUserEventLog,
 	)
 
 	if readReplicaPool != nil {
@@ -656,6 +657,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.SchedulerConcurrencyRateLimit,
 		cf.Runtime.SchedulerConcurrencyPollingMinInterval,
 		cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
+		cf.Runtime.OptimisticSchedulingEnabled,
+		cf.Runtime.OptimisticSchedulingSlots,
 	)
 
 	if err != nil {

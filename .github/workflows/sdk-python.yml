@@ -63,6 +63,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
+        optimistic-scheduling: ["true", "false"]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -104,6 +105,7 @@ jobs:
           export SERVER_AUTH_COOKIE_INSECURE=true
           export SERVER_DEFAULT_ENGINE_VERSION=V1
           export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
+          export SERVER_OPTIMISTIC_SCHEDULING_ENABLED=${{ matrix.optimistic-scheduling }}
 
           go run ./cmd/hatchet-admin quickstart
 
@@ -152,15 +154,15 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: $HATCHET_CLIENT_NAMESPACE-engine-logs
-          path: $HATCHET_CLIENT_NAMESPACE-engine.log
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-engine-logs
+          path: engine.log
 
       - name: Upload API logs
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: $HATCHET_CLIENT_NAMESPACE-api-logs
-          path: $HATCHET_CLIENT_NAMESPACE-api.log
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-api-logs
+          path: api.log
 
   publish:
     runs-on: ubicloud-standard-4
