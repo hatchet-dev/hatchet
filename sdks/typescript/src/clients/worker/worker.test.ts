@@ -8,13 +8,13 @@ import { V0Worker } from './worker';
 
 type AssignActionMock = AssignedAction | Error;
 
-const mockStart: AssignActionMock = {
+const mockStart: AssignedAction = {
   tenantId: 'TENANT_ID',
   jobId: 'job1',
   jobName: 'Job One',
   jobRunId: 'run1',
-  stepId: 'step1',
-  stepRunId: 'runStep1',
+  taskId: 'step1',
+  taskRunId: 'runStep1',
   actionId: 'action1',
   actionType: ActionType.START_STEP_RUN,
   actionPayload: JSON.stringify('{"input": {"data": 1}}'),
@@ -25,7 +25,7 @@ const mockStart: AssignActionMock = {
   priority: 1,
 };
 
-const mockCancel: AssignActionMock = {
+const mockCancel: AssignedAction = {
   ...mockStart,
   actionType: ActionType.CANCEL_STEP_RUN,
 };
@@ -124,7 +124,7 @@ describe('Worker', () => {
         { data: 4 },
         0
       );
-      expect(worker.futures[mockStart.stepRunId]).toBeUndefined();
+      expect(worker.futures[mockStart.taskRunId]).toBeUndefined();
       expect(sendActionEventSpy).toHaveBeenCalledTimes(2);
     });
 
@@ -158,7 +158,7 @@ describe('Worker', () => {
         expect.anything(),
         0
       );
-      expect(worker.futures[mockStart.stepRunId]).toBeUndefined();
+      expect(worker.futures[mockStart.taskRunId]).toBeUndefined();
       expect(sendActionEventSpy).toHaveBeenCalledTimes(2);
     });
   });

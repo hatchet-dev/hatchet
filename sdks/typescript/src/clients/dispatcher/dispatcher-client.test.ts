@@ -95,8 +95,8 @@ describe('DispatcherClient', () => {
         eventTimestamp: new Date(),
         jobId: 'a',
         jobRunId: 'b',
-        stepId: 'c',
-        stepRunId: 'd',
+        taskId: 'c',
+        taskRunId: 'd',
       });
 
       expect(clientSpy).toHaveBeenCalledWith({
@@ -106,8 +106,8 @@ describe('DispatcherClient', () => {
         eventPayload: '{"foo":"bar"}',
         jobId: 'a',
         jobRunId: 'b',
-        stepId: 'c',
-        stepRunId: 'd',
+        taskId: 'c',
+        taskRunId: 'd',
         eventTimestamp: expect.any(Object),
       });
     });

@@ -322,13 +322,13 @@ export interface CreateWorkflowVersionRequest {
   cronTriggers: string[];
   /** (required) the workflow jobs */
   tasks: CreateTaskOpts[];
-  /** Deprecated: use concurrency_arr instead */
+  /** Deprecated: use concurrencyArr instead */
   concurrency: Concurrency | undefined;
   /** (optional) the input for the cron trigger */
   cronInput?: string | undefined;
   /** (optional) the job to run on failure */
   onFailureTask?: CreateTaskOpts | undefined;
-  /** (optional) the sticky strategy for assigning steps to workers */
+  /** (optional) the sticky strategy for assigning tasks to workers */
   sticky?: StickyStrategy | undefined;
   /** (optional) the default priority for the workflow */
   defaultPriority?: number | undefined;
@@ -393,15 +393,15 @@ export interface CreateTaskOpts {
   inputs: string;
   /** (optional) the task parents. if none are passed in, this is a root task */
   parents: string[];
-  /** (optional) the number of retries for the step, default 0 */
+  /** (optional) the number of retries for the task, default 0 */
   retries: number;
-  /** (optional) the rate limits for the step */
+  /** (optional) the rate limits for the task */
   rateLimits: CreateTaskRateLimit[];
-  /** (optional) the desired worker affinity state for the step */
+  /** (optional) the desired worker affinity state for the task */
   workerLabels: { [key: string]: DesiredWorkerLabels };
-  /** (optional) the retry backoff factor for the step */
+  /** (optional) the retry backoff factor for the task */
   backoffFactor?: number | undefined;
-  /** (optional) the maximum backoff time for the step */
+  /** (optional) the maximum backoff time for the task */
   backoffMaxSeconds?: number | undefined;
   /** (optional) the task concurrency options */
   concurrency: Concurrency[];
@@ -419,7 +419,7 @@ export interface CreateTaskOpts_WorkerLabelsEntry {
 export interface CreateTaskRateLimit {
   /** (required) the key for the rate limit */
   key: string;
-  /** (optional) the number of units this step consumes */
+  /** (optional) the number of units this task consumes */
   units?: number | undefined;
   /** (optional) a CEL expression for determining the rate limit key */
   keyExpr?: string | undefined;

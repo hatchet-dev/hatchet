@@ -34,7 +34,7 @@ export function createActionKey(action: Action): ActionKey {
     case ActionType.CANCEL_STEP_RUN:
     case ActionType.START_STEP_RUN:
     case ActionType.UNRECOGNIZED:
-      return `${action.stepRunId}/${action.retryCount}`;
+      return `${action.taskRunId}/${action.retryCount}`;
     default:
       // eslint-disable-next-line no-case-declarations
       const exhaustivenessCheck: never = action.actionType;

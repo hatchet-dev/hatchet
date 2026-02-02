@@ -284,7 +284,7 @@ export interface CreateWorkflowVersionOpts {
   cronInput?: string | undefined;
   /** (optional) the job to run on failure */
   onFailureJob?: CreateWorkflowJobOpts | undefined;
-  /** (optional) the sticky strategy for assigning steps to workers */
+  /** (optional) the sticky strategy for assigning tasks to workers */
   sticky?: StickyStrategy | undefined;
   /** (optional) the kind of workflow */
   kind?: WorkflowKind | undefined;
@@ -309,7 +309,7 @@ export interface CreateWorkflowJobOpts {
   name: string;
   /** (optional) the job description */
   description: string;
-  /** (required) the job steps */
+  /** (required) the job tasks */
   steps: CreateWorkflowStepOpts[];
 }
 
@@ -336,29 +336,29 @@ export interface DesiredWorkerLabels {
   weight?: number | undefined;
 }
 
-/** CreateWorkflowStepOpts represents options to create a workflow step. */
+/** CreateWorkflowStepOpts represents options to create a workflow task. */
 export interface CreateWorkflowStepOpts {
-  /** (required) the step name */
+  /** (required) the task name */
   readableId: string;
-  /** (required) the step action id */
+  /** (required) the task action id */
   action: string;
-  /** (optional) the step timeout */
+  /** (optional) the task timeout */
   timeout: string;
-  /** (optional) the step inputs, assuming string representation of JSON */
+  /** (optional) the task inputs, assuming string representation of JSON */
   inputs: string;
-  /** (optional) the step parents. if none are passed in, this is a root step */
+  /** (optional) the task parents. if none are passed in, this is a root task */
   parents: string[];
-  /** (optional) the custom step user data, assuming string representation of JSON */
+  /** (optional) the custom task user data, assuming string representation of JSON */
   userData: string;
-  /** (optional) the number of retries for the step, default 0 */
+  /** (optional) the number of retries for the task, default 0 */
   retries: number;
-  /** (optional) the rate limits for the step */
+  /** (optional) the rate limits for the task */
   rateLimits: CreateStepRateLimit[];
-  /** (optional) the desired worker affinity state for the step */
+  /** (optional) the desired worker affinity state for the task */
   workerLabels: { [key: string]: DesiredWorkerLabels };
-  /** (optional) the retry backoff factor for the step */
+  /** (optional) the retry backoff factor for the task */
   backoffFactor?: number | undefined;
-  /** (optional) the maximum backoff time for the step */
+  /** (optional) the maximum backoff time for the task */
   backoffMaxSeconds?: number | undefined;
 }
 
@@ -370,7 +370,7 @@ export interface CreateWorkflowStepOpts_WorkerLabelsEntry {
 export interface CreateStepRateLimit {
   /** (required) the key for the rate limit */
   key: string;
-  /** (optional) the number of units this step consumes */
+  /** (optional) the number of units this task consumes */
   units?: number | undefined;
   /** (optional) a CEL expression for determining the rate limit key */
   keyExpr?: string | undefined;
@@ -392,8 +392,8 @@ export interface ScheduleWorkflowRequest {
   input: string;
   /** (optional) the parent workflow run id */
   parentId?: string | undefined;
-  /** (optional) the parent step run id */
-  parentStepRunId?: string | undefined;
+  /** (optional) the parent task run id */
+  parentTaskRunId?: string | undefined;
   /**
    * (optional) the index of the child workflow. if this is set, matches on the index or the
    * child key will be a no-op, even if the schedule has changed.
@@ -453,17 +453,17 @@ export interface TriggerWorkflowRequest {
   input: string;
   /** (optional) the parent workflow run id */
   parentId?: string | undefined;
-  /** (optional) the parent step run id */
-  parentStepRunId?: string | undefined;
+  /** (optional) the parent task run id */
+  parentTaskRunId?: string | undefined;
   /**
    * (optional) the index of the child workflow. if this is set, matches on the index or the
-   * child key will return an existing workflow run if the parent id, parent step run id, and
+   * child key will return an existing workflow run if the parent id, parent task run id, and
    * child index/key match an existing workflow run.
    */
   childIndex?: number | undefined;
   /**
    * (optional) the key for the child. if this is set, matches on the index or the
-   * child key will return an existing workflow run if the parent id, parent step run id, and
+   * child key will return an existing workflow run if the parent id, parent task run id, and
    * child index/key match an existing workflow run.
    */
   childKey?: string | undefined;
@@ -474,7 +474,7 @@ export interface TriggerWorkflowRequest {
    * requires the workflow definition to have a sticky strategy
    */
   desiredWorkerId?: string | undefined;
-  /** (optional) override for the priority of the workflow steps, will set all steps to this priority */
+  /** (optional) override for the priority of the workflow tasks, will set all tasks to this priority */
   priority?: number | undefined;
 }
 
@@ -1758,7 +1758,7 @@ function createBaseScheduleWorkflowRequest(): ScheduleWorkflowRequest {
     schedules: [],
     input: '',
     parentId: undefined,
-    parentStepRunId: undefined,
+    parentTaskRunId: undefined,
     childIndex: undefined,
     childKey: undefined,
     additionalMetadata: undefined,
@@ -1783,8 +1783,8 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
     if (message.parentId !== undefined) {
       writer.uint32(34).string(message.parentId);
     }
-    if (message.parentStepRunId !== undefined) {
-      writer.uint32(42).string(message.parentStepRunId);
+    if (message.parentTaskRunId !== undefined) {
+      writer.uint32(42).string(message.parentTaskRunId);
     }
     if (message.childIndex !== undefined) {
       writer.uint32(48).int32(message.childIndex);
@@ -1845,7 +1845,7 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
             break;
           }
 
-          message.parentStepRunId = reader.string();
+          message.parentTaskRunId = reader.string();
           continue;
         }
         case 6: {
@@ -1897,8 +1897,8 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
         : [],
       input: isSet(object.input) ? globalThis.String(object.input) : '',
       parentId: isSet(object.parentId) ? globalThis.String(object.parentId) : undefined,
-      parentStepRunId: isSet(object.parentStepRunId)
-        ? globalThis.String(object.parentStepRunId)
+      parentTaskRunId: isSet(object.parentTaskRunId)
+        ? globalThis.String(object.parentTaskRunId)
         : undefined,
       childIndex: isSet(object.childIndex) ? globalThis.Number(object.childIndex) : undefined,
       childKey: isSet(object.childKey) ? globalThis.String(object.childKey) : undefined,
@@ -1923,8 +1923,8 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
     if (message.parentId !== undefined) {
       obj.parentId = message.parentId;
     }
-    if (message.parentStepRunId !== undefined) {
-      obj.parentStepRunId = message.parentStepRunId;
+    if (message.parentTaskRunId !== undefined) {
+      obj.parentTaskRunId = message.parentTaskRunId;
     }
     if (message.childIndex !== undefined) {
       obj.childIndex = Math.round(message.childIndex);
@@ -1950,7 +1950,7 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
     message.schedules = object.schedules?.map((e) => e) || [];
     message.input = object.input ?? '';
     message.parentId = object.parentId ?? undefined;
-    message.parentStepRunId = object.parentStepRunId ?? undefined;
+    message.parentTaskRunId = object.parentTaskRunId ?? undefined;
     message.childIndex = object.childIndex ?? undefined;
     message.childKey = object.childKey ?? undefined;
     message.additionalMetadata = object.additionalMetadata ?? undefined;
@@ -2492,7 +2492,7 @@ function createBaseTriggerWorkflowRequest(): TriggerWorkflowRequest {
     name: '',
     input: '',
     parentId: undefined,
-    parentStepRunId: undefined,
+    parentTaskRunId: undefined,
     childIndex: undefined,
     childKey: undefined,
     additionalMetadata: undefined,
@@ -2512,8 +2512,8 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
     if (message.parentId !== undefined) {
       writer.uint32(26).string(message.parentId);
     }
-    if (message.parentStepRunId !== undefined) {
-      writer.uint32(34).string(message.parentStepRunId);
+    if (message.parentTaskRunId !== undefined) {
+      writer.uint32(34).string(message.parentTaskRunId);
     }
     if (message.childIndex !== undefined) {
       writer.uint32(40).int32(message.childIndex);
@@ -2569,7 +2569,7 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
             break;
           }
 
-          message.parentStepRunId = reader.string();
+          message.parentTaskRunId = reader.string();
           continue;
         }
         case 5: {
@@ -2626,8 +2626,8 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
       name: isSet(object.name) ? globalThis.String(object.name) : '',
       input: isSet(object.input) ? globalThis.String(object.input) : '',
       parentId: isSet(object.parentId) ? globalThis.String(object.parentId) : undefined,
-      parentStepRunId: isSet(object.parentStepRunId)
-        ? globalThis.String(object.parentStepRunId)
+      parentTaskRunId: isSet(object.parentTaskRunId)
+        ? globalThis.String(object.parentTaskRunId)
         : undefined,
       childIndex: isSet(object.childIndex) ? globalThis.Number(object.childIndex) : undefined,
       childKey: isSet(object.childKey) ? globalThis.String(object.childKey) : undefined,
@@ -2652,8 +2652,8 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
     if (message.parentId !== undefined) {
       obj.parentId = message.parentId;
     }
-    if (message.parentStepRunId !== undefined) {
-      obj.parentStepRunId = message.parentStepRunId;
+    if (message.parentTaskRunId !== undefined) {
+      obj.parentTaskRunId = message.parentTaskRunId;
     }
     if (message.childIndex !== undefined) {
       obj.childIndex = Math.round(message.childIndex);
@@ -2681,7 +2681,7 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
     message.name = object.name ?? '';
     message.input = object.input ?? '';
     message.parentId = object.parentId ?? undefined;
-    message.parentStepRunId = object.parentStepRunId ?? undefined;
+    message.parentTaskRunId = object.parentTaskRunId ?? undefined;
     message.childIndex = object.childIndex ?? undefined;
     message.childKey = object.childKey ?? undefined;
     message.additionalMetadata = object.additionalMetadata ?? undefined;

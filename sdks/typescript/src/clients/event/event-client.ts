@@ -132,7 +132,7 @@ export class EventClient {
     //  fire and forget the log
     await this.client
       .putLog({
-        stepRunId,
+        taskRunId: stepRunId,
         createdAt,
         message: log,
         level: level || LogLevel.INFO,
@@ -160,7 +160,7 @@ export class EventClient {
     retrier(
       async () =>
         this.client.putStreamEvent({
-          stepRunId,
+          taskRunId: stepRunId,
           createdAt,
           message: dataBytes,
           eventIndex: index,

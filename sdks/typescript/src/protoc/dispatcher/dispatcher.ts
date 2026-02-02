@@ -341,8 +341,8 @@ export interface WorkerRegisterRequest {
   actions: string[];
   /** (optional) the services for this worker */
   services: string[];
-  /** (optional) the max number of runs this worker can handle */
-  maxRuns?: number | undefined;
+  /** (optional) the number of slots this worker can handle */
+  slots?: number | undefined;
   /** (optional) worker labels (i.e. state or other metadata) */
   labels: { [key: string]: WorkerLabels };
   /** (optional) webhookId is the id of the webhook that the worker is associated with (if any) */
@@ -397,17 +397,17 @@ export interface AssignedAction {
   jobName: string;
   /** the job run id */
   jobRunId: string;
-  /** the step id */
-  stepId: string;
-  /** the step run id */
-  stepRunId: string;
+  /** the task id */
+  taskId: string;
+  /** the task run id */
+  taskRunId: string;
   /** the action id */
   actionId: string;
   /** the action type */
   actionType: ActionType;
   /** the action payload */
   actionPayload: string;
-  /** the step name */
+  /** the task name */
   stepName: string;
   /** the count number of the retry attempt */
   retryCount: number;
@@ -453,7 +453,7 @@ export interface GroupKeyActionEvent {
   /** the action id */
   actionId: string;
   eventTimestamp: Date | undefined;
-  /** the step event type */
+  /** the task event type */
   eventType: GroupKeyActionEventType;
   /** the event payload */
   eventPayload: string;
@@ -466,14 +466,14 @@ export interface StepActionEvent {
   jobId: string;
   /** the job run id */
   jobRunId: string;
-  /** the id of the step */
-  stepId: string;
-  /** the step run id */
-  stepRunId: string;
+  /** the id of the task */
+  taskId: string;
+  /** the task run id */
+  taskRunId: string;
   /** the action id */
   actionId: string;
   eventTimestamp: Date | undefined;
-  /** the step event type */
+  /** the task event type */
   eventType: StepActionEventType;
   /** the event payload */
   eventPayload: string;
@@ -518,9 +518,9 @@ export interface WorkflowEvent {
    * will hang up the connection but clients might want to case
    */
   hangup: boolean;
-  /** (optional) the max number of retries this step can handle */
+  /** (optional) the max number of retries this task can handle */
   stepRetries?: number | undefined;
-  /** (optional) the retry count of this step */
+  /** (optional) the retry count of this task */
   retryCount?: number | undefined;
   eventIndex?: number | undefined;
 }
@@ -542,7 +542,7 @@ export interface StepRunResult {
 }
 
 export interface OverridesData {
-  /** the step run id */
+  /** the task run id */
   stepRunId: string;
   /** the path of the data to set */
   path: string;
@@ -564,7 +564,7 @@ export interface HeartbeatRequest {
 export interface HeartbeatResponse {}
 
 export interface RefreshTimeoutRequest {
-  /** the id of the step run to release */
+  /** the id of the task run to release */
   stepRunId: string;
   incrementTimeoutBy: string;
 }
@@ -574,7 +574,7 @@ export interface RefreshTimeoutResponse {
 }
 
 export interface ReleaseSlotRequest {
-  /** the id of the step run to release */
+  /** the id of the task run to release */
   stepRunId: string;
 }
 
@@ -793,7 +793,7 @@ function createBaseWorkerRegisterRequest(): WorkerRegisterRequest {
     workerName: '',
     actions: [],
     services: [],
-    maxRuns: undefined,
+    slots: undefined,
     labels: {},
     webhookId: undefined,
     runtimeInfo: undefined,
@@ -811,8 +811,8 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
     for (const v of message.services) {
       writer.uint32(26).string(v!);
     }
-    if (message.maxRuns !== undefined) {
-      writer.uint32(32).int32(message.maxRuns);
+    if (message.slots !== undefined) {
+      writer.uint32(32).int32(message.slots);
     }
     Object.entries(message.labels).forEach(([key, value]) => {
       WorkerRegisterRequest_LabelsEntry.encode(
@@ -865,7 +865,7 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
             break;
           }
 
-          message.maxRuns = reader.int32();
+          message.slots = reader.int32();
           continue;
         }
         case 5: {
@@ -913,7 +913,7 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
       services: globalThis.Array.isArray(object?.services)
         ? object.services.map((e: any) => globalThis.String(e))
         : [],
-      maxRuns: isSet(object.maxRuns) ? globalThis.Number(object.maxRuns) : undefined,
+      slots: isSet(object.slots) ? globalThis.Number(object.slots) : undefined,
       labels: isObject(object.labels)
         ? Object.entries(object.labels).reduce<{ [key: string]: WorkerLabels }>(
             (acc, [key, value]) => {
@@ -939,8 +939,8 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
     if (message.services?.length) {
       obj.services = message.services;
     }
-    if (message.maxRuns !== undefined) {
-      obj.maxRuns = Math.round(message.maxRuns);
+    if (message.slots !== undefined) {
+      obj.slots = Math.round(message.slots);
     }
     if (message.labels) {
       const entries = Object.entries(message.labels);
@@ -968,7 +968,7 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
     message.workerName = object.workerName ?? '';
     message.actions = object.actions?.map((e) => e) || [];
     message.services = object.services?.map((e) => e) || [];
-    message.maxRuns = object.maxRuns ?? undefined;
+    message.slots = object.slots ?? undefined;
     message.labels = Object.entries(object.labels ?? {}).reduce<{ [key: string]: WorkerLabels }>(
       (acc, [key, value]) => {
         if (value !== undefined) {
@@ -1447,8 +1447,8 @@ function createBaseAssignedAction(): AssignedAction {
     jobId: '',
     jobName: '',
     jobRunId: '',
-    stepId: '',
-    stepRunId: '',
+    taskId: '',
+    taskRunId: '',
     actionId: '',
     actionType: 0,
     actionPayload: '',
@@ -1484,11 +1484,11 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.jobRunId !== '') {
       writer.uint32(50).string(message.jobRunId);
     }
-    if (message.stepId !== '') {
-      writer.uint32(58).string(message.stepId);
+    if (message.taskId !== '') {
+      writer.uint32(58).string(message.taskId);
     }
-    if (message.stepRunId !== '') {
-      writer.uint32(66).string(message.stepRunId);
+    if (message.taskRunId !== '') {
+      writer.uint32(66).string(message.taskRunId);
     }
     if (message.actionId !== '') {
       writer.uint32(74).string(message.actionId);
@@ -1589,7 +1589,7 @@ export const AssignedAction: MessageFns<AssignedAction> = {
             break;
           }
 
-          message.stepId = reader.string();
+          message.taskId = reader.string();
           continue;
         }
         case 8: {
@@ -1597,7 +1597,7 @@ export const AssignedAction: MessageFns<AssignedAction> = {
             break;
           }
 
-          message.stepRunId = reader.string();
+          message.taskRunId = reader.string();
           continue;
         }
         case 9: {
@@ -1715,8 +1715,8 @@ export const AssignedAction: MessageFns<AssignedAction> = {
       jobId: isSet(object.jobId) ? globalThis.String(object.jobId) : '',
       jobName: isSet(object.jobName) ? globalThis.String(object.jobName) : '',
       jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : '',
-      stepId: isSet(object.stepId) ? globalThis.String(object.stepId) : '',
-      stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : '',
+      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : '',
+      taskRunId: isSet(object.taskRunId) ? globalThis.String(object.taskRunId) : '',
       actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : '',
       actionType: isSet(object.actionType) ? actionTypeFromJSON(object.actionType) : 0,
       actionPayload: isSet(object.actionPayload) ? globalThis.String(object.actionPayload) : '',
@@ -1762,11 +1762,11 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.jobRunId !== '') {
       obj.jobRunId = message.jobRunId;
     }
-    if (message.stepId !== '') {
-      obj.stepId = message.stepId;
+    if (message.taskId !== '') {
+      obj.taskId = message.taskId;
     }
-    if (message.stepRunId !== '') {
-      obj.stepRunId = message.stepRunId;
+    if (message.taskRunId !== '') {
+      obj.taskRunId = message.taskRunId;
     }
     if (message.actionId !== '') {
       obj.actionId = message.actionId;
@@ -1818,8 +1818,8 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     message.jobId = object.jobId ?? '';
     message.jobName = object.jobName ?? '';
     message.jobRunId = object.jobRunId ?? '';
-    message.stepId = object.stepId ?? '';
-    message.stepRunId = object.stepRunId ?? '';
+    message.taskId = object.taskId ?? '';
+    message.taskRunId = object.taskRunId ?? '';
     message.actionId = object.actionId ?? '';
     message.actionType = object.actionType ?? 0;
     message.actionPayload = object.actionPayload ?? '';
@@ -2207,8 +2207,8 @@ function createBaseStepActionEvent(): StepActionEvent {
     workerId: '',
     jobId: '',
     jobRunId: '',
-    stepId: '',
-    stepRunId: '',
+    taskId: '',
+    taskRunId: '',
     actionId: '',
     eventTimestamp: undefined,
     eventType: 0,
@@ -2229,11 +2229,11 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     if (message.jobRunId !== '') {
       writer.uint32(26).string(message.jobRunId);
     }
-    if (message.stepId !== '') {
-      writer.uint32(34).string(message.stepId);
+    if (message.taskId !== '') {
+      writer.uint32(34).string(message.taskId);
     }
-    if (message.stepRunId !== '') {
-      writer.uint32(42).string(message.stepRunId);
+    if (message.taskRunId !== '') {
+      writer.uint32(42).string(message.taskRunId);
     }
     if (message.actionId !== '') {
       writer.uint32(50).string(message.actionId);
@@ -2292,7 +2292,7 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
             break;
           }
 
-          message.stepId = reader.string();
+          message.taskId = reader.string();
           continue;
         }
         case 5: {
@@ -2300,7 +2300,7 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
             break;
           }
 
-          message.stepRunId = reader.string();
+          message.taskRunId = reader.string();
           continue;
         }
         case 6: {
@@ -2365,8 +2365,8 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
       workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '',
       jobId: isSet(object.jobId) ? globalThis.String(object.jobId) : '',
       jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : '',
-      stepId: isSet(object.stepId) ? globalThis.String(object.stepId) : '',
-      stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : '',
+      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : '',
+      taskRunId: isSet(object.taskRunId) ? globalThis.String(object.taskRunId) : '',
       actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : '',
       eventTimestamp: isSet(object.eventTimestamp)
         ? fromJsonTimestamp(object.eventTimestamp)
@@ -2391,11 +2391,11 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     if (message.jobRunId !== '') {
       obj.jobRunId = message.jobRunId;
     }
-    if (message.stepId !== '') {
-      obj.stepId = message.stepId;
+    if (message.taskId !== '') {
+      obj.taskId = message.taskId;
     }
-    if (message.stepRunId !== '') {
-      obj.stepRunId = message.stepRunId;
+    if (message.taskRunId !== '') {
+      obj.taskRunId = message.taskRunId;
     }
     if (message.actionId !== '') {
       obj.actionId = message.actionId;
@@ -2426,8 +2426,8 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     message.workerId = object.workerId ?? '';
     message.jobId = object.jobId ?? '';
     message.jobRunId = object.jobRunId ?? '';
-    message.stepId = object.stepId ?? '';
-    message.stepRunId = object.stepRunId ?? '';
+    message.taskId = object.taskId ?? '';
+    message.taskRunId = object.taskRunId ?? '';
     message.actionId = object.actionId ?? '';
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.eventType = object.eventType ?? 0;
