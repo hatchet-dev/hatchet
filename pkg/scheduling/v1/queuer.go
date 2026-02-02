@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
@@ -20,7 +19,7 @@ import (
 type Queuer struct {
 	repo       v1.QueueRepository
 	optimistic v1.OptimisticSchedulingRepository
-	tenantId   pgtype.UUID
+	tenantId   uuid.UUID
 	queueName  string
 
 	l *zerolog.Logger
@@ -584,7 +583,7 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	stepIds := make([]pgtype.UUID, 0, len(qis))
+	stepIds := make([]uuid.UUID, 0, len(qis))
 
 	for _, qi := range qis {
 		stepIds = append(stepIds, qi.StepID)

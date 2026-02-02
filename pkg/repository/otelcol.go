@@ -4,12 +4,11 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type SpanData struct {
-	WorkflowRunID        *pgtype.UUID
-	TaskRunExternalID    *pgtype.UUID
+	WorkflowRunID        *uuid.UUID
+	TaskRunExternalID    *uuid.UUID
 	StatusMessage        string
 	InstrumentationScope string
 	Name                 string
@@ -24,7 +23,7 @@ type SpanData struct {
 	StartTimeUnixNano    uint64
 	StatusCode           int32
 	Kind                 int32
-	TenantID             pgtype.UUID
+	TenantID             uuid.UUID
 }
 
 type CreateSpansOpts struct {

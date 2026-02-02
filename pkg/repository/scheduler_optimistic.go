@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -114,6 +115,6 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Contex
 	return qis, tasks, dags, nil
 }
 
-func (r *optimisticSchedulingRepositoryImpl) MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId pgtype.UUID, r2 *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
+func (r *optimisticSchedulingRepositoryImpl) MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, r2 *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
 	return r.markQueueItemsProcessed(ctx, tenantId, r2, tx.tx, true)
 }

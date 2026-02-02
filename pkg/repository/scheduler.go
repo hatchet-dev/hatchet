@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type SchedulerRepository interface {
@@ -35,8 +34,8 @@ type QueueRepository interface {
 	MarkQueueItemsProcessed(ctx context.Context, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
 
 	GetTaskRateLimits(ctx context.Context, tx *OptimisticTx, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error)
-	RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error)
-	GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error)
+	RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error)
+	GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error)
 	Cleanup()
 }
 
@@ -52,7 +51,7 @@ type OptimisticSchedulingRepository interface {
 
 	TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, error)
 
-	MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId pgtype.UUID, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
+	MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
 }
 
 type schedulerRepository struct {

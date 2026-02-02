@@ -9,6 +9,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -360,8 +361,8 @@ func (t *tenantManager) runOptimisticScheduling(
 	}
 
 	// map the tasks to the assigned items
-	taskUUIDToAssigned := make(map[pgtype.UUID]*v1.AssignedItem, len(allLocalAssigned))
-	taskUUIDToTask := make(map[pgtype.UUID]*v1.V1TaskWithPayload, len(qis))
+	taskUUIDToAssigned := make(map[uuid.UUID]*v1.AssignedItem, len(allLocalAssigned))
+	taskUUIDToTask := make(map[uuid.UUID]*v1.V1TaskWithPayload, len(qis))
 
 	for _, ai := range allLocalAssigned {
 		taskUUIDToAssigned[ai.QueueItem.ExternalID] = ai
@@ -455,8 +456,8 @@ func (t *tenantManager) runOptimisticSchedulingFromEvents(
 	}
 
 	// map the tasks to the assigned items
-	taskUUIDToAssigned := make(map[pgtype.UUID]*v1.AssignedItem, len(allLocalAssigned))
-	taskUUIDToTask := make(map[pgtype.UUID]*v1.V1TaskWithPayload, len(qis))
+	taskUUIDToAssigned := make(map[uuid.UUID]*v1.AssignedItem, len(allLocalAssigned))
+	taskUUIDToTask := make(map[uuid.UUID]*v1.V1TaskWithPayload, len(qis))
 
 	for _, ai := range allLocalAssigned {
 		taskUUIDToAssigned[ai.QueueItem.ExternalID] = ai

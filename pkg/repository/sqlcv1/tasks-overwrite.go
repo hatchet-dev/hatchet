@@ -869,8 +869,8 @@ RETURNING tenant_id, id, external_id, seen_at, key, additional_metadata, scope, 
 `
 
 type BulkCreateEventsParams struct {
-	Tenantids              []pgtype.UUID        `json:"tenantids"`
-	Externalids            []pgtype.UUID        `json:"externalids"`
+	Tenantids              []uuid.UUID          `json:"tenantids"`
+	Externalids            []uuid.UUID          `json:"externalids"`
 	Seenats                []pgtype.Timestamptz `json:"seenats"`
 	Keys                   []string             `json:"keys"`
 	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`

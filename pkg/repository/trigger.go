@@ -490,7 +490,7 @@ func (r *sharedRepository) triggerWorkflows(
 
 	// group steps by workflow version ids
 	stepIdsToReadableIds := make(map[string]string)
-	stepsWithAdditionalMatchConditions := make([]pgtype.UUID, 0)
+	stepsWithAdditionalMatchConditions := make([]uuid.UUID, 0)
 
 	for _, steps := range workflowVersionToSteps {
 		for _, step := range steps {
@@ -1071,10 +1071,10 @@ func (r *sharedRepository) triggerWorkflows(
 			}
 		}
 
-		eventToRunExternalIds := []pgtype.UUID{}
+		eventToRunExternalIds := []uuid.UUID{}
 		eventToRunEventIds := []int64{}
 		eventToRunEventSeenAts := []pgtype.Timestamptz{}
-		eventToRunRunFilterIds := []pgtype.UUID{}
+		eventToRunRunFilterIds := []uuid.UUID{}
 
 		for _, task := range tasks {
 			externalId := task.ExternalID
@@ -1098,7 +1098,7 @@ func (r *sharedRepository) triggerWorkflows(
 			if eventIdAndFilterId.FilterId != nil {
 				eventToRunRunFilterIds = append(eventToRunRunFilterIds, sqlchelpers.UUIDFromStr(*eventIdAndFilterId.FilterId))
 			} else {
-				eventToRunRunFilterIds = append(eventToRunRunFilterIds, pgtype.UUID{Valid: false})
+				eventToRunRunFilterIds = append(eventToRunRunFilterIds, uuid.UUID{Valid: false})
 			}
 		}
 
@@ -1124,7 +1124,7 @@ func (r *sharedRepository) triggerWorkflows(
 			if eventIdAndFilterId.FilterId != nil {
 				eventToRunRunFilterIds = append(eventToRunRunFilterIds, sqlchelpers.UUIDFromStr(*eventIdAndFilterId.FilterId))
 			} else {
-				eventToRunRunFilterIds = append(eventToRunRunFilterIds, pgtype.UUID{Valid: false})
+				eventToRunRunFilterIds = append(eventToRunRunFilterIds, uuid.UUID{Valid: false})
 			}
 		}
 
@@ -1809,12 +1809,12 @@ func (r *sharedRepository) listWorkflowsByNames(ctx context.Context, tx sqlcv1.D
 	return res, nil
 }
 
-func (r *sharedRepository) listStepsByWorkflowVersionIds(ctx context.Context, tx sqlcv1.DBTX, tenantId string, workflowVersionIds []pgtype.UUID) (map[string][]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error) {
+func (r *sharedRepository) listStepsByWorkflowVersionIds(ctx context.Context, tx sqlcv1.DBTX, tenantId string, workflowVersionIds []uuid.UUID) (map[string][]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error) {
 	if len(workflowVersionIds) == 0 {
 		return make(map[string][]*sqlcv1.ListStepsByWorkflowVersionIdsRow), nil
 	}
 
-	workflowVersionsToLookup := make([]pgtype.UUID, 0, len(workflowVersionIds))
+	workflowVersionsToLookup := make([]uuid.UUID, 0, len(workflowVersionIds))
 	res := make(map[string][]*sqlcv1.ListStepsByWorkflowVersionIdsRow)
 
 	for _, pgId := range workflowVersionIds {
@@ -1864,8 +1864,8 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 
 	var createCoreEventOpts *createCoreUserEventOpts
 
-	createCoreEventsTenantIds := []pgtype.UUID{}
-	createCoreEventsExternalIds := []pgtype.UUID{}
+	createCoreEventsTenantIds := []uuid.UUID{}
+	createCoreEventsExternalIds := []uuid.UUID{}
 	createCoreEventsSeenAts := []pgtype.Timestamptz{}
 	createCoreEventsKeys := []string{}
 	createCoreEventsAdditionalMetadatas := [][]byte{}
@@ -1926,7 +1926,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 	// important: need to include all workflow ids here, regardless of whether or
 	// not the corresponding event was pushed with a scope, so we can correctly
 	// tell if there are any filters for the workflows with these events registered
-	workflowIdsForFilterCounts := make([]pgtype.UUID, 0, len(workflowVersionIdsAndEventKeys))
+	workflowIdsForFilterCounts := make([]uuid.UUID, 0, len(workflowVersionIdsAndEventKeys))
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
@@ -1949,7 +1949,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		}
 	}
 
-	workflowIds := make([]pgtype.UUID, 0, len(workflowIdScopePairs))
+	workflowIds := make([]uuid.UUID, 0, len(workflowIdScopePairs))
 	scopes := make([]string, 0, len(workflowIdScopePairs))
 
 	for pair := range workflowIdScopePairs {
@@ -2083,7 +2083,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 	workflowNames := make([]string, 0, len(opts))
 	uniqueNames := make(map[string]struct{})
 	namesToOpts := make(map[string][]*WorkflowNameTriggerOpts)
-	idempotencyKeyToExternalIds := make(map[IdempotencyKey]pgtype.UUID)
+	idempotencyKeyToExternalIds := make(map[IdempotencyKey]uuid.UUID)
 
 	for _, opt := range opts {
 		if opt.IdempotencyKey != nil {

@@ -207,7 +207,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	return succeeded, failed, nil
 }
 
-func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId pgtype.UUID, r *AssignResults, tx sqlcv1.DBTX, isOptimistic bool) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
+func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId uuid.UUID, r *AssignResults, tx sqlcv1.DBTX, isOptimistic bool) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
 	ctx, span := telemetry.NewSpan(ctx, "mark-queue-items-processed")
 	defer span.End()
 
@@ -587,11 +587,11 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	return taskIdToKeyToUnits, nil
 }
 
-func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error) {
+func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
 	defer span.End()
 
-	stepIdsToLookup := make([]pgtype.UUID, 0, len(stepIds))
+	stepIdsToLookup := make([]uuid.UUID, 0, len(stepIds))
 	stepIdToLabels := make(map[string][]*sqlcv1.GetDesiredLabelsRow)
 
 	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
