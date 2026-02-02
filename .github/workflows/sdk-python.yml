@@ -20,7 +20,7 @@ defaults:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -59,7 +59,7 @@ jobs:
         run: pip install -e .
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
@@ -163,7 +163,7 @@ jobs:
           path: $HATCHET_CLIENT_NAMESPACE-api.log
 
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     needs: [lint, test]
     if: github.ref == 'refs/heads/main'
     steps:
