@@ -37,8 +37,8 @@ service Dispatcher {
 
 message WorkerLabels {
     // value of the label
-    optional string strValue = 1;
-    optional int32 intValue = 2;
+    optional string str_value = 1;
+    optional int32 int_value = 2;
 }
 
 enum SDKS {
@@ -49,16 +49,16 @@ enum SDKS {
 }
 
 message RuntimeInfo {
-    optional string sdkVersion = 1;
+    optional string sdk_version = 1;
     optional SDKS language = 2;
-    optional string languageVersion = 3;
+    optional string language_version = 3;
     optional string os = 4;
     optional string extra = 5;
 }
 
 message WorkerRegisterRequest {
     // the name of the worker
-    string workerName = 1;
+    string worker_name = 1;
 
     // a list of actions that this worker can run
     repeated string actions = 2;
@@ -73,27 +73,27 @@ message WorkerRegisterRequest {
     map<string, WorkerLabels> labels = 5;
 
     // (optional) webhookId is the id of the webhook that the worker is associated with (if any)
-    optional string webhookId = 6;
+    optional string webhook_id = 6;
 
     // (optional) information regarding the runtime environment of the worker
-    optional RuntimeInfo runtimeInfo = 7;
+    optional RuntimeInfo runtime_info = 7;
 
 }
 
 message WorkerRegisterResponse {
     // the tenant id
-    string tenantId = 1;
+    string tenant_id = 1;
 
     // the id of the worker
-    string workerId = 2;
+    string worker_id = 2;
 
     // the name of the worker
-    string workerName = 3;
+    string worker_name = 3;
 }
 
 message UpsertWorkerLabelsRequest {
     // the name of the worker
-    string workerId = 1;
+    string worker_id = 1;
 
     // (optional) the worker labels
     map<string, WorkerLabels> labels = 2;
@@ -102,10 +102,10 @@ message UpsertWorkerLabelsRequest {
 
 message UpsertWorkerLabelsResponse {
     // the tenant id
-    string tenantId = 1;
+    string tenant_id = 1;
 
     // the id of the worker
-    string workerId = 2;
+    string worker_id = 2;
 }
 
 enum ActionType {
@@ -116,82 +116,82 @@ enum ActionType {
 
 message AssignedAction {
     // the tenant id
-    string tenantId = 1;
+    string tenant_id = 1;
 
     // the workflow run id (optional)
-    string workflowRunId = 2;
+    string workflow_run_id = 2;
 
     // the get group key run id (optional)
-    string getGroupKeyRunId = 3;
+    string get_group_key_run_id = 3;
 
     // the job id
-    string jobId = 4;
+    string job_id = 4;
 
     // the job name
-    string jobName = 5;
+    string job_name = 5;
 
     // the job run id
-    string jobRunId = 6;
+    string job_run_id = 6;
 
     // the task id
-    string taskId = 7;
+    string task_id = 7;
 
     // the task run id
-    string taskRunId = 8;
+    string task_run_id = 8;
 
     // the action id
-    string actionId = 9;
+    string action_id = 9;
 
     // the action type
-    ActionType actionType = 10;
+    ActionType action_type = 10;
 
     // the action payload
-    string actionPayload = 11;
+    string action_payload = 11;
 
     // the task name
-    string stepName = 12;
+    string step_name = 12;
 
     // the count number of the retry attempt
-    int32 retryCount = 13;
+    int32 retry_count = 13;
 
     // (optional) additional metadata set on the workflow
-    optional string additionalMetadata = 14;
+    optional string additional_metadata = 14;
 
     // (optional) the child workflow index (if this is a child workflow)
-    optional int32 childWorkflowIndex = 15;
+    optional int32 child_workflow_index = 15;
 
     // (optional) the child workflow key (if this is a child workflow)
-    optional string childWorkflowKey = 16;
+    optional string child_workflow_key = 16;
 
     // (optional) the parent workflow run id (if this is a child workflow)
-    optional string parentWorkflowRunId = 17;
+    optional string parent_workflow_run_id = 17;
 
     // (optional) the priority of the run
     int32 priority = 18;
 
     // (optional) the workflow id
-    optional string workflowId = 19;
+    optional string workflow_id = 19;
 
     // (optional) the workflow version id
-    optional string workflowVersionId = 20;
+    optional string workflow_version_id = 20;
 }
 
 message WorkerListenRequest {
     // the id of the worker
-    string workerId = 1;
+    string worker_id = 1;
 }
 
 message WorkerUnsubscribeRequest {
     // the id of the worker
-    string workerId = 1;
+    string worker_id = 1;
 }
 
 message WorkerUnsubscribeResponse {
     // the tenant id to unsubscribe from
-    string tenantId = 1;
+    string tenant_id = 1;
 
     // the id of the worker
-    string workerId = 2;
+    string worker_id = 2;
 }
 
 enum GroupKeyActionEventType {
@@ -203,23 +203,23 @@ enum GroupKeyActionEventType {
 
 message GroupKeyActionEvent {
     // the id of the worker
-    string workerId = 1;
+    string worker_id = 1;
 
     // the id of the job
-    string workflowRunId = 2;
+    string workflow_run_id = 2;
 
-    string getGroupKeyRunId = 3;
+    string get_group_key_run_id = 3;
 
     // the action id
-    string actionId = 4;
+    string action_id = 4;
 
-    google.protobuf.Timestamp eventTimestamp = 5;
+    google.protobuf.Timestamp event_timestamp = 5;
 
     // the task event type
-    GroupKeyActionEventType eventType = 6;
+    GroupKeyActionEventType event_type = 6;
 
     // the event payload
-    string eventPayload = 7;
+    string event_payload = 7;
 }
 
 enum StepActionEventType {
@@ -232,60 +232,60 @@ enum StepActionEventType {
 
 message StepActionEvent {
     // the id of the worker
-    string workerId = 1;
+    string worker_id = 1;
 
     // the id of the job
-    string jobId = 2;
+    string job_id = 2;
 
     // the job run id
-    string jobRunId = 3;
+    string job_run_id = 3;
 
     // the id of the task
-    string taskId = 4;
+    string task_id = 4;
 
     // the task run id
-    string taskRunId = 5;
+    string task_run_id = 5;
 
     // the action id
-    string actionId = 6;
+    string action_id = 6;
 
-    google.protobuf.Timestamp eventTimestamp = 7;
+    google.protobuf.Timestamp event_timestamp = 7;
 
     // the task event type
-    StepActionEventType eventType = 8;
+    StepActionEventType event_type = 8;
 
     // the event payload
-    string eventPayload = 9;
+    string event_payload = 9;
 
     // the retry count
-    optional int32 retryCount = 10;
+    optional int32 retry_count = 10;
 
     // a flag indicating if the task should _not_ be retried
-    optional bool shouldNotRetry = 11;
+    optional bool should_not_retry = 11;
 }
 
 message ActionEventResponse {
     // the tenant id
-    string tenantId = 1;
+    string tenant_id = 1;
 
     // the id of the worker
-    string workerId = 2;
+    string worker_id = 2;
 }
 
 message SubscribeToWorkflowEventsRequest {
     // the id of the workflow run
-    optional string workflowRunId = 1;
+    optional string workflow_run_id = 1;
 
     // the key of the additional meta field to subscribe to
-    optional string additionalMetaKey = 2;
+    optional string additional_meta_key = 2;
 
     // the value of the additional meta field to subscribe to
-    optional string additionalMetaValue = 3;
+    optional string additional_meta_value = 3;
 }
 
 message SubscribeToWorkflowRunsRequest {
     // the id of the workflow run
-    string workflowRunId = 1;
+    string workflow_run_id = 1;
 }
 
 enum ResourceType {
@@ -306,30 +306,30 @@ enum ResourceEventType {
 
 message WorkflowEvent {
     // the id of the workflow run
-    string workflowRunId = 1;
+    string workflow_run_id = 1;
 
-    ResourceType resourceType = 2;
+    ResourceType resource_type = 2;
 
-    ResourceEventType eventType = 3;
+    ResourceEventType event_type = 3;
 
-    string resourceId = 4;
+    string resource_id = 4;
 
-    google.protobuf.Timestamp eventTimestamp = 5;
+    google.protobuf.Timestamp event_timestamp = 5;
 
     // the event payload
-    string eventPayload = 6;
+    string event_payload = 6;
 
     // whether this is the last event for the workflow run - server
     // will hang up the connection but clients might want to case
     bool hangup = 7;
 
     // (optional) the max number of retries this task can handle
-    optional int32 stepRetries = 8;
+    optional int32 step_retries = 8;
 
     // (optional) the retry count of this task
-    optional int32 retryCount = 9;
+    optional int32 retry_count = 9;
 
-    optional int64 eventIndex = 10;
+    optional int64 event_index = 10;
 }
 
 enum WorkflowRunEventType {
@@ -338,21 +338,21 @@ enum WorkflowRunEventType {
 
 message WorkflowRunEvent {
     // the id of the workflow run
-    string workflowRunId = 1;
+    string workflow_run_id = 1;
 
-    WorkflowRunEventType eventType = 2;
+    WorkflowRunEventType event_type = 2;
 
-    google.protobuf.Timestamp eventTimestamp = 3;
+    google.protobuf.Timestamp event_timestamp = 3;
 
     repeated StepRunResult results = 4;
 }
 
 message StepRunResult {
-    string stepRunId = 1;
+    string step_run_id = 1;
 
-    string stepReadableId = 2;
+    string step_readable_id = 2;
 
-    string jobRunId = 3;
+    string job_run_id = 3;
 
     optional string error = 4;
 
@@ -361,7 +361,7 @@ message StepRunResult {
 
 message OverridesData {
     // the task run id
-    string stepRunId = 1;
+    string step_run_id = 1;
 
     // the path of the data to set
     string path = 2;
@@ -370,35 +370,35 @@ message OverridesData {
     string value = 3;
 
     // the filename of the caller
-    string callerFilename = 4;
+    string caller_filename = 4;
 }
 
 message OverridesDataResponse {}
 
 message HeartbeatRequest {
     // the id of the worker
-    string workerId = 1;
+    string worker_id = 1;
 
     // heartbeatAt is the time the worker sent the heartbeat
-    google.protobuf.Timestamp heartbeatAt = 2;
+    google.protobuf.Timestamp heartbeat_at = 2;
 }
 
 message HeartbeatResponse {}
 
 message RefreshTimeoutRequest {
     // the id of the task run to release
-    string stepRunId = 1;
+    string step_run_id = 1;
 
-    string incrementTimeoutBy = 2;
+    string increment_timeout_by = 2;
 }
 
 message RefreshTimeoutResponse {
-    google.protobuf.Timestamp timeoutAt = 1;
+    google.protobuf.Timestamp timeout_at = 1;
 
 }
 message ReleaseSlotRequest {
     // the id of the task run to release
-    string stepRunId = 1;
+    string step_run_id = 1;
 }
 
 message ReleaseSlotResponse {}
