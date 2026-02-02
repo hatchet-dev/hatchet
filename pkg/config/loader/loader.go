@@ -148,6 +148,20 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 		conn.TypeMap().RegisterType(t)
 
+		t, err = conn.LoadType(ctx, "v1_log_line_level")
+		if err != nil {
+			return err
+		}
+
+		conn.TypeMap().RegisterType(t)
+
+		t, err = conn.LoadType(ctx, "_v1_log_line_level")
+		if err != nil {
+			return err
+		}
+
+		conn.TypeMap().RegisterType(t)
+
 		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
 
 		return err
