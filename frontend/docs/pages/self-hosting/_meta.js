@@ -34,4 +34,5 @@ export default {
   "improving-performance": "Improving Performance",
   "read-replicas": "Read Replicas",
   sampling: "Trace Sampling",
+  "smtp-server": "SMTP Server",
 };

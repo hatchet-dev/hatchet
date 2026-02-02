@@ -892,12 +892,29 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	durVerify := time.Since(checkpoint)
 	checkpoint = time.Now()
 
+	finalizedRootIdsSet := make(map[string]bool)
+	for _, rootId := range finalizedRootIds {
+		finalizedRootIdsSet[rootId] = true
+	}
+
 	taskExternalIds := make([]string, 0, len(tasks))
 	taskExternalIdsToRootIds := make(map[string]string)
 
 	for _, task := range tasks {
-		taskExternalIds = append(taskExternalIds, sqlchelpers.UUIDToStr(task.ExternalID))
-		taskExternalIdsToRootIds[sqlchelpers.UUIDToStr(task.ExternalID)] = sqlchelpers.UUIDToStr(task.WorkflowRunExternalID)
+		rootId := sqlchelpers.UUIDToStr(task.WorkflowRunExternalID)
+		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+
+		if finalizedRootIdsSet[rootId] {
+			taskExternalIds = append(taskExternalIds, taskExternalId)
+			taskExternalIdsToRootIds[taskExternalId] = rootId
+		}
+	}
+
+	if len(taskExternalIds) == 0 {
+		if err := commit(ctx); err != nil {
+			return nil, err
+		}
+		return []*ListFinalizedWorkflowRunsResponse{}, nil
 	}
 
 	outputEvents, err := r.listTaskOutputEvents(ctx, tx, tenantId, taskExternalIds)
@@ -927,14 +944,8 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 		taskExternalIdsHasOutputEvent[outputEvent.TaskExternalId] = true
 	}
 
-	finalizedRootIdsMap := make(map[string]bool)
-
-	for _, rootId := range finalizedRootIds {
-		finalizedRootIdsMap[rootId] = true
-	}
-
 	// if tasks that we read originally don't have a TaskOutputEvent, they're not finalized, so set their root
-	// ids in finalizedRootIdsMap to false
+	// ids in finalizedRootIdsSet to false (safety check for race conditions)
 	for _, taskExternalId := range taskExternalIds {
 		if !taskExternalIdsHasOutputEvent[taskExternalId] {
 			rootId, ok := taskExternalIdsToRootIds[taskExternalId]
@@ -944,7 +955,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 				continue
 			}
 
-			finalizedRootIdsMap[rootId] = false
+			finalizedRootIdsSet[rootId] = false
 		}
 	}
 
@@ -952,7 +963,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	eventsForFinalizedRootIds := make(map[string][]*TaskOutputEvent)
 
 	for _, rootId := range finalizedRootIds {
-		if !finalizedRootIdsMap[rootId] {
+		if !finalizedRootIdsSet[rootId] {
 			continue
 		}
 

@@ -43,6 +43,7 @@ type DispatcherImpl struct {
 	cache                       cache.Cacheable
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
+	workflowRunBufferSize       int
 
 	dispatcherId string
 	workers      *workers
@@ -122,6 +123,7 @@ type DispatcherOpts struct {
 	cache                       cache.Cacheable
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
+	workflowRunBufferSize       int
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -135,6 +137,7 @@ func defaultDispatcherOpts() *DispatcherOpts {
 		alerter:                     alerter,
 		payloadSizeThreshold:        3 * 1024 * 1024,
 		defaultMaxWorkerBacklogSize: 20,
+		workflowRunBufferSize:       1000,
 	}
 }
 
@@ -192,6 +195,12 @@ func WithDefaultMaxWorkerBacklogSize(size int64) DispatcherOpt {
 	}
 }
 
+func WithWorkflowRunBufferSize(size int) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.workflowRunBufferSize = size
+	}
+}
+
 func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	opts := defaultDispatcherOpts()
 
@@ -240,6 +249,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		cache:                       opts.cache,
 		payloadSizeThreshold:        opts.payloadSizeThreshold,
 		defaultMaxWorkerBacklogSize: opts.defaultMaxWorkerBacklogSize,
+		workflowRunBufferSize:       opts.workflowRunBufferSize,
 	}, nil
 }
 
