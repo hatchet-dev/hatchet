@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type SchedulerRepository interface {
@@ -13,6 +14,7 @@ type SchedulerRepository interface {
 	QueueFactory() QueueFactoryRepository
 	RateLimit() RateLimitRepository
 	Assignment() AssignmentRepository
+	Optimistic() OptimisticSchedulingRepository
 }
 
 type LeaseRepository interface {
@@ -32,9 +34,9 @@ type QueueRepository interface {
 	ListQueueItems(ctx context.Context, limit int) ([]*sqlcv1.V1QueueItem, error)
 	MarkQueueItemsProcessed(ctx context.Context, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
 
-	GetTaskRateLimits(ctx context.Context, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error)
-	RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error)
-	GetDesiredLabels(ctx context.Context, stepIds []uuid.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error)
+	GetTaskRateLimits(ctx context.Context, tx *OptimisticTx, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error)
+	RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error)
+	GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error)
 	Cleanup()
 }
 
@@ -43,12 +45,23 @@ type AssignmentRepository interface {
 	ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error)
 }
 
+type OptimisticSchedulingRepository interface {
+	StartTx(ctx context.Context) (*OptimisticTx, error)
+
+	TriggerFromEvents(ctx context.Context, tx *OptimisticTx, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1QueueItem, *TriggerFromEventsResult, error)
+
+	TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, error)
+
+	MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId pgtype.UUID, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
+}
+
 type schedulerRepository struct {
 	concurrency  ConcurrencyRepository
 	lease        LeaseRepository
 	queueFactory QueueFactoryRepository
 	rateLimit    RateLimitRepository
 	assignment   AssignmentRepository
+	optimistic   OptimisticSchedulingRepository
 }
 
 func newSchedulerRepository(shared *sharedRepository) *schedulerRepository {
@@ -58,6 +71,7 @@ func newSchedulerRepository(shared *sharedRepository) *schedulerRepository {
 		queueFactory: newQueueFactoryRepository(shared),
 		rateLimit:    newRateLimitRepository(shared),
 		assignment:   newAssignmentRepository(shared),
+		optimistic:   newOptimisticSchedulingRepository(shared),
 	}
 }
 
@@ -79,4 +93,8 @@ func (d *schedulerRepository) RateLimit() RateLimitRepository {
 
 func (d *schedulerRepository) Assignment() AssignmentRepository {
 	return d.assignment
+}
+
+func (d *schedulerRepository) Optimistic() OptimisticSchedulingRepository {
+	return d.optimistic
 }

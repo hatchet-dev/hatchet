@@ -66,10 +66,10 @@ type CountTasksParams struct {
 	Statuses                  []string           `json:"statuses"`
 	Until                     pgtype.Timestamptz `json:"until"`
 	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	WorkerId                  *uuid.UUID          `json:"workerId"`
+	WorkerId                  *uuid.UUID         `json:"workerId"`
 	Keys                      []string           `json:"keys"`
 	Values                    []string           `json:"values"`
-	TriggeringEventExternalId *uuid.UUID          `json:"triggeringEventExternalId"`
+	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams) (int64, error) {
@@ -330,12 +330,12 @@ type ListTasksOlapParams struct {
 	Statuses                  []string           `json:"statuses"`
 	Until                     pgtype.Timestamptz `json:"until"`
 	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	WorkerId                  *uuid.UUID          `json:"workerId"`
+	WorkerId                  *uuid.UUID         `json:"workerId"`
 	Keys                      []string           `json:"keys"`
 	Values                    []string           `json:"values"`
 	Taskoffset                int32              `json:"taskoffset"`
 	Tasklimit                 int32              `json:"tasklimit"`
-	TriggeringEventExternalId *uuid.UUID          `json:"triggeringEventExternalId"`
+	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
 }
 
 type ListTasksOlapRow struct {
@@ -375,7 +375,7 @@ func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapP
 	return items, nil
 }
 
-const bulkCreateEvents = `-- name: BulkCreateEvents :many
+const bulkCreateEventsOLAP = `-- name: BulkCreateEventsOLAP :many
 WITH to_insert AS (
     SELECT
         UNNEST($1::UUID[]) AS tenant_id,
@@ -405,9 +405,9 @@ FROM to_insert
 RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope, triggering_webhook_name
 `
 
-type BulkCreateEventsParams struct {
-	Tenantids              []uuid.UUID          `json:"tenantids"`
-	Externalids            []uuid.UUID          `json:"externalids"`
+type BulkCreateEventsOLAPParams struct {
+	Tenantids              []pgtype.UUID        `json:"tenantids"`
+	Externalids            []pgtype.UUID        `json:"externalids"`
 	Seenats                []pgtype.Timestamptz `json:"seenats"`
 	Keys                   []string             `json:"keys"`
 	Payloads               [][]byte             `json:"payloads"`
@@ -416,8 +416,8 @@ type BulkCreateEventsParams struct {
 	TriggeringWebhookNames []pgtype.Text        `json:"triggeringWebhookName"`
 }
 
-func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1EventsOlap, error) {
-	rows, err := db.Query(ctx, bulkCreateEvents,
+func (q *Queries) BulkCreateEventsOLAP(ctx context.Context, db DBTX, arg BulkCreateEventsOLAPParams) ([]*V1EventsOlap, error) {
+	rows, err := db.Query(ctx, bulkCreateEventsOLAP,
 		arg.Tenantids,
 		arg.Externalids,
 		arg.Seenats,

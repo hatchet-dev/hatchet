@@ -291,3 +291,198 @@ func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
 
 	t.queuersMu.RUnlock()
 }
+
+type AssignedItemWithTask struct {
+	AssignedItem *v1.AssignedItem
+	Task         *v1.V1TaskWithPayload
+}
+
+func (t *tenantManager) runOptimisticScheduling(
+	ctx context.Context,
+	opts []*v1.WorkflowNameTriggerOpts,
+	localWorkerIds map[string]struct{},
+) (map[string][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
+	// create a transaction
+	tx, err := t.cf.repo.Optimistic().StartTx(ctx)
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	defer tx.Rollback()
+
+	// hook into the trigger transaction
+	qis, tasks, dags, err := t.cf.repo.Optimistic().TriggerFromNames(ctx, tx, sqlchelpers.UUIDToStr(t.tenantId), opts)
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// read the queue items for the tasks we just created
+	// rewrite the queuer loop to not be asynchronous in batches, but instead run tryAssign
+	// and then immediately flush to the database
+
+	// split qis by their queue name
+	qisByQueueName := make(map[string][]*sqlcv1.V1QueueItem, len(qis))
+
+	for _, qi := range qis {
+		qisByQueueName[qi.Queue] = append(qisByQueueName[qi.Queue], qi)
+	}
+
+	var allLocalAssigned []*v1.AssignedItem
+	var allQueueResults []*QueueResults
+
+	for queueName, qis := range qisByQueueName {
+		t.queuersMu.RLock()
+
+		for _, q := range t.queuers {
+			if q.queueName == queueName {
+				localAssigned, queueResults, err := q.runOptimisticQueue(ctx, tx, qis, localWorkerIds)
+
+				if err != nil {
+					t.queuersMu.RUnlock()
+					return nil, nil, nil, err
+				}
+
+				allLocalAssigned = append(allLocalAssigned, localAssigned...)
+				allQueueResults = append(allQueueResults, queueResults...)
+			}
+		}
+		t.queuersMu.RUnlock()
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, nil, nil, err
+	}
+
+	for _, qr := range allQueueResults {
+		t.resultsCh <- qr
+	}
+
+	// map the tasks to the assigned items
+	taskUUIDToAssigned := make(map[pgtype.UUID]*v1.AssignedItem, len(allLocalAssigned))
+	taskUUIDToTask := make(map[pgtype.UUID]*v1.V1TaskWithPayload, len(qis))
+
+	for _, ai := range allLocalAssigned {
+		taskUUIDToAssigned[ai.QueueItem.ExternalID] = ai
+	}
+
+	for _, task := range tasks {
+		taskUUIDToTask[task.ExternalID] = task
+	}
+
+	// return the assigned items with their tasks
+	res := make(map[string][]*AssignedItemWithTask)
+
+	for taskUUID, ai := range taskUUIDToAssigned {
+		task, ok := taskUUIDToTask[taskUUID]
+
+		if !ok {
+			continue
+		}
+
+		workerId := sqlchelpers.UUIDToStr(ai.WorkerId)
+
+		res[workerId] = append(res[workerId], &AssignedItemWithTask{
+			AssignedItem: ai,
+			Task:         task,
+		})
+	}
+
+	return res, tasks, dags, nil
+}
+
+func (t *tenantManager) runOptimisticSchedulingFromEvents(
+	ctx context.Context,
+	opts []v1.EventTriggerOpts,
+	localWorkerIds map[string]struct{},
+) (map[string][]*AssignedItemWithTask, *v1.TriggerFromEventsResult, error) {
+	// create a transaction
+	tx, err := t.cf.repo.Optimistic().StartTx(ctx)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defer tx.Rollback()
+
+	// hook into the trigger transaction
+	qis, eventsRes, err := t.cf.repo.Optimistic().TriggerFromEvents(ctx, tx, sqlchelpers.UUIDToStr(t.tenantId), opts)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// read the queue items for the tasks we just created
+	// rewrite the queuer loop to not be asynchronous in batches, but instead run tryAssign
+	// and then immediately flush to the database
+
+	// split qis by their queue name
+	qisByQueueName := make(map[string][]*sqlcv1.V1QueueItem, len(qis))
+
+	for _, qi := range qis {
+		qisByQueueName[qi.Queue] = append(qisByQueueName[qi.Queue], qi)
+	}
+
+	var allLocalAssigned []*v1.AssignedItem
+	var allQueueResults []*QueueResults
+
+	for queueName, qis := range qisByQueueName {
+		t.queuersMu.RLock()
+
+		for _, q := range t.queuers {
+			if q.queueName == queueName {
+				localAssigned, queueResults, err := q.runOptimisticQueue(ctx, tx, qis, localWorkerIds)
+
+				if err != nil {
+					t.queuersMu.RUnlock()
+					return nil, nil, err
+				}
+
+				allLocalAssigned = append(allLocalAssigned, localAssigned...)
+				allQueueResults = append(allQueueResults, queueResults...)
+			}
+		}
+		t.queuersMu.RUnlock()
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	for _, qr := range allQueueResults {
+		t.resultsCh <- qr
+	}
+
+	// map the tasks to the assigned items
+	taskUUIDToAssigned := make(map[pgtype.UUID]*v1.AssignedItem, len(allLocalAssigned))
+	taskUUIDToTask := make(map[pgtype.UUID]*v1.V1TaskWithPayload, len(qis))
+
+	for _, ai := range allLocalAssigned {
+		taskUUIDToAssigned[ai.QueueItem.ExternalID] = ai
+	}
+
+	for _, task := range eventsRes.Tasks {
+		taskUUIDToTask[task.ExternalID] = task
+	}
+
+	// return the assigned items with their tasks
+	res := make(map[string][]*AssignedItemWithTask)
+
+	for taskUUID, ai := range taskUUIDToAssigned {
+		task, ok := taskUUIDToTask[taskUUID]
+
+		if !ok {
+			continue
+		}
+
+		workerId := sqlchelpers.UUIDToStr(ai.WorkerId)
+
+		res[workerId] = append(res[workerId], &AssignedItemWithTask{
+			AssignedItem: ai,
+			Task:         task,
+		})
+	}
+
+	return res, eventsRes, nil
+}

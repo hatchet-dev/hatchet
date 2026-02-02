@@ -53,11 +53,11 @@ type ResourceLimitAlertData struct {
 }
 
 type SendEmailFromTemplateRequest struct {
+	TemplateModel interface{} `json:"TemplateModel"`
 	From          string      `json:"From"`
 	To            string      `json:"To,omitempty"`
 	Bcc           string      `json:"Bcc,omitempty"`
 	TemplateAlias string      `json:"TemplateAlias"`
-	TemplateModel interface{} `json:"TemplateModel"`
 }
 
 type EmailService interface {

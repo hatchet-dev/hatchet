@@ -24,10 +24,10 @@ var (
 )
 
 type SMTPService struct {
+	client       *mail.Client
 	fromEmail    string
 	fromName     string
 	supportEmail string
-	client       *mail.Client
 }
 
 // NewSMTPService creates a new service which sends emails

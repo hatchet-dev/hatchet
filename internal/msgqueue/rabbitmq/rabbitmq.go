@@ -842,8 +842,8 @@ func (t *MessageQueueImpl) subscribe(
 							Int("num_payloads", len(msg.Payloads)).
 							Msg("dropping message due to permanent pre-ack error")
 
-						if err := rabbitMsg.Ack(false); err != nil {
-							t.l.Error().Err(err).Msg("error acknowledging message after permanent pre-ack error")
+						if ackErr := rabbitMsg.Ack(false); ackErr != nil {
+							t.l.Error().Err(ackErr).Msg("error acknowledging message after permanent pre-ack error")
 						}
 
 						return

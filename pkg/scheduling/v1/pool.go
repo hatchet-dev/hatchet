@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -38,11 +39,24 @@ type SchedulingPool struct {
 	resultsCh chan *QueueResults
 
 	concurrencyResultsCh chan *ConcurrencyResults
+
+	optimisticSchedulingEnabled bool
+	optimisticSemaphore         chan struct{}
 }
 
-func NewSchedulingPool(repo v1.SchedulerRepository, l *zerolog.Logger, singleQueueLimit int, schedulerConcurrencyRateLimit int, schedulerConcurrencyPollingMinInterval time.Duration, schedulerConcurrencyPollingMaxInterval time.Duration) (*SchedulingPool, func() error, error) {
+func NewSchedulingPool(
+	repo v1.SchedulerRepository,
+	l *zerolog.Logger,
+	singleQueueLimit int,
+	schedulerConcurrencyRateLimit int,
+	schedulerConcurrencyPollingMinInterval time.Duration,
+	schedulerConcurrencyPollingMaxInterval time.Duration,
+	optimisticSchedulingEnabled bool,
+	optimisticSlots int,
+) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
+	semaphore := make(chan struct{}, optimisticSlots)
 
 	s := &SchedulingPool{
 		Extensions: &Extensions{},
@@ -54,9 +68,11 @@ func NewSchedulingPool(repo v1.SchedulerRepository, l *zerolog.Logger, singleQue
 			schedulerConcurrencyPollingMinInterval: schedulerConcurrencyPollingMinInterval,
 			schedulerConcurrencyPollingMaxInterval: schedulerConcurrencyPollingMaxInterval,
 		},
-		resultsCh:            resultsCh,
-		concurrencyResultsCh: concurrencyResultsCh,
-		setMu:                newMu(l),
+		resultsCh:                   resultsCh,
+		concurrencyResultsCh:        concurrencyResultsCh,
+		setMu:                       newMu(l),
+		optimisticSchedulingEnabled: optimisticSchedulingEnabled,
+		optimisticSemaphore:         semaphore,
 	}
 
 	return s, func() error {
@@ -185,4 +201,59 @@ func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bo
 	}
 
 	return tm.(*tenantManager)
+}
+
+var ErrTenantNotFound = fmt.Errorf("tenant not found in pool")
+var ErrNoOptimisticSlots = fmt.Errorf("no optimistic slots for scheduling")
+
+func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId string, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[string]struct{}) (map[string][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
+	if !p.optimisticSchedulingEnabled {
+		return nil, nil, nil, ErrNoOptimisticSlots
+	}
+
+	// attempt to acquire a slot in the semaphore
+	select {
+	case p.optimisticSemaphore <- struct{}{}:
+		// acquired a slot
+		defer func() {
+			<-p.optimisticSemaphore
+		}()
+	default:
+		// no slots available
+		return nil, nil, nil, ErrNoOptimisticSlots
+	}
+
+	tm := p.getTenantManager(tenantId, false)
+
+	if tm == nil {
+		return nil, nil, nil, ErrTenantNotFound
+	}
+
+	return tm.runOptimisticScheduling(ctx, opts, localWorkerIds)
+}
+
+func (p *SchedulingPool) RunOptimisticSchedulingFromEvents(ctx context.Context, tenantId string, opts []v1.EventTriggerOpts, localWorkerIds map[string]struct{}) (map[string][]*AssignedItemWithTask, *v1.TriggerFromEventsResult, error) {
+	if !p.optimisticSchedulingEnabled {
+		return nil, nil, ErrNoOptimisticSlots
+	}
+
+	// attempt to acquire a slot in the semaphore
+	select {
+	case p.optimisticSemaphore <- struct{}{}:
+		// acquired a slot
+		defer func() {
+			<-p.optimisticSemaphore
+		}()
+	default:
+		// no slots available
+		return nil, nil, ErrNoOptimisticSlots
+	}
+
+	tm := p.getTenantManager(tenantId, false)
+
+	if tm == nil {
+		return nil, nil, ErrTenantNotFound
+	}
+
+	return tm.runOptimisticSchedulingFromEvents(ctx, opts, localWorkerIds)
 }

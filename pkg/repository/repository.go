@@ -103,10 +103,11 @@ func NewRepository(
 	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
 	enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error),
+	enableDurableUserEventLog bool,
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, enforceLimitsFunc, cacheDuration)
+	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, enforceLimitsFunc, cacheDuration, enableDurableUserEventLog)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
@@ -116,7 +117,7 @@ func NewRepository(
 		health:            newHealthRepository(shared),
 		messageQueue:      mq,
 		rateLimit:         newRateLimitRepository(shared),
-		triggers:          newTriggerRepository(shared),
+		triggers:          newTriggerRepository(shared, enableDurableUserEventLog),
 		tasks:             newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler:         newSchedulerRepository(shared),
 		matches:           newMatchRepository(shared),

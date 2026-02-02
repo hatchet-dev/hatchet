@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -45,7 +44,7 @@ type KeyClaimantPair struct {
 	ClaimedByExternalId uuid.UUID
 }
 
-func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool *pgxpool.Pool, tenantId uuid.UUID, claims []KeyClaimantPair) (map[KeyClaimantPair]WasSuccessfullyClaimed, error) {
+func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, tx sqlcv1.DBTX, tenantId string, claims []KeyClaimantPair) (map[KeyClaimantPair]WasSuccessfullyClaimed, error) {
 	keys := make([]string, len(claims))
 	claimedByExternalIds := make([]uuid.UUID, len(claims))
 
@@ -54,8 +53,8 @@ func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool
 		claimedByExternalIds[i] = claim.ClaimedByExternalId
 	}
 
-	claimResults, err := queries.ClaimIdempotencyKeys(context, pool, sqlcv1.ClaimIdempotencyKeysParams{
-		Tenantid:             tenantId,
+	claimResults, err := queries.ClaimIdempotencyKeys(context, tx, sqlcv1.ClaimIdempotencyKeysParams{
+		Tenantid:             sqlchelpers.UUIDFromStr(tenantId),
 		Keys:                 keys,
 		Claimedbyexternalids: claimedByExternalIds,
 	})

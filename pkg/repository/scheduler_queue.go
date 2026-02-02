@@ -34,6 +34,10 @@ type AssignedItem struct {
 	WorkerId uuid.UUID
 
 	QueueItem *sqlcv1.V1QueueItem
+
+	// IsAssignedLocally refers to whether the item has been assigned to a worker registered in the same
+	// process as the scheduler process.
+	IsAssignedLocally bool
 }
 
 type AssignResults struct {
@@ -181,12 +185,6 @@ func (d *queueRepository) updateMinId() {
 }
 
 func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
-	ctx, span := telemetry.NewSpan(ctx, "mark-queue-items-processed")
-	defer span.End()
-
-	start := time.Now()
-	checkpoint := start
-
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
 
 	if err != nil {
@@ -195,8 +193,26 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 
 	defer rollback()
 
-	durPrepare := time.Since(checkpoint)
-	checkpoint = time.Now()
+	succeeded, failed, err = d.markQueueItemsProcessed(ctx, d.tenantId, r, tx, false)
+
+	if err := commit(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	go func() {
+		// if we committed, we can update the min id
+		d.updateMinId()
+	}()
+
+	return succeeded, failed, nil
+}
+
+func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId pgtype.UUID, r *AssignResults, tx sqlcv1.DBTX, isOptimistic bool) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
+	ctx, span := telemetry.NewSpan(ctx, "mark-queue-items-processed")
+	defer span.End()
+
+	start := time.Now()
+	checkpoint := start
 
 	idsToUnqueue := make([]int64, 0, len(r.Assigned))
 	queueItemIdsToAssignedItem := make(map[int64]*AssignedItem, len(r.Assigned))
@@ -245,10 +261,14 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 		return nil, nil, err
 	}
 
-	_, err = d.releaseTasks(ctx, tx, d.tenantId, tasksToRelease)
+	if !isOptimistic {
+		// we don't want to waste a query if we're scheduling optimistically; this only happens on insert so there's
+		// nothing to release
+		_, err = d.releaseTasks(ctx, tx, sqlchelpers.UUIDToStr(tenantId), tasksToRelease)
 
-	if err != nil {
-		return nil, nil, err
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	queuedItemsMap := make(map[int64]struct{}, len(queuedItemIds))
@@ -285,7 +305,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 		Taskinsertedats:   taskInsertedAts,
 		Mintaskinsertedat: minTaskInsertedAt,
 		Workerids:         workerIds,
-		Tenantid:          d.tenantId,
+		Tenantid:          tenantId,
 	})
 
 	if err != nil {
@@ -293,15 +313,6 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	}
 
 	timeAfterUpdateStepRuns := time.Since(checkpoint)
-
-	if err := commit(ctx); err != nil {
-		return nil, nil, err
-	}
-
-	go func() {
-		// if we committed, we can update the min id
-		d.updateMinId()
-	}()
 
 	succeeded = make([]*AssignedItem, 0, len(r.Assigned))
 	failed = make([]*AssignedItem, 0, len(r.Assigned))
@@ -321,8 +332,6 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 		d.l.Warn().Dur(
 			"duration", sinceStart,
 		).Dur(
-			"prepare", durPrepare,
-		).Dur(
 			"update", timeAfterUpdateStepRuns,
 		).Dur(
 			"bulkqueue", timeAfterBulkQueueItems,
@@ -338,9 +347,17 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	return succeeded, failed, nil
 }
 
-func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error) {
+func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticTx, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-step-run-rate-limits")
 	defer span.End()
+
+	var queryTx sqlcv1.DBTX
+
+	if tx != nil {
+		queryTx = tx.tx
+	} else {
+		queryTx = d.pool
+	}
 
 	taskIds := make([]int64, 0, len(queueItems))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(queueItems))
@@ -373,7 +390,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 	}
 
 	// get all step run expression evals which correspond to rate limits, grouped by step run id
-	expressionEvals, err := d.queries.ListTaskExpressionEvals(ctx, d.pool, sqlcv1.ListTaskExpressionEvalsParams{
+	expressionEvals, err := d.queries.ListTaskExpressionEvals(ctx, queryTx, sqlcv1.ListTaskExpressionEvalsParams{
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 	})
@@ -524,7 +541,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 
 	if len(upsertRateLimitBulkParams.Keys) > 0 {
 		// upsert all rate limits based on the keys, limit values, and durations
-		err = d.queries.UpsertRateLimitsBulk(ctx, d.pool, upsertRateLimitBulkParams)
+		err = d.queries.UpsertRateLimitsBulk(ctx, queryTx, upsertRateLimitBulkParams)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
@@ -538,7 +555,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 		uniqueStepIds = append(uniqueStepIds, stepId)
 	}
 
-	stepRateLimits, err = d.queries.ListRateLimitsForSteps(ctx, d.pool, sqlcv1.ListRateLimitsForStepsParams{
+	stepRateLimits, err = d.queries.ListRateLimitsForSteps(ctx, queryTx, sqlcv1.ListRateLimitsForStepsParams{
 		Tenantid: d.tenantId,
 		Stepids:  uniqueStepIds,
 	})
@@ -570,19 +587,40 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 	return taskIdToKeyToUnits, nil
 }
 
-func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []uuid.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error) {
+func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
 	defer span.End()
 
+	stepIdsToLookup := make([]pgtype.UUID, 0, len(stepIds))
+	stepIdToLabels := make(map[string][]*sqlcv1.GetDesiredLabelsRow)
+
 	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
 
-	labels, err := d.queries.GetDesiredLabels(ctx, d.pool, uniqueStepIds)
+	for _, stepId := range uniqueStepIds {
+		if value, found := d.stepIdLabelsCache.Get(sqlchelpers.UUIDToStr(stepId)); found {
+			stepIdToLabels[sqlchelpers.UUIDToStr(stepId)] = value
+		} else {
+			stepIdsToLookup = append(stepIdsToLookup, stepId)
+		}
+	}
+
+	if len(stepIdsToLookup) == 0 {
+		return stepIdToLabels, nil
+	}
+
+	var queryTx sqlcv1.DBTX
+
+	if tx != nil {
+		queryTx = tx.tx
+	} else {
+		queryTx = d.pool
+	}
+
+	labels, err := d.queries.GetDesiredLabels(ctx, queryTx, stepIdsToLookup)
 
 	if err != nil {
 		return nil, err
 	}
-
-	stepIdToLabels := make(map[string][]*sqlcv1.GetDesiredLabelsRow)
 
 	for _, label := range labels {
 		stepId := label.StepId.String()
@@ -592,6 +630,10 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []uuid.U
 		}
 
 		stepIdToLabels[stepId] = append(stepIdToLabels[stepId], label)
+	}
+
+	for stepId, labels := range stepIdToLabels {
+		d.stepIdLabelsCache.Add(stepId, labels)
 	}
 
 	return stepIdToLabels, nil
