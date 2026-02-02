@@ -278,7 +278,7 @@ const updateWebhookExpression = `-- name: UpdateWebhookExpression :one
 UPDATE v1_incoming_webhook
 SET
     event_key_expression = COALESCE($1::TEXT, event_key_expression),
-    scope_expression = COALESCE($2::TEXT, scope_expression),
+    scope_expression = NULLIF(COALESCE($2::TEXT, scope_expression), ''),
     static_payload = COALESCE($3::JSONB, static_payload),
     updated_at = CURRENT_TIMESTAMP
 WHERE

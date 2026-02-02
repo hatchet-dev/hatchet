@@ -722,7 +722,7 @@ export const EditWebhookModal = ({
 
   const onSubmit = useCallback(
     (data: WebhookUpdateFormData) => {
-      let staticPayload: object | undefined;
+      let staticPayload: object | null = null;
       if (data.staticPayload && data.staticPayload.trim()) {
         try {
           staticPayload = JSON.parse(data.staticPayload);
@@ -737,8 +737,8 @@ export const EditWebhookModal = ({
           webhookName: webhook.name,
           webhookData: {
             eventKeyExpression: data.eventKeyExpression,
-            scopeExpression: data.scopeExpression || undefined,
-            staticPayload,
+            scopeExpression: data.scopeExpression ?? '',
+            staticPayload: staticPayload ?? {},
           },
         },
         {

@@ -78,7 +78,7 @@ WHERE
 UPDATE v1_incoming_webhook
 SET
     event_key_expression = COALESCE(sqlc.narg('eventKeyExpression')::TEXT, event_key_expression),
-    scope_expression = COALESCE(sqlc.narg('scopeExpression')::TEXT, scope_expression),
+    scope_expression = NULLIF(COALESCE(sqlc.narg('scopeExpression')::TEXT, scope_expression), ''),
     static_payload = COALESCE(sqlc.narg('staticPayload')::JSONB, static_payload),
     updated_at = CURRENT_TIMESTAMP
 WHERE
