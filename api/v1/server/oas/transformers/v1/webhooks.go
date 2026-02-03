@@ -32,9 +32,8 @@ func ToV1Webhook(webhook *sqlcv1.V1IncomingWebhook) gen.V1Webhook {
 
 	if len(webhook.StaticPayload) > 0 {
 		var staticPayload map[string]interface{}
-		if err := json.Unmarshal(webhook.StaticPayload, &staticPayload); err == nil {
-			result.StaticPayload = &staticPayload
-		}
+		json.Unmarshal(webhook.StaticPayload, &staticPayload)
+		result.StaticPayload = &staticPayload
 	}
 
 	return result

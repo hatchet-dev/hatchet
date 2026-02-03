@@ -589,6 +589,11 @@ const CreateWebhookModal = () => {
               {...register('scopeExpression')}
               className="h-10"
             />
+            {errors.scopeExpression && (
+              <p className="text-xs text-red-500">
+                {errors.scopeExpression.message}
+              </p>
+            )}
             <div className="pl-1 text-xs text-muted-foreground">
               <p>
                 CEL expression to extract the scope from the webhook payload.
@@ -609,6 +614,11 @@ const CreateWebhookModal = () => {
               {...register('staticPayload')}
               className="h-24 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
+            {errors.staticPayload && (
+              <p className="text-xs text-red-500">
+                {errors.staticPayload.message}
+              </p>
+            )}
             <div className="pl-1 text-xs text-muted-foreground">
               <p>
                 JSON object to merge into the webhook payload. Static payload
@@ -716,15 +726,7 @@ export const EditWebhookModal = ({
 
   const onSubmit = useCallback(
     (data: WebhookUpdateFormData) => {
-      let staticPayload: object | null = null;
-      if (data.staticPayload && data.staticPayload.trim()) {
-        try {
-          staticPayload = JSON.parse(data.staticPayload);
-        } catch {
-          alert('Static payload must be valid JSON');
-          return;
-        }
-      }
+      const staticPayload = parseStaticPayload(data.staticPayload);
 
       mutations.updateWebhook(
         {
@@ -790,6 +792,11 @@ export const EditWebhookModal = ({
               {...register('scopeExpression')}
               className="h-10"
             />
+            {errors.scopeExpression && (
+              <p className="text-xs text-red-500">
+                {errors.scopeExpression.message}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               CEL expression to extract the scope for event filtering.
             </p>
@@ -806,6 +813,11 @@ export const EditWebhookModal = ({
               {...register('staticPayload')}
               className="h-32 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
+            {errors.staticPayload && (
+              <p className="text-xs text-red-500">
+                {errors.staticPayload.message}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               JSON object to merge into the webhook payload.
             </p>

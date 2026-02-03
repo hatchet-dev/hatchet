@@ -81,12 +81,28 @@ export const useWebhooks = (onDeleteSuccess?: () => void) => {
   };
 };
 
+const optionalJsonString = z
+  .string()
+  .optional()
+  .refine(
+    (val) => {
+      if (!val || val.trim() === '') return true;
+      try {
+        JSON.parse(val);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Must be valid JSON' },
+  );
+
 export const webhookFormSchema = z.object({
   sourceName: z.nativeEnum(V1WebhookSourceName),
   name: z.string().min(1, 'Name expression is required'),
   eventKeyExpression: z.string().min(1, 'Event key expression is required'),
   scopeExpression: z.string().optional(),
-  staticPayload: z.string().optional(),
+  staticPayload: optionalJsonString,
   authType: z.nativeEnum(V1WebhookAuthType),
   username: z.string().optional(),
   password: z.string().optional(),
@@ -103,7 +119,7 @@ export type WebhookFormData = z.infer<typeof webhookFormSchema>;
 export const webhookUpdateFormSchema = z.object({
   eventKeyExpression: z.string().min(1, 'Event key expression is required'),
   scopeExpression: z.string().optional(),
-  staticPayload: z.string().optional(),
+  staticPayload: optionalJsonString,
 });
 
 export type WebhookUpdateFormData = z.infer<typeof webhookUpdateFormSchema>;
