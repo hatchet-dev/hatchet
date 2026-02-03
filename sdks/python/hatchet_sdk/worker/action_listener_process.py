@@ -68,6 +68,7 @@ class WorkerActionListenerProcess:
         name: str,
         actions: list[str],
         slots: int,
+        durable_slots: int,
         config: ClientConfig,
         action_queue: "Queue[Action]",
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
@@ -78,6 +79,7 @@ class WorkerActionListenerProcess:
         self.name = name
         self.actions = actions
         self.slots = slots
+        self.durable_slots = durable_slots
         self.config = config
         self.action_queue = action_queue
         self.event_queue = event_queue
@@ -321,6 +323,7 @@ class WorkerActionListenerProcess:
                     services=["default"],
                     actions=self.actions,
                     slots=self.slots,
+                    durable_slots=self.durable_slots,
                     raw_labels=self.labels,
                 )
             )
@@ -519,6 +522,7 @@ def worker_action_listener_process(
     name: str,
     actions: list[str],
     slots: int,
+    durable_slots: int,
     config: ClientConfig,
     action_queue: "Queue[Action]",
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
@@ -531,6 +535,7 @@ def worker_action_listener_process(
             name=name,
             actions=actions,
             slots=slots,
+            durable_slots=durable_slots,
             config=config,
             action_queue=action_queue,
             event_queue=event_queue,

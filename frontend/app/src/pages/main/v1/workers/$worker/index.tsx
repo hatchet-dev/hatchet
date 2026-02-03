@@ -182,6 +182,13 @@ export default function WorkerDetail() {
   const usedSlots = maxSlots - availableSlots;
   const usedPercentage =
     maxSlots > 0 ? Math.round((usedSlots / maxSlots) * 100) : 0;
+  const availableDurableSlots = worker.durableAvailableRuns ?? 0;
+  const maxDurableSlots = worker.durableMaxRuns ?? 0;
+  const usedDurableSlots = maxDurableSlots - availableDurableSlots;
+  const usedDurablePercentage =
+    maxDurableSlots > 0
+      ? Math.round((usedDurableSlots / maxDurableSlots) * 100)
+      : 0;
 
   // dynamically set the max columns in the grid based on the presence of runtime info and labels
   const maxCols =
@@ -278,27 +285,58 @@ export default function WorkerDetail() {
             <CardHeader>
               <CardTitle>Available Run Slots</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                  {maxSlots > 0 ? availableSlots : '∞'}
-                </span>
-                {maxSlots > 0 && (
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    / {maxSlots} total
+            <CardContent className="space-y-3">
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Standard
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                    {maxSlots > 0 ? availableSlots : '∞'}
                   </span>
+                  {maxSlots > 0 && (
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      / {maxSlots} total
+                    </span>
+                  )}
+                </div>
+                {maxSlots > 0 && (
+                  <div className="space-y-1">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-600/40 dark:bg-gray-500/50 ">
+                      <div
+                        className="h-full bg-emerald-300 dark:bg-emerald-500 transition-all"
+                        style={{ width: `${usedPercentage}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {usedSlots} used, {availableSlots} available
+                    </div>
+                  </div>
                 )}
               </div>
-              {maxSlots > 0 && (
-                <div className="space-y-1">
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-600/40 dark:bg-gray-500/50 ">
-                    <div
-                      className="h-full bg-emerald-300 dark:bg-emerald-500 transition-all"
-                      style={{ width: `${usedPercentage}%` }}
-                    />
+              {maxDurableSlots > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Durable
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {usedSlots} used, {availableSlots} available
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                      {availableDurableSlots}
+                    </span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      / {maxDurableSlots} total
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-600/40 dark:bg-gray-500/50 ">
+                      <div
+                        className="h-full bg-sky-300 dark:bg-sky-500 transition-all"
+                        style={{ width: `${usedDurablePercentage}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {usedDurableSlots} used, {availableDurableSlots} available
+                    </div>
                   </div>
                 </div>
               )}

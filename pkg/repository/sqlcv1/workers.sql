@@ -20,8 +20,20 @@ SELECT
         FROM v1_task_runtime runtime
         WHERE
             runtime.tenant_id = workers."tenantId" AND
-            runtime.worker_id = workers."id"
+            runtime.worker_id = workers."id" AND
+            runtime.slot_group = 'SLOTS'::v1_worker_slot_group
     ) AS "remainingSlots"
+    ,
+    (
+        workers."durableMaxRuns" - (
+            SELECT COUNT(*)
+            FROM v1_task_runtime runtime
+            WHERE
+                runtime.tenant_id = workers."tenantId" AND
+                runtime.worker_id = workers."id" AND
+                runtime.slot_group = 'DURABLE_SLOTS'::v1_worker_slot_group
+        )
+    )::int AS "remainingDurableSlots"
 FROM
     "Worker" workers
 LEFT JOIN
@@ -62,8 +74,20 @@ SELECT
         FROM v1_task_runtime runtime
         WHERE
             runtime.tenant_id = w."tenantId" AND
-            runtime.worker_id = w."id"
+            runtime.worker_id = w."id" AND
+            runtime.slot_group = 'SLOTS'::v1_worker_slot_group
     ) AS "remainingSlots"
+    ,
+    (
+        w."durableMaxRuns" - (
+            SELECT COUNT(*)
+            FROM v1_task_runtime runtime
+            WHERE
+                runtime.tenant_id = w."tenantId" AND
+                runtime.worker_id = w."id" AND
+                runtime.slot_group = 'DURABLE_SLOTS'::v1_worker_slot_group
+        )
+    )::int AS "remainingDurableSlots"
 FROM
     "Worker" w
 LEFT JOIN
@@ -85,7 +109,9 @@ LIMIT
     COALESCE(sqlc.narg('limit')::int, 100);
 
 -- name: ListTotalActiveSlotsPerTenant :many
-SELECT "tenantId", SUM("maxRuns") AS "totalActiveSlots"
+SELECT "tenantId", SUM(
+    "maxRuns" + "durableMaxRuns"
+) AS "totalActiveSlots"
 FROM "Worker"
 WHERE
     "dispatcherId" IS NOT NULL
@@ -187,6 +213,7 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "dispatcherId" = coalesce(sqlc.narg('dispatcherId')::uuid, "dispatcherId"),
     "maxRuns" = coalesce(sqlc.narg('maxRuns')::int, "maxRuns"),
+    "durableMaxRuns" = coalesce(sqlc.narg('durableMaxRuns')::int, "durableMaxRuns"),
     "lastHeartbeatAt" = coalesce(sqlc.narg('lastHeartbeatAt')::timestamp, "lastHeartbeatAt"),
     "isActive" = coalesce(sqlc.narg('isActive')::boolean, "isActive"),
     "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
@@ -327,6 +354,7 @@ INSERT INTO "Worker" (
     "name",
     "dispatcherId",
     "maxRuns",
+    "durableMaxRuns",
     "webhookId",
     "type",
     "sdkVersion",
@@ -342,6 +370,7 @@ INSERT INTO "Worker" (
     @name::text,
     @dispatcherId::uuid,
     sqlc.narg('maxRuns')::int,
+    coalesce(sqlc.narg('durableMaxRuns')::int, 0),
     sqlc.narg('webhookId')::uuid,
     sqlc.narg('type')::"WorkerType",
     sqlc.narg('sdkVersion')::text,

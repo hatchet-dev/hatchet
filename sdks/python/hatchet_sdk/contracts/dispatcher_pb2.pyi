@@ -111,7 +111,7 @@ class RuntimeInfo(_message.Message):
     def __init__(self, sdk_version: _Optional[str] = ..., language: _Optional[_Union[SDKS, str]] = ..., language_version: _Optional[str] = ..., os: _Optional[str] = ..., extra: _Optional[str] = ...) -> None: ...
 
 class WorkerRegisterRequest(_message.Message):
-    __slots__ = ("worker_name", "actions", "services", "slots", "labels", "webhook_id", "runtime_info")
+    __slots__ = ("worker_name", "actions", "services", "slots", "labels", "webhook_id", "runtime_info", "durable_slots")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -126,6 +126,7 @@ class WorkerRegisterRequest(_message.Message):
     LABELS_FIELD_NUMBER: _ClassVar[int]
     WEBHOOK_ID_FIELD_NUMBER: _ClassVar[int]
     RUNTIME_INFO_FIELD_NUMBER: _ClassVar[int]
+    DURABLE_SLOTS_FIELD_NUMBER: _ClassVar[int]
     worker_name: str
     actions: _containers.RepeatedScalarFieldContainer[str]
     services: _containers.RepeatedScalarFieldContainer[str]
@@ -133,7 +134,8 @@ class WorkerRegisterRequest(_message.Message):
     labels: _containers.MessageMap[str, WorkerLabels]
     webhook_id: str
     runtime_info: RuntimeInfo
-    def __init__(self, worker_name: _Optional[str] = ..., actions: _Optional[_Iterable[str]] = ..., services: _Optional[_Iterable[str]] = ..., slots: _Optional[int] = ..., labels: _Optional[_Mapping[str, WorkerLabels]] = ..., webhook_id: _Optional[str] = ..., runtime_info: _Optional[_Union[RuntimeInfo, _Mapping]] = ...) -> None: ...
+    durable_slots: int
+    def __init__(self, worker_name: _Optional[str] = ..., actions: _Optional[_Iterable[str]] = ..., services: _Optional[_Iterable[str]] = ..., slots: _Optional[int] = ..., labels: _Optional[_Mapping[str, WorkerLabels]] = ..., webhook_id: _Optional[str] = ..., runtime_info: _Optional[_Union[RuntimeInfo, _Mapping]] = ..., durable_slots: _Optional[int] = ...) -> None: ...
 
 class WorkerRegisterResponse(_message.Message):
     __slots__ = ("tenant_id", "worker_id", "worker_name")

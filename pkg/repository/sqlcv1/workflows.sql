@@ -286,7 +286,8 @@ INSERT INTO "Step" (
     "retries",
     "scheduleTimeout",
     "retryBackoffFactor",
-    "retryMaxBackoff"
+    "retryMaxBackoff",
+    "isDurable"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -301,7 +302,8 @@ INSERT INTO "Step" (
     coalesce(sqlc.narg('retries')::integer, 0),
     coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
     sqlc.narg('retryBackoffFactor'),
-    sqlc.narg('retryMaxBackoff')
+    sqlc.narg('retryMaxBackoff'),
+    coalesce(sqlc.narg('isDurable')::boolean, false)
 ) RETURNING *;
 
 -- name: AddStepParents :exec

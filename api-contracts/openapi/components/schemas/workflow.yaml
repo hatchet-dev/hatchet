@@ -281,6 +281,9 @@ Step:
     timeout:
       type: string
       description: The timeout of the step.
+    isDurable:
+      type: boolean
+      description: Whether the step is durable.
     children:
       type: array
       items:

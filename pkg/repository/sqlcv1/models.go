@@ -1872,6 +1872,48 @@ func (ns NullV1TaskInitialState) Value() (driver.Value, error) {
 	return string(ns.V1TaskInitialState), nil
 }
 
+type V1WorkerSlotGroup string
+
+const (
+	V1WorkerSlotGroupSLOTS        V1WorkerSlotGroup = "SLOTS"
+	V1WorkerSlotGroupDURABLESLOTS V1WorkerSlotGroup = "DURABLE_SLOTS"
+)
+
+func (e *V1WorkerSlotGroup) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1WorkerSlotGroup(s)
+	case string:
+		*e = V1WorkerSlotGroup(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1WorkerSlotGroup: %T", src)
+	}
+	return nil
+}
+
+type NullV1WorkerSlotGroup struct {
+	V1WorkerSlotGroup V1WorkerSlotGroup `json:"v1_worker_slot_group"`
+	Valid             bool              `json:"valid"` // Valid is true if V1WorkerSlotGroup is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1WorkerSlotGroup) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1WorkerSlotGroup, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1WorkerSlotGroup.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1WorkerSlotGroup) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1WorkerSlotGroup), nil
+}
+
 type VcsProvider string
 
 const (
@@ -2639,6 +2681,7 @@ type Step struct {
 	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout    string           `json:"scheduleTimeout"`
+	IsDurable          bool             `json:"isDurable"`
 }
 
 type StepDesiredWorkerLabel struct {
@@ -3446,6 +3489,7 @@ type V1TaskRuntime struct {
 	WorkerID       *uuid.UUID         `json:"worker_id"`
 	TenantID       uuid.UUID          `json:"tenant_id"`
 	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
+	SlotGroup      V1WorkerSlotGroup  `json:"slot_group"`
 }
 
 type V1TaskStatusUpdatesTmp struct {
@@ -3547,6 +3591,7 @@ type Worker struct {
 	Name                    string           `json:"name"`
 	DispatcherId            *uuid.UUID       `json:"dispatcherId"`
 	MaxRuns                 int32            `json:"maxRuns"`
+	DurableMaxRuns          int32            `json:"durableMaxRuns"`
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 	IsPaused                bool             `json:"isPaused"`

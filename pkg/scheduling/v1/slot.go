@@ -15,8 +15,9 @@ import (
 const defaultSlotExpiry = 1500 * time.Millisecond
 
 type slot struct {
-	worker  *worker
-	actions []string
+	worker    *worker
+	actions   []string
+	slotGroup sqlcv1.V1WorkerSlotGroup
 
 	// expiresAt is when the slot is no longer valid, but has not been cleaned up yet
 	expiresAt *time.Time
@@ -30,18 +31,23 @@ type slot struct {
 	mu sync.RWMutex
 }
 
-func newSlot(worker *worker, actions []string) *slot {
+func newSlot(worker *worker, actions []string, slotGroup sqlcv1.V1WorkerSlotGroup) *slot {
 	expires := time.Now().Add(defaultSlotExpiry)
 
 	return &slot{
 		worker:    worker,
 		actions:   actions,
+		slotGroup: slotGroup,
 		expiresAt: &expires,
 	}
 }
 
 func (s *slot) getWorkerId() uuid.UUID {
 	return s.worker.ID
+}
+
+func (s *slot) getSlotGroup() sqlcv1.V1WorkerSlotGroup {
+	return s.slotGroup
 }
 
 func (s *slot) extendExpiry() {

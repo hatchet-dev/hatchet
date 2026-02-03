@@ -16,6 +16,8 @@ const DEFAULT_DURABLE_SLOTS = 1_000;
 export interface CreateWorkerOpts {
   /** (optional) Maximum number of concurrent runs on this worker, defaults to 100 */
   slots?: number;
+    /** (optional) Maximum number of concurrent durable tasks, defaults to 1,000 */
+    durableSlots?: number;
   /** (optional) Array of workflows to register */
   workflows?: BaseWorkflowDeclaration<any, any>[] | V0Workflow[];
   /** (optional) Worker labels for affinity-based assignment */
@@ -24,9 +26,6 @@ export interface CreateWorkerOpts {
   handleKill?: boolean;
   /** @deprecated Use slots instead */
   maxRuns?: number;
-
-  /** (optional) Maximum number of concurrent runs on the durable worker, defaults to 1,000 */
-  durableSlots?: number;
 }
 
 /**
@@ -40,7 +39,6 @@ export class Worker {
 
   /** Internal reference to the underlying V0 worker implementation */
   nonDurable: V1Worker;
-  durable?: V1Worker;
 
   /**
    * Creates a new HatchetWorker instance
@@ -72,10 +70,13 @@ export class Worker {
     name: string,
     options: CreateWorkerOpts
   ) {
+    const durableSlots = options.durableSlots || DEFAULT_DURABLE_SLOTS;
+    const baseSlots = options.slots || options.maxRuns || 100;
     const opts = {
       name,
       ...options,
-      maxRuns: options.slots || options.maxRuns,
+      slots: baseSlots,
+      durableSlots,
     };
 
     const internalWorker = new V1Worker(v1, opts);
@@ -96,17 +97,7 @@ export class Worker {
         await this.nonDurable.registerWorkflowV1(wf);
 
         if (wf.definition._durableTasks.length > 0) {
-          if (!this.durable) {
-            const opts = {
-              name: `${this.name}-durable`,
-              ...this.config,
-              maxRuns: this.config.durableSlots || DEFAULT_DURABLE_SLOTS,
-            };
-
-            this.durable = new V1Worker(this._v1, opts);
-            await this.durable.registerWorkflowV1(wf, true);
-          }
-          this.durable.registerDurableActionsV1(wf.definition);
+          this.nonDurable.registerDurableActionsV1(wf.definition);
         }
       } else {
         // fallback to v0 client for backwards compatibility
@@ -130,13 +121,7 @@ export class Worker {
    * @returns Promise that resolves when the worker is stopped or killed
    */
   start() {
-    const workers = [this.nonDurable];
-
-    if (this.durable) {
-      workers.push(this.durable);
-    }
-
-    return Promise.all(workers.map((w) => w.start()));
+    return this.nonDurable.start();
   }
 
   /**
@@ -144,13 +129,7 @@ export class Worker {
    * @returns Promise that resolves when the worker stops
    */
   stop() {
-    const workers = [this.nonDurable];
-
-    if (this.durable) {
-      workers.push(this.durable);
-    }
-
-    return Promise.all(workers.map((w) => w.stop()));
+    return this.nonDurable.stop();
   }
 
   /**
@@ -180,39 +159,27 @@ export class Worker {
   }
 
   async isPaused() {
-    const promises: Promise<any>[] = [];
-    if (this.nonDurable?.workerId) {
-      promises.push(this._v1.workers.isPaused(this.nonDurable.workerId));
-    }
-    if (this.durable?.workerId) {
-      promises.push(this._v1.workers.isPaused(this.durable.workerId));
+    if (!this.nonDurable?.workerId) {
+      return false;
     }
 
-    const res = await Promise.all(promises);
-
-    return !res.includes(false);
+    return this._v1.workers.isPaused(this.nonDurable.workerId);
   }
 
   // TODO docstrings
   pause() {
-    const promises: Promise<any>[] = [];
-    if (this.nonDurable?.workerId) {
-      promises.push(this._v1.workers.pause(this.nonDurable.workerId));
+    if (!this.nonDurable?.workerId) {
+      return Promise.resolve();
     }
-    if (this.durable?.workerId) {
-      promises.push(this._v1.workers.pause(this.durable.workerId));
-    }
-    return Promise.all(promises);
+
+    return this._v1.workers.pause(this.nonDurable.workerId);
   }
 
   unpause() {
-    const promises: Promise<any>[] = [];
-    if (this.nonDurable?.workerId) {
-      promises.push(this._v1.workers.unpause(this.nonDurable.workerId));
+    if (!this.nonDurable?.workerId) {
+      return Promise.resolve();
     }
-    if (this.durable?.workerId) {
-      promises.push(this._v1.workers.unpause(this.durable.workerId));
-    }
-    return Promise.all(promises);
+
+    return this._v1.workers.unpause(this.nonDurable.workerId);
   }
 }

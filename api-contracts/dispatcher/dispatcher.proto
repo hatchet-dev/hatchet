@@ -78,6 +78,9 @@ message WorkerRegisterRequest {
     // (optional) information regarding the runtime environment of the worker
     optional RuntimeInfo runtime_info = 7;
 
+    // (optional) the max number of durable runs this worker can handle
+    optional int32 durable_slots = 8;
+
 }
 
 message WorkerRegisterResponse {

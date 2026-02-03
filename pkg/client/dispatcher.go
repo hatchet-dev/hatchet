@@ -42,12 +42,13 @@ const (
 )
 
 type GetActionListenerRequest struct {
-	WorkerName string
-	Services   []string
-	Actions    []string
-	Slots      *int
-	Labels     map[string]interface{}
-	WebhookId  *string
+	WorkerName   string
+	Services     []string
+	Actions      []string
+	Slots        *int
+	DurableSlots *int
+	Labels       map[string]interface{}
+	WebhookId    *string
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -271,6 +272,11 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	if req.Slots != nil {
 		mr := int32(*req.Slots) // nolint: gosec
 		registerReq.Slots = &mr
+	}
+
+	if req.DurableSlots != nil {
+		dr := int32(*req.DurableSlots) // nolint: gosec
+		registerReq.DurableSlots = &dr
 	}
 
 	// register the worker

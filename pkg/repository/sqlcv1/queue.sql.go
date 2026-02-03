@@ -333,6 +333,41 @@ func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid uuid.UU
 	return items, nil
 }
 
+const getStepsDurability = `-- name: GetStepsDurability :many
+SELECT
+    "id",
+    "isDurable"
+FROM
+    "Step"
+WHERE
+    "id" = ANY($1::uuid[])
+`
+
+type GetStepsDurabilityRow struct {
+	ID        uuid.UUID `json:"id"`
+	IsDurable bool      `json:"isDurable"`
+}
+
+func (q *Queries) GetStepsDurability(ctx context.Context, db DBTX, stepids []uuid.UUID) ([]*GetStepsDurabilityRow, error) {
+	rows, err := db.Query(ctx, getStepsDurability, stepids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetStepsDurabilityRow
+	for rows.Next() {
+		var i GetStepsDurabilityRow
+		if err := rows.Scan(&i.ID, &i.IsDurable); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActionsForWorkers = `-- name: ListActionsForWorkers :many
 SELECT
     w."id" as "workerId",
@@ -386,12 +421,19 @@ const listAvailableSlotsForWorkers = `-- name: ListAvailableSlotsForWorkers :man
 WITH worker_max_runs AS (
     SELECT
         "id",
-        "maxRuns"
+        CASE
+            WHEN $1::v1_worker_slot_group = 'DURABLE_SLOTS' THEN "durableMaxRuns"
+            ELSE "maxRuns"
+        END AS "maxRuns"
     FROM
         "Worker"
     WHERE
-        "tenantId" = $1::uuid
-        AND "id" = ANY($2::uuid[])
+        "tenantId" = $2::uuid
+        AND "id" = ANY($3::uuid[])
+        AND (
+            ($1::v1_worker_slot_group = 'DURABLE_SLOTS' AND "durableMaxRuns" > 0)
+            OR ($1::v1_worker_slot_group = 'SLOTS')
+        )
 ), worker_filled_slots AS (
     SELECT
         worker_id,
@@ -399,8 +441,9 @@ WITH worker_max_runs AS (
     FROM
         v1_task_runtime
     WHERE
-        tenant_id = $1::uuid
-        AND worker_id = ANY($2::uuid[])
+        tenant_id = $2::uuid
+        AND worker_id = ANY($3::uuid[])
+        AND slot_group = $1::v1_worker_slot_group
     GROUP BY
         worker_id
 )
@@ -414,8 +457,9 @@ LEFT JOIN
 `
 
 type ListAvailableSlotsForWorkersParams struct {
-	Tenantid  uuid.UUID   `json:"tenantid"`
-	Workerids []uuid.UUID `json:"workerids"`
+	Slotgroup V1WorkerSlotGroup `json:"slotgroup"`
+	Tenantid  uuid.UUID         `json:"tenantid"`
+	Workerids []uuid.UUID       `json:"workerids"`
 }
 
 type ListAvailableSlotsForWorkersRow struct {
@@ -425,7 +469,7 @@ type ListAvailableSlotsForWorkersRow struct {
 
 // subtract the filled slots from the max runs to get the available slots
 func (q *Queries) ListAvailableSlotsForWorkers(ctx context.Context, db DBTX, arg ListAvailableSlotsForWorkersParams) ([]*ListAvailableSlotsForWorkersRow, error) {
-	rows, err := db.Query(ctx, listAvailableSlotsForWorkers, arg.Tenantid, arg.Workerids)
+	rows, err := db.Query(ctx, listAvailableSlotsForWorkers, arg.Slotgroup, arg.Tenantid, arg.Workerids)
 	if err != nil {
 		return nil, err
 	}
@@ -901,7 +945,8 @@ WITH input AS (
         retry_count,
         worker_id,
         tenant_id,
-        timeout_at
+        timeout_at,
+        slot_group
     )
     SELECT
         t.id,
@@ -909,7 +954,8 @@ WITH input AS (
         t.retry_count,
         t.worker_id,
         $5::uuid,
-        t.timeout_at
+        t.timeout_at,
+        $6::v1_worker_slot_group
     FROM
         updated_tasks t
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
@@ -929,6 +975,7 @@ type UpdateTasksToAssignedParams struct {
 	Workerids         []uuid.UUID          `json:"workerids"`
 	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
 	Tenantid          uuid.UUID            `json:"tenantid"`
+	Slotgroup         V1WorkerSlotGroup    `json:"slotgroup"`
 }
 
 type UpdateTasksToAssignedRow struct {
@@ -943,6 +990,7 @@ func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg Update
 		arg.Workerids,
 		arg.Mintaskinsertedat,
 		arg.Tenantid,
+		arg.Slotgroup,
 	)
 	if err != nil {
 		return nil, err

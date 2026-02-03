@@ -30,6 +30,9 @@ type CreateWorkerOpts struct {
 	// The maximum number of runs this worker can run at a time
 	MaxRuns *int `validate:"omitempty,gte=1"`
 
+	// The maximum number of durable runs this worker can run at a time
+	DurableMaxRuns *int `validate:"omitempty,gte=0"`
+
 	// The name of the worker
 	Name string `validate:"required,hatchetName"`
 
@@ -349,6 +352,13 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	} else {
 		createParams.MaxRuns = pgtype.Int4{
 			Int32: 100,
+			Valid: true,
+		}
+	}
+
+	if opts.DurableMaxRuns != nil {
+		createParams.DurableMaxRuns = pgtype.Int4{
+			Int32: int32(*opts.DurableMaxRuns), // nolint: gosec
 			Valid: true,
 		}
 	}

@@ -13,7 +13,9 @@ import (
 )
 
 const countTenantWorkerSlots = `-- name: CountTenantWorkerSlots :one
-SELECT COALESCE(SUM(w."maxRuns"), 0)::int AS "count"
+SELECT COALESCE(SUM(
+    w."maxRuns" + w."durableMaxRuns"
+), 0)::int AS "count"
 FROM "Worker" w
 WHERE "tenantId" = $1::uuid
 AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL

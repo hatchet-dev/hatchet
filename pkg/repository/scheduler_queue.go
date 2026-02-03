@@ -31,7 +31,8 @@ type RateLimitResult struct {
 const rateLimitedRequeueAfterThreshold = 2 * time.Second
 
 type AssignedItem struct {
-	WorkerId uuid.UUID
+	WorkerId  uuid.UUID
+	SlotGroup sqlcv1.V1WorkerSlotGroup
 
 	QueueItem *sqlcv1.V1QueueItem
 
@@ -41,6 +42,7 @@ type AssignedItem struct {
 }
 
 type AssignResults struct {
+	SlotGroup          sqlcv1.V1WorkerSlotGroup
 	Assigned           []*AssignedItem
 	Unassigned         []*sqlcv1.V1QueueItem
 	SchedulingTimedOut []*sqlcv1.V1QueueItem
@@ -306,6 +308,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		Mintaskinsertedat: minTaskInsertedAt,
 		Workerids:         workerIds,
 		Tenantid:          tenantId,
+		Slotgroup:         r.SlotGroup,
 	})
 
 	if err != nil {
@@ -637,6 +640,25 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	}
 
 	return stepIdToLabels, nil
+}
+
+func (d *queueRepository) GetStepsDurability(ctx context.Context, stepIds []uuid.UUID) (map[uuid.UUID]bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-steps-durability")
+	defer span.End()
+
+	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
+
+	rows, err := d.queries.GetStepsDurability(ctx, d.pool, uniqueStepIds)
+	if err != nil {
+		return nil, err
+	}
+
+	stepIdToDurable := make(map[uuid.UUID]bool, len(rows))
+	for _, row := range rows {
+		stepIdToDurable[row.ID] = row.IsDurable
+	}
+
+	return stepIdToDurable, nil
 }
 
 func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {

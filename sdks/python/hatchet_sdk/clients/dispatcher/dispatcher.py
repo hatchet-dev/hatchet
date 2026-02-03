@@ -74,6 +74,7 @@ class DispatcherClient:
                     actions=req.actions,
                     services=req.services,
                     slots=req.slots,
+                    durable_slots=req.durable_slots,
                     labels=req.labels,
                     runtime_info=RuntimeInfo(
                         sdk_version=version("hatchet_sdk"),

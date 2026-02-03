@@ -110,6 +110,29 @@ func (s *Scheduler) getWorkers() map[uuid.UUID]*worker {
 	return s.workers
 }
 
+func (s *Scheduler) ensureActionSlotGroup(actionId string, slotGroup sqlcv1.V1WorkerSlotGroup) *action {
+	s.actionsMu.Lock()
+	defer s.actionsMu.Unlock()
+
+	if existing, ok := s.actions[actionId]; ok {
+		if existing.slotGroup != slotGroup {
+			s.l.Warn().Msgf("action %s slot group changed from %s to %s", actionId, existing.slotGroup, slotGroup)
+			existing.slotGroup = slotGroup
+		}
+
+		return existing
+	}
+
+	newAction := &action{
+		actionId:  actionId,
+		slotGroup: slotGroup,
+	}
+
+	s.actions[actionId] = newAction
+
+	return newAction
+}
+
 // replenish loads new slots from the database.
 func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	if ok := s.replenishMu.TryLock(); !ok {
@@ -185,7 +208,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		// if the action is not in the map, it should be replenished
 		if _, ok := s.actions[actionId]; !ok {
 			newAction := &action{
-				actionId: actionId,
+				actionId:  actionId,
+				slotGroup: sqlcv1.V1WorkerSlotGroupSLOTS,
 			}
 
 			actionsToReplenish[actionId] = newAction
@@ -240,20 +264,18 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	checkpoint = time.Now()
 
 	// FUNCTION 2: for each action which should be replenished, load the available slots
-	uniqueWorkerIds := make(map[uuid.UUID]bool)
+	slotGroupToWorkerIds := make(map[sqlcv1.V1WorkerSlotGroup]map[uuid.UUID]bool)
 
-	for actionId := range actionsToReplenish {
+	for actionId, action := range actionsToReplenish {
 		workerIds := actionsToWorkerIds[actionId]
 
-		for _, workerId := range workerIds {
-			uniqueWorkerIds[workerId] = true
+		if _, ok := slotGroupToWorkerIds[action.slotGroup]; !ok {
+			slotGroupToWorkerIds[action.slotGroup] = make(map[uuid.UUID]bool)
 		}
-	}
 
-	workerUUIDs := make([]uuid.UUID, 0, len(uniqueWorkerIds))
-
-	for workerId := range uniqueWorkerIds {
-		workerUUIDs = append(workerUUIDs, workerId)
+		for _, workerId := range workerIds {
+			slotGroupToWorkerIds[action.slotGroup][workerId] = true
+		}
 	}
 
 	orderedLock(actionsToReplenish)
@@ -263,59 +285,84 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	s.unackedMu.Lock()
 	defer s.unackedMu.Unlock()
 
-	availableSlots, err := s.repo.ListAvailableSlotsForWorkers(ctx, s.tenantId, sqlcv1.ListAvailableSlotsForWorkersParams{
-		Tenantid:  s.tenantId,
-		Workerids: workerUUIDs,
-	})
+	availableSlotsByGroup := make(map[sqlcv1.V1WorkerSlotGroup][]*sqlcv1.ListAvailableSlotsForWorkersRow)
 
-	if err != nil {
-		return err
+	for slotGroup, workerSet := range slotGroupToWorkerIds {
+		workerUUIDs := make([]uuid.UUID, 0, len(workerSet))
+
+		for workerId := range workerSet {
+			workerUUIDs = append(workerUUIDs, workerId)
+		}
+
+		if len(workerUUIDs) == 0 {
+			continue
+		}
+
+		availableSlots, err := s.repo.ListAvailableSlotsForWorkers(ctx, s.tenantId, sqlcv1.ListAvailableSlotsForWorkersParams{
+			Slotgroup: slotGroup,
+			Tenantid:  s.tenantId,
+			Workerids: workerUUIDs,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		availableSlotsByGroup[slotGroup] = availableSlots
 	}
 
 	s.l.Debug().Msgf("loading available slots took %s", time.Since(checkpoint))
 
 	// FUNCTION 3: list unacked slots (so they're not counted towards the worker slot count)
-	workersToUnackedSlots := make(map[uuid.UUID][]*slot)
+	workersToUnackedSlots := make(map[uuid.UUID]map[sqlcv1.V1WorkerSlotGroup][]*slot)
 
 	for _, unackedSlot := range s.unackedSlots {
-		s := unackedSlot
-		workerId := s.getWorkerId()
+		assignedSlot := unackedSlot
+		workerId := assignedSlot.getWorkerId()
+		slotGroup := assignedSlot.getSlotGroup()
 
 		if _, ok := workersToUnackedSlots[workerId]; !ok {
-			workersToUnackedSlots[workerId] = make([]*slot, 0)
+			workersToUnackedSlots[workerId] = make(map[sqlcv1.V1WorkerSlotGroup][]*slot)
 		}
 
-		workersToUnackedSlots[workerId] = append(workersToUnackedSlots[workerId], s)
+		workersToUnackedSlots[workerId][slotGroup] = append(workersToUnackedSlots[workerId][slotGroup], assignedSlot)
 	}
 
 	// FUNCTION 4: write the new slots to the scheduler and clean up expired slots
 	actionsToNewSlots := make(map[string][]*slot)
 	actionsToTotalSlots := make(map[string]int)
 
-	for _, worker := range availableSlots {
-		workerId := worker.ID
-		actions := workerIdsToActions[workerId]
-		unackedSlots := workersToUnackedSlots[workerId]
+	for slotGroup, availableSlots := range availableSlotsByGroup {
+		for _, worker := range availableSlots {
+			workerId := worker.ID
+			actions := workerIdsToActions[workerId]
+			unackedSlots := workersToUnackedSlots[workerId][slotGroup]
 
-		// create a slot for each available slot
-		slots := make([]*slot, 0)
+			// create a slot for each available slot
+			slots := make([]*slot, 0)
 
-		for i := 0; i < int(worker.AvailableSlots)-len(unackedSlots); i++ {
-			slots = append(slots, newSlot(workers[workerId], actions))
-		}
+			for i := 0; i < int(worker.AvailableSlots)-len(unackedSlots); i++ {
+				slots = append(slots, newSlot(workers[workerId], actions, slotGroup))
+			}
 
-		// extend expiry of all unacked slots
-		for _, unackedSlot := range unackedSlots {
-			unackedSlot.extendExpiry()
-		}
+			// extend expiry of all unacked slots
+			for _, unackedSlot := range unackedSlots {
+				unackedSlot.extendExpiry()
+			}
 
-		s.l.Debug().Msgf("worker %s has %d total slots, %d unacked slots", workerId, worker.AvailableSlots, len(unackedSlots))
+			s.l.Debug().Msgf("worker %s has %d total slots (%s), %d unacked slots", workerId, worker.AvailableSlots, slotGroup, len(unackedSlots))
 
-		slots = append(slots, unackedSlots...)
+			slots = append(slots, unackedSlots...)
 
-		for _, actionId := range actions {
-			actionsToNewSlots[actionId] = append(actionsToNewSlots[actionId], slots...)
-			actionsToTotalSlots[actionId] += len(slots)
+			for _, actionId := range actions {
+				action := s.actions[actionId]
+				if action == nil || action.slotGroup != slotGroup {
+					continue
+				}
+
+				actionsToNewSlots[actionId] = append(actionsToNewSlots[actionId], slots...)
+				actionsToTotalSlots[actionId] += len(slots)
+			}
 		}
 	}
 
@@ -444,8 +491,9 @@ func (s *scheduleRateLimitResult) shouldRemoveFromQueue() bool {
 type assignSingleResult struct {
 	qi *sqlcv1.V1QueueItem
 
-	workerId uuid.UUID
-	ackId    int
+	workerId  uuid.UUID
+	ackId     int
+	slotGroup sqlcv1.V1WorkerSlotGroup
 
 	noSlots   bool
 	succeeded bool
@@ -463,6 +511,7 @@ func (s *Scheduler) tryAssignBatch(
 	// slots concurrently.
 	ringOffset int,
 	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
+	stepIdsToDurable map[uuid.UUID]bool,
 	taskIdsToRateLimits map[int64]map[string]int32,
 ) (
 	res []*assignSingleResult, newRingOffset int, err error,
@@ -488,6 +537,16 @@ func (s *Scheduler) tryAssignBatch(
 			qi: qis[i],
 		}
 	}
+
+	slotGroup := sqlcv1.V1WorkerSlotGroupSLOTS
+	if len(qis) > 0 {
+		stepId := qis[0].StepID
+		if stepIdsToDurable[stepId] {
+			slotGroup = sqlcv1.V1WorkerSlotGroupDURABLESLOTS
+		}
+	}
+
+	action := s.ensureActionSlotGroup(actionId, slotGroup)
 
 	rlAcks := make([]func(), len(qis))
 	rlNacks := make([]func(), len(qis))
@@ -530,15 +589,9 @@ func (s *Scheduler) tryAssignBatch(
 		rlNacks[i] = rateLimitNack
 	}
 
-	// lock the actions map and try to assign the batch of queue items.
-	// NOTE: if we change the position of this lock, make sure that we are still acquiring locks in the same
-	// order as the replenish() function, otherwise we may deadlock.
-	s.actionsMu.RLock()
-
-	action, ok := s.actions[actionId]
-
-	if !ok || len(action.slots) == 0 {
-		s.actionsMu.RUnlock()
+	action.mu.RLock()
+	if len(action.slots) == 0 {
+		action.mu.RUnlock()
 
 		s.l.Debug().Msgf("no slots for action %s", actionId)
 
@@ -550,8 +603,7 @@ func (s *Scheduler) tryAssignBatch(
 
 		return res, newRingOffset, nil
 	}
-
-	s.actionsMu.RUnlock()
+	action.mu.RUnlock()
 
 	action.mu.Lock()
 	defer action.mu.Unlock()
@@ -671,19 +723,22 @@ func (s *Scheduler) tryAssignSingleton(
 	s.unackedMu.Unlock()
 
 	res.workerId = assignedSlot.getWorkerId()
+	res.slotGroup = assignedSlot.getSlotGroup()
 	res.succeeded = true
 
 	return res, nil
 }
 
 type assignedQueueItem struct {
-	AckId    int
-	WorkerId uuid.UUID
+	AckId     int
+	WorkerId  uuid.UUID
+	SlotGroup sqlcv1.V1WorkerSlotGroup
 
 	QueueItem *sqlcv1.V1QueueItem
 }
 
 type assignResults struct {
+	slotGroup          sqlcv1.V1WorkerSlotGroup
 	assigned           []*assignedQueueItem
 	unassigned         []*sqlcv1.V1QueueItem
 	schedulingTimedOut []*sqlcv1.V1QueueItem
@@ -695,6 +750,7 @@ func (s *Scheduler) tryAssign(
 	ctx context.Context,
 	qis []*sqlcv1.V1QueueItem,
 	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
+	stepIdsToDurable map[uuid.UUID]bool,
 	taskIdsToRateLimits map[int64]map[string]int32,
 ) <-chan *assignResults {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
@@ -741,6 +797,14 @@ func (s *Scheduler) tryAssign(
 
 				batched := make([]*sqlcv1.V1QueueItem, 0)
 				schedulingTimedOut := make([]*sqlcv1.V1QueueItem, 0, len(qis))
+				slotGroup := sqlcv1.V1WorkerSlotGroupSLOTS
+
+				if len(qis) > 0 {
+					stepId := qis[0].StepID
+					if stepIdsToDurable[stepId] {
+						slotGroup = sqlcv1.V1WorkerSlotGroupDURABLESLOTS
+					}
+				}
 
 				for i := range qis {
 					qi := qis[i]
@@ -754,6 +818,7 @@ func (s *Scheduler) tryAssign(
 				}
 
 				resultsCh <- &assignResults{
+					slotGroup:          slotGroup,
 					schedulingTimedOut: schedulingTimedOut,
 				}
 
@@ -765,7 +830,7 @@ func (s *Scheduler) tryAssign(
 
 					batchStart := time.Now()
 
-					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, taskIdsToRateLimits)
+					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepIdsToDurable, taskIdsToRateLimits)
 
 					if err != nil {
 						return err
@@ -797,6 +862,7 @@ func (s *Scheduler) tryAssign(
 							WorkerId:  singleRes.workerId,
 							QueueItem: singleRes.qi,
 							AckId:     singleRes.ackId,
+							SlotGroup: singleRes.slotGroup,
 						})
 					}
 
@@ -805,6 +871,7 @@ func (s *Scheduler) tryAssign(
 					}
 
 					r := &assignResults{
+						slotGroup:         slotGroup,
 						assigned:          batchAssigned,
 						rateLimited:       batchRateLimited,
 						rateLimitedToMove: batchRateLimitedToMove,

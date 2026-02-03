@@ -1160,7 +1160,14 @@ SELECT
 FROM running_tasks;
 
 -- name: FindOldestRunningTask :one
-SELECT *
+SELECT
+    task_id,
+    task_inserted_at,
+    retry_count,
+    worker_id,
+    tenant_id,
+    timeout_at,
+    slot_group
 FROM v1_task_runtime
 ORDER BY task_id, task_inserted_at
 LIMIT 1;

@@ -79,6 +79,16 @@ class Worker(BaseModel):
         description="The number of runs this worker can execute concurrently.",
         alias="availableRuns",
     )
+    durable_max_runs: Optional[StrictInt] = Field(
+        default=None,
+        description="The maximum number of durable runs this worker can execute concurrently.",
+        alias="durableMaxRuns",
+    )
+    durable_available_runs: Optional[StrictInt] = Field(
+        default=None,
+        description="The number of durable runs this worker can execute concurrently.",
+        alias="durableAvailableRuns",
+    )
     dispatcher_id: Optional[
         Annotated[str, Field(min_length=36, strict=True, max_length=36)]
     ] = Field(
@@ -109,6 +119,8 @@ class Worker(BaseModel):
         "status",
         "maxRuns",
         "availableRuns",
+        "durableMaxRuns",
+        "durableAvailableRuns",
         "dispatcherId",
         "labels",
         "webhookUrl",
@@ -243,6 +255,8 @@ class Worker(BaseModel):
                 "status": obj.get("status"),
                 "maxRuns": obj.get("maxRuns"),
                 "availableRuns": obj.get("availableRuns"),
+                "durableMaxRuns": obj.get("durableMaxRuns"),
+                "durableAvailableRuns": obj.get("durableAvailableRuns"),
                 "dispatcherId": obj.get("dispatcherId"),
                 "labels": (
                     [WorkerLabel.from_dict(_item) for _item in obj["labels"]]
