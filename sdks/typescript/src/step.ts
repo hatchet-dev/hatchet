@@ -298,12 +298,14 @@ export class V0Context<T, K = {}> {
     return this.action.workflowRunId;
   }
 
+
+  
   /**
    * Gets the ID of the current task run.
    * @returns The task run ID.
    */
-  taskRunId(): string {
-    return this.action.taskRunId;
+  taskExternalId(): string {
+    return this.action.taskExternalId;
   }
 
   /**
@@ -320,15 +322,15 @@ export class V0Context<T, K = {}> {
    * @param level - The log level (optional).
    */
   log(message: string, level?: LogLevel) {
-    const { taskRunId } = this.action;
+    const { taskExternalId } = this.action;
 
-    if (!taskRunId) {
+    if (!taskExternalId) {
       // log a warning
       this.logger.warn('cannot log from context without stepRunId');
       return;
     }
 
-    this.v0.event.putLog(taskRunId, message, level, this.retryCount());
+    this.v0.event.putLog(taskExternalId, message, level, this.retryCount());
   }
 
   /**
@@ -337,15 +339,15 @@ export class V0Context<T, K = {}> {
    * The interval should be specified in the format of '10s' for 10 seconds, '1m' for 1 minute, or '1d' for 1 day.
    */
   async refreshTimeout(incrementBy: Duration) {
-    const { taskRunId } = this.action;
+    const { taskExternalId } = this.action;
 
-    if (!taskRunId) {
+    if (!taskExternalId) {
       // log a warning
       this.logger.warn('cannot refresh timeout from context without stepRunId');
       return;
     }
 
-    await this.v0.dispatcher.refreshTimeout(incrementBy, taskRunId);
+    await this.v0.dispatcher.refreshTimeout(incrementBy, taskExternalId);
   }
 
   /**
@@ -355,7 +357,7 @@ export class V0Context<T, K = {}> {
    */
   async releaseSlot(): Promise<void> {
     await this.v0.dispatcher.client.releaseSlot({
-      stepRunId: this.action.taskRunId,
+      stepRunId: this.action.taskExternalId,
     });
   }
 
@@ -365,15 +367,15 @@ export class V0Context<T, K = {}> {
    * @returns A promise that resolves when the data has been streamed.
    */
   async putStream(data: string | Uint8Array) {
-    const { taskRunId } = this.action;
+    const { taskExternalId } = this.action;
 
-    if (!taskRunId) {
+    if (!taskExternalId) {
       // log a warning
       this.logger.warn('cannot log from context without stepRunId');
       return;
     }
 
-    await this.v0.event.putStream(taskRunId, data, undefined);
+    await this.v0.event.putStream(taskExternalId, data, undefined);
   }
 
   /**
@@ -421,7 +423,7 @@ export class V0Context<T, K = {}> {
       options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
-    const { workflowRunId, taskRunId } = this.action;
+    const { workflowRunId, taskExternalId } = this.action;
 
     const workflowRuns = workflows.map(({ workflow, input, options }) => {
       let workflowName: string;
@@ -449,7 +451,7 @@ export class V0Context<T, K = {}> {
         options: {
           ...opts,
           parentId: workflowRunId,
-          parentStepRunId: taskRunId,
+          parentStepRunId: taskExternalId,
           childIndex: this.spawnIndex,
           desiredWorkerId: sticky ? this.worker.id() : undefined,
         },
@@ -531,7 +533,7 @@ export class V0Context<T, K = {}> {
     input: Q,
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
-    const { workflowRunId, taskRunId } = this.action;
+    const { workflowRunId, taskExternalId } = this.action;
 
     let workflowName: string = '';
 
@@ -555,7 +557,7 @@ export class V0Context<T, K = {}> {
     try {
       const resp = await this.v0.admin.runWorkflow<Q, P>(name, input, {
         parentId: workflowRunId,
-        parentStepRunId: taskRunId,
+        parentStepRunId: taskExternalId,
         childIndex: this.spawnIndex,
         desiredWorkerId: sticky ? this.worker.id() : undefined,
         ...opts,
@@ -650,14 +652,14 @@ export class V0DurableContext<T, K = {}> extends V0Context<T, K> {
     // eslint-disable-next-line no-plusplus
     const key = `waitFor-${this.waitKey++}`;
     await this.v0.durableListener.registerDurableEvent({
-      taskId: this.action.taskRunId,
+      taskId: this.action.taskExternalId,
       signalKey: key,
       sleepConditions: pbConditions.sleepConditions,
       userEventConditions: pbConditions.userEventConditions,
     });
 
     const listener = this.v0.durableListener.subscribe({
-      taskId: this.action.taskRunId,
+      taskId: this.action.taskExternalId,
       signalKey: key,
     });
 

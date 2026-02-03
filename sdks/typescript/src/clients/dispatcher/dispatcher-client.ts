@@ -69,11 +69,11 @@ export class DispatcherClient {
   }
 
   async sendStepActionEvent(in_: StepActionEventInput) {
-    const { stepId, stepRunId, ...rest } = in_;
+    const { taskId, taskExternalId, ...rest } = in_;
     const event: StepActionEvent = {
       ...rest,
-      taskId: in_.taskId ?? stepId ?? '',
-      taskRunId: in_.taskRunId ?? stepRunId ?? '',
+      taskId: taskId ?? '',
+      taskExternalId: taskExternalId ?? '',
     };
 
     try {

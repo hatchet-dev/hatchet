@@ -96,7 +96,7 @@ describe('DispatcherClient', () => {
         jobId: 'a',
         jobRunId: 'b',
         taskId: 'c',
-        taskRunId: 'd',
+        taskExternalId: 'd',
       });
 
       expect(clientSpy).toHaveBeenCalledWith({

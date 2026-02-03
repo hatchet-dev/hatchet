@@ -61,8 +61,8 @@ export class V1Worker {
   action_registry: ActionRegistry;
   workflow_registry: Array<WorkflowDefinition | Workflow> = [];
   listener: ActionListener | undefined;
-  futures: Record<Action['taskRunId'], HatchetPromise<any>> = {};
-  contexts: Record<Action['taskRunId'], Context<any, any>> = {};
+  futures: Record<Action['taskExternalId'], HatchetPromise<any>> = {};
+  contexts: Record<Action['taskExternalId'], Context<any, any>> = {};
   maxRuns?: number;
 
   logger: Logger;
@@ -534,12 +534,12 @@ export class V1Worker {
   }
 
   async handleStartStepRun(action: Action) {
-    const { actionId } = action;
+    const { actionId, taskExternalId } = action;
 
     try {
       // Note: we always use a DurableContext since its a superset of the Context class
       const context = new DurableContext(action, this.client, this);
-      this.contexts[action.taskRunId] = context;
+      this.contexts[taskExternalId] = context;
 
       const step = this.action_registry[actionId];
 
@@ -552,7 +552,7 @@ export class V1Worker {
       const run = async () => {
         parentRunContextManager.setContext({
           parentId: action.workflowRunId,
-          parentRunId: action.taskRunId,
+          parentRunId: taskExternalId,
           childIndex: 0,
           desiredWorkerId: this.workerId || '',
         });
@@ -565,7 +565,7 @@ export class V1Worker {
             return;
           }
 
-          this.logger.info(`Task run ${action.taskRunId} succeeded`);
+          this.logger.info(`Task run ${taskExternalId} succeeded`);
 
           // Send the action event to the dispatcher
           const event = this.getStepActionEvent(
@@ -603,8 +603,8 @@ export class V1Worker {
           );
         } finally {
           // delete the run from the futures
-          delete this.futures[action.taskRunId];
-          delete this.contexts[action.taskRunId];
+          delete this.futures[taskExternalId];
+          delete this.contexts[taskExternalId];
         }
       };
 
@@ -616,7 +616,7 @@ export class V1Worker {
             return;
           }
 
-          this.logger.error(`Task run ${action.taskRunId} failed: ${error.message}`);
+          this.logger.error(`Task run ${taskExternalId} failed: ${error.message}`);
 
           if (error.stack) {
             this.logger.error(error.stack);
@@ -638,8 +638,8 @@ export class V1Worker {
           this.logger.error(`Could not send action event: ${e.message}`);
         } finally {
           // delete the run from the futures
-          delete this.futures[action.taskRunId];
-          delete this.contexts[action.taskRunId];
+          delete this.futures[taskExternalId];
+          delete this.contexts[taskExternalId];
         }
       };
 
@@ -655,7 +655,7 @@ export class V1Worker {
           await success(result);
         })()
       );
-      this.futures[action.taskRunId] = future;
+      this.futures[taskExternalId] = future;
 
       // Send the action event to the dispatcher
       const event = this.getStepActionEvent(
@@ -674,10 +674,10 @@ export class V1Worker {
       } catch (e: any) {
         const message = e?.message || String(e);
         if (message.includes('Cancelled')) {
-          this.logger.debug(`Task run ${action.taskRunId} was cancelled`);
+          this.logger.debug(`Task run ${taskExternalId} was cancelled`);
         } else {
           this.logger.error(
-            `Could not wait for task run ${action.taskRunId} to finish. ` +
+            `Could not wait for task run ${taskExternalId} to finish. ` +
               `See https://docs.hatchet.run/home/cancellation for best practices on handling cancellation: `,
             e
           );
@@ -689,7 +689,7 @@ export class V1Worker {
   }
 
   async handleStartGroupKeyRun(action: Action) {
-    const { actionId } = action;
+    const { actionId, getGroupKeyRunId, taskExternalId } = action;
 
     this.logger.error(
       'Concurrency Key Functions have been deprecated and will be removed in a future release. Use Concurrency Expressions instead.'
@@ -698,7 +698,7 @@ export class V1Worker {
     try {
       const context = new Context(action, this.client, this);
 
-      const key = action.getGroupKeyRunId;
+      const key = getGroupKeyRunId;
 
       if (!key) {
         this.logger.error(`No group key run id provided for action ${actionId}`);
@@ -721,7 +721,7 @@ export class V1Worker {
       };
 
       const success = (result: any) => {
-        this.logger.info(`Task run ${action.taskRunId} succeeded`);
+        this.logger.info(`Task run ${taskExternalId} succeeded`);
 
         try {
           // Send the action event to the dispatcher
@@ -794,7 +794,7 @@ export class V1Worker {
       jobId: action.jobId,
       jobRunId: action.jobRunId,
       taskId: action.taskId,
-      taskRunId: action.taskRunId,
+      taskExternalId: action.taskExternalId,
       actionId: action.actionId,
       eventTimestamp: new Date(),
       eventType,
@@ -824,11 +824,11 @@ export class V1Worker {
   }
 
   async handleCancelStepRun(action: Action) {
-    const { taskRunId } = action;
+    const { taskExternalId } = action;
     try {
-      this.logger.info(`Cancelling task run ${action.taskRunId}`);
-      const future = this.futures[taskRunId];
-      const context = this.contexts[taskRunId];
+      this.logger.info(`Cancelling task run ${taskExternalId}`);
+      const future = this.futures[taskExternalId];
+      const context = this.contexts[taskExternalId];
 
       if (context && context.abortController) {
         context.abortController.abort('Cancelled by worker');
@@ -836,17 +836,17 @@ export class V1Worker {
 
       if (future) {
         future.promise.catch(() => {
-          this.logger.info(`Cancelled task run ${action.taskRunId}`);
+          this.logger.info(`Cancelled task run ${taskExternalId}`);
         });
         future.cancel('Cancelled by worker');
         await future.promise;
       }
     } catch (e: any) {
       // Expected: the promise rejects when cancelled
-      this.logger.debug(`Task run ${taskRunId} cancellation completed`);
+      this.logger.debug(`Task run ${taskExternalId} cancellation completed`);
     } finally {
-      delete this.futures[taskRunId];
-      delete this.contexts[taskRunId];
+      delete this.futures[taskExternalId];
+      delete this.contexts[taskExternalId];
     }
   }
 
