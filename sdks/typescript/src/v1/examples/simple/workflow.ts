@@ -6,7 +6,7 @@ export type SimpleInput = {
   Message: string;
 };
 
-export const simple = hatchet.task({
+export const simple = hatchet.durableTask({
   name: 'simple',
   retries: 3,
   fn: async (input: SimpleInput) => {

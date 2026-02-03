@@ -42,14 +42,14 @@ const (
 )
 
 type GetActionListenerRequest struct {
-	WorkerName   string
-	Services     []string
-	Actions      []string
-	Slots        *int
-	DurableSlots *int
+	WorkerName     string
+	Services       []string
+	Actions        []string
+	Slots          *int
+	DurableSlots   *int
 	SlotCapacities map[string]int32
-	Labels       map[string]interface{}
-	WebhookId    *string
+	Labels         map[string]interface{}
+	WebhookId      *string
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.

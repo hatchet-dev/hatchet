@@ -6,6 +6,7 @@ import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data
 import { BaseWorkflowDeclaration } from '../../declaration';
 import { HatchetClient } from '../..';
 import { V1Worker } from './worker-internal';
+import { SlotCapacities, SlotType } from '../../slot-types';
 
 const DEFAULT_DEFAULT_SLOTS = 100;
 const DEFAULT_DURABLE_SLOTS = 1_000;
@@ -15,8 +16,8 @@ const DEFAULT_DURABLE_SLOTS = 1_000;
  * @interface CreateWorkerOpts
  */
 export interface CreateWorkerOpts {
-  /** (optional) Slot capacities for this worker (slot_type -> units). Defaults to { cpu: 100 }. */
-  slotCapacities?: Record<string, number>;
+  /** (optional) Slot capacities for this worker (slot_type -> units). Defaults to { [SlotType.Default]: 100 }. */
+  slotCapacities?: SlotCapacities;
   /** (optional) Maximum number of concurrent runs on this worker, defaults to 100 */
   slots?: number;
   /** (optional) Maximum number of concurrent durable tasks, defaults to 1,000 */
@@ -84,26 +85,10 @@ export class Worker {
       );
     }
 
-    const slotCapacities =
-      options.slotCapacities ||
-      (options.slots || options.durableSlots || options.maxRuns
-        ? {
-            ...(options.slots || options.maxRuns
-              ? { default: options.slots || options.maxRuns || 0 }
-              : {}),
-            ...(options.durableSlots ? { durable: options.durableSlots } : {}),
-          }
-        : { default: DEFAULT_DEFAULT_SLOTS });
-
-    const durableSlots = options.durableSlots || slotCapacities.durable || DEFAULT_DURABLE_SLOTS;
-    const baseSlots =
-      options.slots || options.maxRuns || slotCapacities.default || DEFAULT_DEFAULT_SLOTS;
+    const resolvedOptions = resolveWorkerOptions(options);
     const opts = {
       name,
-      ...options,
-      slots: baseSlots,
-      durableSlots,
-      slotCapacities,
+      ...resolvedOptions,
     };
 
     const internalWorker = new V1Worker(v1, opts);
@@ -209,4 +194,93 @@ export class Worker {
 
     return this._v1.workers.unpause(this.nonDurable.workerId);
   }
+}
+
+function resolveWorkerOptions(options: CreateWorkerOpts) {
+  const requiredSlotTypes =
+    options.workflows
+      ? getRequiredSlotTypes(options.workflows)
+      : new Set<SlotType>();
+
+  const slotCapacities: SlotCapacities =
+    options.slotCapacities ||
+    (options.slots || options.durableSlots || options.maxRuns
+      ? {
+          ...(options.slots || options.maxRuns
+            ? { [SlotType.Default]: options.slots || options.maxRuns || 0 }
+            : {}),
+          ...(options.durableSlots ? { [SlotType.Durable]: options.durableSlots } : {}),
+        }
+      : {});
+
+  if (requiredSlotTypes.has(SlotType.Default) && slotCapacities[SlotType.Default] == null) {
+    slotCapacities[SlotType.Default] = DEFAULT_DEFAULT_SLOTS;
+  }
+  if (requiredSlotTypes.has(SlotType.Durable) && slotCapacities[SlotType.Durable] == null) {
+    slotCapacities[SlotType.Durable] = DEFAULT_DURABLE_SLOTS;
+  }
+
+  if (Object.keys(slotCapacities).length === 0) {
+    slotCapacities[SlotType.Default] = DEFAULT_DEFAULT_SLOTS;
+  }
+
+  return {
+    ...options,
+    slots:
+      options.slots ||
+      options.maxRuns ||
+      (slotCapacities[SlotType.Default] != null ? slotCapacities[SlotType.Default] : undefined),
+    durableSlots:
+      options.durableSlots ||
+      (slotCapacities[SlotType.Durable] != null ? slotCapacities[SlotType.Durable] : undefined),
+    slotCapacities,
+  };
+}
+
+export const __testing = {
+  resolveWorkerOptions,
+};
+
+function getRequiredSlotTypes(
+  workflows: Array<BaseWorkflowDeclaration<any, any> | V0Workflow>
+): Set<SlotType> {
+  const required = new Set<SlotType>();
+  const addFromRequirements = (
+    requirements: Record<string, number> | undefined,
+    fallbackType: SlotType
+  ) => {
+    if (requirements && Object.keys(requirements).length > 0) {
+      if (requirements[SlotType.Default] !== undefined) {
+        required.add(SlotType.Default);
+      }
+      if (requirements[SlotType.Durable] !== undefined) {
+        required.add(SlotType.Durable);
+      }
+    } else {
+      required.add(fallbackType);
+    }
+  };
+
+  for (const wf of workflows) {
+    if (wf instanceof BaseWorkflowDeclaration) {
+      for (const task of wf.definition._tasks) {
+        addFromRequirements(task.slotRequirements, SlotType.Default);
+      }
+      for (const task of wf.definition._durableTasks) {
+        required.add(SlotType.Durable);
+      }
+
+      if (wf.definition.onFailure) {
+        const opts = typeof wf.definition.onFailure === 'object' ? wf.definition.onFailure : undefined;
+        addFromRequirements(opts?.slotRequirements, SlotType.Default);
+      }
+
+      if (wf.definition.onSuccess) {
+        const opts = typeof wf.definition.onSuccess === 'object' ? wf.definition.onSuccess : undefined;
+        addFromRequirements(opts?.slotRequirements, SlotType.Default);
+      }
+    }
+  }
+
+  return required;
 }

@@ -22,15 +22,9 @@ This is especially useful in cases such as:
 
 ## How Hatchet Runs Durable Tasks
 
-Durable tasks run on the same worker process as regular tasks, but they use a separate durable slot pool. The worker advertises both `slots` and `durable_slots`, and the engine routes durable tasks to the durable slot group so long-running work does not consume standard slots.
+Durable tasks run on the same worker process as regular tasks, but they consume a separate slot type so they do not compete with regular tasks for slots. This pattern prevents deadlock scenarios where durable tasks would starve children tasks for slots which are needed for the parent durable task to complete.
 
 Tasks that are declared as being durable (using `durable_task` instead of `task`), will receive a `DurableContext` object instead of a normal `Context,` which extends the `Context` by providing some additional tools for working with durable execution features.
-
-<Callout type="info" emoji="ℹ️">
-  If you're upgrading from older SDKs that registered a separate `-durable`
-  worker, Hatchet still recognizes those legacy workers as durable slot
-  capacity. New SDKs register a single worker with durable slots instead.
-</Callout>
 
 ## Example Task
 

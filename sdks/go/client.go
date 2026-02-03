@@ -64,8 +64,16 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		opt(config)
 	}
 
+	dumps := gatherWorkflowDumps(config.workflows)
+
 	if config.slotCapacities != nil && (config.slotsSet || config.durableSlotsSet) {
 		return nil, fmt.Errorf("cannot set both slot capacities and slots/durable slots")
+	}
+
+	if config.slotCapacities != nil {
+		config.slotCapacities = resolveWorkerSlotCapacities(config.slotCapacities, dumps)
+	} else {
+		config.slotCapacities = resolveWorkerSlotCapacities(map[SlotType]int{}, dumps)
 	}
 
 	workerOpts := []worker.WorkerOpt{
@@ -73,10 +81,10 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		worker.WithName(name),
 	}
 
-	if config.slotCapacities != nil {
+	if len(config.slotCapacities) > 0 {
 		slotCapacities := make(map[string]int32, len(config.slotCapacities))
 		for key, value := range config.slotCapacities {
-			slotCapacities[key] = int32(value)
+			slotCapacities[string(key)] = int32(value)
 		}
 		workerOpts = append(workerOpts, worker.WithSlotCapacities(slotCapacities))
 	} else {
@@ -103,21 +111,20 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		mainWorker.SetPanicHandler(config.panicHandler)
 	}
 
-	for _, workflow := range config.workflows {
-		req, regularActions, durableActions, onFailureFn := workflow.Dump()
-		err := mainWorker.RegisterWorkflowV1(req)
+	for _, dump := range dumps {
+		err := mainWorker.RegisterWorkflowV1(dump.req)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, namedFn := range durableActions {
+		for _, namedFn := range dump.durableActions {
 			err = mainWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
 			if err != nil {
 				return nil, err
 			}
 		}
 
-		for _, namedFn := range regularActions {
+		for _, namedFn := range dump.regularActions {
 			err = mainWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
 			if err != nil {
 				return nil, err
@@ -125,10 +132,10 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		}
 
 		// Register on failure function if exists
-		if req.OnFailureTask != nil && onFailureFn != nil {
-			actionId := req.OnFailureTask.Action
+		if dump.req.OnFailureTask != nil && dump.onFailureFn != nil {
+			actionId := dump.req.OnFailureTask.Action
 			err = mainWorker.RegisterAction(actionId, func(ctx worker.HatchetContext) (any, error) {
-				return onFailureFn(ctx)
+				return dump.onFailureFn(ctx)
 			})
 			if err != nil {
 				return nil, err
@@ -140,6 +147,82 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		worker: mainWorker,
 		name:   name,
 	}, nil
+}
+
+type workflowDump struct {
+	req            *v1.CreateWorkflowVersionRequest
+	regularActions []internal.NamedFunction
+	durableActions []internal.NamedFunction
+	onFailureFn    internal.WrappedTaskFn
+}
+
+func gatherWorkflowDumps(workflows []WorkflowBase) []workflowDump {
+	dumps := make([]workflowDump, 0, len(workflows))
+	for _, workflow := range workflows {
+		req, regularActions, durableActions, onFailureFn := workflow.Dump()
+		dumps = append(dumps, workflowDump{
+			req:            req,
+			regularActions: regularActions,
+			durableActions: durableActions,
+			onFailureFn:    onFailureFn,
+		})
+	}
+	return dumps
+}
+
+func resolveWorkerSlotCapacities(
+	slotCapacities map[SlotType]int,
+	dumps []workflowDump,
+) map[SlotType]int {
+	requiredSlotTypes := map[SlotType]bool{}
+	addFromRequirements := func(requirements map[string]int32) {
+		if requirements == nil {
+			return
+		}
+		if _, ok := requirements[string(SlotTypeDefault)]; ok {
+			requiredSlotTypes[SlotTypeDefault] = true
+		}
+		if _, ok := requirements[string(SlotTypeDurable)]; ok {
+			requiredSlotTypes[SlotTypeDurable] = true
+		}
+	}
+
+	for _, dump := range dumps {
+		for _, task := range dump.req.Tasks {
+			addFromRequirements(task.SlotRequirements)
+		}
+		if dump.req.OnFailureTask != nil {
+			addFromRequirements(dump.req.OnFailureTask.SlotRequirements)
+		}
+	}
+
+	if len(dumps) > 0 {
+		for _, dump := range dumps {
+			for _, task := range dump.req.Tasks {
+				if task.IsDurable {
+					requiredSlotTypes[SlotTypeDurable] = true
+					break
+				}
+			}
+		}
+	}
+
+	if requiredSlotTypes[SlotTypeDefault] {
+		if _, ok := slotCapacities[SlotTypeDefault]; !ok {
+			slotCapacities[SlotTypeDefault] = 100
+		}
+	}
+	if requiredSlotTypes[SlotTypeDurable] {
+		if _, ok := slotCapacities[SlotTypeDurable]; !ok {
+			slotCapacities[SlotTypeDurable] = 1000
+		}
+	}
+
+	if len(slotCapacities) == 0 {
+		slotCapacities[SlotTypeDefault] = 100
+	}
+
+	return slotCapacities
 }
 
 // Starts the worker instance and returns a cleanup function.

@@ -39,6 +39,7 @@ import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
+import { SlotCapacities, SlotType } from '../../slot-types';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
@@ -47,7 +48,7 @@ export interface WorkerOpts {
   handleKill?: boolean;
   slots?: number;
   durableSlots?: number;
-  slotCapacities?: Record<string, number>;
+  slotCapacities?: SlotCapacities;
   labels?: WorkerLabels;
   healthPort?: number;
   enableHealthServer?: boolean;
@@ -67,7 +68,7 @@ export class V1Worker {
   contexts: Record<Action['taskRunId'], Context<any, any>> = {};
   slots?: number;
   durableSlots?: number;
-  slotCapacities: Record<string, number>;
+  slotCapacities: SlotCapacities;
 
   logger: Logger;
 
@@ -88,7 +89,7 @@ export class V1Worker {
       handleKill?: boolean;
       slots?: number;
       durableSlots?: number;
-      slotCapacities?: Record<string, number>;
+      slotCapacities?: SlotCapacities;
       labels?: WorkerLabels;
     }
   ) {
@@ -134,9 +135,9 @@ export class V1Worker {
     );
   }
 
-  // TODO where is thi sused, this doesnt make much sense
+  // TODO where is this used, this doesnt make much sense
   private getAvailableSlots(): number {
-    const baseSlots = this.slotCapacities.default ?? this.slots ?? 0;
+    const baseSlots = this.slotCapacities[SlotType.Default] ?? this.slots ?? 0;
     if (!baseSlots) {
       return 0;
     }

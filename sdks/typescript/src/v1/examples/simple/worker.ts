@@ -9,8 +9,8 @@ async function main() {
     // 👀 Declare the workflows that the worker can execute
     workflows: [simple, simpleWithZod, parent, child],
     // 👀 Declare the number of concurrent task runs the worker can accept
-    slots: 100,
-    durableSlots: 1000,
+    // slots: 100,
+    // durableSlots: 1000,
   });
 
   await worker.start();

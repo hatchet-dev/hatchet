@@ -100,8 +100,8 @@ type Worker struct {
 
 	middlewares *middlewares
 
-	slots        *int
-	durableSlots *int
+	slots          *int
+	durableSlots   *int
 	slotCapacities map[string]int32
 
 	initActionNames []string
@@ -120,10 +120,10 @@ type WorkerOpts struct {
 	name   string
 	l      *zerolog.Logger
 
-	integrations []integrations.Integration
-	alerter      errors.Alerter
-	slots        *int
-	durableSlots *int
+	integrations   []integrations.Integration
+	alerter        errors.Alerter
+	slots          *int
+	durableSlots   *int
 	slotCapacities map[string]int32
 
 	actions []string
@@ -483,11 +483,11 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 	_ = NewManagedCompute(&w.actions, w.client, 1)
 
 	listener, id, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
-		WorkerName:   w.name,
-		Actions:      actionNames,
-		Slots:        w.slots,
-		Labels:       w.labels,
-		DurableSlots: w.durableSlots,
+		WorkerName:     w.name,
+		Actions:        actionNames,
+		Slots:          w.slots,
+		Labels:         w.labels,
+		DurableSlots:   w.durableSlots,
 		SlotCapacities: w.slotCapacities,
 	})
 
