@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Internal Only
 
-- Updated gRPC/REST contract field names to lowerCamelCase for consistency across SDKs.
+- Updated gRPC/REST contract field names to snake_case for consistency across SDKs.
 
 ## [1.22.15] - 2026-02-02
 
