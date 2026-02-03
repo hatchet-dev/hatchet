@@ -33,6 +33,9 @@ type CreateWorkerOpts struct {
 	// The maximum number of durable runs this worker can run at a time
 	DurableMaxRuns *int `validate:"omitempty,gte=0"`
 
+	// Slot capacities for this worker (slot_type -> max units)
+	SlotCapacities map[string]int32 `validate:"omitempty"`
+
 	// The name of the worker
 	Name string `validate:"required,hatchetName"`
 
@@ -93,6 +96,12 @@ type WorkerRepository interface {
 
 	// ListWorkerLabels returns a list of labels config for a worker
 	ListWorkerLabels(tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.ListWorkerLabelsRow, error)
+
+	// ListWorkerSlotCapacities returns slot capacities for workers.
+	ListWorkerSlotCapacities(tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
+
+	// ListAvailableSlotsForWorkers returns available slot units by worker for a slot type.
+	ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotType string) (map[uuid.UUID]int32, error)
 
 	// CreateNewWorker creates a new worker for a given tenant.
 	CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
@@ -294,6 +303,46 @@ func (w *workerRepository) ListWorkerLabels(tenantId uuid.UUID, workerId uuid.UU
 	return w.queries.ListWorkerLabels(context.Background(), w.pool, workerId)
 }
 
+func (w *workerRepository) ListWorkerSlotCapacities(tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
+	rows, err := w.queries.ListWorkerSlotCapacities(context.Background(), w.pool, sqlcv1.ListWorkerSlotCapacitiesParams{
+		Tenantid:  tenantId,
+		Workerids: workerIds,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[uuid.UUID]map[string]int32)
+	for _, row := range rows {
+		if _, ok := res[row.WorkerID]; !ok {
+			res[row.WorkerID] = make(map[string]int32)
+		}
+		res[row.WorkerID][row.SlotType] = row.MaxUnits
+	}
+
+	return res, nil
+}
+
+func (w *workerRepository) ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotType string) (map[uuid.UUID]int32, error) {
+	rows, err := w.queries.ListAvailableSlotsForWorkers(ctx, w.pool, sqlcv1.ListAvailableSlotsForWorkersParams{
+		Tenantid:  tenantId,
+		Workerids: workerIds,
+		Slottype:  slotType,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list available slots for workers: %w", err)
+	}
+
+	res := make(map[uuid.UUID]int32, len(rows))
+	for _, row := range rows {
+		res[row.ID] = row.AvailableSlots
+	}
+
+	return res, nil
+}
+
 func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (*sqlcv1.GetWorkerForEngineRow, error) {
 	return w.queries.GetWorkerForEngine(ctx, w.pool, sqlcv1.GetWorkerForEngineParams{
 		ID:       workerId,
@@ -308,10 +357,24 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		return nil, err
 	}
 
-	maxRuns := int32(100)
+	slotCapacities := opts.SlotCapacities
+	maxRuns := int32(0)
 
-	if opts.MaxRuns != nil {
-		maxRuns = int32(*opts.MaxRuns) // nolint: gosec
+	if len(slotCapacities) == 0 {
+		maxRuns = 100
+		if opts.MaxRuns != nil {
+			maxRuns = int32(*opts.MaxRuns) // nolint: gosec
+		}
+
+		if opts.DurableMaxRuns != nil && *opts.DurableMaxRuns > 0 {
+			maxRuns += int32(*opts.DurableMaxRuns) // nolint: gosec
+		}
+	} else {
+		for _, units := range slotCapacities {
+			if units > 0 {
+				maxRuns += units
+			}
+		}
 	}
 
 	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, sqlcv1.LimitResourceWORKERSLOT, tenantId, maxRuns)
@@ -401,11 +464,45 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		}
 	}
 
-	if worker == nil {
-		worker, err = w.queries.CreateWorker(ctx, tx, createParams)
+	worker, err = w.queries.CreateWorker(ctx, tx, createParams)
 
+	if err != nil {
+		return nil, fmt.Errorf("could not create worker: %w", err)
+	}
+
+	slotTypes := make([]string, 0)
+	maxUnits := make([]int32, 0)
+
+	if len(slotCapacities) > 0 {
+		for slotType, units := range slotCapacities {
+			slotTypes = append(slotTypes, slotType)
+			maxUnits = append(maxUnits, units)
+		}
+	} else {
+		defaultUnits := int32(100)
+
+		if opts.MaxRuns != nil {
+			defaultUnits = int32(*opts.MaxRuns) // nolint: gosec
+		}
+
+		slotTypes = append(slotTypes, "default")
+		maxUnits = append(maxUnits, defaultUnits)
+
+		if opts.DurableMaxRuns != nil && *opts.DurableMaxRuns > 0 {
+			slotTypes = append(slotTypes, "durable")
+			maxUnits = append(maxUnits, int32(*opts.DurableMaxRuns)) // nolint: gosec
+		}
+	}
+
+	if len(slotTypes) > 0 {
+		err = w.queries.UpsertWorkerSlotCapacities(ctx, tx, sqlcv1.UpsertWorkerSlotCapacitiesParams{
+			Tenantid:  tenantId,
+			Workerid:  worker.ID,
+			Slottypes: slotTypes,
+			Maxunits:  maxUnits,
+		})
 		if err != nil {
-			return nil, fmt.Errorf("could not create worker: %w", err)
+			return nil, fmt.Errorf("could not upsert worker slot capacities: %w", err)
 		}
 	}
 

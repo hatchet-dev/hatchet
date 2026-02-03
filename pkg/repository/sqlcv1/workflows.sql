@@ -306,6 +306,27 @@ INSERT INTO "Step" (
     coalesce(sqlc.narg('isDurable')::boolean, false)
 ) RETURNING *;
 
+-- name: CreateStepSlotRequirements :exec
+INSERT INTO v1_step_slot_requirement (
+    tenant_id,
+    step_id,
+    slot_type,
+    units,
+    created_at,
+    updated_at
+)
+SELECT
+    @tenantId::uuid,
+    @stepId::uuid,
+    unnest(@slotTypes::text[]),
+    unnest(@units::integer[]),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+ON CONFLICT (tenant_id, step_id, slot_type) DO UPDATE
+SET
+    units = EXCLUDED.units,
+    updated_at = CURRENT_TIMESTAMP;
+
 -- name: AddStepParents :exec
 INSERT INTO "_StepOrder" ("A", "B")
 SELECT

@@ -59,12 +59,9 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 	return runtime
 }
 
-func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, remainingDurableSlots *int, webhookUrl *string, actions []string, workflows *[]*sqlcv1.Workflow) *gen.Worker {
+func ToWorkerSqlc(worker *sqlcv1.Worker, slotCapacities map[string]gen.WorkerSlotCapacity, webhookUrl *string, actions []string, workflows *[]*sqlcv1.Workflow) *gen.Worker {
 
 	dispatcherId := worker.DispatcherId
-
-	maxRuns := int(worker.MaxRuns)
-	durableMaxRuns := int(worker.DurableMaxRuns)
 
 	status := gen.ACTIVE
 
@@ -76,15 +73,13 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, remainingDurableSl
 		status = gen.INACTIVE
 	}
 
-	var availableRuns int
-	var availableDurableRuns int
-
-	if remainingSlots != nil {
-		availableRuns = *remainingSlots
-	}
-
-	if remainingDurableSlots != nil {
-		availableDurableRuns = *remainingDurableSlots
+	var slotCapacitiesInt *map[string]gen.WorkerSlotCapacity
+	if len(slotCapacities) > 0 {
+		tmp := make(map[string]gen.WorkerSlotCapacity, len(slotCapacities))
+		for k, v := range slotCapacities {
+			tmp[k] = v
+		}
+		slotCapacitiesInt = &tmp
 	}
 
 	res := &gen.Worker{
@@ -93,17 +88,14 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, remainingDurableSl
 			CreatedAt: worker.CreatedAt.Time,
 			UpdatedAt: worker.UpdatedAt.Time,
 		},
-		Name:                 worker.Name,
-		Type:                 gen.WorkerType(worker.Type),
-		Status:               &status,
-		DispatcherId:         dispatcherId,
-		MaxRuns:              &maxRuns,
-		AvailableRuns:        &availableRuns,
-		DurableMaxRuns:       &durableMaxRuns,
-		DurableAvailableRuns: &availableDurableRuns,
-		WebhookUrl:           webhookUrl,
-		RuntimeInfo:          ToWorkerRuntimeInfo(worker),
-		WebhookId:            worker.WebhookId,
+		Name:           worker.Name,
+		Type:           gen.WorkerType(worker.Type),
+		Status:         &status,
+		DispatcherId:   dispatcherId,
+		SlotCapacities: slotCapacitiesInt,
+		WebhookUrl:     webhookUrl,
+		RuntimeInfo:    ToWorkerRuntimeInfo(worker),
+		WebhookId:      worker.WebhookId,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {

@@ -7,6 +7,7 @@ import { BaseWorkflowDeclaration } from '../../declaration';
 import { HatchetClient } from '../..';
 import { V1Worker } from './worker-internal';
 
+const DEFAULT_DEFAULT_SLOTS = 100;
 const DEFAULT_DURABLE_SLOTS = 1_000;
 
 /**
@@ -14,10 +15,12 @@ const DEFAULT_DURABLE_SLOTS = 1_000;
  * @interface CreateWorkerOpts
  */
 export interface CreateWorkerOpts {
+  /** (optional) Slot capacities for this worker (slot_type -> units). Defaults to { cpu: 100 }. */
+  slotCapacities?: Record<string, number>;
   /** (optional) Maximum number of concurrent runs on this worker, defaults to 100 */
   slots?: number;
-    /** (optional) Maximum number of concurrent durable tasks, defaults to 1,000 */
-    durableSlots?: number;
+  /** (optional) Maximum number of concurrent durable tasks, defaults to 1,000 */
+  durableSlots?: number;
   /** (optional) Array of workflows to register */
   workflows?: BaseWorkflowDeclaration<any, any>[] | V0Workflow[];
   /** (optional) Worker labels for affinity-based assignment */
@@ -70,13 +73,37 @@ export class Worker {
     name: string,
     options: CreateWorkerOpts
   ) {
-    const durableSlots = options.durableSlots || DEFAULT_DURABLE_SLOTS;
-    const baseSlots = options.slots || options.maxRuns || 100;
+    const hasSlotCapacities = options.slotCapacities !== undefined;
+    const hasLegacySlots =
+      options.slots !== undefined ||
+      options.durableSlots !== undefined ||
+      options.maxRuns !== undefined;
+    if (hasSlotCapacities && hasLegacySlots) {
+      throw new Error(
+        'Cannot set both slotCapacities and slots/durableSlots. Use slotCapacities only.'
+      );
+    }
+
+    const slotCapacities =
+      options.slotCapacities ||
+      (options.slots || options.durableSlots || options.maxRuns
+        ? {
+            ...(options.slots || options.maxRuns
+              ? { default: options.slots || options.maxRuns || 0 }
+              : {}),
+            ...(options.durableSlots ? { durable: options.durableSlots } : {}),
+          }
+        : { default: DEFAULT_DEFAULT_SLOTS });
+
+    const durableSlots = options.durableSlots || slotCapacities.durable || DEFAULT_DURABLE_SLOTS;
+    const baseSlots =
+      options.slots || options.maxRuns || slotCapacities.default || DEFAULT_DEFAULT_SLOTS;
     const opts = {
       name,
       ...options,
       slots: baseSlots,
       durableSlots,
+      slotCapacities,
     };
 
     const internalWorker = new V1Worker(v1, opts);

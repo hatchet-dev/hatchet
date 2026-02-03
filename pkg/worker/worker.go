@@ -102,6 +102,7 @@ type Worker struct {
 
 	slots        *int
 	durableSlots *int
+	slotCapacities map[string]int32
 
 	initActionNames []string
 
@@ -123,6 +124,7 @@ type WorkerOpts struct {
 	alerter      errors.Alerter
 	slots        *int
 	durableSlots *int
+	slotCapacities map[string]int32
 
 	actions []string
 
@@ -186,6 +188,13 @@ func WithDurableSlots(durableSlots int) WorkerOpt {
 	}
 }
 
+// WithSlotCapacities sets slot capacities for this worker (slot_type -> units).
+func WithSlotCapacities(slotCapacities map[string]int32) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.slotCapacities = slotCapacities
+	}
+}
+
 func WithLabels(labels map[string]interface{}) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.labels = labels
@@ -246,6 +255,10 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		opts.l = &l
 	}
 
+	if opts.slotCapacities != nil && (opts.slots != nil || opts.durableSlots != nil) {
+		return nil, fmt.Errorf("cannot set both slot capacities and slots/durable slots")
+	}
+
 	w := &Worker{
 		client:               opts.client,
 		name:                 opts.name,
@@ -255,6 +268,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		middlewares:          mws,
 		slots:                opts.slots,
 		durableSlots:         opts.durableSlots,
+		slotCapacities:       opts.slotCapacities,
 		initActionNames:      opts.actions,
 		labels:               opts.labels,
 		registered_workflows: map[string]bool{},
@@ -474,6 +488,7 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 		Slots:        w.slots,
 		Labels:       w.labels,
 		DurableSlots: w.durableSlots,
+		SlotCapacities: w.slotCapacities,
 	})
 
 	w.id = id

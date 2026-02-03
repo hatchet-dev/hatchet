@@ -66,7 +66,7 @@ message WorkerRegisterRequest {
     // (optional) the services for this worker
     repeated string services = 3;
 
-    // (optional) the number of slots this worker can handle
+    // (optional) the number of default slots this worker can handle
     optional int32 slots = 4;
 
     // (optional) worker labels (i.e. state or other metadata)
@@ -78,8 +78,11 @@ message WorkerRegisterRequest {
     // (optional) information regarding the runtime environment of the worker
     optional RuntimeInfo runtime_info = 7;
 
-    // (optional) the max number of durable runs this worker can handle
+    // (optional) the max number of durable slots this worker can handle
     optional int32 durable_slots = 8;
+
+    // (optional) slot capacities for this worker (slot_type -> units)
+    map<string, int32> slot_capacities = 9;
 
 }
 

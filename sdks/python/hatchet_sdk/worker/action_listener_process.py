@@ -3,6 +3,7 @@ import contextlib
 import logging
 import signal
 import time
+import warnings
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
@@ -67,8 +68,7 @@ class WorkerActionListenerProcess:
         self,
         name: str,
         actions: list[str],
-        slots: int,
-        durable_slots: int,
+        slot_capacities: dict[str, int],
         config: ClientConfig,
         action_queue: "Queue[Action]",
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
@@ -78,8 +78,9 @@ class WorkerActionListenerProcess:
     ) -> None:
         self.name = name
         self.actions = actions
-        self.slots = slots
-        self.durable_slots = durable_slots
+        self.slot_capacities = slot_capacities
+        self._slots = slot_capacities.get("default", 0)
+        self._durable_slots = slot_capacities.get("durable", 0)
         self.config = config
         self.action_queue = action_queue
         self.event_queue = event_queue
@@ -130,6 +131,24 @@ class WorkerActionListenerProcess:
                 "hatchet_worker_event_loop_lag_seconds",
                 "Event loop lag in seconds (listener process)",
             )
+
+    @property
+    def slots(self) -> int:
+        warnings.warn(
+            "WorkerActionListenerProcess.slots is deprecated; use slot_capacities['default'] instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._slots
+
+    @property
+    def durable_slots(self) -> int:
+        warnings.warn(
+            "WorkerActionListenerProcess.durable_slots is deprecated; use slot_capacities['durable'] instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._durable_slots
 
     async def _monitor_event_loop(self) -> None:
         # If the loop is blocked, this coroutine itself can't run; when it resumes,
@@ -322,8 +341,7 @@ class WorkerActionListenerProcess:
                     worker_name=self.name,
                     services=["default"],
                     actions=self.actions,
-                    slots=self.slots,
-                    durable_slots=self.durable_slots,
+                    slot_capacities=self.slot_capacities,
                     raw_labels=self.labels,
                 )
             )
@@ -521,8 +539,7 @@ class WorkerActionListenerProcess:
 def worker_action_listener_process(
     name: str,
     actions: list[str],
-    slots: int,
-    durable_slots: int,
+    slot_capacities: dict[str, int],
     config: ClientConfig,
     action_queue: "Queue[Action]",
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
@@ -534,8 +551,7 @@ def worker_action_listener_process(
         process = WorkerActionListenerProcess(
             name=name,
             actions=actions,
-            slots=slots,
-            durable_slots=durable_slots,
+            slot_capacities=slot_capacities,
             config=config,
             action_queue=action_queue,
             event_queue=event_queue,

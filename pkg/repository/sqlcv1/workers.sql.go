@@ -235,25 +235,39 @@ const getWorkerById = `-- name: GetWorkerById :one
 SELECT
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."durableMaxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion",
     ww."url" AS "webhookUrl",
-    w."maxRuns" - (
-        SELECT COUNT(*)
-        FROM v1_task_runtime runtime
+    COALESCE((
+        SELECT COALESCE(cap.max_units, 0)
+        FROM v1_worker_slot_capacity cap
+        WHERE
+            cap.tenant_id = w."tenantId"
+            AND cap.worker_id = w."id"
+            AND cap.slot_type = 'default'::text
+    ) - (
+        SELECT COALESCE(SUM(runtime.units), 0)
+        FROM v1_task_runtime_slot runtime
         WHERE
             runtime.tenant_id = w."tenantId" AND
             runtime.worker_id = w."id" AND
-            runtime.slot_group = 'SLOTS'::v1_worker_slot_group
-    ) AS "remainingSlots"
+            runtime.slot_type = 'default'::text
+    ), 0)::int AS "remainingSlots"
     ,
-    (
-        w."durableMaxRuns" - (
-            SELECT COUNT(*)
-            FROM v1_task_runtime runtime
+    COALESCE((
+        (
+            SELECT COALESCE(cap.max_units, 0)
+            FROM v1_worker_slot_capacity cap
+            WHERE
+                cap.tenant_id = w."tenantId"
+                AND cap.worker_id = w."id"
+                AND cap.slot_type = 'durable'::text
+        ) - (
+            SELECT COALESCE(SUM(runtime.units), 0)
+            FROM v1_task_runtime_slot runtime
             WHERE
                 runtime.tenant_id = w."tenantId" AND
                 runtime.worker_id = w."id" AND
-                runtime.slot_group = 'DURABLE_SLOTS'::v1_worker_slot_group
+                runtime.slot_type = 'durable'::text
         )
-    )::int AS "remainingDurableSlots"
+    ), 0)::int AS "remainingDurableSlots"
 FROM
     "Worker" w
 LEFT JOIN
@@ -749,16 +763,17 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 }
 
 const listTotalActiveSlotsPerTenant = `-- name: ListTotalActiveSlotsPerTenant :many
-SELECT "tenantId", SUM(
-    "maxRuns" + "durableMaxRuns"
-) AS "totalActiveSlots"
-FROM "Worker"
+SELECT
+    wc.tenant_id AS "tenantId",
+    SUM(wc.max_units) AS "totalActiveSlots"
+FROM v1_worker_slot_capacity wc
+JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
 WHERE
-    "dispatcherId" IS NOT NULL
-    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-    AND "isActive" = true
-    AND "isPaused" = false
-GROUP BY "tenantId"
+    w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+GROUP BY wc.tenant_id
 `
 
 type ListTotalActiveSlotsPerTenantRow struct {
@@ -834,30 +849,87 @@ func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid uuid.U
 	return items, nil
 }
 
+const listWorkerSlotCapacities = `-- name: ListWorkerSlotCapacities :many
+SELECT
+    worker_id,
+    slot_type,
+    max_units
+FROM
+    v1_worker_slot_capacity
+WHERE
+    tenant_id = $1::uuid
+    AND worker_id = ANY($2::uuid[])
+`
+
+type ListWorkerSlotCapacitiesParams struct {
+	Tenantid  uuid.UUID   `json:"tenantid"`
+	Workerids []uuid.UUID `json:"workerids"`
+}
+
+type ListWorkerSlotCapacitiesRow struct {
+	WorkerID uuid.UUID `json:"worker_id"`
+	SlotType string    `json:"slot_type"`
+	MaxUnits int32     `json:"max_units"`
+}
+
+func (q *Queries) ListWorkerSlotCapacities(ctx context.Context, db DBTX, arg ListWorkerSlotCapacitiesParams) ([]*ListWorkerSlotCapacitiesRow, error) {
+	rows, err := db.Query(ctx, listWorkerSlotCapacities, arg.Tenantid, arg.Workerids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListWorkerSlotCapacitiesRow
+	for rows.Next() {
+		var i ListWorkerSlotCapacitiesRow
+		if err := rows.Scan(&i.WorkerID, &i.SlotType, &i.MaxUnits); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkersWithSlotCount = `-- name: ListWorkersWithSlotCount :many
 SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."durableMaxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId", workers.language, workers."languageVersion", workers.os, workers."runtimeExtra", workers."sdkVersion",
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
-    workers."maxRuns" - (
-        SELECT COUNT(*)
-        FROM v1_task_runtime runtime
+    COALESCE((
+        SELECT COALESCE(cap.max_units, 0)
+        FROM v1_worker_slot_capacity cap
+        WHERE
+            cap.tenant_id = workers."tenantId"
+            AND cap.worker_id = workers."id"
+            AND cap.slot_type = 'default'::text
+    ) - (
+        SELECT COALESCE(SUM(runtime.units), 0)
+        FROM v1_task_runtime_slot runtime
         WHERE
             runtime.tenant_id = workers."tenantId" AND
             runtime.worker_id = workers."id" AND
-            runtime.slot_group = 'SLOTS'::v1_worker_slot_group
-    ) AS "remainingSlots"
+            runtime.slot_type = 'default'::text
+    ), 0)::int AS "remainingSlots"
     ,
-    (
-        workers."durableMaxRuns" - (
-            SELECT COUNT(*)
-            FROM v1_task_runtime runtime
+    COALESCE((
+        (
+            SELECT COALESCE(cap.max_units, 0)
+            FROM v1_worker_slot_capacity cap
+            WHERE
+                cap.tenant_id = workers."tenantId"
+                AND cap.worker_id = workers."id"
+                AND cap.slot_type = 'durable'::text
+        ) - (
+            SELECT COALESCE(SUM(runtime.units), 0)
+            FROM v1_task_runtime_slot runtime
             WHERE
                 runtime.tenant_id = workers."tenantId" AND
                 runtime.worker_id = workers."id" AND
-                runtime.slot_group = 'DURABLE_SLOTS'::v1_worker_slot_group
+                runtime.slot_type = 'durable'::text
         )
-    )::int AS "remainingDurableSlots"
+    ), 0)::int AS "remainingDurableSlots"
 FROM
     "Worker" workers
 LEFT JOIN
@@ -1200,4 +1272,43 @@ func (q *Queries) UpsertWorkerLabel(ctx context.Context, db DBTX, arg UpsertWork
 		&i.IntValue,
 	)
 	return &i, err
+}
+
+const upsertWorkerSlotCapacities = `-- name: UpsertWorkerSlotCapacities :exec
+INSERT INTO v1_worker_slot_capacity (
+    tenant_id,
+    worker_id,
+    slot_type,
+    max_units,
+    created_at,
+    updated_at
+)
+SELECT
+    $1::uuid,
+    $2::uuid,
+    unnest($3::text[]),
+    unnest($4::integer[]),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+ON CONFLICT (tenant_id, worker_id, slot_type) DO UPDATE
+SET
+    max_units = EXCLUDED.max_units,
+    updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertWorkerSlotCapacitiesParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Workerid  uuid.UUID `json:"workerid"`
+	Slottypes []string  `json:"slottypes"`
+	Maxunits  []int32   `json:"maxunits"`
+}
+
+func (q *Queries) UpsertWorkerSlotCapacities(ctx context.Context, db DBTX, arg UpsertWorkerSlotCapacitiesParams) error {
+	_, err := db.Exec(ctx, upsertWorkerSlotCapacities,
+		arg.Tenantid,
+		arg.Workerid,
+		arg.Slottypes,
+		arg.Maxunits,
+	)
+	return err
 }

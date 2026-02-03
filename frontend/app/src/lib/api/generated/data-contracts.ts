@@ -1558,6 +1558,8 @@ export interface Step {
   timeout?: string;
   /** Whether the step is durable. */
   isDurable?: boolean;
+  /** Slot requirements for the step (slot_type -> units). */
+  slotRequirements?: Record<string, number>;
   children?: string[];
   parents?: string[];
 }
@@ -2136,6 +2138,14 @@ export interface RecentStepRuns {
   workflowRunId: string;
 }
 
+/** Slot availability and limits for a slot type. */
+export interface WorkerSlotCapacity {
+  /** The number of available units for this slot type. */
+  available?: number;
+  /** The maximum number of units for this slot type. */
+  limit: number;
+}
+
 export interface WorkerLabel {
   metadata: APIResourceMeta;
   /** The key of the label. */
@@ -2179,14 +2189,8 @@ export interface Worker {
   recentStepRuns?: RecentStepRuns[];
   /** The status of the worker. */
   status?: "ACTIVE" | "INACTIVE" | "PAUSED";
-  /** The maximum number of runs this worker can execute concurrently. */
-  maxRuns?: number;
-  /** The number of runs this worker can execute concurrently. */
-  availableRuns?: number;
-  /** The maximum number of durable runs this worker can execute concurrently. */
-  durableMaxRuns?: number;
-  /** The number of durable runs this worker can execute concurrently. */
-  durableAvailableRuns?: number;
+  /** Slot availability and limits for this worker (slot_type -> { available, limit }). */
+  slotCapacities?: Record<string, WorkerSlotCapacity>;
   /**
    * the id of the assigned dispatcher, in UUID format
    * @format uuid
