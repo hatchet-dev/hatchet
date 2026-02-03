@@ -563,7 +563,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	task, err := s.getSingleTask(ctx, tenant.ID, taskRunId, skipCache)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not get task %s: %w", request.TaskRunId, err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid task run id %s: %v", request.TaskRunId, err)
 	}
 
 	retryCount := task.RetryCount

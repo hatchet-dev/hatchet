@@ -6,7 +6,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 

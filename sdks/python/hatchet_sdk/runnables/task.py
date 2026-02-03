@@ -505,6 +505,8 @@ class Task(Generic[TWorkflowInput, R]):
             lifespan_context=lifespan_context,
             log_sender=AsyncLogSender(self.workflow.client._client.event),
             max_attempts=self.retries + 1,
+            task_name=self.name,
+            workflow_name=self.workflow.name,
         )
 
     def mock_run(
