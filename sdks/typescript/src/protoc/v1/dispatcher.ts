@@ -36,6 +36,24 @@ export interface DurableEvent {
   data: Uint8Array;
 }
 
+export interface GetDurableEventLogRequest {
+  externalId: string;
+  key: string;
+}
+
+export interface GetDurableEventLogResponse {
+  found: boolean;
+  data: Uint8Array;
+}
+
+export interface CreateDurableEventLogRequest {
+  externalId: string;
+  key: string;
+  data: Uint8Array;
+}
+
+export interface CreateDurableEventLogResponse {}
+
 function createBaseRegisterDurableEventRequest(): RegisterDurableEventRequest {
   return { taskId: '', signalKey: '', conditions: undefined };
 }
@@ -350,6 +368,305 @@ export const DurableEvent: MessageFns<DurableEvent> = {
   },
 };
 
+function createBaseGetDurableEventLogRequest(): GetDurableEventLogRequest {
+  return { externalId: '', key: '' };
+}
+
+export const GetDurableEventLogRequest: MessageFns<GetDurableEventLogRequest> = {
+  encode(
+    message: GetDurableEventLogRequest,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.externalId !== '') {
+      writer.uint32(10).string(message.externalId);
+    }
+    if (message.key !== '') {
+      writer.uint32(18).string(message.key);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetDurableEventLogRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetDurableEventLogRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.externalId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetDurableEventLogRequest {
+    return {
+      externalId: isSet(object.externalId) ? globalThis.String(object.externalId) : '',
+      key: isSet(object.key) ? globalThis.String(object.key) : '',
+    };
+  },
+
+  toJSON(message: GetDurableEventLogRequest): unknown {
+    const obj: any = {};
+    if (message.externalId !== '') {
+      obj.externalId = message.externalId;
+    }
+    if (message.key !== '') {
+      obj.key = message.key;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetDurableEventLogRequest>): GetDurableEventLogRequest {
+    return GetDurableEventLogRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetDurableEventLogRequest>): GetDurableEventLogRequest {
+    const message = createBaseGetDurableEventLogRequest();
+    message.externalId = object.externalId ?? '';
+    message.key = object.key ?? '';
+    return message;
+  },
+};
+
+function createBaseGetDurableEventLogResponse(): GetDurableEventLogResponse {
+  return { found: false, data: new Uint8Array(0) };
+}
+
+export const GetDurableEventLogResponse: MessageFns<GetDurableEventLogResponse> = {
+  encode(
+    message: GetDurableEventLogResponse,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.found !== false) {
+      writer.uint32(8).bool(message.found);
+    }
+    if (message.data.length !== 0) {
+      writer.uint32(18).bytes(message.data);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetDurableEventLogResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetDurableEventLogResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.found = reader.bool();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.data = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetDurableEventLogResponse {
+    return {
+      found: isSet(object.found) ? globalThis.Boolean(object.found) : false,
+      data: isSet(object.data) ? bytesFromBase64(object.data) : new Uint8Array(0),
+    };
+  },
+
+  toJSON(message: GetDurableEventLogResponse): unknown {
+    const obj: any = {};
+    if (message.found !== false) {
+      obj.found = message.found;
+    }
+    if (message.data.length !== 0) {
+      obj.data = base64FromBytes(message.data);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetDurableEventLogResponse>): GetDurableEventLogResponse {
+    return GetDurableEventLogResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetDurableEventLogResponse>): GetDurableEventLogResponse {
+    const message = createBaseGetDurableEventLogResponse();
+    message.found = object.found ?? false;
+    message.data = object.data ?? new Uint8Array(0);
+    return message;
+  },
+};
+
+function createBaseCreateDurableEventLogRequest(): CreateDurableEventLogRequest {
+  return { externalId: '', key: '', data: new Uint8Array(0) };
+}
+
+export const CreateDurableEventLogRequest: MessageFns<CreateDurableEventLogRequest> = {
+  encode(
+    message: CreateDurableEventLogRequest,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.externalId !== '') {
+      writer.uint32(10).string(message.externalId);
+    }
+    if (message.key !== '') {
+      writer.uint32(18).string(message.key);
+    }
+    if (message.data.length !== 0) {
+      writer.uint32(26).bytes(message.data);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateDurableEventLogRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateDurableEventLogRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.externalId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.data = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CreateDurableEventLogRequest {
+    return {
+      externalId: isSet(object.externalId) ? globalThis.String(object.externalId) : '',
+      key: isSet(object.key) ? globalThis.String(object.key) : '',
+      data: isSet(object.data) ? bytesFromBase64(object.data) : new Uint8Array(0),
+    };
+  },
+
+  toJSON(message: CreateDurableEventLogRequest): unknown {
+    const obj: any = {};
+    if (message.externalId !== '') {
+      obj.externalId = message.externalId;
+    }
+    if (message.key !== '') {
+      obj.key = message.key;
+    }
+    if (message.data.length !== 0) {
+      obj.data = base64FromBytes(message.data);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<CreateDurableEventLogRequest>): CreateDurableEventLogRequest {
+    return CreateDurableEventLogRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<CreateDurableEventLogRequest>): CreateDurableEventLogRequest {
+    const message = createBaseCreateDurableEventLogRequest();
+    message.externalId = object.externalId ?? '';
+    message.key = object.key ?? '';
+    message.data = object.data ?? new Uint8Array(0);
+    return message;
+  },
+};
+
+function createBaseCreateDurableEventLogResponse(): CreateDurableEventLogResponse {
+  return {};
+}
+
+export const CreateDurableEventLogResponse: MessageFns<CreateDurableEventLogResponse> = {
+  encode(
+    _: CreateDurableEventLogResponse,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateDurableEventLogResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateDurableEventLogResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): CreateDurableEventLogResponse {
+    return {};
+  },
+
+  toJSON(_: CreateDurableEventLogResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create(base?: DeepPartial<CreateDurableEventLogResponse>): CreateDurableEventLogResponse {
+    return CreateDurableEventLogResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<CreateDurableEventLogResponse>): CreateDurableEventLogResponse {
+    const message = createBaseCreateDurableEventLogResponse();
+    return message;
+  },
+};
+
 export type V1DispatcherDefinition = typeof V1DispatcherDefinition;
 export const V1DispatcherDefinition = {
   name: 'V1Dispatcher',
@@ -371,6 +688,22 @@ export const V1DispatcherDefinition = {
       responseStream: true,
       options: {},
     },
+    getDurableEventLog: {
+      name: 'GetDurableEventLog',
+      requestType: GetDurableEventLogRequest,
+      requestStream: false,
+      responseType: GetDurableEventLogResponse,
+      responseStream: false,
+      options: {},
+    },
+    createDurableEventLog: {
+      name: 'CreateDurableEventLog',
+      requestType: CreateDurableEventLogRequest,
+      requestStream: false,
+      responseType: CreateDurableEventLogResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -383,6 +716,14 @@ export interface V1DispatcherServiceImplementation<CallContextExt = {}> {
     request: AsyncIterable<ListenForDurableEventRequest>,
     context: CallContext & CallContextExt
   ): ServerStreamingMethodResult<DeepPartial<DurableEvent>>;
+  getDurableEventLog(
+    request: GetDurableEventLogRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<GetDurableEventLogResponse>>;
+  createDurableEventLog(
+    request: CreateDurableEventLogRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<CreateDurableEventLogResponse>>;
 }
 
 export interface V1DispatcherClient<CallOptionsExt = {}> {
@@ -394,6 +735,14 @@ export interface V1DispatcherClient<CallOptionsExt = {}> {
     request: AsyncIterable<DeepPartial<ListenForDurableEventRequest>>,
     options?: CallOptions & CallOptionsExt
   ): AsyncIterable<DurableEvent>;
+  getDurableEventLog(
+    request: DeepPartial<GetDurableEventLogRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<GetDurableEventLogResponse>;
+  createDurableEventLog(
+    request: DeepPartial<CreateDurableEventLogRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<CreateDurableEventLogResponse>;
 }
 
 function bytesFromBase64(b64: string): Uint8Array {

@@ -3,7 +3,12 @@ import { Channel, ClientFactory } from 'nice-grpc';
 
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
-import { V1DispatcherClient, V1DispatcherDefinition } from '@hatchet/protoc/v1/dispatcher';
+import {
+  GetDurableEventLogResponse,
+  CreateDurableEventLogResponse,
+  V1DispatcherClient,
+  V1DispatcherDefinition,
+} from '@hatchet/protoc/v1/dispatcher';
 import { SleepMatchCondition, UserEventMatchCondition } from '@hatchet/protoc/v1/shared/condition';
 import { Api } from '../../rest';
 import { DurableEventGrpcPooledListener } from './pooled-durable-listener-client';
@@ -46,5 +51,20 @@ export class DurableListenerClient {
     }
 
     return this.pooledListener.registerDurableEvent(request);
+  }
+
+  async getDurableEventLog(request: {
+    externalId: string;
+    key: string;
+  }): Promise<GetDurableEventLogResponse> {
+    return this.client.getDurableEventLog(request);
+  }
+
+  async createDurableEventLog(request: {
+    externalId: string;
+    key: string;
+    data: Uint8Array;
+  }): Promise<CreateDurableEventLogResponse> {
+    return this.client.createDurableEventLog(request);
   }
 }

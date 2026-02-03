@@ -1,5 +1,7 @@
 import asyncio
+import hashlib
 import json
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
@@ -31,6 +33,13 @@ from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogReco
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
     from hatchet_sdk.runnables.types import R, TWorkflowInput
+
+
+def _compute_memo_key(step_name: str, deps: list[Any]) -> str:
+    h = hashlib.sha256()
+    h.update(step_name.encode())
+    h.update(json.dumps(deps).encode())
+    return h.hexdigest()
 
 
 class Context:
@@ -504,3 +513,31 @@ class DurableContext(Context):
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
         )
+
+    async def aio_memo(
+        self, fn: Callable[[], Awaitable[Any]], deps: list[Any]
+    ) -> Any:
+        if self.durable_event_listener is None:
+            raise ValueError("Durable event listener is not available")
+
+        key = _compute_memo_key(self.action.action_id, deps)
+
+        resp = self.durable_event_listener.get_durable_event_log(
+            external_id=self.workflow_run_id,
+            key=key,
+        )
+
+        if resp.found:
+            return json.loads(resp.data)
+
+        result = await fn()
+
+        data = json.dumps(result).encode()
+
+        self.durable_event_listener.create_durable_event_log(
+            external_id=self.workflow_run_id,
+            key=key,
+            data=data,
+        )
+
+        return result

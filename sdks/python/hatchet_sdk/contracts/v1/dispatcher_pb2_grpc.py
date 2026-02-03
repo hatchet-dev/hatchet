@@ -28,7 +28,7 @@ if _version_not_supported:
 class V1DispatcherStub(object):
     """Missing associated documentation comment in .proto file."""
 
-    def __init__(self, channel: grpc.Channel | grpc.aio.Channel) -> None:
+    def __init__(self, channel):
         """Constructor.
 
         Args:
@@ -43,6 +43,16 @@ class V1DispatcherStub(object):
                 '/v1.V1Dispatcher/ListenForDurableEvent',
                 request_serializer=v1_dot_dispatcher__pb2.ListenForDurableEventRequest.SerializeToString,
                 response_deserializer=v1_dot_dispatcher__pb2.DurableEvent.FromString,
+                _registered_method=True)
+        self.GetDurableEventLog = channel.unary_unary(
+                '/v1.V1Dispatcher/GetDurableEventLog',
+                request_serializer=v1_dot_dispatcher__pb2.GetDurableEventLogRequest.SerializeToString,
+                response_deserializer=v1_dot_dispatcher__pb2.GetDurableEventLogResponse.FromString,
+                _registered_method=True)
+        self.CreateDurableEventLog = channel.unary_unary(
+                '/v1.V1Dispatcher/CreateDurableEventLog',
+                request_serializer=v1_dot_dispatcher__pb2.CreateDurableEventLogRequest.SerializeToString,
+                response_deserializer=v1_dot_dispatcher__pb2.CreateDurableEventLogResponse.FromString,
                 _registered_method=True)
 
 
@@ -61,6 +71,18 @@ class V1DispatcherServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetDurableEventLog(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateDurableEventLog(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_V1DispatcherServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -73,6 +95,16 @@ def add_V1DispatcherServicer_to_server(servicer, server):
                     servicer.ListenForDurableEvent,
                     request_deserializer=v1_dot_dispatcher__pb2.ListenForDurableEventRequest.FromString,
                     response_serializer=v1_dot_dispatcher__pb2.DurableEvent.SerializeToString,
+            ),
+            'GetDurableEventLog': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetDurableEventLog,
+                    request_deserializer=v1_dot_dispatcher__pb2.GetDurableEventLogRequest.FromString,
+                    response_serializer=v1_dot_dispatcher__pb2.GetDurableEventLogResponse.SerializeToString,
+            ),
+            'CreateDurableEventLog': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateDurableEventLog,
+                    request_deserializer=v1_dot_dispatcher__pb2.CreateDurableEventLogRequest.FromString,
+                    response_serializer=v1_dot_dispatcher__pb2.CreateDurableEventLogResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -129,6 +161,60 @@ class V1Dispatcher(object):
             '/v1.V1Dispatcher/ListenForDurableEvent',
             v1_dot_dispatcher__pb2.ListenForDurableEventRequest.SerializeToString,
             v1_dot_dispatcher__pb2.DurableEvent.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetDurableEventLog(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/v1.V1Dispatcher/GetDurableEventLog',
+            v1_dot_dispatcher__pb2.GetDurableEventLogRequest.SerializeToString,
+            v1_dot_dispatcher__pb2.GetDurableEventLogResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateDurableEventLog(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/v1.V1Dispatcher/CreateDurableEventLog',
+            v1_dot_dispatcher__pb2.CreateDurableEventLogRequest.SerializeToString,
+            v1_dot_dispatcher__pb2.CreateDurableEventLogResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -12,7 +12,10 @@ from hatchet_sdk.conditions import Condition, SleepCondition, UserEventCondition
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
+    CreateDurableEventLogRequest,
     DurableEvent,
+    GetDurableEventLogRequest,
+    GetDurableEventLogResponse,
     ListenForDurableEventRequest,
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
@@ -120,6 +123,45 @@ class DurableEventListener(
         )
 
         return True
+
+    def get_durable_event_log(
+        self, external_id: str, key: str
+    ) -> GetDurableEventLogResponse:
+        conn = new_conn(self.config, True)
+        client = V1DispatcherStub(conn)
+
+        get_durable_event_log = tenacity_retry(
+            client.GetDurableEventLog, self.config.tenacity
+        )
+
+        return get_durable_event_log(
+            GetDurableEventLogRequest(
+                external_id=external_id,
+                key=key,
+            ),
+            timeout=5,
+            metadata=get_metadata(self.token),
+        )
+
+    def create_durable_event_log(
+        self, external_id: str, key: str, data: bytes
+    ) -> None:
+        conn = new_conn(self.config, True)
+        client = V1DispatcherStub(conn)
+
+        create_durable_event_log = tenacity_retry(
+            client.CreateDurableEventLog, self.config.tenacity
+        )
+
+        create_durable_event_log(
+            CreateDurableEventLogRequest(
+                external_id=external_id,
+                key=key,
+                data=data,
+            ),
+            timeout=5,
+            metadata=get_metadata(self.token),
+        )
 
     async def result(self, task_id: str, signal_key: str) -> dict[str, Any]:
         key = self._generate_key(task_id, signal_key)
