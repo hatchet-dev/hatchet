@@ -210,6 +210,21 @@ type RefreshTimeoutBy struct {
 	IncrementTimeoutBy string `validate:"required,duration"`
 }
 
+// ConcurrencySlotStatus represents the real-time status of a task in a concurrency queue
+type ConcurrencySlotStatus struct {
+	Key                     string
+	Expression              string
+	PendingTaskExternalIds  []string
+	PendingTaskDisplayNames []string
+	RunningTaskExternalIds  []string
+	RunningTaskDisplayNames []string
+	MaxConcurrency          int32
+	QueuePosition           int32
+	PendingCount            int32
+	RunningCount            int32
+	IsFilled                bool
+}
+
 type TaskRepository interface {
 	EnsureTablePartitionsExist(ctx context.Context) (bool, error)
 	UpdateTablePartitions(ctx context.Context) error
@@ -272,6 +287,9 @@ type TaskRepository interface {
 
 	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
 	GetWorkflowRunResultDetails(ctx context.Context, tenantId string, externalId string) (*WorkflowRunDetails, error)
+
+	// GetConcurrencySlotStatus returns the current concurrency queue status for a task
+	GetConcurrencySlotStatus(ctx context.Context, tenantId string, taskId int64, taskInsertedAt time.Time) ([]*ConcurrencySlotStatus, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -4161,4 +4179,53 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		ReadableIdToDetails: taskRunDetails,
 		AdditionalMetadata:  additionalMeta,
 	}, nil
+}
+
+func (r *TaskRepositoryImpl) GetConcurrencySlotStatus(ctx context.Context, tenantId string, taskId int64, taskInsertedAt time.Time) ([]*ConcurrencySlotStatus, error) {
+	rows, err := r.queries.GetConcurrencySlotStatus(ctx, r.pool, sqlcv1.GetConcurrencySlotStatusParams{
+		Taskid: taskId,
+		Taskinsertedat: pgtype.Timestamptz{
+			Time:  taskInsertedAt,
+			Valid: true,
+		},
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get concurrency slot status: %w", err)
+	}
+
+	result := make([]*ConcurrencySlotStatus, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &ConcurrencySlotStatus{
+			Key:                     row.Key,
+			Expression:              row.Expression,
+			MaxConcurrency:          row.MaxConcurrency,
+			IsFilled:                row.IsFilled,
+			QueuePosition:           row.QueuePosition,
+			PendingCount:            row.PendingCount,
+			RunningCount:            row.RunningCount,
+			PendingTaskExternalIds:  pgtypeUUIDsToStrings(row.PendingTaskExternalIds),
+			PendingTaskDisplayNames: row.PendingTaskDisplayNames,
+			RunningTaskExternalIds:  pgtypeUUIDsToStrings(row.RunningTaskExternalIds),
+			RunningTaskDisplayNames: row.RunningTaskDisplayNames,
+		})
+	}
+
+	return result, nil
+}
+
+// pgtypeUUIDsToStrings converts a slice of pgtype.UUID to a slice of strings.
+// Returns an empty slice if the input is nil.
+func pgtypeUUIDsToStrings(uuids []pgtype.UUID) []string {
+	if uuids == nil {
+		return []string{}
+	}
+	result := make([]string, 0, len(uuids))
+	for _, u := range uuids {
+		if u.Valid {
+			result = append(result, sqlchelpers.UUIDToStr(u))
+		}
+	}
+	return result
 }
