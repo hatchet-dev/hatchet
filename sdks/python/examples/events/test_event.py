@@ -19,11 +19,11 @@ from examples.events.worker import (
 from hatchet_sdk.clients.events import (
     BulkPushEventOptions,
     BulkPushEventWithMetadata,
+    Event,
     PushEventOptions,
 )
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
-from hatchet_sdk.contracts.events_pb2 import Event
 from hatchet_sdk.hatchet import Hatchet
 
 
@@ -165,7 +165,12 @@ async def wait_for_result_and_assert(hatchet: Hatchet, events: list[Event]) -> N
     unique_events_with_runs = {
         event.event_id
         for event in events
-        if json.loads(event.additional_metadata).get("should_have_runs", False) is True
+        if (
+            json.loads(event.additional_metadata)
+            if isinstance(event.additional_metadata, str)
+            else {}
+        ).get("should_have_runs", False)
+        is True
     }
 
     unique_events_with_runs_in_results = {
