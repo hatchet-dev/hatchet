@@ -468,7 +468,7 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 			mc.l.Info().Int("tenant_count", len(activeSlots)).Msg("recording active slots metrics")
 			for tenantId, count := range activeSlots {
 				mc.recorder.RecordActiveSlots(ctx, tenantId, count)
-				mc.l.Debug().Str("tenant_id", tenantId).Int64("count", count).Msg("recorded active slots metric")
+				mc.l.Debug().Str("tenant_id", tenantId.String()).Int64("count", count).Msg("recorded active slots metric")
 			}
 		}
 
@@ -483,7 +483,7 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 			mc.l.Info().Int("tenant_count", len(activeWorkers)).Msg("recording active workers metrics")
 			for tenantId, count := range activeWorkers {
 				mc.recorder.RecordActiveWorkers(ctx, tenantId, count)
-				mc.l.Debug().Str("tenant_id", tenantId).Int64("count", count).Msg("recorded active workers metric")
+				mc.l.Debug().Str("tenant_id", tenantId.String()).Int64("count", count).Msg("recorded active workers metric")
 			}
 		}
 
@@ -506,7 +506,7 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 				}
 				mc.recorder.RecordActiveSDKs(ctx, tuple.TenantId, sdkInfo, count)
 				mc.l.Debug().
-					Str("tenant_id", tuple.TenantId).
+					Str("tenant_id", tuple.TenantId.String()).
 					Int64("count", count).
 					Str("sdk_language", sdkInfo.Language).
 					Str("sdk_version", sdkInfo.SdkVersion).

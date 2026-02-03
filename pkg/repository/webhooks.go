@@ -4,19 +4,19 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type WebhookRepository interface {
-	CreateWebhook(ctx context.Context, tenantId string, params CreateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error)
-	ListWebhooks(ctx context.Context, tenantId string, params ListWebhooksOpts) ([]*sqlcv1.V1IncomingWebhook, error)
-	DeleteWebhook(ctx context.Context, tenantId, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
-	GetWebhook(ctx context.Context, tenantId, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
-	CanCreate(ctx context.Context, tenantId string, webhookLimit int32) (bool, error)
-	UpdateWebhook(ctx context.Context, tenantId string, webhookId, newExpression string) (*sqlcv1.V1IncomingWebhook, error)
+	CreateWebhook(ctx context.Context, tenantId uuid.UUID, params CreateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error)
+	ListWebhooks(ctx context.Context, tenantId uuid.UUID, params ListWebhooksOpts) ([]*sqlcv1.V1IncomingWebhook, error)
+	DeleteWebhook(ctx context.Context, tenantId uuid.UUID, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
+	GetWebhook(ctx context.Context, tenantId uuid.UUID, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
+	CanCreate(ctx context.Context, tenantId uuid.UUID, webhookLimit int32) (bool, error)
+	UpdateWebhook(ctx context.Context, tenantId uuid.UUID, webhookId, newExpression string) (*sqlcv1.V1IncomingWebhook, error)
 }
 
 type webhookRepository struct {
@@ -91,14 +91,14 @@ func (ac *AuthConfig) Validate() error {
 }
 
 type CreateWebhookOpts struct {
-	Tenantid           pgtype.UUID                        `json:"tenantid"`
+	Tenantid           uuid.UUID                          `json:"tenantid"`
 	Sourcename         sqlcv1.V1IncomingWebhookSourceName `json:"sourcename"`
 	Name               string                             `json:"name" validate:"required"`
 	Eventkeyexpression string                             `json:"eventkeyexpression"`
 	AuthConfig         AuthConfig                         `json:"auth_config,omitempty"`
 }
 
-func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, opts CreateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error) {
+func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId uuid.UUID, opts CreateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, 
 	}
 
 	params := sqlcv1.CreateWebhookParams{
-		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:           tenantId,
 		Sourcename:         sqlcv1.V1IncomingWebhookSourceName(opts.Sourcename),
 		Name:               opts.Name,
 		Eventkeyexpression: opts.Eventkeyexpression,
@@ -157,7 +157,7 @@ type ListWebhooksOpts struct {
 	Offset             *int64                               `json:"offset" validate:"omitnil,min=0"`
 }
 
-func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId string, opts ListWebhooksOpts) ([]*sqlcv1.V1IncomingWebhook, error) {
+func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId uuid.UUID, opts ListWebhooksOpts) ([]*sqlcv1.V1IncomingWebhook, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId string, o
 	}
 
 	return r.queries.ListWebhooks(ctx, r.pool, sqlcv1.ListWebhooksParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:      tenantId,
 		Webhooknames:  opts.WebhookNames,
 		Sourcenames:   opts.WebhookSourceNames,
 		WebhookLimit:  limit,
@@ -189,30 +189,30 @@ func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId string, o
 
 }
 
-func (r *webhookRepository) DeleteWebhook(ctx context.Context, tenantId, name string) (*sqlcv1.V1IncomingWebhook, error) {
+func (r *webhookRepository) DeleteWebhook(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1IncomingWebhook, error) {
 	return r.queries.DeleteWebhook(ctx, r.pool, sqlcv1.DeleteWebhookParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: tenantId,
 		Name:     name,
 	})
 }
 
-func (r *webhookRepository) GetWebhook(ctx context.Context, tenantId, name string) (*sqlcv1.V1IncomingWebhook, error) {
+func (r *webhookRepository) GetWebhook(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1IncomingWebhook, error) {
 	return r.queries.GetWebhook(ctx, r.pool, sqlcv1.GetWebhookParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: tenantId,
 		Name:     name,
 	})
 }
 
-func (r *webhookRepository) CanCreate(ctx context.Context, tenantId string, webhookLimit int32) (bool, error) {
+func (r *webhookRepository) CanCreate(ctx context.Context, tenantId uuid.UUID, webhookLimit int32) (bool, error) {
 	return r.queries.CanCreateWebhook(ctx, r.pool, sqlcv1.CanCreateWebhookParams{
-		Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:     tenantId,
 		Webhooklimit: webhookLimit,
 	})
 }
 
-func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId string, webhookName, newExpression string) (*sqlcv1.V1IncomingWebhook, error) {
+func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId uuid.UUID, webhookName, newExpression string) (*sqlcv1.V1IncomingWebhook, error) {
 	return r.queries.UpdateWebhookExpression(ctx, r.pool, sqlcv1.UpdateWebhookExpressionParams{
-		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:           tenantId,
 		Webhookname:        webhookName,
 		Eventkeyexpression: newExpression,
 	})

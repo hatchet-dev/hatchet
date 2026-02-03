@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // nolint: staticcheck
@@ -79,7 +81,7 @@ type msgWithErrCh struct {
 }
 
 func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait bool) error {
-	if msg.TenantID == "" {
+	if msg.TenantID == uuid.Nil {
 		return nil
 	}
 
@@ -116,12 +118,12 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait b
 	return nil
 }
 
-func getPubKey(q Queue, tenantId, msgId string) string {
-	return q.Name() + tenantId + msgId
+func getPubKey(q Queue, tenantId uuid.UUID, msgId string) string {
+	return q.Name() + tenantId.String() + msgId
 }
 
 type msgIdPubBuffer struct {
-	tenantId string
+	tenantId uuid.UUID
 	msgId    string
 
 	msgIdPubBufferCh chan *msgWithErrCh
@@ -135,7 +137,7 @@ type msgIdPubBuffer struct {
 	serialize func(t any) ([]byte, error)
 }
 
-func newMsgIDPubBuffer(ctx context.Context, tenantID, msgID string, pub PubFunc) *msgIdPubBuffer {
+func newMsgIDPubBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, pub PubFunc) *msgIdPubBuffer {
 	b := &msgIdPubBuffer{
 		tenantId:         tenantID,
 		msgId:            msgID,

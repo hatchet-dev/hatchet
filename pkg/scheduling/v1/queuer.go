@@ -6,12 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -19,7 +18,7 @@ import (
 type Queuer struct {
 	repo       v1.QueueRepository
 	optimistic v1.OptimisticSchedulingRepository
-	tenantId   pgtype.UUID
+	tenantId   uuid.UUID
 	queueName  string
 
 	l *zerolog.Logger
@@ -49,7 +48,7 @@ type Queuer struct {
 	hasRateLimits bool
 }
 
-func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
+func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
 	defaultLimit := 100
 
 	if conf.singleQueueLimit > 0 {
@@ -188,7 +187,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		rateLimitTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		stepIds := make([]pgtype.UUID, 0, len(qis))
+		stepIds := make([]uuid.UUID, 0, len(qis))
 
 		for _, qi := range qis {
 			stepIds = append(stepIds, qi.StepID)
@@ -382,7 +381,7 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*sqlcv1.V1QueueItem, error)
 }
 
 type QueueResults struct {
-	TenantId pgtype.UUID
+	TenantId uuid.UUID
 	Assigned []*v1.AssignedItem
 
 	Unassigned         []*sqlcv1.V1QueueItem
@@ -575,7 +574,7 @@ func (q *Queuer) runOptimisticQueue(
 	ctx context.Context,
 	tx *v1.OptimisticTx,
 	qis []*sqlcv1.V1QueueItem,
-	localWorkerIds map[string]struct{},
+	localWorkerIds map[uuid.UUID]struct{},
 ) ([]*v1.AssignedItem, []*QueueResults, error) {
 	rls, err := q.repo.GetTaskRateLimits(ctx, tx, qis)
 
@@ -583,7 +582,7 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	stepIds := make([]pgtype.UUID, 0, len(qis))
+	stepIds := make([]uuid.UUID, 0, len(qis))
 
 	for _, qi := range qis {
 		stepIds = append(stepIds, qi.StepID)
@@ -619,7 +618,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 	ctx context.Context,
 	r *assignResults,
 	tx *v1.OptimisticTx,
-	localWorkerIds map[string]struct{},
+	localWorkerIds map[uuid.UUID]struct{},
 ) ([]*v1.AssignedItem, *QueueResults, error) {
 	begin := time.Now()
 
@@ -726,7 +725,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 	succeededLocal := make([]*v1.AssignedItem, 0, len(succeeded))
 
 	for _, assignedItem := range succeeded {
-		workerId := sqlchelpers.UUIDToStr(assignedItem.WorkerId)
+		workerId := assignedItem.WorkerId
 
 		if _, ok := localWorkerIds[workerId]; ok {
 			assignedItem.IsAssignedLocally = true

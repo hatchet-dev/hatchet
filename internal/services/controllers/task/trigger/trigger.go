@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 
@@ -48,7 +49,7 @@ func NewTriggerWriter(mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.L
 	}
 }
 
-func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId string, eventIdToOpts map[string]v1.EventTriggerOpts) error {
+func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, eventIdToOpts map[uuid.UUID]v1.EventTriggerOpts) error {
 	// attempt to acquire a slot in the semaphore
 	if tw.semaphore != nil {
 		select {
@@ -73,7 +74,7 @@ func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId string,
 
 	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {
-			tw.l.Warn().Str("tenantId", tenantId).Msg("resource exhausted while calling TriggerFromEvents. Not retrying")
+			tw.l.Warn().Str("tenantId", tenantId.String()).Msg("resource exhausted while calling TriggerFromEvents. Not retrying")
 
 			return nil
 		}
@@ -109,7 +110,7 @@ func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId string,
 	return nil
 }
 
-func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*v1.WorkflowNameTriggerOpts) error {
+func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) error {
 	// attempt to acquire a slot in the semaphore
 	if tw.semaphore != nil {
 		select {
@@ -128,7 +129,7 @@ func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId 
 
 	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {
-			tw.l.Warn().Str("tenantId", tenantId).Msg("resource exhausted while calling TriggerFromWorkflowNames. Not retrying")
+			tw.l.Warn().Str("tenantId", tenantId.String()).Msg("resource exhausted while calling TriggerFromWorkflowNames. Not retrying")
 
 			return nil
 		}

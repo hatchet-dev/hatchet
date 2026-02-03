@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
@@ -13,7 +14,6 @@ import (
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -34,7 +34,7 @@ func NewOLAPSignaler(mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.Lo
 	}
 }
 
-func (s *OLAPSignaler) SignalDAGsCreated(ctx context.Context, tenantId string, dags []*v1.DAGWithData) error {
+func (s *OLAPSignaler) SignalDAGsCreated(ctx context.Context, tenantId uuid.UUID, dags []*v1.DAGWithData) error {
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?
 	for _, dag := range dags {
@@ -62,7 +62,7 @@ func (s *OLAPSignaler) SignalDAGsCreated(ctx context.Context, tenantId string, d
 	return nil
 }
 
-func (s *OLAPSignaler) SignalTasksCreated(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (s *OLAPSignaler) SignalTasksCreated(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	// group tasks by initial states
 	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
 	failedTasks := make([]*v1.V1TaskWithPayload, 0)
@@ -154,7 +154,7 @@ func (s *OLAPSignaler) SignalTasksCreated(ctx context.Context, tenantId string, 
 	return eg.Wait()
 }
 
-func (s *OLAPSignaler) SignalTasksUpdated(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (s *OLAPSignaler) SignalTasksUpdated(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	// group tasks by initial states
 	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
 	failedTasks := make([]*v1.V1TaskWithPayload, 0)
@@ -227,7 +227,7 @@ func (s *OLAPSignaler) SignalTasksUpdated(ctx context.Context, tenantId string, 
 	return eg.Wait()
 }
 
-func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	// get all unique queues and notify them
 	queues := make(map[string]struct{})
 
@@ -305,18 +305,18 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 		}
 	}()
 
 	return nil
 }
 
-func (s *OLAPSignaler) signalTasksCreatedAndCancelled(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (s *OLAPSignaler) signalTasksCreatedAndCancelled(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		taskExternalId := task.ExternalID
 
 		dataBytes := v1.NewCancelledTaskOutputEventFromTask(task).Bytes()
 
@@ -368,20 +368,20 @@ func (s *OLAPSignaler) signalTasksCreatedAndCancelled(ctx context.Context, tenan
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.CancelledTasks.Inc()
-			prometheus.TenantCancelledTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
 		}
 	}()
 
 	return nil
 }
 
-func (s *OLAPSignaler) signalTasksCreatedAndFailed(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (s *OLAPSignaler) signalTasksCreatedAndFailed(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		taskExternalId := task.ExternalID
 
 		dataBytes := v1.NewFailedTaskOutputEventFromTask(task).Bytes()
 
@@ -434,20 +434,20 @@ func (s *OLAPSignaler) signalTasksCreatedAndFailed(ctx context.Context, tenantId
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.FailedTasks.Inc()
-			prometheus.TenantFailedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
 		}
 	}()
 
 	return nil
 }
 
-func (s *OLAPSignaler) signalTasksCreatedAndSkipped(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (s *OLAPSignaler) signalTasksCreatedAndSkipped(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		taskExternalId := task.ExternalID
 
 		dataBytes := v1.NewSkippedTaskOutputEventFromTask(task).Bytes()
 
@@ -499,16 +499,16 @@ func (s *OLAPSignaler) signalTasksCreatedAndSkipped(ctx context.Context, tenantI
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.SkippedTasks.Inc()
-			prometheus.TenantSkippedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantSkippedTasks.WithLabelValues(tenantId.String()).Inc()
 		}
 	}()
 
 	return nil
 }
 
-func (s *OLAPSignaler) SignalTasksReplayed(ctx context.Context, tenantId string, tasks []v1.TaskIdInsertedAtRetryCount) error {
+func (s *OLAPSignaler) SignalTasksReplayed(ctx context.Context, tenantId uuid.UUID, tasks []v1.TaskIdInsertedAtRetryCount) error {
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?
 	for _, task := range tasks {
@@ -546,7 +546,7 @@ func (s *OLAPSignaler) SignalTasksReplayed(ctx context.Context, tenantId string,
 	return nil
 }
 
-func (s *OLAPSignaler) SignalTasksReplayedFromMatch(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
+func (s *OLAPSignaler) SignalTasksReplayedFromMatch(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
 	// group tasks by initial states
 	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
 	failedTasks := make([]*v1.V1TaskWithPayload, 0)
@@ -619,7 +619,7 @@ func (s *OLAPSignaler) SignalTasksReplayedFromMatch(ctx context.Context, tenantI
 	return eg.Wait()
 }
 
-func (s *OLAPSignaler) SendInternalEvents(ctx context.Context, tenantId string, events []v1.InternalTaskEvent) error {
+func (s *OLAPSignaler) SendInternalEvents(ctx context.Context, tenantId uuid.UUID, events []v1.InternalTaskEvent) error {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPSignaler.SendInternalEvents")
 	defer span.End()
 
@@ -645,7 +645,7 @@ func (s *OLAPSignaler) SendInternalEvents(ctx context.Context, tenantId string, 
 	)
 }
 
-func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId string, eventIdToOpts map[string]v1.EventTriggerOpts, eventIdsToRuns map[string][]*v1.Run) error {
+func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UUID, eventIdToOpts map[uuid.UUID]v1.EventTriggerOpts, eventIdsToRuns map[uuid.UUID][]*v1.Run) error {
 	eventTriggerOpts := make([]tasktypes.CreatedEventTriggerPayloadSingleton, 0)
 
 	// FIXME: Should `SeenAt` be set on the SDK when the event is created?
@@ -702,7 +702,7 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId string,
 	return nil
 }
 
-func (s *OLAPSignaler) SignalCELEvaluationFailures(ctx context.Context, tenantId string, failures []v1.CELEvaluationFailure) error {
+func (s *OLAPSignaler) SignalCELEvaluationFailures(ctx context.Context, tenantId uuid.UUID, failures []v1.CELEvaluationFailure) error {
 	evalFailuresMsg, err := tasktypes.CELEvaluationFailureMessage(
 		tenantId,
 		failures,

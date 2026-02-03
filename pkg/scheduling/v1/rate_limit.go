@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -24,7 +24,7 @@ type rateLimitSet map[string]*rateLimit
 type rateLimiter struct {
 	rateLimitRepo v1.RateLimitRepository
 
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	nextRefillAt   *time.Time
 	nextRefillAtMu sync.RWMutex
@@ -44,7 +44,7 @@ type rateLimiter struct {
 	cleanup func()
 }
 
-func newRateLimiter(conf *sharedConfig, tenantId pgtype.UUID) *rateLimiter {
+func newRateLimiter(conf *sharedConfig, tenantId uuid.UUID) *rateLimiter {
 	rl := &rateLimiter{
 		rateLimitRepo: conf.repo.RateLimit(),
 		tenantId:      tenantId,

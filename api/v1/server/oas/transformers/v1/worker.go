@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -19,9 +18,9 @@ func ToSlotState(slots []*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, remain
 		var stepRunId uuid.UUID
 		var workflowRunId uuid.UUID
 
-		if slot.ExternalID.Valid {
-			stepRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.ExternalID))
-			workflowRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.ExternalID))
+		if slot.ExternalID != uuid.Nil {
+			stepRunId = slot.ExternalID
+			workflowRunId = slot.ExternalID
 		}
 
 		status := gen.StepRunStatusRUNNING
@@ -62,7 +61,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 
 func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string, workflows *[]*sqlcv1.Workflow) *gen.Worker {
 
-	dispatcherId := uuid.MustParse(sqlchelpers.UUIDToStr(worker.DispatcherId))
+	dispatcherId := worker.DispatcherId
 
 	maxRuns := int(worker.MaxRuns)
 
@@ -84,23 +83,19 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 
 	res := &gen.Worker{
 		Metadata: gen.APIResourceMeta{
-			Id:        sqlchelpers.UUIDToStr(worker.ID),
+			Id:        worker.ID.String(),
 			CreatedAt: worker.CreatedAt.Time,
 			UpdatedAt: worker.UpdatedAt.Time,
 		},
 		Name:          worker.Name,
 		Type:          gen.WorkerType(worker.Type),
 		Status:        &status,
-		DispatcherId:  &dispatcherId,
+		DispatcherId:  dispatcherId,
 		MaxRuns:       &maxRuns,
 		AvailableRuns: &availableRuns,
 		WebhookUrl:    webhookUrl,
 		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
-	}
-
-	if worker.WebhookId.Valid {
-		wid := uuid.MustParse(sqlchelpers.UUIDToStr(worker.WebhookId))
-		res.WebhookId = &wid
+		WebhookId:     worker.WebhookId,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {
@@ -111,16 +106,16 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 
 	if workflows != nil {
 		registeredWorkflows := make([]gen.RegisteredWorkflow, 0, len(*workflows))
-		uniqueWorkflowIds := make(map[string]struct{})
+		uniqueWorkflowIds := make(map[uuid.UUID]struct{})
 
 		for _, workflow := range *workflows {
-			if _, ok := uniqueWorkflowIds[workflow.ID.String()]; ok {
+			if _, ok := uniqueWorkflowIds[workflow.ID]; ok {
 				continue
 			}
 
-			uniqueWorkflowIds[workflow.ID.String()] = struct{}{}
+			uniqueWorkflowIds[workflow.ID] = struct{}{}
 			registeredWorkflows = append(registeredWorkflows, gen.RegisteredWorkflow{
-				Id:   uuid.MustParse(workflow.ID.String()),
+				Id:   workflow.ID,
 				Name: workflow.Name,
 			})
 		}

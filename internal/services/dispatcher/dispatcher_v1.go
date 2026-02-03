@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/sync/errgroup"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
@@ -85,11 +85,12 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	return nil
 }
 
-func (d *DispatcherImpl) GetLocalWorkerIds() map[string]struct{} {
-	workerIds := make(map[string]struct{})
+func (d *DispatcherImpl) GetLocalWorkerIds() map[uuid.UUID]struct{} {
+	workerIds := make(map[uuid.UUID]struct{})
 
 	d.workers.Range(func(key, value interface{}) bool {
-		workerId := key.(string)
+		workerId := key.(uuid.UUID)
+
 		workerIds[workerId] = struct{}{}
 
 		return true
@@ -100,7 +101,7 @@ func (d *DispatcherImpl) GetLocalWorkerIds() map[string]struct{} {
 
 // Note: this is very similar to handleTaskBulkAssignedTask, with some differences in what's sync vs run in a goroutine
 // In this method, we wait until all tasks have been sent to the worker before returning
-func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, workerId string, tasks []*schedulingv1.AssignedItemWithTask) error {
+func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, workerId uuid.UUID, tasks []*schedulingv1.AssignedItemWithTask) error {
 	ctx, span := telemetry.NewSpan(ctx, "DispatcherImpl.HandleLocalAssignments")
 	defer span.End()
 
@@ -142,7 +143,7 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 func (d *DispatcherImpl) populateTaskData(
 	ctx context.Context,
 	requeue func(task *sqlcv1.V1Task),
-	tenantId string,
+	tenantId uuid.UUID,
 	taskIds []int64,
 ) (map[int64]*v1.V1TaskWithPayload, error) {
 	bulkDatas, err := d.repov1.Tasks().ListTasks(ctx, tenantId, taskIds)
@@ -280,7 +281,7 @@ func (d *DispatcherImpl) populateTaskData(
 func (d *DispatcherImpl) sendTasksToWorker(
 	ctx context.Context,
 	requeue func(task *sqlcv1.V1Task),
-	tenantId, workerId string,
+	tenantId, workerId uuid.UUID,
 	taskIds []int64,
 	tasks map[int64]*v1.V1TaskWithPayload,
 ) error {
@@ -317,7 +318,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 				if err != nil {
 					multiErr = multierror.Append(
 						multiErr,
-						fmt.Errorf("could not send action for task %s to worker %s (%d / %d): %w", sqlchelpers.UUIDToStr(task.ExternalID), workerId, i+1, len(workers), err),
+						fmt.Errorf("could not send action for task %s to worker %s (%d / %d): %w", task.ExternalID.String(), workerId, i+1, len(workers), err),
 					)
 				} else {
 					success = true
@@ -327,7 +328,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 
 			if success {
 				msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
-					task.TenantID.String(),
+					task.TenantID,
 					tasktypesv1.CreateMonitoringEventPayload{
 						TaskId:         task.ID,
 						RetryCount:     task.RetryCount,
@@ -362,7 +363,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 
 func (d *DispatcherImpl) handleRetries(
 	ctx context.Context,
-	tenantId string,
+	tenantId uuid.UUID,
 	toRetry []*sqlcv1.V1Task,
 ) error {
 	if len(toRetry) == 0 {
@@ -383,8 +384,8 @@ func (d *DispatcherImpl) handleRetries(
 				tenantId,
 				task.ID,
 				task.InsertedAt,
-				sqlchelpers.UUIDToStr(task.ExternalID),
-				sqlchelpers.UUIDToStr(task.WorkflowRunID),
+				task.ExternalID,
+				task.WorkflowRunID,
 				task.RetryCount,
 				false,
 				"Could not send task to worker",
@@ -445,7 +446,7 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 	}
 
 	// group by worker id
-	workerIdToTasks := make(map[string][]*sqlcv1.V1Task)
+	workerIdToTasks := make(map[uuid.UUID][]*sqlcv1.V1Task)
 
 	for _, msg := range msgs {
 		if _, ok := workerIdToTasks[msg.WorkerId]; !ok {

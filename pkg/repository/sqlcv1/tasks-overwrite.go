@@ -3,6 +3,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -126,18 +127,18 @@ RETURNING
 `
 
 type CreateTasksParams struct {
-	Tenantids           []pgtype.UUID        `json:"tenantids"`
+	Tenantids           []uuid.UUID          `json:"tenantids"`
 	Queues              []string             `json:"queues"`
 	Actionids           []string             `json:"actionids"`
-	Stepids             []pgtype.UUID        `json:"stepids"`
+	Stepids             []uuid.UUID          `json:"stepids"`
 	Stepreadableids     []string             `json:"stepreadableids"`
-	Workflowids         []pgtype.UUID        `json:"workflowids"`
+	Workflowids         []uuid.UUID          `json:"workflowids"`
 	Scheduletimeouts    []string             `json:"scheduletimeouts"`
 	Steptimeouts        []string             `json:"steptimeouts"`
 	Priorities          []int32              `json:"priorities"`
 	Stickies            []string             `json:"stickies"`
-	Desiredworkerids    []pgtype.UUID        `json:"desiredworkerids"`
-	Externalids         []pgtype.UUID        `json:"externalids"`
+	Desiredworkerids    []uuid.UUID          `json:"desiredworkerids"`
+	Externalids         []uuid.UUID          `json:"externalids"`
 	Displaynames        []string             `json:"displaynames"`
 	Inputs              [][]byte             `json:"inputs"`
 	Retrycounts         []int32              `json:"retrycounts"`
@@ -152,7 +153,7 @@ type CreateTasksParams struct {
 	Concurrencyparentstrategyids [][]pgtype.Int8      `json:"concurrencyparentstrategyids"`
 	ConcurrencyStrategyIds       [][]int64            `json:"concurrencyStrategyIds"`
 	ConcurrencyKeys              [][]string           `json:"concurrencyKeys"`
-	ParentTaskExternalIds        []pgtype.UUID        `json:"parentTaskExternalIds"`
+	ParentTaskExternalIds        []uuid.UUID          `json:"parentTaskExternalIds"`
 	ParentTaskIds                []pgtype.Int8        `json:"parentTaskIds"`
 	ParentTaskInsertedAts        []pgtype.Timestamptz `json:"parentTaskInsertedAts"`
 	ChildIndex                   []pgtype.Int8        `json:"childIndex"`
@@ -160,8 +161,8 @@ type CreateTasksParams struct {
 	StepIndex                    []int64              `json:"stepIndex"`
 	RetryBackoffFactor           []pgtype.Float8      `json:"retryBackoffFactor"`
 	RetryMaxBackoff              []pgtype.Int4        `json:"retryMaxBackoff"`
-	WorkflowVersionIds           []pgtype.UUID        `json:"workflowVersionIds"`
-	WorkflowRunIds               []pgtype.UUID        `json:"workflowRunIds"`
+	WorkflowVersionIds           []uuid.UUID          `json:"workflowVersionIds"`
+	WorkflowRunIds               []uuid.UUID          `json:"workflowRunIds"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -332,14 +333,14 @@ RETURNING
 `
 
 type CreateTaskEventsParams struct {
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Retrycounts     []int32              `json:"retrycounts"`
 	Eventtypes      []string             `json:"eventtypes"`
 	Eventkeys       []pgtype.Text        `json:"eventkeys"`
 	Datas           [][]byte             `json:"datas"`
-	Externalids     []pgtype.UUID        `json:"externalids"`
+	Externalids     []uuid.UUID          `json:"externalids"`
 }
 
 // We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
@@ -765,10 +766,10 @@ type ReleaseTasksRow struct {
 	Queue                  string             `json:"queue"`
 	ID                     int64              `json:"id"`
 	InsertedAt             pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID             pgtype.UUID        `json:"external_id"`
+	ExternalID             uuid.UUID          `json:"external_id"`
 	StepReadableID         string             `json:"step_readable_id"`
-	WorkflowRunID          pgtype.UUID        `json:"workflow_run_id"`
-	WorkerID               pgtype.UUID        `json:"worker_id"`
+	WorkflowRunID          uuid.UUID          `json:"workflow_run_id"`
+	WorkerID               uuid.UUID          `json:"worker_id"`
 	RetryCount             int32              `json:"retry_count"`
 	IsCurrentRetry         bool               `json:"is_current_retry"`
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
@@ -868,8 +869,8 @@ RETURNING tenant_id, id, external_id, seen_at, key, additional_metadata, scope, 
 `
 
 type BulkCreateEventsParams struct {
-	Tenantids              []pgtype.UUID        `json:"tenantids"`
-	Externalids            []pgtype.UUID        `json:"externalids"`
+	Tenantids              []uuid.UUID          `json:"tenantids"`
+	Externalids            []uuid.UUID          `json:"externalids"`
 	Seenats                []pgtype.Timestamptz `json:"seenats"`
 	Keys                   []string             `json:"keys"`
 	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`

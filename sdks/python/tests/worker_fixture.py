@@ -31,7 +31,6 @@ def wait_for_worker_health(healthcheck_port: int) -> bool:
                 return True
 
             time.sleep(1)
-
         except Exception:
             time.sleep(1)
 

@@ -6,11 +6,12 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/google/uuid"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	schedulingv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
 
-func (s *Scheduler) RunOptimisticScheduling(ctx context.Context, tenantId string, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[string]struct{}) (map[string][]*schedulingv1.AssignedItemWithTask, error) {
+func (s *Scheduler) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*schedulingv1.AssignedItemWithTask, error) {
 	localTasks, tasks, dags, err := s.pool.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
 
 	if err != nil {
@@ -41,14 +42,14 @@ func (s *Scheduler) RunOptimisticScheduling(ctx context.Context, tenantId string
 	return localTasks, err
 }
 
-func (s *Scheduler) RunOptimisticSchedulingFromEvents(ctx context.Context, tenantId string, opts []v1.EventTriggerOpts, localWorkerIds map[string]struct{}) (map[string][]*schedulingv1.AssignedItemWithTask, error) {
+func (s *Scheduler) RunOptimisticSchedulingFromEvents(ctx context.Context, tenantId uuid.UUID, opts []v1.EventTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*schedulingv1.AssignedItemWithTask, error) {
 	localTasks, eventRes, err := s.pool.RunOptimisticSchedulingFromEvents(ctx, tenantId, opts, localWorkerIds)
 
 	if err != nil {
 		return nil, err
 	}
 
-	eventIdToOpts := make(map[string]v1.EventTriggerOpts)
+	eventIdToOpts := make(map[uuid.UUID]v1.EventTriggerOpts)
 
 	for _, opt := range opts {
 		eventIdToOpts[opt.ExternalId] = opt
