@@ -1182,31 +1182,17 @@ BEGIN
             AND nt.concurrency_strategy_ids[1] IS NOT NULL
             AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
             AND ot.retry_count IS DISTINCT FROM nt.retry_count
-    ), updated_slot AS (
-        UPDATE
+    ), deleted_old_slots AS (
+        DELETE FROM
             v1_concurrency_slot cs
-        SET
-            task_retry_count = nt.retry_count,
-            schedule_timeout_at = nt.schedule_timeout_at,
-            is_filled = FALSE,
-            priority = 4
-        FROM
+        USING
             new_slot_rows nt
         WHERE
             cs.task_id = nt.id
             AND cs.task_inserted_at = nt.inserted_at
             AND cs.strategy_id = nt.strategy_id
+            AND cs.task_retry_count <> nt.retry_count
         RETURNING cs.*
-    ), slots_to_insert AS (
-        -- select the rows that were not updated
-        SELECT
-            nt.*
-        FROM
-            new_slot_rows nt
-        LEFT JOIN
-            updated_slot cs ON cs.task_id = nt.id AND cs.task_inserted_at = nt.inserted_at AND cs.strategy_id = nt.strategy_id
-        WHERE
-            cs.task_id IS NULL
     )
     INSERT INTO v1_concurrency_slot (
         task_id,
@@ -1245,7 +1231,23 @@ BEGIN
         next_keys,
         queue,
         schedule_timeout_at
-    FROM slots_to_insert;
+    FROM new_slot_rows
+    ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO UPDATE
+    SET
+        external_id = EXCLUDED.external_id,
+        tenant_id = EXCLUDED.tenant_id,
+        workflow_id = EXCLUDED.workflow_id,
+        workflow_version_id = EXCLUDED.workflow_version_id,
+        workflow_run_id = EXCLUDED.workflow_run_id,
+        parent_strategy_id = EXCLUDED.parent_strategy_id,
+        next_parent_strategy_ids = EXCLUDED.next_parent_strategy_ids,
+        next_strategy_ids = EXCLUDED.next_strategy_ids,
+        priority = 4,
+        key = EXCLUDED.key,
+        next_keys = EXCLUDED.next_keys,
+        queue_to_notify = EXCLUDED.queue_to_notify,
+        schedule_timeout_at = EXCLUDED.schedule_timeout_at,
+        is_filled = FALSE;
 
     INSERT INTO v1_queue_item (
         tenant_id,
