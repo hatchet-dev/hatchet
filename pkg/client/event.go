@@ -193,7 +193,7 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 func (a *eventClientImpl) PutLog(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32) error {
 	_, err := a.client.PutLog(a.ctx.newContext(ctx), &eventcontracts.PutLogRequest{
 		CreatedAt:      timestamppb.Now(),
-		TaskRunId:      taskRunId,
+		TaskExternalId: taskRunId,
 		Message:        msg,
 		Level:          level,
 		TaskRetryCount: taskRetryCount,
@@ -210,9 +210,9 @@ func (a *eventClientImpl) PutStreamEvent(ctx context.Context, taskRunId string, 
 	}
 
 	request := &eventcontracts.PutStreamEventRequest{
-		CreatedAt: timestamppb.Now(),
-		TaskRunId: taskRunId,
-		Message:   message,
+		CreatedAt:      timestamppb.Now(),
+		TaskExternalId: taskRunId,
+		Message:        message,
 	}
 
 	if opts.index != nil {
