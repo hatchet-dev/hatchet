@@ -28,10 +28,10 @@ type CreateWorkerOpts struct {
 	DispatcherId uuid.UUID `validate:"required"`
 
 	// The maximum number of runs this worker can run at a time
-	MaxRuns *int `validate:"omitempty,gte=1"`
+	Slots *int `validate:"omitempty,gte=1"`
 
 	// The maximum number of durable runs this worker can run at a time
-	DurableMaxRuns *int `validate:"omitempty,gte=0"`
+	DurableSlots *int `validate:"omitempty,gte=0"`
 
 	// Slot config for this worker (slot_type -> max units)
 	SlotConfig map[string]int32 `validate:"omitempty"`
@@ -83,8 +83,6 @@ type UpsertWorkerLabelOpts struct {
 type WorkerRepository interface {
 	ListWorkers(tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
 	GetWorkerById(workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error)
-	ListTotalActiveSlotsPerTenant() (map[uuid.UUID]int64, error)
-	ListActiveSlotsPerTenantAndSlotType() (map[TenantIdSlotTypeTuple]int64, error)
 	CountActiveWorkersPerTenant() (map[uuid.UUID]int64, error)
 	ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error)
 
@@ -190,11 +188,6 @@ type TenantIdSDKTuple struct {
 	SDK      SDK
 }
 
-type TenantIdSlotTypeTuple struct {
-	TenantId uuid.UUID
-	SlotType string
-}
-
 func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error) {
 	sdks, err := w.queries.ListActiveSDKsPerTenant(context.Background(), w.pool)
 
@@ -220,37 +213,6 @@ func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64
 	}
 
 	return tenantIdSDKTupleToCount, nil
-}
-
-func (w *workerRepository) ListTotalActiveSlotsPerTenant() (map[uuid.UUID]int64, error) {
-	rows, err := w.queries.ListTotalActiveSlotsPerTenant(context.Background(), w.pool)
-	if err != nil {
-		return nil, fmt.Errorf("could not list total active slots per tenant: %w", err)
-	}
-
-	tenantToSlots := make(map[uuid.UUID]int64, len(rows))
-	for _, row := range rows {
-		tenantToSlots[row.TenantId] = row.TotalActiveSlots
-	}
-
-	return tenantToSlots, nil
-}
-
-func (w *workerRepository) ListActiveSlotsPerTenantAndSlotType() (map[TenantIdSlotTypeTuple]int64, error) {
-	rows, err := w.queries.ListActiveSlotsPerTenantAndSlotType(context.Background(), w.pool)
-	if err != nil {
-		return nil, fmt.Errorf("could not list active slots per tenant and slot type: %w", err)
-	}
-
-	res := make(map[TenantIdSlotTypeTuple]int64, len(rows))
-	for _, row := range rows {
-		res[TenantIdSlotTypeTuple{
-			TenantId: row.TenantId,
-			SlotType: row.SlotType,
-		}] = row.ActiveSlots
-	}
-
-	return res, nil
 }
 
 func (w *workerRepository) CountActiveWorkersPerTenant() (map[uuid.UUID]int64, error) {
@@ -361,26 +323,26 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	}
 
 	slotConfig := opts.SlotConfig
-	maxRuns := int32(0)
+	slots := int32(0)
 
 	if len(slotConfig) == 0 {
-		maxRuns = 100
-		if opts.MaxRuns != nil {
-			maxRuns = int32(*opts.MaxRuns) // nolint: gosec
+		slots = 100
+		if opts.Slots != nil {
+			slots = int32(*opts.Slots) // nolint: gosec
 		}
 
-		if opts.DurableMaxRuns != nil && *opts.DurableMaxRuns > 0 {
-			maxRuns += int32(*opts.DurableMaxRuns) // nolint: gosec
+		if opts.DurableSlots != nil && *opts.DurableSlots > 0 {
+			slots += int32(*opts.DurableSlots) // nolint: gosec
 		}
 	} else {
 		for _, units := range slotConfig {
 			if units > 0 {
-				maxRuns += units
+				slots += units
 			}
 		}
 	}
 
-	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, sqlcv1.LimitResourceWORKERSLOT, tenantId, maxRuns)
+	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
 
 	if err := preWorkerSlot(); err != nil {
 		return nil, err
@@ -410,9 +372,9 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		Valid:      true,
 	}
 
-	if opts.MaxRuns != nil {
+	if opts.Slots != nil {
 		createParams.MaxRuns = pgtype.Int4{
-			Int32: int32(*opts.MaxRuns), // nolint: gosec
+			Int32: int32(*opts.Slots), // nolint: gosec
 			Valid: true,
 		}
 	} else {
@@ -422,9 +384,9 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		}
 	}
 
-	if opts.DurableMaxRuns != nil {
+	if opts.DurableSlots != nil {
 		createParams.DurableMaxRuns = pgtype.Int4{
-			Int32: int32(*opts.DurableMaxRuns), // nolint: gosec
+			Int32: int32(*opts.DurableSlots), // nolint: gosec
 			Valid: true,
 		}
 	}
@@ -484,16 +446,16 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	} else {
 		defaultUnits := int32(100)
 
-		if opts.MaxRuns != nil {
-			defaultUnits = int32(*opts.MaxRuns) // nolint: gosec
+		if opts.Slots != nil {
+			defaultUnits = int32(*opts.Slots) // nolint: gosec
 		}
 
 		slotTypes = append(slotTypes, "default")
 		maxUnits = append(maxUnits, defaultUnits)
 
-		if opts.DurableMaxRuns != nil && *opts.DurableMaxRuns > 0 {
+		if opts.DurableSlots != nil && *opts.DurableSlots > 0 {
 			slotTypes = append(slotTypes, "durable")
-			maxUnits = append(maxUnits, int32(*opts.DurableMaxRuns)) // nolint: gosec
+			maxUnits = append(maxUnits, int32(*opts.DurableSlots)) // nolint: gosec
 		}
 	}
 
