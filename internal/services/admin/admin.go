@@ -143,8 +143,6 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 
 	if opts.optimisticSchedulingEnabled && opts.localScheduler != nil {
 		localScheduler = opts.localScheduler
-	} else if opts.optimisticSchedulingEnabled && opts.localScheduler == nil {
-		return nil, fmt.Errorf("optimistic writes enabled but no local scheduler provided")
 	}
 
 	return &AdminServiceImpl{

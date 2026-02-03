@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
