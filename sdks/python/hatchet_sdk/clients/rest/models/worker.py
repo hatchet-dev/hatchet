@@ -74,6 +74,11 @@ class Worker(BaseModel):
         description="The maximum number of runs this worker can execute concurrently.",
         alias="maxRuns",
     )
+    slot_capacities: Optional[Dict[str, StrictInt]] = Field(
+        default=None,
+        description="Slot capacities for this worker (slot_type -> units).",
+        alias="slotCapacities",
+    )
     available_runs: Optional[StrictInt] = Field(
         default=None,
         description="The number of runs this worker can execute concurrently.",
@@ -118,6 +123,7 @@ class Worker(BaseModel):
         "recentStepRuns",
         "status",
         "maxRuns",
+        "slotCapacities",
         "availableRuns",
         "durableMaxRuns",
         "durableAvailableRuns",
@@ -254,6 +260,7 @@ class Worker(BaseModel):
                 ),
                 "status": obj.get("status"),
                 "maxRuns": obj.get("maxRuns"),
+                "slotCapacities": obj.get("slotCapacities"),
                 "availableRuns": obj.get("availableRuns"),
                 "durableMaxRuns": obj.get("durableMaxRuns"),
                 "durableAvailableRuns": obj.get("durableAvailableRuns"),

@@ -207,12 +207,12 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		desiredLabelsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		stepDurability, err := q.repo.GetStepsDurability(ctx, stepIds)
+		stepRequirements, err := q.repo.GetStepSlotRequirements(ctx, stepIds)
 
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Err(err).Msg("error getting step durability")
+			q.l.Error().Err(err).Msg("error getting step slot requirements")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -221,7 +221,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		durabilityTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		assignCh := q.s.tryAssign(ctx, qis, labels, stepDurability, rls)
+		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequirements, rls)
 		count := 0
 
 		countMu := sync.Mutex{}
@@ -469,7 +469,6 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	}
 
 	opts := &v1.AssignResults{
-		SlotGroup:          r.slotGroup,
 		Assigned:           make([]*v1.AssignedItem, 0, len(r.assigned)),
 		Unassigned:         r.unassigned,
 		SchedulingTimedOut: r.schedulingTimedOut,
@@ -484,7 +483,6 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 		opts.Assigned = append(opts.Assigned, &v1.AssignedItem{
 			WorkerId:  assignedItem.WorkerId,
-			SlotGroup: assignedItem.SlotGroup,
 			QueueItem: assignedItem.QueueItem,
 		})
 	}
@@ -612,12 +610,12 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	stepDurability, err := q.repo.GetStepsDurability(ctx, stepIds)
+	stepRequirements, err := q.repo.GetStepSlotRequirements(ctx, stepIds)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	assignCh := q.s.tryAssign(ctx, qis, labels, stepDurability, rls)
+	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequirements, rls)
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults

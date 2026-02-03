@@ -177,18 +177,9 @@ export default function WorkerDetail() {
     return <Loading />;
   }
 
-  const availableSlots = worker.availableRuns ?? 0;
-  const maxSlots = worker.maxRuns ?? 0;
-  const usedSlots = maxSlots - availableSlots;
-  const usedPercentage =
-    maxSlots > 0 ? Math.round((usedSlots / maxSlots) * 100) : 0;
-  const availableDurableSlots = worker.durableAvailableRuns ?? 0;
-  const maxDurableSlots = worker.durableMaxRuns ?? 0;
-  const usedDurableSlots = maxDurableSlots - availableDurableSlots;
-  const usedDurablePercentage =
-    maxDurableSlots > 0
-      ? Math.round((usedDurableSlots / maxDurableSlots) * 100)
-      : 0;
+  const slotCapacityEntries = Object.entries(worker.slotCapacities || {}).sort(
+    ([a], [b]) => a.localeCompare(b),
+  );
 
   // dynamically set the max columns in the grid based on the presence of runtime info and labels
   const maxCols =
@@ -283,61 +274,54 @@ export default function WorkerDetail() {
             className="h-52 overflow-y-auto bg-background border-none"
           >
             <CardHeader>
-              <CardTitle>Available Run Slots</CardTitle>
+              <CardTitle>Slots</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-2">
-                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Standard
+              {slotCapacityEntries.length === 0 ? (
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  No slots
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                    {maxSlots > 0 ? availableSlots : '∞'}
-                  </span>
-                  {maxSlots > 0 && (
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      / {maxSlots} total
-                    </span>
-                  )}
-                </div>
-                {maxSlots > 0 && (
-                  <div className="space-y-1">
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-600/40 dark:bg-gray-500/50 ">
-                      <div
-                        className="h-full bg-emerald-300 dark:bg-emerald-500 transition-all"
-                        style={{ width: `${usedPercentage}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {usedSlots} used, {availableSlots} available
-                    </div>
-                  </div>
-                )}
-              </div>
-              {maxDurableSlots > 0 && (
-                <div className="space-y-2">
-                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Durable
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-                      {availableDurableSlots}
-                    </span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      / {maxDurableSlots} total
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-600/40 dark:bg-gray-500/50 ">
-                      <div
-                        className="h-full bg-sky-300 dark:bg-sky-500 transition-all"
-                        style={{ width: `${usedDurablePercentage}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {usedDurableSlots} used, {availableDurableSlots} available
-                    </div>
-                  </div>
+              ) : (
+                <div className="space-y-3">
+                  {slotCapacityEntries.map(([slotType, capacity]) => {
+                    const available = capacity?.available;
+                    const limit = capacity?.limit ?? 0;
+                    const showAvailability = available !== undefined;
+                    const used = showAvailability ? limit - available : 0;
+                    const usedPercentage =
+                      showAvailability && limit > 0
+                        ? Math.round((used / limit) * 100)
+                        : 0;
+                    const label = showAvailability
+                      ? `${available} / ${limit}`
+                      : `${limit}`;
+
+                    return (
+                      <div key={slotType} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">
+                            {slotType}
+                          </span>
+                          <span className="font-medium text-gray-900 dark:text-gray-100">
+                            {label}
+                          </span>
+                        </div>
+                        {showAvailability && limit > 0 && (
+                          <div className="space-y-1">
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-600/40 dark:bg-gray-500/50">
+                              <div
+                                className="h-full bg-emerald-300 dark:bg-emerald-500 transition-all"
+                                style={{ width: `${usedPercentage}%` }}
+                              />
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {used} used, {available} available
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <p className="text-xs text-gray-500 dark:text-gray-400">

@@ -178,8 +178,9 @@ class Hatchet:
     def worker(
         self,
         name: str,
-        slots: int = 100,
-        durable_slots: int = 1_000,
+        slot_capacities: dict[str, int] | None = None,
+        slots: int | None = None,
+        durable_slots: int | None = None,
         labels: dict[str, str | int] | None = None,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
@@ -189,9 +190,11 @@ class Hatchet:
 
         :param name: The name of the worker.
 
-        :param slots: The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time
+        :param slot_capacities: Slot capacities for this worker (slot_type -> units). Defaults to {"default": 100} if no legacy values provided.
 
-        :param durable_slots: The number of durable workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time that are durable.
+        :param slots: slot count for standard tasks.
+
+        :param durable_slots: slot count for durable tasks.
 
         :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.
 
@@ -207,10 +210,24 @@ class Hatchet:
         except RuntimeError:
             loop = None
 
+        if slot_capacities is not None and (slots is not None or durable_slots is not None):
+            raise ValueError(
+                "Cannot set both slot_capacities and slots/durable_slots. Use slot_capacities only."
+            )
+
+        resolved_capacities = slot_capacities
+
+        if resolved_capacities is None:
+            legacy_capacities = {
+                key: value
+                for key, value in (("default", slots), ("durable", durable_slots))
+                if value is not None
+            }
+            resolved_capacities = legacy_capacities or {"default": 100}
+
         return Worker(
             name=name,
-            slots=slots,
-            durable_slots=durable_slots,
+            slot_capacities=resolved_capacities,
             labels=labels,
             config=self._client.config,
             debug=self._client.debug,
@@ -347,6 +364,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        slot_requirements: dict[str, int] | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Callable[
@@ -376,6 +394,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        slot_requirements: dict[str, int] | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Callable[
@@ -404,6 +423,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        slot_requirements: dict[str, int] | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> (
@@ -450,6 +470,8 @@ class Hatchet:
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
+
+        :param slot_requirements: Slot requirements for the task (slot_type -> units).
 
         :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
 
@@ -501,6 +523,7 @@ class Hatchet:
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
+                slot_requirements=slot_requirements,
             )
 
             created_task = task_wrapper(func)
@@ -534,6 +557,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        slot_requirements: dict[str, int] | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Callable[
@@ -563,6 +587,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        slot_requirements: dict[str, int] | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> Callable[
@@ -595,6 +620,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        slot_requirements: dict[str, int] | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> (
@@ -650,6 +676,8 @@ class Hatchet:
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
+        :param slot_requirements: Slot requirements for the task (slot_type -> units).
+
         :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
 
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
@@ -699,6 +727,7 @@ class Hatchet:
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
+                slot_requirements=slot_requirements,
             )
 
             return Standalone[TWorkflowInput, R](

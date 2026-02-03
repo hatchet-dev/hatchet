@@ -64,11 +64,26 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		opt(config)
 	}
 
+	if config.slotCapacities != nil && (config.slotsSet || config.durableSlotsSet) {
+		return nil, fmt.Errorf("cannot set both slot capacities and slots/durable slots")
+	}
+
 	workerOpts := []worker.WorkerOpt{
 		worker.WithClient(c.legacyClient),
 		worker.WithName(name),
-		worker.WithSlots(config.slots),
-		worker.WithDurableSlots(config.durableSlots),
+	}
+
+	if config.slotCapacities != nil {
+		slotCapacities := make(map[string]int32, len(config.slotCapacities))
+		for key, value := range config.slotCapacities {
+			slotCapacities[key] = int32(value)
+		}
+		workerOpts = append(workerOpts, worker.WithSlotCapacities(slotCapacities))
+	} else {
+		workerOpts = append(workerOpts,
+			worker.WithSlots(config.slots),
+			worker.WithDurableSlots(config.durableSlots),
+		)
 	}
 
 	if config.logger != nil {

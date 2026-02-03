@@ -19,7 +19,7 @@ import pprint
 import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
 from typing_extensions import Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
@@ -43,6 +43,11 @@ class Step(BaseModel):
     is_durable: Optional[StrictBool] = Field(
         default=None, description="Whether the step is durable.", alias="isDurable"
     )
+    slot_requirements: Optional[Dict[str, StrictInt]] = Field(
+        default=None,
+        description="Slot requirements for the step (slot_type -> units).",
+        alias="slotRequirements",
+    )
     children: Optional[List[StrictStr]] = None
     parents: Optional[List[StrictStr]] = None
     __properties: ClassVar[List[str]] = [
@@ -53,6 +58,7 @@ class Step(BaseModel):
         "action",
         "timeout",
         "isDurable",
+        "slotRequirements",
         "children",
         "parents",
     ]
@@ -121,6 +127,7 @@ class Step(BaseModel):
                 "action": obj.get("action"),
                 "timeout": obj.get("timeout"),
                 "isDurable": obj.get("isDurable"),
+                "slotRequirements": obj.get("slotRequirements"),
                 "children": obj.get("children"),
                 "parents": obj.get("parents"),
             }

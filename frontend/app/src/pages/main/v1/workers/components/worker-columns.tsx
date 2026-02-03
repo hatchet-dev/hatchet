@@ -13,7 +13,7 @@ export const WorkerColumn = {
   name: 'Name',
   type: 'Type',
   startedAt: 'Started at',
-  slots: 'Available Slots',
+  slots: 'Slots',
   lastHeartbeatAt: 'Last seen',
   runtime: 'SDK Version',
 } as const;
@@ -182,19 +182,30 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
       <DataTableColumnHeader column={column} title={WorkerColumn.slots} />
     ),
     cell: ({ row }) => {
-      const durableAvailable = row.original.durableAvailableRuns ?? 0;
-      const durableMax = row.original.durableMaxRuns ?? 0;
+      const slotCapacities = row.original.slotCapacities || {};
+      const entries = Object.entries(slotCapacities).sort(([a], [b]) =>
+        a.localeCompare(b),
+      );
+
+      if (entries.length === 0) {
+        return <div className="text-xs text-muted-foreground">No slots</div>;
+      }
 
       return (
-        <div>
-          <div>
-            {row.original.availableRuns} / {row.original.maxRuns}
-          </div>
-          {durableMax > 0 && (
-            <div className="text-xs text-muted-foreground">
-              Durable: {durableAvailable} / {durableMax}
-            </div>
-          )}
+        <div className="space-y-1">
+          {entries.map(([slotType, capacity]) => {
+            const available = capacity?.available;
+            const limit = capacity?.limit;
+            const label =
+              available !== undefined ? `${available} / ${limit}` : `${limit}`;
+
+            return (
+              <div key={slotType} className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{slotType}</span>:{' '}
+                {label}
+              </div>
+            );
+          })}
         </div>
       );
     },

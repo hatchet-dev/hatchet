@@ -4,19 +4,19 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/google/uuid"
 )
 
 type action struct {
 	mu        sync.RWMutex
 	actionId  string
-	slotGroup sqlcv1.V1WorkerSlotGroup
 
 	lastReplenishedSlotCount   int
 	lastReplenishedWorkerCount int
 
 	// note that slots can be used across multiple actions, hence the pointer
-	slots []*slot
+	slots         []*slot
+	slotsByWorker map[uuid.UUID]map[string][]*slot
 }
 
 func (a *action) activeCount() int {

@@ -32,7 +32,6 @@ const rateLimitedRequeueAfterThreshold = 2 * time.Second
 
 type AssignedItem struct {
 	WorkerId  uuid.UUID
-	SlotGroup sqlcv1.V1WorkerSlotGroup
 
 	QueueItem *sqlcv1.V1QueueItem
 
@@ -42,7 +41,6 @@ type AssignedItem struct {
 }
 
 type AssignResults struct {
-	SlotGroup          sqlcv1.V1WorkerSlotGroup
 	Assigned           []*AssignedItem
 	Unassigned         []*sqlcv1.V1QueueItem
 	SchedulingTimedOut []*sqlcv1.V1QueueItem
@@ -308,7 +306,6 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		Mintaskinsertedat: minTaskInsertedAt,
 		Workerids:         workerIds,
 		Tenantid:          tenantId,
-		Slotgroup:         r.SlotGroup,
 	})
 
 	if err != nil {
@@ -642,23 +639,27 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	return stepIdToLabels, nil
 }
 
-func (d *queueRepository) GetStepsDurability(ctx context.Context, stepIds []uuid.UUID) (map[uuid.UUID]bool, error) {
-	ctx, span := telemetry.NewSpan(ctx, "get-steps-durability")
+func (d *queueRepository) GetStepSlotRequirements(ctx context.Context, stepIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-step-slot-requirements")
 	defer span.End()
 
 	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
 
-	rows, err := d.queries.GetStepsDurability(ctx, d.pool, uniqueStepIds)
+	rows, err := d.queries.GetStepSlotRequirements(ctx, d.pool, uniqueStepIds)
 	if err != nil {
 		return nil, err
 	}
 
-	stepIdToDurable := make(map[uuid.UUID]bool, len(rows))
+	stepIdToRequirements := make(map[uuid.UUID]map[string]int32, len(rows))
 	for _, row := range rows {
-		stepIdToDurable[row.ID] = row.IsDurable
+		if _, ok := stepIdToRequirements[row.StepID]; !ok {
+			stepIdToRequirements[row.StepID] = make(map[string]int32)
+		}
+
+		stepIdToRequirements[row.StepID][row.SlotType] = row.Units
 	}
 
-	return stepIdToDurable, nil
+	return stepIdToRequirements, nil
 }
 
 func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {

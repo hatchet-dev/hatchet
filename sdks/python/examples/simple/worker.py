@@ -1,12 +1,13 @@
 # > Simple
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
 import time
+
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
 
-@hatchet.task()
+@hatchet.task(slot_requirements={"default": 40})
 def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
     time.sleep(30)
     return {"result": "Hello, world!"}
@@ -19,7 +20,14 @@ def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 
 def main() -> None:
-    worker = hatchet.worker("test-worker", workflows=[simple, simple_durable])
+    worker = hatchet.worker(
+        "test-worker",
+        slot_capacities={"default": 100, "durable": 2},
+        # TODO: default slot configs
+        # slots=3,
+        # durable_slots=55,
+        workflows=[simple, simple_durable],
+    )
     worker.start()
 
 

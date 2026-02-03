@@ -341,7 +341,7 @@ export interface WorkerRegisterRequest {
   actions: string[];
   /** (optional) the services for this worker */
   services: string[];
-  /** (optional) the number of slots this worker can handle */
+  /** (optional) the number of default slots this worker can handle */
   slots?: number | undefined;
   /** (optional) worker labels (i.e. state or other metadata) */
   labels: { [key: string]: WorkerLabels };
@@ -349,11 +349,20 @@ export interface WorkerRegisterRequest {
   webhookId?: string | undefined;
   /** (optional) information regarding the runtime environment of the worker */
   runtimeInfo?: RuntimeInfo | undefined;
+  /** (optional) the max number of durable slots this worker can handle */
+  durableSlots?: number | undefined;
+  /** (optional) slot capacities for this worker (slot_type -> units) */
+  slotCapacities: { [key: string]: number };
 }
 
 export interface WorkerRegisterRequest_LabelsEntry {
   key: string;
   value: WorkerLabels | undefined;
+}
+
+export interface WorkerRegisterRequest_SlotCapacitiesEntry {
+  key: string;
+  value: number;
 }
 
 export interface WorkerRegisterResponse {
@@ -797,6 +806,8 @@ function createBaseWorkerRegisterRequest(): WorkerRegisterRequest {
     labels: {},
     webhookId: undefined,
     runtimeInfo: undefined,
+    durableSlots: undefined,
+    slotCapacities: {},
   };
 }
 
@@ -826,6 +837,15 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
     if (message.runtimeInfo !== undefined) {
       RuntimeInfo.encode(message.runtimeInfo, writer.uint32(58).fork()).join();
     }
+    if (message.durableSlots !== undefined) {
+      writer.uint32(64).int32(message.durableSlots);
+    }
+    Object.entries(message.slotCapacities).forEach(([key, value]) => {
+      WorkerRegisterRequest_SlotCapacitiesEntry.encode(
+        { key: key as any, value },
+        writer.uint32(74).fork()
+      ).join();
+    });
     return writer;
   },
 
@@ -895,6 +915,25 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
           message.runtimeInfo = RuntimeInfo.decode(reader, reader.uint32());
           continue;
         }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.durableSlots = reader.int32();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          const entry9 = WorkerRegisterRequest_SlotCapacitiesEntry.decode(reader, reader.uint32());
+          if (entry9.value !== undefined) {
+            message.slotCapacities[entry9.key] = entry9.value;
+          }
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -925,6 +964,16 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
         : {},
       webhookId: isSet(object.webhookId) ? globalThis.String(object.webhookId) : undefined,
       runtimeInfo: isSet(object.runtimeInfo) ? RuntimeInfo.fromJSON(object.runtimeInfo) : undefined,
+      durableSlots: isSet(object.durableSlots) ? globalThis.Number(object.durableSlots) : undefined,
+      slotCapacities: isObject(object.slotCapacities)
+        ? Object.entries(object.slotCapacities).reduce<{ [key: string]: number }>(
+            (acc, [key, value]) => {
+              acc[key] = Number(value);
+              return acc;
+            },
+            {}
+          )
+        : {},
     };
   },
 
@@ -957,6 +1006,18 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
     if (message.runtimeInfo !== undefined) {
       obj.runtimeInfo = RuntimeInfo.toJSON(message.runtimeInfo);
     }
+    if (message.durableSlots !== undefined) {
+      obj.durableSlots = Math.round(message.durableSlots);
+    }
+    if (message.slotCapacities) {
+      const entries = Object.entries(message.slotCapacities);
+      if (entries.length > 0) {
+        obj.slotCapacities = {};
+        entries.forEach(([k, v]) => {
+          obj.slotCapacities[k] = Math.round(v);
+        });
+      }
+    }
     return obj;
   },
 
@@ -983,6 +1044,15 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
       object.runtimeInfo !== undefined && object.runtimeInfo !== null
         ? RuntimeInfo.fromPartial(object.runtimeInfo)
         : undefined;
+    message.durableSlots = object.durableSlots ?? undefined;
+    message.slotCapacities = Object.entries(object.slotCapacities ?? {}).reduce<{
+      [key: string]: number;
+    }>((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = globalThis.Number(value);
+      }
+      return acc;
+    }, {});
     return message;
   },
 };
@@ -1070,6 +1140,93 @@ export const WorkerRegisterRequest_LabelsEntry: MessageFns<WorkerRegisterRequest
     return message;
   },
 };
+
+function createBaseWorkerRegisterRequest_SlotCapacitiesEntry(): WorkerRegisterRequest_SlotCapacitiesEntry {
+  return { key: '', value: 0 };
+}
+
+export const WorkerRegisterRequest_SlotCapacitiesEntry: MessageFns<WorkerRegisterRequest_SlotCapacitiesEntry> =
+  {
+    encode(
+      message: WorkerRegisterRequest_SlotCapacitiesEntry,
+      writer: BinaryWriter = new BinaryWriter()
+    ): BinaryWriter {
+      if (message.key !== '') {
+        writer.uint32(10).string(message.key);
+      }
+      if (message.value !== 0) {
+        writer.uint32(16).int32(message.value);
+      }
+      return writer;
+    },
+
+    decode(
+      input: BinaryReader | Uint8Array,
+      length?: number
+    ): WorkerRegisterRequest_SlotCapacitiesEntry {
+      const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseWorkerRegisterRequest_SlotCapacitiesEntry();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.key = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 16) {
+              break;
+            }
+
+            message.value = reader.int32();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    },
+
+    fromJSON(object: any): WorkerRegisterRequest_SlotCapacitiesEntry {
+      return {
+        key: isSet(object.key) ? globalThis.String(object.key) : '',
+        value: isSet(object.value) ? globalThis.Number(object.value) : 0,
+      };
+    },
+
+    toJSON(message: WorkerRegisterRequest_SlotCapacitiesEntry): unknown {
+      const obj: any = {};
+      if (message.key !== '') {
+        obj.key = message.key;
+      }
+      if (message.value !== 0) {
+        obj.value = Math.round(message.value);
+      }
+      return obj;
+    },
+
+    create(
+      base?: DeepPartial<WorkerRegisterRequest_SlotCapacitiesEntry>
+    ): WorkerRegisterRequest_SlotCapacitiesEntry {
+      return WorkerRegisterRequest_SlotCapacitiesEntry.fromPartial(base ?? {});
+    },
+    fromPartial(
+      object: DeepPartial<WorkerRegisterRequest_SlotCapacitiesEntry>
+    ): WorkerRegisterRequest_SlotCapacitiesEntry {
+      const message = createBaseWorkerRegisterRequest_SlotCapacitiesEntry();
+      message.key = object.key ?? '';
+      message.value = object.value ?? 0;
+      return message;
+    },
+  };
 
 function createBaseWorkerRegisterResponse(): WorkerRegisterResponse {
   return { tenantId: '', workerId: '', workerName: '' };

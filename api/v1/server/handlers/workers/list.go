@@ -58,13 +58,21 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, re
 	)
 
 	rows := make([]gen.Worker, len(workers))
+	workerIds := make([]uuid.UUID, 0, len(workers))
+	for _, worker := range workers {
+		workerIds = append(workerIds, worker.Worker.ID)
+	}
+
+	workerSlotCapacities, err := buildWorkerSlotCapacities(reqCtx, t.config.V1.Workers(), tenantId, workerIds)
+	if err != nil {
+		listSpan.RecordError(err)
+		return nil, err
+	}
 
 	for i, worker := range workers {
 		workerCp := worker
-		slots := int(worker.RemainingSlots)
-		durableSlots := int(worker.RemainingDurableSlots)
-
-		rows[i] = *transformers.ToWorkerSqlc(&workerCp.Worker, &slots, &durableSlots, &workerCp.WebhookUrl.String, nil)
+		slotCapacities := workerSlotCapacities[workerCp.Worker.ID]
+		rows[i] = *transformers.ToWorkerSqlc(&workerCp.Worker, slotCapacities, &workerCp.WebhookUrl.String, nil)
 	}
 
 	return gen.WorkerList200JSONResponse(
@@ -130,6 +138,12 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		return nil, err
 	}
 
+	workerSlotCapacities, err := buildWorkerSlotCapacities(listCtx, t.config.V1.Workers(), tenant.ID, workerIds)
+	if err != nil {
+		actionsSpan.RecordError(err)
+		return nil, err
+	}
+
 	telemetry.WithAttributes(actionsSpan,
 		telemetry.AttributeKV{Key: "worker_actions.mappings.count", Value: len(workerIdToActionIds)},
 	)
@@ -138,11 +152,10 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 
 	for i, worker := range workers {
 		workerCp := worker
-		slots := int(worker.RemainingSlots)
-		durableSlots := int(worker.RemainingDurableSlots)
 		actions := workerIdToActionIds[workerCp.Worker.ID.String()]
+		slotCapacities := workerSlotCapacities[workerCp.Worker.ID]
 
-		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp.Worker, &slots, &durableSlots, &workerCp.WebhookUrl.String, actions, nil)
+		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp.Worker, slotCapacities, &workerCp.WebhookUrl.String, actions, nil)
 	}
 
 	return gen.WorkerList200JSONResponse(

@@ -51,43 +51,36 @@ WHERE
     AND w."isPaused" = false;
 
 -- name: ListAvailableSlotsForWorkers :many
-WITH worker_max_runs AS (
-    SELECT
-        "id",
-        CASE
-            WHEN @slotGroup::v1_worker_slot_group = 'DURABLE_SLOTS' THEN "durableMaxRuns"
-            ELSE "maxRuns"
-        END AS "maxRuns"
-    FROM
-        "Worker"
-    WHERE
-        "tenantId" = @tenantId::uuid
-        AND "id" = ANY(@workerIds::uuid[])
-        AND (
-            (@slotGroup::v1_worker_slot_group = 'DURABLE_SLOTS' AND "durableMaxRuns" > 0)
-            OR (@slotGroup::v1_worker_slot_group = 'SLOTS')
-        )
-), worker_filled_slots AS (
+WITH worker_capacities AS (
     SELECT
         worker_id,
-        COUNT(task_id) AS "filledSlots"
+        max_units
     FROM
-        v1_task_runtime
+        v1_worker_slot_capacity
     WHERE
         tenant_id = @tenantId::uuid
         AND worker_id = ANY(@workerIds::uuid[])
-        AND slot_group = @slotGroup::v1_worker_slot_group
+        AND slot_type = @slotType::text
+), worker_used_slots AS (
+    SELECT
+        worker_id,
+        SUM(units) AS used_units
+    FROM
+        v1_task_runtime_slot
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND worker_id = ANY(@workerIds::uuid[])
+        AND slot_type = @slotType::text
     GROUP BY
         worker_id
 )
--- subtract the filled slots from the max runs to get the available slots
 SELECT
-    wmr."id",
-    wmr."maxRuns" - COALESCE(wfs."filledSlots", 0) AS "availableSlots"
+    wc.worker_id AS "id",
+    wc.max_units - COALESCE(wus.used_units, 0) AS "availableSlots"
 FROM
-    worker_max_runs wmr
+    worker_capacities wc
 LEFT JOIN
-    worker_filled_slots wfs ON wmr."id" = wfs.worker_id;
+    worker_used_slots wus ON wc.worker_id = wus.worker_id;
 
 -- name: ListQueues :many
 SELECT
@@ -238,6 +231,7 @@ WITH input AS (
         t.retry_count,
         i.worker_id,
         t.tenant_id,
+        t.step_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
     FROM
         v1_task t
@@ -253,8 +247,7 @@ WITH input AS (
         retry_count,
         worker_id,
         tenant_id,
-        timeout_at,
-        slot_group
+        timeout_at
     )
     SELECT
         t.id,
@@ -262,13 +255,48 @@ WITH input AS (
         t.retry_count,
         t.worker_id,
         @tenantId::uuid,
-        t.timeout_at,
-        @slotGroup::v1_worker_slot_group
+        t.timeout_at
     FROM
         updated_tasks t
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     -- only return the task ids that were successfully assigned
     RETURNING task_id, worker_id
+), slot_requirements AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.worker_id,
+        t.tenant_id,
+        COALESCE(req.slot_type, 'default'::text) AS slot_type,
+        COALESCE(req.units, 1) AS units
+    FROM
+        updated_tasks t
+    LEFT JOIN
+        v1_step_slot_requirement req
+        ON req.step_id = t.step_id AND req.tenant_id = t.tenant_id
+), assigned_slots AS (
+    INSERT INTO v1_task_runtime_slot (
+        tenant_id,
+        task_id,
+        task_inserted_at,
+        retry_count,
+        worker_id,
+        slot_type,
+        units
+    )
+    SELECT
+        tenant_id,
+        id,
+        inserted_at,
+        retry_count,
+        worker_id,
+        slot_type,
+        units
+    FROM
+        slot_requirements
+    ON CONFLICT (task_id, task_inserted_at, retry_count, slot_type) DO NOTHING
+    RETURNING task_id
 )
 SELECT
     asr.task_id,
@@ -290,14 +318,15 @@ FROM
 WHERE
     "stepId" = ANY(@stepIds::uuid[]);
 
--- name: GetStepsDurability :many
+-- name: GetStepSlotRequirements :many
 SELECT
-    "id",
-    "isDurable"
+    step_id,
+    slot_type,
+    units
 FROM
-    "Step"
+    v1_step_slot_requirement
 WHERE
-    "id" = ANY(@stepIds::uuid[]);
+    step_id = ANY(@stepIds::uuid[]);
 
 -- name: GetQueuedCounts :many
 SELECT

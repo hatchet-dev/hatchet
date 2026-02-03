@@ -912,6 +912,11 @@ WITH task AS (
     ORDER BY
         task_id, task_inserted_at, retry_count
     FOR UPDATE
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
+    RETURNING task_id
 )
 UPDATE
     v1_task_runtime
@@ -970,6 +975,12 @@ WITH locked_trs AS (
     LIMIT @batchSize::int
     FOR UPDATE SKIP LOCKED
 )
+DELETE FROM v1_task_runtime_slot
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_trs
+);
+
 DELETE FROM v1_task_runtime
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count
