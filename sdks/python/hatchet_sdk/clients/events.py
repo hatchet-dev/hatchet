@@ -71,6 +71,14 @@ class Event(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    @property
+    def eventTimestamp(self) -> timestamp_pb2.Timestamp:  # noqa: N802
+        return self.event_timestamp
+
+    @property
+    def additionalMetadata(self) -> str | None:  # noqa: N802
+        return self.additional_metadata
+
     @classmethod
     def from_proto(cls, proto: EventProto) -> "Event":
         additional_metadata = (
@@ -227,7 +235,7 @@ class EventClient(BaseRestClient):
             self.events_service_client.PutLog, self.client_config.tenacity
         )
         request = PutLogRequest(
-            task_run_id=step_run_id,
+            task_external_id=step_run_id,
             created_at=proto_timestamp_now(),
             message=message,
             level=level.value if level else None,
@@ -248,7 +256,7 @@ class EventClient(BaseRestClient):
             raise ValueError("Invalid data type. Expected str, bytes, or file.")
 
         request = PutStreamEventRequest(
-            task_run_id=step_run_id,
+            task_external_id=step_run_id,
             created_at=proto_timestamp_now(),
             message=data_bytes,
             event_index=index,

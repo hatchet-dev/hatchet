@@ -399,8 +399,8 @@ export interface AssignedAction {
   jobRunId: string;
   /** the task id */
   taskId: string;
-  /** the task run id */
-  taskRunId: string;
+  /** the task external run id */
+  taskExternalId: string;
   /** the action id */
   actionId: string;
   /** the action type */
@@ -468,8 +468,8 @@ export interface StepActionEvent {
   jobRunId: string;
   /** the id of the task */
   taskId: string;
-  /** the task run id */
-  taskRunId: string;
+  /** the task external run id */
+  taskExternalId: string;
   /** the action id */
   actionId: string;
   eventTimestamp: Date | undefined;
@@ -1448,7 +1448,7 @@ function createBaseAssignedAction(): AssignedAction {
     jobName: '',
     jobRunId: '',
     taskId: '',
-    taskRunId: '',
+    taskExternalId: '',
     actionId: '',
     actionType: 0,
     actionPayload: '',
@@ -1487,8 +1487,8 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.taskId !== '') {
       writer.uint32(58).string(message.taskId);
     }
-    if (message.taskRunId !== '') {
-      writer.uint32(66).string(message.taskRunId);
+    if (message.taskExternalId !== '') {
+      writer.uint32(66).string(message.taskExternalId);
     }
     if (message.actionId !== '') {
       writer.uint32(74).string(message.actionId);
@@ -1597,7 +1597,7 @@ export const AssignedAction: MessageFns<AssignedAction> = {
             break;
           }
 
-          message.taskRunId = reader.string();
+          message.taskExternalId = reader.string();
           continue;
         }
         case 9: {
@@ -1716,7 +1716,7 @@ export const AssignedAction: MessageFns<AssignedAction> = {
       jobName: isSet(object.jobName) ? globalThis.String(object.jobName) : '',
       jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : '',
       taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : '',
-      taskRunId: isSet(object.taskRunId) ? globalThis.String(object.taskRunId) : '',
+      taskExternalId: isSet(object.taskExternalId) ? globalThis.String(object.taskExternalId) : '',
       actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : '',
       actionType: isSet(object.actionType) ? actionTypeFromJSON(object.actionType) : 0,
       actionPayload: isSet(object.actionPayload) ? globalThis.String(object.actionPayload) : '',
@@ -1765,8 +1765,8 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.taskId !== '') {
       obj.taskId = message.taskId;
     }
-    if (message.taskRunId !== '') {
-      obj.taskRunId = message.taskRunId;
+    if (message.taskExternalId !== '') {
+      obj.taskExternalId = message.taskExternalId;
     }
     if (message.actionId !== '') {
       obj.actionId = message.actionId;
@@ -1819,7 +1819,7 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     message.jobName = object.jobName ?? '';
     message.jobRunId = object.jobRunId ?? '';
     message.taskId = object.taskId ?? '';
-    message.taskRunId = object.taskRunId ?? '';
+    message.taskExternalId = object.taskExternalId ?? '';
     message.actionId = object.actionId ?? '';
     message.actionType = object.actionType ?? 0;
     message.actionPayload = object.actionPayload ?? '';
@@ -2208,7 +2208,7 @@ function createBaseStepActionEvent(): StepActionEvent {
     jobId: '',
     jobRunId: '',
     taskId: '',
-    taskRunId: '',
+    taskExternalId: '',
     actionId: '',
     eventTimestamp: undefined,
     eventType: 0,
@@ -2232,8 +2232,8 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     if (message.taskId !== '') {
       writer.uint32(34).string(message.taskId);
     }
-    if (message.taskRunId !== '') {
-      writer.uint32(42).string(message.taskRunId);
+    if (message.taskExternalId !== '') {
+      writer.uint32(42).string(message.taskExternalId);
     }
     if (message.actionId !== '') {
       writer.uint32(50).string(message.actionId);
@@ -2300,7 +2300,7 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
             break;
           }
 
-          message.taskRunId = reader.string();
+          message.taskExternalId = reader.string();
           continue;
         }
         case 6: {
@@ -2366,7 +2366,7 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
       jobId: isSet(object.jobId) ? globalThis.String(object.jobId) : '',
       jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : '',
       taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : '',
-      taskRunId: isSet(object.taskRunId) ? globalThis.String(object.taskRunId) : '',
+      taskExternalId: isSet(object.taskExternalId) ? globalThis.String(object.taskExternalId) : '',
       actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : '',
       eventTimestamp: isSet(object.eventTimestamp)
         ? fromJsonTimestamp(object.eventTimestamp)
@@ -2394,8 +2394,8 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     if (message.taskId !== '') {
       obj.taskId = message.taskId;
     }
-    if (message.taskRunId !== '') {
-      obj.taskRunId = message.taskRunId;
+    if (message.taskExternalId !== '') {
+      obj.taskExternalId = message.taskExternalId;
     }
     if (message.actionId !== '') {
       obj.actionId = message.actionId;
@@ -2427,7 +2427,7 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     message.jobId = object.jobId ?? '';
     message.jobRunId = object.jobRunId ?? '';
     message.taskId = object.taskId ?? '';
-    message.taskRunId = object.taskRunId ?? '';
+    message.taskExternalId = object.taskExternalId ?? '';
     message.actionId = object.actionId ?? '';
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.eventType = object.eventType ?? 0;

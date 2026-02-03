@@ -136,8 +136,8 @@ message AssignedAction {
     // the task id
     string task_id = 7;
 
-    // the task run id
-    string task_run_id = 8;
+    // the task external run id
+    string task_external_id = 8;
 
     // the action id
     string action_id = 9;
@@ -243,8 +243,8 @@ message StepActionEvent {
     // the id of the task
     string task_id = 4;
 
-    // the task run id
-    string task_run_id = 5;
+    // the task external run id
+    string task_external_id = 5;
 
     // the action id
     string action_id = 6;

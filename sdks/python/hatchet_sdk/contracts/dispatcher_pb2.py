@@ -9,6 +9,7 @@ from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import runtime_version as _runtime_version
 from google.protobuf import symbol_database as _symbol_database
 from google.protobuf.internal import builder as _builder
+
 _runtime_version.ValidateProtobufRuntimeVersion(
     _runtime_version.Domain.PUBLIC,
     6,
@@ -22,10 +23,10 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
-from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
+from google.protobuf import \
+    timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
-
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10\x64ispatcher.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"Z\n\x0cWorkerLabels\x12\x16\n\tstr_value\x18\x01 \x01(\tH\x00\x88\x01\x01\x12\x16\n\tint_value\x18\x02 \x01(\x05H\x01\x88\x01\x01\x42\x0c\n\n_str_valueB\x0c\n\n_int_value\"\xcc\x01\n\x0bRuntimeInfo\x12\x18\n\x0bsdk_version\x18\x01 \x01(\tH\x00\x88\x01\x01\x12\x1c\n\x08language\x18\x02 \x01(\x0e\x32\x05.SDKSH\x01\x88\x01\x01\x12\x1d\n\x10language_version\x18\x03 \x01(\tH\x02\x88\x01\x01\x12\x0f\n\x02os\x18\x04 \x01(\tH\x03\x88\x01\x01\x12\x12\n\x05\x65xtra\x18\x05 \x01(\tH\x04\x88\x01\x01\x42\x0e\n\x0c_sdk_versionB\x0b\n\t_languageB\x13\n\x11_language_versionB\x05\n\x03_osB\x08\n\x06_extra\"\xc1\x02\n\x15WorkerRegisterRequest\x12\x13\n\x0bworker_name\x18\x01 \x01(\t\x12\x0f\n\x07\x61\x63tions\x18\x02 \x03(\t\x12\x10\n\x08services\x18\x03 \x03(\t\x12\x12\n\x05slots\x18\x04 \x01(\x05H\x00\x88\x01\x01\x12\x32\n\x06labels\x18\x05 \x03(\x0b\x32\".WorkerRegisterRequest.LabelsEntry\x12\x17\n\nwebhook_id\x18\x06 \x01(\tH\x01\x88\x01\x01\x12\'\n\x0cruntime_info\x18\x07 \x01(\x0b\x32\x0c.RuntimeInfoH\x02\x88\x01\x01\x1a<\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.WorkerLabels:\x02\x38\x01\x42\x08\n\x06_slotsB\r\n\x0b_webhook_idB\x0f\n\r_runtime_info\"S\n\x16WorkerRegisterResponse\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x11\n\tworker_id\x18\x02 \x01(\t\x12\x13\n\x0bworker_name\x18\x03 \x01(\t\"\xa4\x01\n\x19UpsertWorkerLabelsRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12\x36\n\x06labels\x18\x02 \x03(\x0b\x32&.UpsertWorkerLabelsRequest.LabelsEntry\x1a<\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.WorkerLabels:\x02\x38\x01\"B\n\x1aUpsertWorkerLabelsResponse\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x11\n\tworker_id\x18\x02 \x01(\t\"\x8f\x05\n\x0e\x41ssignedAction\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x17\n\x0fworkflow_run_id\x18\x02 \x01(\t\x12\x1c\n\x14get_group_key_run_id\x18\x03 \x01(\t\x12\x0e\n\x06job_id\x18\x04 \x01(\t\x12\x10\n\x08job_name\x18\x05 \x01(\t\x12\x12\n\njob_run_id\x18\x06 \x01(\t\x12\x0f\n\x07task_id\x18\x07 \x01(\t\x12\x13\n\x0btask_run_id\x18\x08 \x01(\t\x12\x11\n\taction_id\x18\t \x01(\t\x12 \n\x0b\x61\x63tion_type\x18\n \x01(\x0e\x32\x0b.ActionType\x12\x16\n\x0e\x61\x63tion_payload\x18\x0b \x01(\t\x12\x11\n\tstep_name\x18\x0c \x01(\t\x12\x13\n\x0bretry_count\x18\r \x01(\x05\x12 \n\x13\x61\x64\x64itional_metadata\x18\x0e \x01(\tH\x00\x88\x01\x01\x12!\n\x14\x63hild_workflow_index\x18\x0f \x01(\x05H\x01\x88\x01\x01\x12\x1f\n\x12\x63hild_workflow_key\x18\x10 \x01(\tH\x02\x88\x01\x01\x12#\n\x16parent_workflow_run_id\x18\x11 \x01(\tH\x03\x88\x01\x01\x12\x10\n\x08priority\x18\x12 \x01(\x05\x12\x18\n\x0bworkflow_id\x18\x13 \x01(\tH\x04\x88\x01\x01\x12 \n\x13workflow_version_id\x18\x14 \x01(\tH\x05\x88\x01\x01\x42\x16\n\x14_additional_metadataB\x17\n\x15_child_workflow_indexB\x15\n\x13_child_workflow_keyB\x19\n\x17_parent_workflow_run_idB\x0e\n\x0c_workflow_idB\x16\n\x14_workflow_version_id\"(\n\x13WorkerListenRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\"-\n\x18WorkerUnsubscribeRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\"A\n\x19WorkerUnsubscribeResponse\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x11\n\tworker_id\x18\x02 \x01(\t\"\xec\x01\n\x13GroupKeyActionEvent\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12\x17\n\x0fworkflow_run_id\x18\x02 \x01(\t\x12\x1c\n\x14get_group_key_run_id\x18\x03 \x01(\t\x12\x11\n\taction_id\x18\x04 \x01(\t\x12\x33\n\x0f\x65vent_timestamp\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12,\n\nevent_type\x18\x06 \x01(\x0e\x32\x18.GroupKeyActionEventType\x12\x15\n\revent_payload\x18\x07 \x01(\t\"\xd5\x02\n\x0fStepActionEvent\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12\x0e\n\x06job_id\x18\x02 \x01(\t\x12\x12\n\njob_run_id\x18\x03 \x01(\t\x12\x0f\n\x07task_id\x18\x04 \x01(\t\x12\x13\n\x0btask_run_id\x18\x05 \x01(\t\x12\x11\n\taction_id\x18\x06 \x01(\t\x12\x33\n\x0f\x65vent_timestamp\x18\x07 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12(\n\nevent_type\x18\x08 \x01(\x0e\x32\x14.StepActionEventType\x12\x15\n\revent_payload\x18\t \x01(\t\x12\x18\n\x0bretry_count\x18\n \x01(\x05H\x00\x88\x01\x01\x12\x1d\n\x10should_not_retry\x18\x0b \x01(\x08H\x01\x88\x01\x01\x42\x0e\n\x0c_retry_countB\x13\n\x11_should_not_retry\";\n\x13\x41\x63tionEventResponse\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x11\n\tworker_id\x18\x02 \x01(\t\"\xcc\x01\n SubscribeToWorkflowEventsRequest\x12\x1c\n\x0fworkflow_run_id\x18\x01 \x01(\tH\x00\x88\x01\x01\x12 \n\x13\x61\x64\x64itional_meta_key\x18\x02 \x01(\tH\x01\x88\x01\x01\x12\"\n\x15\x61\x64\x64itional_meta_value\x18\x03 \x01(\tH\x02\x88\x01\x01\x42\x12\n\x10_workflow_run_idB\x16\n\x14_additional_meta_keyB\x18\n\x16_additional_meta_value\"9\n\x1eSubscribeToWorkflowRunsRequest\x12\x17\n\x0fworkflow_run_id\x18\x01 \x01(\t\"\xe7\x02\n\rWorkflowEvent\x12\x17\n\x0fworkflow_run_id\x18\x01 \x01(\t\x12$\n\rresource_type\x18\x02 \x01(\x0e\x32\r.ResourceType\x12&\n\nevent_type\x18\x03 \x01(\x0e\x32\x12.ResourceEventType\x12\x13\n\x0bresource_id\x18\x04 \x01(\t\x12\x33\n\x0f\x65vent_timestamp\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x15\n\revent_payload\x18\x06 \x01(\t\x12\x0e\n\x06hangup\x18\x07 \x01(\x08\x12\x19\n\x0cstep_retries\x18\x08 \x01(\x05H\x00\x88\x01\x01\x12\x18\n\x0bretry_count\x18\t \x01(\x05H\x01\x88\x01\x01\x12\x18\n\x0b\x65vent_index\x18\n \x01(\x03H\x02\x88\x01\x01\x42\x0f\n\r_step_retriesB\x0e\n\x0c_retry_countB\x0e\n\x0c_event_index\"\xac\x01\n\x10WorkflowRunEvent\x12\x17\n\x0fworkflow_run_id\x18\x01 \x01(\t\x12)\n\nevent_type\x18\x02 \x01(\x0e\x32\x15.WorkflowRunEventType\x12\x33\n\x0f\x65vent_timestamp\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x1f\n\x07results\x18\x04 \x03(\x0b\x32\x0e.StepRunResult\"\x90\x01\n\rStepRunResult\x12\x13\n\x0bstep_run_id\x18\x01 \x01(\t\x12\x18\n\x10step_readable_id\x18\x02 \x01(\t\x12\x12\n\njob_run_id\x18\x03 \x01(\t\x12\x12\n\x05\x65rror\x18\x04 \x01(\tH\x00\x88\x01\x01\x12\x13\n\x06output\x18\x05 \x01(\tH\x01\x88\x01\x01\x42\x08\n\x06_errorB\t\n\x07_output\"Z\n\rOverridesData\x12\x13\n\x0bstep_run_id\x18\x01 \x01(\t\x12\x0c\n\x04path\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\x12\x17\n\x0f\x63\x61ller_filename\x18\x04 \x01(\t\"\x17\n\x15OverridesDataResponse\"W\n\x10HeartbeatRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12\x30\n\x0cheartbeat_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x13\n\x11HeartbeatResponse\"J\n\x15RefreshTimeoutRequest\x12\x13\n\x0bstep_run_id\x18\x01 \x01(\t\x12\x1c\n\x14increment_timeout_by\x18\x02 \x01(\t\"H\n\x16RefreshTimeoutResponse\x12.\n\ntimeout_at\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\")\n\x12ReleaseSlotRequest\x12\x13\n\x0bstep_run_id\x18\x01 \x01(\t\"\x15\n\x13ReleaseSlotResponse*7\n\x04SDKS\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x06\n\x02GO\x10\x01\x12\n\n\x06PYTHON\x10\x02\x12\x0e\n\nTYPESCRIPT\x10\x03*N\n\nActionType\x12\x12\n\x0eSTART_STEP_RUN\x10\x00\x12\x13\n\x0f\x43\x41NCEL_STEP_RUN\x10\x01\x12\x17\n\x13START_GET_GROUP_KEY\x10\x02*\xa2\x01\n\x17GroupKeyActionEventType\x12 \n\x1cGROUP_KEY_EVENT_TYPE_UNKNOWN\x10\x00\x12 \n\x1cGROUP_KEY_EVENT_TYPE_STARTED\x10\x01\x12\"\n\x1eGROUP_KEY_EVENT_TYPE_COMPLETED\x10\x02\x12\x1f\n\x1bGROUP_KEY_EVENT_TYPE_FAILED\x10\x03*\xac\x01\n\x13StepActionEventType\x12\x1b\n\x17STEP_EVENT_TYPE_UNKNOWN\x10\x00\x12\x1b\n\x17STEP_EVENT_TYPE_STARTED\x10\x01\x12\x1d\n\x19STEP_EVENT_TYPE_COMPLETED\x10\x02\x12\x1a\n\x16STEP_EVENT_TYPE_FAILED\x10\x03\x12 \n\x1cSTEP_EVENT_TYPE_ACKNOWLEDGED\x10\x04*e\n\x0cResourceType\x12\x19\n\x15RESOURCE_TYPE_UNKNOWN\x10\x00\x12\x1a\n\x16RESOURCE_TYPE_STEP_RUN\x10\x01\x12\x1e\n\x1aRESOURCE_TYPE_WORKFLOW_RUN\x10\x02*\xfe\x01\n\x11ResourceEventType\x12\x1f\n\x1bRESOURCE_EVENT_TYPE_UNKNOWN\x10\x00\x12\x1f\n\x1bRESOURCE_EVENT_TYPE_STARTED\x10\x01\x12!\n\x1dRESOURCE_EVENT_TYPE_COMPLETED\x10\x02\x12\x1e\n\x1aRESOURCE_EVENT_TYPE_FAILED\x10\x03\x12!\n\x1dRESOURCE_EVENT_TYPE_CANCELLED\x10\x04\x12!\n\x1dRESOURCE_EVENT_TYPE_TIMED_OUT\x10\x05\x12\x1e\n\x1aRESOURCE_EVENT_TYPE_STREAM\x10\x06*<\n\x14WorkflowRunEventType\x12$\n WORKFLOW_RUN_EVENT_TYPE_FINISHED\x10\x00\x32\xf8\x06\n\nDispatcher\x12=\n\x08Register\x12\x16.WorkerRegisterRequest\x1a\x17.WorkerRegisterResponse\"\x00\x12\x33\n\x06Listen\x12\x14.WorkerListenRequest\x1a\x0f.AssignedAction\"\x00\x30\x01\x12\x35\n\x08ListenV2\x12\x14.WorkerListenRequest\x1a\x0f.AssignedAction\"\x00\x30\x01\x12\x34\n\tHeartbeat\x12\x11.HeartbeatRequest\x1a\x12.HeartbeatResponse\"\x00\x12R\n\x19SubscribeToWorkflowEvents\x12!.SubscribeToWorkflowEventsRequest\x1a\x0e.WorkflowEvent\"\x00\x30\x01\x12S\n\x17SubscribeToWorkflowRuns\x12\x1f.SubscribeToWorkflowRunsRequest\x1a\x11.WorkflowRunEvent\"\x00(\x01\x30\x01\x12?\n\x13SendStepActionEvent\x12\x10.StepActionEvent\x1a\x14.ActionEventResponse\"\x00\x12G\n\x17SendGroupKeyActionEvent\x12\x14.GroupKeyActionEvent\x1a\x14.ActionEventResponse\"\x00\x12<\n\x10PutOverridesData\x12\x0e.OverridesData\x1a\x16.OverridesDataResponse\"\x00\x12\x46\n\x0bUnsubscribe\x12\x19.WorkerUnsubscribeRequest\x1a\x1a.WorkerUnsubscribeResponse\"\x00\x12\x43\n\x0eRefreshTimeout\x12\x16.RefreshTimeoutRequest\x1a\x17.RefreshTimeoutResponse\"\x00\x12:\n\x0bReleaseSlot\x12\x13.ReleaseSlotRequest\x1a\x14.ReleaseSlotResponse\"\x00\x12O\n\x12UpsertWorkerLabels\x12\x1a.UpsertWorkerLabelsRequest\x1a\x1b.UpsertWorkerLabelsResponse\"\x00\x42GZEgithub.com/hatchet-dev/hatchet/internal/services/dispatcher/contractsb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10\x64ispatcher.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"Z\n\x0cWorkerLabels\x12\x16\n\tstr_value\x18\x01 \x01(\tH\x00\x88\x01\x01\x12\x16\n\tint_value\x18\x02 \x01(\x05H\x01\x88\x01\x01\x42\x0c\n\n_str_valueB\x0c\n\n_int_value\"\xcc\x01\n\x0bRuntimeInfo\x12\x18\n\x0bsdk_version\x18\x01 \x01(\tH\x00\x88\x01\x01\x12\x1c\n\x08language\x18\x02 \x01(\x0e\x32\x05.SDKSH\x01\x88\x01\x01\x12\x1d\n\x10language_version\x18\x03 \x01(\tH\x02\x88\x01\x01\x12\x0f\n\x02os\x18\x04 \x01(\tH\x03\x88\x01\x01\x12\x12\n\x05\x65xtra\x18\x05 \x01(\tH\x04\x88\x01\x01\x42\x0e\n\x0c_sdk_versionB\x0b\n\t_languageB\x13\n\x11_language_versionB\x05\n\x03_osB\x08\n\x06_extra\"\xc1\x02\n\x15WorkerRegisterRequest\x12\x13\n\x0bworker_name\x18\x01 \x01(\t\x12\x0f\n\x07\x61\x63tions\x18\x02 \x03(\t\x12\x10\n\x08services\x18\x03 \x03(\t\x12\x12\n\x05slots\x18\x04 \x01(\x05H\x00\x88\x01\x01\x12\x32\n\x06labels\x18\x05 \x03(\x0b\x32\".WorkerRegisterRequest.LabelsEntry\x12\x17\n\nwebhook_id\x18\x06 \x01(\tH\x01\x88\x01\x01\x12\'\n\x0cruntime_info\x18\x07 \x01(\x0b\x32\x0c.RuntimeInfoH\x02\x88\x01\x01\x1a<\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.WorkerLabels:\x02\x38\x01\x42\x08\n\x06_slotsB\r\n\x0b_webhook_idB\x0f\n\r_runtime_info\"S\n\x16WorkerRegisterResponse\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x11\n\tworker_id\x18\x02 \x01(\t\x12\x13\n\x0bworker_name\x18\x03 \x01(\t\"\xa4\x01\n\x19UpsertWorkerLabelsRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12\x36\n\x06labels\x18\x02 \x03(\x0b\x32&.UpsertWorkerLabelsRequest.LabelsEntry\x1a<\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.WorkerLabels:\x02\x38\x01\"B\n\x1aUpsertWorkerLabelsResponse\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x11\n\tworker_id\x18\x02 \x01(\t\"\x94\x05\n\x0e\x41ssignedAction\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x17\n\x0fworkflow_run_id\x18\x02 \x01(\t\x12\x1c\n\x14get_group_key_run_id\x18\x03 \x01(\t\x12\x0e\n\x06job_id\x18\x04 \x01(\t\x12\x10\n\x08job_name\x18\x05 \x01(\t\x12\x12\n\njob_run_id\x18\x06 \x01(\t\x12\x0f\n\x07task_id\x18\x07 \x01(\t\x12\x18\n\x10task_external_id\x18\x08 \x01(\t\x12\x11\n\taction_id\x18\t \x01(\t\x12 \n\x0b\x61\x63tion_type\x18\n \x01(\x0e\x32\x0b.ActionType\x12\x16\n\x0e\x61\x63tion_payload\x18\x0b \x01(\t\x12\x11\n\tstep_name\x18\x0c \x01(\t\x12\x13\n\x0bretry_count\x18\r \x01(\x05\x12 \n\x13\x61\x64\x64itional_metadata\x18\x0e \x01(\tH\x00\x88\x01\x01\x12!\n\x14\x63hild_workflow_index\x18\x0f \x01(\x05H\x01\x88\x01\x01\x12\x1f\n\x12\x63hild_workflow_key\x18\x10 \x01(\tH\x02\x88\x01\x01\x12#\n\x16parent_workflow_run_id\x18\x11 \x01(\tH\x03\x88\x01\x01\x12\x10\n\x08priority\x18\x12 \x01(\x05\x12\x18\n\x0bworkflow_id\x18\x13 \x01(\tH\x04\x88\x01\x01\x12 \n\x13workflow_version_id\x18\x14 \x01(\tH\x05\x88\x01\x01\x42\x16\n\x14_additional_metadataB\x17\n\x15_child_workflow_indexB\x15\n\x13_child_workflow_keyB\x19\n\x17_parent_workflow_run_idB\x0e\n\x0c_workflow_idB\x16\n\x14_workflow_version_id\"(\n\x13WorkerListenRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\"-\n\x18WorkerUnsubscribeRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\"A\n\x19WorkerUnsubscribeResponse\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x11\n\tworker_id\x18\x02 \x01(\t\"\xec\x01\n\x13GroupKeyActionEvent\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12\x17\n\x0fworkflow_run_id\x18\x02 \x01(\t\x12\x1c\n\x14get_group_key_run_id\x18\x03 \x01(\t\x12\x11\n\taction_id\x18\x04 \x01(\t\x12\x33\n\x0f\x65vent_timestamp\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12,\n\nevent_type\x18\x06 \x01(\x0e\x32\x18.GroupKeyActionEventType\x12\x15\n\revent_payload\x18\x07 \x01(\t\"\xda\x02\n\x0fStepActionEvent\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12\x0e\n\x06job_id\x18\x02 \x01(\t\x12\x12\n\njob_run_id\x18\x03 \x01(\t\x12\x0f\n\x07task_id\x18\x04 \x01(\t\x12\x18\n\x10task_external_id\x18\x05 \x01(\t\x12\x11\n\taction_id\x18\x06 \x01(\t\x12\x33\n\x0f\x65vent_timestamp\x18\x07 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12(\n\nevent_type\x18\x08 \x01(\x0e\x32\x14.StepActionEventType\x12\x15\n\revent_payload\x18\t \x01(\t\x12\x18\n\x0bretry_count\x18\n \x01(\x05H\x00\x88\x01\x01\x12\x1d\n\x10should_not_retry\x18\x0b \x01(\x08H\x01\x88\x01\x01\x42\x0e\n\x0c_retry_countB\x13\n\x11_should_not_retry\";\n\x13\x41\x63tionEventResponse\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x11\n\tworker_id\x18\x02 \x01(\t\"\xcc\x01\n SubscribeToWorkflowEventsRequest\x12\x1c\n\x0fworkflow_run_id\x18\x01 \x01(\tH\x00\x88\x01\x01\x12 \n\x13\x61\x64\x64itional_meta_key\x18\x02 \x01(\tH\x01\x88\x01\x01\x12\"\n\x15\x61\x64\x64itional_meta_value\x18\x03 \x01(\tH\x02\x88\x01\x01\x42\x12\n\x10_workflow_run_idB\x16\n\x14_additional_meta_keyB\x18\n\x16_additional_meta_value\"9\n\x1eSubscribeToWorkflowRunsRequest\x12\x17\n\x0fworkflow_run_id\x18\x01 \x01(\t\"\xe7\x02\n\rWorkflowEvent\x12\x17\n\x0fworkflow_run_id\x18\x01 \x01(\t\x12$\n\rresource_type\x18\x02 \x01(\x0e\x32\r.ResourceType\x12&\n\nevent_type\x18\x03 \x01(\x0e\x32\x12.ResourceEventType\x12\x13\n\x0bresource_id\x18\x04 \x01(\t\x12\x33\n\x0f\x65vent_timestamp\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x15\n\revent_payload\x18\x06 \x01(\t\x12\x0e\n\x06hangup\x18\x07 \x01(\x08\x12\x19\n\x0cstep_retries\x18\x08 \x01(\x05H\x00\x88\x01\x01\x12\x18\n\x0bretry_count\x18\t \x01(\x05H\x01\x88\x01\x01\x12\x18\n\x0b\x65vent_index\x18\n \x01(\x03H\x02\x88\x01\x01\x42\x0f\n\r_step_retriesB\x0e\n\x0c_retry_countB\x0e\n\x0c_event_index\"\xac\x01\n\x10WorkflowRunEvent\x12\x17\n\x0fworkflow_run_id\x18\x01 \x01(\t\x12)\n\nevent_type\x18\x02 \x01(\x0e\x32\x15.WorkflowRunEventType\x12\x33\n\x0f\x65vent_timestamp\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x1f\n\x07results\x18\x04 \x03(\x0b\x32\x0e.StepRunResult\"\x90\x01\n\rStepRunResult\x12\x13\n\x0bstep_run_id\x18\x01 \x01(\t\x12\x18\n\x10step_readable_id\x18\x02 \x01(\t\x12\x12\n\njob_run_id\x18\x03 \x01(\t\x12\x12\n\x05\x65rror\x18\x04 \x01(\tH\x00\x88\x01\x01\x12\x13\n\x06output\x18\x05 \x01(\tH\x01\x88\x01\x01\x42\x08\n\x06_errorB\t\n\x07_output\"Z\n\rOverridesData\x12\x13\n\x0bstep_run_id\x18\x01 \x01(\t\x12\x0c\n\x04path\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\x12\x17\n\x0f\x63\x61ller_filename\x18\x04 \x01(\t\"\x17\n\x15OverridesDataResponse\"W\n\x10HeartbeatRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12\x30\n\x0cheartbeat_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x13\n\x11HeartbeatResponse\"J\n\x15RefreshTimeoutRequest\x12\x13\n\x0bstep_run_id\x18\x01 \x01(\t\x12\x1c\n\x14increment_timeout_by\x18\x02 \x01(\t\"H\n\x16RefreshTimeoutResponse\x12.\n\ntimeout_at\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\")\n\x12ReleaseSlotRequest\x12\x13\n\x0bstep_run_id\x18\x01 \x01(\t\"\x15\n\x13ReleaseSlotResponse*7\n\x04SDKS\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x06\n\x02GO\x10\x01\x12\n\n\x06PYTHON\x10\x02\x12\x0e\n\nTYPESCRIPT\x10\x03*N\n\nActionType\x12\x12\n\x0eSTART_STEP_RUN\x10\x00\x12\x13\n\x0f\x43\x41NCEL_STEP_RUN\x10\x01\x12\x17\n\x13START_GET_GROUP_KEY\x10\x02*\xa2\x01\n\x17GroupKeyActionEventType\x12 \n\x1cGROUP_KEY_EVENT_TYPE_UNKNOWN\x10\x00\x12 \n\x1cGROUP_KEY_EVENT_TYPE_STARTED\x10\x01\x12\"\n\x1eGROUP_KEY_EVENT_TYPE_COMPLETED\x10\x02\x12\x1f\n\x1bGROUP_KEY_EVENT_TYPE_FAILED\x10\x03*\xac\x01\n\x13StepActionEventType\x12\x1b\n\x17STEP_EVENT_TYPE_UNKNOWN\x10\x00\x12\x1b\n\x17STEP_EVENT_TYPE_STARTED\x10\x01\x12\x1d\n\x19STEP_EVENT_TYPE_COMPLETED\x10\x02\x12\x1a\n\x16STEP_EVENT_TYPE_FAILED\x10\x03\x12 \n\x1cSTEP_EVENT_TYPE_ACKNOWLEDGED\x10\x04*e\n\x0cResourceType\x12\x19\n\x15RESOURCE_TYPE_UNKNOWN\x10\x00\x12\x1a\n\x16RESOURCE_TYPE_STEP_RUN\x10\x01\x12\x1e\n\x1aRESOURCE_TYPE_WORKFLOW_RUN\x10\x02*\xfe\x01\n\x11ResourceEventType\x12\x1f\n\x1bRESOURCE_EVENT_TYPE_UNKNOWN\x10\x00\x12\x1f\n\x1bRESOURCE_EVENT_TYPE_STARTED\x10\x01\x12!\n\x1dRESOURCE_EVENT_TYPE_COMPLETED\x10\x02\x12\x1e\n\x1aRESOURCE_EVENT_TYPE_FAILED\x10\x03\x12!\n\x1dRESOURCE_EVENT_TYPE_CANCELLED\x10\x04\x12!\n\x1dRESOURCE_EVENT_TYPE_TIMED_OUT\x10\x05\x12\x1e\n\x1aRESOURCE_EVENT_TYPE_STREAM\x10\x06*<\n\x14WorkflowRunEventType\x12$\n WORKFLOW_RUN_EVENT_TYPE_FINISHED\x10\x00\x32\xf8\x06\n\nDispatcher\x12=\n\x08Register\x12\x16.WorkerRegisterRequest\x1a\x17.WorkerRegisterResponse\"\x00\x12\x33\n\x06Listen\x12\x14.WorkerListenRequest\x1a\x0f.AssignedAction\"\x00\x30\x01\x12\x35\n\x08ListenV2\x12\x14.WorkerListenRequest\x1a\x0f.AssignedAction\"\x00\x30\x01\x12\x34\n\tHeartbeat\x12\x11.HeartbeatRequest\x1a\x12.HeartbeatResponse\"\x00\x12R\n\x19SubscribeToWorkflowEvents\x12!.SubscribeToWorkflowEventsRequest\x1a\x0e.WorkflowEvent\"\x00\x30\x01\x12S\n\x17SubscribeToWorkflowRuns\x12\x1f.SubscribeToWorkflowRunsRequest\x1a\x11.WorkflowRunEvent\"\x00(\x01\x30\x01\x12?\n\x13SendStepActionEvent\x12\x10.StepActionEvent\x1a\x14.ActionEventResponse\"\x00\x12G\n\x17SendGroupKeyActionEvent\x12\x14.GroupKeyActionEvent\x1a\x14.ActionEventResponse\"\x00\x12<\n\x10PutOverridesData\x12\x0e.OverridesData\x1a\x16.OverridesDataResponse\"\x00\x12\x46\n\x0bUnsubscribe\x12\x19.WorkerUnsubscribeRequest\x1a\x1a.WorkerUnsubscribeResponse\"\x00\x12\x43\n\x0eRefreshTimeout\x12\x16.RefreshTimeoutRequest\x1a\x17.RefreshTimeoutResponse\"\x00\x12:\n\x0bReleaseSlot\x12\x13.ReleaseSlotRequest\x1a\x14.ReleaseSlotResponse\"\x00\x12O\n\x12UpsertWorkerLabels\x12\x1a.UpsertWorkerLabelsRequest\x1a\x1b.UpsertWorkerLabelsResponse\"\x00\x42GZEgithub.com/hatchet-dev/hatchet/internal/services/dispatcher/contractsb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -37,20 +38,20 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_WORKERREGISTERREQUEST_LABELSENTRY']._serialized_options = b'8\001'
   _globals['_UPSERTWORKERLABELSREQUEST_LABELSENTRY']._loaded_options = None
   _globals['_UPSERTWORKERLABELSREQUEST_LABELSENTRY']._serialized_options = b'8\001'
-  _globals['_SDKS']._serialized_start=3847
-  _globals['_SDKS']._serialized_end=3902
-  _globals['_ACTIONTYPE']._serialized_start=3904
-  _globals['_ACTIONTYPE']._serialized_end=3982
-  _globals['_GROUPKEYACTIONEVENTTYPE']._serialized_start=3985
-  _globals['_GROUPKEYACTIONEVENTTYPE']._serialized_end=4147
-  _globals['_STEPACTIONEVENTTYPE']._serialized_start=4150
-  _globals['_STEPACTIONEVENTTYPE']._serialized_end=4322
-  _globals['_RESOURCETYPE']._serialized_start=4324
-  _globals['_RESOURCETYPE']._serialized_end=4425
-  _globals['_RESOURCEEVENTTYPE']._serialized_start=4428
-  _globals['_RESOURCEEVENTTYPE']._serialized_end=4682
-  _globals['_WORKFLOWRUNEVENTTYPE']._serialized_start=4684
-  _globals['_WORKFLOWRUNEVENTTYPE']._serialized_end=4744
+  _globals['_SDKS']._serialized_start=3857
+  _globals['_SDKS']._serialized_end=3912
+  _globals['_ACTIONTYPE']._serialized_start=3914
+  _globals['_ACTIONTYPE']._serialized_end=3992
+  _globals['_GROUPKEYACTIONEVENTTYPE']._serialized_start=3995
+  _globals['_GROUPKEYACTIONEVENTTYPE']._serialized_end=4157
+  _globals['_STEPACTIONEVENTTYPE']._serialized_start=4160
+  _globals['_STEPACTIONEVENTTYPE']._serialized_end=4332
+  _globals['_RESOURCETYPE']._serialized_start=4334
+  _globals['_RESOURCETYPE']._serialized_end=4435
+  _globals['_RESOURCEEVENTTYPE']._serialized_start=4438
+  _globals['_RESOURCEEVENTTYPE']._serialized_end=4692
+  _globals['_WORKFLOWRUNEVENTTYPE']._serialized_start=4694
+  _globals['_WORKFLOWRUNEVENTTYPE']._serialized_end=4754
   _globals['_WORKERLABELS']._serialized_start=53
   _globals['_WORKERLABELS']._serialized_end=143
   _globals['_RUNTIMEINFO']._serialized_start=146
@@ -68,45 +69,45 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_UPSERTWORKERLABELSRESPONSE']._serialized_start=928
   _globals['_UPSERTWORKERLABELSRESPONSE']._serialized_end=994
   _globals['_ASSIGNEDACTION']._serialized_start=997
-  _globals['_ASSIGNEDACTION']._serialized_end=1652
-  _globals['_WORKERLISTENREQUEST']._serialized_start=1654
-  _globals['_WORKERLISTENREQUEST']._serialized_end=1694
-  _globals['_WORKERUNSUBSCRIBEREQUEST']._serialized_start=1696
-  _globals['_WORKERUNSUBSCRIBEREQUEST']._serialized_end=1741
-  _globals['_WORKERUNSUBSCRIBERESPONSE']._serialized_start=1743
-  _globals['_WORKERUNSUBSCRIBERESPONSE']._serialized_end=1808
-  _globals['_GROUPKEYACTIONEVENT']._serialized_start=1811
-  _globals['_GROUPKEYACTIONEVENT']._serialized_end=2047
-  _globals['_STEPACTIONEVENT']._serialized_start=2050
-  _globals['_STEPACTIONEVENT']._serialized_end=2391
-  _globals['_ACTIONEVENTRESPONSE']._serialized_start=2393
-  _globals['_ACTIONEVENTRESPONSE']._serialized_end=2452
-  _globals['_SUBSCRIBETOWORKFLOWEVENTSREQUEST']._serialized_start=2455
-  _globals['_SUBSCRIBETOWORKFLOWEVENTSREQUEST']._serialized_end=2659
-  _globals['_SUBSCRIBETOWORKFLOWRUNSREQUEST']._serialized_start=2661
-  _globals['_SUBSCRIBETOWORKFLOWRUNSREQUEST']._serialized_end=2718
-  _globals['_WORKFLOWEVENT']._serialized_start=2721
-  _globals['_WORKFLOWEVENT']._serialized_end=3080
-  _globals['_WORKFLOWRUNEVENT']._serialized_start=3083
-  _globals['_WORKFLOWRUNEVENT']._serialized_end=3255
-  _globals['_STEPRUNRESULT']._serialized_start=3258
-  _globals['_STEPRUNRESULT']._serialized_end=3402
-  _globals['_OVERRIDESDATA']._serialized_start=3404
-  _globals['_OVERRIDESDATA']._serialized_end=3494
-  _globals['_OVERRIDESDATARESPONSE']._serialized_start=3496
-  _globals['_OVERRIDESDATARESPONSE']._serialized_end=3519
-  _globals['_HEARTBEATREQUEST']._serialized_start=3521
-  _globals['_HEARTBEATREQUEST']._serialized_end=3608
-  _globals['_HEARTBEATRESPONSE']._serialized_start=3610
-  _globals['_HEARTBEATRESPONSE']._serialized_end=3629
-  _globals['_REFRESHTIMEOUTREQUEST']._serialized_start=3631
-  _globals['_REFRESHTIMEOUTREQUEST']._serialized_end=3705
-  _globals['_REFRESHTIMEOUTRESPONSE']._serialized_start=3707
-  _globals['_REFRESHTIMEOUTRESPONSE']._serialized_end=3779
-  _globals['_RELEASESLOTREQUEST']._serialized_start=3781
-  _globals['_RELEASESLOTREQUEST']._serialized_end=3822
-  _globals['_RELEASESLOTRESPONSE']._serialized_start=3824
-  _globals['_RELEASESLOTRESPONSE']._serialized_end=3845
-  _globals['_DISPATCHER']._serialized_start=4747
-  _globals['_DISPATCHER']._serialized_end=5635
+  _globals['_ASSIGNEDACTION']._serialized_end=1657
+  _globals['_WORKERLISTENREQUEST']._serialized_start=1659
+  _globals['_WORKERLISTENREQUEST']._serialized_end=1699
+  _globals['_WORKERUNSUBSCRIBEREQUEST']._serialized_start=1701
+  _globals['_WORKERUNSUBSCRIBEREQUEST']._serialized_end=1746
+  _globals['_WORKERUNSUBSCRIBERESPONSE']._serialized_start=1748
+  _globals['_WORKERUNSUBSCRIBERESPONSE']._serialized_end=1813
+  _globals['_GROUPKEYACTIONEVENT']._serialized_start=1816
+  _globals['_GROUPKEYACTIONEVENT']._serialized_end=2052
+  _globals['_STEPACTIONEVENT']._serialized_start=2055
+  _globals['_STEPACTIONEVENT']._serialized_end=2401
+  _globals['_ACTIONEVENTRESPONSE']._serialized_start=2403
+  _globals['_ACTIONEVENTRESPONSE']._serialized_end=2462
+  _globals['_SUBSCRIBETOWORKFLOWEVENTSREQUEST']._serialized_start=2465
+  _globals['_SUBSCRIBETOWORKFLOWEVENTSREQUEST']._serialized_end=2669
+  _globals['_SUBSCRIBETOWORKFLOWRUNSREQUEST']._serialized_start=2671
+  _globals['_SUBSCRIBETOWORKFLOWRUNSREQUEST']._serialized_end=2728
+  _globals['_WORKFLOWEVENT']._serialized_start=2731
+  _globals['_WORKFLOWEVENT']._serialized_end=3090
+  _globals['_WORKFLOWRUNEVENT']._serialized_start=3093
+  _globals['_WORKFLOWRUNEVENT']._serialized_end=3265
+  _globals['_STEPRUNRESULT']._serialized_start=3268
+  _globals['_STEPRUNRESULT']._serialized_end=3412
+  _globals['_OVERRIDESDATA']._serialized_start=3414
+  _globals['_OVERRIDESDATA']._serialized_end=3504
+  _globals['_OVERRIDESDATARESPONSE']._serialized_start=3506
+  _globals['_OVERRIDESDATARESPONSE']._serialized_end=3529
+  _globals['_HEARTBEATREQUEST']._serialized_start=3531
+  _globals['_HEARTBEATREQUEST']._serialized_end=3618
+  _globals['_HEARTBEATRESPONSE']._serialized_start=3620
+  _globals['_HEARTBEATRESPONSE']._serialized_end=3639
+  _globals['_REFRESHTIMEOUTREQUEST']._serialized_start=3641
+  _globals['_REFRESHTIMEOUTREQUEST']._serialized_end=3715
+  _globals['_REFRESHTIMEOUTRESPONSE']._serialized_start=3717
+  _globals['_REFRESHTIMEOUTRESPONSE']._serialized_end=3789
+  _globals['_RELEASESLOTREQUEST']._serialized_start=3791
+  _globals['_RELEASESLOTREQUEST']._serialized_end=3832
+  _globals['_RELEASESLOTRESPONSE']._serialized_start=3834
+  _globals['_RELEASESLOTRESPONSE']._serialized_end=3855
+  _globals['_DISPATCHER']._serialized_start=4757
+  _globals['_DISPATCHER']._serialized_end=5645
 # @@protoc_insertion_point(module_scope)

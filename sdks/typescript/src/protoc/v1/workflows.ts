@@ -322,7 +322,7 @@ export interface CreateWorkflowVersionRequest {
   cronTriggers: string[];
   /** (required) the workflow jobs */
   tasks: CreateTaskOpts[];
-  /** Deprecated: use concurrencyArr instead */
+  /** Deprecated: use concurrency_arr instead */
   concurrency: Concurrency | undefined;
   /** (optional) the input for the cron trigger */
   cronInput?: string | undefined;
