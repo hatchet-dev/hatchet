@@ -1487,6 +1487,7 @@ const (
 	V1PayloadTypeTASKOUTPUT     V1PayloadType = "TASK_OUTPUT"
 	V1PayloadTypeTASKEVENTDATA  V1PayloadType = "TASK_EVENT_DATA"
 	V1PayloadTypeUSEREVENTINPUT V1PayloadType = "USER_EVENT_INPUT"
+	V1PayloadTypeMEMOOUTPUT     V1PayloadType = "MEMO_OUTPUT"
 )
 
 func (e *V1PayloadType) Scan(src interface{}) error {
@@ -3016,6 +3017,7 @@ type V1DagsOlap struct {
 type V1DurableEventLog struct {
 	ID             pgtype.Int8        `json:"id"`
 	TenantID       pgtype.UUID        `json:"tenant_id"`
+	ExternalID     pgtype.UUID        `json:"external_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	EventType      string             `json:"event_type"`

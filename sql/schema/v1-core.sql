@@ -1649,6 +1649,7 @@ CREATE TABLE v1_durable_sleep (
 CREATE TABLE v1_durable_event_log (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
+    external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     event_type TEXT NOT NULL,
@@ -1665,7 +1666,7 @@ CREATE UNIQUE INDEX v1_durable_event_log_lookup_idx ON v1_durable_event_log (
     key ASC
 );
 
-CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA', 'USER_EVENT_INPUT');
+CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA', 'USER_EVENT_INPUT', 'MEMO_OUTPUT');
 
 -- IMPORTANT: Keep these values in sync with `v1_payload_type_olap` in the OLAP db
 CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');

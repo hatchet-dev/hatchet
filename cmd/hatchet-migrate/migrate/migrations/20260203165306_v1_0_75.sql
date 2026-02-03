@@ -4,6 +4,7 @@
 CREATE TABLE v1_durable_event_log (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
+    external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     event_type TEXT NOT NULL,
@@ -19,6 +20,8 @@ CREATE UNIQUE INDEX v1_durable_event_log_lookup_idx ON v1_durable_event_log (
     task_inserted_at ASC,
     key ASC
 );
+
+ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'MEMO_OUTPUT';
 
 -- +goose StatementEnd
 

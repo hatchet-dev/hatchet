@@ -4167,16 +4167,39 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 }
 
 func (r *TaskRepositoryImpl) GetDurableEventLog(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, key string) (*sqlcv1.V1DurableEventLog, error) {
-	return r.queries.GetDurableEventLog(ctx, r.pool, sqlcv1.GetDurableEventLogParams{
+	res, err := r.queries.GetDurableEventLog(ctx, r.pool, sqlcv1.GetDurableEventLogParams{
 		TenantID:       sqlchelpers.UUIDFromStr(tenantId),
 		TaskID:         taskId,
 		TaskInsertedAt: taskInsertedAt,
 		Key:            key,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	retrieveOpt := RetrievePayloadOpts{
+		Id:         res.ID.Int64,
+		InsertedAt: res.CreatedAt,
+		Type:       sqlcv1.V1PayloadTypeMEMOOUTPUT,
+		TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpt)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve durable event log payload: %w", err)
+	}
+
+	if payload, ok := payloads[retrieveOpt]; ok {
+		res.Data = payload
+	}
+
+	return res, nil
 }
 
 func (r *TaskRepositoryImpl) CreateDurableEventLog(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, eventType string, key string, data []byte) (*sqlcv1.V1DurableEventLog, error) {
-	return r.queries.CreateDurableEventLog(ctx, r.pool, sqlcv1.CreateDurableEventLogParams{
+	res, err := r.queries.CreateDurableEventLog(ctx, r.pool, sqlcv1.CreateDurableEventLogParams{
 		TenantID:       sqlchelpers.UUIDFromStr(tenantId),
 		TaskID:         taskId,
 		TaskInsertedAt: taskInsertedAt,
@@ -4184,4 +4207,23 @@ func (r *TaskRepositoryImpl) CreateDurableEventLog(ctx context.Context, tenantId
 		Key:            key,
 		Data:           data,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = r.payloadStore.Store(ctx, r.pool, StorePayloadOpts{
+		Id:         res.ID.Int64,
+		InsertedAt: res.CreatedAt,
+		ExternalId: res.ExternalID,
+		Type:       sqlcv1.V1PayloadTypeMEMOOUTPUT,
+		Payload:    data,
+		TenantId:   tenantId,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to store durable event log payload: %w", err)
+	}
+
+	return res, nil
 }
