@@ -89,6 +89,7 @@ class Worker:
         self._status: WorkerStatus = WorkerStatus.INITIALIZED
 
         self.action_listener_process: BaseProcess | None = None
+        self.durable_action_listener_process: BaseProcess | None = None
 
         self.action_listener_health_check: asyncio.Task[None]
 
@@ -98,6 +99,8 @@ class Worker:
 
         self.action_queue: Queue[Action | STOP_LOOP_TYPE] = self.ctx.Queue()
         self.event_queue: Queue[ActionEvent] = self.ctx.Queue()
+        self.durable_action_queue: Queue[Action | STOP_LOOP_TYPE] | None = None
+        self.durable_event_queue: Queue[ActionEvent] | None = None
 
         self.loop: asyncio.AbstractEventLoop | None = None
 
@@ -386,7 +389,7 @@ class Worker:
             self.loop.create_task(self._exit_forcefully())
 
     def _close_queues(self) -> None:
-        queues: list[Queue[Any]] = [
+        queues: list[Queue[Any] | None] = [
             self.action_queue,
             self.event_queue,
             self.durable_action_queue,
@@ -394,10 +397,12 @@ class Worker:
         ]
 
         for queue in queues:
+            if queue is None:
+                continue
             try:
                 queue.cancel_join_thread()
                 queue.close()
-            except Exception:  # noqa: PERF203
+            except Exception:
                 continue
 
     def _terminate_processes(self) -> None:

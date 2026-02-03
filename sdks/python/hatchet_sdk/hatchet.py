@@ -204,6 +204,8 @@ class Hatchet:
         :param lifespan: A lifespan function to run on the worker. This function will be called when the worker is started, and can be used to perform any setup or teardown tasks.
 
         :returns: The created `Worker` object, which exposes an instance method `start` which can be called to start the worker.
+
+        :raises ValueError: If both `slot_config` and `slots`/`durable_slots` are provided.
         """
 
         try:
