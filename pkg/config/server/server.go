@@ -216,6 +216,18 @@ type ConfigFileRuntime struct {
 	// QueueLimit is the limit of items to return from a single queue at a time
 	SingleQueueLimit int `mapstructure:"singleQueueLimit" json:"singleQueueLimit,omitempty" default:"100"`
 
+	// Whether optimistic scheduling is enabled
+	OptimisticSchedulingEnabled bool `mapstructure:"optimisticSchedulingEnabled" json:"optimisticSchedulingEnabled,omitempty" default:"true"`
+
+	// How many slots to allocate for optimistic scheduling
+	OptimisticSchedulingSlots int `mapstructure:"optimisticSchedulingSlots" json:"optimisticSchedulingSlots,omitempty" default:"5"`
+
+	// Whether we can perform writes from the gRPC API and fall back to sending messages through RabbitMQ if we exhaust slots
+	GRPCTriggerWritesEnabled bool `mapstructure:"grpcTriggerWritesEnabled" json:"grpcTriggerWritesEnabled,omitempty" default:"true"`
+
+	// The number of slots for gRPC writes
+	GRPCTriggerWriteSlots int `mapstructure:"grpcTriggerWriteSlots" json:"grpcTriggerWriteSlots,omitempty" default:"5"`
+
 	// How many buckets to hash into for parallelizing updates
 	UpdateHashFactor int `mapstructure:"updateHashFactor" json:"updateHashFactor,omitempty" default:"100"`
 
@@ -284,6 +296,10 @@ type ConfigFileRuntime struct {
 
 	// TaskOperationLimits controls the limits for various task operations
 	TaskOperationLimits TaskOperationLimitsConfigFile `mapstructure:"taskOperationLimits" json:"taskOperationLimits,omitempty"`
+
+	// EnableDurableUserEventLog controls whether we enable the durable event log for user events. By default, we don't persist user events
+	// to the core database, we only use them to trigger workflows. Enabling this will persist them to the core database.
+	EnableDurableUserEventLog bool `mapstructure:"enableDurableUserEventLog" json:"enableDurableUserEventLog,omitempty" default:"false"`
 
 	// WorkflowRunBufferSize is the buffer size for workflow run event batching in the dispatcher
 	WorkflowRunBufferSize int `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
@@ -507,14 +523,13 @@ type PostmarkConfigFile struct {
 }
 
 type SMTPEmailConfig struct {
-	Enabled      bool   `mapstructure:"enabled" json:"enabled,omitempty"`
-	ServerKey    string `mapstructure:"serverKey" json:"serverKey,omitempty"`
-	ServerAddr   string `mapstructure:"serverAddr" json:"serverAddr,omitempty"`
-	FromEmail    string `mapstructure:"fromEmail" json:"fromEmail,omitempty"`
-	FromName     string `mapstructure:"fromName" json:"fromName,omitempty" default:"Hatchet Support"`
-	SupportEmail string `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
-
-	BasicAuth SMTPEmailConfigAuthBasic `mapstructure:"basicAuth" json:"basicAuth,omitempty"`
+	BasicAuth    SMTPEmailConfigAuthBasic `mapstructure:"basicAuth" json:"basicAuth,omitempty"`
+	ServerKey    string                   `mapstructure:"serverKey" json:"serverKey,omitempty"`
+	ServerAddr   string                   `mapstructure:"serverAddr" json:"serverAddr,omitempty"`
+	FromEmail    string                   `mapstructure:"fromEmail" json:"fromEmail,omitempty"`
+	FromName     string                   `mapstructure:"fromName" json:"fromName,omitempty" default:"Hatchet Support"`
+	SupportEmail string                   `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
+	Enabled      bool                     `mapstructure:"enabled" json:"enabled,omitempty"`
 }
 
 type SMTPEmailConfigAuthBasic struct {
@@ -788,8 +803,15 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")
 	_ = v.BindEnv("runtime.requeueLimit", "SERVER_REQUEUE_LIMIT")
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
+	_ = v.BindEnv("runtime.optimisticSchedulingEnabled", "SERVER_OPTIMISTIC_SCHEDULING_ENABLED")
+	_ = v.BindEnv("runtime.optimisticSchedulingSlots", "SERVER_OPTIMISTIC_SCHEDULING_SLOTS")
+	_ = v.BindEnv("runtime.grpcTriggerWritesEnabled", "SERVER_GRPC_TRIGGER_WRITES_ENABLED")
+	_ = v.BindEnv("runtime.grpcTriggerWriteSlots", "SERVER_GRPC_TRIGGER_WRITE_SLOTS")
 	_ = v.BindEnv("runtime.updateHashFactor", "SERVER_UPDATE_HASH_FACTOR")
 	_ = v.BindEnv("runtime.updateConcurrentFactor", "SERVER_UPDATE_CONCURRENT_FACTOR")
+
+	// enable durable user event log
+	_ = v.BindEnv("runtime.enableDurableUserEventLog", "SERVER_ENABLE_DURABLE_USER_EVENT_LOG")
 
 	// internal client options
 	_ = v.BindEnv("internalClient.base.tlsStrategy", "SERVER_INTERNAL_CLIENT_BASE_STRATEGY")

@@ -7,26 +7,23 @@ import (
 )
 
 type SpanData struct {
-	TraceID           []byte // 16 bytes
-	SpanID            []byte // 8 bytes
-	ParentSpanID      []byte // optional
-	Name              string
-	Kind              int32
-	StartTimeUnixNano uint64
-	EndTimeUnixNano   uint64
-	StatusCode        int32
-	StatusMessage     string
-
-	Attributes         []byte
-	Events             []byte
-	Links              []byte
-	ResourceAttributes []byte
-
-	TaskRunExternalID *pgtype.UUID // from hatchet.step_run_id attribute
-	WorkflowRunID     *pgtype.UUID // from hatchet.workflow_run_id attribute
-	TenantID          pgtype.UUID  // from auth context
-
+	WorkflowRunID        *pgtype.UUID
+	TaskRunExternalID    *pgtype.UUID
+	StatusMessage        string
 	InstrumentationScope string
+	Name                 string
+	ResourceAttributes   []byte
+	Attributes           []byte
+	Events               []byte
+	Links                []byte
+	TraceID              []byte
+	ParentSpanID         []byte
+	SpanID               []byte
+	EndTimeUnixNano      uint64
+	StartTimeUnixNano    uint64
+	StatusCode           int32
+	Kind                 int32
+	TenantID             pgtype.UUID
 }
 
 type CreateSpansOpts struct {

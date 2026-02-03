@@ -914,8 +914,8 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	}
 
 	if len(taskExternalIds) == 0 {
-		if err := commit(ctx); err != nil {
-			return nil, err
+		if commitErr := commit(ctx); commitErr != nil {
+			return nil, commitErr
 		}
 		return []*ListFinalizedWorkflowRunsResponse{}, nil
 	}
