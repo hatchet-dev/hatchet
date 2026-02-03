@@ -38,7 +38,9 @@ def webhook_body() -> WebhookInputWithScope:
 
 @pytest.fixture
 def webhook_body_with_scope() -> WebhookInputWithScope:
-    return WebhookInputWithScope(type="test", message="Hello, world!", scope="test-scope-value")
+    return WebhookInputWithScope(
+        type="test", message="Hello, world!", scope="test-scope-value"
+    )
 
 
 @pytest.fixture
@@ -121,7 +123,9 @@ async def webhook_with_scope_expression(
     webhook_api = WebhookApi(client)
 
     if event_key_expression is None:
-        event_key_expression = f"'{hatchet.config.apply_namespace('webhook-scope')}:' + input.type"
+        event_key_expression = (
+            f"'{hatchet.config.apply_namespace('webhook-scope')}:' + input.type"
+        )
 
     webhook_request = V1CreateWebhookRequestBasicAuth(
         sourceName=V1WebhookSourceName.GENERIC,
@@ -162,7 +166,9 @@ async def webhook_with_static_payload(
     webhook_api = WebhookApi(client)
 
     if event_key_expression is None:
-        event_key_expression = f"'{hatchet.config.apply_namespace('webhook-static')}:' + input.type"
+        event_key_expression = (
+            f"'{hatchet.config.apply_namespace('webhook-static')}:' + input.type"
+        )
 
     webhook_request = V1CreateWebhookRequestBasicAuth(
         sourceName=V1WebhookSourceName.GENERIC,
@@ -204,7 +210,9 @@ async def webhook_with_scope_and_static(
     webhook_api = WebhookApi(client)
 
     if event_key_expression is None:
-        event_key_expression = f"'{hatchet.config.apply_namespace('webhook-scope')}:' + input.type"
+        event_key_expression = (
+            f"'{hatchet.config.apply_namespace('webhook-scope')}:' + input.type"
+        )
 
     webhook_request = V1CreateWebhookRequestBasicAuth(
         sourceName=V1WebhookSourceName.GENERIC,
@@ -274,7 +282,6 @@ async def assert_event_created_with_payload(
     assert triggered_event.payload == expected_payload
 
 
-
 @pytest.mark.asyncio(loop_scope="session")
 async def test_scope_expression_from_payload(
     hatchet: Hatchet,
@@ -336,6 +343,7 @@ async def test_scope_expression_from_headers(
         assert triggered_event is not None
         assert triggered_event.scope == "header-scope-value"
 
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_scope_expression_concatenation(
     hatchet: Hatchet,
@@ -358,7 +366,10 @@ async def test_scope_expression_concatenation(
             hatchet, incoming_webhook.name, test_start
         )
         assert triggered_event is not None
-        assert triggered_event.scope == f"prefix:{webhook_body_with_scope.type}:{webhook_body_with_scope.scope}"
+        assert (
+            triggered_event.scope
+            == f"prefix:{webhook_body_with_scope.type}:{webhook_body_with_scope.scope}"
+        )
 
 
 @pytest.mark.asyncio(loop_scope="session")

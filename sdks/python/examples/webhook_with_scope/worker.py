@@ -43,7 +43,9 @@ def webhook_with_scope(input: WebhookInputWithScope, ctx: Context) -> dict[str, 
     input_validator=WebhookInputWithStaticPayload,
     on_events=["webhook-static:test"],
 )
-def webhook_with_static_payload(input: WebhookInputWithStaticPayload, ctx: Context) -> dict[str, Any]:
+def webhook_with_static_payload(
+    input: WebhookInputWithStaticPayload, ctx: Context
+) -> dict[str, Any]:
     return input.model_dump()
 
 
